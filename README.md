@@ -21,13 +21,13 @@ The intake package contract is modeled after Kubernetes-style manifests:
 apiVersion: policeconduct.org/v1alpha1
 kind: IntakePackage
 metadata:
-  id: c... # stable cuid2 assigned upstream
+  id: c... # stable package cuid2 assigned upstream
   name: texas-tcole-roster-2026-05-19
   producedAt: 2026-05-19T12:00:00Z
   producer: texas-tcole-importer
 spec:
   source:
-    name: texas-tcole-roster
+    namespace: texas-tcole-roster
     jurisdiction: TX
   artifacts:
     raw:
@@ -57,13 +57,14 @@ intake reset
 intake audit
 ```
 
-- `validate` checks schema, artifact reachability, checksums, stable IDs, and
-  provenance without changing archive or database state.
+- `validate` checks schema, artifact reachability, checksums, source identity,
+  and provenance without changing archive or database state.
 - `file` accepts a valid package into the official intake record, copies
   artifacts into intake-owned archive storage, records package/file digests, and
   loads deterministic derived state. It always runs the full validation gate
   before making archive or database changes.
-- `reset` rebuilds derived state from the accepted archive/package index only.
+- `reset` rebuilds derived state from the accepted archive/package index and
+  source-key mapping ledger only.
 - `audit` verifies archived manifests and artifacts still match recorded
   digests.
 
@@ -73,13 +74,16 @@ Core invariants:
 - Raw source artifacts are preserved unchanged.
 - Post-transformation artifacts are preserved.
 - Archive snapshots are write/append-only.
-- IDs are explicit checked-in or package-supplied cuid2 text IDs.
+- Package IDs are explicit upstream-supplied cuid2 text IDs.
+- Records carry stable source identity: source namespace plus source-provided ID
+  or producer-derived source-local key.
+- Intake maps source identity to canonical cuid2 IDs. New mappings are assigned
+  by intake before database writes and persisted for reset/replay.
 - The database must never generate IDs for durable records.
-- Upstream assigns package/entity IDs before database load.
 - Package IDs are stable across time; re-filing the same package ID with changed
   content is rejected.
 - Intake can completely reconstruct derived state from accepted archived
-  packages.
+  packages and the source-key mapping ledger.
 
 See `docs/adr/` for the durable architecture decisions behind this scope.
 
@@ -94,6 +98,13 @@ That producer should be a separate source-specific CLI/tool that creates
 `IntakePackage` manifests and artifacts for this repo to validate and file. The
 producer should preserve the original source data and be able to regenerate its
 package from source inputs.
+
+Upstream producers should pass through source-provided stable IDs when present.
+When a source does not provide stable IDs, the producer should derive stable
+source-local keys. Intake can export feedback artifacts, such as source-key to
+canonical-ID mappings, rejected record reasons, slugs, and duplicate decisions,
+so later producer runs can be more consistent without making producer-local
+caches the source of truth.
 
 Audit the Audit is also a desirable source of related links and references. It
 is useful for experimenting with packages that add related links to officers and
@@ -618,5 +629,5 @@ stable IDs, let duplicates fail loudly, and add assertions for expected rows and
 relationships.
 
 `supabase/seed.sql` is not the target data-loading model. New intake behavior
-should move the project toward archive-driven `intake file` and `intake reset`
-instead of expanding seed-based loading.
+should move the project toward archive- and mapping-ledger-driven `intake file`
+and `intake reset` instead of expanding seed-based loading.

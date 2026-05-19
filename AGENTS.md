@@ -110,11 +110,17 @@ failed write as though the operation succeeded.
 Allowed fallback behavior must be explicitly required, visible, tested,
 documented, and removable.
 
-## Stable Seed and Migration IDs
+## Stable IDs
 
 The database must never generate IDs for durable records. Every ID written by
-migrations, seed data, or data-loading scripts must be an explicit checked-in or
-package-supplied cuid2-style text ID and must be stable across database resets.
+migrations, seed data, data-loading scripts, or intake filing must be explicit
+before the database write and stable across database resets.
+
+Seed and migration IDs must be checked in directly. Imported records may use
+canonical cuid2 IDs assigned by intake, but only through a durable source-key
+mapping from source namespace plus source-provided ID or producer-derived
+source-local key. See
+`docs/adr/0008-resolve-canonical-ids-from-source-keys.md`.
 
 Do not use runtime ID generation for seeded records, including:
 
@@ -123,11 +129,14 @@ Do not use runtime ID generation for seeded records, including:
 - `uuid_generate_v4()`
 - serial/identity/default-generated IDs
 - database column defaults that generate IDs
-- matching by natural keys as a replacement for stable IDs
+- matching by natural keys as a replacement for durable source-key mappings
 
 If a seeded row will be referenced by another migration, seed block, link table,
 build projection, or test fixture, generate the cuid2 once, commit it in the SQL
 or data file, and reference that ID directly.
+
+For imported records, use intake's persisted source-key mapping ledger to resolve
+or assign canonical IDs before writing database rows.
 
 ## Conflict-Free Seed Data
 

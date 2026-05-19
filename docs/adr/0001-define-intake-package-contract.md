@@ -13,7 +13,7 @@ data.
 
 The package format must evolve over time without breaking older packages. It
 must also preserve original source artifacts, transformed artifacts, provenance,
-checksums, and stable IDs.
+checksums, and stable source identity.
 
 ## Decision
 
@@ -28,6 +28,8 @@ metadata:
   producedAt: 2026-05-19T12:00:00Z
   producer: example-importer
 spec:
+  source:
+    namespace: example-source
   artifacts:
     raw: []
     transformed: []
@@ -39,6 +41,13 @@ The initial API group is `policeconduct.org/v1alpha1`, and the initial kind is
 
 The manifest may reference local files, S3 objects, or URLs. It must not contain
 intake archive locations.
+
+Records in package artifacts must include source identity. When the upstream
+source has a stable record ID, the producer should pass it through. When the
+source has no stable ID, the producer must derive a stable source-local key from
+the source data and include provenance for that derivation. Intake maps source
+namespace plus source key to canonical IDs as described in
+`docs/adr/0008-resolve-canonical-ids-from-source-keys.md`.
 
 ## Consequences
 

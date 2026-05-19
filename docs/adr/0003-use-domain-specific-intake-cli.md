@@ -25,13 +25,14 @@ intake audit
 
 Command meanings:
 
-- `validate`: check manifest schema, artifact reachability, checksums, stable
-  IDs, and provenance without changing archive or database state.
+- `validate`: check manifest schema, artifact reachability, checksums, source
+  identity, and provenance without changing archive or database state.
 - `file`: accept a valid package into the official intake record, archive
   artifacts under intake-owned storage, write package/file digests, and load
   deterministic derived state. `file` always runs full validation before
   archiving or loading.
-- `reset`: rebuild derived state from the accepted archive/package index only.
+- `reset`: rebuild derived state from the accepted archive/package index and
+  source-key mapping ledger only.
 - `audit`: verify archived manifests and artifacts still match recorded digests.
 
 ## Consequences

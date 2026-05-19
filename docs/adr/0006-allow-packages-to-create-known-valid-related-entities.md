@@ -25,19 +25,21 @@ package and backed by provenance.
 
 Requirements:
 
-- New entity IDs must be stable cuid2 text IDs assigned upstream in the package.
+- New entity source keys must be stable within the source namespace.
+- Intake resolves the source namespace plus source key to an existing canonical
+  ID or assigns a new canonical cuid2 ID before database writes.
 - The package must include source references/provenance for the entity.
 - Intake must validate required fields before creating the entity.
 - Intake must reject ambiguous or unsupported entity creation.
-- Related links must reference explicit package-supplied entity IDs. The
-  database must never generate IDs for durable records.
+- Related links must reference explicit package source keys or already-resolved
+  canonical IDs. The database must never generate IDs for durable records.
 
 ## Consequences
 
 - Packages can file useful related evidence even when the database lacks a prior
   agency/officer record.
-- Intake remains deterministic because IDs are assigned upstream and validated
-  before load.
+- Intake remains deterministic because source-key mappings and canonical ID
+  assignments are persisted by intake and replayed during reset.
 - Package validation must understand which entity kinds can be created by a
   package.
 - Evidence/provenance requirements for entity creation must be stronger than for

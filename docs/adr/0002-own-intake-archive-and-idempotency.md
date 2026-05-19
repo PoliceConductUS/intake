@@ -31,6 +31,9 @@ Package identity and idempotency rules:
 - `metadata.id` is the stable package identity and must be a cuid2 text ID
   assigned upstream.
 - The database must never generate IDs for durable records.
+- Intake may assign canonical cuid2 IDs for new records during filing, but those
+  assignments must be persisted in a durable source-key mapping ledger and
+  replayed during reset.
 - Intake records the manifest digest and each artifact digest at filing time.
 - Filing a new package ID accepts the package if all validations pass.
 - Filing the same package ID with identical digests is a no-op/report.
@@ -49,7 +52,7 @@ Reset/load direction:
 - Keep Supabase schema and migrations under `supabase/` for now.
 - Move away from `supabase/seed.sql` as quickly as practical.
 - `intake reset` rebuilds derived database state from the accepted
-  archive/package index, not from seed SQL.
+  archive/package index and source-key mapping ledger, not from seed SQL.
 - While `seed.sql` exists, it remains subject to the repo's stable ID and
   conflict-free seed rules.
 
