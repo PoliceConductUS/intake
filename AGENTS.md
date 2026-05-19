@@ -37,6 +37,8 @@ wrong assumption would cause meaningful harm.
 - Git worktrees are preferred for all change work, including OpenSpec proposal
   artifacts and implementation; use the `superpowers:using-git-worktrees` skill
   rather than hand-rolling a competing worktree process.
+- Manual git worktrees should be created under `./.worktrees/<change-name>` from
+  the repo root.
 
 Do not duplicate Superpowers workflows in this file. If this file and a
 Superpowers skill disagree about process mechanics, follow the user instruction
@@ -190,6 +192,9 @@ refactors mixed with behavior changes.
 Working in a git worktree is preferred for all changes, including documentation,
 setup edits, OpenSpec proposal artifacts, and implementation, because it keeps
 the main checkout clean and makes branch cleanup explicit.
+
+When creating worktrees manually, use `./.worktrees/<change-name>` from the repo
+root. Keep worktree names aligned with the branch or OpenSpec change name.
 
 Changes that do not modify behavior or outcome may be made directly on `main`
 when the scope is small and reversible. Behavior changes, data-shape changes,

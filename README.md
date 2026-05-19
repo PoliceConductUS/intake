@@ -408,6 +408,14 @@ Tell Codex explicitly:
 Start <change-name> in a git worktree before creating OpenSpec artifacts.
 ```
 
+Manual worktrees should live under `./.worktrees/<change-name>` from the repo
+root. To create one yourself:
+
+```bash
+mkdir -p .worktrees
+git worktree add .worktrees/<change-name> -b <change-name>
+```
+
 ### 4. Propose the OpenSpec Change
 
 Ask Codex to create the OpenSpec change before implementation:

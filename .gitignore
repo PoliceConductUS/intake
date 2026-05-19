@@ -9,6 +9,7 @@ pnpm-debug.log*
 node_modules
 dist
 coverage
+.worktrees
 
 # Local environment
 .env
