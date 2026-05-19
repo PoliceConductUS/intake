@@ -1,0 +1,17 @@
+schema: superpowers-bridge
+
+context: |
+  Repository: intake
+  Purpose: Supabase database schema and seed data split from police-conduct-app-01.
+  Stack: Supabase CLI, PostgreSQL migrations, SQL seed data, OpenSpec with superpowers-bridge.
+  Seed data requirements: every referenced seed or migration ID must be explicit, checked in, cuid2-style, and stable across resets.
+  Conflict policy: seed data must fail loudly on duplicates; do not add ON CONFLICT, upsert, or DO NOTHING to hide bad data.
+  Integrity policy: do not disable triggers or use session_replication_role=replica for seeds unless an approved exception is documented.
+
+rules:
+  proposal:
+    - Identify affected Supabase migrations, seed rows, and downstream app contracts.
+    - Call out whether the change requires a data reset, generated type refresh, or production migration plan.
+  tasks:
+    - Include validation steps for OpenSpec and Supabase whenever a change touches migrations or seed data.
+    - Include explicit post-seed integrity assertions for any new referenced seed rows.

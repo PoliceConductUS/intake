@@ -1,0 +1,41 @@
+{
+  "name": "intake",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "setup": "bash scripts/bootstrap-dev.sh",
+    "doctor": "bash scripts/bootstrap-dev.sh --check",
+    "intake": "TMPDIR=.cache/tmp node --import tsx src/cli.ts",
+    "format": "prettier --write \"**/*.{json,md,ts,yml,yaml}\"",
+    "format:sql": "UV_CACHE_DIR=.cache/uv UV_TOOL_DIR=.cache/uv-tools uvx sqlfluff==4.1.0 format --dialect postgres --processes 1 --disable-progress-bar .",
+    "format:check": "prettier --check \"**/*.{json,md,ts,yml,yaml}\"",
+    "lint": "bash -n scripts/bootstrap-dev.sh && npm run typecheck",
+    "lint:sql": "UV_CACHE_DIR=.cache/uv UV_TOOL_DIR=.cache/uv-tools uvx sqlfluff==4.1.0 lint --dialect postgres --processes 1 --disable-progress-bar .",
+    "openspec:status": "openspec status",
+    "openspec:validate": "openspec validate --all",
+    "supabase:start": "SUPABASE_TELEMETRY_DISABLED=1 supabase start",
+    "supabase:stop": "SUPABASE_TELEMETRY_DISABLED=1 supabase stop",
+    "supabase:reset": "SUPABASE_TELEMETRY_DISABLED=1 supabase db reset",
+    "test": "vitest run",
+    "test:vitest": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "validate": "npm run format:check && npm run lint && npm run test:vitest && npm run build && npm run openspec:validate"
+  },
+  "devDependencies": {
+    "@fission-ai/openspec": "1.3.1",
+    "@types/node": "^25.9.1",
+    "prettier": "3.8.3",
+    "supabase": "2.100.1",
+    "tsx": "^4.22.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.6"
+  },
+  "dependencies": {
+    "commander": "^14.0.3"
+  }
+}

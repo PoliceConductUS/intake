@@ -1,0 +1,12 @@
+node_modules
+.cache
+supabase/.branches
+supabase/.temp
+supabase/seed.sql
+supabase/migrations
+openspec/schemas/superpowers-bridge
+.claude
+.codex
+.gemini
+.github/prompts
+.github/skills
