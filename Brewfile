@@ -1,6 +1,5 @@
 brew "git"
-brew "nvm"
-brew "uv"
+brew "mise"
 
 if OS.mac?
   cask "docker-desktop"

@@ -125,13 +125,15 @@ The bootstrap script installs or verifies the local development toolchain as far
 as it can from the terminal:
 
 - Homebrew, when it is missing and the platform supports the official installer
-- Homebrew dependencies from `Brewfile`
 - Git
-- nvm
-- uv for Python-based developer tools such as SQLFluff
-- the latest Node.js LTS from `.nvmrc`
+- Homebrew dependencies from `Brewfile`
+- mise
+- mise trust for this repo's `mise.toml`
+- mise-managed tools from `mise.toml`, including Node.js, GitHub CLI, and uv
 - project npm dependencies, including local OpenSpec and Supabase CLI packages
 - Docker / Docker Desktop installation when possible
+- ignored `supabase/seed.sql` availability, including linking from another local
+  worktree when one already has the file
 - OpenSpec validation
 - Supabase CLI availability
 - Codex App or Codex CLI presence
@@ -155,18 +157,29 @@ npm run doctor
 ```
 
 `npm run doctor` runs the same checks without intentionally installing missing
-tools.
+tools. It also verifies environment readiness that cannot be completed by
+installing packages alone, including GitHub CLI authentication. If it reports
+that `mise.toml` is not trusted, run the printed `mise trust` command and then
+rerun `npm run doctor`. If it reports that GitHub CLI is not authenticated, run:
+
+```bash
+mise exec -- gh auth login
+npm run doctor
+```
 
 ## Contents
 
 - `supabase/config.toml` - Supabase local development configuration
 - `supabase/migrations/` - database migrations
 - `supabase/seed.sql` - transitional seed data for the current schema; replace
-  with archive-driven reset/load
+  with archive-driven reset/load. This file is ignored because it is large; the
+  bootstrap script or `npm run link-seed` can link it from another local worktree
+  when available. `npm run link-seed` also verifies the checkout is an active git
+  worktree and that `supabase/seed.sql` is ignored before creating the link.
 - `openspec/` - OpenSpec project configuration using the `superpowers-bridge` schema
 - `docs/adr/` - durable architecture decisions
-- `.nvmrc` - Node.js LTS selector for nvm
-- `Brewfile` - Homebrew-managed development tools
+- `mise.toml` - mise-managed tool versions and shared environment variables
+- `Brewfile` - Homebrew-managed system bootstrap dependencies
 - `scripts/bootstrap-dev.sh` - macOS/Linux development environment bootstrap
 
 Local Supabase state such as `supabase/.temp/` and `supabase/.branches/` is intentionally ignored and was not copied.
@@ -183,6 +196,7 @@ npm run
 npm run setup
 npm run doctor
 npm run setup -- --yes
+npm run link-seed
 npm run format
 npm run format:sql
 npm run lint
@@ -201,8 +215,17 @@ dependencies. Use the npm scripts above instead of relying on globally installed
 CLIs.
 
 `npm run validate` is the aggregate check for this repo. It runs formatting
-checks, shell linting, and OpenSpec validation. `npm test` delegates to
-`npm run validate` until the repo has a separate test suite.
+checks, shell linting, typechecking, Vitest, build, and OpenSpec validation.
+`npm test` runs the Vitest test suite.
+
+`mise` owns pinned tool versions and shared environment, including Node.js,
+GitHub CLI, uv, SQLFluff cache locations, and Supabase telemetry defaults. npm
+remains the primary workflow surface for this repo. `scripts/bootstrap-dev.sh`
+still exists because mise does not replace first-run workstation setup: it checks
+and installs Homebrew-managed system tools, trusts this repo's `mise.toml`,
+installs mise-managed tools, installs npm dependencies, verifies GitHub CLI
+authentication, checks Docker readiness, verifies local OpenSpec/Supabase CLI
+packages, and prints any manual follow-up needed before development starts.
 
 SQL formatting uses SQLFluff through `uvx`, so the repo does not need a checked
 in Python virtual environment. SQLFluff is Python-based, but `uvx` handles the
@@ -250,69 +273,19 @@ tool/skill context before doing behavior-changing work. If those skills are not
 available, stop and use a Codex session or configuration where Superpowers is
 enabled.
 
-## OpenSpec Primer
+## Change Workflow
 
-OpenSpec is a lightweight way to make the AI and the developer agree on what is
-being built before files are changed.
+Use the shared Institute for Police Conduct engineering standards for the
+general Codex/OpenSpec/Superpowers workflow:
 
-Without OpenSpec, an AI assistant may rely on the latest chat messages and start
-editing code before the desired behavior is clear. With OpenSpec, the expected
-behavior is written into repo files first. Those files can be reviewed, changed,
-committed, and used later as documentation.
+- [AI-assisted development](../engineering-standards/docs/ai-assisted-development.md)
+- [Engineering principles](../engineering-standards/docs/engineering-principles.md)
+- [Contribution and review](../engineering-standards/docs/contribution-and-review.md)
+- [Project setup standard](../engineering-standards/docs/project-setup-standard.md)
 
-The main unit is a change directory:
-
-```text
-openspec/changes/<change-name>/
-```
-
-A change directory can contain:
-
-- `brainstorm.md` - design exploration captured by the bridge when needed
-- `proposal.md` - why the change exists and what outcome it targets
-- `design.md` - technical approach for changes that need design explanation
-- `specs/<capability>/spec.md` - proposed requirement changes
-- `tasks.md` - implementation checklist
-- `plan.md` - Superpowers execution plan created by the bridge
-- `verify.md` - post-implementation verification evidence
-- `retrospective.md` - evidence-based review before archive
-
-In this repo, `openspec/config.yaml` sets `schema: superpowers-bridge`, so new
-changes use the bridge by default. That means OpenSpec describes the desired
-behavior, and Superpowers guides how Codex should discuss, plan, implement,
-review, and verify the work.
-
-Important commands:
-
-- `/opsx:new <change-name>` starts a new folder under
-  `openspec/changes/<change-name>/`.
-- `/opsx:continue <change-name>` asks Codex to create the next missing document
-  for that change. Early on, that might be a brainstorm or proposal. Later it
-  might be specs, tasks, a detailed plan, or a retrospective. You run it more
-  than once because the change is built up one document at a time.
-- `/opsx:apply <change-name>` asks Codex to implement the approved plan.
-- `/opsx:verify <change-name>` asks Codex to record evidence that the
-  implementation matches the OpenSpec artifacts.
-- `/opsx:archive <change-name>` moves the completed change to
-  `openspec/changes/archive/` and updates the durable specs.
-
-Use OpenSpec for behavior, data-shape, validation, workflow, and downstream
-contract changes. Direct PR-sized edits are acceptable for documentation-only
-updates, formatting, tooling tweaks, and refactors that preserve specified
-behavior.
-
-## Codex App Change Lifecycle
-
-Use this flow for behavior changes, database shape changes, seed-data changes,
-validation changes, or anything that affects downstream app contracts.
-
-### 1. Verify Codex and OpenSpec Integration
-
-Open the repo root in Codex App and make sure the thread is working from this
-directory:
+Repo-specific setup and verification:
 
 ```bash
-pwd
 npm run doctor
 npm run openspec:validate
 npx openspec schemas
@@ -321,305 +294,37 @@ npx openspec status
 
 Expected state:
 
-- Codex has read `AGENTS.md`; that file tells the agent how this repo expects
-  work to be done.
-- `npm run doctor` reports Codex App or Codex CLI as available, or lists Codex
-  App as a manual follow-up to install/open.
-- `npm run doctor` completes, with only manual Docker/Superpowers follow-ups if
-  those are not currently running inside the shell.
-- `npm run openspec:validate` exits successfully.
-- `npx openspec schemas` includes `superpowers-bridge (project)`, which means
-  OpenSpec found this repo's bridge schema and will use it as the project
-  schema for new changes.
-- The active Codex session has Superpowers skills available. In Codex App, these
-  appear in the tool/skill context. If they are missing, stop and use a Codex
-  session where Superpowers is enabled.
-- `/opsx` commands are part of the active Codex session and are used for the
-  OpenSpec workflow.
+- `npm run doctor` reports Codex App or Codex CLI as available, verifies the
+  mise-managed tools, and fails loudly if GitHub CLI still needs
+  `mise exec -- gh auth login`.
+- `npx openspec schemas` includes `superpowers-bridge (project)`.
+- `/opsx` commands and Superpowers skills are available in the active Codex
+  session.
 
-### 2. Brainstorm the Outcome
+OpenSpec details for this repo:
 
-Start in Codex with a normal conversation about the outcome, not a command to
-edit files. The point of this phase is to make the change smaller, clearer, and
-more testable before OpenSpec or implementation work begins.
+- Config: `openspec/config.yaml`
+- Bridge schema: `openspec/schemas/superpowers-bridge/`
+- Change directories: `openspec/changes/<change-name>/`
 
-A useful first prompt is concrete and conversational:
-
-```text
-I want to brainstorm <the outcome I want>.
-
-Please help me make this smaller before we write code:
-
-- What is the first useful slice?
-- What can we remove or postpone?
-- What decisions would make this easier to test?
-- Does this need backward compatibility, or can we make a clean break?
-- What user-visible behavior should prove the change worked?
-
-Do not edit files yet. I want to settle the scope first, then turn the result
-into an OpenSpec change.
-```
-
-For example:
-
-```text
-I want to brainstorm the first useful CLI feature for this repo.
-
-The goal is to make intake packages safer and easier to work with. Please help
-me compare starting with `intake validate <manifest-ref>` versus
-`intake file <manifest-ref>`.
-
-Do not edit code yet. I want to understand the tradeoffs, choose the smallest
-useful first feature, and then turn that into an OpenSpec change.
-```
-
-At this stage, Codex should ask questions, challenge scope, and help narrow the
-outcome. Good brainstorming should explicitly cover what is out of scope,
-whether existing behavior must keep working, what data or API contracts are
-allowed to change, and how a developer will know the outcome has been achieved.
-
-Keep brainstorming verbal until scope is stable. A change is ready to promote
-when the scope is locked, major design forks are resolved, dependencies are
-mapped, acceptance criteria are concrete, and recent turns are confirmations
-rather than new alternatives.
-
-#### How to Talk to Codex During Brainstorming
-
-Do not over-control the AI with step-by-step implementation instructions. That
-usually produces worse outcomes because Codex starts optimizing for your
-suggested steps instead of the project outcome. Prefer telling Codex the goal,
-constraints, examples, and acceptance criteria, then ask it to identify the
-smallest useful path.
-
-Useful instructions:
-
-- "Compare these two approaches and recommend the smallest useful first slice."
-- "What can we remove or postpone?"
-- "What assumptions are risky?"
-- "What tests would prove this works?"
-- "This must not preserve backward compatibility unless we explicitly decide it
-  should."
-- "Review the current docs and tell me what is missing before implementation."
-
-Vague concepts are hard for AI to use reliably. Instead of saying "make it
-robust", say what failure modes must be handled. Instead of "make it simple",
-say what should be removed or what the first supported workflow is. Instead of
-"make it production-ready", list the checks, error cases, data guarantees, and
-operator behavior that matter for this change.
-
-### 3. Create a Worktree for the Change
-
-Before creating the OpenSpec change, create or switch to a worktree for the
-change. Keep the main checkout clean even while writing proposal/spec/task
-artifacts.
-
-Tell Codex explicitly:
-
-```text
-Start <change-name> in a git worktree before creating OpenSpec artifacts.
-```
+Use OpenSpec for behavior, data-shape, validation, workflow, and downstream
+contract changes. Direct PR-sized edits are acceptable for documentation-only
+updates, formatting, tooling tweaks, and refactors that preserve specified
+behavior.
 
 Manual worktrees should live under `./.worktrees/<change-name>` from the repo
-root. To create one yourself:
+root:
 
 ```bash
 mkdir -p .worktrees
 git worktree add .worktrees/<change-name> -b <change-name>
 ```
 
-### 4. Propose the OpenSpec Change
-
-Ask Codex to create the OpenSpec change before implementation:
-
-```text
-Turn this brainstorm into an OpenSpec change named <change-name>. Do not implement yet.
-```
-
-That conversational request matters. After brainstorming, Codex has the context
-needed to turn the discussion into useful proposal/spec/task artifacts.
-`/opsx:new <change-name>` by itself only starts the change structure; it does not
-carry the brainstormed decisions into the docs.
-
-After Codex creates the change, use `/opsx:continue <change-name>` whenever the
-next OpenSpec artifact is ready to be generated or refined:
-
-```text
-/opsx:continue <change-name>
-```
-
-Think of `/opsx:continue` as "Codex, do the next OpenSpec paperwork step for
-this change." The first call may create a brainstorm document. The next may
-create a proposal. Later calls may create requirements, tasks, or the execution
-plan. Codex decides which document is next by looking at what already exists in
-`openspec/changes/<change-name>/` and what the bridge schema says should come
-next.
-
-Run `/opsx:continue <change-name>` repeatedly because this keeps the change
-reviewable. After each generated artifact, inspect it, ask Codex to revise it,
-or stop before moving deeper into implementation.
-
-If you are not sure what to do next, ask Codex directly:
-
-```text
-What's next?
-```
-
-or:
-
-```text
-What's next in the Superpowers/OpenSpec flow?
-```
-
-Codex should look at the current change state and tell you whether to continue
-brainstorming, generate another OpenSpec artifact, review docs, apply, verify,
-write the retrospective, archive, or merge.
-
-Review the files under `openspec/changes/<change-name>/` before apply. Look for
-missing acceptance criteria, vague requirements, untested behavior, unnecessary
-scope, accidental backward compatibility promises, missing tasks, and tests that
-do not connect back to the proposed behavior.
-
-Ask Codex for corrections by describing the gap, not by manually dictating every
-edit. Codex can connect related proposal, spec, task, plan, and test updates
-when it understands the outcome:
-
-```text
-Review openspec/changes/<change-name>. Is anything missing or inconsistent
-before apply? If so, update the related proposal/spec/tasks/plan artifacts
-together. Do not implement yet.
-```
-
-Continue until the change has the needed proposal/spec/tasks/plan artifacts.
-Validate before implementation:
-
-```bash
-npm run openspec:validate
-npx openspec status
-```
-
-Commit the OpenSpec artifacts once the proposal/spec/tasks/plan are coherent and
-before implementation begins:
-
-```bash
-git add -A
-git commit -m "docs: propose <change-name>"
-```
-
-### 5. Apply, Verify, and Commit
-
-Implementation continues in the same worktree where the OpenSpec proposal was
-created. The bridge apply phase is expected to use
-`superpowers:subagent-driven-development`.
-
-```text
-/opsx:apply <change-name>
-```
-
-During apply, Codex should implement from the OpenSpec plan, keep tasks updated,
-and run the relevant validation for the risk. For this repo, common checks are:
-
-```bash
-npm run openspec:validate
-npm run supabase:reset
-```
-
-Use `npm run supabase:reset` when migrations, seed data, database constraints,
+Run `npm run supabase:reset` when migrations, seed data, database constraints,
 or post-seed assertions changed. Docker must be running first.
 
-Commit implementation work after tests and validation pass:
-
-```bash
-git add <changed-files>
-git commit -m "feat: implement <change-name>"
-```
-
-Use `fix:` instead of `feat:` when the change restores intended behavior without
-adding new behavior.
-
 Commit messages must use Conventional Commits. See
-`docs/adr/0007-use-conventional-commits.md` for the project rule and examples.
-If you want an interactive helper, Commitizen can guide the message format:
-
-- [Commitizen CLI](https://github.com/commitizen/cz-cli)
-- [Commitizen commit command docs](https://commitizen-tools.github.io/commitizen/commands/commit/)
-
-### 6. Verify, Retrospective, and Archive
-
-Run bridge verification after implementation:
-
-```text
-/opsx:verify <change-name>
-/opsx:continue <change-name>
-/opsx:archive <change-name>
-```
-
-After `/opsx:verify <change-name>`, run `/opsx:continue <change-name>` to start
-the retrospective. The retrospective is collaborative: review it, add missing
-risks, corrections, decisions, follow-up notes, or evidence, and ask Codex to
-revise it before archiving.
-
-Archive moves the change under `openspec/changes/archive/` and syncs accepted
-requirements into `openspec/specs/`. Commit those artifacts:
-
-```bash
-git add -A
-git commit -m "docs: archive <change-name>"
-```
-
-Run final verification before merging:
-
-```bash
-npm run openspec:validate
-npm run doctor
-```
-
-Run `npm run supabase:reset` again if the change touched migrations or seed data.
-
-### 7. Merge Back to Main
-
-Bring the branch up to date with trunk before merging:
-
-```bash
-git fetch origin
-git switch main
-git pull --ff-only
-git switch <change-branch>
-git rebase main
-```
-
-Resolve conflicts in the worktree, rerun final validation, then merge:
-
-```bash
-git switch main
-git merge --ff-only <change-branch>
-```
-
-If a fast-forward merge is not possible, stop and decide whether to rebase again
-or open a pull request for review. After merge, remove the worktree only after
-the branch is safely merged and no uncommitted work remains.
-
-### Optional: Use Git Town
-
-Git Town can save time on branch sync, shipping, and cleanup. It is optional for
-this repo, but recommended if you do frequent trunk-based work.
-
-Install:
-
-```bash
-brew install git-town
-```
-
-Useful commands:
-
-```bash
-git town sync       # update the current branch and its ancestors
-git town propose    # open or update a pull request when configured
-git town ship       # merge a completed branch and clean it up
-```
-
-Use Git Town only after you understand what it will do to the branch. For
-OpenSpec bridge changes, do not `ship` until verify, retrospective, archive, and
-final validation are complete.
+`docs/adr/0007-use-conventional-commits.md`.
 
 ## Seed Data Rules
 

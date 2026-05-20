@@ -2,4 +2,8 @@
 intake_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 export TMPDIR="${TMPDIR:-$intake_dir/.cache/tmp}"
 mkdir -p "$TMPDIR"
-exec node --import "$intake_dir/node_modules/tsx/dist/loader.mjs" "$intake_dir/src/cli.ts" "$@"
+if ! command -v mise >/dev/null 2>&1; then
+  printf '%s\n' "mise is required. Run ./scripts/bootstrap-dev.sh first." >&2
+  exit 1
+fi
+exec mise exec -- node --import "$intake_dir/node_modules/tsx/dist/loader.mjs" "$intake_dir/src/cli.ts" "$@"

@@ -15,6 +15,7 @@ INSTALL_ITEMS=()
 INSTALL_COMMANDS=()
 MANUAL_ITEMS=()
 CHECK_ERRORS=()
+SEED_SQL_PATH="$ROOT_DIR/supabase/seed.sql"
 
 info() {
   printf '\033[1;34m==>\033[0m %s\n' "$*"
@@ -62,10 +63,6 @@ append_unique() {
   target_array+=("$item")
 }
 
-version_major() {
-  "$1" --version 2>/dev/null | sed -E 's/^v?([0-9]+).*/\1/'
-}
-
 load_homebrew_shellenv() {
   if have brew; then
     return
@@ -77,19 +74,6 @@ load_homebrew_shellenv() {
     eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
   elif [[ -x /usr/local/bin/brew ]]; then
     eval "$(/usr/local/bin/brew shellenv)"
-  fi
-}
-
-load_nvm() {
-  export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
-  mkdir -p "$NVM_DIR"
-
-  if [[ -s "$NVM_DIR/nvm.sh" ]]; then
-    # shellcheck disable=SC1091
-    . "$NVM_DIR/nvm.sh"
-  elif have brew && [[ -s "$(brew --prefix nvm 2>/dev/null)/nvm.sh" ]]; then
-    # shellcheck disable=SC1091
-    . "$(brew --prefix nvm)/nvm.sh"
   fi
 }
 
@@ -209,61 +193,99 @@ detect_git() {
   esac
 }
 
-detect_nvm() {
-  info "Checking for nvm"
-  load_nvm
+detect_github_cli() {
+  info "Checking for GitHub CLI from mise.toml"
 
-  if command -v nvm >/dev/null 2>&1; then
-    append_unique INFO_ITEMS "nvm is available"
+  if ! have mise; then
+    append_unique INSTALL_ITEMS "GitHub CLI from mise.toml after mise is installed"
+    append_unique INSTALL_COMMANDS "mise install"
+    append_unique MANUAL_ITEMS "authenticate GitHub CLI after installation with: mise exec -- gh auth login"
+    return
+  fi
+
+  if mise exec -- gh --version >/dev/null 2>&1; then
+    append_unique INFO_ITEMS "GitHub CLI $(mise exec -- gh --version | head -n 1 | awk '{print $3}') is available through mise"
+    if mise exec -- gh auth status -h github.com >/dev/null 2>&1; then
+      append_unique INFO_ITEMS "GitHub CLI is authenticated for github.com"
+    else
+      append_unique MANUAL_ITEMS "authenticate GitHub CLI with: mise exec -- gh auth login"
+    fi
   else
-    append_unique INSTALL_ITEMS "nvm from Brewfile"
+    append_unique INSTALL_ITEMS "GitHub CLI from mise.toml"
+    append_unique INSTALL_COMMANDS "mise install"
+    append_unique MANUAL_ITEMS "authenticate GitHub CLI after installation with: mise exec -- gh auth login"
+  fi
+}
+
+detect_mise() {
+  info "Checking for mise"
+
+  if have mise; then
+    append_unique INFO_ITEMS "mise is available at $(command -v mise)"
+  else
+    append_unique INSTALL_ITEMS "mise from Brewfile"
     append_unique INSTALL_COMMANDS "brew bundle --file \"$ROOT_DIR/Brewfile\""
   fi
 }
 
-detect_uv() {
-  info "Checking for uv"
+detect_mise_trust() {
+  info "Checking mise trust for mise.toml"
 
-  if have uv; then
-    append_unique INFO_ITEMS "uv $(uv --version | awk '{print $2}') is available at $(command -v uv)"
+  if ! have mise; then
+    append_unique INSTALL_ITEMS "trust mise.toml after mise is installed"
+    append_unique INSTALL_COMMANDS "mise trust \"$ROOT_DIR/mise.toml\""
+    return
+  fi
+
+  if mise config ls >/dev/null 2>&1; then
+    append_unique INFO_ITEMS "mise.toml is trusted"
+  else
+    append_unique INSTALL_ITEMS "trust mise.toml for this checkout"
+    append_unique INSTALL_COMMANDS "mise trust \"$ROOT_DIR/mise.toml\""
+  fi
+}
+
+detect_uv() {
+  info "Checking for uv from mise.toml"
+
+  if ! have mise; then
+    append_unique INSTALL_ITEMS "uv from mise.toml after mise is installed"
+    append_unique INSTALL_COMMANDS "mise install"
+    append_unique MANUAL_ITEMS "uvx will provide a Python/tool environment for SQLFluff after uv is installed"
+    return
+  fi
+
+  if mise exec -- uv --version >/dev/null 2>&1; then
+    append_unique INFO_ITEMS "uv $(mise exec -- uv --version | awk '{print $2}') is available through mise"
     append_unique INFO_ITEMS "Python for SQLFluff is managed by uvx as needed"
   else
-    append_unique INSTALL_ITEMS "uv from Brewfile"
-    append_unique INSTALL_COMMANDS "brew bundle --file \"$ROOT_DIR/Brewfile\""
+    append_unique INSTALL_ITEMS "uv from mise.toml"
+    append_unique INSTALL_COMMANDS "mise install"
     append_unique MANUAL_ITEMS "uvx will provide a Python/tool environment for SQLFluff after uv is installed"
   fi
 }
 
 detect_node() {
-  local major=""
+  info "Checking Node.js version from mise.toml"
 
-  info "Checking Node.js version from .nvmrc"
-  load_nvm
-
-  if ! command -v nvm >/dev/null 2>&1; then
-    append_unique INSTALL_ITEMS "latest Node.js LTS from .nvmrc after nvm is installed"
-    append_unique INSTALL_COMMANDS "nvm install --latest-npm"
+  if ! have mise; then
+    append_unique INSTALL_ITEMS "mise-managed tools from mise.toml after mise is installed"
+    append_unique INSTALL_COMMANDS "mise install"
     return
   fi
 
-  if nvm use >/dev/null 2>&1; then
-    major="$(version_major node)"
-    if [[ -n "$major" && "$major" -ge 24 ]] && have npm; then
-      append_unique INFO_ITEMS "Node $(node --version) and npm $(npm --version) are active"
-    else
-      append_unique INSTALL_ITEMS "latest Node.js LTS from .nvmrc"
-      append_unique INSTALL_COMMANDS "nvm install --latest-npm"
-    fi
+  if mise exec -- node --version >/dev/null 2>&1 && mise exec -- npm --version >/dev/null 2>&1; then
+    append_unique INFO_ITEMS "Node $(mise exec -- node --version) and npm $(mise exec -- npm --version) are available through mise"
   else
-    append_unique INSTALL_ITEMS "latest Node.js LTS from .nvmrc"
-    append_unique INSTALL_COMMANDS "nvm install --latest-npm"
+    append_unique INSTALL_ITEMS "mise-managed tools from mise.toml"
+    append_unique INSTALL_COMMANDS "mise install"
   fi
 }
 
 detect_npm_dependencies() {
   info "Checking project npm dependencies"
 
-  if [[ -d node_modules ]] && have npm && npm ls --depth=0 >/dev/null 2>&1; then
+  if [[ -d node_modules ]] && have mise && mise exec -- npm ls --depth=0 >/dev/null 2>&1; then
     append_unique INFO_ITEMS "project npm dependencies are installed"
   else
     append_unique INSTALL_ITEMS "project npm dependencies with npm install"
@@ -332,6 +354,24 @@ detect_project_tools() {
   fi
 }
 
+detect_seed_sql() {
+  local seed_source
+
+  info "Checking ignored Supabase seed file"
+
+  if [[ -r "$SEED_SQL_PATH" ]]; then
+    append_unique INFO_ITEMS "Supabase seed file is available at $SEED_SQL_PATH"
+    return
+  fi
+
+  if seed_source="$(bash scripts/link-seed.sh --source-only)"; then
+    append_unique INSTALL_ITEMS "local ignored Supabase seed.sql symlink from $seed_source"
+    append_unique INSTALL_COMMANDS "npm run link-seed"
+  else
+    append_unique MANUAL_ITEMS "provide ignored Supabase seed file at $SEED_SQL_PATH before running npm run supabase:reset"
+  fi
+}
+
 detect_codex_app() {
   info "Checking for Codex App"
 
@@ -365,12 +405,15 @@ detect_all() {
   detect_homebrew
   detect_brewfile
   detect_git
-  detect_nvm
+  detect_mise
+  detect_mise_trust
+  detect_github_cli
   detect_uv
   detect_node
   detect_npm_dependencies
   detect_docker
   detect_project_tools
+  detect_seed_sql
   detect_codex_app
   detect_superpowers
 }
@@ -408,25 +451,41 @@ install_brewfile_if_needed() {
   brew bundle --file "$ROOT_DIR/Brewfile"
 }
 
-install_node_if_needed() {
+install_mise_tools_if_needed() {
   install_brewfile_if_needed
-  load_nvm
-  command -v nvm >/dev/null 2>&1 || fail "nvm is installed but could not be loaded. Add the nvm shell init from Homebrew caveats and rerun."
+  have mise || fail "mise is installed but could not be loaded. Open a new shell and rerun this script."
+  install_mise_trust_if_needed
 
-  if ! nvm use >/dev/null 2>&1; then
-    info "Installing Node.js from .nvmrc"
-    nvm install --latest-npm
+  if ! mise exec -- node --version >/dev/null 2>&1 || \
+    ! mise exec -- npm --version >/dev/null 2>&1 || \
+    ! mise exec -- gh --version >/dev/null 2>&1 || \
+    ! mise exec -- uv --version >/dev/null 2>&1; then
+    info "Installing tools from mise.toml"
+    mise install
   fi
-
-  nvm use
 }
 
-install_uv_if_needed() {
-  if have uv; then
+install_node_if_needed() {
+  install_mise_tools_if_needed
+}
+
+install_mise_trust_if_needed() {
+  have mise || return
+
+  if mise config ls >/dev/null 2>&1; then
     return
   fi
 
-  install_brewfile_if_needed
+  info "Trusting mise.toml for this checkout"
+  mise trust "$ROOT_DIR/mise.toml"
+}
+
+install_uv_if_needed() {
+  if have mise && mise exec -- uv --version >/dev/null 2>&1; then
+    return
+  fi
+
+  install_mise_tools_if_needed
 }
 
 install_git_if_needed() {
@@ -454,6 +513,14 @@ install_git_if_needed() {
       fi
       ;;
   esac
+}
+
+install_github_cli_if_needed() {
+  if have mise && mise exec -- gh --version >/dev/null 2>&1; then
+    return
+  fi
+
+  install_mise_tools_if_needed
 }
 
 install_docker_if_needed() {
@@ -488,31 +555,58 @@ install_docker_if_needed() {
 install_npm_dependencies_if_needed() {
   install_node_if_needed
 
-  if npm ls --depth=0 >/dev/null 2>&1; then
+  if mise exec -- npm ls --depth=0 >/dev/null 2>&1; then
     return
   fi
 
   info "Installing project npm dependencies"
-  npm install
+  mise exec -- npm install
+}
+
+install_seed_sql_if_needed() {
+  if [[ -r "$SEED_SQL_PATH" ]]; then
+    return
+  fi
+
+  mise exec -- npm run link-seed
 }
 
 install_missing() {
   install_homebrew_if_needed
   install_brewfile_if_needed
   install_git_if_needed
+  install_github_cli_if_needed
+  install_mise_trust_if_needed
   install_uv_if_needed
-  install_node_if_needed
+  install_mise_tools_if_needed
   install_docker_if_needed
   install_npm_dependencies_if_needed
+  install_seed_sql_if_needed
+}
+
+verify_github_cli_auth() {
+  info "Verifying GitHub CLI authentication"
+
+  have mise || fail "mise is not installed. Run ./scripts/bootstrap-dev.sh first."
+
+  if ! mise exec -- gh --version >/dev/null 2>&1; then
+    fail "GitHub CLI is not installed through mise. Run ./scripts/bootstrap-dev.sh first."
+  fi
+
+  if ! mise exec -- gh auth status -h github.com >/dev/null 2>&1; then
+    fail "GitHub CLI is not authenticated. Run mise exec -- gh auth login, then rerun npm run doctor."
+  fi
 }
 
 verify_project_tools() {
+  verify_github_cli_auth
+
   info "Verifying OpenSpec"
-  npx openspec --version >/dev/null
-  npm run openspec:validate
+  mise exec -- npx openspec --version >/dev/null
+  mise exec -- npm run openspec:validate
 
   info "Verifying Supabase CLI"
-  npx supabase --version >/dev/null
+  mise exec -- npx supabase --version >/dev/null
 }
 
 main() {
@@ -530,7 +624,14 @@ main() {
     install_missing
   fi
 
-  install_node_if_needed
+  if [[ "$MODE" != "check" ]]; then
+    install_node_if_needed
+  else
+    if have mise; then
+      mise exec -- node --version >/dev/null 2>&1 || true
+    fi
+  fi
+
   verify_project_tools
 
   if have docker && docker info >/dev/null 2>&1; then

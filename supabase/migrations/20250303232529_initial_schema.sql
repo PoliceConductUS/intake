@@ -1,3 +1,5 @@
+-- Collapsed from 20250303232529_remote_schema.sql
+
 SET
 statement_timeout = 0;
 SET

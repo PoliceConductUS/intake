@@ -8,9 +8,18 @@ This file defines project-specific guidance for agents working in this repositor
 for Police Conduct, Inc. The development style is outcome-driven, direct,
 evidence-based, and hostile to speculative complexity.
 
-Use this file for repository doctrine. Use Superpowers for execution discipline,
-including brainstorming, planning, TDD, debugging, review, verification, branch
-finishing, and worktree setup.
+Use this file for local repository doctrine. It must be self-contained because
+an agent working in this repo may not be able to read sibling repositories.
+When available, the shared Institute for Police Conduct engineering standards
+provide the longer human-facing rationale:
+
+- `../engineering-standards/docs/engineering-principles.md`
+- `../engineering-standards/docs/ai-assisted-development.md`
+- `../engineering-standards/docs/contribution-and-review.md`
+- `../engineering-standards/docs/project-setup-standard.md`
+
+Use Superpowers for execution discipline, including brainstorming, planning,
+TDD, debugging, review, verification, branch finishing, and worktree setup.
 
 ## Prime Directive
 
@@ -68,47 +77,25 @@ Create OpenSpec change artifacts from the change worktree, not from the main
 checkout. Documentation-only edits, formatting, test-only refactors, and internal
 refactors that preserve specified behavior can be direct PR-sized changes.
 
-## No Hidden Product Decisions
+## Engineering Posture
 
 Do not encode product decisions only in code, comments, tickets, pull requests,
 or agent messages. If behavior matters, it belongs in OpenSpec.
 
-Examples of hidden product decisions:
+Prefer the smallest complete solution. Every line of code, branch, function,
+file, abstraction, dependency, configuration option, seed row, migration step,
+and test helper must be necessary for the current outcome. If it can be removed
+and the required outcome still works, remove it.
 
-- stricter validation than requested
-- silently normalizing user input
-- adding required fields
-- changing command, API, seed, or migration semantics
-- adding fallback behavior
-- choosing a durable persistence or provenance model
+This is a fail-fast-and-loudly project. Do not guess, silently recover, report
+partial success as success, skip invalid records without visibility, or continue
+after a failed write as though the operation succeeded.
+
+Fallback behavior must be explicitly required, visible, tested, documented, and
+removable.
 
 If project context, OpenSpec, existing code, and this file conflict, stop and
 call out the conflict instead of guessing.
-
-## Simplicity Rules
-
-Prefer the smallest complete solution. Small means focused, understandable,
-testable, and shippable.
-
-Every line of code, branch, function, file, abstraction, dependency,
-configuration option, seed row, migration step, and test helper must be necessary
-for the current outcome. If it can be removed and the required outcome still
-works, remove it.
-
-Do not add generic frameworks, plugin systems, configuration layers, queues,
-caches, retries, compatibility shims, or extension points unless the current
-outcome requires them.
-
-## No Silent Fallback
-
-This is a fail-fast-and-loudly project.
-
-Do not guess. Do not silently recover. Do not report partial success as success.
-Do not skip invalid records without making that visible. Do not continue after a
-failed write as though the operation succeeded.
-
-Allowed fallback behavior must be explicitly required, visible, tested,
-documented, and removable.
 
 ## Stable IDs
 
@@ -194,16 +181,16 @@ validation command cannot be run, report that clearly with the reason.
 
 ## Trunk-Based Development
 
-Keep work scoped and short-lived. Prefer small branches from trunk, frequent
-integration, and direct fixes over long-running feature branches. Avoid broad
-refactors mixed with behavior changes.
-
 Working in a git worktree is preferred for all changes, including documentation,
 setup edits, OpenSpec proposal artifacts, and implementation, because it keeps
 the main checkout clean and makes branch cleanup explicit.
 
 When creating worktrees manually, use `./.worktrees/<change-name>` from the repo
 root. Keep worktree names aligned with the branch or OpenSpec change name.
+After creating or entering a worktree, run `npm run link-seed` to verify the
+checkout is an active git worktree, confirm `supabase/seed.sql` is ignored, and
+create the ignored symlink from another local worktree that already has it.
+`./scripts/bootstrap-dev.sh` also checks and creates this link when needed.
 
 Changes that do not modify behavior or outcome may be made directly on `main`
 when the scope is small and reversible. Behavior changes, data-shape changes,
