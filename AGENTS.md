@@ -37,6 +37,14 @@ When requirements are ambiguous, prefer the smallest safe interpretation, state
 the assumption plainly, and keep the change reversible. Ask the user only when a
 wrong assumption would cause meaningful harm.
 
+When the user directly requests a fix or implementation, that request is
+approval to make the necessary scoped edits. Do not stop for a second approval
+round unless the change introduces an architectural compromise, weakens an
+invariant, changes data semantics, touches unrelated behavior, or has materially
+risky/ambiguous scope. For optional work, broad cleanup, or changes the user has
+not directly requested, summarize the exact files and changes and wait for
+explicit approval before editing.
+
 ## Workflow References
 
 - Superpowers governs how agents execute work in this repo.
@@ -135,6 +143,20 @@ be corrected.
 Use explicit checked-in cuid2 IDs and direct foreign-key references. If a
 conflict appears, fix the duplicated source row or reference; do not mask it with
 idempotency.
+
+Public-facing title fields in seed data must be clean reader-facing titles. Do
+not include workflow, provenance, or processing prefixes such as "Processed
+submitted report:" or "Third-party AI review:" in `reviews.title`; put
+provenance/disclosure text in the report narrative or a dedicated disclosure
+field.
+
+`supabase/seed.sql` must insert complete rows directly. Do not add repair,
+backfill, enrichment, or fix-up blocks that mutate seeded rows after insertion
+when those values belong in the original `INSERT`. Prohibited seed patterns
+include `WITH *_seed (...) AS (...) UPDATE public...`, end-of-seed schema
+enforcement, post-insert required-field population, and split source-of-truth
+maps for columns already present on the target table. Put required values in the
+row being inserted and put schema constraints in migrations.
 
 ## Post-Seed Integrity Assertions
 
