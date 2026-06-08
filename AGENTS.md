@@ -131,7 +131,9 @@ build projection, or test fixture, generate the cuid2 once, commit it in the SQL
 or data file, and reference that ID directly.
 
 For imported records, use intake's persisted source-key mapping ledger to resolve
-or assign canonical IDs before writing database rows.
+or assign canonical IDs before writing database rows. Prefer stable
+source-provided IDs whenever they are available. When a new generated ID is
+required, use `@paralleldrive/cuid2`. Do not use UUIDs for new IDs.
 
 ## Conflict-Free Seed Data
 

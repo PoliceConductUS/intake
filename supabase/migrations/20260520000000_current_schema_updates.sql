@@ -2575,17 +2575,6 @@ alter table public.agency_links
 comment on column public.agency_links.label is
   'Short display label for the agency link. The URL remains the href.';
 
--- Retire legacy agency route columns. Agency location identity is agency.location_path_id.
-drop index if exists public.agency_location_state_admin_idx;
-drop index if exists public.agency_location_place_idx;
-drop index if exists public.agency_canonical_url_unique_idx;
-
-alter table public.agency
-  drop column if exists administrative_area,
-  drop column if exists administrative_area_slug,
-  drop column if exists place_slug,
-  drop column if exists canonical_url;
-
 -- Collapsed from 20260510120000_add_location_build_projections.sql
 
 create table if not exists public.location_path (
