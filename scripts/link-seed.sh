@@ -43,7 +43,7 @@ verify_current_worktree() {
   command -v git >/dev/null 2>&1 || fail "Git is required to link seed.sql."
 
   git_root="$(git -C "$ROOT_DIR" rev-parse --show-toplevel 2>/dev/null || true)"
-  [[ "$git_root" == "$ROOT_DIR" ]] || fail "Run npm run link-seed from this repository checkout."
+  [[ "$git_root" == "$ROOT_DIR" ]] || fail "Import npm run link-seed from this repository checkout."
 
   worktree_path="$(current_worktree_path || true)"
   [[ "$worktree_path" == "$ROOT_DIR" ]] || fail "This checkout is not listed as an active git worktree."

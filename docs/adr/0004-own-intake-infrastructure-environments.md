@@ -40,7 +40,7 @@ Environment expectations:
 ## Consequences
 
 - Infrastructure is explicit and repeatable.
-- Intake CLI stays focused on package lifecycle.
+- Intake CLI stays focused on artifact import and replay.
 - PR validation can exercise archive/database behavior in isolation.
 - Production archive rules can be stricter than local development.
 

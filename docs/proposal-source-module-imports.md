@@ -21,7 +21,7 @@ source modules own source-specific collection and packet production.
 
 **Import Command**
 
-- From: Intake validates local manifest paths only.
+- From: Intake validates local artifacts paths only.
 - To: Intake supports `intake import [options] [jurisdiction] [source]`.
 - Reason: Intake should run one source, a jurisdiction scope, or all configured
   sources.
@@ -99,28 +99,35 @@ module failures, and return a failed import result if any module failed.
 
 ## Workspace Ownership
 
-Intake owns the workspace root. Each module receives a source-specific workspace
-path.
+Intake owns `$INTAKE_WORKSPACE/intake/`. Each source module owns only its own
+namespace folder under the workspace. Intake may create command folders for
+itself and for submodule calls; submodules must write command-local artifacts
+and state only under their own namespace.
 
 Example:
 
 ```text
 $INTAKE_WORKSPACE/
-  import/
-    mn/
-      post/
-        state/
-        runs/
+  intake/
+    commands/
+      2026-06-11T21-00-00-000Z-command-name/
+    state/
+      namespaces/
+        mn-post/
+  mn-post/
+    commands/
+      2026-06-11T21-00-00-000Z-command-name/
+    state/
 ```
 
-For `mn post`, intake provides:
+For `mn-post`, intake provides:
 
 ```text
-$INTAKE_WORKSPACE/import/mn/post
+$INTAKE_WORKSPACE/mn-post
 ```
 
-The module must write all source state and run artifacts under that assigned
-workspace.
+The module must write all source state and command artifacts under that assigned
+namespace workspace.
 
 ## Canonical Resolution Ownership
 
@@ -147,10 +154,10 @@ mn-post:
     <agencyId>:
       agencyId: <agencyId>
       locationPathId: <canonical-location-path-id>
-      resolvedRunId: <run-id-that-last-resolved-location>
+      resolvedImportId: <run-id-that-last-resolved-location>
 ```
 
-The mapping key is the module-stable agency ID. The `resolvedRunId` points back
+The mapping key is the module-stable agency ID. The `resolvedImportId` points back
 to the run artifacts that explain the location resolution inputs and outcome.
 
 ## Hydration And Upload
@@ -188,44 +195,44 @@ intake-mn-post metadata
 intake-mn-post --command /absolute/path/to/command.yaml
 ```
 
-For each module invocation, intake writes a per-run command file before invoking
-the module. The command file is stored inside the run folder so the invocation
-input is preserved with the run artifacts.
+For each module invocation, intake writes a `Command` envelope before invoking
+the module. The command file is stored inside the command folder so the
+invocation input is preserved with the command artifacts.
 
 Example:
 
 ```text
-$INTAKE_WORKSPACE/import/mn/post/runs/2026-06-07T12-30-00Z-c.../
-  command.yaml
+$INTAKE_WORKSPACE/intake/commands/import/artifacts/2026-06-07T12-30-00Z-c.../
+  c....Command.yaml
 ```
 
 Initial command file shape:
 
 ```yaml
-apiVersion: policeconduct.org/intake-module-command/v1alpha1
-kind: ImportCommand
+apiVersion: policeconduct.org/intake/v1alpha1
+kind: Command
 metadata:
-  runId: 2026-06-07T12-30-00Z-c...
+  name: c...
+  namespace: mn-post
 spec:
-  jurisdiction: mn
-  source: post
-  statePath: /absolute/path/to/.workspace/import/mn/post/state
-  runPath: /absolute/path/to/.workspace/import/mn/post/runs/2026-06-07T12-30-00Z-c...
+  path: /absolute/path/to/workspace/intake/commands/import/artifacts/2026-06-07T12-30-00Z-c...
+  state:
+    path: /absolute/path/to/workspace/intake/state
   logLevel: info
 ```
 
-Intake creates `statePath` and `runPath` before invoking the module. The module
+Intake creates `spec.state.path` and `spec.path` before invoking the module. The module
 must fail if the command file is unreadable, has an unsupported `apiVersion` or
-`kind`, names the wrong source, or references paths that do not exist.
+`kind`, names the wrong target namespace, or references paths that do not exist.
 
-The module must write only under the provided `statePath` and `runPath`.
+The module must write only under the provided `spec.path` and module-approved
+state paths.
 
-`statePath` is module-owned state. Intake-owned canonical source mappings,
-including agency location path and slug resolution state, remain intake state and
-are not delegated to the module.
+`spec.state.path` is intake-owned state. Intake-owned canonical source mappings,
+including agency location path and slug resolution, remain intake state.
 
 The command file's `kind` determines which module operation runs. In v1, the
-required command kind is `ImportCommand`.
+required command kind is `Command`.
 
 `metadata` is the module discovery command. It should return YAML that lets
 intake verify the configured module before invoking it:

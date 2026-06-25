@@ -83,7 +83,7 @@ ask_to_install() {
   fi
 
   if [[ "$MODE" == "check" ]]; then
-    fail "Missing installable dependencies found. Run ./scripts/bootstrap-dev.sh to install them."
+    fail "Missing installable dependencies found. Import ./scripts/bootstrap-dev.sh to install them."
   fi
 
   if [[ "$ASSUME_YES" == "true" ]]; then
@@ -587,14 +587,14 @@ install_missing() {
 verify_github_cli_auth() {
   info "Verifying GitHub CLI authentication"
 
-  have mise || fail "mise is not installed. Run ./scripts/bootstrap-dev.sh first."
+  have mise || fail "mise is not installed. Import ./scripts/bootstrap-dev.sh first."
 
   if ! mise exec -- gh --version >/dev/null 2>&1; then
-    fail "GitHub CLI is not installed through mise. Run ./scripts/bootstrap-dev.sh first."
+    fail "GitHub CLI is not installed through mise. Import ./scripts/bootstrap-dev.sh first."
   fi
 
   if ! mise exec -- gh auth status -h github.com >/dev/null 2>&1; then
-    fail "GitHub CLI is not authenticated. Run mise exec -- gh auth login, then rerun npm run doctor."
+    fail "GitHub CLI is not authenticated. Import mise exec -- gh auth login, then rerun npm run doctor."
   fi
 }
 

@@ -3,14 +3,19 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "main": "src/cli/index.ts",
+  "bin": {
+    "intake": "src/cli/index.ts"
+  },
   "engines": {
     "node": ">=24"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "generate:envelope-types": "tsx scripts/generate-envelope-types.ts",
     "setup": "bash scripts/bootstrap-dev.sh",
     "doctor": "bash scripts/bootstrap-dev.sh --check",
-    "intake": "./intake",
+    "cli": "tsx src/cli/index.ts",
     "link-seed": "bash scripts/link-seed.sh",
     "format": "prettier --write \"**/*.{json,md,ts,yml,yaml}\"",
     "format:sql": "mise exec -- uvx sqlfluff==4.1.0 format --dialect postgres --processes 1 --disable-progress-bar .",
@@ -19,9 +24,14 @@
     "lint:sql": "mise exec -- uvx sqlfluff==4.1.0 lint --dialect postgres --processes 1 --disable-progress-bar .",
     "openspec:status": "openspec status",
     "openspec:validate": "openspec validate --all",
+    "publish:import-schemas": "tsx scripts/publish-import-schemas.ts",
     "supabase:start": "SUPABASE_TELEMETRY_DISABLED=1 supabase start",
     "supabase:stop": "SUPABASE_TELEMETRY_DISABLED=1 supabase stop",
     "supabase:reset": "SUPABASE_TELEMETRY_DISABLED=1 supabase db reset",
+    "prebuild": "npm run generate:envelope-types",
+    "pretest": "npm run generate:envelope-types",
+    "pretest:vitest": "npm run generate:envelope-types",
+    "pretypecheck": "npm run generate:envelope-types",
     "test": "vitest run",
     "test:vitest": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -30,13 +40,19 @@
   "devDependencies": {
     "@fission-ai/openspec": "1.3.1",
     "@types/node": "^25.9.1",
+    "@types/pg": "^8.20.0",
     "prettier": "3.8.3",
-    "supabase": "2.100.1",
+    "supabase": "2.105.0",
     "tsx": "^4.22.3",
     "typescript": "^6.0.3",
     "vitest": "^4.1.6"
   },
   "dependencies": {
-    "commander": "^14.0.3"
+    "@paralleldrive/cuid2": "^3.3.0",
+    "commander": "^15.0.0",
+    "pg": "^8.21.0",
+    "pino": "^10.3.1",
+    "yaml": "^2.9.0",
+    "zod": "^4.4.3"
   }
 }

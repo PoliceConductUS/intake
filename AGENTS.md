@@ -102,6 +102,12 @@ after a failed write as though the operation succeeded.
 Fallback behavior must be explicitly required, visible, tested, documented, and
 removable.
 
+Backward compatibility is not the default for implementation changes. When a
+contract, file shape, command behavior, schema, or data meaning changes, update
+the implementation to require the new contract and fail loudly on the old one.
+Add compatibility paths only when the user explicitly requires them, and cover
+those paths with tests.
+
 If project context, OpenSpec, existing code, and this file conflict, stop and
 call out the conflict instead of guessing.
 
@@ -112,10 +118,10 @@ migrations, seed data, data-loading scripts, or intake filing must be explicit
 before the database write and stable across database resets.
 
 Seed and migration IDs must be checked in directly. Imported records may use
-canonical cuid2 IDs assigned by intake, but only through a durable source-key
+canonical cuid2 IDs assigned by intake, but only through a durable source-name
 mapping from source namespace plus source-provided ID or producer-derived
-source-local key. See
-`docs/adr/0008-resolve-canonical-ids-from-source-keys.md`.
+source-local name. See
+`docs/adr/0008-resolve-canonical-ids-from-source-names.md`.
 
 Do not use runtime ID generation for seeded records, including:
 
@@ -124,13 +130,13 @@ Do not use runtime ID generation for seeded records, including:
 - `uuid_generate_v4()`
 - serial/identity/default-generated IDs
 - database column defaults that generate IDs
-- matching by natural keys as a replacement for durable source-key mappings
+- matching by natural keys as a replacement for durable source-name mappings
 
 If a seeded row will be referenced by another migration, seed block, link table,
 build projection, or test fixture, generate the cuid2 once, commit it in the SQL
 or data file, and reference that ID directly.
 
-For imported records, use intake's persisted source-key mapping ledger to resolve
+For imported records, use intake's persisted source-name mapping ledger to resolve
 or assign canonical IDs before writing database rows. Prefer stable
 source-provided IDs whenever they are available. When a new generated ID is
 required, use `@paralleldrive/cuid2`. Do not use UUIDs for new IDs.
@@ -183,6 +189,97 @@ explicit and auditable. Do not normalize away evidence.
 
 Every derived record should be traceable to its source. If provenance is missing,
 fail or mark the record incomplete; do not guess.
+
+## Intake Envelopes And Workspace State
+
+Every YAML envelope read or write must go through that envelope kind's
+canonical IO instance. Do not hand-roll YAML parsing, validation,
+serialization, file naming, or path conventions for envelopes. A directory is
+not an envelope. If code reads or writes a YAML file with `apiVersion` and
+`kind`, that `kind` must have canonical IO. If no canonical IO exists for that
+`kind`, the read/write is invalid; either add canonical IO for that envelope
+kind or remove the YAML file.
+
+All intake YAML envelopes use `apiVersion: policeconduct.org/intake/v1alpha1`
+and Kubernetes-style `kind`, `metadata`, and `spec` structure. `metadata.name`
+and `metadata.namespace` are required. Do not use `metadata.id`,
+`spec.source`, or `spec.entities`. `Command` is a shared envelope kind; command
+folders are not envelopes, but any `Command` YAML file inside a command folder
+must be read and written through shared `Command` IO.
+
+Every envelope IO read, write, and constructor must reject a wrong
+`apiVersion`, wrong `kind`, and any `spec` that does not exactly match that
+kind's declared schema. Unknown envelope, metadata, and spec keys are rejected
+unless they are inside an explicitly declared free-form payload field.
+
+Source modules and tests must consume canonical YAML IO from `src/shared/io/`.
+Do not import generated envelope internals or hand-roll YAML validation in
+source modules. Plural typed artifact entries, singular record envelopes, and
+create mutation envelopes that represent the same entity must share the same
+singular spec. For example, `Agencies.spec.records.*.spec`, `Agency.spec`, and
+`AgencyCreate.spec` all validate through `AgencySpec`.
+
+The root intake module owns `$INTAKE_WORKSPACE/intake/`. Cross-command state
+lives under `$INTAKE_WORKSPACE/intake/state/`. Namespace-scoped state lives
+under `$INTAKE_WORKSPACE/intake/state/namespaces/<namespace>/`, including the
+reserved `manual` namespace for manually created envelopes that must survive
+across commands. Command-local manual envelopes, such as `ArtifactMutation`,
+belong in the command folder they affect.
+
+Any kind-specific folder must use the exact kind value from the envelope or
+record kind. Do not pluralize, kebab-case, lower-case, or otherwise transform
+kind folder names.
+
+## Command Pipelines
+
+Every command pipeline must be built from explicit stages. A stage has a clear
+name, a typed input, and a typed output. Prefer pure stages: given the same
+input and context value, the stage returns the same output without reading or
+writing external state.
+
+When a stage needs a side effect, isolate that effect behind a narrow adapter
+whose name states the effect. Examples include exact-kind envelope IO, database
+CRU calls, command logging, geocoding calls, and intake state reads or writes.
+Do not hide side effects inside transforms, generic helpers, broad services, or
+objects reached through unrelated context.
+
+Pipeline stages may depend only on their typed input and the narrow context or
+adapter capability passed directly to them. Do not reach through object graphs
+to find dependencies. Do not combine preparation, validation, IO, mutation
+assembly, and persistence in one stage.
+
+Resolver outputs may be cached and reused across imports only when the resolver
+is pure for the cached input. For database entity properties, the reusable cache
+subject is the canonical entity identity: `apiVersion`, canonical entity `kind`,
+and canonical entity ID. The cache key must also include the target property
+name. `spec.sources` is a map keyed by source namespace; each value stores the
+source kind, source name, and a fingerprint of the typed source input as
+provenance and invalidation evidence. Source evidence is not part of the cache
+identity. This rule applies to every entity type.
+Resolvers used by intake pipelines must be made pure and cacheable by declaring
+all inputs needed to make the output deterministic. Do not introduce
+non-cacheable resolver adapters for import preparation.
+
+Any value that is resolved, derived, generated, or manually accepted to satisfy a
+database row field is a resolved property unless it came directly from the source
+artifact record. Resolved properties include slugs, address coordinates,
+location-path IDs, postal-area decisions, and other prepared values. Every
+resolved property must be read from and written to the intake-owned
+`ResolvedProperty` cache through the pipeline's resolved-property adapter. Do
+not return a bare resolved value and rely on callers to remember to cache it.
+Make the easiest path the cached path: cache read, resolution, and cache write
+belong in one function or explicit pipeline stage. If a value cannot be cached
+with a canonical entity identity, target property, and source evidence, it is
+not ready to be used by import preparation.
+
+Agency coordinates and location paths are distinct data. `agency.latitude` and
+`agency.longitude` are the point for the agency's own address. They must be
+resolved from the agency address or another explicit agency-address coordinate
+source. Do not populate agency latitude/longitude from a `location_path` row,
+place centroid, county centroid, state centroid, map viewport, or other location
+hierarchy geometry. `agency.location_path_id` identifies the canonical place in
+the location hierarchy and may be resolved or created independently from the
+agency address point.
 
 ## Dependencies
 

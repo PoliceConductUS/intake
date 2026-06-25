@@ -2014,6 +2014,14 @@ begin
   ) then
     create extension pgcrypto;
   end if;
+  if not exists (
+    select 1
+    from pg_extension
+    where extname = 'postgis'
+  ) then
+    create schema if not exists extensions;
+    create extension postgis with schema extensions;
+  end if;
 end $$;
 
 create or replace function public.hash_id(value text)
@@ -2588,16 +2596,19 @@ create table if not exists public.location_path (
   administrative_area_name text,
   place_name text,
   parent_location_path_id text references public.location_path(location_path_id),
-  latitude double precision,
-  longitude double precision,
-  map_min_lat double precision,
-  map_min_lng double precision,
-  map_max_lat double precision,
-  map_max_lng double precision,
-  map_position_source text check (map_position_source in ('geocoded', 'derived_from_children')),
+  centroid geography(Point, 4326),
+  bbox geometry(Polygon, 4326),
   created_at timestamp with time zone not null default timezone('utc'::text, now()),
   updated_at timestamp with time zone not null default timezone('utc'::text, now())
 );
+
+create table if not exists public.location_path_geometry (
+  location_path_id text primary key references public.location_path(location_path_id) on delete cascade,
+  boundary geometry(Geometry, 4326) not null
+);
+
+create index if not exists location_path_geometry_boundary_gist
+  on public.location_path_geometry using gist (boundary);
 
 create table if not exists public.location_path_closure (
   ancestor_location_path_id text not null references public.location_path(location_path_id) on delete cascade,

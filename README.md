@@ -3,8 +3,8 @@
 Deterministic data intake for the Institute for Police Conduct, Inc.
 
 This repository is one link in the Institute for Police Conduct, Inc. data
-ingestion pipeline. It accepts versioned intake packages produced by upstream
-source-specific processes, validates them, files them into an intake-owned
+ingestion pipeline. It accepts versioned `Artifacts` envelopes produced by
+upstream source-specific processes, validates them, files them into an intake-owned
 archive, preserves raw and transformed artifacts, and loads deterministic derived
 state into Supabase/Postgres.
 
@@ -12,61 +12,57 @@ The database schema and migrations currently live under `supabase/` and will
 remain there for now. The existing `supabase/seed.sql` can populate the current
 schema, but it is transitional and known to be the wrong long-term loading
 model. The target state is to move away from `seed.sql` as quickly as practical:
-database loading and reset should be driven from accepted archived intake
-packages.
+database loading and reset should be driven from accepted archived artifacts.
 
-The intake package contract is modeled after Kubernetes-style manifests:
+The intake envelope contract is modeled after Kubernetes-style resources:
 
 ```yaml
-apiVersion: policeconduct.org/v1alpha1
-kind: IntakePackage
+apiVersion: policeconduct.org/intake/v1alpha1
+kind: Artifacts
 metadata:
-  id: c... # stable package cuid2 assigned upstream
+  namespace: texas-tcole-roster
   name: texas-tcole-roster-2026-05-19
   producedAt: 2026-05-19T12:00:00Z
   producer: texas-tcole-importer
 spec:
-  source:
-    namespace: texas-tcole-roster
-    jurisdiction: TX
   artifacts:
-    raw:
-      - uri: s3://upstream-bucket/path/officers.csv
-        sha256: ...
-        mediaType: text/csv
-    transformed:
-      - uri: s3://upstream-bucket/path/officers.normalized.jsonl
-        sha256: ...
-        mediaType: application/jsonl
-    entities:
-      - kind: officer
-        uri: s3://upstream-bucket/path/officers.entities.jsonl
-        sha256: ...
-        mediaType: application/jsonl
+    - path: records.Agencies.yaml
+      kind: Agencies
+      sha256: ...
 ```
 
-The manifest can point to local files, S3 objects, or URLs. It must not reference
+Referenced source artifacts use source-local record keys, not canonical database
+IDs:
+
+```yaml
+apiVersion: policeconduct.org/intake/v1alpha1
+kind: Agencies
+metadata:
+  namespace: texas-tcole-roster
+  name: texas-tcole-roster-2026-05-19:Agencies
+spec:
+  records:
+    source-agency-key:
+      spec:
+        name: Example Police Department
+```
+
+The `Artifacts` envelope can point to local files, S3 objects, or URLs. It must not reference
 the intake archive directly; archive layout and storage are owned by this repo.
 
 Initial CLI vocabulary:
 
 ```bash
-intake validate <manifest-ref>
-intake file <manifest-ref>
-intake reset
-intake audit
+intake import artifacts [--dry-run] <artifacts-ref>
+intake replay database-mutations <database-mutations-ref>
 ```
 
-- `validate` checks schema, artifact reachability, checksums, source identity,
-  and provenance without changing archive or database state.
-- `file` accepts a valid package into the official intake record, copies
-  artifacts into intake-owned archive storage, records package/file digests, and
-  loads deterministic derived state. It always runs the full validation gate
-  before making archive or database changes.
-- `reset` rebuilds derived state from the accepted archive/package index and
-  source-key mapping ledger only.
-- `audit` verifies archived manifests and artifacts still match recorded
-  digests.
+- `import artifacts` reads and validates a source-produced `Artifacts` envelope,
+  resolves intake-owned mappings, writes a `DatabaseMutations` envelope, and
+  applies the database mutations unless `--dry-run` is set.
+- `replay database-mutations` reads an existing `DatabaseMutations` envelope and
+  re-applies the database mutations without reading SourceNameToCanonicalId records or source
+  artifacts.
 
 Core invariants:
 
@@ -74,44 +70,44 @@ Core invariants:
 - Raw source artifacts are preserved unchanged.
 - Post-transformation artifacts are preserved.
 - Archive snapshots are write/append-only.
-- Package IDs are explicit upstream-supplied cuid2 text IDs.
-- Records carry stable source identity: source namespace plus source-provided ID
-  or producer-derived source-local key.
+- Source `Artifacts` are not aware of canonical database IDs.
+- Records carry stable source identity: source namespace plus source-provided
+  record name or producer-derived source-local name.
 - Intake maps source identity to canonical cuid2 IDs. New mappings are assigned
   by intake before database writes and persisted for reset/replay.
 - The database must never generate IDs for durable records.
-- Package IDs are stable across time; re-filing the same package ID with changed
+- `Artifacts` names are stable across time; re-filing the same envelope name with changed
   content is rejected.
 - Intake can completely reconstruct derived state from accepted archived
-  packages and the source-key mapping ledger.
+  artifacts and the source-name mapping ledger.
 
 See `docs/adr/` for the durable architecture decisions behind this scope.
 
-## Candidate Upstream Package Producers
+## Candidate Upstream Producers
 
-The first upstream package producer to explore is Tempe's Police Transparency
+The first upstream producer to explore is Tempe's Police Transparency
 arrest dataset:
 
 - [Police Transparency - Arrests - All Data (related tables / normalized)](https://data.tempe.gov/maps/tempegov::police-transparency-arrests-all-data-related-tables-normalized/about)
 
 That producer should be a separate source-specific CLI/tool that creates
-`IntakePackage` manifests and artifacts for this repo to validate and file. The
+`Artifacts` envelopes and typed artifact envelopes for this repo to validate and file. The
 producer should preserve the original source data and be able to regenerate its
-package from source inputs.
+artifacts from source inputs.
 
 Upstream producers should pass through source-provided stable IDs when present.
 When a source does not provide stable IDs, the producer should derive stable
-source-local keys. Intake can export feedback artifacts, such as source-key to
+source-local names. Intake can export feedback artifacts, such as source-name to
 canonical-ID mappings, rejected record reasons, slugs, and duplicate decisions,
 so later producer runs can be more consistent without making producer-local
 caches the source of truth.
 
 Audit the Audit is also a desirable source of related links and references. It
-is useful for experimenting with packages that add related links to officers and
+is useful for experimenting with artifacts that add related links to officers and
 agencies, including cases where the referenced officer or agency is not already
-present in the database. If the package contains enough evidence to establish
+present in the database. If the artifacts contain enough evidence to establish
 that the related entity is valid, intake should be able to create that related
-entity as part of filing the package.
+entity as part of filing the artifacts.
 
 ## New Developer Quickstart
 
@@ -186,7 +182,7 @@ Local Supabase state such as `supabase/.temp/` and `supabase/.branches/` is inte
 
 ## Commands
 
-Run this to see every available npm script:
+Import this to see every available npm script:
 
 ```bash
 npm run
@@ -320,7 +316,7 @@ mkdir -p .worktrees
 git worktree add .worktrees/<change-name> -b <change-name>
 ```
 
-Run `npm run supabase:reset` when migrations, seed data, database constraints,
+Import `npm run supabase:reset` when migrations, seed data, database constraints,
 or post-seed assertions changed. Docker must be running first.
 
 Commit messages must use Conventional Commits. See

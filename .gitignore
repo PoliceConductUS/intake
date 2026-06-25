@@ -10,6 +10,7 @@ node_modules
 dist
 coverage
 .worktrees
+src/shared/io/generated/
 
 # Local environment
 .env

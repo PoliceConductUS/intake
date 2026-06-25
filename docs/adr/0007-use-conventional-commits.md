@@ -28,15 +28,15 @@ Commit messages should follow this shape:
 Examples:
 
 ```text
-docs: propose validate-intake-package
-feat(cli): add validate command scaffold
+docs: propose validate-intake-artifacts
+feat(cli): add import artifacts command
 fix(seed): correct duplicate agency reference
-test(cli): cover unreadable manifest path
+test(cli): cover unreadable artifacts path
 chore(tooling): add TypeScript build
 ```
 
-Use `BREAKING CHANGE:` in the commit body when a commit intentionally breaks
-backward compatibility.
+Use `BREAKING CHANGE:` in the commit body when a commit intentionally breaks a
+documented contract.
 
 Developers may use Commitizen to build compliant messages interactively:
 

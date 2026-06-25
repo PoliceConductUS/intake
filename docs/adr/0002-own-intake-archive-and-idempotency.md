@@ -7,42 +7,53 @@ Proposed
 ## Context
 
 The intake system must be able to completely reconstruct derived state from
-accepted packages. Upstream manifests may point to mutable or externally managed
-locations. Intake therefore needs its own archive boundary and integrity record.
+accepted source artifacts. Source-produced `Artifacts` envelopes may point to
+mutable or externally managed locations. Intake therefore needs its own archive
+boundary and integrity record.
 
-Upstream packages may be regenerated later. A regenerated package with the same
-identity but changed content must not silently alter previously filed data.
+Source artifacts may be regenerated later. Regenerated artifacts with the same
+envelope identity but changed content must not silently alter previously
+imported data.
 
-The database schema and migrations currently live under `supabase/`. The existing
-`supabase/seed.sql` can populate the current schema, but it is transitional and
-known to be the wrong long-term loading model.
+The database schema and migrations currently live under `supabase/`. The
+existing `supabase/seed.sql` can populate the current schema, but it is
+transitional and known to be the wrong long-term loading model.
 
 ## Decision
 
-Intake owns the canonical archive. `intake file <manifest-ref>` always copies
-accepted artifacts into intake-owned archive storage before loading derived
-state.
+Intake owns the canonical archive and replay ledger.
+`intake import artifacts <artifacts-ref>` reads a source-produced `Artifacts`
+envelope, writes an intake-owned `DatabaseMutations` replay envelope, and applies
+the prepared mutations unless `--dry-run` is set.
 
-The manifest describes upstream inputs only. It must not know or reference the
-intake archive.
+Command history, command-local logs, and replay order are part of the archive
+and audit contract. See ADR 0013 for command auditability.
 
-Package identity and idempotency rules:
+Source-produced envelopes describe upstream inputs only. They must not know or
+reference intake archive locations, replay runs, or canonical database IDs.
 
-- `metadata.id` is the stable package identity and must be a cuid2 text ID
-  assigned upstream.
+Identity and idempotency rules:
+
+- Source-produced envelope identity is
+  `apiVersion + kind + metadata.namespace + metadata.name`.
+- `DatabaseMutations.metadata.name` is a new unique cuid2 created by intake for
+  each successful prepared import.
+- The `DatabaseMutations` command directory is prefixed with the creation
+  timestamp and the encoded `metadata.name`.
 - The database must never generate IDs for durable records.
-- Intake may assign canonical cuid2 IDs for new records during filing, but those
-  assignments must be persisted in a durable source-key mapping ledger and
+- Intake may assign canonical cuid2 IDs for new records during import, but those
+  assignments must be persisted in a durable source-name mapping ledger and
   replayed during reset.
-- Intake records the manifest digest and each artifact digest at filing time.
-- Filing a new package ID accepts the package if all validations pass.
-- Filing the same package ID with identical digests is a no-op/report.
-- Filing the same package ID with changed manifest or artifact digests is
-  rejected as a package identity conflict.
+- Intake records the source `Artifacts` digest and each referenced artifact
+  digest at import time.
+- Importing a source `Artifacts` envelope fails if a successful `DatabaseMutations`
+  already exists for the same source `metadata.namespace` and `metadata.name`.
+- Replaying an existing `DatabaseMutations` envelope does not read source
+  artifacts, SourceNameToCanonicalId records, or artifact mutations.
 
 Archive integrity rules:
 
-- Store SHA-256 digests for manifests and artifacts.
+- Store SHA-256 digests for source envelopes and artifacts.
 - Verify source artifact digests before archive.
 - Verify archived object digests after archive.
 - Treat post-archive digest drift as corruption or unauthorized mutation.
@@ -51,17 +62,20 @@ Reset/load direction:
 
 - Keep Supabase schema and migrations under `supabase/` for now.
 - Move away from `supabase/seed.sql` as quickly as practical.
-- `intake reset` rebuilds derived database state from the accepted
-  archive/package index and source-key mapping ledger, not from seed SQL.
+- `intake reset` rebuilds derived database state from the accepted archive,
+  `DatabaseMutations` replay ledgers, and source-name mapping ledger, not from seed
+  SQL.
 - While `seed.sql` exists, it remains subject to the repo's stable ID and
   conflict-free seed rules.
 
 ## Consequences
 
-- Derived state can be rebuilt from the accepted archive/package index.
+- Derived state can be rebuilt from the accepted archive and replay ledgers.
+- Command history can be audited from namespace-scoped command folders.
 - Upstream systems cannot mutate intake history by changing external objects.
-- Corrections require a new package identity or a future explicit supersession
-  package type.
+- Corrections require new source artifact identity or explicit
+  `ArtifactMutations`/`ArtifactMutation` envelopes that produce a new
+  `DatabaseMutations` ledger.
 - Archive storage becomes part of the product contract.
 - `seed.sql` should shrink or disappear as archive-driven loading becomes the
   reset source of truth.
@@ -70,8 +84,9 @@ Reset/load direction:
 
 - Trust upstream S3/object locations as the archive: rejected because upstream
   storage is not intake-owned and may change independently.
-- Overwrite existing package records when regenerated: rejected because it breaks
-  append-only history and deterministic rebuilds.
+- Overwrite existing imported records when source artifacts are regenerated:
+  rejected because it breaks append-only replay history and deterministic
+  rebuilds.
 
 ## Revisit Trigger
 
