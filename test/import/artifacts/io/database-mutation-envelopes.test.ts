@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, test } from "vitest";
 import { DatabaseMutations } from "../../../../src/cli/import/artifacts/io/DatabaseMutations.js";
 import { AgencyCreate } from "../../../../src/cli/import/artifacts/io/generated-mutations/AgencyCreate.js";
+import { AgencyPersonnelUpdate } from "../../../../src/cli/import/artifacts/io/generated-mutations/AgencyPersonnelUpdate.js";
 import { AgencyUpdate } from "../../../../src/cli/import/artifacts/io/generated-mutations/AgencyUpdate.js";
 import { LocationPathCreate } from "../../../../src/cli/import/artifacts/io/generated-mutations/LocationPathCreate.js";
 import { LocationPathUpdate } from "../../../../src/cli/import/artifacts/io/generated-mutations/LocationPathUpdate.js";
@@ -269,7 +270,7 @@ describe("database mutation envelopes", () => {
                 badge_number: "49112",
                 start_date: "2020-01-01",
                 end_date: null,
-                title: "Trooper",
+                license_type: "Peace Officer",
               },
             },
           ],
@@ -297,6 +298,7 @@ describe("database mutation envelopes", () => {
       }),
     ).toThrow("DatabaseMutations is malformed");
   });
+
 
   test("LocationPathUpdate rejects nested paths", async () => {
     const filePath = path.join(

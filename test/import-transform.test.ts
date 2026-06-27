@@ -34,7 +34,7 @@ const roster = {
   badge_number: "49112",
   start_date: "2020-01-01",
   end_date: null,
-  title: "Trooper",
+  license_type: "Peace Officer",
 };
 
 type EntityMaps = {
@@ -322,7 +322,7 @@ describe("transformArtifacts", () => {
           badge_number: "49112",
           start_date: "2020-01-01",
           end_date: null,
-          title: "Trooper",
+          license_type: "Peace Officer",
         },
       ],
       preparationMutations: [],
@@ -359,7 +359,7 @@ describe("transformArtifacts", () => {
             "badge_number",
             "start_date",
             "end_date",
-            "title",
+            "license_type",
           ],
         },
       },

@@ -109,7 +109,7 @@ export type AgencyOfficerRow = {
   badge_number: string | null;
   start_date: string;
   end_date: string | null;
-  title: string | null;
+  license_type: string;
 };
 
 export type AgencyOfficerColumn = Exclude<keyof AgencyOfficerRow, "id">;
@@ -155,7 +155,7 @@ const agencyOfficerSourceColumns: AgencyOfficerColumn[] = [
   "badge_number",
   "start_date",
   "end_date",
-  "title",
+  "license_type",
 ];
 
 function entityMap(
@@ -573,7 +573,7 @@ export function transformArtifacts(
       badge_number: valueAsStringOrNull(source.badge_number),
       start_date: requiredString(sourceName, "start_date", source.start_date),
       end_date: valueAsStringOrNull(source.end_date),
-      title: valueAsStringOrNull(source.title),
+      license_type: requiredString(sourceName, "license_type", source.license_type),
     };
   });
 

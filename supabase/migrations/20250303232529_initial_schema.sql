@@ -611,7 +611,7 @@ CREATE TABLE IF NOT EXISTS "public"."agency_officers" (
     "end_date" "date",
     "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "title" "text",
+    "license_type" "text" NOT NULL,
     "rating_overall" numeric DEFAULT 0,
     "review_stats" "jsonb" DEFAULT '{}'::"jsonb"
 );

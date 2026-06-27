@@ -45,6 +45,34 @@ export type PlanDatabaseMutationsResult = {
   schema: ImportDatabaseSchema;
 };
 
+function formatPlanningErrors(errors: readonly string[]): string[] {
+  const missingCachedLocationPath = errors.filter((error) =>
+    /^Cached location_path_id \S+ for public\.agency \S+ does not exist\.$/.test(
+      error,
+    ),
+  );
+  const otherErrors = errors.filter(
+    (error) => !missingCachedLocationPath.includes(error),
+  );
+  if (missingCachedLocationPath.length === 0) {
+    return [...errors];
+  }
+
+  const examples = missingCachedLocationPath
+    .slice(0, 10)
+    .map((error) => `  - ${error}`);
+  return [
+    ...otherErrors,
+    [
+      `${missingCachedLocationPath.length} cached agency location_path_id values do not exist in the current database.`,
+      "This usually means the location hierarchy import has not been applied to this database, or intake state contains location_path_id cache values from a different database reset.",
+      "Import or replay the current census LocationPath data first, or remove the stale location_path_id ResolvedProperty envelopes so they can be recomputed.",
+      "Examples:",
+      ...examples,
+    ].join("\n"),
+  ];
+}
+
 export class DatabaseMutationPlanningError extends Error {
   readonly rows: ImportRows;
   readonly errors: readonly string[];
@@ -58,7 +86,7 @@ export class DatabaseMutationPlanningError extends Error {
     super(
       [
         `Import preparation failed with ${errors.length} ${errors.length === 1 ? "error" : "errors"}:`,
-        ...errors.map((error) => `- ${error}`),
+        ...formatPlanningErrors(errors).map((error) => `- ${error}`),
       ].join("\n"),
     );
     this.name = "DatabaseMutationPlanningError";

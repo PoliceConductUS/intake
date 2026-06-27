@@ -163,12 +163,12 @@ describe("seed display text", () => {
     expect(shoutingNames).toEqual([]);
   });
 
-  test("stores officer names and titles in readable display casing", () => {
+  test("stores officer names and license types in readable display casing", () => {
     const officerDisplayValues = [
       ...extractInsertedColumnValues("officers", "first_name"),
       ...extractInsertedColumnValues("officers", "last_name"),
       ...extractInsertedColumnValues("officers", "middle_name"),
-      ...extractInsertedColumnValues("agency_officers", "title"),
+      ...extractInsertedColumnValues("agency_officers", "license_type"),
     ];
     const shoutingValues = officerDisplayValues.filter((value) => {
       return (

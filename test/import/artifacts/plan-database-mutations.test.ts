@@ -5,6 +5,7 @@ import {
 } from "../../../src/cli/import/artifacts/agency-coordinate-resolver.js";
 import type { ResolvedProperties } from "../../../src/cli/import/artifacts/transform.js";
 import {
+  DatabaseMutationPlanningError,
   planDatabaseMutations,
   type DatabaseClient,
 } from "../../../src/cli/import/artifacts/plan-database-mutations.js";
@@ -54,7 +55,7 @@ const rows: ImportRows = {
       badge_number: "49112",
       start_date: "2020-01-01",
       end_date: null,
-      title: "Trooper",
+      license_type: "Peace Officer",
     },
   ],
   preparationMutations: [],
@@ -91,7 +92,7 @@ const rows: ImportRows = {
         "badge_number",
         "start_date",
         "end_date",
-        "title",
+        "license_type",
       ],
     },
   },
@@ -105,6 +106,31 @@ const createOperations: ImportOperations = {
   officers: {},
   agencyOfficers: {},
 };
+
+test("DatabaseMutationPlanningError summarizes repeated missing cached location paths", () => {
+  const error = new DatabaseMutationPlanningError(
+    rows,
+    [
+      "Cached location_path_id missing-one for public.agency agency-one does not exist.",
+      "Cached location_path_id missing-two for public.agency agency-two does not exist.",
+      "Other preparation failure.",
+    ],
+    { appliedMigrations: [] },
+  );
+
+  expect(error.message).toContain("Import preparation failed with 3 errors:");
+  expect(error.message).toContain("- Other preparation failure.");
+  expect(error.message).toContain(
+    "2 cached agency location_path_id values do not exist in the current database.",
+  );
+  expect(error.message).toContain(
+    "Import or replay the current census LocationPath data first",
+  );
+  expect(error.message).toContain(
+    "  - Cached location_path_id missing-one for public.agency agency-one does not exist.",
+  );
+  expect(error.errors).toHaveLength(3);
+});
 
 function locationPathSnapshot(
   placeLocationPathId = "mn/saint-paul/minnesota-state-patrol",

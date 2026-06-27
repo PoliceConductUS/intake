@@ -39,7 +39,15 @@ async function existingImportCandidate(
   namespace: string,
   sourceArtifactsName: string,
 ): Promise<boolean> {
-  const resource = await DatabaseMutations.read(filePath, { raw: true });
+  let resource;
+  try {
+    resource = await DatabaseMutations.read(filePath, { raw: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Cannot check existing DatabaseMutations file because it is invalid: ${filePath}\n${message}`,
+    );
+  }
   return (
     resource.metadata.namespace === namespace &&
     resource.metadata.sourceArtifactsName === sourceArtifactsName

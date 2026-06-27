@@ -234,7 +234,7 @@ export const AgencyPersonnelSpec = z
     badge_number: z.string().nullable().optional(),
     start_date: nonEmptyString,
     end_date: z.string().nullable().optional(),
-    title: z.string().nullable().optional(),
+    license_type: nonEmptyString,
   })
   .strict();
 
@@ -902,6 +902,9 @@ const operationSchema = z.union([
     }
     if (operation.action === "set") {
       for (const propertyName of ["from", "to"] as const) {
+        if (propertyName === "from" && operation.from === undefined) {
+          continue;
+        }
         const result = fieldSchema.safeParse(operation[propertyName]);
         if (!result.success) {
           for (const issue of result.error.issues) {
