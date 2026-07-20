@@ -1,0 +1,17 @@
+{
+  "state": "mi",
+  "status": "pending",
+  "asOf": null,
+  "report": {
+    "id": "locrep_mi_licensing_summary",
+    "key": "licensing-summary",
+    "title": "Officer licensing in Michigan",
+    "summary": null,
+    "sortOrder": 20,
+    "publishedAt": null
+  },
+  "organization": null,
+  "facts": [],
+  "note": null,
+  "sources": []
+}

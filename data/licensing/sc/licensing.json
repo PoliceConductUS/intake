@@ -1,0 +1,17 @@
+{
+  "state": "sc",
+  "status": "pending",
+  "asOf": null,
+  "report": {
+    "id": "locrep_sc_licensing_summary",
+    "key": "licensing-summary",
+    "title": "Officer licensing in South Carolina",
+    "summary": null,
+    "sortOrder": 20,
+    "publishedAt": null
+  },
+  "organization": null,
+  "facts": [],
+  "note": null,
+  "sources": []
+}

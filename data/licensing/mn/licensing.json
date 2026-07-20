@@ -1,0 +1,17 @@
+{
+  "state": "mn",
+  "status": "pending",
+  "asOf": null,
+  "report": {
+    "id": "locrep_mn_licensing_summary",
+    "key": "licensing-summary",
+    "title": "Officer licensing in Minnesota",
+    "summary": null,
+    "sortOrder": 20,
+    "publishedAt": null
+  },
+  "organization": null,
+  "facts": [],
+  "note": null,
+  "sources": []
+}

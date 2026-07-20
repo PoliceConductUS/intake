@@ -1,0 +1,17 @@
+{
+  "state": "nv",
+  "status": "pending",
+  "asOf": null,
+  "report": {
+    "id": "locrep_nv_licensing_summary",
+    "key": "licensing-summary",
+    "title": "Officer licensing in Nevada",
+    "summary": null,
+    "sortOrder": 20,
+    "publishedAt": null
+  },
+  "organization": null,
+  "facts": [],
+  "note": null,
+  "sources": []
+}
