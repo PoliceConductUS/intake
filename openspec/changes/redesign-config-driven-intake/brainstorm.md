@@ -110,7 +110,7 @@ Only Slice 1 is specified now; slices 2–4 are the roadmap.
   [--dry-run] <artifacts-ref>` and `intake replay database-mutations <ref>` (commander,
   auto-discovered per folder). `import artifacts` starts *after* raw→typed-`Artifacts`,
   which is the producer work being deleted. Slice 1 adds one command in front of it —
-  strawman `intake run <source-id> <snapshot-ref> [--dry-run]` — that does raw→`Artifacts`
+  `intake run <source-id> <snapshot-ref> [--dry-run]` — that does raw→`Artifacts`
   from config, then reuses the existing pipeline unchanged. The two args are the input
   handoff descriptor, passed as CLI args instead of an event.
 - **Acquisition is a separate system.** REQUEST → ACQUIRE(sync|async) → SAVE —
@@ -135,29 +135,39 @@ Only Slice 1 is specified now; slices 2–4 are the roadmap.
   declare a documented deterministic derivation with `on_collision: fail`.
 - **A source's config splits by boundary.** ACQUIRE config (connector, schedule,
   delivery, FOIA form) belongs to the acquisition system. This repo owns only the
-  TRANSFORM slice (`records`, `identity`, `map`, `links.resolve`, `reconcile`). Whether
-  those live as two registries joined by `source id`, or one shared file each system
-  reads a slice of, is open (see below).
+  TRANSFORM slice (`records`, `identity`, `map`, `reconcile`). The acquire config — and
+  thus any second registry — is deferred; Slice 1 has a single config file.
+- **The runtime is kind-agnostic.** A source emits exactly the record kinds its
+  `records` config declares. No source is assumed to produce agencies or personnel — a
+  source may be location-only (e.g. census). AZ POST declares `Personnel`, mapping only
+  currently-supported `PersonnelSpec` fields (`first_name`, `last_name`, `middle_name`…).
 - **Source-definition surface (strawman, not final):** `id`, `records` (`kind`,
   `identity`, `map`, `links.resolve`), `resolution` strategies, `reconcile: additive`,
   `provenance`. The exact file name/shape is intentionally not locked yet.
 
 ## Open Questions
 
-- **Config location under the two-system split.** (A) two registries joined by
-  `source id` — each system owns its slice; leaning this way. (B) one shared
-  `source.yaml` per source both systems read the relevant part of. Not yet decided.
-- **AZ POST rank + misconduct flag → schema.** The roster carries a Level/rank and a
-  Misconduct flag (`YES`/`NO`/`Other-Unknown`). Whether these map onto existing
-  `Personnel`/`AgencyPersonnel` columns, require a new record kind, or defer to a
-  fast-follow will be settled while writing the Slice 1 spec by reading the actual
-  record schema. Preference: keep the tracer thin.
 - **Trigger + transport for both boundaries.** Deliberately undecided; manual trigger
   now. Do not bake in an event name or transport (no `NewDataAvailable`,
   no `EntitiesChanged` as a firm event) until the transport is chosen.
-- **Durable change-record shape** — the minimal record a completed Slice 1 run
-  produces (source, ids, kinds); enough to lock the seam.
 - **Source-definition file name and exact schema** — strawman only; to be pinned in
   the spec.
+- **xlsx snapshot parser** — the repo has no raw-file parsing today; Slice 1 adds one
+  (dependency vs. hand-rolled reader pinned in the spec).
 - **Registry storage at scale** — git-tracked YAML per source (recommended for
   auditability) vs. a table; revisit under Slice 4.
+
+Resolved during brainstorming / grounding:
+
+- **Config location** — Slice 1 uses a single config file (transform slice only); the
+  second (acquire) config is deferred.
+- **AZ POST rank + misconduct** — import only currently-supported `PersonnelSpec`
+  fields; rank/misconduct deferred (no new kinds/columns).
+- **CLI command name** — `intake run <source-id> <snapshot-ref>`.
+- **Which kinds a source emits** — kind-agnostic; whatever the config declares.
+- **Durable change record** — reuse the existing `DatabaseMutations` envelope the import
+  pipeline already writes to the command directory; Slice 1 adds no new change type. A
+  transport-facing change event is deferred.
+- **Identity mechanism** — the source-local record key (from `identity`) is the
+  `sourceName`; the existing pipeline mints/persists the canonical cuid2. AZ POST uses
+  POST ID as the record key.

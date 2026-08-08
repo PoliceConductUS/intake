@@ -67,9 +67,11 @@ snapshots, source-local identity mapped to canonical cuid2 IDs via
 
 A source's *transform* is a registry entry (`sources/<id>/`) containing a declarative
 `source.yaml`. The runtime interprets it. A new *record kind* is a rare shared-code
-change every later source reuses. Rationale: onboarding must be data to hit the
-≤1-hour goal at 10k scale; the alternative (per-repo SDK plugins) keeps the ceremony
-that is the actual bottleneck.
+change every later source reuses. The runtime is **kind-agnostic**: a source emits
+exactly the record kinds its `records` config declares — no source is assumed to
+produce any particular kind (a source may be location-only, e.g. census). Rationale:
+onboarding must be data to hit the ≤1-hour goal at 10k scale; the alternative (per-repo
+SDK plugins) keeps the ceremony that is the actual bottleneck.
 
 ### D2. Deterministic transform; additive load.
 
@@ -165,10 +167,11 @@ provenance: { request_form: "AZPOST Form PR August 2025.pdf" }
 records:
   - kind: Personnel
     identity: { from: [post_id] }
-    map: { firstName: $.first, lastName: $.last }   # + rank/misconduct — see Open Questions
-# NOTE: connector / schedule / delivery are ACQUIRE config, owned by the
-# separate acquisition system — not represented here. Whether that config is a
-# second registry or a shared file is an open question.
+    map: { firstName: $.first, lastName: $.last }   # only currently-supported fields
+# NOTE: rank/misconduct are deferred — Slice 1 imports only fields the current schema
+# supports and adds no new kinds/columns.
+# NOTE: connector / schedule / delivery are ACQUIRE config, owned by the separate
+# acquisition system — deferred; Slice 1 needs a single config file, not two.
 ```
 
 ## Risks / Trade-offs
@@ -178,8 +181,8 @@ records:
   than speculatively.
 - **Additive-only lets rosters drift from reality** → Accepted for now; retiring stale
   records is a separate, later concern, not disappearance-driven deletion.
-- **Split config across two systems drifts out of sync** → Join by a stable `source id`;
-  decide the A/B config-location question before the second system consumes it.
+- **Split config across two systems drifts out of sync** → Deferred: Slice 1 has a
+  single config file. When the acquire config is added later, join by a stable `source id`.
 - **Non-deterministic AI resolution could leak into replay** → Structural guard: only
   the *cached decision* is ever read on replay; the resolver adapter must persist before
   exposing a value (ADR 0014 construction rule). Enforced in Slice 2, designed for here.
@@ -200,19 +203,29 @@ records:
 
 ## Open Questions
 
-- **Config location under the two-system split** — (A) two registries joined by
-  `source id` (leaning) vs (B) one shared `source.yaml`. Undecided.
-- **AZ POST rank + misconduct flag → schema.** Map onto existing
-  `Personnel`/`AgencyPersonnel` columns, add a new record kind, or defer? Resolve while
-  writing the Slice 1 spec by reading the actual record schema; prefer keeping the
-  tracer thin.
 - **Trigger + transport for both boundaries** — deliberately undecided; manual trigger
   now. No event name baked in.
-- **Minimal durable change-record payload for Slice 1** — enough to lock the seam.
-- **New CLI command name** — `intake run <source-id> <snapshot-ref>` is a strawman
-  (`run` / `ingest` / `transform`?); pin in the spec.
-- **`source.yaml` file name + exact schema** — strawman only.
+- **xlsx snapshot parser** — no raw-file parsing exists in the repo today; Slice 1 adds
+  one. Dependency (e.g. a SheetJS-style reader) vs. a minimal hand-rolled reader is a
+  spec decision.
+- **`source.yaml` file name + exact schema** — strawman only; pin in the spec.
 - **Registry storage at scale** — git YAML per source (recommended) vs. table; Slice 4.
-- **Whether the AZ POST roster is single-agency or statewide with an agency column** —
-  affects whether Slice 1 also emits `Agencies` + `AgencyPersonnel` links or only
-  `Personnel`; confirm against the actual spreadsheet during spec writing.
+
+Resolved during brainstorming / grounding against the code:
+
+- **Config location** — Slice 1 uses a single config file (transform slice only). The
+  second (acquire) config is deferred; not needed yet.
+- **AZ POST rank + misconduct flag** — import only fields `PersonnelSpec` already
+  supports (`first_name`, `last_name`, `middle_name`, `prefix`, `suffix`, `id`, `slug`);
+  rank/misconduct are deferred (Slice 1 adds no new record kinds or columns).
+- **CLI command name** — `intake run <source-id> <snapshot-ref>`.
+- **Which kinds a source emits** — the runtime is kind-agnostic: a source emits exactly
+  the record kinds its config declares; no source is assumed to produce agencies or
+  personnel (a source may be location-only, e.g. census). AZ POST declares `Personnel`.
+- **Durable change record** — reuse the existing `DatabaseMutations` envelope the import
+  pipeline already writes to the command directory (there is no `DatabaseMutationResults`
+  type). Slice 1 adds no new change type; a transport-facing change event is deferred.
+- **Identity mechanism** — the source-local record *key* (chosen by `identity`) is the
+  `sourceName`; the existing pipeline mints and persists the canonical cuid2 under
+  `intake/state/namespaces/<namespace>/`. AZ POST uses POST ID as the record key, so
+  `intake run` writes no identity code of its own.
