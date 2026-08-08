@@ -161,18 +161,33 @@ applying).
 # sources/gov.azpost.roster/source.yaml   (Slice 1 target — transform slice)
 id: gov.azpost.roster
 title: Arizona POST — Officer Roster
-format: xlsx                    # of the saved snapshot handed in
-reconcile: additive
-provenance: { request_form: "AZPOST Form PR August 2025.pdf" }
 records:
   - kind: Personnel
-    identity: { from: [post_id] }
-    map: { firstName: $.first, lastName: $.last }   # only currently-supported fields
-# NOTE: rank/misconduct are deferred — Slice 1 imports only fields the current schema
-# supports and adds no new kinds/columns.
-# NOTE: connector / schedule / delivery are ACQUIRE config, owned by the separate
-# acquisition system — deferred; Slice 1 needs a single config file, not two.
+    key: [POST ID]              # source column(s) = source-local identity
+    # filter: <predicate>       # optional; drop unwanted rows
+    map:                        # target spec field : source column (or literal constant)
+      id:          POST ID
+      first_name:  First
+      last_name:   Last
+      middle_name: Middle
+# Per kind = key + map + optional filter. Everything else is convention or deferred:
+# - format inferred from the snapshot file extension (.xlsx), not configured
+# - namespace + envelope name are runtime-derived (namespace = id, name = id + digest)
+# - validity of a mapped record is enforced by the existing envelope schema, not config
+# - rank/misconduct deferred (no new kinds/columns in Slice 1)
+# - deterministic value transforms (split/reformat) run BEFORE mapping — seam designed,
+#   not built in Slice 1; escape hatch is an optional per-source transform function
+#   (cf. the rebrokerlist `filter_function` prior art, which did filter + transform)
+# - connector / schedule / delivery are ACQUIRE config in the separate system (deferred)
 ```
+
+**Prior art (`data.rebrokerlist.com/data/*/config.js`):** each source was a `config.js`
+with a `field_map` (target ← source, incl. literal constants) plus a `filter_function`
+that both reshaped rows (date/phone reformatting, dropping empty fields) and returned a
+keep/drop boolean. That validates two things: the `target: source` map direction, and
+that real sources eventually need **deterministic transforms as code**. Slice 1 stays
+declarative (AZ POST needs no transform); the pre-mapping transform stage is a designed
+seam, filled by an optional per-source function when a source first needs it.
 
 ## Risks / Trade-offs
 

@@ -2,11 +2,13 @@
 
 ### Requirement: Config-Driven Source Run Command
 
-The intake CLI MUST provide `intake run <source-id> <snapshot-ref> [--dry-run]` that
-loads the source's transform config, parses the referenced snapshot into records,
-emits a typed `Artifacts` envelope, and imports it through the existing artifacts
-import pipeline. The command MUST NOT re-implement identity assignment, mutation
-planning, or database apply; it MUST delegate those to the existing pipeline.
+The intake CLI MUST provide `intake run <source-id> <snapshot-ref...> [--dry-run]`
+accepting one or more snapshot files. It loads the source's transform config, parses
+each referenced snapshot into records, emits a typed `Artifacts` envelope, and imports
+it through the existing artifacts import pipeline. The command MUST NOT re-implement
+identity assignment, mutation planning, or database apply; it MUST delegate those to
+the existing pipeline. The snapshot format MUST be inferred from each file's extension,
+not declared in config.
 
 #### Scenario: Operator runs a configured source against a saved snapshot
 
@@ -15,17 +17,23 @@ planning, or database apply; it MUST delegate those to the existing pipeline.
   builds an `Artifacts` envelope, and hands it to the existing import pipeline, which
   assigns canonical ids and applies `DatabaseMutations`
 
+#### Scenario: Multiple snapshot files in one run
+
+- **WHEN** an operator runs `intake run <source-id> file-a.xlsx file-b.xlsx`
+- **THEN** intake parses each file and contributes the records from every file to the
+  same import
+
 #### Scenario: Dry-run plans without applying
 
 - **WHEN** an operator runs `intake run <source-id> <snapshot-ref> --dry-run`
 - **THEN** intake writes the planned `DatabaseMutations` envelope to the command
   directory and MUST NOT apply database mutations
 
-#### Scenario: Command validates argument count
+#### Scenario: Command validates required arguments
 
-- **WHEN** an operator runs `intake run` without a source id, without a snapshot ref,
-  or with extra positional arguments
-- **THEN** intake fails before parsing the snapshot or writing any database rows
+- **WHEN** an operator runs `intake run` without a source id, or with a source id but
+  no snapshot file
+- **THEN** intake fails before parsing any snapshot or writing any database rows
 
 #### Scenario: Unknown source id
 
@@ -36,41 +44,65 @@ planning, or database apply; it MUST delegate those to the existing pipeline.
 ### Requirement: Source Transform Configuration
 
 A source's transform config MUST be a declarative file under `sources/<source-id>/`
-that declares the snapshot format and one or more record mappings, each with a target
-`kind`, an `identity`, and a field `map`. The runtime MUST validate the config before
-parsing the snapshot and MUST reject an unknown target `kind` and any mapped target
-field that is not part of that kind's record spec.
+declaring one or more record mappings. Each mapping MUST declare a target `kind`, a
+`key` selecting the source column(s) that form the source-local record identity, and a
+`map` from target record-spec fields to source column names (a `map` value MAY also be
+a literal constant), and MAY declare a `filter`. The runtime MUST fail before parsing
+when a mapping declares a `kind` that is not a supported import artifact kind. The
+runtime MUST NOT re-validate which target fields are legal; validity of each mapped
+record MUST be enforced by the target kind's existing envelope schema.
 
-#### Scenario: Valid config is loaded
+#### Scenario: Field map is target-field to source-column
 
-- **WHEN** `intake run` loads a config declaring `kind: Personnel`, an `identity`, and
-  a `map` of supported `PersonnelSpec` fields
-- **THEN** the runtime accepts the config and proceeds to parse the snapshot
+- **WHEN** a Personnel mapping declares
+  `map: { id: "POST ID", first_name: First, last_name: Last }`
+- **THEN** each parsed row becomes a `Personnel` record whose `id`, `first_name`, and
+  `last_name` are taken from that row's `POST ID`, `First`, and `Last` columns
 
-#### Scenario: Unknown record kind is rejected
+#### Scenario: Invalid mapped record is rejected by the envelope
 
-- **WHEN** a config declares a `kind` that is not one of the supported import artifact
-  kinds
+- **WHEN** a mapped record omits a field the target kind's spec requires (e.g.
+  `last_name`)
+- **THEN** the existing envelope validation rejects the record and intake fails loudly
+  rather than importing a partial row
+
+#### Scenario: Unknown record kind fails early
+
+- **WHEN** a mapping declares a `kind` that is not a supported import artifact kind
 - **THEN** intake fails before parsing the snapshot or writing any database rows
 
-#### Scenario: Unsupported target field is rejected
+### Requirement: Optional Deterministic Row Filter
 
-- **WHEN** a config maps a value to a target field that the declared kind's record
-  spec does not define
-- **THEN** intake fails before parsing the snapshot or writing any database rows
+A mapping MAY declare a `filter`. When present, the runtime MUST evaluate it
+deterministically for each parsed row and MUST exclude non-matching rows before
+emitting records; an excluded row MUST NOT contribute a record of that kind. When no
+`filter` is declared, every parsed row MUST contribute a record (subject to envelope
+validation).
+
+#### Scenario: Filter excludes unwanted rows
+
+- **WHEN** a mapping declares a `filter` and a parsed row does not satisfy it
+- **THEN** no record of that kind is emitted for that row
+
+#### Scenario: No filter emits every row
+
+- **WHEN** a mapping declares no `filter`
+- **THEN** every parsed row contributes a record of that kind, subject to envelope
+  validation
 
 ### Requirement: Deterministic Snapshot Parsing
 
 The runtime MUST parse the referenced snapshot deterministically: the same snapshot
-bytes MUST always yield the same records. For the `xlsx` format the runtime MUST read
-rows from the configured sheet keyed by header, and MUST fail before any database
-write when the snapshot is missing, unreadable, or not the declared format.
+bytes MUST always yield the same records. The snapshot format MUST be inferred from the
+file extension. For `xlsx` the runtime MUST read rows from the first sheet keyed by the
+header row, and MUST fail before any database write when the snapshot is missing,
+unreadable, or not a readable file of its inferred format.
 
 #### Scenario: xlsx snapshot is parsed into rows
 
-- **WHEN** the config declares `format: xlsx` and the snapshot is a readable workbook
-- **THEN** the runtime reads its rows keyed by column header and maps them per the
-  config
+- **WHEN** the snapshot has an `.xlsx` extension and is a readable workbook
+- **THEN** the runtime reads its rows from the first sheet keyed by column header and
+  maps them per the config
 
 #### Scenario: Parsing is deterministic
 
@@ -79,21 +111,22 @@ write when the snapshot is missing, unreadable, or not the declared format.
 
 #### Scenario: Unreadable or wrong-format snapshot fails early
 
-- **WHEN** the snapshot is missing, unreadable, or not the declared format
+- **WHEN** the snapshot is missing, unreadable, or not a readable file of its inferred
+  format
 - **THEN** intake fails before reading `SourceNameToCanonicalId` records or writing any
   database rows
 
 ### Requirement: Source-Local Identity Keying
 
 Each emitted record MUST be keyed by the source-local identity value selected by the
-config's `identity`. The command MUST NOT generate canonical database ids; canonical
-cuid2 assignment and persistence MUST remain the responsibility of the existing
-pipeline's `SourceNameToCanonicalId` state.
+mapping's `key` (the value of the named source column(s); multiple columns MUST be
+combined deterministically). The command MUST NOT generate canonical database ids;
+canonical cuid2 assignment and persistence MUST remain the responsibility of the
+existing pipeline's `SourceNameToCanonicalId` state.
 
-#### Scenario: Record key comes from the configured identity
+#### Scenario: Record key comes from the configured key columns
 
-- **WHEN** a Personnel config declares `identity: { from: [post_id] }` and a row has
-  POST ID `12345`
+- **WHEN** a Personnel mapping declares `key: [POST ID]` and a row has `POST ID` `12345`
 - **THEN** the emitted `Artifacts` record for that row is keyed by `12345`, and the
   existing pipeline mints or reuses the canonical cuid2 for that source-local key
 
