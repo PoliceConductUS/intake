@@ -14,24 +14,35 @@ proven end-to-end on the AZ POST officer roster.
 **Onboarding a source**
 - From: author a bespoke producer repo that hand-writes `raw → Artifacts` and all
   contract plumbing.
-- To: add a single declarative transform-config file under `sources/<id>/`; the
-  shared runtime does `raw → Artifacts` and hands off to the existing pipeline.
-- Reason: collapse per-source cost to data so onboarding fits in an hour at scale.
+- To: add a small `sources/<id>/config.ts` module that exports a `run(input, ctx)`
+  function emitting records; the shared runtime owns all plumbing (`Artifacts`
+  envelope build, identity, import, change record) and hands off to the existing
+  pipeline.
+- Reason: collapse per-source cost to the irreducible source-specific code (read +
+  emit), deleting the duplicated plumbing, so onboarding fits in an hour at scale.
 - Impact: non-breaking; existing `import artifacts` / `replay` commands are unchanged.
 
 **New `intake run` command**
-- Add `intake run <source-id> <snapshot-ref> [--dry-run]` (auto-discovered under
-  `src/cli/run/`). It loads `sources/<source-id>/source.yaml`, parses the snapshot,
-  emits a typed `Artifacts` envelope keyed by source-local identity, and calls the
+- Add `intake run <source-id> <path...> [--dry-run]` (auto-discovered under
+  `src/cli/run/`). It loads `sources/<source-id>/config.ts`, invokes its `run` with
+  injected dependencies, takes the `Artifacts` manifest `run` returns, and calls the
   existing `runImportArtifactsCommand`. `--dry-run` mirrors the existing flag.
 
+**Source module contract (returns a manifest; DI, no service locator)**
+- A source is a `config.ts` exporting a deterministic `run` that reads the CLI paths and
+  **returns** an `Artifacts` manifest of the records it generated — it does not emit via a
+  callback and does not stream. Its dependencies are **injected** as narrow, typed
+  parameters by the `intake run` command (the composition root), mirroring how
+  `importArtifacts` receives injected adapters — no service-locator context, no
+  intake-owned DB/mapping/mutation handles. The exact injected surface is deferred.
+
 **Snapshot parsing (new capability axis)**
-- Add deterministic xlsx snapshot parsing. No raw-file parsing exists in the repo
-  today; all current I/O is typed YAML envelopes.
+- Add deterministic xlsx parsing as an injected parse capability. No raw-file parsing
+  exists in the repo today; all current I/O is typed YAML envelopes.
 
 **First source**
-- Add `sources/gov.azpost.roster/` declaring `Personnel` records keyed by POST ID,
-  mapping only currently-supported `PersonnelSpec` fields; `reconcile: additive`.
+- Add `sources/gov.azpost.roster/config.ts` whose `run` returns `Personnel` records keyed
+  by POST ID, mapping only currently-supported `PersonnelSpec` fields; additive.
 
 **Explicitly reused unchanged**: the `Artifacts` envelope contract,
 `SourceNameToCanonicalId` cuid2 assignment/persistence, `DatabaseMutations` planning +
@@ -43,12 +54,12 @@ record), and no database schema/migration change.
 
 ### New Capabilities
 
-- `config-driven-source-import`: Generate a typed `Artifacts` envelope from a saved
-  source snapshot using a declarative per-source transform config, then import it via
-  the existing pipeline. Covers the `intake run` command, the source-config schema,
-  deterministic snapshot parsing (xlsx), config-declared field mapping, source-local
-  identity keying, kind-agnostic and additive emission, and reuse of the existing
-  import/mutation machinery.
+- `config-driven-source-import`: Generate a typed `Artifacts` manifest from a saved source
+  snapshot using a per-source `config.ts` module, then import it via the existing pipeline.
+  Covers the `intake run` command, the `run`-returns-a-manifest source-module contract,
+  dependency injection of the module's narrow capabilities (no service-locator context),
+  deterministic snapshot parsing (xlsx), source-local identity keying, kind-agnostic and
+  additive records, and reuse of the existing import/mutation machinery.
 
 ### Modified Capabilities
 
@@ -56,11 +67,12 @@ record), and no database schema/migration change.
 
 ## Impact
 
-- **New code**: `src/cli/run/` (command), a source-config loader/validator, a
-  deterministic xlsx snapshot reader, and an `Artifacts`-envelope builder.
+- **New code**: `src/cli/run/` (command + composition root that injects deps), a
+  source-module loader, the glue that imports the returned manifest, and a deterministic
+  xlsx parse capability.
 - **New dependency**: an xlsx reader (or a minimal hand-rolled reader) — decided in
   design/plan.
-- **New data**: `sources/gov.azpost.roster/source.yaml`.
+- **New source module**: `sources/gov.azpost.roster/config.ts`.
 - **Reused unchanged**: `import artifacts` pipeline, `SourceNameToCanonicalId`,
   `DatabaseMutations`, command directory. Env unchanged: `INTAKE_WORKSPACE`,
   `DATABASE_URL` (same as `import artifacts` today).

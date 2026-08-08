@@ -63,15 +63,20 @@ snapshots, source-local identity mapped to canonical cuid2 IDs via
 
 ## Decisions
 
-### D1. Sources are data; the runtime is code.
+### D1. A source is a small code module; the runtime owns all plumbing.
 
-A source's *transform* is a registry entry (`sources/<id>/`) containing a declarative
-`source.yaml`. The runtime interprets it. A new *record kind* is a rare shared-code
-change every later source reuses. The runtime is **kind-agnostic**: a source emits
-exactly the record kinds its `records` config declares — no source is assumed to
-produce any particular kind (a source may be location-only, e.g. census). Rationale:
-onboarding must be data to hit the ≤1-hour goal at 10k scale; the alternative (per-repo
-SDK plugins) keeps the ceremony that is the actual bottleneck.
+A source is a `sources/<id>/config.ts` module that exports `run`. It reads the
+CLI-provided paths and **returns an `Artifacts` manifest** of the records it generated;
+the runtime owns everything else. This reverses the earlier "sources are pure data"
+framing after the prior art (`data.rebrokerlist.com/*/config.js`) showed even simple
+sources need real filter + transform logic — the actual win was never "no code," it was
+**deleting the ~90% duplicated plumbing**, which a thin module against a runtime SDK
+preserves (AZ POST is ~15 lines). A new *record kind* is a rare shared-code change every
+later source reuses. The runtime is **kind-agnostic**: a source returns exactly the kinds
+its `run` generated — no
+source is assumed to produce any particular kind (a source may be location-only, e.g.
+census). Rationale: onboarding must collapse to the irreducible source-specific code to
+hit the ≤1-hour goal at 10k scale.
 
 ### D2. Deterministic transform; additive load.
 
@@ -123,11 +128,12 @@ belongs to the acquisition system, **not this repo.** This repo begins at a save
 snapshot. A source's ACQUIRE config (connector, schedule, delivery, FOIA form) is owned
 there; this repo owns only the TRANSFORM slice.
 
-### D7. Identity from the source when stable; documented derivation otherwise.
+### D7. Identity is the emit key; derive it deterministically when the source lacks one.
 
-AZ POST has a stable **POST ID** → `identity: { from: [post_id] }`. Sources lacking a
-stable ID declare a deterministic derivation with `on_collision: fail`, enforced by
-the runtime rather than hand-coded per source.
+`run` passes a `sourceKey` to `ctx.emit`; that key is the source-local identity the
+existing pipeline mints the canonical cuid2 from. AZ POST uses POST ID directly. A
+source lacking a stable id derives the key deterministically from stable fields inside
+its own `run`, failing loudly on collisions.
 
 ### D8. The manual trigger is a new CLI front-door that reuses the existing pipeline.
 
@@ -141,59 +147,111 @@ Slice 1 adds one new discovered command that sits **in front of** `import artifa
 and performs the `raw → Artifacts` step from config:
 
 ```bash
-intake run <source-id> <snapshot-ref> [--dry-run]   # command name is an open question
-#  1. read sources/<source-id>/source.yaml (transform slice)
-#  2. parse the saved snapshot (e.g. the AZ POST xlsx) per config
-#  3. emit a typed Artifacts envelope   ← the part producers hand-code today
-#  4. hand off to the EXISTING import pipeline (transform → additive load)
-#  5. record the durable change
+intake run <source-id> <path...> [--dry-run]
+#  1. load sources/<source-id>/config.ts  (must export run)
+#  2. invoke run(paths, <injected deps>) — it reads the path(s)
+#  3. run RETURNS an Artifacts manifest of the records it generated  ← producers hand-code this today
+#  4. hand the returned manifest to the EXISTING import pipeline (transform → additive load)
+#  5. reuse the DatabaseMutations envelope as the durable change record
 ```
 
-`<source-id> <snapshot-ref>` is the input handoff descriptor from D5, passed as CLI
-args instead of an event. Rationale: reuse the proven `import artifacts`/`replay`
-pipeline unchanged; the only new code is the config-driven `raw → Artifacts` front-end
-and the durable change record. `--dry-run` mirrors the existing flag (plan without
-applying).
+`<source-id> <path...>` is the input handoff descriptor from D5, passed as CLI args
+instead of an event. Rationale: reuse the proven `import artifacts`/`replay` pipeline
+unchanged; the only new code is the source-module loader and the glue that imports the
+returned manifest. `--dry-run` mirrors the existing flag (plan without applying).
 
-### Source-definition strawman (this repo's TRANSFORM slice only, not final)
+### D9. Dependencies are injected (DI), not pulled from a service-locator context.
 
-```yaml
-# sources/gov.azpost.roster/source.yaml   (Slice 1 target — transform slice)
-id: gov.azpost.roster
-title: Arizona POST — Officer Roster
-records:
-  - kind: Personnel
-    key: [POST ID]              # source column(s) = source-local identity
-    # filter: <predicate>       # optional; drop unwanted rows
-    map:                        # target spec field : source column (or literal constant)
-      id:          POST ID
-      first_name:  First
-      last_name:   Last
-      middle_name: Middle
-# Per kind = key + map + optional filter. Everything else is convention or deferred:
-# - format inferred from the snapshot file extension (.xlsx), not configured
-# - namespace + envelope name are runtime-derived (namespace = id, name = id + digest)
-# - validity of a mapped record is enforced by the existing envelope schema, not config
-# - rank/misconduct deferred (no new kinds/columns in Slice 1)
-# - deterministic value transforms (split/reformat) run BEFORE mapping — seam designed,
-#   not built in Slice 1; escape hatch is an optional per-source transform function
-#   (cf. the rebrokerlist `filter_function` prior art, which did filter + transform)
-# - connector / schedule / delivery are ACQUIRE config in the separate system (deferred)
+The runtime does **not** pass `run` a broad `ctx` object. Following ADR 0014 — *"stages
+must not discover side effects by reaching through broad context objects… receive those
+adapters directly"* — and the existing `importArtifacts` precedent (injected `logger`,
+`clientFactory`, `resolveAgencyCoordinates`), the `intake run` command is the
+**composition root**: it constructs narrow, single-purpose adapters and injects only the
+ones a module declares. `run` receives the CLI paths plus those narrow capabilities as
+explicit typed parameters — for AZ POST just a deterministic parse capability; a per-run
+workspace path and persistent state path (the `Command` envelope's `path`/`statePath`
+grants) are injected only when a module needs them. `run` does **not** receive an `emit`
+callback — it returns its manifest (see D10). `run` MUST be deterministic (no network,
+clock, or randomness) so the existing replay/idempotency core keeps working. The exact
+injected surface is deferred design work.
+
+Rationale: a fat context doing emit + parse + workspace + state + logging is exactly the
+service-locator god-object ADR 0014 bans; narrow injection keeps each source's real
+dependencies visible and unit-testable (`run({paths, readXlsx: fake})` → assert the
+returned manifest), and the runtime keeps ownership of every intake-owned envelope,
+mapping, and mutation. There is no DI *framework* in the repo (and none is added — YAGNI);
+injection is manual via the command composition root, exactly as `importArtifacts` already
+does it.
+
+### D10. `run` returns a manifest; it does not emit, and it does not stream.
+
+`run` is a value-returning function: it returns an `Artifacts` manifest of the records it
+generated, and the runtime imports what is returned. It does **not** take an injected
+`emit` callback (a callback sink couples the module to runtime collection and is harder to
+test), and it does **not** stream. Rationale: returning a manifest maps `run` exactly onto
+the existing producer→`import artifacts` boundary — the `Artifacts` envelope already *is* a
+manifest of generated records — so `intake run` is a thin wrapper over the proven pipeline,
+and `run` is trivially testable (`run(deps)` → assert manifest). Streaming was considered
+and rejected for now: the downstream import pipeline is inherently batch (it sorts by
+dependency order and plans a *complete* `DatabaseMutations` envelope), the manifest is the
+hashable audit artifact the idempotency guard needs, and target scale (rosters, FOIA
+sheets — thousands to low-hundred-thousands of rows) fits in memory trivially. The seam
+stays open: a `run` can process a folder file-by-file internally, and the return type
+could widen to an async-iterable later if a genuinely huge source *and* a streaming import
+path ever coexist. Whether the returned manifest carries records inline or references
+files `run` wrote is a deferred plan-time detail (inline recommended for Slice 1).
+
+### Source module strawman (Slice 1 target, not final)
+
+```ts
+// sources/gov.azpost.roster/config.ts   (exact dep + manifest types are TBD)
+// deps are INJECTED by the `intake run` composition root — no service-locator ctx
+export const run = async ({ paths, readXlsx }: RunDeps): Promise<Manifest> => {
+  const personnel: Record<string, { spec: PersonnelSpec }> = {};
+  for (const path of paths) {
+    for (const row of await readXlsx(path)) {
+      // injected parse capability
+      if (!row["POST ID"]) continue; // filter (plain code)
+      const key = String(row["POST ID"]);
+      personnel[key] = {
+        spec: {
+          id: key,
+          first_name: row["First"],
+          last_name: row["Last"],
+          middle_name: row["Middle"] ?? null,
+        },
+      };
+    }
+  }
+  return { records: [{ kind: "Personnel", records: personnel }] }; // ← returned manifest
+};
 ```
+
+- `filter` and `map` are just code inside `run` (filter chain / map pipeline as plain
+  functions) — no DSL to invent, and type-checked against the record specs.
+- namespace + envelope name are runtime-derived (namespace = source id, name = source id
+  + snapshot digest, which also drives the "already imported" guard).
+- validity of each emitted record is enforced by the existing envelope schema, not by
+  the runtime.
+- rank/misconduct deferred (no new kinds/columns in Slice 1).
+- deterministic value transforms (split/reformat) are just code in `run`; the prior art
+  shows they will grow — kept as plain functions rather than a config DSL.
+- acquisition (connector, schedule, delivery) lives in the separate system (deferred).
 
 **Prior art (`data.rebrokerlist.com/data/*/config.js`):** each source was a `config.js`
 with a `field_map` (target ← source, incl. literal constants) plus a `filter_function`
 that both reshaped rows (date/phone reformatting, dropping empty fields) and returned a
-keep/drop boolean. That validates two things: the `target: source` map direction, and
-that real sources eventually need **deterministic transforms as code**. Slice 1 stays
-declarative (AZ POST needs no transform); the pre-mapping transform stage is a designed
-seam, filled by an optional per-source function when a source first needs it.
+keep/drop boolean. That directly motivates the `config.ts` + `run` shape here: real
+sources need filter + transform *as code*, so the module owns that logic while the
+runtime owns all plumbing. AZ POST needs no transform, so its `run` is a plain
+read-filter-emit loop.
 
 ## Risks / Trade-offs
 
-- **Mapping surface too weak for real sources** → Keep a per-source `parse.ts` escape
-  hatch for genuinely bespoke cases; grow primitive coverage from real sources rather
-  than speculatively.
+- **`run` executes arbitrary code and could be non-deterministic** → Determinism is a
+  contract (no network/clock/randomness), enforced by convention + a required per-source
+  unit test (`run({paths, emit: fake, readXlsx: fake})` → asserted records). First-party
+  in-repo modules only.
 - **Additive-only lets rosters drift from reality** → Accepted for now; retiring stale
   records is a separate, later concern, not disappearance-driven deletion.
 - **Split config across two systems drifts out of sync** → Deferred: Slice 1 has a
@@ -223,8 +281,12 @@ seam, filled by an optional per-source function when a source first needs it.
 - **xlsx snapshot parser** — no raw-file parsing exists in the repo today; Slice 1 adds
   one. Dependency (e.g. a SheetJS-style reader) vs. a minimal hand-rolled reader is a
   spec decision.
-- **`source.yaml` file name + exact schema** — strawman only; pin in the spec.
-- **Registry storage at scale** — git YAML per source (recommended) vs. table; Slice 4.
+- **Injected dependency surface for `run`** — deferred design work (user's call). Fix the
+  DI *style* now (narrow injected adapters, no service-locator ctx); settle the concrete
+  set in the plan, driven by what AZ POST's `run` actually needs (emit + xlsx parse, and
+  workspace/state only if used) and the `RunDeps` type shape.
+- **Registry storage at scale** — git-tracked `sources/` modules (recommended) vs. table;
+  Slice 4.
 
 Resolved during brainstorming / grounding against the code:
 

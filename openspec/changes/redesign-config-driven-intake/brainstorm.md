@@ -44,21 +44,25 @@ snapshot via a manual trigger.
 
 ## Alternatives Considered
 
-### Approach A: Config registry + one shared runtime (sources are data) — CHOSEN
+### Approach A: In-repo source modules against a shared runtime SDK — CHOSEN
 
-- **Approach**: Source transform definitions live as data (`sources/<id>/source.yaml`)
-  inside the intake repo. One shared runtime interprets them: a field-map layer
-  produces typed records, the existing ledger resolves canonical IDs, the existing
-  planner produces additive `DatabaseMutations`. Custom deterministic parse is a rare
-  per-source `parse.ts` escape hatch, not the norm.
-- **Pros**: Data-only onboarding meets the ≤1-hour goal; contract plumbing
-  written/tested once; the 90% duplication disappears; the existing deterministic core
-  is reused unchanged.
-- **Cons**: The intake repo grows a large `sources/` tree; all sources share one
-  runtime release cadence; an expressive-enough mapping surface must be designed.
-- **Why selected**: It is the only option that makes onboarding *data* rather than a
-  new repo, which is the entire point. The user explicitly chose "pure config
-  registry, zero per-source code by default."
+- **Approach**: Each source is a small in-repo module (`sources/<id>/config.ts`)
+  exporting `run(input, ctx)`. The runtime provides `ctx` (per-run workspace + state
+  folders, parse helpers, `emit`) and owns all plumbing: it collects emitted records,
+  the existing ledger resolves canonical IDs, and the existing planner produces additive
+  `DatabaseMutations`. This landed as a synthesis of the two options below — in-repo like
+  a registry, thin-against-an-SDK like a plugin. (The design started as declarative YAML;
+  it moved to a code module once the prior art showed real sources need filter/transform
+  as code — see Key Decisions.)
+- **Pros**: Onboarding collapses to the irreducible source-specific code (~15 lines for
+  AZ POST); contract plumbing written/tested once; the 90% duplication disappears; the
+  existing deterministic core is reused unchanged; type-checked + unit-testable.
+- **Cons**: The intake repo grows a large `sources/` tree; all sources share one runtime
+  release cadence; `run` runs arbitrary code, so determinism is a contract, not a
+  structural guarantee.
+- **Why selected**: It makes onboarding a small module rather than a new repo while
+  keeping every source deterministic and testable, matching the user's prior-art
+  ergonomics without the per-repo ceremony.
 
 ### Approach B: Thin plugins against a published `@intake/sdk`
 
