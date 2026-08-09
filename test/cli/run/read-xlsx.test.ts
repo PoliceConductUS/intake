@@ -17,6 +17,20 @@ describe("readXlsx", () => {
     expect(rows[3]["POST ID"]).toBe(""); // blank cell → ""
   });
 
+  it("coerces a numeric cell to a clean digit string", async () => {
+    const rows = await readXlsx(fixture);
+    // POST ID on row 0 is stored as a numeric cell in the fixture.
+    expect(rows[0]["POST ID"]).toBe("1001");
+  });
+
+  it("coerces a Date cell to a clean ISO-like string", async () => {
+    const rows = await readXlsx(fixture);
+    const appointedOn = rows[0]["APPOINTED ON"];
+    expect(appointedOn).toMatch(/^\d{4}-\d{2}-\d{2}/);
+    expect(appointedOn).not.toContain("GMT");
+    expect(appointedOn).not.toContain("[object");
+  });
+
   it("is deterministic across repeat reads", async () => {
     expect(await readXlsx(fixture)).toEqual(await readXlsx(fixture));
   });

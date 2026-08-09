@@ -26,8 +26,23 @@ const headers = [
   "CERT TYPE",
 ];
 
+// POST ID is a numeric cell (not a string) on the first row, and APPOINTED ON
+// is a real Date cell on that same row, so the fixture exercises the
+// non-string cell shapes `readXlsx` must coerce cleanly (see
+// src/cli/run/read-xlsx.ts).
 const rows = [
-  ["Tempe PD", "1001", "Woodward", "Skip", "L", "", "", "", "", ""],
+  [
+    "Tempe PD",
+    1001,
+    "Woodward",
+    "Skip",
+    "L",
+    new Date(Date.UTC(2020, 0, 15)),
+    "",
+    "",
+    "",
+    "",
+  ],
   ["Mesa PD", "1002", "Denney", "Marc", "E", "", "", "", "", ""],
   ["Mesa PD", "1002", "Denney", "Marc", "E", "", "", "", "", ""],
   ["Tempe PD", "", "Nokey", "Ann", "", "", "", "", "", ""],
