@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { Command } from "commander";
 import { Artifacts } from "../../shared/io/index.js";
@@ -19,6 +20,7 @@ type RunSourceDeps = {
   env: Record<string, string | undefined>;
   loadSourceModule: typeof loadSourceModule;
   readXlsx: typeof readXlsx;
+  digest: (paths: string[]) => Promise<string>;
   makeWorkspace: (env: Record<string, string | undefined>) => Promise<string>;
   writeEnvelope: (
     directory: string,
@@ -33,15 +35,25 @@ type RunSourceDeps = {
 };
 
 /**
- * Derives a deterministic run-scoped digest from the input paths. It hashes
- * the path strings themselves (not file bytes): no clock, no randomness, and
- * no filesystem access, so a source id + a set of paths always produces the
- * same envelope name without requiring the paths to already exist on disk.
+ * Derives a deterministic, content-based digest from the input paths. Each
+ * path's file bytes are hashed independently, the resulting per-file hashes
+ * are sorted, and the sorted hashes are concatenated and hashed again. This
+ * makes the digest depend only on the *set* of file contents involved: it is
+ * independent of path names and of the order the paths were given, so an
+ * updated snapshot at the same path yields a different digest, and identical
+ * content at a different path yields the same digest.
  */
-function digestOfPaths(paths: readonly string[]): string {
-  const hash = createHash("sha256");
-  for (const p of paths) hash.update(p);
-  return hash.digest("hex").slice(0, 16);
+async function digestOfPaths(paths: readonly string[]): Promise<string> {
+  const fileHashes = await Promise.all(
+    paths.map(async (p) => {
+      const bytes = await readFile(p);
+      return createHash("sha256").update(bytes).digest("hex");
+    }),
+  );
+  fileHashes.sort();
+  const combined = createHash("sha256");
+  for (const fileHash of fileHashes) combined.update(fileHash);
+  return combined.digest("hex").slice(0, 16);
 }
 
 function errorMessage(error: unknown): string {
@@ -67,7 +79,7 @@ export async function runSource(
 
   try {
     const manifest = await run({ paths, readXlsx: deps.readXlsx });
-    const digest = digestOfPaths(paths);
+    const digest = await deps.digest(paths);
     const workspace = await deps.makeWorkspace(deps.env);
     const { path: artifactsPath } = await deps.writeEnvelope(
       workspace,
@@ -106,6 +118,7 @@ export const registerCliCommand: RegisterCliCommand = (
           env,
           loadSourceModule,
           readXlsx,
+          digest: digestOfPaths,
           makeWorkspace: async (e) =>
             (
               await createCommandDirectory(e, {

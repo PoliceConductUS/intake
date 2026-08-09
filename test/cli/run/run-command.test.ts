@@ -19,6 +19,7 @@ function makeOkDeps() {
       ],
     })),
     readXlsx: vi.fn(async () => []),
+    digest: vi.fn(async () => "testdigest"),
     writeEnvelope: vi.fn(async () => ({ path: "/ws/artifacts.yaml" })),
     runImport: vi.fn(async () => ({ exitCode: 0, stdout: "ok" })),
     makeWorkspace: vi.fn(async () => "/ws"),
@@ -39,7 +40,12 @@ describe("runSource", () => {
       "gov.azpost.roster",
       "/sources",
     );
-    expect(okDeps.writeEnvelope).toHaveBeenCalled();
+    expect(okDeps.writeEnvelope).toHaveBeenCalledWith(
+      "/ws",
+      "gov.azpost.roster",
+      "testdigest",
+      expect.anything(),
+    );
     expect(okDeps.runImport).toHaveBeenCalledWith("/ws/artifacts.yaml", {
       dryImport: true,
     });
