@@ -3,6 +3,7 @@ import type {
   ArtifactsEnvelope,
   ImportArtifactKind,
 } from "../../shared/io/index.js";
+import type { readXlsx } from "./read-xlsx.js";
 
 export type EmittedRecords = Record<string, { spec: unknown }>;
 export type SourceManifest = {
@@ -10,7 +11,7 @@ export type SourceManifest = {
 };
 export type RunDeps = {
   paths: string[];
-  readXlsx: (filePath: string) => Promise<Array<Record<string, string>>>;
+  readXlsx: typeof readXlsx;
 };
 export type SourceRun = (deps: RunDeps) => Promise<SourceManifest>;
 
