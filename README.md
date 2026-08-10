@@ -53,10 +53,13 @@ the intake archive directly; archive layout and storage are owned by this repo.
 Initial CLI vocabulary:
 
 ```bash
+intake run <source-id> <path...> [--dry-run]
 intake import artifacts [--dry-run] <artifacts-ref>
 intake replay database-mutations <database-mutations-ref>
 ```
 
+- `run` runs a source's `config.ts`, which returns an `Artifacts` manifest, and
+  imports it via the existing pipeline.
 - `import artifacts` reads and validates a source-produced `Artifacts` envelope,
   resolves intake-owned mappings, writes a `DatabaseMutations` envelope, and
   applies the database mutations unless `--dry-run` is set.
