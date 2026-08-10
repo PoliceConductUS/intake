@@ -18,6 +18,22 @@ function openZip(zipPath: string): Promise<yauzl.ZipFile> {
   });
 }
 
+/**
+ * yauzl's default `autoClose` only closes the underlying file descriptor on
+ * the `"end"` event, never on `"error"`. Without this, a corrupt central
+ * directory (or any mid-iteration failure) leaks the fd. Centralized here so
+ * every zipfile consumer closes-then-rejects the same way.
+ */
+function onZipError(
+  zipfile: yauzl.ZipFile,
+  reject: (err: Error) => void,
+): void {
+  zipfile.on("error", (err: Error) => {
+    zipfile.close();
+    reject(err);
+  });
+}
+
 function readEntryBuffer(
   zipfile: yauzl.ZipFile,
   entry: yauzl.Entry,
@@ -50,7 +66,7 @@ export async function listZipEntries(zipPath: string): Promise<string[]> {
       zipfile.readEntry();
     });
     zipfile.on("end", () => resolve(names));
-    zipfile.on("error", reject);
+    onZipError(zipfile, reject);
     zipfile.readEntry();
   });
 }
@@ -77,16 +93,20 @@ export async function readZipEntryBuffer(
           zipfile.close();
           resolve(buf);
         })
-        .catch(reject);
+        .catch((err) => {
+          zipfile.close();
+          reject(err);
+        });
     });
     zipfile.on("end", () => {
       if (!found) {
+        zipfile.close();
         reject(
           new Error(`Entry "${entryName}" not found in zip: ${zipPath}`),
         );
       }
     });
-    zipfile.on("error", reject);
+    onZipError(zipfile, reject);
     zipfile.readEntry();
   });
 }
