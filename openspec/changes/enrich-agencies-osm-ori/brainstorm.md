@@ -1,48 +1,63 @@
 ## Design Summary
 
-Extend the AZ POST source to emit **Agencies + AgencyPersonnel** (not just Personnel), and
-add a **name-based agency enrichment resolver** so agencies — which the roster gives only by
-name — can be created with a real `location_path_id` + coordinates and enriched with
-address, phone, email, and social. Resolution runs **OpenStreetMap/Nominatim first, then
-ORI/NCIC (LEAIC)**, cached as a `ResolvedProperty` (deterministic replay), with a
-visitor-correction loop for mismatches.
+Add **Agencies + AgencyPersonnel** to the AZ POST import. The roster gives agencies only by
+name, and the pipeline cannot create an agency from name alone (it needs
+`location_path_id` + coordinates, or a full address).
+
+**Primary path: request the data from the authoritative source.** A public-records request to
+AZPOST for its agency directory (name, ORI, type, street/mailing address, city/state/zip,
+county, phone, email, website) — drafted at
+`intake.gov.az.post/2026-08-10-AZPOST Form PR - Agency Directory Request.pdf`. When it
+returns, the directory is imported like the roster (an `intake run` source); because it
+carries **addresses**, the **existing** address→location resolver derives `location_path_id`
+
+- coordinates with **no new pipeline code**. The roster supplies the officer↔agency links.
+
+**Fallback (deferred):** an OSM/Nominatim → ORI/LEAIC name-based enrichment resolver, cached
+as a `ResolvedProperty`, for agencies the directory doesn't cover. Built only if a real gap
+remains.
 
 Full detail, verified facts, decisions (D1–D6), risks, and open questions are in `design.md`.
 
 ## Alternatives Considered
 
-### Approach A: Roster creates + enriches agencies — CHOSEN
+### Approach A: FOIA-delivered agency directory (primary) + resolver fallback — CHOSEN
 
-- The AZ POST `run` emits `Agencies` by name; an intake-side resolver fills
-  location/coords/contact from Nominatim → LEAIC. One source, immediate graph.
-- **Why selected:** gets the officer↔agency graph and rich data flowing from the roster we
-  already have; the authoritative ORI registry can be layered in later as backfill.
+- Request authoritative agency data from AZPOST; import like the roster; reuse the existing
+  address→location resolver. Name-based enrichment only fills gaps.
+- **Why selected:** authoritative and deterministic, needs no new pipeline code for covered
+  agencies, and avoids name→POI matching uncertainty for the common case.
 
-### Approach B: Dedicated ORI-registry source owns agencies; roster only links
+### Approach B: Name-based enrichment resolver (Nominatim → ORI) as the primary path
 
-- Cleaner authoritative origin, but the roster's agency names must be matched to registry
-  agencies (a name-matching problem).
-- **Why not now:** more upfront machinery; naturally becomes the evolution of A once the ORI
-  registry is ingested as its own source.
+- Reconstruct address/coords/contact from third parties for every agency.
+- **Why not now:** matching uncertainty (substations, renamed depts) and external
+  dependency/cost for data we can simply request from the source. Kept only as fallback.
+
+### Approach C: Dedicated ORI-registry source owns agencies; roster links
+
+- Cleaner authoritative origin, but needs a name-matching layer up front.
+- **Why not now:** more machinery; a later evolution once ORI is ingested as its own source.
 
 ## Agreed Approach
 
-Approach A, delivered as an intake-side, cached enrichment resolver (ADR 0014) plus the
-AZ POST `run` field mapping in `design.md` §D6. The source stays deterministic (emits
-`{name, state}` only); the resolver owns all external lookups and `ResolvedProperty` state.
+Approach A. Request the AZPOST agency directory (PR form drafted); import it as an
+`intake run` source that maps directory columns → `Agencies` (with address/contact), reusing
+the existing pipeline for `location_path_id` + coordinates. The roster `run` emits
+`AgencyPersonnel` links keyed by the shared agency name. The Nominatim/ORI resolver stays in
+the design as a deferred fallback for uncovered agencies.
 
 ## Key Decisions
 
-- Nominatim first (coords/address/contact/social tags), then LEAIC/ORI (ORI + FIPS place →
-  jurisdiction, identity validation). Merge, cache once per unique agency, replay from cache.
-- `location_path_id` from the resolved place (467 AZ places exist); coordinates from
-  Nominatim (place centroids are incomplete — e.g. Phoenix — so not sufficient alone).
+- Primary agency data = authoritative FOIA directory, imported like the roster; **no new
+  agency-resolution pipeline code** when addresses are present.
+- Roster provides `AgencyPersonnel`; agency identity keyed by the shared agency name string.
 - `AgencyPersonnel` keyed `${postId}:${agency}:${appointedOn}`; `license_type` = CERT TYPE;
-  dates sliced to `YYYY-MM-DD`. One manifest; pipeline orders the kinds.
+  dates sliced to `YYYY-MM-DD`.
+- Nominatim → ORI/LEAIC resolver = deferred fallback (cached, correction loop) for gaps only.
 
 ## Open Questions
 
-See `design.md` §Open Questions — the load-bearing ones: primary ORI dataset (LEAIC 2012 vs
-FBI Crime Data Explorer), FIPS→`location_path` join, social-media coverage, and whether
-enrichment supplies a full address (reuse the existing resolver) or `location_path_id`+coords
-directly.
+See `design.md` §Open Questions — chiefly: does the returned directory include addresses for
+every agency (how much fallback is needed), roster-vs-directory agency labels, and sequencing
+(build the roster `AgencyPersonnel` change now vs. wait for the directory).
