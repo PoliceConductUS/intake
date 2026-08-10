@@ -101,7 +101,7 @@ export const registerCliCommand: RegisterCliCommand = (
     .command("run")
     .description("Run a source's config.ts and import the records it returns.")
     .argument("<source-id>", "source id under sources/")
-    .argument("<paths...>", "one or more snapshot files or folders")
+    .argument("<paths...>", "one or more snapshot files")
     .option(
       "--dry-run",
       "Write the DatabaseMutations envelope without applying it",

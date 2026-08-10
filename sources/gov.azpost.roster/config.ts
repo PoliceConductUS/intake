@@ -1,4 +1,7 @@
-import type { SourceRun } from "../../src/cli/run/source-run.js";
+import type {
+  SourceRun,
+  EmittedRecords,
+} from "../../src/cli/run/source-run.js";
 
 /**
  * AZ POST officer roster: reads AGENCY, POST ID, LAST, FIRST, MIDDLE,
@@ -9,7 +12,7 @@ import type { SourceRun } from "../../src/cli/run/source-run.js";
  * Deterministic: no network/clock/randomness.
  */
 export const run: SourceRun = async ({ paths, readXlsx }) => {
-  const records: Record<string, { spec: unknown }> = {};
+  const records: EmittedRecords = {};
   for (const path of paths) {
     for (const row of await readXlsx(path)) {
       const postId = (row["POST ID"] ?? "").trim();

@@ -25,4 +25,10 @@ describe("loadSourceModule", () => {
       /run/,
     );
   });
+
+  it("rejects a source id containing path traversal", async () => {
+    await expect(loadSourceModule("../evil", sourcesRoot)).rejects.toThrow(
+      /invalid source id/i,
+    );
+  });
 });

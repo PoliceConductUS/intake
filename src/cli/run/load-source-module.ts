@@ -7,6 +7,9 @@ export async function loadSourceModule(
   sourceId: string,
   sourcesRoot: string,
 ): Promise<SourceRun> {
+  if (!/^[a-z0-9][a-z0-9.\-]*$/i.test(sourceId)) {
+    throw new Error(`Invalid source id: ${sourceId}`);
+  }
   const modulePath = path.join(sourcesRoot, sourceId, "config.ts");
   try {
     await access(modulePath, constants.R_OK);
