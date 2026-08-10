@@ -12,7 +12,7 @@ field mapping) is a small slice. Onboarding a source is the wall; the backlog
 (`intake.gov.data.tempe`, `intake.gov.az.post`/`azpost`) never got past raw files.
 
 Target: **a new source is data, added in ≤1 hour, and then updated on a cadence.**
-Adding a *source* becomes a registry entry. Adding a new *record kind* is a rare
+Adding a _source_ becomes a registry entry. Adding a new _record kind_ is a rare
 shared-code change every later source reuses for free.
 
 Intake is one stage in a longer chain, split across systems by **two boundaries**:
@@ -31,15 +31,15 @@ site pages) and NOTIFY (subscribers) are **separate downstream systems**
 (`policeconduct.org`, `section1983.org`). Intake never imports acquisition or website
 code.
 
-**Both boundaries are handoff *contracts*, not transports.** How a run is triggered,
+**Both boundaries are handoff _contracts_, not transports.** How a run is triggered,
 and how a completed change is transmitted onward, is deliberately undecided. **For now
 the input is a manual trigger** carrying a minimal descriptor (source id, saved-snapshot
 ref, digest, format); the output is a durable change record. An event bus / queue /
 webhook is future work and out of scope for this repo.
 
 The existing envelope / idempotency / replay / `SourceName→ID` / `ResolvedProperty`
-core (ADRs 0001–0014) is **preserved, not replaced.** The redesign sits *above* it: it
-turns per-source *transform* code into per-source config, consumed from a saved
+core (ADRs 0001–0014) is **preserved, not replaced.** The redesign sits _above_ it: it
+turns per-source _transform_ code into per-source config, consumed from a saved
 snapshot via a manual trigger.
 
 ## Alternatives Considered
@@ -86,7 +86,7 @@ snapshot via a manual trigger.
 
 ## Agreed Approach
 
-Approach A. Build one shared runtime + a data-only source *transform* registry,
+Approach A. Build one shared runtime + a data-only source _transform_ registry,
 delivered in slices. The existing deterministic import/replay core is reused; the
 redesign turns per-source transform code into config on top of that core, consumes a
 saved snapshot via a manual trigger, and records a durable change on completion.
@@ -94,40 +94,40 @@ saved snapshot via a manual trigger, and records a durable change on completion.
 Deliver in slices, tracer first. **Acquisition (REQUEST → ACQUIRE → SAVE) is a separate
 system with its own roadmap and is not sliced here.**
 
-| Slice | Deliverable (this repo) |
-|---|---|
+| Slice                             | Deliverable (this repo)                                                                                                                                                                                                                       |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **1 — Vertical tracer (AZ POST)** | Manual trigger against a saved xlsx snapshot → transform (POST ID identity + field map) → additive load through the existing ledger → record a durable change. Proves data-only transform config + the TRANSFORM→LOAD spine on a real source. |
-| 2 — Resolution & corrections | AI-assisted matching as a *cached* resolver strategy + `MappingCorrection` envelope ingestion with pin precedence. |
-| 3 — Change-record contract | Firm up the durable change record a completed run produces (consumed later by regenerate/notify; transport still separate). |
-| 4 — Scale + migrate | Many-source transform registry; collapse the sibling repos' transform slices onto the runtime and delete duplicated plumbing. |
+| 2 — Resolution & corrections      | AI-assisted matching as a _cached_ resolver strategy + `MappingCorrection` envelope ingestion with pin precedence.                                                                                                                            |
+| 3 — Change-record contract        | Firm up the durable change record a completed run produces (consumed later by regenerate/notify; transport still separate).                                                                                                                   |
+| 4 — Scale + migrate               | Many-source transform registry; collapse the sibling repos' transform slices onto the runtime and delete duplicated plumbing.                                                                                                                 |
 
 Only Slice 1 is specified now; slices 2–4 are the roadmap.
 
 ## Key Decisions
 
-- **Two handoff boundaries, transport-agnostic.** *Input:* this system is triggered
+- **Two handoff boundaries, transport-agnostic.** _Input:_ this system is triggered
   (manually for now) with a descriptor pointing at a saved snapshot (source id,
-  snapshot ref, digest, format). *Output:* it records a durable change (source, ids,
+  snapshot ref, digest, format). _Output:_ it records a durable change (source, ids,
   kinds). How runs are triggered and how changes are transmitted onward is
   undecided and out of scope for this repo.
 - **The manual trigger is a new CLI front-door.** Current CLI: `intake import artifacts
-  [--dry-run] <artifacts-ref>` and `intake replay database-mutations <ref>` (commander,
-  auto-discovered per folder). `import artifacts` starts *after* raw→typed-`Artifacts`,
+[--dry-run] <artifacts-ref>` and `intake replay database-mutations <ref>` (commander,
+  auto-discovered per folder). `import artifacts` starts _after_ raw→typed-`Artifacts`,
   which is the producer work being deleted. Slice 1 adds one command in front of it —
   `intake run <source-id> <snapshot-ref> [--dry-run]` — that does raw→`Artifacts`
   from config, then reuses the existing pipeline unchanged. The two args are the input
   handoff descriptor, passed as CLI args instead of an event.
 - **Acquisition is a separate system.** REQUEST → ACQUIRE(sync|async) → SAVE —
   connectors, HTML scraping, the FOIA request/response lifecycle (incl. automated FOIA
-  + async email-token correlation), and schedules — live upstream, not in this repo.
-  This repo starts from a saved snapshot.
+  - async email-token correlation), and schedules — live upstream, not in this repo.
+    This repo starts from a saved snapshot.
 - **Deterministic transform.** No AI in parse/map. Re-running the same snapshot yields
   identical `DatabaseMutations`.
 - **Additive load.** A record disappearing from a source is a no-op; data only accrues.
   No hard deletes or soft-deactivation on disappearance. (`reconcile: additive`.)
 - **AI lives only in resolution, as a cached decision.** Matching source-local names
   onto canonical state → county → place → agency → officer may use AI, but the
-  *decision* is persisted to the intake-owned mapping ledger with provenance (model,
+  _decision_ is persisted to the intake-owned mapping ledger with provenance (model,
   confidence, evidence). Replay reads the frozen mapping and never re-runs a model,
   preserving ADR 0014's deterministic/cacheable-resolver invariant.
 - **Corrections are pins that outrank AI.** A visitor correction arrives as an

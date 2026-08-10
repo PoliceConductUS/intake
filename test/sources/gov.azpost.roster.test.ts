@@ -2,10 +2,34 @@ import { describe, it, expect } from "vitest";
 import { run } from "../../sources/gov.azpost.roster/config.js";
 
 const rows = [
-  { "POST ID": "1001", LAST: "Woodward", FIRST: "Skip", MIDDLE: "L", AGENCY: "Tempe PD" },
-  { "POST ID": "1002", LAST: "Denney", FIRST: "Marc", MIDDLE: "E", AGENCY: "Mesa PD" },
-  { "POST ID": "1002", LAST: "Denney", FIRST: "Marc", MIDDLE: "E", AGENCY: "Tempe PD" },
-  { "POST ID": "", LAST: "Nokey", FIRST: "Ann", MIDDLE: "", AGENCY: "Tempe PD" },
+  {
+    "POST ID": "1001",
+    LAST: "Woodward",
+    FIRST: "Skip",
+    MIDDLE: "L",
+    AGENCY: "Tempe PD",
+  },
+  {
+    "POST ID": "1002",
+    LAST: "Denney",
+    FIRST: "Marc",
+    MIDDLE: "E",
+    AGENCY: "Mesa PD",
+  },
+  {
+    "POST ID": "1002",
+    LAST: "Denney",
+    FIRST: "Marc",
+    MIDDLE: "E",
+    AGENCY: "Tempe PD",
+  },
+  {
+    "POST ID": "",
+    LAST: "Nokey",
+    FIRST: "Ann",
+    MIDDLE: "",
+    AGENCY: "Tempe PD",
+  },
 ];
 const fakeReadXlsx = async () => rows;
 
@@ -17,13 +41,17 @@ describe("gov.azpost.roster run", () => {
     expect(personnel.kind).toBe("Personnel");
     expect(Object.keys(personnel.records).sort()).toEqual(["1001", "1002"]);
     expect(personnel.records["1001"].spec).toEqual({
-      id: "1001", first_name: "Skip", last_name: "Woodward", middle_name: "L",
+      id: "1001",
+      first_name: "Skip",
+      last_name: "Woodward",
+      middle_name: "L",
     });
     expect(personnel.records["1002"].spec).toMatchObject({ middle_name: "E" });
   });
 
   it("is deterministic", async () => {
-    expect(await run({ paths: ["a"], readXlsx: fakeReadXlsx }))
-      .toEqual(await run({ paths: ["a"], readXlsx: fakeReadXlsx }));
+    expect(await run({ paths: ["a"], readXlsx: fakeReadXlsx })).toEqual(
+      await run({ paths: ["a"], readXlsx: fakeReadXlsx }),
+    );
   });
 });

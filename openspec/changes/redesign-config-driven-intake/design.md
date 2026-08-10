@@ -6,7 +6,7 @@ re-implements the intake contract. Measured LOC (excluding `node_modules`):
 `intake.net.clearinghouse.api` ≈ 2,585. The test names in those repos
 (`workspace-boundary`, `evidence-preservation`, `shared-io-loading`,
 `source-identity`, `command-validation`) show that most of the code re-tests the
-*contract*, not the *data*. The source-specific slice (fetch + field mapping) is
+_contract_, not the _data_. The source-specific slice (fetch + field mapping) is
 small. The backlog (`intake.gov.data.tempe`, `intake.gov.az.post` + `intake.gov.azpost`)
 is raw files with no code — onboarding never started.
 
@@ -25,7 +25,7 @@ ACQUISITION (separate system)          INTAKE (this repo)               external
 ```
 
 **This change concerns only the middle system.** Acquisition is upstream and separate;
-regenerate/notify are downstream and separate. Both boundaries are handoff *contracts*,
+regenerate/notify are downstream and separate. Both boundaries are handoff _contracts_,
 not transports — how a run is triggered and how a change is transmitted onward is
 deliberately undecided, and for now the input is a **manual trigger**.
 
@@ -39,13 +39,13 @@ snapshots, source-local identity mapped to canonical cuid2 IDs via
 
 **Goals:**
 
-- Turn "adding a source" from *authoring a repo* into *adding data* (a transform
+- Turn "adding a source" from _authoring a repo_ into _adding data_ (a transform
   registry entry), achievable in ≤1 hour for the common case.
 - One shared runtime that owns all contract plumbing (identity, envelope IO, canonical
   mapping, logging), written and tested once.
 - Preserve the deterministic envelope / idempotency / replay / ledger core unchanged;
-  the redesign sits *above* it.
-- Model this system as: *(triggered with a saved snapshot)* → TRANSFORM(map+resolve) →
+  the redesign sits _above_ it.
+- Model this system as: _(triggered with a saved snapshot)_ → TRANSFORM(map+resolve) →
   LOAD(additive) → record a durable change. Keep both boundaries transport-agnostic.
 - Ship a real vertical tracer (AZ POST) end-to-end through this system's responsibility.
 
@@ -71,7 +71,7 @@ the runtime owns everything else. This reverses the earlier "sources are pure da
 framing after the prior art (`data.rebrokerlist.com/*/config.js`) showed even simple
 sources need real filter + transform logic — the actual win was never "no code," it was
 **deleting the ~90% duplicated plumbing**, which a thin module against a runtime SDK
-preserves (AZ POST is ~15 lines). A new *record kind* is a rare shared-code change every
+preserves (AZ POST is ~15 lines). A new _record kind_ is a rare shared-code change every
 later source reuses. The runtime is **kind-agnostic**: a source returns exactly the kinds
 its `run` generated — no
 source is assumed to produce any particular kind (a source may be location-only, e.g.
@@ -88,7 +88,7 @@ sources does not reliably mean "no longer true," and evidence should not be lost
 ### D3. AI belongs in resolution, as a cached decision — not in transform.
 
 Matching source-local names onto canonical state/county/place/agency/officer may use
-AI in a later slice, but the *decision* is persisted to the intake-owned mapping
+AI in a later slice, but the _decision_ is persisted to the intake-owned mapping
 ledger with provenance (model, confidence, evidence). Replay reads the frozen mapping
 and never re-runs a model. Rationale: preserves ADR 0014's deterministic/cacheable-
 resolver invariant while allowing fuzzy matching; the cached decision is deterministic
@@ -140,7 +140,7 @@ its own `run`, failing loudly on collisions.
 The current CLI exposes `intake import artifacts [--dry-run] <artifacts-ref>` and
 `intake replay database-mutations <database-mutations-ref>` (commander, auto-discovered
 one-folder-per-command under `src/cli/`; depends on `DATABASE_URL` + `INTAKE_WORKSPACE`).
-`import artifacts` starts *after* raw data has already been turned into a typed
+`import artifacts` starts _after_ raw data has already been turned into a typed
 `Artifacts` envelope — which is exactly the per-source producer work being deleted.
 
 Slice 1 adds one new discovered command that sits **in front of** `import artifacts`
@@ -162,9 +162,9 @@ returned manifest. `--dry-run` mirrors the existing flag (plan without applying)
 
 ### D9. Dependencies are injected (DI), not pulled from a service-locator context.
 
-The runtime does **not** pass `run` a broad `ctx` object. Following ADR 0014 — *"stages
+The runtime does **not** pass `run` a broad `ctx` object. Following ADR 0014 — _"stages
 must not discover side effects by reaching through broad context objects… receive those
-adapters directly"* — and the existing `importArtifacts` precedent (injected `logger`,
+adapters directly"_ — and the existing `importArtifacts` precedent (injected `logger`,
 `clientFactory`, `resolveAgencyCoordinates`), the `intake run` command is the
 **composition root**: it constructs narrow, single-purpose adapters and injects only the
 ones a module declares. `run` receives the CLI paths plus those narrow capabilities as
@@ -179,7 +179,7 @@ Rationale: a fat context doing emit + parse + workspace + state + logging is exa
 service-locator god-object ADR 0014 bans; narrow injection keeps each source's real
 dependencies visible and unit-testable (`run({paths, readXlsx: fake})` → assert the
 returned manifest), and the runtime keeps ownership of every intake-owned envelope,
-mapping, and mutation. There is no DI *framework* in the repo (and none is added — YAGNI);
+mapping, and mutation. There is no DI _framework_ in the repo (and none is added — YAGNI);
 injection is manual via the command composition root, exactly as `importArtifacts` already
 does it.
 
@@ -189,15 +189,15 @@ does it.
 generated, and the runtime imports what is returned. It does **not** take an injected
 `emit` callback (a callback sink couples the module to runtime collection and is harder to
 test), and it does **not** stream. Rationale: returning a manifest maps `run` exactly onto
-the existing producer→`import artifacts` boundary — the `Artifacts` envelope already *is* a
+the existing producer→`import artifacts` boundary — the `Artifacts` envelope already _is_ a
 manifest of generated records — so `intake run` is a thin wrapper over the proven pipeline,
 and `run` is trivially testable (`run(deps)` → assert manifest). Streaming was considered
 and rejected for now: the downstream import pipeline is inherently batch (it sorts by
-dependency order and plans a *complete* `DatabaseMutations` envelope), the manifest is the
+dependency order and plans a _complete_ `DatabaseMutations` envelope), the manifest is the
 hashable audit artifact the idempotency guard needs, and target scale (rosters, FOIA
 sheets — thousands to low-hundred-thousands of rows) fits in memory trivially. The seam
 stays open: a `run` can process a folder file-by-file internally, and the return type
-could widen to an async-iterable later if a genuinely huge source *and* a streaming import
+could widen to an async-iterable later if a genuinely huge source _and_ a streaming import
 path ever coexist. Whether the returned manifest carries records inline or references
 files `run` wrote is a deferred plan-time detail (inline recommended for Slice 1).
 
@@ -230,7 +230,7 @@ export const run = async ({ paths, readXlsx }: RunDeps): Promise<Manifest> => {
 - `filter` and `map` are just code inside `run` (filter chain / map pipeline as plain
   functions) — no DSL to invent, and type-checked against the record specs.
 - namespace + envelope name are runtime-derived (namespace = source id, name = source id
-  + snapshot digest, which also drives the "already imported" guard).
+  - snapshot digest, which also drives the "already imported" guard).
 - validity of each emitted record is enforced by the existing envelope schema, not by
   the runtime.
 - rank/misconduct deferred (no new kinds/columns in Slice 1).
@@ -242,7 +242,7 @@ export const run = async ({ paths, readXlsx }: RunDeps): Promise<Manifest> => {
 with a `field_map` (target ← source, incl. literal constants) plus a `filter_function`
 that both reshaped rows (date/phone reformatting, dropping empty fields) and returned a
 keep/drop boolean. That directly motivates the `config.ts` + `run` shape here: real
-sources need filter + transform *as code*, so the module owns that logic while the
+sources need filter + transform _as code_, so the module owns that logic while the
 runtime owns all plumbing. AZ POST needs no transform, so its `run` is a plain
 read-filter-emit loop.
 
@@ -257,7 +257,7 @@ read-filter-emit loop.
 - **Split config across two systems drifts out of sync** → Deferred: Slice 1 has a
   single config file. When the acquire config is added later, join by a stable `source id`.
 - **Non-deterministic AI resolution could leak into replay** → Structural guard: only
-  the *cached decision* is ever read on replay; the resolver adapter must persist before
+  the _cached decision_ is ever read on replay; the resolver adapter must persist before
   exposing a value (ADR 0014 construction rule). Enforced in Slice 2, designed for here.
 - **Change-record contract churn** → Ship the minimal durable record in Slice 1 to lock
   the seam; expand alongside the downstream regenerate/notify systems.
@@ -282,7 +282,7 @@ read-filter-emit loop.
   one. Dependency (e.g. a SheetJS-style reader) vs. a minimal hand-rolled reader is a
   spec decision.
 - **Injected dependency surface for `run`** — deferred design work (user's call). Fix the
-  DI *style* now (narrow injected adapters, no service-locator ctx); settle the concrete
+  DI _style_ now (narrow injected adapters, no service-locator ctx); settle the concrete
   set in the plan, driven by what AZ POST's `run` actually needs (emit + xlsx parse, and
   workspace/state only if used) and the `RunDeps` type shape.
 - **Registry storage at scale** — git-tracked `sources/` modules (recommended) vs. table;
@@ -302,7 +302,7 @@ Resolved during brainstorming / grounding against the code:
 - **Durable change record** — reuse the existing `DatabaseMutations` envelope the import
   pipeline already writes to the command directory (there is no `DatabaseMutationResults`
   type). Slice 1 adds no new change type; a transport-facing change event is deferred.
-- **Identity mechanism** — the source-local record *key* (chosen by `identity`) is the
+- **Identity mechanism** — the source-local record _key_ (chosen by `identity`) is the
   `sourceName`; the existing pipeline mints and persists the canonical cuid2 under
   `intake/state/namespaces/<namespace>/`. AZ POST uses POST ID as the record key, so
   `intake run` writes no identity code of its own.

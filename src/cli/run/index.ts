@@ -127,7 +127,10 @@ export const registerCliCommand: RegisterCliCommand = (
               })
             ).commandDirectory,
           writeEnvelope: async (directory, id, digest, manifest) =>
-            Artifacts.write(directory, buildArtifactsEnvelope(id, digest, manifest)),
+            Artifacts.write(
+              directory,
+              buildArtifactsEnvelope(id, digest, manifest),
+            ),
           runImport:
             dependencies.runImportArtifactsCommand ?? runImportArtifactsCommand,
         };

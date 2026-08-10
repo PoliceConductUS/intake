@@ -12,6 +12,7 @@ proven end-to-end on the AZ POST officer roster.
 ## What Changes
 
 **Onboarding a source**
+
 - From: author a bespoke producer repo that hand-writes `raw → Artifacts` and all
   contract plumbing.
 - To: add a small `sources/<id>/config.ts` module that exports a `run(input, ctx)`
@@ -23,12 +24,14 @@ proven end-to-end on the AZ POST officer roster.
 - Impact: non-breaking; existing `import artifacts` / `replay` commands are unchanged.
 
 **New `intake run` command**
+
 - Add `intake run <source-id> <path...> [--dry-run]` (auto-discovered under
   `src/cli/run/`). It loads `sources/<source-id>/config.ts`, invokes its `run` with
   injected dependencies, takes the `Artifacts` manifest `run` returns, and calls the
   existing `runImportArtifactsCommand`. `--dry-run` mirrors the existing flag.
 
 **Source module contract (returns a manifest; DI, no service locator)**
+
 - A source is a `config.ts` exporting a deterministic `run` that reads the CLI paths and
   **returns** an `Artifacts` manifest of the records it generated — it does not emit via a
   callback and does not stream. Its dependencies are **injected** as narrow, typed
@@ -37,10 +40,12 @@ proven end-to-end on the AZ POST officer roster.
   intake-owned DB/mapping/mutation handles. The exact injected surface is deferred.
 
 **Snapshot parsing (new capability axis)**
+
 - Add deterministic xlsx parsing as an injected parse capability. No raw-file parsing
   exists in the repo today; all current I/O is typed YAML envelopes.
 
 **First source**
+
 - Add `sources/gov.azpost.roster/config.ts` whose `run` returns `Personnel` records keyed
   by POST ID, mapping only currently-supported `PersonnelSpec` fields; additive.
 

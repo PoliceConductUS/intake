@@ -34,12 +34,14 @@
 ### Task 1: `readXlsx` parse capability
 
 **Files:**
+
 - Create: `src/cli/run/read-xlsx.ts`
 - Test: `test/cli/run/read-xlsx.test.ts`
 - Fixture: `test/fixtures/azpost/officer-list-sample.xlsx`
 - Modify: `package.json` (add `exceljs` dependency)
 
 **Interfaces:**
+
 - Produces: `readXlsx(filePath: string): Promise<Array<Record<string, string>>>` — sheet 1, keyed by the header row (row 1); every cell coerced to a trimmed string (missing cells → `""`).
 
 **Decision to confirm:** xlsx reader library. Default: `exceljs` (pure JS, maintained, no native deps). Alternatives: SheetJS `xlsx`, or a hand-rolled zip+XML reader. It is isolated to this one file; the source module never imports it.
@@ -53,12 +55,12 @@ Expected: `exceljs` appears under `dependencies` in `package.json`.
 
 Create `test/fixtures/azpost/officer-list-sample.xlsx` with headers exactly `AGENCY, POST ID, LAST, FIRST, MIDDLE, APPOINTED ON, TERMINATED ON, TERM DESC, CERTIFICATION, CERT TYPE` and rows:
 
-| AGENCY | POST ID | LAST | FIRST | MIDDLE |
-|---|---|---|---|---|
-| Tempe PD | 1001 | Woodward | Skip | L |
-| Mesa PD | 1002 | Denney | Marc | E |
-| Mesa PD | 1002 | Denney | Marc | E |
-| Tempe PD | | Nokey | Ann | |
+| AGENCY   | POST ID | LAST     | FIRST | MIDDLE |
+| -------- | ------- | -------- | ----- | ------ |
+| Tempe PD | 1001    | Woodward | Skip  | L      |
+| Mesa PD  | 1002    | Denney   | Marc  | E      |
+| Mesa PD  | 1002    | Denney   | Marc  | E      |
+| Tempe PD |         | Nokey    | Ann   |        |
 
 (Generate it with a one-off script using the same `exceljs` API, or by hand; commit the `.xlsx`.)
 
@@ -123,7 +125,8 @@ export async function readXlsx(
       const header = headers[col];
       if (!header) continue;
       const value = row.getCell(col).value;
-      record[header] = value === null || value === undefined ? "" : String(value).trim();
+      record[header] =
+        value === null || value === undefined ? "" : String(value).trim();
     }
     rows.push(record);
   }
@@ -148,10 +151,12 @@ git commit -m "feat: add deterministic xlsx read capability for source runs"
 ### Task 2: Manifest types + `Artifacts` envelope builder
 
 **Files:**
+
 - Create: `src/cli/run/source-run.ts`
 - Test: `test/cli/run/source-run.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Artifacts`, `ImportArtifactKind` from `../../shared/io/index.js`.
 - Produces:
   - `type EmittedRecords = Record<string, { spec: unknown }>`
@@ -174,7 +179,9 @@ describe("buildArtifactsEnvelope", () => {
         {
           kind: "Personnel",
           records: {
-            "1001": { spec: { id: "1001", first_name: "Skip", last_name: "Woodward" } },
+            "1001": {
+              spec: { id: "1001", first_name: "Skip", last_name: "Woodward" },
+            },
           },
         },
       ],
@@ -184,14 +191,23 @@ describe("buildArtifactsEnvelope", () => {
     const item = envelope.spec.artifacts[0];
     expect(item).toMatchObject({
       kind: "Personnel",
-      spec: { records: { "1001": { spec: { first_name: "Skip", last_name: "Woodward" } } } },
+      spec: {
+        records: {
+          "1001": { spec: { first_name: "Skip", last_name: "Woodward" } },
+        },
+      },
     });
   });
 
   it("rejects a record missing a required field via the envelope schema", () => {
     expect(() =>
       buildArtifactsEnvelope("s", "d", {
-        artifacts: [{ kind: "Personnel", records: { "1": { spec: { first_name: "Ann" } } } }],
+        artifacts: [
+          {
+            kind: "Personnel",
+            records: { "1": { spec: { first_name: "Ann" } } },
+          },
+        ],
       }),
     ).toThrow(); // PersonnelSpec requires last_name
   });
@@ -208,7 +224,10 @@ Expected: FAIL — cannot find module `source-run.js`.
 ```ts
 // src/cli/run/source-run.ts
 import { Artifacts } from "../../shared/io/index.js";
-import type { ArtifactsEnvelope, ImportArtifactKind } from "../../shared/io/index.js";
+import type {
+  ArtifactsEnvelope,
+  ImportArtifactKind,
+} from "../../shared/io/index.js";
 
 export type EmittedRecords = Record<string, { spec: unknown }>;
 export type SourceManifest = {
@@ -256,10 +275,12 @@ git commit -m "feat: add source manifest types and Artifacts envelope builder"
 ### Task 3: Source module loader
 
 **Files:**
+
 - Create: `src/cli/run/load-source-module.ts`
 - Test: `test/cli/run/load-source-module.test.ts`
 
 **Interfaces:**
+
 - Consumes: `SourceRun` from `./source-run.js`.
 - Produces: `loadSourceModule(sourceId: string, sourcesRoot: string): Promise<SourceRun>` — dynamic-imports `<sourcesRoot>/<sourceId>/config.ts`; throws a clear error if the folder/module is missing or does not export a `run` function.
 
@@ -284,11 +305,15 @@ describe("loadSourceModule", () => {
   });
 
   it("fails clearly for an unknown source id", async () => {
-    await expect(loadSourceModule("missing", sourcesRoot)).rejects.toThrow(/missing/);
+    await expect(loadSourceModule("missing", sourcesRoot)).rejects.toThrow(
+      /missing/,
+    );
   });
 
   it("fails when the module has no run export", async () => {
-    await expect(loadSourceModule("no-run", sourcesRoot)).rejects.toThrow(/run/);
+    await expect(loadSourceModule("no-run", sourcesRoot)).rejects.toThrow(
+      /run/,
+    );
   });
 });
 ```
@@ -348,10 +373,12 @@ git commit -m "feat: load source config.ts modules by id"
 ### Task 4: `intake run` command (composition root)
 
 **Files:**
+
 - Create: `src/cli/run/index.ts`
 - Test: `test/cli/run/run-command.test.ts`
 
 **Interfaces:**
+
 - Consumes: `RegisterCliCommand`, `CliCommandDependencies`, `CommandResult` from `../../shared/cli/types.js`; `Artifacts` from `../../shared/io/index.js`; `runImportArtifactsCommand` from `../import/artifacts/index.js`; `createCommandDirectory` from `../command-directory.js`; `readXlsx`, `loadSourceModule`, `buildArtifactsEnvelope` from siblings.
 - Produces: `export const registerCliCommand: RegisterCliCommand` registering `run <source-id> <paths...>` with `--dry-run`; auto-discovered by `registerDiscoveredCommands` over `src/cli/`.
 - Injection seam for tests: an internal `runSource(...)` accepting injected `loadSourceModule`, `readXlsx`, `runImport`, and `env` so tests avoid real xlsx/DB.
@@ -367,7 +394,14 @@ const okDeps = {
   sourcesRoot: "/sources",
   loadSourceModule: vi.fn(async () => async () => ({
     artifacts: [
-      { kind: "Personnel" as const, records: { "1001": { spec: { id: "1001", first_name: "Skip", last_name: "Woodward" } } } },
+      {
+        kind: "Personnel" as const,
+        records: {
+          "1001": {
+            spec: { id: "1001", first_name: "Skip", last_name: "Woodward" },
+          },
+        },
+      },
     ],
   })),
   readXlsx: vi.fn(async () => []),
@@ -379,10 +413,20 @@ const okDeps = {
 
 describe("runSource", () => {
   it("loads the module, imports the returned manifest, returns its result", async () => {
-    const result = await runSource("gov.azpost.roster", ["file.xlsx"], { dryRun: true }, okDeps);
-    expect(okDeps.loadSourceModule).toHaveBeenCalledWith("gov.azpost.roster", "/sources");
+    const result = await runSource(
+      "gov.azpost.roster",
+      ["file.xlsx"],
+      { dryRun: true },
+      okDeps,
+    );
+    expect(okDeps.loadSourceModule).toHaveBeenCalledWith(
+      "gov.azpost.roster",
+      "/sources",
+    );
     expect(okDeps.writeEnvelope).toHaveBeenCalled();
-    expect(okDeps.runImport).toHaveBeenCalledWith("/ws/artifacts.yaml", { dryImport: true });
+    expect(okDeps.runImport).toHaveBeenCalledWith("/ws/artifacts.yaml", {
+      dryImport: true,
+    });
     expect(result.exitCode).toBe(0);
   });
 
@@ -393,7 +437,12 @@ describe("runSource", () => {
   });
 
   it("returns exit 1 when the module load fails", async () => {
-    const deps = { ...okDeps, loadSourceModule: vi.fn(async () => { throw new Error("Unknown source id"); }) };
+    const deps = {
+      ...okDeps,
+      loadSourceModule: vi.fn(async () => {
+        throw new Error("Unknown source id");
+      }),
+    };
     const result = await runSource("nope", ["file.xlsx"], {}, deps);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/Unknown source id/);
@@ -417,7 +466,10 @@ import { Command } from "commander";
 import { Artifacts } from "../../shared/io/index.js";
 import { createCommandDirectory } from "../command-directory.js";
 import { runImportArtifactsCommand } from "../import/artifacts/index.js";
-import type { CliCommandDependencies, CommandResult } from "../../shared/cli/types.js";
+import type {
+  CliCommandDependencies,
+  CommandResult,
+} from "../../shared/cli/types.js";
 import { buildArtifactsEnvelope } from "./source-run.js";
 import { loadSourceModule } from "./load-source-module.js";
 import { readXlsx } from "./read-xlsx.js";
@@ -428,8 +480,16 @@ type RunSourceDeps = {
   loadSourceModule: typeof loadSourceModule;
   readXlsx: typeof readXlsx;
   makeWorkspace: (env: Record<string, string | undefined>) => Promise<string>;
-  writeEnvelope: (directory: string, sourceId: string, digest: string, manifest: Awaited<ReturnType<Awaited<ReturnType<typeof loadSourceModule>>>>) => Promise<{ path: string }>;
-  runImport: (ref: string, opts: { dryImport?: boolean }) => Promise<CommandResult>;
+  writeEnvelope: (
+    directory: string,
+    sourceId: string,
+    digest: string,
+    manifest: Awaited<ReturnType<Awaited<ReturnType<typeof loadSourceModule>>>>,
+  ) => Promise<{ path: string }>;
+  runImport: (
+    ref: string,
+    opts: { dryImport?: boolean },
+  ) => Promise<CommandResult>;
 };
 
 async function digestOfPaths(paths: string[]): Promise<string> {
@@ -451,16 +511,27 @@ export async function runSource(
   try {
     run = await deps.loadSourceModule(sourceId, deps.sourcesRoot);
   } catch (error) {
-    return { exitCode: 1, stderr: `${error instanceof Error ? error.message : String(error)}\n` };
+    return {
+      exitCode: 1,
+      stderr: `${error instanceof Error ? error.message : String(error)}\n`,
+    };
   }
   try {
     const manifest = await run({ paths, readXlsx: deps.readXlsx });
     const digest = await digestOfPaths(paths);
     const workspace = await deps.makeWorkspace(deps.env);
-    const { path: artifactsPath } = await deps.writeEnvelope(workspace, sourceId, digest, manifest);
+    const { path: artifactsPath } = await deps.writeEnvelope(
+      workspace,
+      sourceId,
+      digest,
+      manifest,
+    );
     return await deps.runImport(artifactsPath, { dryImport: options.dryRun });
   } catch (error) {
-    return { exitCode: 1, stderr: `${error instanceof Error ? error.message : String(error)}\n` };
+    return {
+      exitCode: 1,
+      stderr: `${error instanceof Error ? error.message : String(error)}\n`,
+    };
   }
 }
 
@@ -473,21 +544,40 @@ export const registerCliCommand = (
     .description("Run a source's config.ts and import the records it returns.")
     .argument("<source-id>", "source id under sources/")
     .argument("<paths...>", "one or more snapshot files or folders")
-    .option("--dry-run", "Write the DatabaseMutations envelope without applying it")
-    .action(async (sourceId: string, paths: string[], options: { dryRun?: boolean }) => {
-      const env = process.env;
-      const deps: RunSourceDeps = {
-        sourcesRoot: path.join(process.cwd(), "sources"),
-        env,
-        loadSourceModule,
-        readXlsx,
-        makeWorkspace: async (e) => (await createCommandDirectory(e, { namespace: sourceId, args: ["run", sourceId] })).commandDirectory,
-        writeEnvelope: async (directory, id, digest, manifest) =>
-          Artifacts.write(directory, buildArtifactsEnvelope(id, digest, manifest)),
-        runImport: dependencies.runImportArtifactsCommand ?? runImportArtifactsCommand,
-      };
-      dependencies.setResult(await runSource(sourceId, paths, options, deps));
-    });
+    .option(
+      "--dry-run",
+      "Write the DatabaseMutations envelope without applying it",
+    )
+    .action(
+      async (
+        sourceId: string,
+        paths: string[],
+        options: { dryRun?: boolean },
+      ) => {
+        const env = process.env;
+        const deps: RunSourceDeps = {
+          sourcesRoot: path.join(process.cwd(), "sources"),
+          env,
+          loadSourceModule,
+          readXlsx,
+          makeWorkspace: async (e) =>
+            (
+              await createCommandDirectory(e, {
+                namespace: sourceId,
+                args: ["run", sourceId],
+              })
+            ).commandDirectory,
+          writeEnvelope: async (directory, id, digest, manifest) =>
+            Artifacts.write(
+              directory,
+              buildArtifactsEnvelope(id, digest, manifest),
+            ),
+          runImport:
+            dependencies.runImportArtifactsCommand ?? runImportArtifactsCommand,
+        };
+        dependencies.setResult(await runSource(sourceId, paths, options, deps));
+      },
+    );
 };
 ```
 
@@ -513,10 +603,12 @@ git commit -m "feat: add intake run command that imports a source manifest"
 ### Task 5: AZ POST source module
 
 **Files:**
+
 - Create: `sources/gov.azpost.roster/config.ts`
 - Test: `test/sources/gov.azpost.roster.test.ts`
 
 **Interfaces:**
+
 - Consumes: `SourceRun`, `RunDeps` types (import type from `../../src/cli/run/source-run.js`).
 - Produces: `export const run: SourceRun` — reads each path via injected `readXlsx`, skips rows with empty `POST ID`, dedups by `POST ID` (last row wins), returns one `Personnel` artifact keyed by POST ID (`id`, `first_name`=FIRST, `last_name`=LAST, `middle_name`=MIDDLE or null).
 
@@ -528,10 +620,34 @@ import { describe, it, expect } from "vitest";
 import { run } from "../../sources/gov.azpost.roster/config.js";
 
 const rows = [
-  { "POST ID": "1001", LAST: "Woodward", FIRST: "Skip", MIDDLE: "L", AGENCY: "Tempe PD" },
-  { "POST ID": "1002", LAST: "Denney", FIRST: "Marc", MIDDLE: "E", AGENCY: "Mesa PD" },
-  { "POST ID": "1002", LAST: "Denney", FIRST: "Marc", MIDDLE: "E", AGENCY: "Tempe PD" },
-  { "POST ID": "", LAST: "Nokey", FIRST: "Ann", MIDDLE: "", AGENCY: "Tempe PD" },
+  {
+    "POST ID": "1001",
+    LAST: "Woodward",
+    FIRST: "Skip",
+    MIDDLE: "L",
+    AGENCY: "Tempe PD",
+  },
+  {
+    "POST ID": "1002",
+    LAST: "Denney",
+    FIRST: "Marc",
+    MIDDLE: "E",
+    AGENCY: "Mesa PD",
+  },
+  {
+    "POST ID": "1002",
+    LAST: "Denney",
+    FIRST: "Marc",
+    MIDDLE: "E",
+    AGENCY: "Tempe PD",
+  },
+  {
+    "POST ID": "",
+    LAST: "Nokey",
+    FIRST: "Ann",
+    MIDDLE: "",
+    AGENCY: "Tempe PD",
+  },
 ];
 const fakeReadXlsx = async () => rows;
 
@@ -543,14 +659,18 @@ describe("gov.azpost.roster run", () => {
     expect(personnel.kind).toBe("Personnel");
     expect(Object.keys(personnel.records).sort()).toEqual(["1001", "1002"]);
     expect(personnel.records["1001"].spec).toEqual({
-      id: "1001", first_name: "Skip", last_name: "Woodward", middle_name: "L",
+      id: "1001",
+      first_name: "Skip",
+      last_name: "Woodward",
+      middle_name: "L",
     });
     expect(personnel.records["1002"].spec).toMatchObject({ middle_name: "E" });
   });
 
   it("is deterministic", async () => {
-    expect(await run({ paths: ["a"], readXlsx: fakeReadXlsx }))
-      .toEqual(await run({ paths: ["a"], readXlsx: fakeReadXlsx }));
+    expect(await run({ paths: ["a"], readXlsx: fakeReadXlsx })).toEqual(
+      await run({ paths: ["a"], readXlsx: fakeReadXlsx }),
+    );
   });
 });
 ```
@@ -604,10 +724,12 @@ git commit -m "feat: add AZ POST roster source (Personnel by POST ID)"
 ### Task 6: End-to-end dry-run + idempotency + verification
 
 **Files:**
+
 - Create: `test/cli/run/run-import.integration.test.ts`
 - Modify: `README.md` (command vocabulary)
 
 **Interfaces:**
+
 - Consumes: everything above, exercised through `runIntake` from `src/cli/index.js` (the real CLI entry) against a temp `INTAKE_WORKSPACE` and the sample fixture, `--dry-run` (Personnel-only ⇒ no DB needed).
 
 - [ ] **Step 1: Write the failing integration test**
@@ -657,18 +779,22 @@ Expected: PASS.
 - [ ] **Step 4: Idempotency check (manual, documented)**
 
 Run the same command twice against the same fixture with a persistent `INTAKE_WORKSPACE`:
+
 ```bash
 INTAKE_WORKSPACE=/tmp/intake-idem npm run cli -- run gov.azpost.roster test/fixtures/azpost/officer-list-sample.xlsx --dry-run
 INTAKE_WORKSPACE=/tmp/intake-idem npm run cli -- run gov.azpost.roster test/fixtures/azpost/officer-list-sample.xlsx --dry-run
 ```
+
 Expected: the second run is stopped by the existing-import guard (same `(namespace, name)` derived from the identical snapshot digest), not a conflicting re-import.
 
 - [ ] **Step 5: Update README command vocabulary**
 
 Add to `README.md` under the CLI vocabulary:
+
 ```bash
 intake run <source-id> <path...> [--dry-run]
 ```
+
 with one line: "Run a source's `config.ts`, which returns an `Artifacts` manifest, and import it via the existing pipeline."
 
 - [ ] **Step 6: Full validation**

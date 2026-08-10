@@ -15,10 +15,14 @@ describe("loadSourceModule", () => {
   });
 
   it("fails clearly for an unknown source id", async () => {
-    await expect(loadSourceModule("missing", sourcesRoot)).rejects.toThrow(/missing/);
+    await expect(loadSourceModule("missing", sourcesRoot)).rejects.toThrow(
+      /missing/,
+    );
   });
 
   it("fails when the module has no run export", async () => {
-    await expect(loadSourceModule("no-run", sourcesRoot)).rejects.toThrow(/run/);
+    await expect(loadSourceModule("no-run", sourcesRoot)).rejects.toThrow(
+      /run/,
+    );
   });
 });
