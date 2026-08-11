@@ -15,6 +15,8 @@ import type { SourceManifest } from "./source-run.js";
 import { loadSourceModule } from "./load-source-module.js";
 import { readXlsx } from "./read-xlsx.js";
 import { sourceStateDir } from "./state.js";
+import { createEmitSink } from "./emit-sink.js";
+import type { EmitRefItem, EmitSink } from "./emit-sink.js";
 
 type RunSourceDeps = {
   sourcesRoot: string;
@@ -24,11 +26,13 @@ type RunSourceDeps = {
   state: string;
   digest: (paths: string[]) => Promise<string>;
   makeWorkspace: (env: Record<string, string | undefined>) => Promise<string>;
+  createEmitSink: (workspaceDir: string, namespace: string) => EmitSink;
   writeEnvelope: (
     directory: string,
     sourceId: string,
     digest: string,
     manifest: SourceManifest,
+    refItems: EmitRefItem[],
   ) => Promise<{ path: string }>;
   runImport: (
     ref: string,
@@ -80,18 +84,22 @@ export async function runSource(
   }
 
   try {
+    const workspace = await deps.makeWorkspace(deps.env);
+    const sink = deps.createEmitSink(workspace, sourceId);
     const manifest = await run({
       paths,
       readXlsx: deps.readXlsx,
       state: deps.state,
+      emit: sink.emit,
     });
     const digest = await deps.digest(paths);
-    const workspace = await deps.makeWorkspace(deps.env);
+    const refItems = await sink.flush();
     const { path: artifactsPath } = await deps.writeEnvelope(
       workspace,
       sourceId,
       digest,
       manifest,
+      refItems,
     );
     return await deps.runImport(artifactsPath, { dryImport: options.dryRun });
   } catch (error) {
@@ -133,10 +141,11 @@ export const registerCliCommand: RegisterCliCommand = (
                 args: ["run", sourceId, ...paths],
               })
             ).commandDirectory,
-          writeEnvelope: async (directory, id, digest, manifest) =>
+          createEmitSink,
+          writeEnvelope: async (directory, id, digest, manifest, refItems) =>
             Artifacts.write(
               directory,
-              buildArtifactsEnvelope(id, digest, manifest),
+              buildArtifactsEnvelope(id, digest, manifest, refItems),
             ),
           runImport:
             dependencies.runImportArtifactsCommand ?? runImportArtifactsCommand,

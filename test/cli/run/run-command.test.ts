@@ -1,6 +1,16 @@
 import { describe, it, expect, vi } from "vitest";
 import { runSource } from "../../../src/cli/run/index.js";
 
+const testRefItems = [
+  {
+    ref: {
+      path: "geometries.LocationPathGeometries.yaml",
+      kind: "LocationPathGeometries" as const,
+      sha256: "a".repeat(64),
+    },
+  },
+];
+
 // A factory (not a shared const) so each test gets fresh vi.fn() call
 // history — vitest does not auto-reset mocks between `it` blocks here.
 function makeOkDeps() {
@@ -21,6 +31,10 @@ function makeOkDeps() {
     readXlsx: vi.fn(async () => []),
     state: "/ws/intake/state/sources/gov.azpost.roster",
     digest: vi.fn(async () => "testdigest"),
+    createEmitSink: vi.fn(() => ({
+      emit: vi.fn(async () => {}),
+      flush: vi.fn(async () => testRefItems),
+    })),
     writeEnvelope: vi.fn(async () => ({ path: "/ws/artifacts.yaml" })),
     runImport: vi.fn(async () => ({ exitCode: 0, stdout: "ok" })),
     makeWorkspace: vi.fn(async () => "/ws"),
@@ -46,6 +60,11 @@ describe("runSource", () => {
       "gov.azpost.roster",
       "testdigest",
       expect.anything(),
+      testRefItems,
+    );
+    expect(okDeps.createEmitSink).toHaveBeenCalledWith(
+      "/ws",
+      "gov.azpost.roster",
     );
     expect(okDeps.runImport).toHaveBeenCalledWith("/ws/artifacts.yaml", {
       dryImport: true,

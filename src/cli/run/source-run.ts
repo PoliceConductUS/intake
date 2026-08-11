@@ -13,6 +13,7 @@ export type RunDeps = {
   paths: string[];
   readXlsx: typeof readXlsx;
   state: string;
+  emit: (kind: string, key: string, spec: unknown) => Promise<void>;
 };
 export type SourceRun = (deps: RunDeps) => Promise<SourceManifest>;
 
@@ -20,14 +21,20 @@ export function buildArtifactsEnvelope(
   sourceId: string,
   digest: string,
   manifest: SourceManifest,
+  refItems: Array<{
+    ref: { path: string; kind: ImportArtifactKind; sha256: string };
+  }> = [],
 ): ArtifactsEnvelope {
   return Artifacts.new({
     metadata: { name: `${sourceId}-${digest}`, namespace: sourceId },
     spec: {
-      artifacts: manifest.artifacts.map((artifact) => ({
-        kind: artifact.kind,
-        spec: { records: artifact.records },
-      })),
+      artifacts: [
+        ...manifest.artifacts.map((artifact) => ({
+          kind: artifact.kind,
+          spec: { records: artifact.records },
+        })),
+        ...refItems,
+      ],
     },
   }) as ArtifactsEnvelope;
 }
