@@ -152,8 +152,12 @@ describe("census-gazetteer run", () => {
       expect(spec).toMatchObject({
         location_path_id: key,
         sourceLocationPathKey: key,
-        selectedYear: "2025",
+        // number, not "2025" — matches the original producer's output vintage
+        selectedYear: 2025,
       });
+      expect(typeof (spec as { selectedYear: unknown }).selectedYear).toBe(
+        "number",
+      );
     }
     expect((geometryEmits[0][2] as { geometry: unknown }).geometry).toEqual({
       type: "MultiPolygon",

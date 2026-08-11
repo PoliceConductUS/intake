@@ -94,7 +94,9 @@ export const run: SourceRun = async (deps: RunDeps) => {
         location_path_id: row.location_path_id,
         geometry: row.geometry,
         sourceLocationPathKey: path,
-        selectedYear: inputs.year,
+        // Emit the vintage as a number to match the original producer's output
+        // (selectedYear is `2025`, not `"2025"`); `inputs.year` is parsed from a filename.
+        selectedYear: Number(inputs.year),
       });
     },
   });
