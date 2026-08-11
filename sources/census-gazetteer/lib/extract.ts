@@ -1,6 +1,9 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { listZipEntries, readZipEntryBuffer } from "../../../src/cli/run/parse/zip.js";
+import {
+  listZipEntries,
+  readZipEntryBuffer,
+} from "../../../src/cli/run/parse/zip.js";
 
 /**
  * Rewire helper for `tiger-hierarchy.ts` (Phase-2 Task 4). The original
@@ -35,10 +38,7 @@ export async function extractShapefileFromZip(
   let shpPath: string | undefined;
   for (const entryName of shapefileEntries) {
     const buffer = await readZipEntryBuffer(zipPath, entryName);
-    const destinationPath = path.join(
-      destinationDir,
-      path.basename(entryName),
-    );
+    const destinationPath = path.join(destinationDir, path.basename(entryName));
     await writeFile(destinationPath, buffer);
     if (/\.shp$/i.test(entryName)) shpPath = destinationPath;
   }

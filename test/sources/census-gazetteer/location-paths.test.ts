@@ -85,9 +85,15 @@ describe("buildLocationPaths", () => {
     expect(place.administrative_area_slug).toBe("hennepin-county");
     expect(place.place_slug).toBe("minneapolis");
     expect(place.place_name).toBe("Minneapolis");
-    expect((state as unknown as Record<string, unknown>)._metadata).toBe(undefined);
-    expect((admin as unknown as Record<string, unknown>)._metadata).toBe(undefined);
-    expect((place as unknown as Record<string, unknown>)._metadata).toBe(undefined);
+    expect((state as unknown as Record<string, unknown>)._metadata).toBe(
+      undefined,
+    );
+    expect((admin as unknown as Record<string, unknown>)._metadata).toBe(
+      undefined,
+    );
+    expect((place as unknown as Record<string, unknown>)._metadata).toBe(
+      undefined,
+    );
     expect(result.locationPathSources["/mn/"]).toEqual({
       sourceKey: "state:GEOID:27",
     });
@@ -96,8 +102,7 @@ describe("buildLocationPaths", () => {
       parentSourceKey: "state:GEOID:27",
     });
     expect(
-      result.locationPathSources["/mn/hennepin-county/minneapolis/"]
-        .sourceKey,
+      result.locationPathSources["/mn/hennepin-county/minneapolis/"].sourceKey,
     ).toBe("place:GEOID:2743000");
     expect(
       result.locationPathSources["/mn/hennepin-county/minneapolis/"]
@@ -131,7 +136,9 @@ describe("buildLocationPaths", () => {
         places: [minneapolis],
         hierarchy: [],
       }),
-    ).toThrow(/Missing Census-proven parent for place 2743000 Minneapolis city/);
+    ).toThrow(
+      /Missing Census-proven parent for place 2743000 Minneapolis city/,
+    );
   });
 
   it("emits alternate admin paths as aliases for the same place", () => {
@@ -159,7 +166,9 @@ describe("buildLocationPaths", () => {
       ],
     });
 
-    expect(result.locationPaths["/mn/hennepin-county/minneapolis/"]).toBeTruthy();
+    expect(
+      result.locationPaths["/mn/hennepin-county/minneapolis/"],
+    ).toBeTruthy();
     expect(
       result.locationPathAlias["/mn/ramsey-county/minneapolis/"]
         .location_path_id,
@@ -271,8 +280,7 @@ describe("buildLocationPaths", () => {
         .place_name,
     ).toBe("Chevy Chase town");
     expect(
-      result.locationPaths["/md/montgomery-county/chevy-chase-cdp/"]
-        .place_slug,
+      result.locationPaths["/md/montgomery-county/chevy-chase-cdp/"].place_slug,
     ).toBe("chevy-chase-cdp");
     expect(
       result.locationPaths["/md/montgomery-county/chevy-chase-village-town/"]
@@ -367,7 +375,9 @@ describe("buildLocationPaths", () => {
       ],
     });
 
-    expect(result.locationPaths["/mn/hennepin-county/minneapolis/"]).toBeTruthy();
+    expect(
+      result.locationPaths["/mn/hennepin-county/minneapolis/"],
+    ).toBeTruthy();
     expect(
       result.locationPathAlias["/mn/ramsey-county/minneapolis/"]
         .location_path_id,
@@ -388,7 +398,10 @@ describe("buildLocationPaths", () => {
     expect(() =>
       buildLocationPaths({
         states: [mnState],
-        administrativeAreas: [hennepinCounty, { ...hennepinCounty, GEOID: "27001" }],
+        administrativeAreas: [
+          hennepinCounty,
+          { ...hennepinCounty, GEOID: "27001" },
+        ],
         places: [],
         hierarchy: [],
       }),
@@ -448,6 +461,8 @@ describe("buildLocationPaths", () => {
           },
         ],
       }),
-    ).toThrow(/Missing Census-proven parent for place 2743000 Minneapolis city/);
+    ).toThrow(
+      /Missing Census-proven parent for place 2743000 Minneapolis city/,
+    );
   });
 });

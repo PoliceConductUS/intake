@@ -50,7 +50,8 @@ export function parseHierarchyRelationshipFile(
       "GEOID_PLACE",
     ]);
     const overlapTotalArea = Number(
-      firstPresent(row, ["overlapTotalArea", "AREALAND", "AREAPT", "AREA"]) ?? 1,
+      firstPresent(row, ["overlapTotalArea", "AREALAND", "AREAPT", "AREA"]) ??
+        1,
     );
 
     const result = deterministicTotalAreaOverlapRecordSchema.safeParse({

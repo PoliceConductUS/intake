@@ -5,7 +5,10 @@ import type {
   SourceManifest,
   SourceRun,
 } from "../../src/cli/run/source-run.js";
-import { listZipEntries, readZipEntryText } from "../../src/cli/run/parse/zip.js";
+import {
+  listZipEntries,
+  readZipEntryText,
+} from "../../src/cli/run/parse/zip.js";
 import {
   parseGazetteerFile,
   type GazetteerRecordByType,
@@ -165,7 +168,12 @@ function wrapAliases(
   return Object.fromEntries(
     Object.entries(locationPathAlias).map(([key, entry]) => [
       key,
-      { spec: { alias_path: entry.alias_path, location_path_id: entry.location_path_id } },
+      {
+        spec: {
+          alias_path: entry.alias_path,
+          location_path_id: entry.location_path_id,
+        },
+      },
     ]),
   );
 }

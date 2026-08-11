@@ -36,10 +36,14 @@ describe("extractShapefileFromZip", () => {
     const shp = await readFile(shpPath);
     expect(shp.byteLength).toBeGreaterThan(0);
     await expect(
-      readFile(path.join(state, "tmp", "tl_2025_us_county", "tl_2025_us_county.dbf")),
+      readFile(
+        path.join(state, "tmp", "tl_2025_us_county", "tl_2025_us_county.dbf"),
+      ),
     ).resolves.toBeInstanceOf(Buffer);
     await expect(
-      readFile(path.join(state, "tmp", "tl_2025_us_county", "tl_2025_us_county.shx")),
+      readFile(
+        path.join(state, "tmp", "tl_2025_us_county", "tl_2025_us_county.shx"),
+      ),
     ).resolves.toBeInstanceOf(Buffer);
   });
 

@@ -1,6 +1,13 @@
 import type { MultiPolygon } from "polygon-clipping";
-import type { LocationPathRow, LocationPathSourceEvidence } from "./location-paths.js";
-import { readFeaturesByState, toClippingGeometry, type TigerFeatureRow } from "./tiger-hierarchy.js";
+import type {
+  LocationPathRow,
+  LocationPathSourceEvidence,
+} from "./location-paths.js";
+import {
+  readFeaturesByState,
+  toClippingGeometry,
+  type TigerFeatureRow,
+} from "./tiger-hierarchy.js";
 
 /**
  * Ported from `intake.census-gazetteer/src/location-geometries.js`
@@ -74,7 +81,10 @@ export interface BuildLocationPathGeometryPackageOptions {
 
 export interface BuildLocationPathGeometryPackageResult {
   locationPaths: Record<string, LocationPathWithGeometryExtent>;
-  locationPathGeometrySources: Record<string, LocationPathGeometrySourceEvidence>;
+  locationPathGeometrySources: Record<
+    string,
+    LocationPathGeometrySourceEvidence
+  >;
   locationPathGeometries?: Record<string, LocationPathGeometryRow>;
   locationPathGeometryCount: number;
 }
@@ -92,7 +102,8 @@ export interface BuildLocationPathGeometriesOptions {
 export async function buildLocationPathGeometries(
   options: BuildLocationPathGeometriesOptions,
 ): Promise<Record<string, LocationPathGeometryRow> | undefined> {
-  return (await buildLocationPathGeometryPackage(options)).locationPathGeometries;
+  return (await buildLocationPathGeometryPackage(options))
+    .locationPathGeometries;
 }
 
 export async function buildLocationPathGeometryPackage({
@@ -105,24 +116,40 @@ export async function buildLocationPathGeometryPackage({
   state,
   onGeometryRow,
 }: BuildLocationPathGeometryPackageOptions): Promise<BuildLocationPathGeometryPackageResult> {
-  const statesByState = await readFeaturesByState(stateGeometryPath, "state", state);
-  const countiesByState = await readFeaturesByState(countyGeometryPath, "county", state);
+  const statesByState = await readFeaturesByState(
+    stateGeometryPath,
+    "state",
+    state,
+  );
+  const countiesByState = await readFeaturesByState(
+    countyGeometryPath,
+    "county",
+    state,
+  );
   const placesByState = new Map<string, TigerFeatureRow[]>();
   for (const placeGeometryPath of placeGeometryPaths) {
-    mergeFeatureMaps(placesByState, await readFeaturesByState(placeGeometryPath, "place", state));
+    mergeFeatureMaps(
+      placesByState,
+      await readFeaturesByState(placeGeometryPath, "place", state),
+    );
   }
 
   const statesByGeoid = indexFeaturesByGeoid(statesByState);
   const countiesByGeoid = indexFeaturesByGeoid(countiesByState);
   const placesByGeoid = indexFeaturesByGeoid(placesByState);
   const geometryRows =
-    onGeometryRow === undefined ? new Map<string, LocationPathGeometryRow>() : undefined;
-  const geometrySourceRows = new Map<string, LocationPathGeometrySourceEvidence>();
+    onGeometryRow === undefined
+      ? new Map<string, LocationPathGeometryRow>()
+      : undefined;
+  const geometrySourceRows = new Map<
+    string,
+    LocationPathGeometrySourceEvidence
+  >();
   const locationPathRows = new Map<string, LocationPathWithGeometryExtent>();
   let locationPathGeometryCount = 0;
 
-  const locationPathEntries = Object.entries(locationPaths).sort(([left], [right]) =>
-    left.localeCompare(right),
+  const locationPathEntries = Object.entries(locationPaths).sort(
+    ([left], [right]) => left.localeCompare(right),
   );
   for (const [path, locationPath] of locationPathEntries) {
     const sourceRecord = locationPathSources[path];
@@ -153,7 +180,9 @@ export async function buildLocationPathGeometryPackage({
       sourceLocationPathKeys: sources.length === 1 ? undefined : [path],
       sourceGeometryKey: sourceRecord!.sourceKey,
       sourceGeometryKeys:
-        sources.length === 1 ? undefined : sources.map((item) => `${item.type}:GEOID:${item.geoid}`),
+        sources.length === 1
+          ? undefined
+          : sources.map((item) => `${item.type}:GEOID:${item.geoid}`),
       selectedYear,
     });
     if (onGeometryRow === undefined) {
@@ -172,7 +201,8 @@ export async function buildLocationPathGeometryPackage({
   return {
     locationPaths: sortedObject(locationPathRows),
     locationPathGeometrySources: sortedObject(geometrySourceRows),
-    locationPathGeometries: geometryRows === undefined ? undefined : sortedObject(geometryRows),
+    locationPathGeometries:
+      geometryRows === undefined ? undefined : sortedObject(geometryRows),
     locationPathGeometryCount,
   };
 }
@@ -200,7 +230,9 @@ function geometryForLocationPath({
   if (locationPath.level === "state") {
     const feature = statesByGeoid.get(source.geoid);
     if (feature === undefined) {
-      throw new Error(`Missing TIGER state geometry for ${locationPath.location_path_id}`);
+      throw new Error(
+        `Missing TIGER state geometry for ${locationPath.location_path_id}`,
+      );
     }
     return toMultiPolygonGeometry(feature.geometry);
   }
@@ -219,7 +251,9 @@ function geometryForLocationPath({
     const geometries = sources.map((item) => {
       const feature = placesByGeoid.get(item.geoid);
       if (feature === undefined) {
-        throw new Error(`Missing TIGER place geometry for ${locationPath.location_path_id}`);
+        throw new Error(
+          `Missing TIGER place geometry for ${locationPath.location_path_id}`,
+        );
       }
       return toMultiPolygonGeometry(feature.geometry).coordinates;
     });
@@ -229,7 +263,9 @@ function geometryForLocationPath({
     };
   }
 
-  throw new Error(`Unsupported location path level: ${locationPath.level as string}`);
+  throw new Error(
+    `Unsupported location path level: ${locationPath.level as string}`,
+  );
 }
 
 function toMultiPolygonGeometry(
@@ -249,7 +285,9 @@ function formatCoordinate(value: number): number {
   return Number(value.toFixed(12));
 }
 
-function bboxPolygonForMultiPolygon(multiPolygon: MultiPolygon): LocationPathBBox {
+function bboxPolygonForMultiPolygon(
+  multiPolygon: MultiPolygon,
+): LocationPathBBox {
   const bbox = bboxForMultiPolygon(multiPolygon);
   return {
     type: "Polygon",
@@ -265,7 +303,9 @@ function bboxPolygonForMultiPolygon(multiPolygon: MultiPolygon): LocationPathBBo
   };
 }
 
-function centroidPointForMultiPolygon(multiPolygon: MultiPolygon): LocationPathCentroid {
+function centroidPointForMultiPolygon(
+  multiPolygon: MultiPolygon,
+): LocationPathCentroid {
   const centroid = centroidForMultiPolygon(multiPolygon);
   return {
     type: "Point",
@@ -337,13 +377,15 @@ function centroidForPolygon(polygon: MultiPolygon[number]): RingCentroid {
 
   for (const [index, ring] of polygon.entries()) {
     const centroid = centroidForRing(ring);
-    const signedArea = index === 0 ? Math.abs(centroid.area) : -Math.abs(centroid.area);
+    const signedArea =
+      index === 0 ? Math.abs(centroid.area) : -Math.abs(centroid.area);
     weightedX += centroid.x * signedArea;
     weightedY += centroid.y * signedArea;
     totalArea += signedArea;
   }
 
-  if (totalArea === 0) return { x: polygon[0][0][0], y: polygon[0][0][1], area: 0 };
+  if (totalArea === 0)
+    return { x: polygon[0][0][0], y: polygon[0][0][1], area: 0 };
   return {
     x: weightedX / totalArea,
     y: weightedY / totalArea,
@@ -372,13 +414,17 @@ function centroidForRing(ring: MultiPolygon[number][number]): RingCentroid {
   };
 }
 
-function collectCoordinates(value: unknown, coordinates: [number, number][]): void {
+function collectCoordinates(
+  value: unknown,
+  coordinates: [number, number][],
+): void {
   if (!Array.isArray(value)) return;
   if (typeof value[0] === "number" && typeof value[1] === "number") {
     coordinates.push(value as [number, number]);
     return;
   }
-  for (const child of value as unknown[]) collectCoordinates(child, coordinates);
+  for (const child of value as unknown[])
+    collectCoordinates(child, coordinates);
 }
 
 function sortedObject<T>(map: Map<string, T>): Record<string, T> {
@@ -413,10 +459,13 @@ function mergeFeatureMaps(
   }
 }
 
-function sourceKeyParts(sourceKey: string | undefined): SourceKeyParts | undefined {
-  const match = /^(?<type>state|administrative_area|place):GEOID:(?<geoid>\d+)$/.exec(
-    sourceKey ?? "",
-  );
+function sourceKeyParts(
+  sourceKey: string | undefined,
+): SourceKeyParts | undefined {
+  const match =
+    /^(?<type>state|administrative_area|place):GEOID:(?<geoid>\d+)$/.exec(
+      sourceKey ?? "",
+    );
   return match?.groups as SourceKeyParts | undefined;
 }
 

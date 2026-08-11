@@ -20,7 +20,10 @@ describe("matchInputs", () => {
       placesZip: "/data/2025_Gaz_place_national.zip",
       stateTigerZip: "/data/tl_2025_us_state.zip",
       countyTigerZip: "/data/tl_2025_us_county.zip",
-      placeTigerZips: ["/data/tl_2025_48_place.zip", "/data/tl_2025_06_place.zip"],
+      placeTigerZips: [
+        "/data/tl_2025_48_place.zip",
+        "/data/tl_2025_06_place.zip",
+      ],
       hierarchyFile: undefined,
       year: "2025",
     });
@@ -39,7 +42,10 @@ describe("matchInputs", () => {
   });
 
   it("throws when a singleton role matches more than one file (duplicate places gazetteer)", () => {
-    const duplicatePlaces = [...validPaths, "/data/2025_Gaz_place_national_v2.zip"];
+    const duplicatePlaces = [
+      ...validPaths,
+      "/data/2025_Gaz_place_national_v2.zip",
+    ];
     expect(() => matchInputs(duplicatePlaces)).toThrow(/placesZip/i);
   });
 

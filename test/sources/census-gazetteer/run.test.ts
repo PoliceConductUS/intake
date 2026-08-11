@@ -125,7 +125,9 @@ describe("census-gazetteer run", () => {
       centroid: { type: "Point", coordinates: [5, 5] },
     });
 
-    expect(locationPaths["/mn/hennepin-county/minneapolis/"].spec).toMatchObject({
+    expect(
+      locationPaths["/mn/hennepin-county/minneapolis/"].spec,
+    ).toMatchObject({
       location_path_id: "/mn/hennepin-county/minneapolis/",
       level: "place",
       place_slug: "minneapolis",
@@ -136,7 +138,9 @@ describe("census-gazetteer run", () => {
 
     // --- emitted LocationPathGeometries: one per location path, streamed
     // in lexical path order ---
-    const geometryEmits = emitted.filter(([kind]) => kind === "LocationPathGeometries");
+    const geometryEmits = emitted.filter(
+      ([kind]) => kind === "LocationPathGeometries",
+    );
     expect(geometryEmits.map(([, key]) => key)).toEqual([
       "/mn/",
       "/mn/hennepin-county/",
@@ -183,7 +187,12 @@ describe("census-gazetteer run", () => {
         path.join(tmpdir(), "census-gazetteer-run-test-determinism-"),
       );
       try {
-        const manifest = await run({ paths, readXlsx: notUsed, state: runState, emit });
+        const manifest = await run({
+          paths,
+          readXlsx: notUsed,
+          state: runState,
+          emit,
+        });
         return { manifest, emitted };
       } finally {
         await rm(runState, { recursive: true, force: true });

@@ -1,4 +1,11 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -87,14 +94,20 @@ describe("toClippingGeometry", () => {
   });
 
   it("returns undefined for unsupported or missing geometry", () => {
-    expect(toClippingGeometry({ type: "Point", coordinates: [0, 0] })).toBeUndefined();
+    expect(
+      toClippingGeometry({ type: "Point", coordinates: [0, 0] }),
+    ).toBeUndefined();
     expect(toClippingGeometry(undefined)).toBeUndefined();
   });
 });
 
 describe("readFeaturesByState", () => {
   it("reads a TIGER place shapefile out of a zip archive, filtering to allowed states", async () => {
-    const featuresByState = await readFeaturesByState(placeZip, "place", workDir);
+    const featuresByState = await readFeaturesByState(
+      placeZip,
+      "place",
+      workDir,
+    );
 
     expect([...featuresByState.keys()]).toEqual(["27"]);
     const mnPlaces = featuresByState.get("27") ?? [];
@@ -138,7 +151,11 @@ describe("readFeaturesByState", () => {
   });
 
   it("reads a plain .geojson path, filtering to allowed states the same way", async () => {
-    const featuresByState = await readFeaturesByState(placeGeoJson, "place", workDir);
+    const featuresByState = await readFeaturesByState(
+      placeGeoJson,
+      "place",
+      workDir,
+    );
 
     expect([...featuresByState.keys()]).toEqual(["27"]);
     expect(featuresByState.get("27")).toEqual([

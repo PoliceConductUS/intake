@@ -34,7 +34,10 @@ async function writeGeoJson(
   );
 }
 
-function feature(properties: Record<string, unknown>, coordinates: [number, number][]) {
+function feature(
+  properties: Record<string, unknown>,
+  coordinates: [number, number][],
+) {
   return {
     type: "Feature" as const,
     properties,
@@ -186,7 +189,10 @@ describe("buildLocationPathGeometryPackage", () => {
       placeGeometryPaths: [placeGeometryPath],
       locationPaths: {
         "/mn/": locationPath("/mn/", "state"),
-        "/mn/hennepin-county/": locationPath("/mn/hennepin-county/", "administrative_area"),
+        "/mn/hennepin-county/": locationPath(
+          "/mn/hennepin-county/",
+          "administrative_area",
+        ),
         "/mn/hennepin-county/minneapolis/": locationPath(
           "/mn/hennepin-county/minneapolis/",
           "place",
@@ -249,26 +255,30 @@ describe("buildLocationPathGeometryPackage", () => {
       coordinates: [-93.5, 44.5],
     });
     expect(
-      geometryPackage.locationPathGeometrySources["/mn/hennepin-county/"].sourceKey,
+      geometryPackage.locationPathGeometrySources["/mn/hennepin-county/"]
+        .sourceKey,
     ).toBe("geometry:administrative_area:GEOID:27053");
     expect(
-      geometryPackage.locationPathGeometrySources["/mn/hennepin-county/minneapolis/"]
-        .sourceKey,
+      geometryPackage.locationPathGeometrySources[
+        "/mn/hennepin-county/minneapolis/"
+      ].sourceKey,
     ).toBe("geometry:place:GEOID:2743000");
     expect(
-      geometryPackage.locationPathGeometrySources["/md/montgomery-county/chevy-chase/"]
-        .sourceKey,
+      geometryPackage.locationPathGeometrySources[
+        "/md/montgomery-county/chevy-chase/"
+      ].sourceKey,
     ).toBe("geometry:place:GEOID:2416620+2416625");
     expect(
-      geometries["/md/montgomery-county/chevy-chase/"].geometry.coordinates.length,
+      geometries["/md/montgomery-county/chevy-chase/"].geometry.coordinates
+        .length,
     ).toBe(2);
     expect(
       (geometries["/mn/hennepin-county/"] as unknown as { _metadata?: unknown })
         ._metadata,
     ).toBeUndefined();
-    expect(geometries["/mn/hennepin-county/minneapolis/"].location_path_id).toBe(
-      "/mn/hennepin-county/minneapolis/",
-    );
+    expect(
+      geometries["/mn/hennepin-county/minneapolis/"].location_path_id,
+    ).toBe("/mn/hennepin-county/minneapolis/");
   });
 
   it("can stream geometry rows without retaining geometry records", async () => {
@@ -322,9 +332,9 @@ describe("buildLocationPathGeometryPackage", () => {
     expect(
       geometryPackage.locationPathGeometrySources["/mn/"].sourceLocationPathKey,
     ).toBe("/mn/");
-    expect(geometryPackage.locationPathGeometrySources["/mn/"].sourceGeometryKey).toBe(
-      "state:GEOID:27",
-    );
+    expect(
+      geometryPackage.locationPathGeometrySources["/mn/"].sourceGeometryKey,
+    ).toBe("state:GEOID:27");
     expect(geometryPackage.locationPaths["/mn/"].centroid.type).toBe("Point");
   });
 

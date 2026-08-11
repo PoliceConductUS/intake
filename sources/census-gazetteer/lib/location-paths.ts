@@ -196,7 +196,10 @@ export function buildLocationPaths({
       continue;
     }
 
-    administrativeAreasByGeoid.set(administrativeArea.GEOID, administrativeArea);
+    administrativeAreasByGeoid.set(
+      administrativeArea.GEOID,
+      administrativeArea,
+    );
     const administrativeAreaPath = administrativeAreaPathFor({
       state,
       administrativeArea,
@@ -243,7 +246,9 @@ export function buildLocationPaths({
 
     const matches = hierarchyByPlaceGeoid.get(place.GEOID) ?? [];
     if (matches.length === 0) {
-      throw new Error(`Missing Census-proven parent for place ${place.GEOID} ${place.NAME}`);
+      throw new Error(
+        `Missing Census-proven parent for place ${place.GEOID} ${place.NAME}`,
+      );
     }
 
     const candidates = matches.map((match) =>
@@ -279,7 +284,12 @@ export function buildLocationPaths({
 
     for (const candidate of candidates) {
       if (candidate.placePath === defaultCandidate.placePath) continue;
-      if (!isSamePlaceAlternateAdminPath(candidate.placePath, defaultCandidate.placePath)) {
+      if (
+        !isSamePlaceAlternateAdminPath(
+          candidate.placePath,
+          defaultCandidate.placePath,
+        )
+      ) {
         continue;
       }
 
@@ -373,7 +383,9 @@ function placeLocationPath(candidate: AssignedPlaceCandidate): LocationPathRow {
     path: candidate.placePath,
     level: "place",
     state_or_territory_slug: candidate.state.USPS.toLowerCase(),
-    administrative_area_slug: slugFromSourceName(candidate.administrativeArea.NAME),
+    administrative_area_slug: slugFromSourceName(
+      candidate.administrativeArea.NAME,
+    ),
     place_slug: candidate.placeSlug,
     state_or_territory_name: candidate.state.NAME,
     administrative_area_name: candidate.administrativeArea.NAME,
@@ -420,11 +432,16 @@ function mergeLocationPathEvidence(
     };
   }
 
-  const sourceKeys = uniqueSorted([...(existing.sourceKeys ?? [existing.sourceKey]), next.sourceKey]);
+  const sourceKeys = uniqueSorted([
+    ...(existing.sourceKeys ?? [existing.sourceKey]),
+    next.sourceKey,
+  ]);
   const parentSourceKeys = uniqueSorted(
     [
       ...(existing.parentSourceKeys ??
-        [existing.parentSourceKey].filter((value): value is string => Boolean(value))),
+        [existing.parentSourceKey].filter((value): value is string =>
+          Boolean(value),
+        )),
       next.parentSourceKey,
     ].filter((value): value is string => Boolean(value)),
   );
@@ -443,7 +460,10 @@ function mergeAliasSourceEvidence(
   if (existing === undefined) return next;
   return {
     ...existing,
-    sourceKeys: uniqueSorted([...(existing.sourceKeys ?? [existing.sourceKey]), next.sourceKey]),
+    sourceKeys: uniqueSorted([
+      ...(existing.sourceKeys ?? [existing.sourceKey]),
+      next.sourceKey,
+    ]),
   };
 }
 
@@ -452,7 +472,9 @@ function hierarchySelectionForPlace(
   candidates: AssignedPlaceCandidate[],
 ): HierarchySelection {
   const alternates = sortedPlaceCandidates(
-    candidates.filter((candidate) => candidate.placePath !== defaultCandidate.placePath),
+    candidates.filter(
+      (candidate) => candidate.placePath !== defaultCandidate.placePath,
+    ),
   );
   const reason = hierarchySelectionReason(defaultCandidate, candidates);
   return {
@@ -466,7 +488,10 @@ function hierarchySelectionForPlace(
     selectedAdministrativeAreaPath: defaultCandidate.administrativeAreaPath,
     selectedOverlapTotalArea: defaultCandidate.match.overlapTotalArea,
     alternateAdministrativeAreas: alternates.map((candidate) => ({
-      sourceKey: sourceKey("administrative_area", candidate.administrativeArea.GEOID),
+      sourceKey: sourceKey(
+        "administrative_area",
+        candidate.administrativeArea.GEOID,
+      ),
       label: candidate.administrativeArea.NAME,
       path: candidate.administrativeAreaPath,
       aliasPath: candidate.placePath,
@@ -575,7 +600,10 @@ function assignPlacePath(candidate: PlaceCandidate): AssignedPlaceCandidate {
   };
 }
 
-function placeCandidatePath(candidate: PlaceCandidate, placeName: string): string {
+function placeCandidatePath(
+  candidate: PlaceCandidate,
+  placeName: string,
+): string {
   return `${candidate.administrativeAreaPath}${slugFromSourceName(placeName)}/`;
 }
 
@@ -666,7 +694,10 @@ function pathSegments(path: string): string[] {
   return path.split("/").filter(Boolean);
 }
 
-function isSamePlaceAlternateAdminPath(aliasPath: string, targetPath: string): boolean {
+function isSamePlaceAlternateAdminPath(
+  aliasPath: string,
+  targetPath: string,
+): boolean {
   const aliasSegments = pathSegments(aliasPath);
   const targetSegments = pathSegments(targetPath);
   return (

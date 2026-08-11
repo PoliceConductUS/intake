@@ -82,11 +82,20 @@ export async function buildHierarchyFromTiger({
   placeShapefilePaths,
   selectedYear,
   state,
-}: BuildHierarchyFromTigerOptions): Promise<DeterministicTotalAreaOverlapRecord[]> {
-  const counties = await readFeaturesByState(countyShapefilePath, "county", state);
+}: BuildHierarchyFromTigerOptions): Promise<
+  DeterministicTotalAreaOverlapRecord[]
+> {
+  const counties = await readFeaturesByState(
+    countyShapefilePath,
+    "county",
+    state,
+  );
   const places = new Map<string, TigerFeatureRow[]>();
   for (const placeShapefilePath of placeShapefilePaths) {
-    mergeFeatureMaps(places, await readFeaturesByState(placeShapefilePath, "place", state));
+    mergeFeatureMaps(
+      places,
+      await readFeaturesByState(placeShapefilePath, "place", state),
+    );
   }
 
   const hierarchy: DeterministicTotalAreaOverlapRecord[] = [];
@@ -119,17 +128,21 @@ export async function buildHierarchyFromTiger({
           placeGeometry,
           countyGeometry,
         );
-        const overlapTotalArea = Math.round(multiPolygonArea(intersection) * 1e12);
+        const overlapTotalArea = Math.round(
+          multiPolygonArea(intersection) * 1e12,
+        );
         if (overlapTotalArea <= 0) continue;
-        const hierarchyRecord = deterministicTotalAreaOverlapRecordSchema.parse({
-          stateGeoid,
-          administrativeAreaGeoid: county.geoid,
-          placeGeoid: place.geoid,
-          overlapTotalArea,
-          placeName: place.name,
-          placeLabel: place.label,
-          sourceKey: `us-census-tiger:overlap:${selectedYear}:${stateGeoid}:${county.geoid}:${place.geoid}`,
-        });
+        const hierarchyRecord = deterministicTotalAreaOverlapRecordSchema.parse(
+          {
+            stateGeoid,
+            administrativeAreaGeoid: county.geoid,
+            placeGeoid: place.geoid,
+            overlapTotalArea,
+            placeName: place.name,
+            placeLabel: place.label,
+            sourceKey: `us-census-tiger:overlap:${selectedYear}:${stateGeoid}:${county.geoid}:${place.geoid}`,
+          },
+        );
         hierarchy.push(hierarchyRecord);
         stateHierarchy.push(hierarchyRecord);
       }
@@ -147,7 +160,12 @@ export async function buildHierarchyFromTiger({
   }
 
   return hierarchy.sort((left, right) =>
-    [left.stateGeoid, left.placeGeoid, left.administrativeAreaGeoid, left.sourceKey]
+    [
+      left.stateGeoid,
+      left.placeGeoid,
+      left.administrativeAreaGeoid,
+      left.sourceKey,
+    ]
       .join(":")
       .localeCompare(
         [
@@ -179,13 +197,21 @@ export async function readCachedStateHierarchy({
     };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
-    throw new Error(`Unable to read cached hierarchy state artifact: ${cachePath}`, {
-      cause: error,
-    });
+    throw new Error(
+      `Unable to read cached hierarchy state artifact: ${cachePath}`,
+      {
+        cause: error,
+      },
+    );
   }
 
-  if (parsed.selectedYear !== selectedYear || parsed.stateGeoid !== stateGeoid) {
-    throw new Error(`Cached hierarchy state artifact does not match run: ${cachePath}`);
+  if (
+    parsed.selectedYear !== selectedYear ||
+    parsed.stateGeoid !== stateGeoid
+  ) {
+    throw new Error(
+      `Cached hierarchy state artifact does not match run: ${cachePath}`,
+    );
   }
 
   return parsed.records.map((record) =>
@@ -223,7 +249,10 @@ export async function writeCachedStateHierarchy({
   await rename(temporaryPath, cachePath);
 }
 
-function stateHierarchyCacheFilePath(state: string, stateGeoid: string): string {
+function stateHierarchyCacheFilePath(
+  state: string,
+  stateGeoid: string,
+): string {
   return path.join(state, "hierarchy", `${stateGeoid}.json`);
 }
 
@@ -265,7 +294,9 @@ export async function readFeaturesByState(
     records.push({
       geoid,
       name: properties.NAME as string,
-      label: (properties.NAMELSAD as string | undefined) ?? (properties.NAME as string),
+      label:
+        (properties.NAMELSAD as string | undefined) ??
+        (properties.NAME as string),
       type: properties.LSAD as string,
       geometry: feature.geometry as GeoJsonGeometry,
       bbox: bboxForGeometry(feature.geometry as GeoJsonGeometry),
@@ -305,7 +336,9 @@ function addFeatureByState(
   records.push({
     geoid,
     name: properties.NAME as string,
-    label: (properties.NAMELSAD as string | undefined) ?? (properties.NAME as string),
+    label:
+      (properties.NAMELSAD as string | undefined) ??
+      (properties.NAME as string),
     type: properties.LSAD as string,
     geometry: feature.geometry as GeoJsonGeometry,
     bbox: bboxForGeometry(feature.geometry as GeoJsonGeometry),
@@ -318,7 +351,10 @@ function featureGeoid(
   type: TigerFeatureType,
 ): string | undefined {
   if (type === "state") {
-    return (properties.GEOID as string | undefined) ?? (properties.STATEFP as string | undefined);
+    return (
+      (properties.GEOID as string | undefined) ??
+      (properties.STATEFP as string | undefined)
+    );
   }
   if (type === "county") return properties.GEOID as string | undefined;
   return (
@@ -331,7 +367,8 @@ export function toClippingGeometry(
   geometry: GeoJsonGeometry | undefined,
 ): MultiPolygon | undefined {
   if (geometry?.type === "Polygon") return [geometry.coordinates as Polygon];
-  if (geometry?.type === "MultiPolygon") return geometry.coordinates as MultiPolygon;
+  if (geometry?.type === "MultiPolygon")
+    return geometry.coordinates as MultiPolygon;
   return undefined;
 }
 
@@ -348,13 +385,17 @@ function bboxForGeometry(geometry: GeoJsonGeometry | undefined): BBox {
   };
 }
 
-function collectCoordinates(value: unknown, coordinates: [number, number][]): void {
+function collectCoordinates(
+  value: unknown,
+  coordinates: [number, number][],
+): void {
   if (!Array.isArray(value)) return;
   if (typeof value[0] === "number" && typeof value[1] === "number") {
     coordinates.push(value as [number, number]);
     return;
   }
-  for (const child of value as unknown[]) collectCoordinates(child, coordinates);
+  for (const child of value as unknown[])
+    collectCoordinates(child, coordinates);
 }
 
 function boxesIntersect(left: BBox, right: BBox): boolean {
