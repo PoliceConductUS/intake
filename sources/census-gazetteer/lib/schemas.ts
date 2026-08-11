@@ -42,3 +42,25 @@ export type GazetteerAdministrativeAreaRecord = z.infer<
   typeof gazetteerAdministrativeAreaRecordSchema
 >;
 export type GazetteerPlaceRecord = z.infer<typeof gazetteerPlaceRecordSchema>;
+
+/**
+ * Ported verbatim from `intake.census-gazetteer/src/schemas.js`
+ * (`deterministicTotalAreaOverlapRecordSchema`) — the shape of a single
+ * place↔administrative-area overlap record produced by
+ * `buildHierarchyFromTiger` in `tiger-hierarchy.ts`.
+ */
+export const deterministicTotalAreaOverlapRecordSchema = z
+  .object({
+    stateGeoid: z.string().regex(/^\d{2}$/),
+    administrativeAreaGeoid: z.string().regex(/^\d{5}$/),
+    placeGeoid: z.string().regex(/^\d{7}$/),
+    overlapTotalArea: z.number().nonnegative(),
+    sourceKey: z.string().min(1),
+    placeName: z.string().min(1).optional(),
+    placeLabel: z.string().min(1).optional(),
+  })
+  .strict();
+
+export type DeterministicTotalAreaOverlapRecord = z.infer<
+  typeof deterministicTotalAreaOverlapRecordSchema
+>;
