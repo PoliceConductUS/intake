@@ -14,12 +14,14 @@ import { buildArtifactsEnvelope } from "./source-run.js";
 import type { SourceManifest } from "./source-run.js";
 import { loadSourceModule } from "./load-source-module.js";
 import { readXlsx } from "./read-xlsx.js";
+import { sourceStateDir } from "./state.js";
 
 type RunSourceDeps = {
   sourcesRoot: string;
   env: Record<string, string | undefined>;
   loadSourceModule: typeof loadSourceModule;
   readXlsx: typeof readXlsx;
+  state: string;
   digest: (paths: string[]) => Promise<string>;
   makeWorkspace: (env: Record<string, string | undefined>) => Promise<string>;
   writeEnvelope: (
@@ -78,7 +80,11 @@ export async function runSource(
   }
 
   try {
-    const manifest = await run({ paths, readXlsx: deps.readXlsx });
+    const manifest = await run({
+      paths,
+      readXlsx: deps.readXlsx,
+      state: deps.state,
+    });
     const digest = await deps.digest(paths);
     const workspace = await deps.makeWorkspace(deps.env);
     const { path: artifactsPath } = await deps.writeEnvelope(
@@ -118,6 +124,7 @@ export const registerCliCommand: RegisterCliCommand = (
           env,
           loadSourceModule,
           readXlsx,
+          state: await sourceStateDir(env, sourceId),
           digest: digestOfPaths,
           makeWorkspace: async (e) =>
             (

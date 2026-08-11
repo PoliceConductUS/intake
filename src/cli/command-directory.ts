@@ -7,7 +7,9 @@ function timestampForPath(date: Date): string {
   return date.toISOString().replace(/[:.]/g, "-");
 }
 
-function intakeWorkspace(env: Record<string, string | undefined>): string {
+export function intakeWorkspace(
+  env: Record<string, string | undefined>,
+): string {
   const workspace = env.INTAKE_WORKSPACE_TEST ?? env.INTAKE_WORKSPACE;
   if (workspace === undefined || workspace.trim().length === 0) {
     throw new Error("INTAKE_WORKSPACE is required to create command output.");

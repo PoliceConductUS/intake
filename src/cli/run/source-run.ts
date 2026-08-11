@@ -12,6 +12,7 @@ export type SourceManifest = {
 export type RunDeps = {
   paths: string[];
   readXlsx: typeof readXlsx;
+  state: string;
 };
 export type SourceRun = (deps: RunDeps) => Promise<SourceManifest>;
 

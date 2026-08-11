@@ -35,7 +35,7 @@ const fakeReadXlsx = async () => rows;
 
 describe("gov.azpost.roster run", () => {
   it("returns deduped Personnel keyed by POST ID, skipping blank ids", async () => {
-    const manifest = await run({ paths: ["a.xlsx"], readXlsx: fakeReadXlsx });
+    const manifest = await run({ paths: ["a.xlsx"], readXlsx: fakeReadXlsx, state: "/state" });
     expect(manifest.artifacts).toHaveLength(1);
     const personnel = manifest.artifacts[0];
     expect(personnel.kind).toBe("Personnel");
@@ -50,8 +50,8 @@ describe("gov.azpost.roster run", () => {
   });
 
   it("is deterministic", async () => {
-    expect(await run({ paths: ["a"], readXlsx: fakeReadXlsx })).toEqual(
-      await run({ paths: ["a"], readXlsx: fakeReadXlsx }),
+    expect(await run({ paths: ["a"], readXlsx: fakeReadXlsx, state: "/state" })).toEqual(
+      await run({ paths: ["a"], readXlsx: fakeReadXlsx, state: "/state" }),
     );
   });
 });

@@ -19,6 +19,7 @@ function makeOkDeps() {
       ],
     })),
     readXlsx: vi.fn(async () => []),
+    state: "/ws/intake/state/sources/gov.azpost.roster",
     digest: vi.fn(async () => "testdigest"),
     writeEnvelope: vi.fn(async () => ({ path: "/ws/artifacts.yaml" })),
     runImport: vi.fn(async () => ({ exitCode: 0, stdout: "ok" })),
