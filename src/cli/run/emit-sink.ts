@@ -44,6 +44,9 @@ export function createEmitSink(
     GEOMETRIES_NAME,
     GEOMETRIES_KIND,
   );
+  // Mirrors the `.records` directory naming convention used by the generated
+  // LocationPathGeometries writer; that helper isn't exported, so the
+  // convention is intentionally duplicated here rather than imported.
   const recordsDirName = `${path.basename(
     geometriesFileName,
     path.extname(geometriesFileName),

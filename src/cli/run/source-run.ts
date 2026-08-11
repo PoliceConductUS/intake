@@ -3,6 +3,7 @@ import type {
   ArtifactsEnvelope,
   ImportArtifactKind,
 } from "../../shared/io/index.js";
+import type { EmitRefItem } from "./emit-sink.js";
 import type { readXlsx } from "./read-xlsx.js";
 
 export type EmittedRecords = Record<string, { spec: unknown }>;
@@ -21,9 +22,7 @@ export function buildArtifactsEnvelope(
   sourceId: string,
   digest: string,
   manifest: SourceManifest,
-  refItems: Array<{
-    ref: { path: string; kind: ImportArtifactKind; sha256: string };
-  }> = [],
+  refItems: EmitRefItem[] = [],
 ): ArtifactsEnvelope {
   return Artifacts.new({
     metadata: { name: `${sourceId}-${digest}`, namespace: sourceId },
