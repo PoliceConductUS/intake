@@ -54,6 +54,7 @@ export function createEmitSink(
   const recordsDir = path.join(workspaceDir, recordsDirName);
 
   let flushed = false;
+  let flushResult: EmitRefItem[] | undefined;
 
   async function emit(kind: string, key: string, spec: unknown): Promise<void> {
     if (flushed) {
@@ -63,6 +64,9 @@ export function createEmitSink(
       throw new Error(
         `emit-sink: unsupported kind "${kind}" (only "${GEOMETRIES_KIND}" is streamed)`,
       );
+    }
+    if (Object.prototype.hasOwnProperty.call(geometryRefs, key)) {
+      throw new Error(`Duplicate emit key "${key}" for kind "${kind}"`);
     }
     const written = await LocationPathGeometry.write(
       recordsDir,
@@ -81,15 +85,21 @@ export function createEmitSink(
   }
 
   async function flush(): Promise<EmitRefItem[]> {
+    if (flushed) {
+      // Already flushed: return the cached refs instead of re-writing the
+      // envelope (and re-reading/duplicating it) on a second call.
+      return flushResult ?? [];
+    }
     flushed = true;
     if (Object.keys(geometryRefs).length === 0) {
-      return [];
+      flushResult = [];
+      return flushResult;
     }
     const written = await LocationPathGeometries.write(workspaceDir, {
       metadata: { name: GEOMETRIES_NAME, namespace },
       spec: { records: geometryRefs },
     });
-    return [
+    flushResult = [
       {
         ref: {
           path: path.basename(written.path),
@@ -98,6 +108,7 @@ export function createEmitSink(
         },
       },
     ];
+    return flushResult;
   }
 
   return { emit, flush };
