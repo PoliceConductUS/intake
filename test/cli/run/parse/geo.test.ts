@@ -1,6 +1,9 @@
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { readGeoJson, readShapefile } from "../../../../src/cli/run/parse/geo.js";
+import {
+  readGeoJson,
+  readShapefile,
+} from "../../../../src/cli/run/parse/geo.js";
 
 const geojsonFixture = fileURLToPath(
   new URL("../../../fixtures/gazetteer/sample.geojson", import.meta.url),

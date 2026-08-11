@@ -11,8 +11,7 @@ function openZip(zipPath: string): Promise<yauzl.ZipFile> {
   return new Promise((resolve, reject) => {
     yauzl.open(zipPath, { lazyEntries: true }, (err, zipfile) => {
       if (err) return reject(err);
-      if (!zipfile)
-        return reject(new Error(`Failed to open zip: ${zipPath}`));
+      if (!zipfile) return reject(new Error(`Failed to open zip: ${zipPath}`));
       resolve(zipfile);
     });
   });
@@ -101,9 +100,7 @@ export async function readZipEntryBuffer(
     zipfile.on("end", () => {
       if (!found) {
         zipfile.close();
-        reject(
-          new Error(`Entry "${entryName}" not found in zip: ${zipPath}`),
-        );
+        reject(new Error(`Entry "${entryName}" not found in zip: ${zipPath}`));
       }
     });
     onZipError(zipfile, reject);

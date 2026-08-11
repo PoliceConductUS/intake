@@ -26,7 +26,9 @@ export async function sourceStateDir(
   try {
     await mkdir(stateDirectory, { recursive: true });
   } catch {
-    throw new Error(`Source state directory is not writable: ${stateDirectory}`);
+    throw new Error(
+      `Source state directory is not writable: ${stateDirectory}`,
+    );
   }
 
   return stateDirectory;

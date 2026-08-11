@@ -41,7 +41,10 @@ export async function readGeoJson(path: string): Promise<GeoFeature[]> {
   const text = await readFile(path, "utf8");
   const parsed = JSON.parse(text) as {
     type?: string;
-    features?: Array<{ properties?: Record<string, unknown>; geometry?: unknown }>;
+    features?: Array<{
+      properties?: Record<string, unknown>;
+      geometry?: unknown;
+    }>;
     properties?: Record<string, unknown>;
     geometry?: unknown;
   };

@@ -6,7 +6,10 @@ import { runSource } from "../../../src/cli/run/index.js";
 import { Artifacts } from "../../../src/shared/io/index.js";
 import { createEmitSink } from "../../../src/cli/run/emit-sink.js";
 import { buildArtifactsEnvelope } from "../../../src/cli/run/source-run.js";
-import type { RunDeps, SourceManifest } from "../../../src/cli/run/source-run.js";
+import type {
+  RunDeps,
+  SourceManifest,
+} from "../../../src/cli/run/source-run.js";
 import type { CommandResult } from "../../../src/shared/cli/types.js";
 
 // Integration test for the streaming `emit` sink: a fake source `run()`
