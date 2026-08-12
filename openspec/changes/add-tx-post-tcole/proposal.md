@@ -25,23 +25,30 @@ current seed never had.
 - Reason: durable IDs must stay stable (URLs, references).
 - Impact: writes ledger records under namespace `gov.tx.tcole`.
 
-**LicenseAction kind (new)**
-- From: the import pipeline supports exactly four kinds; no license-action table.
-- To: a fifth kind + `license_action` table + spec/registry/transform plumbing,
-  fed from the 02-04 file's 310k rows.
-- Reason: capture the fuller-than-seed license history.
-- Impact: additive DB migration + pipeline extension; non-breaking.
+**Licensing model (new) + Assignment fix**
+- From: the pipeline supports four kinds; no licensing authority/license tables;
+  `agency_officers.license_type` mis-holds the role.
+- To: rename `agency_officers.license_type`→`title` (+ nullable `license_id`); new
+  `licensing_authority`/`license`/`license_action` tables and three new kinds
+  (LicensingAuthority, License, LicenseAction); licenses `issued_by` an authority
+  whose jurisdiction is a location_path subtree.
+- Reason: model TCOLE as a licensor (distinct from employers), capture the license
+  history the seed discarded, and correct the mis-named role column.
+- Impact: additive migrations + one rename + pipeline extension; the app must read
+  `title` instead of `license_type`.
 
 ## Capabilities
 
 ### New Capabilities
-- `tcole-source-import`: config-driven TCOLE source emitting Agency/Personnel/
-  AgencyPersonnel keyed by TCOLE source keys, with the AgencyPersonnel synthetic
-  tuple matching the prior identity map's `id_field`.
+- `tcole-source-import`: config-driven TCOLE source that reads the single 02-10
+  workbook and emits LicensingAuthority/Agency/Personnel/Assignment/License/
+  LicenseAction, keyed by TCOLE source keys, with the Assignment synthetic tuple
+  matching the prior identity map's `id_field`.
 - `canonical-id-preservation`: seeding the `SourceNameToCanonicalId` ledger from
   external source-key→canonical-ID maps so reconstruction preserves existing IDs.
-- `license-action-import`: a new import kind + `license_action` table + pipeline
-  plumbing for TCOLE license-action history.
+- `license-import`: the licensing authority + license + license-action entities,
+  the Assignment role/license model fix (rename + `license_id`), and their additive
+  registration in the import pipeline.
 
 ### Modified Capabilities
 <!-- None. The import-registry / SourceNameToCanonicalId extension for the fifth
@@ -51,12 +58,16 @@ kind is not a promoted base spec yet, so it is specified as part of the new
 
 ## Impact
 
-- **New code**: `sources/gov.tx.tcole/config.ts`; a ledger-seed tool; a Supabase
-  migration for `license_action`; `LicenseActionSpec` + generated schema.
-- **Modified code**: `src/shared/io/import-types.ts` (registry), `src/cli/state/
-  source-name-to-canonical-id/index.ts` (fifth entity), `src/cli/import/artifacts/
-  transform.ts` + `plan-database-mutations.ts` (LicenseAction rows).
+- **New code**: `sources/gov.tx.tcole/config.ts`; a ledger-seed tool; Supabase
+  migrations (`licensing_authority`, `license`, `license_action` tables; rename
+  `agency_officers.license_type`→`title` + add `license_id`); `LicensingAuthority`/
+  `License`/`LicenseAction` specs + generated schemas.
+- **Modified code**: `src/shared/io/import-types.ts` (registry gains 3 kinds),
+  `src/cli/state/source-name-to-canonical-id/index.ts` (3 new entity blocks),
+  `src/cli/import/artifacts/transform.ts` + `plan-database-mutations.ts` (new rows
+  + Assignment `license_id`/License `issued_by_authority_id` resolution).
 - **Reused unchanged**: Census geocoder + address→location_path resolution +
   ResolvedProperty cache (`agency-*-resolution.ts`, `agency-coordinate-*.ts`).
-- **Inputs**: two TCOLE workbooks (02-10 base, 02-04 license actions), read-only.
-- **DB**: additive migration; requires a generated-types refresh; no data reset.
+- **Inputs**: one TCOLE workbook (`PublicInformationRequest_2025-02-10_1410.xlsx`), read-only. The 02-04 interim export is excluded.
+- **DB**: additive migrations + one column rename; generated-types refresh; no data
+  reset. **App contract**: consumers of `agency_officers.license_type` must switch to `title`.

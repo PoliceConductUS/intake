@@ -1,60 +1,68 @@
 ## ADDED Requirements
 
-### Requirement: TCOLE source emits Agency, Personnel, and AgencyPersonnel
+### Requirement: TCOLE source emits all six kinds from the single workbook
 
-The `sources/gov.tx.tcole/config.ts` source SHALL read the 02-10 TCOLE workbook
-and return a manifest emitting Agency records (from the `Departments` sheet),
-Personnel records (from the `Officers` sheet), and AgencyPersonnel records (from
-the `Services` sheet). `run()` MUST be deterministic — no network, clock, or
-randomness — and MUST NOT emit `slug`, `location_path_id`, `latitude`, or
-`longitude` on Agency records (those are resolved by the import pipeline).
+The `sources/gov.tx.tcole/config.ts` source MUST read the single 02-10 workbook and
+emit LicensingAuthority (TCOLE `/tx/`), Agency (`Departments`), Personnel
+(`Officers`), Assignment (`Services`), License (distinct `PUBLIC_GUID`×`LICENSE`),
+and LicenseAction (`OfficersLicensesActions`). `run()` MUST be deterministic (no
+network, clock, or randomness).
 
-#### Scenario: Departments become Agency records keyed by department number
+#### Scenario: the workbook yields all six kinds
+- **WHEN** `run()` receives the 02-10 workbook
+- **THEN** the manifest contains LicensingAuthority, Agency, Personnel, Assignment (AgencyPersonnel), License, and LicenseAction records
+
+#### Scenario: run() is deterministic
+- **WHEN** `run()` executes twice on the same inputs
+- **THEN** the two returned manifests and emitted records are deep-equal
+
+### Requirement: Agency and Personnel field mappings
+
+Agency records MUST be keyed by `DEPARTMENT_NUMBER` and MUST NOT carry `slug`,
+`location_path_id`, `latitude`, or `longitude` (the import pipeline resolves those
+via the Census geocoder). Personnel records MUST be keyed by `PUBLIC_GUID`.
+
+#### Scenario: Departments become Agency records
 - **WHEN** the Departments sheet has a row with `DEPARTMENT_NUMBER` = `471100`
 - **THEN** an Agency record is emitted keyed by `471100` with `name` from
   `DEPARTMENT_NAME`, `state` from `STATE`, `city` from `CITY`, `address` from
   `ADD_LINE1`, `zip_code` from `ZIP_CODE`, `contact_name` from `HEAD_NAME`, and
   `contact_email` from `E_MAIL`
 
-#### Scenario: Officers become Personnel records keyed by PUBLIC_GUID
+#### Scenario: Officers become Personnel records
 - **WHEN** the Officers sheet has a row with `PUBLIC_GUID` = `1000033`
-- **THEN** a Personnel record is emitted keyed by `1000033` with `first_name`
-  from `FNAME`, `last_name` from `LNAME`, `middle_name` from `MNAME`, and
-  `suffix` from `SFX`
+- **THEN** a Personnel record is emitted keyed by `1000033` with `first_name` from
+  `FNAME`, `last_name` from `LNAME`, `middle_name` from `MNAME`, `suffix` from `SFX`
 
-#### Scenario: run() is deterministic
-- **WHEN** `run()` executes twice on the same inputs
-- **THEN** the two returned manifests and emitted records are deep-equal
+### Requirement: Assignment carries title and a license reference
 
-### Requirement: AgencyPersonnel key matches the prior identity map tuple
+An emitted Assignment (AgencyPersonnel) record MUST store the `APPOINTMENT` value
+in `title` (the role — NOT the license), and MUST carry a `license` reference to
+the officer's License (the source `LICENSE`, resolved via the ledger). It MUST be
+keyed by the synthetic tuple
+`PUBLIC_GUID|DEPARTMENT_NUMBER|APPOINTMENT|LICENSE|ST_DATE|END_DATE` (dates
+`YYYY-MM-DD`, empty segment when null) to match the prior identity map. `agency_id`
+carries `DEPARTMENT_NUMBER` and `personnel_id` carries `PUBLIC_GUID`.
 
-Each emitted AgencyPersonnel record SHALL be keyed by the synthetic tuple
-`PUBLIC_GUID|DEPARTMENT_NUMBER|APPOINTMENT|LICENSE|ST_DATE|END_DATE`, with dates
-formatted `YYYY-MM-DD` and an empty segment when a date is null, exactly matching
-the abandoned identity map's `id_field`. The record's `agency_id` MUST carry the
-source `DEPARTMENT_NUMBER` and `personnel_id` MUST carry the source `PUBLIC_GUID`
-(the pipeline resolves both to canonical IDs via the ledger). The stored
-`license_type` MUST be the `APPOINTMENT` (role) value — matching seed's
-`agency_officers.title`→`license_type` column — NOT the `LICENSE` value.
-
-#### Scenario: open-ended service produces a trailing-empty end-date segment
+#### Scenario: open-ended service maps title, license ref, and key
 - **WHEN** a Services row has `PUBLIC_GUID`=`1000033`, `DEPARTMENT_NUMBER`=`471100`,
   `APPOINTMENT`=`Jailer`, `LICENSE`=`Temporary Jailer License`, `ST_DATE`=2024-10-15,
   and a null `END_DATE`
-- **THEN** the AgencyPersonnel record key is
-  `1000033|471100|Jailer|Temporary Jailer License|2024-10-15|`
-- **AND** its `start_date` is `2024-10-15`, `end_date` is null, `license_type` is
-  `Jailer` (the APPOINTMENT/role, not the LICENSE), `agency_id` is `471100`,
+- **THEN** the record key is `1000033|471100|Jailer|Temporary Jailer License|2024-10-15|`
+- **AND** `title` is `Jailer`, `license` references `1000033|Temporary Jailer License`,
+  `start_date` is `2024-10-15`, `end_date` is null, `agency_id` is `471100`,
   `personnel_id` is `1000033`
 
-### Requirement: Referential integrity of emitted cross-references
+### Requirement: Emitted cross-references resolve
 
-Every `DEPARTMENT_NUMBER` and `PUBLIC_GUID` referenced by an emitted
-AgencyPersonnel record SHALL have a corresponding emitted Agency or Personnel
-record, so the import transform never encounters an unmapped reference.
+An emitted record MUST NOT reference an unmapped key. Every source key a record
+references — an Assignment's `DEPARTMENT_NUMBER`, `PUBLIC_GUID`, and `license`; a
+License's `PUBLIC_GUID` and authority — has a corresponding emitted record in the
+same run's manifest (or an already-seeded ledger entry), so the import transform
+never hits an unmapped reference.
 
-#### Scenario: every referenced agency and officer is emitted
-- **WHEN** an AgencyPersonnel record references `DEPARTMENT_NUMBER`=`471100` and
-  `PUBLIC_GUID`=`1000033`
-- **THEN** the manifest also contains an Agency record keyed `471100` and a
-  Personnel record keyed `1000033`
+#### Scenario: every referenced agency, officer, and license is emitted
+- **WHEN** an Assignment references `DEPARTMENT_NUMBER`=`471100`, `PUBLIC_GUID`=`1000033`,
+  and license `1000033|Temporary Jailer License`
+- **THEN** the run's manifest also contains an Agency keyed `471100`, a Personnel
+  keyed `1000033`, and a License keyed `1000033|Temporary Jailer License`

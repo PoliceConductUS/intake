@@ -40,9 +40,18 @@ preserves seed IDs. A new LicenseAction kind carries the fuller 02-04 data.
 
 ## Agreed Approach
 
-Approach A. Config-driven source reusing the existing import pipeline; two-file
-merge; ID stability via ledger seed; new LicenseAction kind. Phased: A = core
-reconstruction (existing DB), B = LicenseAction (additive).
+Config-driven source reusing the existing import pipeline; ID stability via ledger
+seed. **Refined during design** to two decisions that superseded the initial
+combine-both plan:
+- **Single file.** The 02-04 export turned out to be a known-problematic interim
+  TCOLE export, so it is excluded; TX is one import from the 02-10 file (which has
+  all sheets: agencies+addresses, officers, services, license actions).
+- **Corrected domain model** (the "fix the model" decision): a distinct
+  LicensingAuthority (TCOLE at `/tx/`, jurisdiction = location_path subtree) that
+  issues Licenses (with LicenseAction history) to Personnel; Assignment
+  (AgencyPersonnel) fixed so its role lives in `title` (undoing the `license_type`
+  mis-rename) with a `license` reference. Phased: A = existing-DB reconstruction +
+  rename; B = the licensing model (3 new kinds).
 
 ## Key Decisions
 

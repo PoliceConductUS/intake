@@ -14,21 +14,22 @@ highest-leverage step toward retiring `seed.sql`.
 
 ## Source data
 
-Two TCOLE Public-Information-Act workbooks (user confirmed the 02-10 file "is
-missing a lot of data"; each file has data the other lacks):
+A **single** TCOLE Public-Information-Act workbook:
+`PublicInformationRequest_2025-02-10_1410.xlsx` (16.9 MB, produced 2025-02-10).
+Sheets: `Departments` 3,906 (**with addresses**), `Officers` 129,973, `Services`
+170,754, `OfficersLicensesActions` 189,629. This is the file `seed.sql` was built
+from (via `data.policeconduct.org/TX/config.py`), and it carries everything the
+full model needs — agencies, officers, assignments (with `APPOINTMENT`/`LICENSE`),
+and the license-action history.
 
-| File | Contents | Notes |
-| --- | --- | --- |
-| **SMALL** `PublicInformationRequest_2025-02-10_1410.xlsx` (16.9 MB) | `Departments` 3,906 (**with addresses**), `Officers` 129,973, `Services` 170,754, `OfficersLicensesActions` 189,629 | What `seed.sql` was built from (via `data.policeconduct.org/TX/config.py`). Base for Agency/Personnel/AgencyPersonnel. |
-| **BIG** `PublicInformationRequestDepartmentData_02.04.25.xlsx` (38 MB) | `Sheet1` 608k rows (`1.person` 129,126 / `2.service` 168,478 / **`3.license` 310,970**); `Active Depts.` 2,954 (no addresses) | Supplies the richer **LicenseAction** set (310,970 vs 189,629). |
+A second, earlier export (`…DepartmentData_02.04.25.xlsx`, produced 2025-02-04) was
+evaluated but is an **interim TCOLE export with known problems** (per TCOLE
+correspondence), so it is **excluded**; TX is a single import from the 02-10 file.
+This drops the two-file merge, the ordered runs, and the 608-service edge case
+entirely.
 
-Overlap (measured): officers share 129,122 `PUBLIC_GUID`s; only 4 unique to BIG,
-851 unique to SMALL, 26 name conflicts, no garbage names. So the merge is clean:
-**SMALL is the base for the three existing kinds; BIG supplies LicenseAction (+ the 4 stray officers).**
-
-Canonical file locations recorded in the plan; both are read read-only from
-outside the repo (acquisition is a separate concern — these are treated as the
-already-acquired inputs, like the gazetteer's cached TIGER files).
+The file is read read-only from outside the repo (acquisition is a separate
+concern — treated as an already-acquired input, like the gazetteer's cached TIGER files).
 
 ## Architecture
 
@@ -39,7 +40,7 @@ the rest. Nothing about acquisition, geocoding, or DB mutation is re-implemented
 
 ### Field mappings (existing kinds)
 
-**Agency** ← SMALL `Departments`, keyed `DEPARTMENT_NUMBER`:
+**Agency** ← `Departments`, keyed `DEPARTMENT_NUMBER`:
 - `name` ← `DEPARTMENT_NAME`; `state` ← `STATE`; `city` ← `CITY`
 - `address` ← `ADD_LINE1` (+ `ADD_LINE2` when present); `zip_code` ← `ZIP_CODE`
 - `contact_name` ← `HEAD_NAME`; `contact_email` ← `E_MAIL`
@@ -47,21 +48,21 @@ the rest. Nothing about acquisition, geocoding, or DB mutation is re-implemented
 - **Not emitted:** `slug`, `location_path_id`, `latitude`, `longitude` — these
   are produced by the import pipeline's existing agency resolution (see below).
 
-**Personnel** ← SMALL `Officers` (∪ 4 BIG-only), keyed `PUBLIC_GUID`:
+**Personnel** ← `Officers`, keyed `PUBLIC_GUID`:
 - `first_name` ← `FNAME`; `last_name` ← `LNAME`; `middle_name` ← `MNAME`; `suffix` ← `SFX`
 
-**AgencyPersonnel** ← SMALL `Services`, keyed by the synthetic tuple
+**AgencyPersonnel** ← `Services`, keyed by the synthetic tuple
 `PUBLIC_GUID|DEPARTMENT_NUMBER|APPOINTMENT|LICENSE|ST_DATE|END_DATE`
 (dates `YYYY-MM-DD`, empty segment when null — must match the abandoned map's key format exactly):
 - `agency_id` ← `DEPARTMENT_NUMBER` (**source key**, resolved to canonical via the ledger by `transform.ts`)
 - `personnel_id` ← `PUBLIC_GUID` (**source key**, resolved via the ledger)
 - `start_date` ← `ST_DATE` (`YYYY-MM-DD`); `end_date` ← `END_DATE` or null
-- `license_type` ← **`APPOINTMENT`** (the role — "Peace Officer", "Chief of
-  Police"). The DB column `agency_officers.license_type` is the renamed `title`
-  column (migration `20260626000000`), and seed's `config.py` set `title =
-  APPOINTMENT`; it is NOT NULL. The `LICENSE` value is not stored on
-  agency_officers (seed discarded it) — it flows to the LicenseAction kind
-  instead. `APPOINTMENT` and `LICENSE` both remain in the identity key.
+- **`title`** ← `APPOINTMENT` (the role — "Peace Officer", "Chief of Police"); NOT
+  NULL. (This is the corrected name for the mis-named `license_type` column.)
+- **`license`** ← the source `LICENSE` — a reference resolved to the officer's
+  License entity via the ledger (`PUBLIC_GUID|LICENSE`). This is the "held under a
+  license" link.
+- `APPOINTMENT` and `LICENSE` both remain in the AgencyPersonnel identity key.
 
 Referential integrity: every `DEPARTMENT_NUMBER`/`PUBLIC_GUID` referenced by a
 Service must have an emitted + ledger-mapped Agency/Personnel, or `transform.ts`
@@ -101,86 +102,109 @@ Validation note: the source file is newer than seed, so row counts exceed seed
 (more current data). Success = existing IDs preserved + no unexpected losses,
 **not** exact row-count parity with seed.
 
-## LicenseAction — the one genuinely new build
+## Corrected domain model (the "fix the model now" decision)
 
-The pipeline hard-codes four kinds (`LocationPath`, `Agency`, `Personnel`,
-`AgencyPersonnel`) in `importTypeRegistry` and in the four-entity blocks of
-`source-name-to-canonical-id/index.ts`. Adding **LicenseAction** (from BIG's
-310,970 rows) requires, additively:
-- a DB migration for a `license_action` table (columns: personnel FK, license,
-  action, action date, award date, status, description — reconciling BIG's
-  `SERVICE_LICENSE`/`LICENSE_TITLE`/`ACTION_DATE`/`ACTION_DESCRIPTION` shape);
-- a `LicenseActionSpec` + generated record schema + registry entry;
-- a fifth ledger entity type + the transform/plan-database-mutations plumbing;
-- config emission from BIG keyed by a stable synthetic tuple; `personnel_id`
-  carries `PUBLIC_GUID` (resolved via the ledger).
+TCOLE is a *licensing* authority: it issues a **License** of a type directly to a
+**Personnel**, and separately records an **Assignment** of that person to an
+employing **Agency**, held *under* a license, with a **title** (role) that changes
+over time. The current DB conflates this: `agency_officers.license_type` (renamed
+from `title` by migration `20260626000000`) actually holds the **role**
+(`APPOINTMENT`), and the real license + its status/actions were discarded by seed.
+This change fixes the model.
 
-License-action rows are new to the DB → all fresh `cuid2` (no seed IDs to preserve).
+```
+LicensingAuthority ──issues──> License ──held_by──> Personnel
+ (name, location_path=/tx/)       │                      │
+                                  └─1:N─> LicenseAction   └─1:N─> Assignment ──N:1──> Agency
+                                                                  (title, start/end,      (employer)
+                                                                   under a License)
+```
 
-## Two additive runs (input classification)
+**Entities**
 
-The source is exercised as **two separate `intake run gov.tx.tcole` invocations**
-against the same namespace, **oldest-produced file first**, so the second
-preserves and extends the first. What each run emits is forced by what each file
-can produce (BIG has no addresses and no `APPOINTMENT`; SMALL is the only source
-of both, and a strict superset of agencies):
+| Entity | Meaning | Key fields | Source |
+| --- | --- | --- | --- |
+| **LicensingAuthority** (new) | the licensor (TCOLE); jurisdiction = a location_path subtree | `name`, `location_path_id` (`/tx/`) | declared by the source (one per POST source) |
+| Personnel | the officer | name | `Officers` |
+| **License** (new) | a license held by a Personnel, issued by an authority | `officer_id`, `license_type`, `status`, first-awarded date, **`issued_by_authority_id`** | distinct `PUBLIC_GUID`×`LICENSE` from `OfficersLicensesActions` + `Services` |
+| **LicenseAction** (new) | an event on a license | `license` ref, `action`, `action_date`, resulting status | `OfficersLicensesActions` rows |
+| Agency | the employer | name, address, … | `Departments` |
+| **Assignment** (AgencyPersonnel, fixed) | employment period | `officer_id`, `agency_id`, **`title`**, `start_date`, `end_date`, **`license`** ref | `Services` |
 
-- **Run 1 — BIG / 02-04 (produced 2025-02-04, oldest):** Personnel +
-  LicenseAction. LicenseAction is person-scoped (no agency FK), so it needs only
-  the Personnel emitted in the same run. Agencies and employment rows are NOT
-  emitted here (BIG lacks addresses and roles).
-- **Run 2 — SMALL / 02-10 (produced 2025-02-10, newer):** Agency + AgencyPersonnel
-  (+ the superset Personnel). **Additive**: overlapping officers resolve to Run
-  1's canonical IDs via the shared `gov.tx.tcole` ledger; new officers (851) and
-  all agencies/employment are added. Because the pipeline's load is additive
-  (disappearance = no-op), Run 1's Personnel and LicenseActions are untouched.
+The licensing authority's jurisdiction is resolved by location_path containment
+(reusing the gazetteer tree): the authority for any officer/license is the one
+whose `location_path_id` is an ancestor of the entity's. For TX every license is
+`issued_by` TCOLE (`/tx/`). This generalizes: each state POST source declares one
+LicensingAuthority at its state location_path.
 
-Data completeness: the 608 service tuples unique to BIG cannot become employment
-rows (BIG has no `APPOINTMENT` for the NOT NULL role column), but those officers'
-license activity is captured by Run 1's LicenseAction — so no license history is
-lost, only 608 agency-employment-period rows for which TCOLE's older file never
-recorded a role.
+**Schema changes** (additive + one rename):
+- new `licensing_authority` table (`name`, `location_path_id`);
+- rename `agency_officers.license_type` → `title`; add `agency_officers.license_id` (FK, nullable);
+- new `license` table (unique `(officer_id, license_type)`, `issued_by_authority_id` FK) and `license_action` table;
+- refresh generated types. Existing `agency_officers`/`agency`/`officers` IDs are
+  preserved (rename keeps rows; the value was always the title).
 
-`run()` classifies its input paths (mirroring `census-gazetteer`'s `matchInputs`):
-the 02-04 workbook (`Sheet1` with `rectype` + `Active Depts.`) triggers Personnel
-+ LicenseAction; the 02-10 workbook (sheets `Departments`/`Officers`/`Services`)
-triggers Agency + AgencyPersonnel + Personnel. One source module, two runs.
+**Pipeline extension** — the registry gains **three** kinds (`LicensingAuthority`,
+`License`, `LicenseAction`); `source-name-to-canonical-id/index.ts` gains their
+entity blocks; `transform.ts` builds their rows and now also resolves the
+Assignment's `license_id` via the License ledger and the License's
+`issued_by_authority_id` via the LicensingAuthority ledger. LicensingAuthority /
+License / LicenseAction rows are new to the DB → fresh `cuid2`; Assignment keeps
+its seeded ID and gains `title` + `license_id`.
 
-**Load-preservation assumption (must verify):** the import pipeline must treat a
-run's artifacts as additive-upsert only — it must NOT delete entities absent from
-the current run's artifacts. The two-run model depends on this. Verify against
-`plan-database-mutations.ts` before Run 2; if the pipeline reconciles-by-deletion,
-that is a blocker to resolve first.
+**Keys**
+- LicensingAuthority: a stable source-declared key (e.g. `tcole`).
+- License: `PUBLIC_GUID|LICENSE`.
+- LicenseAction: `PUBLIC_GUID|LICENSE|ACTION|ACTION_DATE` (stable synthetic tuple).
+- Assignment `license` ref: the source `PUBLIC_GUID|LICENSE`, resolved to the
+  License canonical id via the ledger (throws if the license was not emitted).
 
-## Phasing (build order ≠ run order)
+## Single run
 
-**Build order** — sequenced by what reuses existing machinery:
-- **Phase A**: the source config's SMALL branch (Agency + Personnel +
-  AgencyPersonnel) + the ledger-seed tool, reusing the existing four kinds and the
-  Census agency resolution. Independently reconstructs the bulk of the TX DB
-  (agencies, personnel, employment with roles + preserved IDs), testable with a
-  SMALL-only run. Highest value, no pipeline surgery.
-- **Phase B**: the new LicenseAction kind (migration + registry + ledger entity +
-  transform plumbing) and the source config's BIG branch (Personnel +
-  LicenseAction).
+A **single** `intake run gov.tx.tcole` invocation reads the 02-10 workbook and
+emits all six kinds from its four sheets:
 
-**Run order** — the final reconstruction runs **oldest-produced first** so newer
-data wins on conflict and license history is preserved: **BIG (02-04) then SMALL
-(02-10)**. This requires both phases built, so it happens after Phase B. During
-development Phase A is exercised SMALL-only; the ordered two-run reconstruction is
-the Phase B acceptance test.
+- **LicensingAuthority** — TCOLE at `/tx/` (source-declared, one record).
+- **Personnel** ← `Officers`.
+- **Agency** ← `Departments` (addresses; pipeline geocodes → location_path).
+- **License** ← distinct `PUBLIC_GUID`×`LICENSE` across `OfficersLicensesActions`
+  and `Services`, `issued_by` TCOLE.
+- **LicenseAction** ← `OfficersLicensesActions` (189,629 rows).
+- **Assignment** (AgencyPersonnel) ← `Services`, with `title`=`APPOINTMENT` and a
+  `license` ref.
 
-Each phase gets its own implementation plan.
+Emission order within the run respects dependencies (authority → license →
+license-action; agency + personnel → assignment); the transform resolves all
+cross-references (`agency_id`, `personnel_id`, `license`, `issued_by_authority_id`)
+via the ledger. Because every referenced key is emitted in the same run, there is
+no cross-run preservation concern.
+
+Both phases run against the single 02-10 file; the split is by what reuses
+existing machinery, not by input:
+- **Phase A** (existing-DB reconstruction + rename): Agency + Personnel +
+  Assignment (`title`) + the ledger-seed tool + the `license_type`→`title` rename
+  migration, reusing the existing four kinds and the Census agency resolution.
+  Reproduces the current DB (corrected column) with preserved IDs;
+  `agency_officers.license_id` stays null until Phase B. Highest value, minimal
+  pipeline surgery.
+- **Phase B** (licensing model): new `licensing_authority`/`license`/
+  `license_action` tables + three new kinds (LicensingAuthority, License,
+  LicenseAction) + ledger entities + transform plumbing; emit them from the 02-10
+  sheets (`OfficersLicensesActions` + `Services.LICENSE`); backfill
+  `agency_officers.license_id` via the License ledger.
+
+After Phase B, one `intake run gov.tx.tcole` emits all six kinds. Each phase gets
+its own implementation plan.
 
 ## Non-goals / deferred
 
-- Acquisition (how the xlsx files arrive) — separate system; files treated as inputs.
-- No AgencyPersonnel are dropped. 02-10 supplies the bulk (170k, with
-  `APPOINTMENT`, matching the seed identity key). Run 2 additively captures the
-  **608** service tuples that exist only in 02-04 (measured; name→number linking
-  is zero-risk — 0 of 2,862 names fail to match). Those 608 are net-new (not in
-  seed) and carry an empty `APPOINTMENT` (02-04 has no such column), but the
-  assignment — officer, agency, dates, license — is fully preserved.
+- Acquisition (how the xlsx file arrives) — separate system; the file is an input.
+- **Generalize `agency_officers.badge_number`** to a typed agency-assigned
+  identifier (value + type: badge / employee-id / serial / PID). It is the right
+  place (on the assignment), but TCOLE carries no such value (stays null), so it is
+  deferred until a source provides real data to design against.
+- The **02-04 interim export** (excluded as a known-problematic TCOLE interim
+  export) — revisit only if TCOLE issues a corrected full export.
 - `data.policeconduct.org/TX/config.py` is a reference for how seed was built, not a porting target.
 - Deleting `intake.census-gazetteer` / the abandoned data-requests tree (owner's call).
 
