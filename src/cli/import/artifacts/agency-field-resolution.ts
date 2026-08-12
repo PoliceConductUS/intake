@@ -33,6 +33,7 @@ export type AgencyFieldResolutionOptions = {
   logger?: {
     debug?(object: Record<string, unknown>, message: string): void;
     info?(object: Record<string, unknown>, message: string): void;
+    warn?(object: Record<string, unknown>, message: string): void;
   };
 };
 

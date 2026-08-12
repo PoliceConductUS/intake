@@ -2,6 +2,7 @@ import { DataContext } from "./data-context.js";
 import { classifyDatabaseOperations } from "./classify-database-operations.js";
 import {
   type AgencyPreparationOptions,
+  type SkippedAgency,
   prepareAgencyRows,
   resolveImportAddress,
 } from "./agency-preparation.js";
@@ -114,6 +115,47 @@ async function closeClient(client: DatabaseClient): Promise<void> {
   }
 }
 
+/**
+ * Removes agency rows that could not be resolved (Fix 2: tolerant skip) from
+ * the import, and cascades the removal to any agency_officers rows that
+ * reference them so referential integrity is preserved. Personnel/officer
+ * rows are unaffected. Logs a prominent summary so skips are never silent.
+ */
+function excludeSkippedAgencies(
+  rows: ImportRows,
+  skipped: readonly SkippedAgency[],
+  logger?: {
+    warn?(object: Record<string, unknown>, message: string): void;
+  },
+): void {
+  if (skipped.length === 0) {
+    return;
+  }
+
+  const skippedAgencyIds = new Set(skipped.map((agency) => agency.rowId));
+  rows.agencies = rows.agencies.filter(
+    (agency) => !skippedAgencyIds.has(agency.id),
+  );
+
+  const agencyOfficersBeforeCascade = rows.agencyOfficers.length;
+  rows.agencyOfficers = rows.agencyOfficers.filter(
+    (agencyOfficer) => !skippedAgencyIds.has(agencyOfficer.agency_id),
+  );
+  const droppedAgencyOfficerCount =
+    agencyOfficersBeforeCascade - rows.agencyOfficers.length;
+
+  if (droppedAgencyOfficerCount > 0) {
+    logger?.warn?.(
+      {
+        entityType: "agencyOfficer",
+        droppedCount: droppedAgencyOfficerCount,
+        skippedAgencyIds: [...skippedAgencyIds].sort(),
+      },
+      `Dropped ${droppedAgencyOfficerCount} ${droppedAgencyOfficerCount === 1 ? "agency-officer row" : "agency-officer rows"} referencing skipped agencies.`,
+    );
+  }
+}
+
 export async function planDatabaseMutations(
   rows: ImportRows,
   options: PlanDatabaseMutationsOptions = {},
@@ -164,8 +206,15 @@ export async function planDatabaseMutations(
       resolveAdministrativeArea: options.resolveLocationAdministrativeArea,
     });
 
+    const agencyPreparationResult = await prepareAgencyRows(
+      rows,
+      context,
+      options.logger,
+    );
+    excludeSkippedAgencies(rows, agencyPreparationResult.skipped, options.logger);
+
     const preparationErrors = [
-      ...(await prepareAgencyRows(rows, context, options.logger)),
+      ...agencyPreparationResult.errors,
       ...context.validatePreparedRows(),
       ...(await validatePreparedNewSlugConflicts(client, rows)),
     ];

@@ -137,9 +137,13 @@ export async function readLocationPathAliasByPath(
   );
 }
 
-export async function readPlaceLocationPathsContainingPoint(
+export async function readLocationPathsContainingPoint(
   client: DatabaseClient,
-  input: { latitude: number; longitude: number },
+  input: {
+    latitude: number;
+    longitude: number;
+    level: "state" | "administrative_area" | "place";
+  },
 ): Promise<DatabaseLocationPathRow[]> {
   return rowsFromResult(
     await client.query(
@@ -164,11 +168,21 @@ export async function readPlaceLocationPathsContainingPoint(
          from public.location_path lp
          join public.location_path_geometry lpg
            on lpg.location_path_id = lp.location_path_id
-        where lp.level = 'place'
+        where lp.level = $3
           and ST_Covers(lpg.boundary, ST_SetSRID(ST_MakePoint($1, $2), 4326))`,
-      [input.longitude, input.latitude],
+      [input.longitude, input.latitude, input.level],
     ),
   ) as unknown as DatabaseLocationPathRow[];
+}
+
+export async function readPlaceLocationPathsContainingPoint(
+  client: DatabaseClient,
+  input: { latitude: number; longitude: number },
+): Promise<DatabaseLocationPathRow[]> {
+  return readLocationPathsContainingPoint(client, {
+    ...input,
+    level: "place",
+  });
 }
 
 export async function createLocationPath(

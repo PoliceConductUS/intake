@@ -9,7 +9,7 @@ import {
   readLocationPathAliasByPath,
   readLocationPathById,
   readLocationPathByPath,
-  readPlaceLocationPathsContainingPoint,
+  readLocationPathsContainingPoint,
 } from "../../database/location-paths.js";
 import type { ImportOperation, ImportOperations } from "./operations.js";
 import {
@@ -566,6 +566,12 @@ function postalAreaPlacePaths(request: AddressResolutionRequest): string[] {
   return rule === undefined ? [] : [...rule.paths];
 }
 
+const CONTAINING_POINT_LEVELS = [
+  "place",
+  "administrative_area",
+  "state",
+] as const;
+
 function isMissingContainingPlaceError(error: unknown): boolean {
   return (
     error instanceof Error &&
@@ -975,9 +981,11 @@ export class DataContext {
         const sourceName = sourceNameForImportRecord(recordName, record);
         const agency = preparedAgencyBySourceName.get(sourceName);
         if (agency === undefined) {
-          throw new Error(
-            `Prepared agency row is missing for source agency ${sourceName}.`,
-          );
+          // The agency was skipped upstream (unresolvable coordinates or
+          // location_path) and already reported via a per-agency warning, so
+          // there is no prepared row to merge into the DatabaseMutations
+          // envelope. Skip it rather than failing the whole import.
+          continue;
         }
 
         this.fromSource({
@@ -1524,33 +1532,42 @@ class LocationPathDataContext {
     longitude: number;
     rowId?: unknown;
   }): Promise<string> {
-    const matches = await readPlaceLocationPathsContainingPoint(
-      this.context.databaseClient(),
-      input,
-    );
-    if (matches.length === 0) {
-      throw new Error(
-        `Cannot resolve location_path_id for public.agency ${String(input.rowId)}; no place location_path_geometry boundary contains point ${input.latitude}, ${input.longitude}.`,
+    // Prefer the most specific containing boundary: an incorporated place,
+    // falling back to the containing county (administrative_area), falling
+    // back to the state. Most Texas land is unincorporated, so many real
+    // agencies (county constables, precincts, ISD police outside city
+    // limits) only resolve at the county or state level.
+    for (const level of CONTAINING_POINT_LEVELS) {
+      const matches = await readLocationPathsContainingPoint(
+        this.context.databaseClient(),
+        { latitude: input.latitude, longitude: input.longitude, level },
       );
-    }
-    const uniqueMatches = [
-      ...new Map(
-        matches.map((locationPath) => [
-          locationPath.location_path_id,
-          locationPath,
-        ]),
-      ).values(),
-    ];
-    if (uniqueMatches.length > 1) {
-      throw new Error(
-        `Cannot resolve location_path_id for public.agency ${String(input.rowId)}; multiple place location_path_geometry boundaries contain point ${input.latitude}, ${input.longitude}: ${uniqueMatches
-          .map((locationPath) => locationPath.location_path_id)
-          .sort()
-          .join(", ")}.`,
-      );
+      if (matches.length === 0) {
+        continue;
+      }
+      const uniqueMatches = [
+        ...new Map(
+          matches.map((locationPath) => [
+            locationPath.location_path_id,
+            locationPath,
+          ]),
+        ).values(),
+      ];
+      if (uniqueMatches.length > 1) {
+        throw new Error(
+          `Cannot resolve location_path_id for public.agency ${String(input.rowId)}; multiple ${level} location_path_geometry boundaries contain point ${input.latitude}, ${input.longitude}: ${uniqueMatches
+            .map((locationPath) => locationPath.location_path_id)
+            .sort()
+            .join(", ")}.`,
+        );
+      }
+
+      return uniqueMatches[0]!.location_path_id;
     }
 
-    return uniqueMatches[0]!.location_path_id;
+    throw new Error(
+      `Cannot resolve location_path_id for public.agency ${String(input.rowId)}; no place location_path_geometry boundary contains point ${input.latitude}, ${input.longitude}.`,
+    );
   }
 
   validatePreparedRows(): string[] {

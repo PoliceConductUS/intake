@@ -1114,7 +1114,7 @@ describe("planDatabaseMutations", () => {
     ).toBe(false);
   });
 
-  test("new agency inserts log and fail when dynamic location resolution fails", async () => {
+  test("new agency insert is skipped, not fatal, when dynamic location resolution fails", async () => {
     const partialRows: ImportRows = {
       ...rows,
       locationPaths: [],
@@ -1141,18 +1141,18 @@ describe("planDatabaseMutations", () => {
     const logger = {
       debug: vi.fn(),
       info: vi.fn(),
+      warn: vi.fn(),
       error: vi.fn(),
     };
 
-    await expect(
-      planDatabaseMutations(partialRows, {
-        env: { DATABASE_URL: "postgres://example/intake" },
-        clientFactory: () => client,
-        logger,
-      }),
-    ).rejects.toThrow(
-      "Cannot resolve coordinates for public.agency agency-canonical-id",
-    );
+    const result = await planDatabaseMutations(partialRows, {
+      env: { DATABASE_URL: "postgres://example/intake" },
+      clientFactory: () => client,
+      logger,
+    });
+
+    expect(result.counts.agencies).toBe(0);
+    expect(partialRows.agencies).toHaveLength(0);
 
     expect(logger.debug).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1163,9 +1163,23 @@ describe("planDatabaseMutations", () => {
       }),
       "Agency field resolution failed.",
     );
-    expect(logger.info).toHaveBeenCalledWith(
-      { errorCount: 1 },
-      "Database row preparation failed.",
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: "agency",
+        rowId: "agency-canonical-id",
+        reason: expect.stringContaining(
+          "Cannot resolve coordinates for public.agency agency-canonical-id",
+        ),
+      }),
+      expect.stringContaining("Skipping unresolvable agency row"),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: "agency",
+        skippedCount: 1,
+        total: 1,
+      }),
+      expect.stringContaining("Skipped 1 of 1 agency row"),
     );
 
     expect(
@@ -1307,7 +1321,7 @@ describe("planDatabaseMutations", () => {
     );
   });
 
-  test("new agency insert fails when resolved address location path is missing", async () => {
+  test("new agency insert is skipped when no place, county, or state boundary contains the resolved point", async () => {
     const resolvedProperties: ResolvedProperties = {
       agencies: { "agency-canonical-id": {} },
       personnel: {},
@@ -1347,25 +1361,41 @@ describe("planDatabaseMutations", () => {
         rows: [],
       },
     ]);
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    };
 
-    await expect(
-      planDatabaseMutations(partialRows, {
-        env: { DATABASE_URL: "postgres://example/intake" },
-        clientFactory: () => client,
-        resolvedProperties,
-        resolveAgencyCoordinates: async () => [
-          {
-            rowId: "agency-canonical-id",
-            latitude: 44.955097,
-            longitude: -93.102211,
-          },
-        ],
-        resolveLocationAdministrativeArea: async () => ({
-          administrativeAreaName: "Ramsey County",
-        }),
+    const result = await planDatabaseMutations(partialRows, {
+      env: { DATABASE_URL: "postgres://example/intake" },
+      clientFactory: () => client,
+      resolvedProperties,
+      logger,
+      resolveAgencyCoordinates: async () => [
+        {
+          rowId: "agency-canonical-id",
+          latitude: 44.955097,
+          longitude: -93.102211,
+        },
+      ],
+      resolveLocationAdministrativeArea: async () => ({
+        administrativeAreaName: "Ramsey County",
       }),
-    ).rejects.toThrow(
-      "Cannot resolve location_path_id for public.agency agency-canonical-id; no place location_path_geometry boundary contains point 44.955097, -93.102211.",
+    });
+
+    expect(result.counts.agencies).toBe(0);
+    expect(partialRows.agencies).toHaveLength(0);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: "agency",
+        rowId: "agency-canonical-id",
+        reason: expect.stringContaining(
+          "no place location_path_geometry boundary contains point 44.955097, -93.102211",
+        ),
+      }),
+      expect.stringContaining("Skipping unresolvable agency row"),
     );
 
     expect(
@@ -1373,6 +1403,218 @@ describe("planDatabaseMutations", () => {
         /insert into\s+public\.agency\b/i.test(text),
       ),
     ).toBe(false);
+  });
+
+  test("skipped agencies are excluded and their agency_officers rows are cascaded out, while other agencies and all personnel still import", async () => {
+    const resolvedProperties: ResolvedProperties = {
+      agencies: {
+        "agency-canonical-id": {},
+        "second-agency-canonical-id": {},
+      },
+      personnel: {},
+    };
+    const partialRows: ImportRows = {
+      ...rows,
+      locationPaths: [],
+      agencies: [
+        {
+          ...rows.agencies[0],
+          id: "agency-canonical-id",
+          sourceName: "agency-source-id",
+          slug: undefined,
+          location_path_id: undefined,
+        },
+        {
+          ...rows.agencies[0],
+          id: "second-agency-canonical-id",
+          sourceName: "second-agency-source-id",
+          name: "Resolvable Agency",
+          slug: "resolvable-agency",
+          location_path_id: "existing-location-path-id",
+          latitude: 44.9,
+          longitude: -93.1,
+        },
+      ],
+      officers: [
+        {
+          id: "personnel-canonical-id",
+          first_name: "Spenser",
+          last_name: "Stockwell",
+          middle_name: null,
+          prefix: null,
+          suffix: null,
+          slug: "spenser-stockwell",
+        },
+        {
+          id: "second-personnel-canonical-id",
+          first_name: "Alex",
+          last_name: "Rivera",
+          middle_name: null,
+          prefix: null,
+          suffix: null,
+          slug: "alex-rivera",
+        },
+      ],
+      agencyOfficers: [
+        {
+          id: "agency-personnel-canonical-id",
+          agency_id: "agency-canonical-id",
+          personnel_id: "personnel-canonical-id",
+          badge_number: "49112",
+          start_date: "2020-01-01",
+          end_date: null,
+          license_type: "Peace Officer",
+        },
+        {
+          id: "second-agency-personnel-canonical-id",
+          agency_id: "second-agency-canonical-id",
+          personnel_id: "second-personnel-canonical-id",
+          badge_number: "49113",
+          start_date: "2020-01-01",
+          end_date: null,
+          license_type: "Peace Officer",
+        },
+      ],
+      ownedColumns: {
+        agencies: {
+          "agency-canonical-id": ["name", "state"],
+          "second-agency-canonical-id": [
+            "name",
+            "location_path_id",
+            "latitude",
+            "longitude",
+          ],
+        },
+        officers: {
+          "personnel-canonical-id": [
+            "first_name",
+            "last_name",
+            "middle_name",
+            "prefix",
+            "suffix",
+            "slug",
+          ],
+          "second-personnel-canonical-id": [
+            "first_name",
+            "last_name",
+            "middle_name",
+            "prefix",
+            "suffix",
+            "slug",
+          ],
+        },
+        agencyOfficers: {
+          "agency-personnel-canonical-id": [
+            "agency_id",
+            "personnel_id",
+            "badge_number",
+            "start_date",
+            "end_date",
+            "license_type",
+          ],
+          "second-agency-personnel-canonical-id": [
+            "agency_id",
+            "personnel_id",
+            "badge_number",
+            "start_date",
+            "end_date",
+            "license_type",
+          ],
+        },
+      },
+    };
+    const client = new RecordingClient(undefined, undefined, [
+      {
+        pattern: /select \* from public\.agency where id = \$1/i,
+        rows: [],
+      },
+      {
+        pattern: /from public\.location_path\b/i,
+        rows: [
+          {
+            location_path_id: "existing-location-path-id",
+            path: "/mn/ramsey-county/saint-paul/",
+            level: "place",
+            state_or_territory_slug: "mn",
+            administrative_area_slug: "ramsey-county",
+            place_slug: "saint-paul",
+            state_or_territory_name: "Minnesota",
+            administrative_area_name: "Ramsey County",
+            place_name: "Saint Paul",
+            parent_location_path_id: "ramsey-county-location-path-id",
+          },
+        ],
+      },
+      {
+        pattern: /from public\.location_path_alias\b/i,
+        rows: [],
+      },
+    ]);
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    };
+
+    const result = await planDatabaseMutations(partialRows, {
+      env: { DATABASE_URL: "postgres://example/intake" },
+      clientFactory: () => client,
+      resolvedProperties,
+      logger,
+      resolveAgencyCoordinates: async () => [
+        {
+          rowId: "agency-canonical-id",
+          latitude: 44.955097,
+          longitude: -93.102211,
+        },
+      ],
+      resolveLocationAdministrativeArea: async () => ({
+        administrativeAreaName: "Ramsey County",
+      }),
+    });
+
+    // The unresolvable agency is excluded; the resolvable one is kept.
+    expect(partialRows.agencies.map((agency) => agency.id)).toEqual([
+      "second-agency-canonical-id",
+    ]);
+    expect(result.counts.agencies).toBe(1);
+
+    // The agency_officers row for the skipped agency is cascaded out; the
+    // row for the still-imported agency is kept.
+    expect(
+      partialRows.agencyOfficers.map((agencyOfficer) => agencyOfficer.id),
+    ).toEqual(["second-agency-personnel-canonical-id"]);
+    expect(result.counts.agencyOfficers).toBe(1);
+
+    // Personnel/officer rows are never affected by a skipped agency.
+    expect(partialRows.officers).toHaveLength(2);
+    expect(result.counts.officers).toBe(2);
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: "agency",
+        rowId: "agency-canonical-id",
+        reason: expect.stringContaining("Cannot resolve location_path_id"),
+      }),
+      expect.stringContaining("Skipping unresolvable agency row"),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: "agency",
+        skippedCount: 1,
+        total: 2,
+      }),
+      expect.stringContaining("Skipped 1 of 2 agency rows"),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: "agencyOfficer",
+        droppedCount: 1,
+        skippedAgencyIds: ["agency-canonical-id"],
+      }),
+      expect.stringContaining("Dropped 1 agency-officer row"),
+    );
   });
 
   test("new agency insert resolves location path from database boundary containment", async () => {
@@ -1470,6 +1712,91 @@ describe("planDatabaseMutations", () => {
         value: "saint-paul-location-path",
       }),
     );
+  });
+
+  test("new agency insert falls back to the containing county location path when no place boundary contains the point", async () => {
+    const resolvedProperties: ResolvedProperties = {
+      agencies: { "agency-canonical-id": {} },
+      personnel: {},
+    };
+    const partialRows: ImportRows = {
+      ...rows,
+      locationPaths: [],
+      locationPathGeometries: [],
+      agencies: [
+        {
+          ...rows.agencies[0],
+          sourceName: "agency-source-id",
+          name: "Ramsey County Constable Precinct 1",
+          city: "Unincorporated Ramsey County",
+          slug: undefined,
+          location_path_id: undefined,
+        },
+      ],
+      officers: [],
+      agencyOfficers: [],
+      ownedColumns: {
+        agencies: {
+          "agency-canonical-id": ["name", "city", "state"],
+        },
+        officers: {},
+        agencyOfficers: {},
+      },
+    };
+    const client = new RecordingClient(undefined, undefined, [
+      {
+        pattern:
+          /from public\.location_path lp\s+join public\.location_path_geometry lpg/i,
+        values: [-93.102211, 44.955097, "place"],
+        rows: [],
+      },
+      {
+        pattern:
+          /from public\.location_path lp\s+join public\.location_path_geometry lpg/i,
+        values: [-93.102211, 44.955097, "administrative_area"],
+        rows: locationPathSnapshot("saint-paul-location-path").filter(
+          (locationPath) => locationPath.level === "administrative_area",
+        ),
+      },
+      {
+        pattern: /select \* from public\.agency where id = \$1/i,
+        rows: [],
+      },
+      {
+        pattern: /from public\.location_path\b/i,
+        rows: locationPathSnapshot("saint-paul-location-path"),
+      },
+    ]);
+
+    await planDatabaseMutations(partialRows, {
+      env: { DATABASE_URL: "postgres://example/intake" },
+      clientFactory: () => client,
+      sourceNamespace: "mn-post",
+      resolvedProperties,
+      resolveAgencyCoordinates: async () => [
+        {
+          rowId: "agency-canonical-id",
+          latitude: 44.955097,
+          longitude: -93.102211,
+        },
+      ],
+    });
+
+    expect(partialRows.agencies[0]?.location_path_id).toBe(
+      "ramsey-county-location-path-id",
+    );
+    expect(resolvedProperties.agencies["agency-canonical-id"]).toMatchObject({
+      locationPathId: "ramsey-county-location-path-id",
+      latitude: 44.955097,
+      longitude: -93.102211,
+    });
+    const geometryQueries = client.queries.filter(({ text }) =>
+      /join public\.location_path_geometry\b/i.test(text),
+    );
+    expect(geometryQueries.map(({ values }) => values[2])).toEqual([
+      "place",
+      "administrative_area",
+    ]);
   });
 
   test("new agency insert resolves Fort Snelling postal address to Saint Paul when no place contains the point", async () => {
@@ -1708,7 +2035,7 @@ describe("planDatabaseMutations", () => {
     },
   );
 
-  test("new agency insert does not use Fort Snelling postal override when multiple places contain the point", async () => {
+  test("new agency insert is skipped (not Fort Snelling postal override) when multiple places contain the point", async () => {
     const resolvedProperties: ResolvedProperties = {
       agencies: { "agency-canonical-id": {} },
       personnel: {},
@@ -1768,16 +2095,33 @@ describe("planDatabaseMutations", () => {
       },
     ]);
 
-    await expect(
-      planDatabaseMutations(partialRows, {
-        env: { DATABASE_URL: "postgres://example/intake" },
-        clientFactory: () => client,
-        sourceNamespace: "mn-post",
-        resolvedProperties,
-        resolveAgencyCoordinates: async () => [],
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    };
+
+    const result = await planDatabaseMutations(partialRows, {
+      env: { DATABASE_URL: "postgres://example/intake" },
+      clientFactory: () => client,
+      sourceNamespace: "mn-post",
+      resolvedProperties,
+      logger,
+      resolveAgencyCoordinates: async () => [],
+    });
+
+    expect(result.counts.agencies).toBe(0);
+    expect(partialRows.agencies).toHaveLength(0);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: "agency",
+        rowId: "agency-canonical-id",
+        reason: expect.stringContaining(
+          "multiple place location_path_geometry boundaries contain point",
+        ),
       }),
-    ).rejects.toThrow(
-      "multiple place location_path_geometry boundaries contain point",
+      expect.stringContaining("Skipping unresolvable agency row"),
     );
   });
 
@@ -2215,22 +2559,20 @@ describe("planDatabaseMutations", () => {
     ]);
     const resolveAgencyCoordinates = vi.fn(async () => []);
 
-    await expect(
-      planDatabaseMutations(partialRows, {
-        env: { DATABASE_URL: "postgres://example/intake" },
-        clientFactory: () => client,
-        sourceNamespace: "mn-post",
-        resolvedProperties,
-        resolveAgencyCoordinates,
-        resolvedPropertyCache: {
-          read: async () => undefined,
-          write: vi.fn(),
-        },
-      }),
-    ).rejects.toThrow(
-      "Cannot resolve coordinates for public.agency agency-canonical-id",
-    );
+    const result = await planDatabaseMutations(partialRows, {
+      env: { DATABASE_URL: "postgres://example/intake" },
+      clientFactory: () => client,
+      sourceNamespace: "mn-post",
+      resolvedProperties,
+      resolveAgencyCoordinates,
+      resolvedPropertyCache: {
+        read: async () => undefined,
+        write: vi.fn(),
+      },
+    });
 
+    expect(result.counts.agencies).toBe(0);
+    expect(partialRows.agencies).toHaveLength(0);
     expect(resolveAgencyCoordinates).toHaveBeenCalledTimes(1);
     expect(resolveAgencyCoordinates).toHaveBeenCalledWith([
       expect.objectContaining({ rowId: "agency-canonical-id" }),
@@ -2666,7 +3008,7 @@ describe("planDatabaseMutations", () => {
     });
   });
 
-  test("new agency insert rejects a cached location path id that does not exist", async () => {
+  test("new agency insert is skipped when a cached location path id does not exist", async () => {
     const resolvedProperties: ResolvedProperties = {
       agencies: {
         "agency-canonical-id": {
@@ -2725,17 +3067,32 @@ describe("planDatabaseMutations", () => {
       .fn()
       .mockResolvedValue(undefined);
     const resolveAgencyCoordinates = vi.fn().mockResolvedValue([]);
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    };
 
-    await expect(
-      planDatabaseMutations(partialRows, {
-        env: { DATABASE_URL: "postgres://example/intake" },
-        clientFactory: () => client,
-        resolvedProperties,
-        resolveAgencyCoordinates,
-        resolveLocationAdministrativeArea,
+    const result = await planDatabaseMutations(partialRows, {
+      env: { DATABASE_URL: "postgres://example/intake" },
+      clientFactory: () => client,
+      resolvedProperties,
+      logger,
+      resolveAgencyCoordinates,
+      resolveLocationAdministrativeArea,
+    });
+
+    expect(result.counts.agencies).toBe(0);
+    expect(partialRows.agencies).toHaveLength(0);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: "agency",
+        rowId: "agency-canonical-id",
+        reason:
+          "Cached location_path_id cached-location-path-id for public.agency agency-canonical-id does not exist.",
       }),
-    ).rejects.toThrow(
-      "Cached location_path_id cached-location-path-id for public.agency agency-canonical-id does not exist.",
+      expect.stringContaining("Skipping unresolvable agency row"),
     );
     expect(resolveAgencyCoordinates).not.toHaveBeenCalled();
     expect(resolveLocationAdministrativeArea).not.toHaveBeenCalled();
@@ -2831,7 +3188,7 @@ describe("planDatabaseMutations", () => {
     );
   });
 
-  test("new agency insert logs and fails when a non-dynamic required field is absent", async () => {
+  test("new agency insert logs and is skipped when a non-dynamic required field is absent", async () => {
     const partialRows: ImportRows = {
       ...rows,
       locationPaths: [],
@@ -2918,19 +3275,18 @@ describe("planDatabaseMutations", () => {
     const logger = {
       debug: vi.fn(),
       info: vi.fn(),
+      warn: vi.fn(),
       error: vi.fn(),
     };
 
-    await expect(
-      planDatabaseMutations(partialRows, {
-        env: { DATABASE_URL: "postgres://example/intake" },
-        clientFactory: () => client,
-        logger,
-      }),
-    ).rejects.toThrow(
-      "Cannot resolve coordinates for public.agency agency-canonical-id",
-    );
+    const result = await planDatabaseMutations(partialRows, {
+      env: { DATABASE_URL: "postgres://example/intake" },
+      clientFactory: () => client,
+      logger,
+    });
 
+    expect(result.counts.agencies).toBe(0);
+    expect(partialRows.agencies).toHaveLength(0);
     expect(logger.debug).toHaveBeenCalledWith(
       expect.objectContaining({
         tableName: "public.agency",
@@ -2940,9 +3296,15 @@ describe("planDatabaseMutations", () => {
       }),
       "Agency field resolution failed.",
     );
-    expect(logger.info).toHaveBeenCalledWith(
-      { errorCount: 1 },
-      "Database row preparation failed.",
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: "agency",
+        rowId: "agency-canonical-id",
+        reason: expect.stringContaining(
+          "Cannot resolve coordinates for public.agency agency-canonical-id",
+        ),
+      }),
+      expect.stringContaining("Skipping unresolvable agency row"),
     );
     expect(
       client.queries.some(({ text }) =>
