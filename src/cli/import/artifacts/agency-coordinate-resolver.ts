@@ -11,8 +11,79 @@ const CENSUS_BATCH_URL =
   "https://geocoding.geo.census.gov/geocoder/locations/addressbatch";
 const CENSUS_GEOGRAPHIES_ADDRESS_URL =
   "https://geocoding.geo.census.gov/geocoder/geographies/address";
+// TIGERweb serves Census place/ZCTA boundaries with a centroid, letting us
+// resolve a locality (city or ZIP) to a coordinate when an agency's address
+// is a PO box or landmark that the address-range geocoder above cannot
+// match to a street segment.
+const CENSUS_PLACES_QUERY_URL =
+  "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Places_CouSub_ConCity_SubMCD/MapServer";
+const CENSUS_ZCTA_QUERY_URL =
+  "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/PUMA_TAD_TAZ_UGA_ZCTA/MapServer";
+// Incorporated Places, then Census Designated Places (current vintage).
+const CENSUS_PLACE_LAYER_IDS = [4, 5] as const;
+// 2020 Census ZIP Code Tabulation Areas (current vintage).
+const CENSUS_ZCTA_LAYER_ID = 1;
 const BATCH_SIZE = 1000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+
+const STATE_FIPS_CODES: Record<string, string> = {
+  AL: "01",
+  AK: "02",
+  AZ: "04",
+  AR: "05",
+  CA: "06",
+  CO: "08",
+  CT: "09",
+  DE: "10",
+  DC: "11",
+  FL: "12",
+  GA: "13",
+  HI: "15",
+  ID: "16",
+  IL: "17",
+  IN: "18",
+  IA: "19",
+  KS: "20",
+  KY: "21",
+  LA: "22",
+  ME: "23",
+  MD: "24",
+  MA: "25",
+  MI: "26",
+  MN: "27",
+  MS: "28",
+  MO: "29",
+  MT: "30",
+  NE: "31",
+  NV: "32",
+  NH: "33",
+  NJ: "34",
+  NM: "35",
+  NY: "36",
+  NC: "37",
+  ND: "38",
+  OH: "39",
+  OK: "40",
+  OR: "41",
+  PA: "42",
+  RI: "44",
+  SC: "45",
+  SD: "46",
+  TN: "47",
+  TX: "48",
+  UT: "49",
+  VT: "50",
+  VA: "51",
+  WA: "53",
+  WV: "54",
+  WI: "55",
+  WY: "56",
+  AS: "60",
+  GU: "66",
+  MP: "69",
+  PR: "72",
+  VI: "78",
+};
 
 type FetchLike = typeof fetch;
 
@@ -308,6 +379,124 @@ async function resolveSingleAddress(
   );
 }
 
+function stateFipsCode(state: string): string | undefined {
+  return STATE_FIPS_CODES[state.trim().toUpperCase()];
+}
+
+function sqlStringLiteral(value: string): string {
+  return value.trim().replaceAll("'", "''");
+}
+
+function localityResolutionFromArcGisPayload(
+  rowId: string,
+  payload: unknown,
+): AgencyCoordinateResolution | undefined {
+  if (typeof payload !== "object" || payload === null) {
+    return undefined;
+  }
+
+  for (const feature of asRecords(
+    (payload as { features?: unknown }).features,
+  )) {
+    const attributes = feature.attributes;
+    if (typeof attributes !== "object" || attributes === null) {
+      continue;
+    }
+
+    const latitude = Number((attributes as Record<string, unknown>).CENTLAT);
+    const longitude = Number((attributes as Record<string, unknown>).CENTLON);
+    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+      return { rowId, latitude, longitude };
+    }
+  }
+
+  return undefined;
+}
+
+async function resolveArcGisLocality(
+  rowId: string,
+  serviceUrl: string,
+  layerId: number,
+  where: string,
+  fetchFn: FetchLike,
+  requestTimeoutMs: number,
+  description: string,
+): Promise<AgencyCoordinateResolution | undefined> {
+  const parameters = new URLSearchParams({
+    where,
+    outFields: "CENTLAT,CENTLON",
+    returnGeometry: "false",
+    f: "json",
+  });
+
+  const response = await fetchWithTimeout(
+    fetchFn,
+    `${serviceUrl}/${layerId}/query?${parameters.toString()}`,
+    undefined,
+    requestTimeoutMs,
+    description,
+  );
+  if (!response.ok) {
+    throw new Error(
+      `Census locality geocoder failed: ${response.status} ${response.statusText}`,
+    );
+  }
+
+  return localityResolutionFromArcGisPayload(rowId, await response.json());
+}
+
+/**
+ * Resolves a coordinate from the agency's city + state + ZIP alone (no
+ * street), for rows whose address is a PO box or landmark that the
+ * address-range geocoder cannot match. Tries the named place (city or
+ * census-designated place) first, then falls back to the ZIP Code
+ * Tabulation Area centroid.
+ */
+async function resolveLocalityAddress(
+  request: AgencyCoordinateRequest,
+  fetchFn: FetchLike,
+  requestTimeoutMs: number,
+): Promise<AgencyCoordinateResolution | undefined> {
+  const description = `locality coordinates for agency ${request.rowId}`;
+  const stateFips = stateFipsCode(request.state);
+  const city = valueAsString(request.city);
+  if (stateFips !== undefined && city !== undefined) {
+    const where = `UPPER(NAME) LIKE UPPER('${sqlStringLiteral(city)}%') AND STATE='${stateFips}'`;
+    for (const layerId of CENSUS_PLACE_LAYER_IDS) {
+      const resolution = await resolveArcGisLocality(
+        request.rowId,
+        CENSUS_PLACES_QUERY_URL,
+        layerId,
+        where,
+        fetchFn,
+        requestTimeoutMs,
+        description,
+      );
+      if (resolution !== undefined) {
+        return resolution;
+      }
+    }
+  }
+
+  const zip = zip5(request.zipCode);
+  if (zip.length === 5) {
+    const resolution = await resolveArcGisLocality(
+      request.rowId,
+      CENSUS_ZCTA_QUERY_URL,
+      CENSUS_ZCTA_LAYER_ID,
+      `ZCTA5='${sqlStringLiteral(zip)}'`,
+      fetchFn,
+      requestTimeoutMs,
+      description,
+    );
+    if (resolution !== undefined) {
+      return resolution;
+    }
+  }
+
+  return undefined;
+}
+
 export function createCensusAgencyCoordinateResolver(
   fetchFn: FetchLike = fetch,
   options: CensusCoordinateResolverOptions = {},
@@ -348,11 +537,9 @@ export function createCensusAgencyCoordinateResolver(
           total: unresolvedRequests.length,
           rowId: request.rowId,
         });
-        const resolution = await resolveSingleAddress(
-          request,
-          fetchFn,
-          requestTimeoutMs,
-        );
+        const resolution =
+          (await resolveSingleAddress(request, fetchFn, requestTimeoutMs)) ??
+          (await resolveLocalityAddress(request, fetchFn, requestTimeoutMs));
         if (resolution !== undefined) {
           canonical.push(resolution);
         }

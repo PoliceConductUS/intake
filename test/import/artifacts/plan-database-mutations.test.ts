@@ -333,6 +333,13 @@ describe("createCensusAgencyCoordinateResolver", () => {
           status: 200,
           statusText: "OK",
         }),
+      )
+      .mockImplementation(
+        async () =>
+          new Response(JSON.stringify({ features: [] }), {
+            status: 200,
+            statusText: "OK",
+          }),
       );
     const onProgress = vi.fn();
     const resolver = createCensusAgencyCoordinateResolver(fetchFn, {
@@ -467,6 +474,134 @@ describe("createCensusAgencyCoordinateResolver", () => {
       total: 1,
       rowId: "agency-canonical-id",
     });
+  });
+
+  test("falls back to a Census locality (place) centroid for a PO box address", async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          '"agency-canonical-id","P.O. Box 952, Elkhart, TX, 75839","No_Match","No_Match","",""',
+          { status: 200, statusText: "OK" },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ result: { addressMatches: [] } }), {
+          status: 200,
+          statusText: "OK",
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            features: [
+              {
+                attributes: {
+                  CENTLAT: "+31.6279683",
+                  CENTLON: "-095.5789576",
+                },
+              },
+            ],
+          }),
+          { status: 200, statusText: "OK" },
+        ),
+      );
+    const resolver = createCensusAgencyCoordinateResolver(fetchFn);
+
+    const result = await resolver([
+      {
+        rowId: "agency-canonical-id",
+        name: "Anderson Co. Const. Pct. 1",
+        address: "P.O. Box 952",
+        city: "Elkhart",
+        state: "TX",
+        zipCode: "75839",
+      },
+    ]);
+
+    const localityUrl = new URL(String(fetchFn.mock.calls[2]?.[0]));
+    expect(localityUrl.origin + localityUrl.pathname).toBe(
+      "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Places_CouSub_ConCity_SubMCD/MapServer/4/query",
+    );
+    expect(localityUrl.searchParams.get("where")).toBe(
+      "UPPER(NAME) LIKE UPPER('Elkhart%') AND STATE='48'",
+    );
+    expect(result).toEqual([
+      {
+        rowId: "agency-canonical-id",
+        latitude: 31.6279683,
+        longitude: -95.5789576,
+      },
+    ]);
+  });
+
+  test("falls back to a Census ZCTA centroid when no locality place matches a landmark address", async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          '"agency-canonical-id","ANDERSON CO. COURTHOUSE, PALESTINE, TX, 75801","No_Match","No_Match","",""',
+          { status: 200, statusText: "OK" },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ result: { addressMatches: [] } }), {
+          status: 200,
+          statusText: "OK",
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ features: [] }), {
+          status: 200,
+          statusText: "OK",
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ features: [] }), {
+          status: 200,
+          statusText: "OK",
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            features: [
+              {
+                attributes: {
+                  CENTLAT: "+31.7544203",
+                  CENTLON: "-095.6471333",
+                },
+              },
+            ],
+          }),
+          { status: 200, statusText: "OK" },
+        ),
+      );
+    const resolver = createCensusAgencyCoordinateResolver(fetchFn);
+
+    const result = await resolver([
+      {
+        rowId: "agency-canonical-id",
+        name: "Anderson Co. Att. Office",
+        address: "ANDERSON CO. COURTHOUSE",
+        city: "PALESTINE",
+        state: "TX",
+        zipCode: "75801",
+      },
+    ]);
+
+    const zctaUrl = new URL(String(fetchFn.mock.calls[4]?.[0]));
+    expect(zctaUrl.origin + zctaUrl.pathname).toBe(
+      "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/PUMA_TAD_TAZ_UGA_ZCTA/MapServer/1/query",
+    );
+    expect(zctaUrl.searchParams.get("where")).toBe("ZCTA5='75801'");
+    expect(result).toEqual([
+      {
+        rowId: "agency-canonical-id",
+        latitude: 31.7544203,
+        longitude: -95.6471333,
+      },
+    ]);
   });
 
   test("reports coordinate progress before Census batch lookup", async () => {
