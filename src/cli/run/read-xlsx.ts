@@ -31,26 +31,43 @@ function cellToString(value: ExcelJS.CellValue): string {
 }
 
 /**
- * Reads sheet 1 of an .xlsx file into an array of records keyed by the
- * header row (row 1). Every cell is coerced to a trimmed string; missing
- * cells become "". Deterministic: no network, no clock, no randomness.
+ * Reads a sheet of an .xlsx file into an array of records keyed by the header
+ * row (row 1). Every cell is coerced to a trimmed string; missing cells become
+ * "". Deterministic: no network, no clock, no randomness.
+ *
+ * `sheet` selects the worksheet by name (case-sensitive) when provided;
+ * omitting it reads the first worksheet (the historical behavior). A named
+ * sheet that does not exist throws so a mis-typed sheet name fails loudly
+ * rather than silently returning no rows.
  */
 export async function readXlsx(
   filePath: string,
+  sheet?: string,
 ): Promise<Array<Record<string, string>>> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.readFile(filePath);
-  const sheet = workbook.worksheets[0];
-  if (!sheet) return [];
+  const worksheet =
+    sheet === undefined
+      ? workbook.worksheets[0]
+      : workbook.getWorksheet(sheet);
+  if (sheet !== undefined && !worksheet) {
+    const available = workbook.worksheets
+      .map((ws) => ws.name)
+      .join(", ");
+    throw new Error(
+      `Worksheet "${sheet}" not found in ${filePath} (available: ${available}).`,
+    );
+  }
+  if (!worksheet) return [];
 
   const headers: string[] = [];
-  sheet.getRow(1).eachCell({ includeEmpty: true }, (cell, col) => {
+  worksheet.getRow(1).eachCell({ includeEmpty: true }, (cell, col) => {
     headers[col] = cellToString(cell.value);
   });
 
   const rows: Array<Record<string, string>> = [];
-  for (let r = 2; r <= sheet.rowCount; r++) {
-    const row = sheet.getRow(r);
+  for (let r = 2; r <= worksheet.rowCount; r++) {
+    const row = worksheet.getRow(r);
     const record: Record<string, string> = {};
     for (let col = 1; col < headers.length; col++) {
       const header = headers[col];
