@@ -31,6 +31,16 @@ entirely.
 The file is read read-only from outside the repo (acquisition is a separate
 concern — treated as an already-acquired input, like the gazetteer's cached TIGER files).
 
+A second input, **checked into the source**, is the curated `licensing-authorities`
+reference file (~55 US POST agencies; columns `key`, `name`, `abbreviation`,
+`state`, `website`), normalized once from public directories (IADLEST, the Army
+"States' POST" list, agency sites).
+
+**Dependency:** the census-gazetteer location_paths must already be imported —
+agencies resolve their location_path via geocoding, and each LicensingAuthority
+resolves `location_path_id` to the gazetteer's `level: state` path (`/tx/`) using
+the same cross-source location_path resolution.
+
 ## Architecture
 
 A config-driven source (`sources/gov.tx.tcole/config.ts`, namespace
@@ -124,18 +134,34 @@ LicensingAuthority ──issues──> License ──held_by──> Personnel
 
 | Entity | Meaning | Key fields | Source |
 | --- | --- | --- | --- |
-| **LicensingAuthority** (new) | the licensor (TCOLE); jurisdiction = a location_path subtree | `name`, `location_path_id` (`/tx/`) | declared by the source (one per POST source) |
+| **LicensingAuthority** (new) | the licensor (TCOLE); jurisdiction = a location_path subtree | `name`, `abbreviation`, `website`, `location_path_id` (`/tx/`) | curated reference file of ~55 US POST agencies (see below) |
 | Personnel | the officer | name | `Officers` |
 | **License** (new) | a license held by a Personnel, issued by an authority | `officer_id`, `license_type`, `status`, first-awarded date, **`issued_by_authority_id`** | distinct `PUBLIC_GUID`×`LICENSE` from `OfficersLicensesActions` + `Services` |
 | **LicenseAction** (new) | an event on a license | `license` ref, `action`, `action_date`, resulting status | `OfficersLicensesActions` rows |
 | Agency | the employer | name, address, … | `Departments` |
 | **Assignment** (AgencyPersonnel, fixed) | employment period | `officer_id`, `agency_id`, **`title`**, `start_date`, `end_date`, **`license`** ref | `Services` |
 
-The licensing authority's jurisdiction is resolved by location_path containment
-(reusing the gazetteer tree): the authority for any officer/license is the one
-whose `location_path_id` is an ancestor of the entity's. For TX every license is
-`issued_by` TCOLE (`/tx/`). This generalizes: each state POST source declares one
-LicensingAuthority at its state location_path.
+**Licensing authorities are their own dataset.** Rather than each POST source
+declaring its authority inline, a curated reference file of the ~55 US POST
+agencies (50 states + DC + territories + DOD — normalized from public sources:
+IADLEST, the Army "States' POST" directory, and each agency's site; columns
+`key`, `name`, `abbreviation`, `state`, `website`) is checked into the source and
+emitted as all LicensingAuthority records. The TCOLE source references the TX
+authority by key. Every future state POST source (AZ/MN/CA…) reuses the same file.
+
+**Linking — one FK, the rest by containment:**
+- **→ state**: `licensing_authority.location_path_id` = the state path (`/tx/`,
+  a `level: state` `location_path` row derived from the authority's `state`). The
+  only stored geographic link.
+- **→ county / place**: none stored. A county/place is under the authority iff its
+  `location_path` descends from the authority's (walk `parent_location_path_id`).
+- **→ agency**: none stored. An Agency links to its own (city) `location_path`; it
+  falls under the authority via subtree containment, and the concrete relationship
+  runs Authority → License (`issued_by`) → Personnel → Assignment → Agency.
+- The authority for any officer/license is the one whose `location_path_id` is an
+  ancestor of the entity's. For TX every license is `issued_by` TCOLE (`/tx/`).
+  Jurisdiction generalizes to any level (a city licensor at `/tx/…/dallas/`); for
+  POST it is always the state.
 
 **Schema changes** (additive + one rename):
 - new `licensing_authority` table (`name`, `location_path_id`);

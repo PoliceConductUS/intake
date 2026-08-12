@@ -66,7 +66,7 @@ Supabase/PostgreSQL migrations, cuid2, Vitest.
 
 ### Task B2: Licensing schema
 - **Files:** `supabase/migrations/*_licensing_authority.sql`, `*_license.sql`, `*_license_action.sql`; regenerate types.
-- [ ] `licensing_authority(name, location_path_id)`; `license(officer_id, license_type, status, first_awarded, issued_by_authority_id, unique(officer_id,license_type))`; `license_action(license_id, action, action_date, status)`. Explicit IDs.
+- [ ] `licensing_authority(name, abbreviation, website, location_path_id)`; `license(officer_id, license_type, status, first_awarded, issued_by_authority_id, unique(officer_id,license_type))`; `license_action(license_id, action, action_date, status)`. Explicit IDs.
 
 ### Task B3: Register three kinds + specs
 - **Files:** `src/shared/io/import-types.ts`, generated specs.
@@ -79,5 +79,6 @@ Supabase/PostgreSQL migrations, cuid2, Vitest.
 - [ ] Tests for new kinds + Assignment `license_id`; assert existing kinds unaffected.
 
 ### Task B5: Licensing emission + full reconstruction (acceptance)
-- [ ] Emit LicensingAuthority (TCOLE `/tx/`), License (distinct `PUBLIC_GUID`×`LICENSE` across `OfficersLicensesActions`+`Services`, issued_by TCOLE), LicenseAction (`OfficersLicensesActions`). Tests.
+- [ ] Create the curated `licensing-authorities` reference file (~55 US POST agencies) and emit a LicensingAuthority per row (`location_path_id` → gazetteer `/state/`).
+- [ ] Emit License (distinct `PUBLIC_GUID`×`LICENSE` across `OfficersLicensesActions`+`Services`, issued_by TCOLE), LicenseAction (`OfficersLicensesActions`). Tests.
 - [ ] One `intake run gov.tx.tcole` emits all six kinds. Confirm ~189k license actions, assignment `license_id` + license `issued_by_authority_id` resolve. Record in `verify.md`.

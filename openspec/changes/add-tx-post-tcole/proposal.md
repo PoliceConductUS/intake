@@ -46,9 +46,10 @@ current seed never had.
   matching the prior identity map's `id_field`.
 - `canonical-id-preservation`: seeding the `SourceNameToCanonicalId` ledger from
   external source-key→canonical-ID maps so reconstruction preserves existing IDs.
-- `license-import`: the licensing authority + license + license-action entities,
-  the Assignment role/license model fix (rename + `license_id`), and their additive
-  registration in the import pipeline.
+- `license-import`: the licensing authority (seeded from a curated ~55-row US POST
+  agencies reference file, jurisdiction = a location_path subtree) + license +
+  license-action entities, the Assignment role/license model fix (rename +
+  `license_id`), and their additive registration in the import pipeline.
 
 ### Modified Capabilities
 <!-- None. The import-registry / SourceNameToCanonicalId extension for the fifth
@@ -68,6 +69,10 @@ kind is not a promoted base spec yet, so it is specified as part of the new
   + Assignment `license_id`/License `issued_by_authority_id` resolution).
 - **Reused unchanged**: Census geocoder + address→location_path resolution +
   ResolvedProperty cache (`agency-*-resolution.ts`, `agency-coordinate-*.ts`).
-- **Inputs**: one TCOLE workbook (`PublicInformationRequest_2025-02-10_1410.xlsx`), read-only. The 02-04 interim export is excluded.
+- **Inputs**: one TCOLE workbook (`PublicInformationRequest_2025-02-10_1410.xlsx`),
+  read-only (the 02-04 interim export is excluded), plus a curated
+  `licensing-authorities` reference file (~55 US POST agencies) checked into the source.
+- **Depends on**: census-gazetteer location_paths already imported (for agency +
+  authority location resolution).
 - **DB**: additive migrations + one column rename; generated-types refresh; no data
   reset. **App contract**: consumers of `agency_officers.license_type` must switch to `title`.

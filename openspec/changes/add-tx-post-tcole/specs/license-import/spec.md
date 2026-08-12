@@ -1,21 +1,25 @@
 ## ADDED Requirements
 
-### Requirement: Licensing authority entity with location-path jurisdiction
+### Requirement: Licensing authority entity from a curated dataset
 
-The system MUST add a `licensing_authority` table (`name`, `location_path_id`) and
-a `LicensingAuthority` import kind. An authority's jurisdiction is the subtree of
-its `location_path_id`; the authority for any officer or license MUST be resolvable
-as the authority whose `location_path_id` is an ancestor of that entity's. Each
-POST source declares one authority (TCOLE → `/tx/`).
+The system MUST add a `licensing_authority` table (`name`, `abbreviation`,
+`website`, `location_path_id`) and a `LicensingAuthority` import kind, and MUST emit
+one record per US POST agency from a curated reference file (~55 rows) checked into
+the source. Each authority's `location_path_id` resolves to the gazetteer's
+`level: state` path for its `state`; jurisdiction is that path's subtree.
 
-#### Scenario: TCOLE authority is created at the state location path
-- **WHEN** the TCOLE source runs
-- **THEN** a `licensing_authority` row exists with `name` = "Texas Commission on
-  Law Enforcement" and `location_path_id` referencing `/tx/`
+#### Scenario: all authorities are emitted from the curated file
+- **WHEN** the source runs
+- **THEN** a `licensing_authority` row exists for each row of the curated file,
+  including TCOLE (`name` = "Texas Commission on Law Enforcement", `location_path_id` → `/tx/`)
 
 #### Scenario: jurisdiction covers the location-path subtree
 - **WHEN** an officer's resolved location path is `/tx/dallas-county/irving/`
 - **THEN** TCOLE (`/tx/`) is the licensing authority whose jurisdiction contains that officer
+
+#### Scenario: TCOLE licenses reference the TX authority
+- **WHEN** a TX license is emitted
+- **THEN** its `issued_by_authority_id` resolves to the TCOLE authority record from the curated file
 
 ### Requirement: License entity issued by an authority to a personnel
 

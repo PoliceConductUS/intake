@@ -27,7 +27,7 @@
 
 ## 4. Phase B — Licensing model (schema + pipeline)
 
-- [ ] 4.1 Migrations: `licensing_authority` (name, location_path_id); `license` (officer_id, license_type, status, first_awarded, issued_by_authority_id FK, unique(officer_id,license_type)); `license_action` (license_id FK, action, action_date, status). Explicit checked-in IDs; refresh generated types.
+- [ ] 4.1 Migrations: `licensing_authority` (name, abbreviation, website, location_path_id); `license` (officer_id, license_type, status, first_awarded, issued_by_authority_id FK, unique(officer_id,license_type)); `license_action` (license_id FK, action, action_date, status). Explicit checked-in IDs; refresh generated types.
 - [ ] 4.2 Add `LicensingAuthoritySpec`, `LicenseSpec`, `LicenseActionSpec` + generated record schemas; register the three kinds in `importTypeRegistry` with correct `dependsOn` (License→LicensingAuthority+Personnel; LicenseAction→License; Assignment→License).
 - [ ] 4.3 Extend `source-name-to-canonical-id/index.ts` with the three new entity blocks (load/persist/resolve/assert).
 - [ ] 4.4 Extend `transform.ts` + `plan-database-mutations.ts`: build licensing_authority/license/license_action rows; resolve License `issued_by_authority_id` (LicensingAuthority ledger) and Assignment `license_id` (License ledger); mint fresh cuids for the new entities.
@@ -35,7 +35,8 @@
 
 ## 5. Phase B — Licensing emission + full single-run reconstruction
 
-- [ ] 5.1 Extend the config to emit LicensingAuthority (TCOLE, `/tx/`), License (distinct `PUBLIC_GUID`×`LICENSE` across `OfficersLicensesActions`+`Services`, issued_by TCOLE), and LicenseAction (`OfficersLicensesActions`, keyed `PUBLIC_GUID|LICENSE|ACTION|ACTION_DATE`); set each Assignment's `license` ref.
+- [ ] 5.0 Create the curated `licensing-authorities` reference file (~55 US POST agencies: `key`, `name`, `abbreviation`, `state`, `website`) checked into the source, normalized from public directories (IADLEST, Army "States' POST" list, agency sites).
+- [ ] 5.1 Extend the config to emit LicensingAuthority for every curated-file row (keyed by `key`; `location_path_id` resolved to the gazetteer `/state/` path), License (distinct `PUBLIC_GUID`×`LICENSE` across `OfficersLicensesActions`+`Services`, `issued_by`=TCOLE), and LicenseAction (`OfficersLicensesActions`, keyed `PUBLIC_GUID|LICENSE|ACTION|ACTION_DATE`); set each Assignment's `license` ref.
 - [ ] 5.2 Source tests for LicensingAuthority/License/LicenseAction shapes + determinism, and that Assignment `license` refs resolve to emitted Licenses.
 - [ ] 5.3 Full reconstruction: one `intake run gov.tx.tcole` emits all six kinds. Confirm counts (incl. ~189k license actions) and that assignment `license_id` + license `issued_by_authority_id` resolve.
 - [ ] 5.4 Record the full reconstruction result (counts, preserved IDs, license linkage) in verify.md.
