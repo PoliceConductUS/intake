@@ -56,7 +56,12 @@ the rest. Nothing about acquisition, geocoding, or DB mutation is re-implemented
 - `agency_id` ← `DEPARTMENT_NUMBER` (**source key**, resolved to canonical via the ledger by `transform.ts`)
 - `personnel_id` ← `PUBLIC_GUID` (**source key**, resolved via the ledger)
 - `start_date` ← `ST_DATE` (`YYYY-MM-DD`); `end_date` ← `END_DATE` or null
-- `license_type` ← `LICENSE`
+- `license_type` ← **`APPOINTMENT`** (the role — "Peace Officer", "Chief of
+  Police"). The DB column `agency_officers.license_type` is the renamed `title`
+  column (migration `20260626000000`), and seed's `config.py` set `title =
+  APPOINTMENT`; it is NOT NULL. The `LICENSE` value is not stored on
+  agency_officers (seed discarded it) — it flows to the LicenseAction kind
+  instead. `APPOINTMENT` and `LICENSE` both remain in the identity key.
 
 Referential integrity: every `DEPARTMENT_NUMBER`/`PUBLIC_GUID` referenced by a
 Service must have an emitted + ledger-mapped Agency/Personnel, or `transform.ts`
@@ -112,23 +117,70 @@ The pipeline hard-codes four kinds (`LocationPath`, `Agency`, `Personnel`,
 
 License-action rows are new to the DB → all fresh `cuid2` (no seed IDs to preserve).
 
-## Phasing
+## Two additive runs (input classification)
 
-- **Phase A — Core reconstruction.** Source config (Agency + Personnel +
-  AgencyPersonnel from SMALL) + ledger-seed tool + end-to-end `intake run`
-  reproducing existing TX agencies (geocoded), personnel, and agency-personnel
-  with preserved IDs. Deliverable: intake reconstructs the existing TX DB.
-- **Phase B — LicenseAction.** New kind end-to-end (migration + spec + registry
-  + pipeline + config emission from BIG). Deliverable: the fuller-than-seed
-  license-action history.
+The source is exercised as **two separate `intake run gov.tx.tcole` invocations**
+against the same namespace, **oldest-produced file first**, so the second
+preserves and extends the first. What each run emits is forced by what each file
+can produce (BIG has no addresses and no `APPOINTMENT`; SMALL is the only source
+of both, and a strict superset of agencies):
 
-Phase A reconstructs the existing DB and is independently valuable; Phase B is
-purely additive. Each phase gets its own implementation plan.
+- **Run 1 — BIG / 02-04 (produced 2025-02-04, oldest):** Personnel +
+  LicenseAction. LicenseAction is person-scoped (no agency FK), so it needs only
+  the Personnel emitted in the same run. Agencies and employment rows are NOT
+  emitted here (BIG lacks addresses and roles).
+- **Run 2 — SMALL / 02-10 (produced 2025-02-10, newer):** Agency + AgencyPersonnel
+  (+ the superset Personnel). **Additive**: overlapping officers resolve to Run
+  1's canonical IDs via the shared `gov.tx.tcole` ledger; new officers (851) and
+  all agencies/employment are added. Because the pipeline's load is additive
+  (disappearance = no-op), Run 1's Personnel and LicenseActions are untouched.
+
+Data completeness: the 608 service tuples unique to BIG cannot become employment
+rows (BIG has no `APPOINTMENT` for the NOT NULL role column), but those officers'
+license activity is captured by Run 1's LicenseAction — so no license history is
+lost, only 608 agency-employment-period rows for which TCOLE's older file never
+recorded a role.
+
+`run()` classifies its input paths (mirroring `census-gazetteer`'s `matchInputs`):
+the 02-04 workbook (`Sheet1` with `rectype` + `Active Depts.`) triggers Personnel
++ LicenseAction; the 02-10 workbook (sheets `Departments`/`Officers`/`Services`)
+triggers Agency + AgencyPersonnel + Personnel. One source module, two runs.
+
+**Load-preservation assumption (must verify):** the import pipeline must treat a
+run's artifacts as additive-upsert only — it must NOT delete entities absent from
+the current run's artifacts. The two-run model depends on this. Verify against
+`plan-database-mutations.ts` before Run 2; if the pipeline reconciles-by-deletion,
+that is a blocker to resolve first.
+
+## Phasing (build order ≠ run order)
+
+**Build order** — sequenced by what reuses existing machinery:
+- **Phase A**: the source config's SMALL branch (Agency + Personnel +
+  AgencyPersonnel) + the ledger-seed tool, reusing the existing four kinds and the
+  Census agency resolution. Independently reconstructs the bulk of the TX DB
+  (agencies, personnel, employment with roles + preserved IDs), testable with a
+  SMALL-only run. Highest value, no pipeline surgery.
+- **Phase B**: the new LicenseAction kind (migration + registry + ledger entity +
+  transform plumbing) and the source config's BIG branch (Personnel +
+  LicenseAction).
+
+**Run order** — the final reconstruction runs **oldest-produced first** so newer
+data wins on conflict and license history is preserved: **BIG (02-04) then SMALL
+(02-10)**. This requires both phases built, so it happens after Phase B. During
+development Phase A is exercised SMALL-only; the ordered two-run reconstruction is
+the Phase B acceptance test.
+
+Each phase gets its own implementation plan.
 
 ## Non-goals / deferred
 
 - Acquisition (how the xlsx files arrive) — separate system; files treated as inputs.
-- Merging BIG's name-keyed Services (SMALL's number-keyed Services already superset-ish and link cleanly).
+- No AgencyPersonnel are dropped. 02-10 supplies the bulk (170k, with
+  `APPOINTMENT`, matching the seed identity key). Run 2 additively captures the
+  **608** service tuples that exist only in 02-04 (measured; name→number linking
+  is zero-risk — 0 of 2,862 names fail to match). Those 608 are net-new (not in
+  seed) and carry an empty `APPOINTMENT` (02-04 has no such column), but the
+  assignment — officer, agency, dates, license — is fully preserved.
 - `data.policeconduct.org/TX/config.py` is a reference for how seed was built, not a porting target.
 - Deleting `intake.census-gazetteer` / the abandoned data-requests tree (owner's call).
 
