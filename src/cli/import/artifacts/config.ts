@@ -69,6 +69,7 @@ import {
   sourceNameForImportRecord,
 } from "../../../shared/io/import-types.js";
 import { importTypeMetadata } from "../../../shared/io/import-type-metadata.js";
+import type { ExcludedRecords } from "../../../shared/io/excluded-records.js";
 
 type ImportLogger = {
   debug(object: Record<string, unknown>, message: string): void;
@@ -93,6 +94,7 @@ export type ImportArtifactsCommandInput = {
   resolveLocationAdministrativeArea?: (
     request: LocationAdministrativeAreaRequest,
   ) => Promise<LocationAdministrativeAreaResolution | undefined>;
+  excludedRecords?: ExcludedRecords;
   commandDirectory?: string;
   commandName?: string;
   clientFactory?: DatabaseClientFactory;
@@ -751,6 +753,7 @@ async function executeDatabaseMutationPlanningStage(
       resolveLocationAdministrativeArea:
         context.commandInput.resolveLocationAdministrativeArea ??
         createCensusLocationAdministrativeAreaResolver(),
+      excludedRecords: context.commandInput.excludedRecords,
       sourceNamespace: context.artifacts.metadata.namespace,
       sourceNameToCanonicalIds: context.resolvedMappings,
       resolvedProperties: context.resolvedProperties,

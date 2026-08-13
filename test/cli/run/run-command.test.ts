@@ -1,3 +1,4 @@
+import path from "node:path";
 import { describe, it, expect, vi } from "vitest";
 import { runSource } from "../../../src/cli/run/index.js";
 
@@ -35,6 +36,7 @@ function makeOkDeps() {
       emit: vi.fn(async () => {}),
       flush: vi.fn(async () => testRefItems),
     })),
+    loadExcludedRecords: vi.fn(async () => new Map()),
     writeEnvelope: vi.fn(async () => ({ path: "/ws/artifacts.yaml" })),
     runImport: vi.fn(async () => ({ exitCode: 0, stdout: "ok" })),
     makeWorkspace: vi.fn(async () => "/ws"),
@@ -66,8 +68,12 @@ describe("runSource", () => {
       "/ws",
       "gov.azpost.roster",
     );
+    expect(okDeps.loadExcludedRecords).toHaveBeenCalledWith(
+      path.join("/sources", "gov.azpost.roster"),
+    );
     expect(okDeps.runImport).toHaveBeenCalledWith("/ws/artifacts.yaml", {
       dryImport: true,
+      excludedRecords: new Map(),
     });
     expect(result.exitCode).toBe(0);
   });

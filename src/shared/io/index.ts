@@ -1,5 +1,10 @@
 export { yamlResourceFileName } from "./resource.js";
 export { Artifacts } from "./Artifacts.js";
+export {
+  excludedRecordKey,
+  loadExcludedRecords,
+} from "./excluded-records.js";
+export type { ExcludedRecord, ExcludedRecords } from "./excluded-records.js";
 export type { ArtifactsEnvelope, ImportArtifactEnvelope } from "./Artifacts.js";
 export { Command } from "./Command.js";
 export type { CommandEnvelope, CommandInput } from "./Command.js";

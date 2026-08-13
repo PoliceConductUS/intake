@@ -44,10 +44,12 @@ describe("intake run gov.azpost.roster (dry-run)", () => {
 
   it("writes an Artifacts envelope with Personnel records keyed by POST ID", async () => {
     let capturedArtifactsPath: string | undefined;
-    let capturedOptions: { dryImport?: boolean } | undefined;
+    let capturedOptions:
+      | { dryImport?: boolean; excludedRecords?: unknown }
+      | undefined;
     const runImportArtifactsCommand = async (
       artifactsRef: string,
-      dependencies?: { dryImport?: boolean },
+      dependencies?: { dryImport?: boolean; excludedRecords?: unknown },
     ): Promise<CommandResult> => {
       capturedArtifactsPath = artifactsRef;
       capturedOptions = dependencies;
@@ -60,7 +62,12 @@ describe("intake run gov.azpost.roster (dry-run)", () => {
     );
 
     expect(result.exitCode).toBe(0);
-    expect(capturedOptions).toEqual({ dryImport: true });
+    // gov.azpost.roster has no `excluded.yaml`, so the loaded exclusion set
+    // is empty; the composition root still threads it through.
+    expect(capturedOptions).toEqual({
+      dryImport: true,
+      excludedRecords: new Map(),
+    });
     expect(capturedArtifactsPath).toBeDefined();
 
     const envelope = await Artifacts.read(capturedArtifactsPath as string);

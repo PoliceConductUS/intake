@@ -4,7 +4,11 @@ import {
   resolveImportAddress,
 } from "./agency-address-resolution.js";
 import { type AgencyFieldResolutionOptions } from "./agency-field-resolution.js";
-import type { ImportRows, ResolvedProperties } from "./transform.js";
+import type { AgencyRow, ImportRows, ResolvedProperties } from "./transform.js";
+import {
+  excludedRecordKey,
+  type ExcludedRecords,
+} from "../../../shared/io/excluded-records.js";
 
 export type {
   AgencyCoordinateRequest,
@@ -15,6 +19,7 @@ export { resolveImportAddress } from "./agency-address-resolution.js";
 export type AgencyPreparationOptions = AgencyAddressResolutionOptions &
   AgencyFieldResolutionOptions & {
     resolvedProperties?: ResolvedProperties;
+    excludedRecords?: ExcludedRecords;
   };
 
 type AgencyPreparationLogger = {
@@ -24,44 +29,109 @@ type AgencyPreparationLogger = {
 };
 
 /**
- * An agency row that could not be resolved (coordinates and/or
- * location_path_id) even after the place -> county -> state containment
- * fallback. The agency is excluded from the import rather than aborting the
- * whole run; agency_officers rows that reference it are cascaded out
- * separately (see `excludeSkippedAgencies`).
+ * An agency row dropped from the import because its `(Agency, sourceKey)` is
+ * listed in the source's `excluded.yaml`, carrying the documented reason.
+ * Excluded agencies are removed from `rows.agencies` before any resolution
+ * (geocoding, location-path lookup) is attempted, so they are never
+ * resolved. Every OTHER agency row that fails to resolve is fatal: it is
+ * collected into `PrepareAgencyRowsResult.errors`, which aborts the import
+ * (see `DatabaseMutationPlanningError` in plan-database-mutations.ts).
  */
-export type SkippedAgency = {
+export type ExcludedAgency = {
   rowId: string;
   sourceName?: string;
   name?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-  zipCode?: string;
   reason: string;
 };
 
 export type PrepareAgencyRowsResult = {
   errors: string[];
-  skipped: SkippedAgency[];
+  excluded: ExcludedAgency[];
 };
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** `sourceKey (name)` (or just `sourceKey` when there is no name) — used so
+ * every fatal agency-preparation error names the source record, not just an
+ * opaque canonical id. */
+function agencyErrorLabel(agency: {
+  id: string;
+  sourceName?: string;
+  name?: string;
+}): string {
+  const sourceKey = agency.sourceName ?? agency.id;
+  return agency.name !== undefined && agency.name.trim().length > 0
+    ? `${sourceKey} (${agency.name})`
+    : sourceKey;
+}
+
+function partitionExcludedAgencies(
+  agencies: readonly AgencyRow[],
+  excludedRecords: ExcludedRecords | undefined,
+): { kept: AgencyRow[]; excluded: ExcludedAgency[] } {
+  if (excludedRecords === undefined || excludedRecords.size === 0) {
+    return { kept: [...agencies], excluded: [] };
+  }
+
+  const kept: AgencyRow[] = [];
+  const excluded: ExcludedAgency[] = [];
+  for (const agency of agencies) {
+    const excludedRecord =
+      agency.sourceName === undefined
+        ? undefined
+        : excludedRecords.get(excludedRecordKey("Agency", agency.sourceName));
+    if (excludedRecord === undefined) {
+      kept.push(agency);
+      continue;
+    }
+    excluded.push({
+      rowId: agency.id,
+      sourceName: agency.sourceName,
+      name: agency.name,
+      reason: excludedRecord.reason,
+    });
+  }
+  return { kept, excluded };
+}
+
 export async function prepareAgencyRows(
   rows: ImportRows,
   context: DataContext,
   logger?: AgencyPreparationLogger,
+  excludedRecords?: ExcludedRecords,
 ): Promise<PrepareAgencyRowsResult> {
-  // `errors` is currently always empty: every per-agency resolution failure
-  // from `context.add("agency", ...)` below is now treated as skippable
-  // (Fix 2 — tolerant skip) rather than fatal. It is kept in the result
-  // shape so callers (and `DatabaseMutationPlanningError`) keep working if a
-  // future non-skippable failure mode is added here.
   const errors: string[] = [];
-  const skipped: SkippedAgency[] = [];
+
+  // Drop excluded agencies before any resolution is attempted (geocoding,
+  // location-path lookup) so excluded rows are never resolved, not merely
+  // discarded afterward.
+  const { kept, excluded } = partitionExcludedAgencies(
+    rows.agencies,
+    excludedRecords,
+  );
+  rows.agencies = kept;
+
+  if (excluded.length > 0) {
+    logger?.info?.(
+      { entityType: "agency", excludedCount: excluded.length },
+      `Excluded ${excluded.length} ${excluded.length === 1 ? "agency row" : "agency rows"} listed in the source's excluded.yaml.`,
+    );
+    for (const excludedAgency of excluded) {
+      logger?.debug?.(
+        {
+          entityType: "agency",
+          rowId: excludedAgency.rowId,
+          sourceName: excludedAgency.sourceName,
+          name: excludedAgency.name,
+          reason: excludedAgency.reason,
+        },
+        `Excluded agency ${excludedAgency.sourceName ?? excludedAgency.rowId} — ${excludedAgency.reason}`,
+      );
+    }
+  }
+
   const total = rows.agencies.length;
 
   if (total > 0) {
@@ -88,31 +158,8 @@ export async function prepareAgencyRows(
     try {
       await context.add("agency", agency);
     } catch (error) {
-      const message = errorMessage(error);
-      const skippedAgency: SkippedAgency = {
-        rowId: agency.id,
-        sourceName: agency.sourceName,
-        name: agency.name,
-        address: agency.address ?? undefined,
-        city: agency.city ?? undefined,
-        state: agency.state,
-        zipCode: agency.zip_code ?? undefined,
-        reason: message,
-      };
-      skipped.push(skippedAgency);
-      logger?.warn?.(
-        {
-          entityType: "agency",
-          rowId: skippedAgency.rowId,
-          sourceName: skippedAgency.sourceName,
-          name: skippedAgency.name,
-          address: skippedAgency.address,
-          city: skippedAgency.city,
-          state: skippedAgency.state,
-          zipCode: skippedAgency.zipCode,
-          reason: message,
-        },
-        `Skipping unresolvable agency row ${skippedAgency.sourceName ?? skippedAgency.rowId} (${skippedAgency.name ?? "unknown name"}): ${message}`,
+      errors.push(
+        `Agency ${agencyErrorLabel(agency)}: ${errorMessage(error)}`,
       );
     }
 
@@ -129,26 +176,5 @@ export async function prepareAgencyRows(
     }
   }
 
-  if (skipped.length > 0) {
-    logger?.warn?.(
-      {
-        entityType: "agency",
-        skippedCount: skipped.length,
-        total,
-        skipped: skipped.map((agency) => ({
-          rowId: agency.rowId,
-          sourceName: agency.sourceName,
-          name: agency.name,
-          address: agency.address,
-          city: agency.city,
-          state: agency.state,
-          zipCode: agency.zipCode,
-          reason: agency.reason,
-        })),
-      },
-      `Skipped ${skipped.length} of ${total} ${total === 1 ? "agency row" : "agency rows"} that could not be resolved; see per-agency warnings above for reasons.`,
-    );
-  }
-
-  return { errors, skipped };
+  return { errors, excluded };
 }

@@ -10,6 +10,7 @@ import type {
   CliCommandDependencies,
   CommandResult,
 } from "../../../shared/cli/types.js";
+import type { ExcludedRecords } from "../../../shared/io/excluded-records.js";
 
 async function readableArtifactsFileResult(
   artifactsRef: string,
@@ -76,10 +77,12 @@ export async function runImportArtifactsCommand(
       env?: Record<string, string | undefined>;
       commandDirectory?: string;
       commandName?: string;
+      excludedRecords?: ExcludedRecords;
     }) => Promise<ImportArtifactsResult>;
     env?: Record<string, string | undefined>;
     terminal?: { write(text: string): unknown } | false;
     dryImport?: boolean;
+    excludedRecords?: ExcludedRecords;
     args?: readonly string[];
     now?: Date;
     createCommandName?: () => string;
@@ -126,6 +129,7 @@ export async function runImportArtifactsCommand(
     env,
     commandDirectory: command.commandDirectory,
     commandName: command.commandName,
+    excludedRecords: dependencies.excludedRecords,
   });
 
   if (!result.ok) {

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { runSource } from "../../../src/cli/run/index.js";
 import { Artifacts } from "../../../src/shared/io/index.js";
+import type { ExcludedRecords } from "../../../src/shared/io/index.js";
 import { createEmitSink } from "../../../src/cli/run/emit-sink.js";
 import { buildArtifactsEnvelope } from "../../../src/cli/run/source-run.js";
 import type {
@@ -31,7 +32,9 @@ describe("emit sink integration (via runSource)", () => {
 
   it("splices a streamed LocationPathGeometries ref alongside inline LocationPaths records", async () => {
     let capturedArtifactsPath: string | undefined;
-    let capturedOptions: { dryImport?: boolean } | undefined;
+    let capturedOptions:
+      | { dryImport?: boolean; excludedRecords?: ExcludedRecords }
+      | undefined;
 
     const fakeRun = async (deps: RunDeps): Promise<SourceManifest> => {
       await deps.emit("LocationPathGeometries", "az-state", {
@@ -66,7 +69,7 @@ describe("emit sink integration (via runSource)", () => {
 
     const runImport = async (
       ref: string,
-      opts: { dryImport?: boolean },
+      opts: { dryImport?: boolean; excludedRecords?: ExcludedRecords },
     ): Promise<CommandResult> => {
       capturedArtifactsPath = ref;
       capturedOptions = opts;
@@ -86,6 +89,7 @@ describe("emit sink integration (via runSource)", () => {
         digest: async () => "abc123def4567890",
         makeWorkspace: async () => workspace,
         createEmitSink,
+        loadExcludedRecords: async () => new Map(),
         writeEnvelope: async (directory, id, digest, manifest, refItems) =>
           Artifacts.write(
             directory,
@@ -96,7 +100,10 @@ describe("emit sink integration (via runSource)", () => {
     );
 
     expect(result.exitCode).toBe(0);
-    expect(capturedOptions).toEqual({ dryImport: true });
+    expect(capturedOptions).toEqual({
+      dryImport: true,
+      excludedRecords: new Map(),
+    });
     expect(capturedArtifactsPath).toBeDefined();
 
     const envelope = await Artifacts.read(capturedArtifactsPath as string);

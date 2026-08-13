@@ -2,7 +2,8 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { Command } from "commander";
-import { Artifacts } from "../../shared/io/index.js";
+import { Artifacts, loadExcludedRecords } from "../../shared/io/index.js";
+import type { ExcludedRecords } from "../../shared/io/index.js";
 import { createCommandDirectory } from "../command-directory.js";
 import { runImportArtifactsCommand } from "../import/artifacts/index.js";
 import type {
@@ -27,6 +28,7 @@ type RunSourceDeps = {
   digest: (paths: string[]) => Promise<string>;
   makeWorkspace: (env: Record<string, string | undefined>) => Promise<string>;
   createEmitSink: (workspaceDir: string, namespace: string) => EmitSink;
+  loadExcludedRecords: (sourceDir: string) => Promise<ExcludedRecords>;
   writeEnvelope: (
     directory: string,
     sourceId: string,
@@ -36,7 +38,7 @@ type RunSourceDeps = {
   ) => Promise<{ path: string }>;
   runImport: (
     ref: string,
-    opts: { dryImport?: boolean },
+    opts: { dryImport?: boolean; excludedRecords?: ExcludedRecords },
   ) => Promise<CommandResult>;
 };
 
@@ -84,6 +86,9 @@ export async function runSource(
   }
 
   try {
+    const excludedRecords = await deps.loadExcludedRecords(
+      path.join(deps.sourcesRoot, sourceId),
+    );
     const workspace = await deps.makeWorkspace(deps.env);
     const sink = deps.createEmitSink(workspace, sourceId);
     const manifest = await run({
@@ -101,7 +106,10 @@ export async function runSource(
       manifest,
       refItems,
     );
-    return await deps.runImport(artifactsPath, { dryImport: options.dryRun });
+    return await deps.runImport(artifactsPath, {
+      dryImport: options.dryRun,
+      excludedRecords,
+    });
   } catch (error) {
     return { exitCode: 1, stderr: `${errorMessage(error)}\n` };
   }
@@ -142,6 +150,7 @@ export const registerCliCommand: RegisterCliCommand = (
               })
             ).commandDirectory,
           createEmitSink,
+          loadExcludedRecords,
           writeEnvelope: async (directory, id, digest, manifest, refItems) =>
             Artifacts.write(
               directory,

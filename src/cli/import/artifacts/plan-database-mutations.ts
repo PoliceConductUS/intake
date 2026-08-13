@@ -2,7 +2,7 @@ import { DataContext } from "./data-context.js";
 import { classifyDatabaseOperations } from "./classify-database-operations.js";
 import {
   type AgencyPreparationOptions,
-  type SkippedAgency,
+  type ExcludedAgency,
   prepareAgencyRows,
   resolveImportAddress,
 } from "./agency-preparation.js";
@@ -47,8 +47,11 @@ export type PlanDatabaseMutationsResult = {
 };
 
 function formatPlanningErrors(errors: readonly string[]): string[] {
+  // Unanchored: agency-preparation errors are prefixed with the source
+  // agency's key/name (`Agency <sourceKey> (<name>): ...`) so this pattern
+  // is matched as a substring rather than the whole error string.
   const missingCachedLocationPath = errors.filter((error) =>
-    /^Cached location_path_id \S+ for public\.agency \S+ does not exist\.$/.test(
+    /Cached location_path_id \S+ for public\.agency \S+ does not exist\./.test(
       error,
     ),
   );
@@ -116,30 +119,32 @@ async function closeClient(client: DatabaseClient): Promise<void> {
 }
 
 /**
- * Removes agency rows that could not be resolved (Fix 2: tolerant skip) from
- * the import, and cascades the removal to any agency_officers rows that
- * reference them so referential integrity is preserved. Personnel/officer
- * rows are unaffected. Logs a prominent summary so skips are never silent.
+ * Cascades an excluded-agency drop to any agency_officers rows that
+ * reference it, preserving referential integrity. `prepareAgencyRows` has
+ * already removed the excluded agencies themselves from `rows.agencies`
+ * (before resolution was attempted); this only handles the dependent
+ * agency_officers rows and its own summary log line. Personnel/officer rows
+ * are unaffected.
  */
-function excludeSkippedAgencies(
+function dropExcludedAgencyDependents(
   rows: ImportRows,
-  skipped: readonly SkippedAgency[],
+  excluded: readonly ExcludedAgency[],
   logger?: {
     warn?(object: Record<string, unknown>, message: string): void;
   },
 ): void {
-  if (skipped.length === 0) {
+  if (excluded.length === 0) {
     return;
   }
 
-  const skippedAgencyIds = new Set(skipped.map((agency) => agency.rowId));
+  const excludedAgencyIds = new Set(excluded.map((agency) => agency.rowId));
   rows.agencies = rows.agencies.filter(
-    (agency) => !skippedAgencyIds.has(agency.id),
+    (agency) => !excludedAgencyIds.has(agency.id),
   );
 
   const agencyOfficersBeforeCascade = rows.agencyOfficers.length;
   rows.agencyOfficers = rows.agencyOfficers.filter(
-    (agencyOfficer) => !skippedAgencyIds.has(agencyOfficer.agency_id),
+    (agencyOfficer) => !excludedAgencyIds.has(agencyOfficer.agency_id),
   );
   const droppedAgencyOfficerCount =
     agencyOfficersBeforeCascade - rows.agencyOfficers.length;
@@ -149,9 +154,9 @@ function excludeSkippedAgencies(
       {
         entityType: "agencyOfficer",
         droppedCount: droppedAgencyOfficerCount,
-        skippedAgencyIds: [...skippedAgencyIds].sort(),
+        excludedAgencyIds: [...excludedAgencyIds].sort(),
       },
-      `Dropped ${droppedAgencyOfficerCount} ${droppedAgencyOfficerCount === 1 ? "agency-officer row" : "agency-officer rows"} referencing skipped agencies.`,
+      `Dropped ${droppedAgencyOfficerCount} ${droppedAgencyOfficerCount === 1 ? "agency-officer row" : "agency-officer rows"} referencing excluded agencies.`,
     );
   }
 }
@@ -210,8 +215,13 @@ export async function planDatabaseMutations(
       rows,
       context,
       options.logger,
+      options.excludedRecords,
     );
-    excludeSkippedAgencies(rows, agencyPreparationResult.skipped, options.logger);
+    dropExcludedAgencyDependents(
+      rows,
+      agencyPreparationResult.excluded,
+      options.logger,
+    );
 
     const preparationErrors = [
       ...agencyPreparationResult.errors,

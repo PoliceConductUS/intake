@@ -1,0 +1,192 @@
+# Records intentionally excluded from import for sources/gov.tx.tcole.
+#
+# The import FAILS LOUDLY on any record it cannot resolve. A record only avoids
+# that hard failure by appearing here, with a documented reason. These 46 TCOLE
+# agencies have no usable address/place in the 2025-02-10 export (the original
+# seed also omitted them). Review and remove entries here if TCOLE later supplies
+# a location.
+excluded:
+  - kind: Agency
+    key: "41105"
+    name: "BRAZOS CO. CONST. PCT. 5"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "45101"
+    name: "BRISCOE CO. CONST. PCT. 1"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "67601"
+    name: "AVINGER CITY MARSHAL'S OFFICE"
+    reason: "addressless municipal agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "93102"
+    name: "COMANCHE CO. CONST. PCT. 2"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "103103"
+    name: "CRANE CO. CONST. PCT. 3"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "119102"
+    name: "DELTA CO. CONST. PCT. 2"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "119103"
+    name: "DELTA CO. CONST. PCT. 3"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "119104"
+    name: "DELTA CO. CONST. PCT. 4"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "123105"
+    name: "DEWITT CO. CONST. PCT. 5"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "127130"
+    name: "DIMMIT CO. AND DIST. ATTY.'S OFFICE"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "153101"
+    name: "FLOYD CO. CONST. PCT. 1"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "175103"
+    name: "GOLIAD CO. CONST. PCT. 3"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "175104"
+    name: "GOLIAD CO. CONST. PCT. 4"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "175201"
+    name: "GOLIAD POLICE DEPT."
+    reason: "addressless municipal agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "201234"
+    name: "BARKER CITY MARSHAL'S OFFICE"
+    reason: "addressless municipal agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "201998"
+    name: "Productivity Center"
+    reason: "addressless municipal agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "209161"
+    name: "SOUTH HAYS CO. FIRE DEPT."
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "223103"
+    name: "HOPKINS CO. CONST. PCT. 3"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "223104"
+    name: "HOPKINS CO. CONST. PCT. 4"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "237102"
+    name: "JACK CO. CONST. PCT. 2"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "237103"
+    name: "JACK CO. CONST. PCT. 3"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "245203"
+    name: "GRIFFING PARK POLICE DEPT."
+    reason: "addressless municipal agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "275104"
+    name: "KNOX CO. CONST. PCT. 4"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "289105"
+    name: "LEON CO. CONST. PCT. 5"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "289106"
+    name: "LEON CO. CONST. PCT. 6"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "289107"
+    name: "LEON CO. CONST. PCT. 7"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "289108"
+    name: "LEON CO. CONST. PCT. 8"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "325105"
+    name: "MEDINA CO. CONST. PCT. 5"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "327201"
+    name: "MENARD POLICE DEPT."
+    reason: "addressless municipal agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "365103"
+    name: "PANOLA CO. CONST. PCT. 3"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "365130"
+    name: "PANOLA CO. ATTY.'S OFFICE"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "377103"
+    name: "PRESIDIO CO. CONST. PCT. 3"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "403103"
+    name: "SABINE CO. CONST. PCT. 3"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "403104"
+    name: "SABINE CO. CONST. PCT. 4"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "403105"
+    name: "SABINE CO. CONST. PCT. 5"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "463105"
+    name: "UVALDE CO. CONST. PCT. 5"
+    reason: "addressless county agency (no location in TCOLE export)"
+  - kind: Agency
+    key: "509590"
+    name: "DEPT. OF TREASURY"
+    reason: "federal/out-of-state agency (no Texas place)"
+  - kind: Agency
+    key: "509592"
+    name: "Immigration and Naturalization"
+    reason: "federal/out-of-state agency (no Texas place)"
+  - kind: Agency
+    key: "509594"
+    name: "FEDERAL LAW ENFORCEMENT"
+    reason: "federal/out-of-state agency (no Texas place)"
+  - kind: Agency
+    key: "509910"
+    name: "DEPT. OF TREASURY"
+    reason: "federal/out-of-state agency (no Texas place)"
+  - kind: Agency
+    key: "509911"
+    name: "DEPT. OF JUSTICE"
+    reason: "federal/out-of-state agency (no Texas place)"
+  - kind: Agency
+    key: "509996"
+    name: "Texas Department of Corrections"
+    reason: "statewide agency with no local place in TCOLE export"
+  - kind: Agency
+    key: "509997"
+    name: "Z - U.S. Senate"
+    reason: "deactivated placeholder record in TCOLE export"
+  - kind: Agency
+    key: "509998"
+    name: "Z - TEXAS M. H. M. R."
+    reason: "deactivated placeholder record in TCOLE export"
+  - kind: Agency
+    key: "509999"
+    name: "Z - ATTY. GENERAL'S OFFICE"
+    reason: "deactivated placeholder record in TCOLE export"
+  - kind: Agency
+    key: "510001"
+    name: "GUAM"
+    reason: "non-Texas record"
