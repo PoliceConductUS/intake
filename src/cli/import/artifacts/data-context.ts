@@ -193,6 +193,16 @@ export class AgencyFacade {
     }
 
     if (this.current === undefined) {
+      // Invariant: a created agency must carry a slug resolved in the intake
+      // namespace (globally unique). If it does not, fail loudly naming the
+      // agency rather than emitting a malformed AgencyCreate.
+      const slug = valueAsString((this.spec as Record<string, unknown>).slug);
+      if (slug === undefined) {
+        const name = valueAsString((this.spec as Record<string, unknown>).name);
+        throw new Error(
+          `Cannot create public.agency ${canonicalId} (source ${sourceContext.namespace}/${sourceContext.name}${name === undefined ? "" : `, name ${JSON.stringify(name)}`}) without a resolved slug — the slug must be resolved in the intake namespace before an agency is created.`,
+        );
+      }
       return AgencyCreate.new({
         metadata: {
           namespace: sourceContext.namespace,

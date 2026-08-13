@@ -430,14 +430,29 @@ function agencyFieldResolvers(
       fields: ["slug"],
       reason: "Resolved missing agency slug from agency name and canonical ID.",
       resolve: async (row) => {
+        // Preconditions: slug is globally unique and derived from the agency
+        // name + canonical id, so both must be present. Fail loudly otherwise.
         const name = valueAsString(row.name);
         if (name === undefined) {
           throw new Error(
             `Cannot resolve slug for public.agency ${String(row.id)} without name.`,
           );
         }
+        const canonicalId = valueAsString(row.id);
+        if (canonicalId === undefined) {
+          throw new Error(
+            "Cannot resolve slug for public.agency: canonical id must be resolved before the slug.",
+          );
+        }
 
-        row.slug = `${slugify(name)}-${canonicalSuffix(row.id)}`;
+        const slug = `${slugify(name)}-${canonicalSuffix(canonicalId)}`;
+        // Output invariant: the resolver must produce a non-empty slug.
+        if (slug.trim() === "") {
+          throw new Error(
+            `Resolved an empty slug for public.agency ${canonicalId} (name ${JSON.stringify(name)}).`,
+          );
+        }
+        row.slug = slug;
         const agencyResolvedProperty = sharedAgencyMutationForRow(
           row,
           resolvedPropertyUpdates,
@@ -503,7 +518,16 @@ export function missingResolvableAgencyFields(
   row: Record<string, unknown>,
 ): string[] {
   return ["slug", "location_path_id", "latitude", "longitude"].filter(
-    (fieldName) => row[fieldName] === undefined || row[fieldName] === null,
+    (fieldName) => {
+      const value = row[fieldName];
+      // undefined/null, or a blank string, all count as unresolved — a blank
+      // must not slip past the resolver and fail validation downstream.
+      return (
+        value === undefined ||
+        value === null ||
+        (typeof value === "string" && value.trim() === "")
+      );
+    },
   );
 }
 

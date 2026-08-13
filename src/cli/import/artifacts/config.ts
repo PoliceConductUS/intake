@@ -1126,6 +1126,9 @@ async function writeDatabaseMutationsStage(
     operations: context.databaseResult.operations,
     sourceNameToCanonicalIds: context.resolvedMappings,
     commandName: context.commandName,
+    // Must match the preparation pass on which agencies already exist, so an
+    // existing agency is written as an update (not a create missing a slug).
+    databaseAgencies: context.databaseResult.databaseAgencies,
   });
   dataContext.mergeAgencyArtifacts(context.artifacts);
   addPersonnelSourceFacades(

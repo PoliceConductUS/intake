@@ -44,6 +44,12 @@ export type PlanDatabaseMutationsResult = {
   counts: ImportRowCounts;
   operations: DatabaseRowOperations;
   schema: ImportDatabaseSchema;
+  /**
+   * The already-existing `public.agency` rows (by canonical id) loaded during
+   * preparation, so the envelope-writing pass classifies create vs update
+   * identically to this pass.
+   */
+  databaseAgencies: Array<Record<string, unknown>>;
 };
 
 function formatPlanningErrors(errors: readonly string[]): string[] {
@@ -185,6 +191,10 @@ export async function planDatabaseMutations(
 
   let operations: DatabaseRowOperations | undefined;
   let schema: ImportDatabaseSchema | undefined;
+  // Hoisted so the already-existing agency records can be handed to the
+  // envelope-writing DataContext, which must agree with this preparation pass
+  // on which agencies exist (otherwise an existing agency is treated as a create).
+  let databaseAgencies: Array<Record<string, unknown>> = [];
 
   try {
     await client.query("begin");
@@ -192,7 +202,7 @@ export async function planDatabaseMutations(
     schema = importSchema;
     const databaseLocationPaths = await readLocationPaths(client);
     const databaseLocationPathAliases = await readLocationPathAliases(client);
-    const databaseAgencies = await readDatabaseRecordsByIds(
+    databaseAgencies = await readDatabaseRecordsByIds(
       client,
       "public.agency",
       rows.agencies.map((agency) => agency.id),
@@ -281,5 +291,6 @@ export async function planDatabaseMutations(
     },
     operations,
     schema,
+    databaseAgencies,
   };
 }
