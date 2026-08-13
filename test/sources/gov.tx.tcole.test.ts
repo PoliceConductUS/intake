@@ -82,6 +82,16 @@ const sheets: Record<string, Array<Record<string, string>>> = {
       ST_DATE: "2010-01-01T00:00:00.000Z",
       END_DATE: "",
     },
+    // blank APPOINTMENT -> retained with title "Unknown"; the key keeps the
+    // empty APPOINTMENT segment so it stays byte-compatible with the map
+    {
+      PUBLIC_GUID: "1000038",
+      DEPARTMENT_NUMBER: "471100",
+      APPOINTMENT: "",
+      LICENSE: "",
+      ST_DATE: "2020-01-01T00:00:00.000Z",
+      END_DATE: "",
+    },
   ],
 };
 
@@ -168,7 +178,7 @@ describe("gov.tx.tcole run", () => {
     expect(Object.keys(personnel.records).sort()).toEqual(["1000033", "1000038"]);
   });
 
-  it("keys AgencyPersonnel by the identity tuple with license_type=APPOINTMENT", async () => {
+  it("keys AgencyPersonnel by the identity tuple with title=APPOINTMENT", async () => {
     const { records } = (await run(deps)).artifacts.find(
       (a) => a.kind === "AgencyPersonnel",
     )!;
@@ -176,6 +186,7 @@ describe("gov.tx.tcole run", () => {
     expect(Object.keys(records).sort()).toEqual([
       "1000033|471100|Jailer|Temporary Jailer License|2024-10-15|",
       "1000038|201217|Peace Officer|Peace Officer License|1994-06-16|2023-09-30",
+      "1000038|471100|||2020-01-01|",
     ]);
     const open =
       records["1000033|471100|Jailer|Temporary Jailer License|2024-10-15|"]
@@ -185,7 +196,7 @@ describe("gov.tx.tcole run", () => {
       personnel_id: "1000033",
       start_date: "2024-10-15",
       end_date: null,
-      license_type: "Jailer",
+      title: "Jailer",
     });
     const closed =
       records[
@@ -195,6 +206,26 @@ describe("gov.tx.tcole run", () => {
     for (const record of Object.values(records)) {
       expect(AgencyPersonnelSpec.safeParse(record.spec).success).toBe(true);
     }
+  });
+
+  it("retains a blank APPOINTMENT as title 'Unknown', keeping the empty key segment", async () => {
+    const { records } = (await run(deps)).artifacts.find(
+      (a) => a.kind === "AgencyPersonnel",
+    )!;
+    const unknown = records["1000038|471100|||2020-01-01|"];
+    expect(unknown).toBeDefined();
+    expect(unknown.spec).toEqual({
+      agency_id: "471100",
+      personnel_id: "1000038",
+      start_date: "2020-01-01",
+      end_date: null,
+      title: "Unknown",
+    });
+    // the "Unknown" fallback is the column value only — never in the key
+    expect(Object.keys(records)).not.toContain(
+      "1000038|471100|Unknown||2020-01-01|",
+    );
+    expect(AgencyPersonnelSpec.safeParse(unknown.spec).success).toBe(true);
   });
 
   it("is deterministic", async () => {

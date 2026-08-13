@@ -18,11 +18,11 @@ import type {
  *                                        so it matches the prior TCOLE identity
  *                                        map's `id_field` and reuses seeded IDs)
  *
- * `license_type` carries the `APPOINTMENT` (the role — "Peace Officer", "Chief
- * of Police"), matching how the column is populated today (seed set
- * `agency_officers.title = APPOINTMENT`; that column was later renamed to
- * `license_type`). A follow-up change renames it back to `title` and adds a
- * separate license reference.
+ * `title` carries the `APPOINTMENT` (the role — "Peace Officer", "Chief of
+ * Police"), matching how the column is populated today (seed set
+ * `agency_officers.title = APPOINTMENT`). A blank APPOINTMENT is recorded as
+ * "Unknown" rather than dropped. The separate license reference
+ * (`agency_officers.license_id`) is populated in the licensing phase.
  *
  * Deterministic: no network, clock, or randomness. Cross-references
  * (`agency_id`, `personnel_id`) carry TCOLE source keys that the import
@@ -158,14 +158,12 @@ function buildAgencyPersonnel(
     const endDate = toDate(row["END_DATE"]);
 
     // Required fields for AgencyPersonnel: agency_id, personnel_id, start_date,
-    // license_type (the role). Referential integrity: the referenced agency and
-    // officer must have been emitted so the transform can resolve them.
-    if (
-      publicGuid === "" ||
-      departmentNumber === "" ||
-      appointment === "" ||
-      startDate === ""
-    ) {
+    // title (the role). A blank APPOINTMENT is retained as title "Unknown"
+    // (below) rather than dropped — we still know the person served at the
+    // agency over that period. start_date has no sentinel (NOT NULL date), so a
+    // blank one is still skipped. Referential integrity: the referenced agency
+    // and officer must have been emitted so the transform can resolve them.
+    if (publicGuid === "" || departmentNumber === "" || startDate === "") {
       continue;
     }
     if (
@@ -175,8 +173,11 @@ function buildAgencyPersonnel(
       continue;
     }
 
-    // Synthetic identity key — matches the prior identity map's `id_field`:
-    // PUBLIC_GUID|DEPARTMENT_NUMBER|APPOINTMENT|LICENSE|ST_DATE|END_DATE
+    // Synthetic identity key — matches the prior identity map's `id_field`
+    // byte-for-byte (empty segment when a field is blank) so seed IDs are
+    // preserved: PUBLIC_GUID|DEPARTMENT_NUMBER|APPOINTMENT|LICENSE|ST_DATE|END_DATE.
+    // The raw APPOINTMENT segment is used here even when blank — the "Unknown"
+    // fallback applies to the `title` value only, never to the key.
     const key = [
       publicGuid,
       departmentNumber,
@@ -192,9 +193,9 @@ function buildAgencyPersonnel(
         personnel_id: publicGuid,
         start_date: startDate,
         end_date: endDate === "" ? null : endDate,
-        // license_type currently holds the role (APPOINTMENT); renamed to
-        // `title` in a follow-up change.
-        license_type: appointment,
+        // `title` holds the role (APPOINTMENT). Blank roles are recorded as
+        // "Unknown" so the assignment is kept rather than dropped.
+        title: appointment === "" ? "Unknown" : appointment,
       },
     };
   }

@@ -270,7 +270,7 @@ describe("database mutation envelopes", () => {
                 badge_number: "49112",
                 start_date: "2020-01-01",
                 end_date: null,
-                license_type: "Peace Officer",
+                title: "Peace Officer",
               },
             },
           ],

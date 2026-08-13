@@ -263,7 +263,7 @@ export const AgencyPersonnelSpec = z
     badge_number: z.string().nullable().optional(),
     start_date: nonEmptyString,
     end_date: z.string().nullable().optional(),
-    license_type: nonEmptyString,
+    title: nonEmptyString,
   })
   .strict();
 

@@ -61,6 +61,46 @@ keep NOT NULL), add a nullable `license_id`, refresh generated types, and update
 `AgencyPersonnelSpec`. Until then the source config writes the role to
 `license_type` (see the inline note in `sources/gov.tx.tcole/config.ts`).
 
+## 2026-08-13 — task 1.4 (rename + license_id) landed
+
+- Migration `20260627000000_rename_agency_officers_license_type_to_title.sql`:
+  idempotent `license_type`→`title` rename (preserves rows/ids, keeps NOT NULL)
+  + nullable `license_id` column (no FK yet — added with the `license` table in
+  Phase B).
+- `AgencyPersonnelSpec` field renamed `license_type`→`title`; generated envelope
+  types + mutation envelopes regenerated (`npm run generate:envelope-types`).
+  Hand-written references updated: `transform.ts` (`AgencyOfficerRow.title`,
+  source column list, builder), `io/ArtifactMutation.ts` set-path enum.
+- **Blank-`APPOINTMENT` decision (empirically settled).** The abandoned
+  `agency-officers.yaml` map has **zero** keys with an empty `APPOINTMENT`
+  segment (`grep` of the `guid|dept||…` pattern → 0), so seed dropped every
+  blank-role row and none has a canonical id to preserve. Config now **retains**
+  such rows with `title="Unknown"` (new additive rows, fresh cuids). The
+  `"Unknown"` fallback is the column value only — the identity key keeps the raw
+  (empty) `APPOINTMENT` segment, so existing rows stay byte-identical to the map.
+- Verified: `npm run typecheck` clean; `test/sources/gov.tx.tcole.test.ts`
+  (incl. new `"Unknown"` + empty-key-segment test), `import-transform`,
+  `artifacts-command`, `plan-database-mutations`, `database-mutation-envelopes`
+  all pass (100 tests). `seed-display.test.ts` fails at load on a missing
+  `supabase/seed.sql` symlink — pre-existing/environmental, unrelated.
+
+## 2026-08-13 — task 3b.1 (additive-load prerequisite) confirmed
+
+Read `plan-database-mutations.ts` + `classify-database-operations.ts`. A run
+applies as **additive create/read/update only**; it never deletes entities
+absent from the run:
+- `classifyDatabaseOperations` iterates solely over `rows.*` (rows present in the
+  run) and assigns `"create"` / `"read"` / `"update"`. `"delete"` is never
+  assigned anywhere in `src/cli/import`.
+- Planning runs inside a transaction that is always **rolled back**; writes are
+  plain `INSERT` with no `ON CONFLICT`/upsert (re-imports are idempotent by
+  canonical id — asserted by the existing no-upsert test).
+- The only deletions are same-run referential cascades
+  (`dropExcludedAgencyDependents` drops in-memory rows referencing an excluded
+  agency), not DB reconciliation.
+
+→ 3b.2 is moot; Phase B (additive new kinds) is safe to proceed.
+
 ## PENDING — real-data captures to redo before closing Phase A
 
 These require running against the real 02-10 workbook + abandoned maps in the

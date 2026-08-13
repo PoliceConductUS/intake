@@ -9,7 +9,7 @@
 - [x] 1.1 Emit Personnel keyed by `PUBLIC_GUID` (first/last/middle/suffix). Deterministic.
 - [x] 1.2 Emit Agency from `Departments` keyed by `DEPARTMENT_NUMBER` (name/state/city/address/zip/contact_name/contact_email/phones); do NOT emit slug/location_path_id/lat/lng.
 - [x] 1.3 Emit Assignment (AgencyPersonnel) from `Services` — key `PUBLIC_GUID|DEPARTMENT_NUMBER|APPOINTMENT|LICENSE|ST_DATE|END_DATE`, `agency_id`=DEPARTMENT_NUMBER, `personnel_id`=PUBLIC_GUID, start/end dates. _Role is currently stored in `license_type` (=APPOINTMENT); the `title` rename and the `license` ref are deferred to 1.4/Phase B._
-- [ ] 1.4 Add the `agency_officers.license_type`→`title` rename migration (idempotent; keep NOT NULL) + add nullable `license_id`; refresh generated types + `AgencyPersonnelSpec` (`title`, `license` ref). _NOT done. A legacy migration (`20260626000000`) renamed the column the **wrong** direction (`title`→`license_type`); this task must rename it back and add `license_id`._
+- [x] 1.4 `agency_officers.license_type`→`title` rename migration (`20260627000000`, idempotent, keeps NOT NULL) + nullable `license_id` column (FK added with the `license` table in Phase B); generated types refreshed; `AgencyPersonnelSpec` field renamed to `title`. Config emits `title` (blank `APPOINTMENT`→`"Unknown"`, value only — the key keeps the empty segment). _The `license` ref emission + resolution lands in Phase B (5.1/4.4) when License entities exist._
 - [x] 1.5 Referential-integrity guard: every DEPARTMENT_NUMBER/PUBLIC_GUID an Assignment references is emitted (config only emits Assignments whose agency and officer were emitted).
 - [x] 1.6 `test/sources/gov.tx.tcole.test.ts`: record shapes, determinism, and an explicit assertion that the Assignment key matches the abandoned map's `id_field` and the role=APPOINTMENT (asserted on `license_type`, pending the 1.4 rename).
 
@@ -27,8 +27,8 @@
 
 ## 3b. Phase B prerequisite — verify additive load
 
-- [ ] 3b.1 Read `plan-database-mutations.ts`; confirm a run's artifacts apply as additive upserts only (absent entities are NOT deleted). Document in verify.md.
-- [ ] 3b.2 If the pipeline reconciles-by-deletion, STOP and resolve before Phase B.
+- [x] 3b.1 Confirmed additive: `classify-database-operations.ts` only ever assigns `create`/`read`/`update`, iterating solely over rows present in the run — it never queries for or deletes absent entities. Planning runs in a rolled-back transaction; writes are plain `INSERT` (no `ON CONFLICT`/upsert), idempotent by canonical id. The only deletions are same-run referential cascades (`dropExcludedAgencyDependents`), not DB reconciliation. Documented in verify.md.
+- [x] 3b.2 Not applicable — the pipeline does not reconcile-by-deletion (see 3b.1). Phase B is safe to proceed.
 
 ## 4. Phase B — Licensing model (schema + pipeline)
 
