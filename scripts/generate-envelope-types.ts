@@ -26,6 +26,35 @@ const importMutationOutputDirectory = path.join(
   "generated-mutations",
 );
 
+// Kinds whose records are written one-file-per-record (a `.records` directory
+// of singular record envelopes plus a small envelope-of-refs). Every import
+// kind currently participates; the set is explicit so the intent is clear and
+// a kind can be opted out without reintroducing the `recordKind !== kind`
+// heuristic.
+const RECORD_ENVELOPE_KINDS = new Set<ImportArtifactKind>([
+  "LocationPaths",
+  "LocationPathGeometries",
+  "LocationPathAliases",
+  "Agencies",
+  "Personnel",
+  "AgencyPersonnel",
+]);
+
+function supportsRecordEnvelopeFor(kind: ImportArtifactKind): boolean {
+  return RECORD_ENVELOPE_KINDS.has(kind);
+}
+
+// The singular per-record envelope kind. It is usually the metadata
+// `recordKind` (Agency, LocationPathGeometry, ...), but when the record kind is
+// spelled identically to the plural artifact kind (Personnel, AgencyPersonnel)
+// a distinct name is required so the generated singular writer/reader/types do
+// not collide with the plural ones. The metadata `recordKind` is left untouched
+// because the DatabaseMutations kinds derive from it.
+function recordEnvelopeKindFor(kind: ImportArtifactKind): string {
+  const recordKind = importTypeMetadata[kind].recordKind;
+  return recordKind === kind ? `${recordKind}Record` : recordKind;
+}
+
 function generatedHeader(): string {
   return [
     "/* eslint-disable */",
@@ -299,14 +328,15 @@ function resolveReadPath(
 function artifactModule(kind: ImportArtifactKind): string {
   const recordKind = importTypeMetadata[kind].recordKind;
   const recordSpecName = recordKind;
-  const supportsRecordEnvelope = recordKind !== kind;
+  const supportsRecordEnvelope = supportsRecordEnvelopeFor(kind);
+  const recordEnvelopeKind = recordEnvelopeKindFor(kind);
   const recordItemSchema = supportsRecordEnvelope
     ? `const recordReferenceSchema = z
   .object({
     ref: z
       .object({
         path: z.string().trim().min(1),
-        kind: z.literal("${recordKind}"),
+        kind: z.literal("${recordEnvelopeKind}"),
         sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
       })
       .strict(),
@@ -324,7 +354,7 @@ const recordItemSchema = z.union([recordReferenceSchema, inlineRecordItemSchema]
 export const recordSchema = z
   .object({
     apiVersion: z.literal(INTAKE_API_VERSION),
-    kind: z.literal("${recordKind}"),
+    kind: z.literal("${recordEnvelopeKind}"),
     metadata: z
       .object({
         name: z.string().trim().min(1),
@@ -337,54 +367,54 @@ export const recordSchema = z
   })
   .strict();
 
-export type ${recordKind}Envelope = z.infer<typeof recordSchema>;
-export type ${recordKind}Input = Omit<${recordKind}Envelope, "apiVersion" | "kind">;
+export type ${recordEnvelopeKind}Envelope = z.infer<typeof recordSchema>;
+export type ${recordEnvelopeKind}Input = Omit<${recordEnvelopeKind}Envelope, "apiVersion" | "kind">;
 
-function parse${recordKind}(value: unknown): ${recordKind}Envelope {
+function parse${recordEnvelopeKind}(value: unknown): ${recordEnvelopeKind}Envelope {
   const result = recordSchema.safeParse(value);
   if (!result.success) {
-    throw new Error(\`${recordKind} is malformed at \${firstIssuePath(result.error)}.\`);
+    throw new Error(\`${recordEnvelopeKind} is malformed at \${firstIssuePath(result.error)}.\`);
   }
   return result.data;
 }
 
-function new${recordKind}(input: ${recordKind}Input): ${recordKind}Envelope {
-  return parse${recordKind}({
+function new${recordEnvelopeKind}(input: ${recordEnvelopeKind}Input): ${recordEnvelopeKind}Envelope {
+  return parse${recordEnvelopeKind}({
     apiVersion: INTAKE_API_VERSION,
-    kind: "${recordKind}",
+    kind: "${recordEnvelopeKind}",
     ...input,
   });
 }
 
-async function read${recordKind}(
+async function read${recordEnvelopeKind}(
   pathOrRef: string | EnvelopeReadRef,
   options: EnvelopeReadOptions = {},
-): Promise<${recordKind}Envelope> {
+): Promise<${recordEnvelopeKind}Envelope> {
   const ref = resolveReadPath(pathOrRef, options);
-  if (ref.kind !== undefined && ref.kind !== "${recordKind}") {
-    throw new Error(\`${recordKind} ref.kind \${ref.kind} does not match expected kind ${recordKind}: \${ref.filePath}\`);
+  if (ref.kind !== undefined && ref.kind !== "${recordEnvelopeKind}") {
+    throw new Error(\`${recordEnvelopeKind} ref.kind \${ref.kind} does not match expected kind ${recordEnvelopeKind}: \${ref.filePath}\`);
   }
-  const { contents, document } = await readYamlDocumentFile(ref.filePath, "${recordKind}");
+  const { contents, document } = await readYamlDocumentFile(ref.filePath, "${recordEnvelopeKind}");
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
-    throw new Error(\`${recordKind} sha256 mismatch: \${ref.filePath}\`);
+    throw new Error(\`${recordEnvelopeKind} sha256 mismatch: \${ref.filePath}\`);
   }
-  const envelope = parse${recordKind}(document);
+  const envelope = parse${recordEnvelopeKind}(document);
   if (
     options.expectedNamespace !== undefined &&
     envelope.metadata.namespace !== options.expectedNamespace
   ) {
     throw new Error(
-      \`${recordKind} namespace \${envelope.metadata.namespace} does not match expected namespace \${options.expectedNamespace}: \${ref.filePath}\`,
+      \`${recordEnvelopeKind} namespace \${envelope.metadata.namespace} does not match expected namespace \${options.expectedNamespace}: \${ref.filePath}\`,
     );
   }
   return envelope;
 }
 
-async function write${recordKind}(
+async function write${recordEnvelopeKind}(
   directory: string,
-  envelope: ${recordKind}Envelope,
+  envelope: ${recordEnvelopeKind}Envelope,
 ): Promise<{ path: string; sha256: string }> {
-  const parsed = parse${recordKind}(envelope);
+  const parsed = parse${recordEnvelopeKind}(envelope);
   const filePath = yamlResourcePath(directory, parsed);
   const contents = await writeYamlDocumentFile(filePath, parsed);
   return { path: filePath, sha256: yamlDigest(contents) };
@@ -393,7 +423,7 @@ async function write${recordKind}(
     : "";
   const readRecords = supportsRecordEnvelope
     ? `    if ("ref" in recordItem) {
-      const record = await read${recordKind}(recordItem.ref, {
+      const record = await read${recordEnvelopeKind}(recordItem.ref, {
         relativeTo: filePath,
         expectedNamespace: artifact.metadata.namespace,
       });
@@ -412,14 +442,14 @@ async function write${recordKind}(
     const recordsDirectory =
       options.recordsDirectory ??
       \`\${path.basename(artifactPath, path.extname(artifactPath))}.records\`;
-    const records: Record<string, { ref: { path: string; kind: "${recordKind}"; sha256?: string } }> = {};
+    const records: Record<string, { ref: { path: string; kind: "${recordEnvelopeKind}"; sha256?: string } }> = {};
 
     for (const [recordKey, recordItem] of Object.entries(artifact.spec.records)) {
       if ("ref" in recordItem) {
         records[recordKey] = recordItem;
         continue;
       }
-      const record = new${recordKind}({
+      const record = new${recordEnvelopeKind}({
         metadata: {
           name: recordKey,
           namespace: artifact.metadata.namespace,
@@ -429,13 +459,13 @@ async function write${recordKind}(
       const recordPath = path.join(
         path.dirname(artifactPath),
         recordsDirectory,
-        yamlResourceFileName(recordKey, "${recordKind}"),
+        yamlResourceFileName(recordKey, "${recordEnvelopeKind}"),
       );
       const contents = await writeYamlDocumentFile(recordPath, record);
       records[recordKey] = {
         ref: {
           path: path.relative(path.dirname(artifactPath), recordPath),
-          kind: "${recordKind}",
+          kind: "${recordEnvelopeKind}",
           sha256: yamlDigest(contents),
         },
       };
@@ -454,12 +484,12 @@ async function write${recordKind}(
   }`;
   const singularRecordExport = supportsRecordEnvelope
     ? `
-export const ${recordKind} = {
-  kind: "${recordKind}",
+export const ${recordEnvelopeKind} = {
+  kind: "${recordEnvelopeKind}",
   schema: recordSchema,
-  new: new${recordKind},
-  read: read${recordKind},
-  write: write${recordKind},
+  new: new${recordEnvelopeKind},
+  read: read${recordEnvelopeKind},
+  write: write${recordEnvelopeKind},
 };
 `
     : "";
@@ -1048,12 +1078,13 @@ ${mapItems.join("\n")}
 function indexModule(): string {
   const artifactExports = IMPORT_ARTIFACT_KINDS.map((kind) => {
     const recordKind = importTypeMetadata[kind].recordKind;
-    if (recordKind === kind) {
+    if (!supportsRecordEnvelopeFor(kind)) {
       return `export { ${kind}, ${recordKind}Spec } from "./${kind}.js";
 export type { ${kind}Envelope, ${kind}Input } from "./${kind}.js";`;
     }
-    return `export { ${kind}, ${recordKind}, ${recordKind}Spec } from "./${kind}.js";
-export type { ${kind}Envelope, ${kind}Input, ${recordKind}Envelope, ${recordKind}Input } from "./${kind}.js";`;
+    const recordEnvelopeKind = recordEnvelopeKindFor(kind);
+    return `export { ${kind}, ${recordEnvelopeKind}, ${recordKind}Spec } from "./${kind}.js";
+export type { ${kind}Envelope, ${kind}Input, ${recordEnvelopeKind}Envelope, ${recordEnvelopeKind}Input } from "./${kind}.js";`;
   }).join("\n");
   return `${generatedHeader()}export { Artifacts } from "./Artifacts.js";
 export type { ArtifactsEnvelope, ArtifactsInput } from "./Artifacts.js";

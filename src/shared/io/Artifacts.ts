@@ -102,8 +102,20 @@ type ArtifactEnvelopeType = {
   write: (
     directory: string,
     envelope: any,
+    options?: { externalizeRecords?: boolean; recordsDirectory?: string },
   ) => Promise<{ path: string; sha256: string }>;
 };
+
+// Kinds whose records are written one-file-per-record under a `.records`
+// directory (an envelope-of-refs plus a singular record envelope per record),
+// instead of a single large multi-record YAML file. LocationPaths /
+// LocationPathAliases stay inline; LocationPathGeometries are streamed to their
+// own `.records` directory by the run emit-sink.
+const EXTERNALIZE_RECORD_KINDS = new Set<ImportArtifactKind>([
+  "Agencies",
+  "Personnel",
+  "AgencyPersonnel",
+]);
 
 type ArtifactRecordSpec = {
   safeParse(
@@ -337,6 +349,9 @@ export const Artifacts = {
       const written = await artifactEnvelopeTypes[artifactItem.kind].write(
         directory,
         artifact,
+        EXTERNALIZE_RECORD_KINDS.has(artifactItem.kind)
+          ? { externalizeRecords: true }
+          : undefined,
       );
       artifactReferences.push({
         ref: {
