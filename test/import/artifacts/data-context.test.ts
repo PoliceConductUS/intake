@@ -133,6 +133,8 @@ describe("DataContext", () => {
       state: "MN",
     });
 
+    // The slug invariant fails loud (naming the agency) before the AgencyCreate
+    // schema would reject the partial spec.
     expect(() =>
       agency.toMutation({
         namespace: "mn-post",
@@ -140,7 +142,7 @@ describe("DataContext", () => {
         canonicalId: "agency-canonical-id",
         commandName: "command-name",
       }),
-    ).toThrow("AgencyCreate is malformed");
+    ).toThrow("without a resolved slug");
   });
 
   test("DatabaseMutations rejects unresolved required create fields", () => {
