@@ -35,13 +35,28 @@ export const run: SourceRun = async ({ paths, readXlsx }) => {
     throw new Error("gov.tx.tcole expects a single .xlsx workbook input.");
   }
 
-  const personnel = buildPersonnel(await readXlsx(workbook, "Officers"));
+  // Agencies: STATUS = ACTIVE only (the original seed omitted the 953 inactive
+  // departments). Everything else cascades from that decision.
   const agencies = buildAgencies(await readXlsx(workbook, "Departments"));
-  const agencyPersonnel = buildAgencyPersonnel(
-    await readXlsx(workbook, "Services"),
-    agencies,
-    personnel,
+
+  // Only officers attached to an active agency are imported: an officer is kept
+  // iff some Services row links them to an emitted (active) agency. Officers with
+  // no services, or only services at inactive agencies, are dropped.
+  const serviceRows = await readXlsx(workbook, "Services");
+  const activeOfficerGuids = new Set<string>();
+  for (const row of serviceRows) {
+    const departmentNumber = (row["DEPARTMENT_NUMBER"] ?? "").trim();
+    const publicGuid = (row["PUBLIC_GUID"] ?? "").trim();
+    if (publicGuid !== "" && agencies[departmentNumber] !== undefined) {
+      activeOfficerGuids.add(publicGuid);
+    }
+  }
+
+  const personnel = buildPersonnel(
+    await readXlsx(workbook, "Officers"),
+    activeOfficerGuids,
   );
+  const agencyPersonnel = buildAgencyPersonnel(serviceRows, agencies, personnel);
 
   return {
     artifacts: [
@@ -64,12 +79,17 @@ function nullIfBlank(value: string | undefined): string | null {
   return text === "" ? null : text;
 }
 
-function buildPersonnel(rows: Array<Record<string, string>>): EmittedRecords {
+function buildPersonnel(
+  rows: Array<Record<string, string>>,
+  activeOfficerGuids: ReadonlySet<string>,
+): EmittedRecords {
   const records: EmittedRecords = {};
   for (const row of rows) {
     const publicGuid = (row["PUBLIC_GUID"] ?? "").trim();
     const firstName = (row["FNAME"] ?? "").trim();
     const lastName = (row["LNAME"] ?? "").trim();
+    // Only import officers attached to an active agency.
+    if (!activeOfficerGuids.has(publicGuid)) continue;
     // Personnel spec requires a stable id and non-empty first/last name.
     if (publicGuid === "" || firstName === "" || lastName === "") continue;
     records[publicGuid] = {
@@ -91,6 +111,9 @@ function buildAgencies(rows: Array<Record<string, string>>): EmittedRecords {
     const departmentNumber = (row["DEPARTMENT_NUMBER"] ?? "").trim();
     const name = (row["DEPARTMENT_NAME"] ?? "").trim();
     const state = (row["STATE"] ?? "").trim();
+    // Only active agencies are imported (the original seed omitted inactive
+    // departments). Everything downstream cascades from this filter.
+    if ((row["STATUS"] ?? "").trim().toUpperCase() !== "ACTIVE") continue;
     // Agency spec requires a non-empty name and state; the key must be stable.
     if (departmentNumber === "" || name === "" || state === "") continue;
 
