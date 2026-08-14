@@ -9,6 +9,11 @@ Proposed
 > reference values resolve to canonical ids, via the 3-step property resolution
 > below (current envelope / intake-owned state / database) — never by reading a
 > source's namespace.
+>
+> Superseded in part by [ADR 0016](0016-resolve-entity-properties-with-composable-resolvers.md):
+> `canonicalIdFromProperty` and `canonicalIdFor` are replaced by one general
+> `resolveProperty(facade, property)` dispatch over composable per-property
+> resolvers (find-or-create, resolve-or-fail, generate-unique, derived, constant).
 
 ## Context
 

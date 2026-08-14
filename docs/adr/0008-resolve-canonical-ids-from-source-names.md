@@ -8,6 +8,11 @@ Proposed
 > namespaces are isolated and mutually ignorant, so a source only ever resolves
 > its own namespace's source names, and cross-source identity is unified at the
 > root — not expressed by any source.
+>
+> Revised by [ADR 0016](0016-resolve-entity-properties-with-composable-resolvers.md):
+> canonical-id assignment becomes the "id" property's resolver, and the
+> intentionally-narrow `SourceNameToCanonicalId` ledger is collapsed into the one
+> durable resolver cache.
 
 ## Context
 
