@@ -90,17 +90,9 @@ export type PreparationMutation = {
 
 export type AgencyColumn = Exclude<keyof AgencyRow, "id">;
 
-export type OfficerRow = {
-  id: string;
-  first_name: string;
-  last_name: string;
-  middle_name: string | null;
-  prefix: string | null;
-  suffix: string | null;
-  slug: string | undefined;
-};
-
-export type OfficerColumn = Exclude<keyof OfficerRow, "id">;
+// Personnel is facade-based (ADR 0016): the PersonnelFacade owns its columns,
+// canonical-id find-or-create, unique-slug generation, and mutation emission.
+// It produces no transform row here.
 
 export type AgencyOfficerRow = {
   id: string;
@@ -124,12 +116,10 @@ export type ImportRows = {
   locationPathGeometries?: LocationPathGeometryRow[];
   locationPathAliases: LocationPathAliasRow[];
   agencies: AgencyRow[];
-  officers: OfficerRow[];
   agencyOfficers: AgencyOfficerRow[];
   preparationMutations: PreparationMutation[];
   ownedColumns: {
     agencies: Record<string, AgencyColumn[]>;
-    officers: Record<string, OfficerColumn[]>;
     agencyOfficers: Record<string, AgencyOfficerColumn[]>;
   };
 };
@@ -144,14 +134,6 @@ const agencySourceColumns: AgencyColumn[] = [
   "contact_email",
   "latitude",
   "longitude",
-];
-
-const officerSourceColumns: OfficerColumn[] = [
-  "first_name",
-  "last_name",
-  "middle_name",
-  "prefix",
-  "suffix",
 ];
 
 const agencyOfficerSourceColumns: AgencyOfficerColumn[] = [
@@ -248,36 +230,6 @@ function valueAsObjectOrUndefined(
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined;
-}
-
-function slugify(value: string): string {
-  return (
-    value
-      .normalize("NFKD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "record"
-  );
-}
-
-function canonicalSuffix(id: unknown): string {
-  const normalized = String(id)
-    .replace(/[^a-z0-9]/gi, "")
-    .toLowerCase();
-  return normalized.slice(-6) || "record";
-}
-
-function personnelSlug(input: {
-  canonicalId: string;
-  firstName: string;
-  lastName: string;
-  resolvedSlug?: string;
-}): string {
-  return (
-    input.resolvedSlug ??
-    `${slugify(`${input.firstName} ${input.lastName}`)}-${canonicalSuffix(input.canonicalId)}`
-  );
 }
 
 function requiredString(
@@ -409,7 +361,6 @@ export function transformArtifacts(
   assertCanonicalMappingFields(artifacts, mappings);
   const ownedColumns: ImportRows["ownedColumns"] = {
     agencies: {},
-    officers: {},
     agencyOfficers: {},
   };
 
@@ -500,44 +451,9 @@ export function transformArtifacts(
     },
   );
 
-  const officers = Object.entries(entityMap(artifacts, "personnel")).map(
-    ([recordKey, sourceValue]): OfficerRow => {
-      const sourceName = sourceNameForImportRecord(recordKey, sourceValue);
-      const source = valueAsRecord(sourceName, sourceValue);
-      const mapping = mappings.personnel[sourceName];
-      const canonicalId = mapping.canonicalId!;
-      const resolvedPerson = resolvedProperties.personnel[canonicalId] ?? {};
-      const firstName = requiredString(
-        sourceName,
-        "first_name",
-        source.first_name,
-      );
-      const lastName = requiredString(
-        sourceName,
-        "last_name",
-        source.last_name,
-      );
-      const sourceOwnedColumns = officerSourceColumns.filter((columnName) =>
-        hasOwnField(source, columnName),
-      );
-      ownedColumns.officers[canonicalId] = [...sourceOwnedColumns, "slug"];
-
-      return {
-        id: canonicalId,
-        first_name: firstName,
-        last_name: lastName,
-        middle_name: valueAsStringOrNull(source.middle_name),
-        prefix: valueAsStringOrNull(source.prefix),
-        suffix: valueAsStringOrNull(source.suffix),
-        slug: personnelSlug({
-          canonicalId,
-          firstName,
-          lastName,
-          resolvedSlug: resolvedPerson.slug,
-        }),
-      };
-    },
-  );
+  // Personnel rows are no longer built here; they are produced by the
+  // PersonnelFacade (ADR 0016), which resolves its own canonical id, generates a
+  // unique slug, and emits its own mutations.
 
   const agencyOfficers = Object.entries(
     entityMap(artifacts, "agencyPersonnel"),
@@ -608,7 +524,6 @@ export function transformArtifacts(
     locationPathGeometries,
     locationPathAliases,
     agencies,
-    officers,
     agencyOfficers,
     preparationMutations: [],
     ownedColumns,

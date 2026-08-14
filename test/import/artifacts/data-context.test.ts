@@ -50,12 +50,10 @@ const rows: ImportRows = {
   locationPaths: [],
   locationPathAliases: [],
   agencies: [],
-  officers: [],
   agencyOfficers: [],
   preparationMutations: [],
   ownedColumns: {
     agencies: {},
-    officers: {},
     agencyOfficers: {},
   },
 };
@@ -1045,5 +1043,224 @@ describe("DataContext", () => {
     await expect(facade.toMutation()).rejects.toThrow(
       /no License facade was emitted for source id "1000038\|Peace Officer License" \(forward reference/,
     );
+  });
+});
+
+describe("PersonnelFacade", () => {
+  function emptyPersonnel(): SourceNameToCanonicalIds {
+    return {
+      agencies: {},
+      personnel: {},
+      agencyPersonnel: {},
+      locationPaths: {},
+      licensingAuthorities: {},
+      licenses: {},
+      licenseActions: {},
+    };
+  }
+
+  function personnelContext(options?: {
+    client?: DatabaseClient;
+    personnel?: SourceNameToCanonicalIds["personnel"];
+    databaseOfficers?: Record<string, unknown>[];
+    persistSourceNameToCanonicalIds?: (
+      namespace: string,
+      mappings: SourceNameToCanonicalIds,
+    ) => Promise<void>;
+  }): DataContext {
+    return new DataContext({
+      client: options?.client ?? new EmptyClient(),
+      rows,
+      commandName: "command-name",
+      sourceNameToCanonicalIds: {
+        ...emptyPersonnel(),
+        personnel: options?.personnel ?? {},
+      },
+      ...(options?.databaseOfficers === undefined
+        ? {}
+        : { databaseOfficers: options.databaseOfficers }),
+      ...(options?.persistSourceNameToCanonicalIds === undefined
+        ? {}
+        : {
+            persistSourceNameToCanonicalIds:
+              options.persistSourceNameToCanonicalIds,
+          }),
+    });
+  }
+
+  test("finds a seeded canonical id and emits a PersonnelCreate with a generated slug", async () => {
+    const context = personnelContext({
+      personnel: { "1000038": { canonicalId: "personnel-canonical-id" } },
+    });
+    const facade = context.personnelFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "gov.tx.tcole",
+      name: "1000038",
+      spec: { first_name: "Marc", last_name: "Denney" },
+    });
+
+    expect(await facade.toMutation()).toMatchObject({
+      kind: "PersonnelCreate",
+      metadata: { namespace: "gov.tx.tcole", name: "1000038" },
+      spec: {
+        id: "personnel-canonical-id",
+        first_name: "Marc",
+        last_name: "Denney",
+        middle_name: null,
+        prefix: null,
+        suffix: null,
+        slug: "marc-denney-icalid",
+      },
+    });
+  });
+
+  test("mints and durably persists a canonical id when none is seeded (id stability)", async () => {
+    const persisted: {
+      namespace: string;
+      mappings: SourceNameToCanonicalIds;
+    }[] = [];
+    const context = personnelContext({
+      persistSourceNameToCanonicalIds: async (namespace, mappings) => {
+        persisted.push({
+          namespace,
+          mappings: JSON.parse(JSON.stringify(mappings)),
+        });
+      },
+    });
+    const facade = context.personnelFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "gov.tx.tcole",
+      name: "new-officer-source",
+      spec: { first_name: "New", last_name: "Officer" },
+    });
+
+    const mutation = await facade.toMutation();
+    const mintedId = (mutation.spec as { id: string }).id;
+    expect(mintedId).toMatch(/^[a-z0-9]{20,}$/);
+    // value("id") is memoized: the FK-find and toMutation see the same id.
+    expect(await facade.value("id")).toBe(mintedId);
+    // The mint is durably persisted to the ledger under the source id.
+    expect(persisted.length).toBeGreaterThan(0);
+    const last = persisted.at(-1)!;
+    expect(last.namespace).toBe("gov.tx.tcole");
+    expect(last.mappings.personnel["new-officer-source"]).toEqual({
+      kind: "Personnel",
+      canonicalId: mintedId,
+    });
+  });
+
+  test("uses an explicitly supplied slug as-is", async () => {
+    const context = personnelContext({
+      personnel: { "1000038": { canonicalId: "personnel-canonical-id" } },
+    });
+    const facade = context.personnelFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "gov.tx.tcole",
+      name: "1000038",
+      spec: { first_name: "Marc", last_name: "Denney", slug: "custom-slug" },
+    });
+
+    expect(await facade.toMutation()).toMatchObject({
+      kind: "PersonnelCreate",
+      spec: { slug: "custom-slug" },
+    });
+  });
+
+  test("reuses the existing database row's slug for stability and emits an update", async () => {
+    const context = personnelContext({
+      personnel: { "1000038": { canonicalId: "personnel-canonical-id" } },
+      databaseOfficers: [
+        {
+          id: "personnel-canonical-id",
+          first_name: "Marc",
+          last_name: "Denney",
+          middle_name: null,
+          prefix: null,
+          suffix: null,
+          slug: "legacy-slug",
+        },
+      ],
+    });
+    const facade = context.personnelFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "gov.tx.tcole",
+      name: "1000038",
+      // A corrected first name must not change the slug.
+      spec: { first_name: "Marcus", last_name: "Denney" },
+    });
+
+    expect(await facade.toMutation()).toMatchObject({
+      kind: "PersonnelUpdate",
+      spec: {
+        operations: expect.arrayContaining([
+          expect.objectContaining({
+            action: "check",
+            path: "slug",
+            value: "legacy-slug",
+          }),
+          expect.objectContaining({
+            action: "set",
+            path: "first_name",
+            from: "Marc",
+            to: "Marcus",
+          }),
+        ]),
+      },
+    });
+  });
+
+  test("slug uniqueness disambiguates against another record planned in the same command", async () => {
+    // Two officers with the same name whose canonical ids share the last six
+    // alphanumerics collide on the generated base slug (level 1: current command).
+    const context = personnelContext({
+      personnel: {
+        p1: { canonicalId: "officer-aaaaaa" },
+        p2: { canonicalId: "deputy-aaaaaa" },
+      },
+    });
+    const first = context.personnelFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "gov.tx.tcole",
+      name: "p1",
+      spec: { first_name: "John", last_name: "Doe" },
+    });
+    const second = context.personnelFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "gov.tx.tcole",
+      name: "p2",
+      spec: { first_name: "John", last_name: "Doe" },
+    });
+
+    expect(await first.value("slug")).toBe("john-doe-aaaaaa");
+    expect(await second.value("slug")).toBe("john-doe-aaaaaa-2");
+  });
+
+  test("slug uniqueness disambiguates against a conflicting database row (level 3)", async () => {
+    class OfficerSlugClient extends EmptyClient {
+      async query(
+        text = "",
+        values: readonly unknown[] = [],
+      ): Promise<{ rows: Record<string, unknown>[] }> {
+        if (/select id, slug from public\.officers where slug = any/i.test(text)) {
+          const slug = (values[0] as string[] | undefined)?.[0];
+          if (slug === "marc-denney-icalid") {
+            return { rows: [{ id: "someone-else", slug }] };
+          }
+        }
+        return { rows: [] };
+      }
+    }
+    const context = personnelContext({
+      client: new OfficerSlugClient(),
+      personnel: { "1000038": { canonicalId: "personnel-canonical-id" } },
+    });
+    const facade = context.personnelFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "gov.tx.tcole",
+      name: "1000038",
+      spec: { first_name: "Marc", last_name: "Denney" },
+    });
+
+    expect(await facade.value("slug")).toBe("marc-denney-icalid-2");
   });
 });

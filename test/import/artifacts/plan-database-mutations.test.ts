@@ -37,17 +37,6 @@ const rows: ImportRows = {
       longitude: -93.102211,
     },
   ],
-  officers: [
-    {
-      id: "personnel-canonical-id",
-      first_name: "Spenser",
-      last_name: "Stockwell",
-      middle_name: null,
-      prefix: null,
-      suffix: null,
-      slug: "spenser-stockwell",
-    },
-  ],
   agencyOfficers: [
     {
       id: "agency-personnel-canonical-id",
@@ -75,16 +64,6 @@ const rows: ImportRows = {
         "location_path_id",
         "latitude",
         "longitude",
-      ],
-    },
-    officers: {
-      "personnel-canonical-id": [
-        "first_name",
-        "last_name",
-        "middle_name",
-        "prefix",
-        "suffix",
-        "slug",
       ],
     },
     agencyOfficers: {
@@ -773,7 +752,8 @@ describe("planDatabaseMutations", () => {
       locationPathGeometries: 0,
       locationPathAliases: 0,
       agencies: 1,
-      officers: 1,
+      // Personnel is facade-based (ADR 0016); it produces no plan-time row count.
+      officers: 0,
       agencyOfficers: 1,
       licensingAuthorities: 0,
       licenses: 0,
@@ -781,7 +761,6 @@ describe("planDatabaseMutations", () => {
     });
 
     expect(result.operations.agencies["agency-canonical-id"]).toBe("create");
-    expect(result.operations.officers["personnel-canonical-id"]).toBe("create");
     expect(
       result.operations.agencyOfficers["agency-personnel-canonical-id"],
     ).toBe("create");
@@ -828,11 +807,9 @@ describe("planDatabaseMutations", () => {
         },
       ],
       agencies: [],
-      officers: [],
       agencyOfficers: [],
       ownedColumns: {
         agencies: {},
-        officers: {},
         agencyOfficers: {},
       },
     };
@@ -890,11 +867,9 @@ describe("planDatabaseMutations", () => {
         },
       ],
       agencies: [],
-      officers: [],
       agencyOfficers: [],
       ownedColumns: {
         agencies: {},
-        officers: {},
         agencyOfficers: {},
       },
     };
@@ -954,7 +929,6 @@ describe("planDatabaseMutations", () => {
     expect(result.operations).toEqual(
       expect.objectContaining({
         agencies: { "agency-canonical-id": "update" },
-        officers: { "personnel-canonical-id": "update" },
         agencyOfficers: { "agency-personnel-canonical-id": "update" },
       }),
     );
@@ -979,12 +953,13 @@ describe("planDatabaseMutations", () => {
       ].join("\n"),
     );
 
+    // Only agencies remain row-based here; personnel slug uniqueness is owned by
+    // the PersonnelFacade resolver (ADR 0016), not this planning-pass validation.
     const slugQueries = client.queries.filter(({ text }) =>
       /where slug = any/i.test(text),
     );
-    expect(slugQueries).toHaveLength(2);
+    expect(slugQueries).toHaveLength(1);
     expect(slugQueries[0]?.values).toEqual([["minnesota-state-patrol"]]);
-    expect(slugQueries[1]?.values).toEqual([["spenser-stockwell"]]);
   });
 
   test("SQL text does not contain ON CONFLICT, DO NOTHING, or upsert behavior", async () => {
@@ -1008,10 +983,6 @@ describe("planDatabaseMutations", () => {
         rows: [{ ...rows.agencies[0], name: "Old Agency Name" }],
       },
       {
-        pattern: /select \* from public\.officers\b/i,
-        rows: [rows.officers[0]],
-      },
-      {
         pattern: /select \* from public\.agency_officers\b/i,
         rows: [rows.agencyOfficers[0]],
       },
@@ -1027,7 +998,8 @@ describe("planDatabaseMutations", () => {
       locationPathGeometries: 0,
       locationPathAliases: 0,
       agencies: 1,
-      officers: 1,
+      // Personnel is facade-based (ADR 0016); it produces no plan-time row count.
+      officers: 0,
       agencyOfficers: 1,
       licensingAuthorities: 0,
       licenses: 0,
@@ -1037,7 +1009,6 @@ describe("planDatabaseMutations", () => {
       client.queries.some(({ text }) => /insert into\s+public\./i.test(text)),
     ).toBe(false);
     expect(result.operations.agencies["agency-canonical-id"]).toBe("update");
-    expect(result.operations.officers["personnel-canonical-id"]).toBe("update");
     expect(
       result.operations.agencyOfficers["agency-personnel-canonical-id"],
     ).toBe("update");
@@ -1094,13 +1065,11 @@ describe("planDatabaseMutations", () => {
           longitude: undefined,
         },
       ],
-      officers: [],
       agencyOfficers: [],
       ownedColumns: {
         agencies: {
           "agency-canonical-id": ["name", "state"],
         },
-        officers: {},
         agencyOfficers: {},
       },
     };
@@ -1138,13 +1107,11 @@ describe("planDatabaseMutations", () => {
           longitude: undefined,
         },
       ],
-      officers: [],
       agencyOfficers: [],
       ownedColumns: {
         agencies: {
           "agency-canonical-id": ["name", "state"],
         },
-        officers: {},
         agencyOfficers: {},
       },
     };
@@ -1208,13 +1175,11 @@ describe("planDatabaseMutations", () => {
           location_path_id: undefined,
         },
       ],
-      officers: [],
       agencyOfficers: [],
       ownedColumns: {
         agencies: {
           "agency-canonical-id": ["name", "state"],
         },
-        officers: {},
         agencyOfficers: {},
       },
     };
@@ -1331,13 +1296,11 @@ describe("planDatabaseMutations", () => {
           location_path_id: undefined,
         },
       ],
-      officers: [],
       agencyOfficers: [],
       ownedColumns: {
         agencies: {
           "agency-canonical-id": ["name", "state"],
         },
-        officers: {},
         agencyOfficers: {},
       },
     };
@@ -1420,26 +1383,6 @@ describe("planDatabaseMutations", () => {
           longitude: -93.1,
         },
       ],
-      officers: [
-        {
-          id: "personnel-canonical-id",
-          first_name: "Spenser",
-          last_name: "Stockwell",
-          middle_name: null,
-          prefix: null,
-          suffix: null,
-          slug: "spenser-stockwell",
-        },
-        {
-          id: "second-personnel-canonical-id",
-          first_name: "Alex",
-          last_name: "Rivera",
-          middle_name: null,
-          prefix: null,
-          suffix: null,
-          slug: "alex-rivera",
-        },
-      ],
       agencyOfficers: [
         {
           id: "agency-personnel-canonical-id",
@@ -1470,24 +1413,6 @@ describe("planDatabaseMutations", () => {
             "location_path_id",
             "latitude",
             "longitude",
-          ],
-        },
-        officers: {
-          "personnel-canonical-id": [
-            "first_name",
-            "last_name",
-            "middle_name",
-            "prefix",
-            "suffix",
-            "slug",
-          ],
-          "second-personnel-canonical-id": [
-            "first_name",
-            "last_name",
-            "middle_name",
-            "prefix",
-            "suffix",
-            "slug",
           ],
         },
         agencyOfficers: {
@@ -1591,9 +1516,9 @@ describe("planDatabaseMutations", () => {
     ).toEqual(["second-agency-personnel-canonical-id"]);
     expect(result.counts.agencyOfficers).toBe(1);
 
-    // Personnel/officer rows are never affected by an excluded agency.
-    expect(partialRows.officers).toHaveLength(2);
-    expect(result.counts.officers).toBe(2);
+    // Personnel are facade-based (ADR 0016) and unaffected by an excluded agency;
+    // they no longer appear as transform rows or plan-time counts.
+    expect(result.counts.officers).toBe(0);
 
     expect(logger.info).toHaveBeenCalledWith(
       expect.objectContaining({ entityType: "agency", excludedCount: 1 }),
@@ -1639,13 +1564,11 @@ describe("planDatabaseMutations", () => {
           location_path_id: undefined,
         },
       ],
-      officers: [],
       agencyOfficers: [],
       ownedColumns: {
         agencies: {
           "agency-canonical-id": ["name", "state"],
         },
-        officers: {},
         agencyOfficers: {},
       },
     };
@@ -1738,13 +1661,11 @@ describe("planDatabaseMutations", () => {
           location_path_id: undefined,
         },
       ],
-      officers: [],
       agencyOfficers: [],
       ownedColumns: {
         agencies: {
           "agency-canonical-id": ["name", "city", "state"],
         },
-        officers: {},
         agencyOfficers: {},
       },
     };
@@ -1828,13 +1749,11 @@ describe("planDatabaseMutations", () => {
           longitude: -93.23296250042694,
         },
       ],
-      officers: [],
       agencyOfficers: [],
       ownedColumns: {
         agencies: {
           "agency-canonical-id": ["name", "state"],
         },
-        officers: {},
         agencyOfficers: {},
       },
     };
@@ -2000,13 +1919,11 @@ describe("planDatabaseMutations", () => {
             longitude,
           },
         ],
-        officers: [],
         agencyOfficers: [],
         ownedColumns: {
           agencies: {
             "agency-canonical-id": ["name", "state"],
           },
-          officers: {},
           agencyOfficers: {},
         },
       };
@@ -2064,13 +1981,11 @@ describe("planDatabaseMutations", () => {
           longitude: -93.23296250042694,
         },
       ],
-      officers: [],
       agencyOfficers: [],
       ownedColumns: {
         agencies: {
           "agency-canonical-id": ["name", "state"],
         },
-        officers: {},
         agencyOfficers: {},
       },
     };
@@ -2143,13 +2058,11 @@ describe("planDatabaseMutations", () => {
           longitude: undefined,
         },
       ],
-      officers: [],
       agencyOfficers: [],
       ownedColumns: {
         agencies: {
           "agency-canonical-id": ["name", "latitude", "longitude"],
         },
-        officers: {},
         agencyOfficers: {},
       },
     };
@@ -2225,13 +2138,11 @@ describe("planDatabaseMutations", () => {
           longitude: undefined,
         },
       ],
-      officers: [],
       agencyOfficers: [],
       ownedColumns: {
         agencies: {
           "agency-canonical-id": ["name", "latitude", "longitude"],
         },
-        officers: {},
         agencyOfficers: {},
       },
     };
@@ -2328,7 +2239,6 @@ describe("planDatabaseMutations", () => {
           longitude: undefined,
         },
       ],
-      officers: [],
       agencyOfficers: [],
       ownedColumns: {
         agencies: {
@@ -2339,7 +2249,6 @@ describe("planDatabaseMutations", () => {
             "longitude",
           ],
         },
-        officers: {},
         agencyOfficers: {},
       },
     };
@@ -2419,7 +2328,6 @@ describe("planDatabaseMutations", () => {
           longitude: undefined,
         },
       ],
-      officers: [],
       agencyOfficers: [],
       ownedColumns: {
         agencies: {
@@ -2430,7 +2338,6 @@ describe("planDatabaseMutations", () => {
             "longitude",
           ],
         },
-        officers: {},
         agencyOfficers: {},
       },
     };
@@ -2522,7 +2429,6 @@ describe("planDatabaseMutations", () => {
         },
         secondAgency,
       ],
-      officers: [],
       agencyOfficers: [],
       ownedColumns: {
         agencies: {
@@ -2539,7 +2445,6 @@ describe("planDatabaseMutations", () => {
             "longitude",
           ],
         },
-        officers: {},
         agencyOfficers: {},
       },
     };
@@ -2601,13 +2506,11 @@ describe("planDatabaseMutations", () => {
           longitude: undefined,
         },
       ],
-      officers: [],
       agencyOfficers: [],
       ownedColumns: {
         agencies: {
           "agency-canonical-id": ["name", "latitude", "longitude"],
         },
-        officers: {},
         agencyOfficers: {},
       },
     };
@@ -2698,13 +2601,11 @@ describe("planDatabaseMutations", () => {
           longitude: undefined,
         },
       ],
-      officers: [],
       agencyOfficers: [],
       ownedColumns: {
         agencies: {
           "agency-canonical-id": ["name", "latitude", "longitude"],
         },
-        officers: {},
         agencyOfficers: {},
       },
     };
@@ -2786,7 +2687,6 @@ describe("planDatabaseMutations", () => {
           },
         },
       ],
-      officers: [],
       agencyOfficers: [],
       ownedColumns: {
         agencies: {
@@ -2799,7 +2699,6 @@ describe("planDatabaseMutations", () => {
             "longitude",
           ],
         },
-        officers: {},
         agencyOfficers: {},
       },
     };
@@ -2903,13 +2802,11 @@ describe("planDatabaseMutations", () => {
           longitude: undefined,
         },
       ],
-      officers: [],
       agencyOfficers: [],
       ownedColumns: {
         agencies: {
           "agency-canonical-id": ["name", "city", "state"],
         },
-        officers: {},
         agencyOfficers: {},
       },
     };
@@ -3029,13 +2926,11 @@ describe("planDatabaseMutations", () => {
           location_path_id: "cached-location-path-id",
         },
       ],
-      officers: [],
       agencyOfficers: [],
       ownedColumns: {
         agencies: {
           "agency-canonical-id": ["name", "city", "state", "location_path_id"],
         },
-        officers: {},
         agencyOfficers: {},
       },
     };
@@ -3122,11 +3017,9 @@ describe("planDatabaseMutations", () => {
         },
       ],
       agencies: [],
-      officers: [],
       agencyOfficers: [],
       ownedColumns: {
         agencies: {},
-        officers: {},
         agencyOfficers: {},
       },
     };
@@ -3161,7 +3054,8 @@ describe("planDatabaseMutations", () => {
       locationPathGeometries: 0,
       locationPathAliases: 0,
       agencies: 1,
-      officers: 1,
+      // Personnel is facade-based (ADR 0016); it produces no plan-time row count.
+      officers: 0,
       agencyOfficers: 1,
       licensingAuthorities: 0,
       licenses: 0,
@@ -3170,7 +3064,6 @@ describe("planDatabaseMutations", () => {
     expect(result.operations).toEqual(
       expect.objectContaining({
         agencies: { "agency-canonical-id": "create" },
-        officers: { "personnel-canonical-id": "create" },
         agencyOfficers: { "agency-personnel-canonical-id": "create" },
       }),
     );
@@ -3199,13 +3092,11 @@ describe("planDatabaseMutations", () => {
           longitude: undefined,
         },
       ],
-      officers: [],
       agencyOfficers: [],
       ownedColumns: {
         agencies: {
           "agency-canonical-id": ["name", "state"],
         },
-        officers: {},
         agencyOfficers: {},
       },
     };

@@ -309,17 +309,6 @@ describe("transformArtifacts", () => {
           longitude: -93.102211,
         },
       ],
-      officers: [
-        {
-          id: "personnel-canonical-id",
-          first_name: "Spenser",
-          last_name: "Stockwell",
-          middle_name: null,
-          prefix: null,
-          suffix: null,
-          slug: "spenser-stockwell",
-        },
-      ],
       agencyOfficers: [
         {
           id: "agency-personnel-canonical-id",
@@ -349,16 +338,6 @@ describe("transformArtifacts", () => {
             "longitude",
           ],
         },
-        officers: {
-          "personnel-canonical-id": [
-            "first_name",
-            "last_name",
-            "middle_name",
-            "prefix",
-            "suffix",
-            "slug",
-          ],
-        },
         agencyOfficers: {
           "agency-personnel-canonical-id": [
             "agency_id",
@@ -373,33 +352,9 @@ describe("transformArtifacts", () => {
     });
   });
 
-  test("derives personnel slug from name and canonical ID when no resolved slug exists", () => {
-    const artifacts = artifactsWithEntities({
-      personnel: {
-        [personnel.id]: personnel,
-      },
-    });
-
-    const rows = transformArtifacts(artifacts, mappings, {
-      agencies: {},
-      personnel: {},
-    });
-
-    expect(rows.officers).toEqual([
-      {
-        id: "personnel-canonical-id",
-        first_name: "Spenser",
-        last_name: "Stockwell",
-        middle_name: null,
-        prefix: null,
-        suffix: null,
-        slug: "spenser-stockwell-icalid",
-      },
-    ]);
-    expect(rows.ownedColumns.officers["personnel-canonical-id"]).toContain(
-      "slug",
-    );
-  });
+  // Personnel is facade-based (ADR 0016): the canonical-id find-or-create and
+  // unique-slug generation are exercised in data-context.test.ts, not here — the
+  // transform no longer produces personnel rows.
 
   test("rejects unknown source record fields", () => {
     const artifacts = artifactsWithEntities({

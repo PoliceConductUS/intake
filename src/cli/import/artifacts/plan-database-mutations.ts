@@ -289,13 +289,13 @@ export async function planDatabaseMutations(
       locationPathGeometries: rows.locationPathGeometries?.length ?? 0,
       locationPathAliases: rows.locationPathAliases.length,
       agencies: rows.agencies.length,
-      officers: rows.officers.length,
+      // ImportRowCounts is a plan-time tally of transform rows. Personnel,
+      // LicensingAuthority, License, and LicenseAction are facade-based (ADR 0016),
+      // so they produce no transform rows here; their mutations are counted
+      // authoritatively — identically to Agency — from the emitted
+      // DatabaseMutations envelope via countDatabaseMutations.
+      officers: 0,
       agencyOfficers: rows.agencyOfficers.length,
-      // ImportRowCounts is a plan-time tally of transform rows. LicensingAuthority,
-      // License, and LicenseAction are facade-based (ADR 0016), so they produce no
-      // transform rows here; their mutations are counted authoritatively —
-      // identically to Agency — from the emitted DatabaseMutations envelope via
-      // countDatabaseMutations.
       licensingAuthorities: 0,
       licenses: 0,
       licenseActions: 0,

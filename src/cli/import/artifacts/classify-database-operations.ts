@@ -113,14 +113,9 @@ export async function classifyDatabaseOperations(
       : "create";
   }
 
-  for (const officer of rows.officers) {
-    const exists = await rowExists(client, "public.officers", officer.id);
-    operations.officers[officer.id] = exists
-      ? (rows.ownedColumns.officers[officer.id] ?? []).length > 0
-        ? "update"
-        : "read"
-      : "create";
-  }
+  // Personnel is facade-based (ADR 0016): the PersonnelFacade owns create-vs-update
+  // via its resolvers and emits its own mutations, so officers have no transform
+  // rows to classify here.
 
   for (const agencyOfficer of rows.agencyOfficers) {
     const exists = await rowExists(

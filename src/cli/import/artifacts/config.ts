@@ -154,15 +154,6 @@ function slugSourceInput(
   };
 }
 
-function preparedPersonnelSpec(
-  personnel: ImportRows["officers"][number],
-): Record<string, unknown> {
-  const { id: _id, ...spec } = personnel;
-  return Object.fromEntries(
-    Object.entries(spec).filter(([, value]) => value !== undefined),
-  );
-}
-
 function preparedAgencyPersonnelSpec(
   agencyPersonnel: ImportRows["agencyOfficers"][number],
 ): Record<string, unknown> {
@@ -244,38 +235,25 @@ async function hydrateResolvedSlugs(
     agencies: {},
     personnel: {},
   };
+  // Personnel slugs are owned by the PersonnelFacade's generate-unique resolver
+  // (ADR 0016) and reused from the database for stability, so only agency slugs
+  // are hydrated from the durable cache here.
   for (const artifact of context.artifacts.spec.artifacts) {
-    if (artifact.kind !== "Agencies" && artifact.kind !== "Personnel") {
+    if (artifact.kind !== "Agencies") {
       continue;
     }
     for (const [recordName, record] of Object.entries(artifact.spec.records)) {
       const sourceName = sourceNameForImportRecord(recordName, record);
-      if (artifact.kind === "Agencies") {
-        const canonicalId =
-          context.resolvedMappings.agencies[sourceName]?.canonicalId;
-        if (canonicalId !== undefined) {
-          await hydrateResolvedSlug(context, {
-            resolvedProperties,
-            collection: "agencies",
-            kind: "Agency",
-            sourceName,
-            canonicalId,
-            sourceInput: slugSourceInput("Agency", record),
-          });
-        }
-        continue;
-      }
-
       const canonicalId =
-        context.resolvedMappings.personnel[sourceName]?.canonicalId;
+        context.resolvedMappings.agencies[sourceName]?.canonicalId;
       if (canonicalId !== undefined) {
         await hydrateResolvedSlug(context, {
           resolvedProperties,
-          collection: "personnel",
-          kind: "Personnel",
+          collection: "agencies",
+          kind: "Agency",
           sourceName,
           canonicalId,
-          sourceInput: slugSourceInput("Personnel", record),
+          sourceInput: slugSourceInput("Agency", record),
         });
       }
     }
@@ -297,30 +275,25 @@ async function persistResolvedSlugs(
     );
   }
 
+  // Personnel slugs are owned by the PersonnelFacade's generate-unique resolver
+  // (ADR 0016), which reuses an existing DB slug for stability; they are no
+  // longer cached here. Only agency slugs remain row-based.
   const agencyById = new Map(
     context.rows.agencies.map((agency) => [agency.id, agency]),
   );
-  const personnelById = new Map(
-    context.rows.officers.map((personnel) => [personnel.id, personnel]),
-  );
   let cachedSlugs = 0;
   for (const artifact of context.artifacts.spec.artifacts) {
-    if (artifact.kind !== "Agencies" && artifact.kind !== "Personnel") {
+    if (artifact.kind !== "Agencies") {
       continue;
     }
     for (const [recordName, record] of Object.entries(artifact.spec.records)) {
       const sourceName = sourceNameForImportRecord(recordName, record);
-      const kind = artifact.kind === "Agencies" ? "Agency" : "Personnel";
       const canonicalId =
-        kind === "Agency"
-          ? context.resolvedMappings.agencies[sourceName]?.canonicalId
-          : context.resolvedMappings.personnel[sourceName]?.canonicalId;
+        context.resolvedMappings.agencies[sourceName]?.canonicalId;
       const slug =
         canonicalId === undefined
           ? undefined
-          : kind === "Agency"
-            ? agencyById.get(canonicalId)?.slug
-            : personnelById.get(canonicalId)?.slug;
+          : agencyById.get(canonicalId)?.slug;
       if (
         canonicalId === undefined ||
         typeof slug !== "string" ||
@@ -332,10 +305,10 @@ async function persistResolvedSlugs(
       await writeResolvedProperty({
         ...slugCacheInput({
           namespace: context.artifacts.metadata.namespace,
-          kind,
+          kind: "Agency",
           sourceName,
           canonicalId,
-          sourceInput: slugSourceInput(kind, record),
+          sourceInput: slugSourceInput("Agency", record),
         }),
         rootDir: context.workspaceRoot,
         value: slug,
@@ -355,38 +328,22 @@ async function persistResolvedSlugs(
 function addPersonnelSourceFacades(
   dataContext: DataContext,
   artifacts: ArtifactsEnvelope,
-  rows: ImportRows,
-  sourceNameToCanonicalIds: SourceNameToCanonicalIds,
 ): void {
-  const preparedPersonnelByCanonicalId = new Map(
-    rows.officers.map((personnel) => [personnel.id, personnel]),
-  );
-
+  // Route each Personnel source record through its facade (ADR 0016). The
+  // facade's resolvers derive the canonical id (ledger find-or-create) and a
+  // unique slug (generate-unique), then `toMutation` emits the create or update.
+  // No prepared transform row is involved.
   for (const artifact of artifacts.spec.artifacts.filter(
     (item) => item.kind === "Personnel",
   )) {
     for (const [recordName, record] of Object.entries(artifact.spec.records)) {
       const sourceName = sourceNameForImportRecord(recordName, record);
-      const canonicalId =
-        sourceNameToCanonicalIds.personnel[sourceName]?.canonicalId;
-      const personnel =
-        canonicalId === undefined
-          ? undefined
-          : preparedPersonnelByCanonicalId.get(canonicalId);
-      if (personnel === undefined) {
-        throw new Error(
-          `Prepared personnel row is missing for source personnel ${sourceName}.`,
-        );
-      }
-
-      const source = valueAsRecord(record);
-      const facade = dataContext.personnelFromSource({
+      dataContext.personnelFromSource({
         apiVersion: INTAKE_API_VERSION,
         namespace: artifacts.metadata.namespace,
         name: sourceName,
-        spec: source,
+        spec: valueAsRecord(record),
       });
-      facade.merge(preparedPersonnelSpec(personnel));
     }
   }
 }
@@ -772,7 +729,6 @@ async function transformArtifactsStage(
   context.commandInput.logger?.debug(
     {
       agencies: rows.agencies.length,
-      officers: rows.officers.length,
       agencyOfficers: rows.agencyOfficers.length,
     },
     "Artifacts transformed.",
@@ -906,7 +862,8 @@ async function writeDatabaseMutationsDebugStage(
         locationPathGeometries: error.rows.locationPathGeometries?.length ?? 0,
         locationPathAliases: error.rows.locationPathAliases.length,
         agencies: error.rows.agencies.length,
-        personnel: error.rows.officers.length,
+        // Personnel is facade-based (ADR 0016) and counted from the emitted
+        // envelope, not from transform rows.
         agencyPersonnel: error.rows.agencyOfficers.length,
       },
       errors: [...error.errors],
@@ -1197,10 +1154,13 @@ async function writeDatabaseMutationsStage(
     );
   }
   // The LicensingAuthority location_path resolver reaches the backend
-  // (resolve-or-fail, ADR 0006/0015), and the License / LicenseAction facades
-  // load existing rows to decide create-vs-update. Give the DataContext a
-  // database client when any of these facade-based entities exist.
+  // (resolve-or-fail, ADR 0006/0015); the License / LicenseAction facades load
+  // existing rows to decide create-vs-update; and the Personnel facade checks the
+  // database for slug uniqueness and loads existing officers for create-vs-update.
+  // Give the DataContext a database client when any of these facade-based entities
+  // exist.
   const facadeEntityKinds = [
+    "Personnel",
     "LicensingAuthorities",
     "Licenses",
     "LicenseActions",
@@ -1235,6 +1195,14 @@ async function writeDatabaseMutationsStage(
   // `public.license_action` rows for the ledger's canonical ids so each facade
   // auto-loads `current` and emits an update (not a duplicate create) on
   // re-import — mirroring how agencies are loaded via databaseAgencies.
+  const databaseOfficers =
+    facadeBackendClient === undefined
+      ? []
+      : await readDatabaseRecordsByIds(
+          facadeBackendClient,
+          "public.officers",
+          canonicalIds(context.resolvedMappings.personnel),
+        );
   const databaseLicensingAuthorities =
     facadeBackendClient === undefined
       ? []
@@ -1271,6 +1239,7 @@ async function writeDatabaseMutationsStage(
       // Must match the preparation pass on which agencies already exist, so an
       // existing agency is written as an update (not a create missing a slug).
       databaseAgencies: context.databaseResult.databaseAgencies,
+      databaseOfficers,
       databaseLicensingAuthorities,
       databaseLicenses,
       databaseLicenseActions,
@@ -1291,12 +1260,7 @@ async function writeDatabaseMutationsStage(
     // Personnel before Licenses, Licenses before LicenseActions. Agencies and
     // AgencyPersonnel are unaffected.
     addLicensingAuthoritySourceFacades(dataContext, context.artifacts);
-    addPersonnelSourceFacades(
-      dataContext,
-      context.artifacts,
-      context.rows,
-      context.resolvedMappings,
-    );
+    addPersonnelSourceFacades(dataContext, context.artifacts);
     addLicenseSourceFacades(dataContext, context.artifacts);
     addLicenseActionSourceFacades(dataContext, context.artifacts);
     addAgencyPersonnelSourceFacades(

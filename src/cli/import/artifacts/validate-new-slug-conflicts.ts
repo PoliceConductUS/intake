@@ -98,27 +98,14 @@ export async function validatePreparedNewSlugConflicts(
   client: DatabaseClient,
   rows: ImportRows,
 ): Promise<string[]> {
+  // Personnel slug uniqueness is owned by the PersonnelFacade's generate-unique
+  // slug resolver (ADR 0016), which checks the current command and the database.
+  // Only agencies remain row-based here.
   const newAgencies = await newRowsForTable(
     client,
     "public.agency",
     rows.agencies,
   );
-  const newOfficers = await newRowsForTable(
-    client,
-    "public.officers",
-    rows.officers,
-  );
 
-  return [
-    ...(await validateNewRowSlugConflicts(
-      client,
-      "public.agency",
-      newAgencies,
-    )),
-    ...(await validateNewRowSlugConflicts(
-      client,
-      "public.officers",
-      newOfficers,
-    )),
-  ];
+  return validateNewRowSlugConflicts(client, "public.agency", newAgencies);
 }

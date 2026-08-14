@@ -54,17 +54,6 @@ const rows: ImportRows = {
       longitude: -93.102211,
     },
   ],
-  officers: [
-    {
-      id: "personnel-canonical-id",
-      first_name: "Spenser",
-      last_name: "Stockwell",
-      middle_name: null,
-      prefix: null,
-      suffix: null,
-      slug: "spenser-stockwell",
-    },
-  ],
   agencyOfficers: [
     {
       id: "agency-personnel-canonical-id",
@@ -92,16 +81,6 @@ const rows: ImportRows = {
         "location_path_id",
         "latitude",
         "longitude",
-      ],
-    },
-    officers: {
-      "personnel-canonical-id": [
-        "first_name",
-        "last_name",
-        "middle_name",
-        "prefix",
-        "suffix",
-        "slug",
       ],
     },
     agencyOfficers: {
@@ -374,7 +353,6 @@ describe("importArtifacts", () => {
           longitude: undefined,
         },
       ],
-      officers: [],
       agencyOfficers: [],
       ownedColumns: {
         agencies: {
@@ -387,7 +365,6 @@ describe("importArtifacts", () => {
             "longitude",
           ],
         },
-        officers: {},
         agencyOfficers: {},
       },
     };
@@ -885,6 +862,10 @@ describe("importArtifacts", () => {
     if (!firstImport.ok) {
       throw new Error(firstImport.error);
     }
+    // Agency slugs are cached in intake-owned state (ResolvedProperty). Personnel
+    // slugs are facade-based (ADR 0016): stability comes from reusing the existing
+    // database row's slug, not a durable slug cache, so only the agency slug is
+    // asserted against the cache here.
     const agencyCacheInput = {
       subject: {
         apiVersion: INTAKE_API_VERSION,
@@ -893,20 +874,9 @@ describe("importArtifacts", () => {
       },
       targetProperty: "slug",
     } satisfies ResolvedPropertyCacheInput;
-    const personnelCacheInput = {
-      subject: {
-        apiVersion: INTAKE_API_VERSION,
-        kind: "Personnel",
-        name: "personnel-canonical-id",
-      },
-      targetProperty: "slug",
-    } satisfies ResolvedPropertyCacheInput;
     await expect(
       readResolvedProperty({ ...agencyCacheInput, rootDir }),
     ).resolves.toBe("minnesota-state-patrol-icalid");
-    await expect(
-      readResolvedProperty({ ...personnelCacheInput, rootDir }),
-    ).resolves.toBe("spenser-stockwell-icalid");
 
     const secondImport = await importArtifacts({
       artifactsPath: await writeArtifacts(
@@ -935,6 +905,23 @@ describe("importArtifacts", () => {
           {
             pattern: /from public\.location_path\b/i,
             rows: locationPathSnapshot("saint-paul-location-path-id"),
+          },
+          {
+            // The existing officer row carries the slug resolved on the first
+            // import; the PersonnelFacade reuses it (ADR 0016), so a changed name
+            // does not change the slug.
+            pattern: /select \* from public\.officers where id = any/i,
+            rows: [
+              {
+                id: "personnel-canonical-id",
+                first_name: "Spenser",
+                last_name: "Stockwell",
+                middle_name: null,
+                prefix: null,
+                suffix: null,
+                slug: "spenser-stockwell-icalid",
+              },
+            ],
           },
         ]),
     });
