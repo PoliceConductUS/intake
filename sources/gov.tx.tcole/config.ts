@@ -2,7 +2,6 @@ import type {
   SourceRun,
   EmittedRecords,
 } from "../../src/cli/run/source-run.js";
-import { LICENSING_AUTHORITIES } from "./licensing-authorities.js";
 
 /**
  * TX POST (TCOLE) — reconstructs the Texas rows of the database from a single
@@ -26,8 +25,9 @@ import { LICENSING_AUTHORITIES } from "./licensing-authorities.js";
  * (`agency_officers.license_id`) links to the emitted License
  * (`PUBLIC_GUID|LICENSE`) when the assignment carries a non-blank LICENSE.
  *
- * The licensing model adds three more kinds — `LicensingAuthorities` (one per
- * curated US POST body; TCOLE for TX), `Licenses` (distinct
+ * The licensing model adds three more kinds — `LicensingAuthorities` (just
+ * TCOLE, the one authority this source has data for; per ADR 0015 a source emits
+ * only its own authorities, with no shared/curated dataset), `Licenses` (distinct
  * `PUBLIC_GUID`×`LICENSE`, keyed `PUBLIC_GUID|LICENSE`), and `LicenseActions`
  * (one per `OfficersLicensesActions` row, keyed
  * `PUBLIC_GUID|LICENSE|ACTION|ACTION_DATE`).
@@ -240,24 +240,24 @@ function buildAgencyPersonnel(
 }
 
 /**
- * Emits one LicensingAuthority per curated row in the shared US POST reference.
- * Keyed by the curated `key` (e.g. `tcole`). `location_path_id` is the state
- * path string (`/tx/`), which the import transform resolves to the canonical
- * location_path id via the LocationPath ledger.
+ * Emits the single licensing authority this source has data for: TCOLE. Per ADR
+ * 0015 a source emits only its own authorities, using namespace-local names —
+ * there is no shared/curated authority dataset. `location_path_id` is the
+ * namespace-local state value (`"tx"`); the intake root maps it to the canonical
+ * TX location_path (resolve-or-fail, ADR 0006). The source never sees a
+ * canonical id.
  */
 function buildLicensingAuthorities(): EmittedRecords {
-  const records: EmittedRecords = {};
-  for (const authority of LICENSING_AUTHORITIES) {
-    records[authority.key] = {
+  return {
+    tcole: {
       spec: {
-        name: authority.name,
-        abbreviation: authority.abbreviation,
-        website: authority.website,
-        location_path_id: `/${authority.state.toLowerCase()}/`,
+        name: "Texas Commission on Law Enforcement",
+        abbreviation: "TCOLE",
+        website: "https://www.tcole.texas.gov",
+        location_path_id: "tx",
       },
-    };
-  }
-  return records;
+    },
+  };
 }
 
 /**

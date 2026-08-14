@@ -144,6 +144,35 @@ symlink — environmental).
 many existing row/mapping literals keep compiling via `?? []`/`?? {}`; runtime
 `load`/`transform` always populate them.
 
+## 2026-08-14 — namespace isolation applied (ADR 0015); location resolution fixed
+
+Design clarification captured in **ADR 0015** (isolated, mutually-ignorant
+namespaces; self-contained sources; cross-source identity unified only at the
+root; a source emits a namespace-local location value that the root maps). ADRs
+0006/0008 got additive forward-pointers (no reverts).
+
+Consequences applied to the licensing work:
+- **No curated authorities list.** `sources/gov.tx.tcole/licensing-authorities.ts`
+  deleted. `gov.tx.tcole` emits exactly one authority, TCOLE, in-source. DB
+  authorities become {TCOLE, AZ POST, MN POST}, one per POST source; unifying a
+  duplicate authority across sources is deferred root-level dedup (ADR 0008).
+- **`location_path_id` resolution fixed.** The authority emits the namespace-local
+  state value `"tx"`. The prior Phase B code resolved it through the (empty)
+  `gov.tx.tcole` namespace ledger — a latent bug that would throw on a real run.
+  It now resolves at the intake root: a new pre-transform stage
+  `resolveLicensingAuthorityLocationsStage` calls
+  `DataContext.locationPaths.getByPath("/tx/")` (the same resolver agencies use)
+  and surfaces the canonical id via `resolvedProperties.licensingAuthorities`;
+  the transform reads that and throws if unresolved (resolve-or-fail, ADR 0006).
+  No ledger lookup for cross-cutting location.
+- `License.issued_by` / `LicenseAction` / `AgencyPersonnel.license_id` unchanged —
+  they resolve within `gov.tx.tcole`'s own namespace, which is correct.
+
+Verified 2026-08-14: `npm run typecheck` clean; full `vitest` **302 tests / 36
+files pass** (`seed-display.test.ts` still environmental); `openspec validate
+add-tx-post-tcole` valid. New source test asserts TCOLE keyed `tcole` with
+`location_path_id: "tx"`; new transform test proves resolve-or-fail.
+
 ## PENDING — real-data captures (Phase A employment + Phase B licensing)
 
 These require running against the real 02-10 workbook + abandoned maps in the

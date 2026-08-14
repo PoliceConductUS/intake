@@ -269,7 +269,7 @@ describe("gov.tx.tcole run", () => {
     expect(AgencyPersonnelSpec.safeParse(unknown.spec).success).toBe(true);
   });
 
-  it("emits a valid TCOLE LicensingAuthority resolving to the /tx/ state path", async () => {
+  it("emits a valid TCOLE LicensingAuthority with the namespace-local state value", async () => {
     const { records } = (await run(deps)).artifacts.find(
       (a) => a.kind === "LicensingAuthorities",
     )!;
@@ -277,7 +277,7 @@ describe("gov.tx.tcole run", () => {
       name: "Texas Commission on Law Enforcement",
       abbreviation: "TCOLE",
       website: "https://www.tcole.texas.gov",
-      location_path_id: "/tx/",
+      location_path_id: "tx",
     });
     for (const record of Object.values(records)) {
       expect(LicensingAuthoritySpec.safeParse(record.spec).success).toBe(true);

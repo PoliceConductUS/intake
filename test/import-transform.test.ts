@@ -586,7 +586,7 @@ describe("transformArtifacts", () => {
           name: "Texas Commission on Law Enforcement",
           abbreviation: "TCOLE",
           website: "https://www.tcole.texas.gov",
-          location_path_id: "/tx/",
+          location_path_id: "tx",
         },
       },
       licenses: {
@@ -608,27 +608,39 @@ describe("transformArtifacts", () => {
       },
     });
 
-    const rows = transformArtifacts(artifacts, {
-      locationPaths: { "/tx/": { canonicalId: "tx-location-path-id" } },
-      agencies: {},
-      personnel: {
-        [personnel.id]: { canonicalId: "personnel-canonical-id" },
-      },
-      agencyPersonnel: {},
-      licensingAuthorities: {
-        tcole: { canonicalId: "authority-canonical-id" },
-      },
-      licenses: {
-        "003-personnel-source|Peace Officer License": {
-          canonicalId: "license-canonical-id",
+    const rows = transformArtifacts(
+      artifacts,
+      {
+        locationPaths: {},
+        agencies: {},
+        personnel: {
+          [personnel.id]: { canonicalId: "personnel-canonical-id" },
+        },
+        agencyPersonnel: {},
+        licensingAuthorities: {
+          tcole: { canonicalId: "authority-canonical-id" },
+        },
+        licenses: {
+          "003-personnel-source|Peace Officer License": {
+            canonicalId: "license-canonical-id",
+          },
+        },
+        licenseActions: {
+          "003-personnel-source|Peace Officer License|Issued|1994-06-16": {
+            canonicalId: "license-action-canonical-id",
+          },
         },
       },
-      licenseActions: {
-        "003-personnel-source|Peace Officer License|Issued|1994-06-16": {
-          canonicalId: "license-action-canonical-id",
+      {
+        agencies: {},
+        personnel: {},
+        // The intake root resolved the source state value "tx" to this
+        // canonical location_path (mirrors how agencies surface locationPathId).
+        licensingAuthorities: {
+          "authority-canonical-id": { locationPathId: "tx-location-path-id" },
         },
       },
-    });
+    );
 
     expect(rows.licensingAuthorities).toEqual([
       {
@@ -701,6 +713,38 @@ describe("transformArtifacts", () => {
       transformArtifacts(artifacts, mappings, resolvedProperties),
     ).toThrow(
       "Agency-personnel source record a2m-roster-source references unmapped license missing-license.",
+    );
+  });
+
+  test("fails when a licensing authority location did not resolve to a location_path", () => {
+    const artifacts = artifactsWithEntities({
+      licensingAuthorities: {
+        tcole: {
+          name: "Texas Commission on Law Enforcement",
+          abbreviation: "TCOLE",
+          website: "https://www.tcole.texas.gov",
+          location_path_id: "tx",
+        },
+      },
+    });
+
+    expect(() =>
+      transformArtifacts(
+        artifacts,
+        {
+          locationPaths: {},
+          agencies: {},
+          personnel: {},
+          agencyPersonnel: {},
+          licensingAuthorities: {
+            tcole: { canonicalId: "authority-canonical-id" },
+          },
+        },
+        // No resolved location for the authority -> resolve-or-fail.
+        { agencies: {}, personnel: {}, licensingAuthorities: {} },
+      ),
+    ).toThrow(
+      "Artifacts licensing authority tcole references location tx which is not an imported location_path.",
     );
   });
 

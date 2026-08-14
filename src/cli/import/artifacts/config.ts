@@ -61,7 +61,11 @@ import {
   writeResolvedProperty,
 } from "../../state/resolved-property/index.js";
 import { replayDatabaseMutations } from "../../replay/database-mutations/config.js";
-import type { ImportRows, ResolvedProperties } from "./transform.js";
+import type {
+  ImportRows,
+  ResolvedLicensingAuthorityState,
+  ResolvedProperties,
+} from "./transform.js";
 import { transformArtifacts } from "./transform.js";
 import {
   IMPORT_ARTIFACT_KINDS,
@@ -437,6 +441,10 @@ type ImportArtifactsPipelineContext = {
   artifacts?: ArtifactsEnvelope;
   artifactMutation?: ApplyArtifactMutationResult;
   resolvedMappings?: SourceNameToCanonicalIds;
+  resolvedLicensingAuthorityLocations?: Record<
+    string,
+    ResolvedLicensingAuthorityState
+  >;
   resolvedProperties?: ResolvedProperties;
   rows?: ImportRows;
   preparationError?: DatabaseMutationPlanningError;
@@ -678,6 +686,106 @@ async function resolveSourceNamesStage(
   return { ...context, resolvedMappings };
 }
 
+function emptyLocationResolutionRows(): ImportRows {
+  return {
+    locationPaths: [],
+    locationPathAliases: [],
+    agencies: [],
+    officers: [],
+    agencyOfficers: [],
+    preparationMutations: [],
+    ownedColumns: { agencies: {}, officers: {}, agencyOfficers: {} },
+  };
+}
+
+/**
+ * Resolves each emitted LicensingAuthority's namespace-LOCAL state value (e.g.
+ * `"tx"`) to a canonical `location_path` at the intake root, using the SAME
+ * DataContext location resolver agencies use (`locationPaths.getByPath`). The
+ * source's namespace has no location paths of its own (ADR 0015), so the state
+ * value is mapped to the path `/<state>/` and looked up against the imported
+ * location hierarchy. The resolved canonical id is surfaced to the pure
+ * transform via `resolvedProperties.licensingAuthorities`; a value that does not
+ * resolve is left absent so the transform fails loud (resolve-or-fail, ADR 0006).
+ */
+async function resolveLicensingAuthorityLocationsStage(
+  context: ImportArtifactsPipelineContext,
+): Promise<ImportArtifactsPipelineContext> {
+  if (
+    context.artifacts === undefined ||
+    context.resolvedMappings === undefined
+  ) {
+    throw new Error(
+      "Artifacts and source names must be loaded before resolving licensing authority locations.",
+    );
+  }
+
+  const licensingAuthorityArtifacts = context.artifacts.spec.artifacts.filter(
+    (artifact) => artifact.kind === "LicensingAuthorities",
+  );
+  const hasRecords = licensingAuthorityArtifacts.some(
+    (artifact) => Object.keys(artifact.spec.records).length > 0,
+  );
+  if (!hasRecords) {
+    return context;
+  }
+
+  const databaseUrl = (context.commandInput.env ?? process.env).DATABASE_URL;
+  if (databaseUrl === undefined || databaseUrl.trim().length === 0) {
+    throw new Error(
+      "DATABASE_URL is required to resolve licensing authority locations.",
+    );
+  }
+
+  context.commandInput.logger?.info("Resolving licensing authority locations.");
+  const client = (
+    context.commandInput.clientFactory ?? defaultDatabaseClientFactory
+  )(databaseUrl);
+  const resolvedLicensingAuthorityLocations: Record<
+    string,
+    ResolvedLicensingAuthorityState
+  > = {};
+  try {
+    await client.connect();
+    const dataContext = new DataContext({
+      client,
+      rows: emptyLocationResolutionRows(),
+      sourceNameToCanonicalIds: context.resolvedMappings,
+      commandName: context.commandName,
+    });
+    for (const artifact of licensingAuthorityArtifacts) {
+      for (const [recordName, record] of Object.entries(
+        artifact.spec.records,
+      )) {
+        const sourceName = sourceNameForImportRecord(recordName, record);
+        const canonicalId =
+          context.resolvedMappings.licensingAuthorities?.[sourceName]
+            ?.canonicalId;
+        if (canonicalId === undefined) {
+          continue;
+        }
+        const spec = valueAsRecord(record);
+        const state = valueAsString(spec.location_path_id);
+        if (state === undefined) {
+          continue;
+        }
+        const locationPath = await dataContext.locationPaths.getByPath(
+          `/${state.toLowerCase()}/`,
+        );
+        if (locationPath !== undefined) {
+          resolvedLicensingAuthorityLocations[canonicalId] = {
+            locationPathId: locationPath.location_path_id,
+          };
+        }
+      }
+    }
+  } finally {
+    await client.end();
+  }
+
+  return { ...context, resolvedLicensingAuthorityLocations };
+}
+
 async function transformArtifactsStage(
   context: ImportArtifactsPipelineContext,
 ): Promise<ImportArtifactsPipelineContext> {
@@ -692,6 +800,10 @@ async function transformArtifactsStage(
 
   context.commandInput.logger?.info("Transforming artifact records.");
   const resolvedProperties = await hydrateResolvedSlugs(context);
+  if (context.resolvedLicensingAuthorityLocations !== undefined) {
+    resolvedProperties.licensingAuthorities =
+      context.resolvedLicensingAuthorityLocations;
+  }
   const rows = transformArtifacts(
     context.artifacts,
     context.resolvedMappings,
@@ -1207,6 +1319,7 @@ const importArtifactsPipelineStages: ImportArtifactsPipelineStage[] = [
     await persistArtifactAgencyCoordinatesStage(context);
     return context;
   },
+  resolveLicensingAuthorityLocationsStage,
   transformArtifactsStage,
   executeDatabaseMutationPlanningStage,
   writeDatabaseMutationsDebugStage,

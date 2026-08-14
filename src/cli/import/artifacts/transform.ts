@@ -73,9 +73,14 @@ export type ResolvedPersonState = {
   slug?: string;
 };
 
+export type ResolvedLicensingAuthorityState = {
+  locationPathId?: string;
+};
+
 export type ResolvedProperties = {
   agencies: Record<string, ResolvedAgencyState>;
   personnel: Record<string, ResolvedPersonState>;
+  licensingAuthorities?: Record<string, ResolvedLicensingAuthorityState>;
 };
 
 export type PreparationMutation = {
@@ -672,18 +677,20 @@ export function transformArtifacts(
         `Artifacts licensing authority ${sourceName} has no canonical id mapping.`,
       );
     }
-    const sourceLocationPath = requiredString(
+    // The source emits a namespace-LOCAL state value (e.g. "tx"); the intake
+    // root resolves it to a canonical location_path via getByPath and surfaces
+    // it here in resolvedProperties (mirroring how agencies read their resolved
+    // locationPathId). Resolve-or-fail per ADR 0006 — no ledger lookup.
+    const state = requiredString(
       sourceName,
       "location_path_id",
       source.location_path_id,
     );
-    const locationPathSourceKey =
-      locationPathSourceKeyByPath[sourceLocationPath] ?? sourceLocationPath;
     const locationPathCanonicalId =
-      mappings.locationPaths[locationPathSourceKey]?.canonicalId;
+      resolvedProperties.licensingAuthorities?.[canonicalId]?.locationPathId;
     if (locationPathCanonicalId === undefined) {
       throw new Error(
-        `Artifacts licensing authority ${sourceName} references unmapped location path ${sourceLocationPath}.`,
+        `Artifacts licensing authority ${sourceName} references location ${state} which is not an imported location_path.`,
       );
     }
     ownedColumns.licensingAuthorities![canonicalId] =

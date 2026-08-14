@@ -4,6 +4,11 @@
 
 Proposed
 
+> Clarified by [ADR 0015](0015-isolate-namespaces-and-own-cross-source-identity-at-root.md):
+> namespaces are isolated and mutually ignorant, so a source only ever resolves
+> its own namespace's source names, and cross-source identity is unified at the
+> root — not expressed by any source.
+
 ## Context
 
 Many upstream sources include stable record identifiers. When they do, intake
