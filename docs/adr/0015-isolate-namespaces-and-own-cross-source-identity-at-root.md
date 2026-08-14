@@ -6,7 +6,7 @@ Proposed
 
 ## Context
 
-Multiple source namespaces (`census-gazetteer`, `gov.tx.tcole`,
+Multiple source namespaces (`us-census-gazetteer`, `gov.tx.tcole`,
 `gov.azpost.roster`, `mn-post`, …) each produce artifacts about overlapping
 real-world entities — the same agency, officer, or licensing authority may be
 described by more than one source.
@@ -86,7 +86,7 @@ concept). The source never emits or resolves a canonical id.
   precondition, not "written to the database."
 - Run ordering follows from that single precondition, not from source-to-source
   dependencies: the only cross-source constraint is that the source producing a
-  shared concept (census-gazetteer → `location_path`) must run first so those
+  shared concept (us-census-gazetteer → `location_path`) must run first so those
   paths are resolvable by the backend; every other source then runs in any order.
 
 ## Alternatives Considered

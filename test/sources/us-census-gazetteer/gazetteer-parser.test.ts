@@ -1,10 +1,10 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { parseGazetteerFile } from "../../../sources/census-gazetteer/lib/gazetteer-parser.js";
+import { parseGazetteerFile } from "../../../sources/us-census-gazetteer/lib/gazetteer-parser.js";
 
 /**
- * Ported from `intake.census-gazetteer/test/gazetteer-parser.test.js`.
+ * Ported from `intake.us-census-gazetteer/test/gazetteer-parser.test.js`.
  * The original called `parseGazetteerFile({ filePath, type })`, which read
  * the file itself; here the rewired signature takes text directly, so each
  * fixture is read up front and its text is passed in.

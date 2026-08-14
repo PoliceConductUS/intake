@@ -1,11 +1,11 @@
 /**
- * Ported verbatim from `intake.census-gazetteer/src/address-location-evidence.js`.
+ * Ported verbatim from `intake.us-census-gazetteer/src/address-location-evidence.js`.
  * Only `allowedStateSlugs` — the piece `location-paths.ts` depends on — is
  * carried over; the rest of that file is standalone-producer plumbing and is
  * intentionally left behind.
  *
  * `allowedStateGeoids` is ported verbatim from
- * `intake.census-gazetteer/src/tiger-hierarchy.js` and lives here (rather
+ * `intake.us-census-gazetteer/src/tiger-hierarchy.js` and lives here (rather
  * than in `tiger-hierarchy.ts`) so both TIGER feature filtering and any
  * other module that needs the 50-states-plus-DC GEOID allowlist share one
  * copy, deduped as directed by the migration plan.

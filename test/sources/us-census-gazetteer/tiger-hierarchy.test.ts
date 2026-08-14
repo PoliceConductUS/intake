@@ -16,10 +16,10 @@ import {
   readFeaturesByState,
   toClippingGeometry,
   writeCachedStateHierarchy,
-} from "../../../sources/census-gazetteer/lib/tiger-hierarchy.js";
+} from "../../../sources/us-census-gazetteer/lib/tiger-hierarchy.js";
 
 /**
- * Ported from `intake.census-gazetteer/test/tiger-hierarchy.test.js`.
+ * Ported from `intake.us-census-gazetteer/test/tiger-hierarchy.test.js`.
  *
  * The original test file only covered `logHierarchyProgress` (producer-CLI
  * progress logging, dropped in this port — see `tiger-hierarchy.ts`'s file

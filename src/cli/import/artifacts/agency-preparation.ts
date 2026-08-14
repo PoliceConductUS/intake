@@ -8,7 +8,7 @@ import type { AgencyRow, ImportRows, ResolvedProperties } from "./transform.js";
 import {
   excludedRecordKey,
   type ExcludedRecords,
-} from "../../../shared/io/excluded-records.js";
+} from "../../../shared/io/index.js";
 
 export type {
   AgencyCoordinateRequest,

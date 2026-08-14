@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { run } from "../../../sources/census-gazetteer/config.js";
+import { run } from "../../../sources/us-census-gazetteer/config.js";
 import { buildArtifactsEnvelope } from "../../../src/cli/run/source-run.js";
 import {
   LocationPathGeometrySpec,
@@ -11,7 +11,7 @@ import {
 } from "../../../src/shared/io/index.js";
 
 /**
- * Synthetic end-to-end coverage for `sources/census-gazetteer/config.ts`'s
+ * Synthetic end-to-end coverage for `sources/us-census-gazetteer/config.ts`'s
  * `run()` — the Phase-2 Task 7 orchestrator wiring the six ported domain
  * modules (`inputs`, `gazetteer-parser`, `hierarchy-parser`/`tiger-hierarchy`,
  * `location-paths`, `location-geometries`) into the runtime's manifest+emit
@@ -46,20 +46,20 @@ const paths = [
 ];
 
 const notUsed = async () => {
-  throw new Error("readXlsx should not be called by census-gazetteer's run()");
+  throw new Error("readXlsx should not be called by us-census-gazetteer's run()");
 };
 
 let state: string;
 
 beforeEach(async () => {
-  state = await mkdtemp(path.join(tmpdir(), "census-gazetteer-run-test-"));
+  state = await mkdtemp(path.join(tmpdir(), "us-census-gazetteer-run-test-"));
 });
 
 afterEach(async () => {
   await rm(state, { recursive: true, force: true });
 });
 
-describe("census-gazetteer run", () => {
+describe("us-census-gazetteer run", () => {
   it("orchestrates the ported modules into a valid LocationPaths artifact plus streamed geometries", async () => {
     const emitted: Array<[string, string, unknown]> = [];
     const emit = async (kind: string, key: string, spec: unknown) => {
@@ -177,7 +177,7 @@ describe("census-gazetteer run", () => {
     // --- envelope build must not throw: proves strict-schema compatibility
     // for every inline (non-streamed) record kind in the manifest ---
     expect(() =>
-      buildArtifactsEnvelope("census-gazetteer", "test-digest", manifest),
+      buildArtifactsEnvelope("us-census-gazetteer", "test-digest", manifest),
     ).not.toThrow();
   });
 
@@ -188,7 +188,7 @@ describe("census-gazetteer run", () => {
         emitted.push([kind, key, spec]);
       };
       const runState = await mkdtemp(
-        path.join(tmpdir(), "census-gazetteer-run-test-determinism-"),
+        path.join(tmpdir(), "us-census-gazetteer-run-test-determinism-"),
       );
       try {
         const manifest = await run({

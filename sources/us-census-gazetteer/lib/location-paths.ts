@@ -6,7 +6,7 @@ import type {
 } from "./schemas.js";
 
 /**
- * Ported verbatim from `intake.census-gazetteer/src/location-paths.js`.
+ * Ported verbatim from `intake.us-census-gazetteer/src/location-paths.js`.
  * PURE — no I/O. The algorithm, including the `sortedObject()` lexical
  * sorting and `warnings.sort()`, is unchanged from the original; only types
  * were added and the `address-location-evidence` import was replaced with

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 /**
  * Zod schemas for U.S. Census Gazetteer pipe-delimited record types, ported
- * verbatim from `intake.census-gazetteer/src/schemas.js`. Only the gazetteer
+ * verbatim from `intake.us-census-gazetteer/src/schemas.js`. Only the gazetteer
  * record shapes consumed by `parseGazetteerFile` are ported here — the
  * Command/envelope schemas from the original file are standalone-producer
  * plumbing and are intentionally left behind.
@@ -44,7 +44,7 @@ export type GazetteerAdministrativeAreaRecord = z.infer<
 export type GazetteerPlaceRecord = z.infer<typeof gazetteerPlaceRecordSchema>;
 
 /**
- * Ported verbatim from `intake.census-gazetteer/src/schemas.js`
+ * Ported verbatim from `intake.us-census-gazetteer/src/schemas.js`
  * (`deterministicTotalAreaOverlapRecordSchema`) — the shape of a single
  * place↔administrative-area overlap record produced by
  * `buildHierarchyFromTiger` in `tiger-hierarchy.ts`.

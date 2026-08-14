@@ -2,11 +2,11 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { buildLocationPathGeometryPackage } from "../../../sources/census-gazetteer/lib/location-geometries.js";
-import type { LocationPathRow } from "../../../sources/census-gazetteer/lib/location-paths.js";
+import { buildLocationPathGeometryPackage } from "../../../sources/us-census-gazetteer/lib/location-geometries.js";
+import type { LocationPathRow } from "../../../sources/us-census-gazetteer/lib/location-paths.js";
 
 /**
- * Ported from `intake.census-gazetteer/test/location-geometries.test.js`.
+ * Ported from `intake.us-census-gazetteer/test/location-geometries.test.js`.
  *
  * The geometry/bbox/centroid computation and the `onGeometryRow` streaming
  * seam are covered exactly as in the original. The original's third test

@@ -100,7 +100,7 @@ export function matchInputs(paths: string[]): MatchedInputs {
     const year = extractYear(basename);
     if (!year) {
       throw new Error(
-        `census-gazetteer inputs: could not extract a year from "${basename}" (matched role "${role}")`,
+        `us-census-gazetteer inputs: could not extract a year from "${basename}" (matched role "${role}")`,
       );
     }
     matches[role].push({ path: p, year });
@@ -110,12 +110,12 @@ export function matchInputs(paths: string[]): MatchedInputs {
     const found = matches[role];
     if (found.length === 0) {
       throw new Error(
-        `census-gazetteer inputs: no file matched role "${role}" in [${paths.join(", ")}]`,
+        `us-census-gazetteer inputs: no file matched role "${role}" in [${paths.join(", ")}]`,
       );
     }
     if (found.length > 1) {
       throw new Error(
-        `census-gazetteer inputs: expected exactly one file for role "${role}" but found ${found.length}: [${found
+        `us-census-gazetteer inputs: expected exactly one file for role "${role}" but found ${found.length}: [${found
           .map((m) => m.path)
           .join(", ")}]`,
       );
@@ -124,13 +124,13 @@ export function matchInputs(paths: string[]): MatchedInputs {
 
   if (matches.placeTigerZips.length === 0) {
     throw new Error(
-      `census-gazetteer inputs: no file matched role "placeTigerZips" (need at least one tl_<year>_<state>_place.zip) in [${paths.join(", ")}]`,
+      `us-census-gazetteer inputs: no file matched role "placeTigerZips" (need at least one tl_<year>_<state>_place.zip) in [${paths.join(", ")}]`,
     );
   }
 
   if (matches.hierarchyFile.length > 1) {
     throw new Error(
-      `census-gazetteer inputs: expected at most one file for role "hierarchyFile" but found ${matches.hierarchyFile.length}: [${matches.hierarchyFile
+      `us-census-gazetteer inputs: expected at most one file for role "hierarchyFile" but found ${matches.hierarchyFile.length}: [${matches.hierarchyFile
         .map((m) => m.path)
         .join(", ")}]`,
     );
@@ -149,7 +149,7 @@ export function matchInputs(paths: string[]): MatchedInputs {
   const mismatched = allMatches.filter((m) => m.year !== year);
   if (mismatched.length > 0) {
     throw new Error(
-      `census-gazetteer inputs: year mismatch — expected all matched files to be for year "${year}" but found: [${mismatched
+      `us-census-gazetteer inputs: year mismatch — expected all matched files to be for year "${year}" but found: [${mismatched
         .map((m) => `${m.path} (${m.year})`)
         .join(", ")}]`,
     );

@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   buildLocationPaths,
   slugFromSourceName,
-} from "../../../sources/census-gazetteer/lib/location-paths.js";
+} from "../../../sources/us-census-gazetteer/lib/location-paths.js";
 
 /**
- * Ported from `intake.census-gazetteer/test/location-paths.test.js`.
+ * Ported from `intake.us-census-gazetteer/test/location-paths.test.js`.
  * `buildLocationPaths` is pure and unchanged from the original — this test
  * is a byte-for-byte port (assertions translated from node:assert to
  * vitest's expect) and should pass unmodified against the ported logic.

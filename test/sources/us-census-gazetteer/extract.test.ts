@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { extractShapefileFromZip } from "../../../sources/census-gazetteer/lib/extract.js";
+import { extractShapefileFromZip } from "../../../sources/us-census-gazetteer/lib/extract.js";
 
 /**
  * New coverage for the Task 4 rewire helper (no equivalent existed in the

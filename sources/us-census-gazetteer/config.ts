@@ -25,7 +25,7 @@ import { matchInputs } from "./lib/inputs.js";
 /**
  * Orchestrates the six ported `lib/` domain modules into the runtime's
  * manifest+emit contract, mirroring the stage chain in the original
- * standalone producer's `intake.census-gazetteer/src/run.js`
+ * standalone producer's `intake.us-census-gazetteer/src/run.js`
  * (`runValidatedCommand`), minus discovery/download/envelope-writing (all
  * out of scope for a `SourceRun` — the caller handles envelope assembly and
  * writing via `buildArtifactsEnvelope`).

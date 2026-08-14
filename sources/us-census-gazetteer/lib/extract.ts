@@ -7,7 +7,7 @@ import {
 
 /**
  * Rewire helper for `tiger-hierarchy.ts` (Phase-2 Task 4). The original
- * standalone producer (`intake.census-gazetteer/src/run.js`) extracted the
+ * standalone producer (`intake.us-census-gazetteer/src/run.js`) extracted the
  * whole TIGER archive to a directory (via `extractArchivesForCallback`)
  * before handing a plain `.shp` path to `readFeaturesByState`. The new
  * runtime hands sources their input files as archive paths directly

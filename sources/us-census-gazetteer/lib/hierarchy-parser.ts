@@ -4,7 +4,7 @@ import {
 } from "./schemas.js";
 
 /**
- * Ported from `intake.census-gazetteer/src/hierarchy-parser.js`
+ * Ported from `intake.us-census-gazetteer/src/hierarchy-parser.js`
  * (`parseHierarchyRelationshipFile`). Pipe-delimited header aliasing and
  * per-row Zod validation are unchanged from the original; only the I/O edge
  * was rewired:

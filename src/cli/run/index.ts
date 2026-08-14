@@ -68,7 +68,7 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-const CENSUS_SOURCE_ID = "census-gazetteer";
+const CENSUS_SOURCE_ID = "us-census-gazetteer";
 
 /** Translates a shell-style glob (`*`, `?`) into an anchored RegExp. */
 function globToRegExp(glob: string): RegExp {
@@ -86,7 +86,7 @@ function globToRegExp(glob: string): RegExp {
 
 /**
  * Source folder names under `sources/` matching the glob, sorted, with
- * `census-gazetteer` first when present — it produces the shared `location_path`
+ * `us-census-gazetteer` first when present — it produces the shared `location_path`
  * concept every other source resolves against, so it must run first (ADR 0015).
  */
 async function matchSourceIds(
@@ -185,7 +185,7 @@ export const registerCliCommand: RegisterCliCommand = (
     .description(
       "Run the config.ts of every source folder matching <glob> and import the " +
         "records it returns. Inputs are read from $INTAKE_WORKSPACE/<source-id>/source/. " +
-        "When census-gazetteer matches it runs first (ADR 0015); the rest run in name order.",
+        "When us-census-gazetteer matches it runs first (ADR 0015); the rest run in name order.",
     )
     .argument(
       "<glob>",

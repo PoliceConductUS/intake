@@ -10,7 +10,7 @@ import {
 } from "./tiger-hierarchy.js";
 
 /**
- * Ported from `intake.census-gazetteer/src/location-geometries.js`
+ * Ported from `intake.us-census-gazetteer/src/location-geometries.js`
  * (`buildLocationPathGeometries`, `buildLocationPathGeometryPackage`).
  *
  * The geometry/bbox/centroid math, the `sortedObject()` lexical sorting, and

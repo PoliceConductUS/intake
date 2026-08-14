@@ -1,10 +1,10 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { parseHierarchyRelationshipFile } from "../../../sources/census-gazetteer/lib/hierarchy-parser.js";
+import { parseHierarchyRelationshipFile } from "../../../sources/us-census-gazetteer/lib/hierarchy-parser.js";
 
 /**
- * The original repo (`intake.census-gazetteer`) has no
+ * The original repo (`intake.us-census-gazetteer`) has no
  * `test/hierarchy-parser.test.js` — `parseHierarchyRelationshipFile` was
  * validated only indirectly, via `run.test.js`'s coverage of `loadHierarchy`
  * for the relationship-file path. This is new fixture-based coverage of the

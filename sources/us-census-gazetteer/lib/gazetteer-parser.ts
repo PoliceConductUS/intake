@@ -9,7 +9,7 @@ import {
 } from "./schemas.js";
 
 /**
- * Ported from `intake.census-gazetteer/src/gazetteer-parser.js`
+ * Ported from `intake.us-census-gazetteer/src/gazetteer-parser.js`
  * (`parseGazetteerFile` + `requiredColumnsByType`). `writeNormalizedRecordsArtifact`
  * from the original file was standalone-producer plumbing and was dropped.
  *

@@ -14,7 +14,7 @@ import {
 } from "./schemas.js";
 
 /**
- * Ported from `intake.census-gazetteer/src/tiger-hierarchy.js`
+ * Ported from `intake.us-census-gazetteer/src/tiger-hierarchy.js`
  * (`buildHierarchyFromTiger`, `readFeaturesByState`, `toClippingGeometry`).
  * The O(places×counties) bbox-prefilter + `polygon-clipping` intersection
  * engine and the final compound-key sort are unchanged from the original —
