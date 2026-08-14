@@ -25,11 +25,14 @@ collapses the narrow canonical-id ledger into one cache) and supersedes the
 
 ## Decision
 
-**1. Every property that must be derived before a DB write is produced by a
-resolver.** A resolver is a pure unit given the source facade plus injected
-backend capabilities (geocoding, location-path lookup, the durable cache). It is
-entity-agnostic and reusable, and it is attached per `(entity, property)` on the
-entity facade.
+**1. Every entity is mutated through its async `DataContext` facade — no
+exceptions.** There is no transform-row or other non-facade mutation path; a
+source record becomes a database mutation only by going through
+`DataContext.fromSource(...)` → the entity's async facade → `toMutation()` (ADR
+0011). Every property that must be derived before a DB write is produced by a
+**resolver** — a pure, entity-agnostic, reusable unit given the source facade plus
+injected backend capabilities (geocoding, location-path lookup, the durable
+cache), attached per `(entity, property)` on that facade.
 
 **2. Resolvers compose via lazy, memoized property promises.** The facade exposes
 each resolvable property as a memoized promise. A resolver that needs another
@@ -73,10 +76,12 @@ in the database. The property kinds and their resolvers:
   DB but not yet in the cache is preserved (its existing id is *recovered*, not
   duplicated); else mint a new `cuid2` and persist. An ambiguous natural-key match
   fails fast and loud. (ADR 0008's assignment, now the "id" property's resolver.)
-- **Foreign key to another entity:** find-or-create the target's canonical id by
-  `(target kind, namespace, target source-id)`. The id-mint is deterministic and
-  always succeeds; creating the target *row* for a forward reference whose source
-  data is incomplete is deferred until encountered (see Revisit Trigger).
+- **Foreign key to another entity (same source):** because a source emits no
+  forward references (#9), the target was already emitted, so this is a **find** —
+  locate the target's facade by `(target kind, namespace, target source-id)` and
+  `await` its id (which the target's own id resolver produced). A missing target
+  is a forward-reference violation and **fails fast and loud** — never a
+  minted stub.
 - **`location_path_id` — the one FK exception:** **resolve-or-fail** via a backend
   query (state → path-match, or address → contains-point, both with alias
   handling). Never minted (ADR 0006); the source only supplies a namespace-local
@@ -124,6 +129,15 @@ resolvers and the old mechanisms — `SourceNameToCanonicalId`, `ResolvedPropert
 their stores collapsed into the one cache. Until then the old and new mechanisms
 coexist; the "supersedes/revises" above describes the end state, not a big-bang cut.
 
+**9. Source records carry no forward references.** A source MUST emit a referenced
+entity before any record that references it (dependency order). Because the target
+is therefore already emitted, a same-source FK is a plain **find** (decision #4);
+a reference to a not-yet-emitted target is a violation that fails fast and loud.
+This removes forward-reference / create-a-stub handling entirely. It applies to
+same-source references only — cross-source references (e.g. `location_path_id`,
+owned by another source) are resolve-or-fail against the backend, since a source
+cannot order another source's records.
+
 ## Consequences
 
 - One place and one pattern for canonical ids, foreign keys, coordinates, slugs,
@@ -159,6 +173,6 @@ coexist; the "supersedes/revises" above describes the end state, not a big-bang 
 
 ## Revisit Trigger
 
-- When a forward-referenced entity must be *created* (row, not just id) from
-  incomplete source data — the deferred create-row case.
 - When circular property dependencies become a genuine requirement.
+- When a source genuinely cannot avoid a forward reference (would require relaxing
+  decision #9 to reintroduce create-a-stub handling).
