@@ -4,6 +4,12 @@
 
 Proposed
 
+> Referenced by [ADR 0015](0015-isolate-namespaces-and-own-cross-source-identity-at-root.md):
+> `DataContext` is "the backend" through which isolated sources' namespace-local
+> reference values resolve to canonical ids, via the 3-step property resolution
+> below (current envelope / intake-owned state / database) — never by reading a
+> source's namespace.
+
 ## Context
 
 Import planning needs a shared execution context after source artifacts have

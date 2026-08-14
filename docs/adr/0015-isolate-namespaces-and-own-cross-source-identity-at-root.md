@@ -47,12 +47,28 @@ natural keys, aliases, and provenance. Until that unification exists, each
 source's entity is its own canonical row, and the database's licensing
 authorities are exactly those emitted by the imported sources.
 
-**5. Shared canonical concepts are resolved by the root from source-local
-values.** A source refers to a shared concept — notably a `location_path` — by
-emitting a namespace-local value it actually knows (e.g. a state, `"tx"`), never
-a canonical id and never another namespace's name. The intake root maps that
-value to an existing canonical `location_path` (resolve-or-fail, per ADR 0006).
-The source never emits or resolves the canonical `location_path` id.
+**5. Shared canonical concepts are resolved by the backend facade from
+source-local values.** A source refers to a shared concept — notably a
+`location_path` — by emitting a namespace-local value it actually knows (e.g. a
+state, `"tx"`), never a canonical id and never another namespace's name.
+
+The "backend" is the intake-root planning facade — `DataContext` (ADR 0011) —
+the single point through which every database mutation and every canonical
+resolution flows. It maps the source-local value to a canonical id via the same
+**3-step property resolution** ADR 0011 defines for every property-derived id:
+the target must
+
+1. have already been planned in the **current command's `DatabaseMutations`**
+   envelope (e.g. a `location_path` the running source itself emitted), or
+2. exist in **intake-owned state**, or
+3. exist in the **database**.
+
+If none of the three resolve it, the import fails loud (resolve-or-fail, ADR
+0006). "**Resolvable by the backend**" therefore spans all three steps — it does
+**not** mean "written to the database." Isolation is preserved because the facade
+resolves only against intake-owned canonical state and the database it owns; it
+**never** reads a source's namespace (not even the source that produced the
+concept). The source never emits or resolves a canonical id.
 
 ## Consequences
 
@@ -63,9 +79,15 @@ The source never emits or resolves the canonical `location_path` id.
   source — TCOLE, AZ POST, MN POST).
 - A curated shared-authority dataset is unnecessary and is not built. Introducing
   one later is just another source, plus root dedup.
-- `location_path` links from any entity kind require an existing
-  `location_path`/alias row; missing ones fail the import (ADR 0006) rather than
-  being invented in-source.
+- `location_path` links from any entity kind must be **resolvable by the backend**
+  (planned in the current envelope, in intake-owned state, or in the database);
+  if the backend can resolve none of the three, the import fails loud (ADR 0006)
+  rather than inventing a location in-source. "Resolvable by the backend" is the
+  precondition, not "written to the database."
+- Run ordering follows from that single precondition, not from source-to-source
+  dependencies: the only cross-source constraint is that the source producing a
+  shared concept (census-gazetteer → `location_path`) must run first so those
+  paths are resolvable by the backend; every other source then runs in any order.
 
 ## Alternatives Considered
 
