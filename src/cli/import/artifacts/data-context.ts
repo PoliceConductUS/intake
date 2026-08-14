@@ -22,6 +22,9 @@ import {
   type ResolvedProperties,
 } from "./transform.js";
 import { readDatabaseRecordsBySlugs } from "../../database/entities.js";
+
+/** Tables whose slug uniqueness the DataContext enforces (generate-unique). */
+type SlugTableName = "public.officers" | "public.agency";
 import {
   AgencyFieldResolutionError,
   type AgencyFieldResolutionOptions,
@@ -193,126 +196,9 @@ function validateSourceRecordContext(input: SourceRecordContext): void {
   }
 }
 
-export class AgencyFacade {
-  private static readonly kind = "Agency";
-  private readonly current?: Record<string, unknown>;
-  private readonly spec: Record<string, unknown>;
-
-  constructor(current?: Record<string, unknown>) {
-    this.current = current;
-    this.spec = {};
-  }
-
-  merge(spec: Record<string, unknown>): void {
-    Object.assign(this.spec, spec);
-  }
-
-  string(property: string): string | undefined {
-    return valueAsString(this.value(property));
-  }
-
-  number(property: string): number | undefined {
-    const value = this.value(property);
-    return typeof value === "number" && Number.isFinite(value)
-      ? value
-      : undefined;
-  }
-
-  toMutation(
-    sourceContext: FacadeSource,
-  ): AgencyCreateEnvelope | AgencyUpdateEnvelope {
-    const canonicalId = valueAsString(sourceContext.canonicalId);
-    if (canonicalId === undefined) {
-      throw new Error(
-        `Cannot create agency mutation for ${sourceContext.namespace}/${sourceContext.name} without canonical ID.`,
-      );
-    }
-
-    if (this.current === undefined) {
-      // Invariant: a created agency must carry a slug resolved in the intake
-      // namespace (globally unique). If it does not, fail loudly naming the
-      // agency rather than emitting a malformed AgencyCreate.
-      const slug = valueAsString((this.spec as Record<string, unknown>).slug);
-      if (slug === undefined) {
-        const name = valueAsString((this.spec as Record<string, unknown>).name);
-        throw new Error(
-          `Cannot create public.agency ${canonicalId} (source ${sourceContext.namespace}/${sourceContext.name}${name === undefined ? "" : `, name ${JSON.stringify(name)}`}) without a resolved slug — the slug must be resolved in the intake namespace before an agency is created.`,
-        );
-      }
-      return AgencyCreate.new({
-        metadata: {
-          namespace: sourceContext.namespace,
-          name: sourceContext.name,
-        },
-        spec: {
-          id: canonicalId,
-          ...this.spec,
-        } as Parameters<typeof AgencyCreate.new>[0]["spec"],
-      });
-    }
-
-    const commandName = valueAsString(sourceContext.commandName);
-    if (commandName === undefined) {
-      throw new Error(
-        `Cannot create agency update for ${sourceContext.namespace}/${sourceContext.name} without command name.`,
-      );
-    }
-
-    const source = {
-      namespace: sourceContext.namespace,
-      command: { name: commandName },
-      kind: AgencyFacade.kind,
-      name: sourceContext.name,
-    };
-    const operations = Object.entries(this.spec)
-      .filter(([path]) => path !== "id")
-      .map(([path, to]) => {
-        const from = this.current?.[path];
-        if (Object.is(from, to)) {
-          return {
-            action: "check" as const,
-            path,
-            value: to,
-            reason: `Expected existing ${AgencyFacade.kind} ${path}.`,
-            source,
-          };
-        }
-
-        return {
-          action: "set" as const,
-          path,
-          from,
-          to,
-          reason: `Set ${AgencyFacade.kind} ${path}.`,
-          source,
-        };
-      });
-
-    return AgencyUpdate.new({
-      metadata: {
-        namespace: sourceContext.namespace,
-        name: sourceContext.name,
-      },
-      spec: { operations },
-    });
-  }
-
-  private value(property: string): unknown {
-    return property.split(".").reduce<unknown>((current, pathPart) => {
-      if (
-        typeof current !== "object" ||
-        current === null ||
-        Array.isArray(current)
-      ) {
-        return undefined;
-      }
-      return (current as Record<string, unknown>)[pathPart];
-    }, this.spec);
-  }
-}
-
-// PersonnelFacade is defined below alongside the other resolver-based facades
-// (License / LicenseAction), after the resolver infrastructure.
+// AgencyFacade and PersonnelFacade are defined below alongside the other
+// resolver-based facades (License / LicenseAction), after the resolver
+// infrastructure.
 
 export class AgencyPersonnelFacade {
   private static readonly kind = "AgencyPersonnel";
@@ -1514,6 +1400,375 @@ export class PersonnelFacade
   }
 }
 
+// --- Agency facade (ADR 0016) ------------------------------------------------
+//
+// Agency mirrors the other facades: `id` is a canonical-id find-or-create; name
+// and contact fields are plain; `slug` is a generate-unique resolver (reuse an
+// explicit or existing-DB slug, else derive + disambiguate across the three
+// levels); `location_path_id` is a COMPOSITION resolver — geocode the address
+// (reusing the durable ResolvedProperty coordinate cache) then point-in-polygon
+// containment, resolve-or-fail (ADR 0006/0015), never minted. `latitude` /
+// `longitude` fall out of the same geocode.
+//
+// COEXISTENCE (flagged): eager agency resolution, the excluded-agency cascade,
+// the batched geocode pass, slug-conflict validation, and fail-loud aggregation
+// with the DatabaseMutationsDebug envelope still run in the planning pass on the
+// `AgencyRow` transform rows (see plan-database-mutations.ts / agency-*.ts). The
+// planning pass writes the resolved location_path_id / slug / coordinates into
+// the row, which `mergeAgencyArtifacts` merges into the facade spec — so these
+// resolvers take the resolve-if-present branch in production today. The
+// composition / generate branches are the intended active path once that eager
+// pass is folded into the flush/transaction script (ADR 0017); they are proven
+// by the facade unit tests. `AgencyRow` and the agency classify loop/count are
+// retained as coexistence for the same reason.
+
+/** The database row shape an `AgencyFacade` resolves toward (public.agency). */
+export type AgencyRowShape = {
+  id: string;
+  name: string;
+  city: string | null;
+  state: string;
+  address: string | null;
+  zip_code: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
+  slug: string;
+  location_path_id: string;
+  latitude: number;
+  longitude: number;
+  addresses?: Record<string, unknown>;
+  emails?: Record<string, unknown>;
+  location?: Record<string, unknown>;
+  phones?: Record<string, unknown>;
+  urls?: Record<string, unknown>;
+};
+
+/** Backend capabilities the Agency resolvers reach through. */
+export type AgencyResolverBackend = {
+  findOrCreateCanonicalId(input: {
+    namespace: string;
+    kind: string;
+    sourceId: string;
+  }): Promise<string>;
+  getCurrentById(id: string): Record<string, unknown> | undefined;
+  ensureUniqueAgencySlug(input: {
+    base: string;
+    canonicalId: string;
+  }): Promise<string>;
+  registerAgencySlug(input: { slug: string; canonicalId: string }): void;
+  /**
+   * Compose an address into a canonical location: geocode (cached coordinates)
+   * then point-in-polygon containment. Throws (resolve-or-fail) when the address
+   * cannot be geocoded or no boundary contains the resolved point.
+   */
+  resolveAgencyLocation(input: ResolveAddressInput): Promise<LocationResolution>;
+};
+
+/** The columns that are pass-through source metadata (public.agency jsonb). */
+const AGENCY_METADATA_COLUMNS = [
+  "addresses",
+  "emails",
+  "location",
+  "phones",
+  "urls",
+] as const;
+
+/** The scalar database columns the AgencyFacade resolves and writes, in order. */
+const AGENCY_SCALAR_COLUMNS = [
+  "name",
+  "city",
+  "state",
+  "address",
+  "zip_code",
+  "contact_name",
+  "contact_email",
+  "slug",
+  "location_path_id",
+  "latitude",
+  "longitude",
+] as const satisfies readonly (keyof AgencyRowShape)[];
+
+function agencyAddressInput(
+  facade: PropertyResolutionFacade<AgencyRowShape>,
+  source: FacadeSource,
+): ResolveAddressInput {
+  const location = valueAsRecordOrUndefined(facade.raw("location")) ?? {};
+  return {
+    entityType: "agency",
+    entityId: source.name,
+    state: valueAsString(facade.raw("state")),
+    place: valueAsString(facade.raw("city")),
+    zipCode: valueAsString(facade.raw("zip_code")),
+    address: valueAsString(facade.raw("address")),
+    administrativeAreaName: valueAsString(location.administrativeAreaName),
+    administrativeAreaSlug: valueAsString(location.administrativeAreaSlug),
+    latitude: valueAsFiniteNumber(facade.raw("latitude")),
+    longitude: valueAsFiniteNumber(facade.raw("longitude")),
+    name: valueAsString(facade.raw("name")),
+    sourceName: source.name,
+  };
+}
+
+/** `location_path_id` composition resolver (resolve-or-fail, ADR 0006/0015). */
+function agencyLocationPathResolver(): Resolver<
+  string,
+  ResolverContext<AgencyRowShape, AgencyResolverBackend>
+> {
+  return new Resolver(async ({ facade, backend, source }) => {
+    const present = valueAsString(facade.raw("location_path_id"));
+    if (present !== undefined) {
+      return present;
+    }
+    // Stability: an existing agency keeps its current location rather than
+    // being re-geocoded on update.
+    const id = await facade.value("id");
+    const current = backend.getCurrentById(id);
+    const currentValue =
+      current === undefined
+        ? undefined
+        : valueAsString(current.location_path_id);
+    if (currentValue !== undefined) {
+      return currentValue;
+    }
+    const resolution = await backend.resolveAgencyLocation(
+      agencyAddressInput(facade, source),
+    );
+    return resolution.locationPathId;
+  });
+}
+
+function agencyCoordinateResolver(
+  field: "addressLatitude" | "addressLongitude",
+  column: "latitude" | "longitude",
+): Resolver<number, ResolverContext<AgencyRowShape, AgencyResolverBackend>> {
+  return new Resolver(async ({ facade, backend, source }) => {
+    const present = valueAsFiniteNumber(facade.raw(column));
+    if (present !== undefined) {
+      return present;
+    }
+    const id = await facade.value("id");
+    const current = backend.getCurrentById(id);
+    const currentValue =
+      current === undefined ? undefined : valueAsFiniteNumber(current[column]);
+    if (currentValue !== undefined) {
+      return currentValue;
+    }
+    const resolution = await backend.resolveAgencyLocation(
+      agencyAddressInput(facade, source),
+    );
+    return resolution[field];
+  });
+}
+
+/** Generate-unique slug resolver for Agency (mirrors Personnel). */
+function agencySlugResolver(): Resolver<
+  string,
+  ResolverContext<AgencyRowShape, AgencyResolverBackend>
+> {
+  return new Resolver(async ({ facade, source, backend }) => {
+    const id = await facade.value("id");
+    const explicit = valueAsString(facade.raw("slug"));
+    if (explicit !== undefined) {
+      backend.registerAgencySlug({ slug: explicit, canonicalId: id });
+      return explicit;
+    }
+    const current = backend.getCurrentById(id);
+    const currentSlug =
+      current === undefined ? undefined : valueAsString(current.slug);
+    if (currentSlug !== undefined) {
+      backend.registerAgencySlug({ slug: currentSlug, canonicalId: id });
+      return currentSlug;
+    }
+    const name = valueAsString(facade.raw("name"));
+    if (name === undefined) {
+      throw new Error(
+        `Cannot generate slug for Agency ${source.namespace}/${source.name}; name is required.`,
+      );
+    }
+    const base = slugify(name);
+    return backend.ensureUniqueAgencySlug({ base, canonicalId: id });
+  });
+}
+
+type AgencyResolvers = Partial<{
+  [K in keyof AgencyRowShape]: Resolver<
+    AgencyRowShape[K],
+    ResolverContext<AgencyRowShape, AgencyResolverBackend>
+  >;
+}>;
+
+export class AgencyFacade implements PropertyResolutionFacade<AgencyRowShape> {
+  private static readonly kind = "Agency";
+  private readonly current?: Record<string, unknown>;
+  private readonly spec: Record<string, unknown> = {};
+  private readonly source: FacadeSource;
+  private readonly backend: AgencyResolverBackend;
+  private readonly resolvers: AgencyResolvers;
+  private readonly memo = new Map<keyof AgencyRowShape, Promise<unknown>>();
+  private readonly inProgress = new Set<keyof AgencyRowShape>();
+
+  constructor(options: {
+    current?: Record<string, unknown>;
+    source: FacadeSource;
+    backend: AgencyResolverBackend;
+  }) {
+    this.current = options.current;
+    this.source = options.source;
+    this.backend = options.backend;
+    this.resolvers = {
+      id: facadeCanonicalIdResolver<AgencyRowShape, AgencyResolverBackend>(
+        AgencyFacade.kind,
+      ),
+      slug: agencySlugResolver(),
+      location_path_id: agencyLocationPathResolver(),
+      latitude: agencyCoordinateResolver("addressLatitude", "latitude"),
+      longitude: agencyCoordinateResolver("addressLongitude", "longitude"),
+    };
+  }
+
+  merge(spec: Record<string, unknown>): void {
+    Object.assign(this.spec, spec);
+  }
+
+  raw(property: keyof AgencyRowShape): unknown {
+    return this.spec[property as string];
+  }
+
+  value<K extends keyof AgencyRowShape>(
+    property: K,
+  ): Promise<AgencyRowShape[K]> {
+    const cached = this.memo.get(property);
+    if (cached !== undefined) {
+      return cached as Promise<AgencyRowShape[K]>;
+    }
+    const pending = this.computeValue(property);
+    this.memo.set(property, pending);
+    return pending;
+  }
+
+  private async computeValue<K extends keyof AgencyRowShape>(
+    property: K,
+  ): Promise<AgencyRowShape[K]> {
+    if (this.inProgress.has(property)) {
+      throw new Error(
+        `Circular property dependency while resolving ${AgencyFacade.kind}.${String(
+          property,
+        )} for ${this.source.namespace}/${this.source.name}.`,
+      );
+    }
+    this.inProgress.add(property);
+    try {
+      const resolver = this.resolvers[property];
+      if (resolver === undefined) {
+        return this.plainValue(property);
+      }
+      return await resolver.resolve(
+        { facade: this, source: this.source, backend: this.backend },
+        () => this.unresolvedMessage(property),
+      );
+    } finally {
+      this.inProgress.delete(property);
+    }
+  }
+
+  private plainValue<K extends keyof AgencyRowShape>(
+    property: K,
+  ): AgencyRowShape[K] {
+    const value = this.spec[property as string];
+    return (value === undefined ? null : value) as AgencyRowShape[K];
+  }
+
+  private unresolvedMessage(property: keyof AgencyRowShape): string {
+    return `Cannot resolve ${AgencyFacade.kind}.${String(
+      property,
+    )} for source ${this.source.namespace}/${this.source.name}; offending value ${JSON.stringify(
+      this.spec[property as string],
+    )}.`;
+  }
+
+  /** Present pass-through metadata columns (omitted when absent, never null). */
+  private metadataSpec(): Record<string, unknown> {
+    const metadata: Record<string, unknown> = {};
+    for (const column of AGENCY_METADATA_COLUMNS) {
+      const value = valueAsRecordOrUndefined(this.spec[column]);
+      if (value !== undefined) {
+        metadata[column] = value;
+      }
+    }
+    return metadata;
+  }
+
+  async toMutation(): Promise<AgencyCreateEnvelope | AgencyUpdateEnvelope> {
+    const id = await this.value("id");
+    const scalars: Record<string, unknown> = {};
+    for (const column of AGENCY_SCALAR_COLUMNS) {
+      scalars[column] = await this.value(column);
+    }
+    const desired: Record<string, unknown> = {
+      ...scalars,
+      ...this.metadataSpec(),
+    };
+
+    const current = this.current ?? this.backend.getCurrentById(id);
+
+    if (current === undefined) {
+      return AgencyCreate.new({
+        metadata: {
+          namespace: this.source.namespace,
+          name: this.source.name,
+        },
+        spec: {
+          id,
+          ...desired,
+        } as Parameters<typeof AgencyCreate.new>[0]["spec"],
+      });
+    }
+
+    const commandName = valueAsString(this.source.commandName);
+    if (commandName === undefined) {
+      throw new Error(
+        `Cannot create agency update for ${this.source.namespace}/${this.source.name} without command name.`,
+      );
+    }
+
+    const source = {
+      namespace: this.source.namespace,
+      command: { name: commandName },
+      kind: AgencyFacade.kind,
+      name: this.source.name,
+    };
+    const operations = Object.entries(desired).map(([path, to]) => {
+      const from = current[path];
+      if (Object.is(from, to)) {
+        return {
+          action: "check" as const,
+          path,
+          value: to,
+          reason: `Expected existing ${AgencyFacade.kind} ${path}.`,
+          source,
+        };
+      }
+
+      return {
+        action: "set" as const,
+        path,
+        from,
+        to,
+        reason: `Set ${AgencyFacade.kind} ${path}.`,
+        source,
+      };
+    });
+
+    return AgencyUpdate.new({
+      metadata: {
+        namespace: this.source.namespace,
+        name: this.source.name,
+      },
+      spec: { operations },
+    });
+  }
+}
+
 export type LocationAdministrativeAreaRequest = {
   address?: string;
   state: string;
@@ -1569,14 +1824,23 @@ export type ResolveAddressInput = {
   preferredLocationPathId?: string;
 };
 
-export type CanonicalIdFromPropertyInput = {
-  source: AgencyFacade;
-  property: "location_path_id";
-};
-
 function valueAsString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0
     ? value
+    : undefined;
+}
+
+function valueAsFiniteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
+}
+
+function valueAsRecordOrUndefined(
+  value: unknown,
+): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
     : undefined;
 }
 
@@ -1795,19 +2059,22 @@ export class DataContext {
     Record<string, unknown>
   >;
   private readonly databaseLicenseById: Map<string, Record<string, unknown>>;
-  /** current-command slug → owning canonical id (level 1 of slug uniqueness). */
-  private readonly personnelSlugClaims = new Map<string, string>();
-  /** memoized DB slug → owning id (null = unused), so a slug is queried once. */
-  private readonly personnelSlugDatabaseOwner = new Map<
-    string,
-    string | null
+  /** per-table current-command slug → owning canonical id (uniqueness level 1). */
+  private readonly slugClaimsByTable = new Map<
+    SlugTableName,
+    Map<string, string>
+  >();
+  /** per-table memoized DB slug → owning id (null = unused), queried once. */
+  private readonly slugDatabaseOwnerByTable = new Map<
+    SlugTableName,
+    Map<string, string | null>
   >();
   private readonly databaseLicenseActionById: Map<
     string,
     Record<string, unknown>
   >;
   private readonly persistSourceNameToCanonicalIdsFn?: DataContextOptions["persistSourceNameToCanonicalIds"];
-  private readonly agencyFacades = new Map<string, FacadeEntry<AgencyFacade>>();
+  private readonly agencyFacades = new Map<string, AgencyFacade>();
   private readonly personnelFacades = new Map<string, PersonnelFacade>();
   private readonly agencyPersonnelFacades = new Map<
     string,
@@ -2073,31 +2340,66 @@ export class DataContext {
     const existing = this.agencyFacades.get(key);
     if (existing !== undefined) {
       if (input.spec !== undefined) {
-        existing.facade.merge(input.spec);
+        existing.merge(input.spec);
       }
-      return existing.facade;
+      return existing;
     }
-    const canonicalId =
-      input.canonicalId ??
-      this.sourceNameToCanonicalIds?.agencies[input.name]?.canonicalId;
-    const current =
-      canonicalId === undefined
-        ? input.current
-        : (input.current ?? this.databaseAgencyById.get(canonicalId));
-    const facade = new AgencyFacade(current);
-    if (input.spec !== undefined) {
-      facade.merge(input.spec);
-    }
-    this.agencyFacades.set(key, {
-      facade,
+    const facade = new AgencyFacade({
+      current: input.current,
       source: {
         namespace: input.namespace,
         name: input.name,
-        canonicalId,
         commandName: input.commandName ?? this.commandName,
       },
+      backend: this.agencyResolverBackend(),
     });
+    if (input.spec !== undefined) {
+      facade.merge(input.spec);
+    }
+    this.agencyFacades.set(key, facade);
     return facade;
+  }
+
+  private agencyResolverBackend(): AgencyResolverBackend {
+    return {
+      findOrCreateCanonicalId: (input) =>
+        this.findOrCreateAgencyCanonicalId(input),
+      getCurrentById: (id) => this.databaseAgencyById.get(id),
+      ensureUniqueAgencySlug: (input) =>
+        this.ensureUniqueSlug("public.agency", input),
+      registerAgencySlug: (input) => {
+        this.registerSlug("public.agency", input.slug, input.canonicalId);
+      },
+      resolveAgencyLocation: (input) => this.locations.resolveAddress(input),
+    };
+  }
+
+  private async findOrCreateAgencyCanonicalId(input: {
+    namespace: string;
+    kind: string;
+    sourceId: string;
+  }): Promise<string> {
+    // Find a seeded/existing id before minting (ID stability).
+    const existing = valueAsString(
+      this.sourceNameToCanonicalIds?.agencies?.[input.sourceId]?.canonicalId,
+    );
+    if (existing !== undefined) {
+      return existing;
+    }
+
+    const canonicalId = createId();
+    if (this.sourceNameToCanonicalIds === undefined) {
+      return canonicalId;
+    }
+    this.sourceNameToCanonicalIds.agencies[input.sourceId] = {
+      kind: "Agency",
+      canonicalId,
+    };
+    await this.persistSourceNameToCanonicalIdsFn?.(
+      input.namespace,
+      this.sourceNameToCanonicalIds,
+    );
+    return canonicalId;
   }
 
   mergeAgencyArtifacts(artifacts: ArtifactsEnvelope): void {
@@ -2171,9 +2473,9 @@ export class DataContext {
         this.findOrCreatePersonnelCanonicalId(input),
       getCurrentById: (id) => this.databaseOfficerById.get(id),
       ensureUniquePersonnelSlug: (input) =>
-        this.ensureUniquePersonnelSlug(input),
+        this.ensureUniqueSlug("public.officers", input),
       registerPersonnelSlug: (input) => {
-        this.personnelSlugClaims.set(input.slug, input.canonicalId);
+        this.registerSlug("public.officers", input.slug, input.canonicalId);
       },
     };
   }
@@ -2207,55 +2509,87 @@ export class DataContext {
     return canonicalId;
   }
 
+  private slugClaimsFor(table: SlugTableName): Map<string, string> {
+    let claims = this.slugClaimsByTable.get(table);
+    if (claims === undefined) {
+      claims = new Map();
+      this.slugClaimsByTable.set(table, claims);
+    }
+    return claims;
+  }
+
+  private slugDatabaseOwnerFor(
+    table: SlugTableName,
+  ): Map<string, string | null> {
+    let owners = this.slugDatabaseOwnerByTable.get(table);
+    if (owners === undefined) {
+      owners = new Map();
+      this.slugDatabaseOwnerByTable.set(table, owners);
+    }
+    return owners;
+  }
+
+  /** Register a resolved slug so a later generated slug disambiguates from it. */
+  private registerSlug(
+    table: SlugTableName,
+    slug: string,
+    canonicalId: string,
+  ): void {
+    this.slugClaimsFor(table).set(slug, canonicalId);
+  }
+
   /**
-   * Generate a Personnel slug unique across the three resolution levels: the
-   * current command (`personnelSlugClaims`), intake-owned state, and the
-   * database — appending a numeric suffix until free, then registering the
-   * claim. Because a durably-resolved slug is persisted to the database on
-   * import, the database read is the durable authority for the state level.
+   * Generate a slug unique across the three resolution levels for `table`: the
+   * current command (in-memory claims), intake-owned state, and the database —
+   * appending a numeric suffix until free, then registering the claim. Because a
+   * durably-resolved slug is persisted to the database on import, the database
+   * read is the durable authority for the state level.
    */
-  private async ensureUniquePersonnelSlug(input: {
-    base: string;
-    canonicalId: string;
-  }): Promise<string> {
+  private async ensureUniqueSlug(
+    table: SlugTableName,
+    input: { base: string; canonicalId: string },
+  ): Promise<string> {
+    const claims = this.slugClaimsFor(table);
     for (let attempt = 1; ; attempt += 1) {
       const candidate =
         attempt === 1 ? input.base : `${input.base}-${attempt}`;
-      const claimant = this.personnelSlugClaims.get(candidate);
+      const claimant = claims.get(candidate);
       if (claimant !== undefined) {
         if (claimant === input.canonicalId) {
           return candidate;
         }
         continue;
       }
-      const databaseOwner = await this.personnelSlugDatabaseOwnerId(candidate);
+      const databaseOwner = await this.slugDatabaseOwnerId(table, candidate);
       if (databaseOwner !== undefined && databaseOwner !== input.canonicalId) {
         continue;
       }
-      this.personnelSlugClaims.set(candidate, input.canonicalId);
+      claims.set(candidate, input.canonicalId);
       return candidate;
     }
   }
 
-  private async personnelSlugDatabaseOwnerId(
+  private async slugDatabaseOwnerId(
+    table: SlugTableName,
     slug: string,
   ): Promise<string | undefined> {
     if (this.client === undefined) {
       return undefined;
     }
-    const cached = this.personnelSlugDatabaseOwner.get(slug);
+    const owners = this.slugDatabaseOwnerFor(table);
+    const cached = owners.get(slug);
     if (cached !== undefined) {
       return cached ?? undefined;
     }
     const rows = await readDatabaseRecordsBySlugs(
       this.databaseClient(),
-      "public.officers",
+      table,
       [slug],
     );
     const owner = rows
       .map((row) => valueAsString(row.id))
       .find((id): id is string => id !== undefined);
-    this.personnelSlugDatabaseOwner.set(slug, owner ?? null);
+    owners.set(slug, owner ?? null);
     return owner;
   }
 
@@ -2559,10 +2893,11 @@ export class DataContext {
     const personnel = await Promise.all(
       [...this.personnelFacades.values()].map((facade) => facade.toMutation()),
     );
+    const agencies = await Promise.all(
+      [...this.agencyFacades.values()].map((facade) => facade.toMutation()),
+    );
     return [
-      ...[...this.agencyFacades.values()].map(({ facade, source }) =>
-        facade.toMutation(source),
-      ),
+      ...agencies,
       ...personnel,
       ...[...this.agencyPersonnelFacades.values()].map(({ facade, source }) =>
         facade.toMutation(source),
@@ -2580,11 +2915,6 @@ export class DataContext {
       name: mutation.metadata.name,
       spec: mutation.spec,
     }));
-    const facadeAgencyIds = new Set(
-      [...this.agencyFacades.values()]
-        .map((entry) => valueAsString(entry.source.canonicalId))
-        .filter((id): id is string => id !== undefined),
-    );
     const facadeAgencyPersonnelIds = new Set(
       [...this.agencyPersonnelFacades.values()]
         .map((entry) => valueAsString(entry.source.canonicalId))
@@ -2625,25 +2955,11 @@ export class DataContext {
           record,
         ),
       })),
-      ...this.importRows.agencies
-        .filter((record) => !facadeAgencyIds.has(record.id))
-        .map((record) => {
-          const recordOwnedColumnNames = recordOwnedColumns(
-            this.importRows.ownedColumns.agencies[record.id] ?? [],
-            ownedColumns.agency,
-          );
-          return {
-            kind: mutationKind(this.operations.agencies[record.id], "Agency"),
-            name: record.id,
-            spec: databaseSpec(record),
-            ...(recordOwnedColumnNames === undefined
-              ? {}
-              : { ownedColumns: recordOwnedColumnNames }),
-          };
-        }),
       ...facadeMutations,
-      // Personnel mutations are emitted by the PersonnelFacade via
+      // Agency and Personnel mutations are emitted by their facades via
       // `facadeMutations` (ADR 0016); there are no transform rows to assemble.
+      // AgencyRow is retained only as the planning-pass resolution input
+      // (coexistence), not for emission.
       ...this.importRows.agencyOfficers
         .filter((record) => !facadeAgencyPersonnelIds.has(record.id))
         .map((record) => {
@@ -2679,39 +2995,8 @@ export class DataContext {
     });
   }
 
-  async canonicalIdFromProperty(
-    input: CanonicalIdFromPropertyInput,
-  ): Promise<string> {
-    const source = [...this.agencyFacades.values()].find(
-      (entry) => entry.facade === input.source,
-    )?.source;
-    if (source === undefined || input.property !== "location_path_id") {
-      throw new Error(
-        `Cannot resolve canonical ID for Agency.${input.property}.`,
-      );
-    }
-
-    return (
-      await this.locations.resolveAddress({
-        entityType: "agency",
-        entityId: source.name,
-        state: input.source.string("state"),
-        place: input.source.string("city"),
-        zipCode: input.source.string("zip_code"),
-        address: input.source.string("address"),
-        administrativeAreaName: input.source.string(
-          "location.administrativeAreaName",
-        ),
-        administrativeAreaSlug: input.source.string(
-          "location.administrativeAreaSlug",
-        ),
-        latitude: input.source.number("latitude"),
-        longitude: input.source.number("longitude"),
-        name: input.source.string("name"),
-        preferredLocationPathId: input.source.string("location_path_id"),
-      })
-    ).locationPathId;
-  }
+  // `canonicalIdFromProperty` (ADR 0011) is superseded by the AgencyFacade
+  // `location_path_id` composition resolver (ADR 0016 #7).
 
   async resolveLocationAdministrativeArea(
     input: LocationAdministrativeAreaRequest,

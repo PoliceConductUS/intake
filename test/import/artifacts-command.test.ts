@@ -406,10 +406,21 @@ describe("importArtifacts", () => {
       "commands",
       "2026-06-08T00-00-00-000Z-test-command",
     );
-    const databaseMutations = await new DataContext({
+    // Agencies are facade-based (ADR 0016): register them from the artifacts so
+    // the AgencyFacade emits (resolve-if-present from the planning-pass-resolved
+    // row).
+    const debugContext = new DataContext({
       rows: partialRows,
       operations: result.operations,
-    }).toDatabaseMutations({
+      sourceNameToCanonicalIds: {
+        agencies: { "agency-source-id": { canonicalId: "agency-canonical-id" } },
+        personnel: {},
+        agencyPersonnel: {},
+        locationPaths: {},
+      },
+    });
+    debugContext.mergeAgencyArtifacts(artifacts);
+    const databaseMutations = await debugContext.toDatabaseMutations({
       namespace: artifacts.metadata.namespace,
       name: "test-command",
       sourceArtifactsName: artifacts.metadata.name,
@@ -695,10 +706,27 @@ describe("importArtifacts", () => {
       "commands",
       `2026-06-08T00-00-00-000Z-${runId}`,
     );
-    const databaseMutations = await new DataContext({
+    const runContext = new DataContext({
       rows,
       operations: createOperations,
-    }).toDatabaseMutations({
+      sourceNameToCanonicalIds: {
+        agencies: { "agency-source-id": { canonicalId: "agency-canonical-id" } },
+        personnel: {},
+        agencyPersonnel: {},
+        locationPaths: {},
+      },
+    });
+    // Agencies are facade-based (ADR 0016): register the (already-resolved) agency
+    // through its facade so it emits.
+    const { id: _agencyId, ...agencySpec } = rows.agencies[0]!;
+    runContext
+      .fromSource({
+        apiVersion: INTAKE_API_VERSION,
+        namespace: "mn-post",
+        name: "agency-source-id",
+      })
+      .merge(agencySpec);
+    const databaseMutations = await runContext.toDatabaseMutations({
       namespace: artifacts.metadata.namespace,
       name: runId,
       sourceArtifactsName: artifacts.metadata.name,

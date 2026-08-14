@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
-  AgencyFacade,
   DataContext,
+  type DataContextOptions,
 } from "../../../src/cli/import/artifacts/data-context.js";
 import type { DatabaseClient } from "../../../src/cli/database/index.js";
 import type {
@@ -138,30 +138,67 @@ function licensingContext(
 }
 
 describe("DataContext", () => {
-  test("AgencyFacade emits AgencyCreate when no current database row exists", () => {
-    const agency = new AgencyFacade();
-    agency.merge({
-      name: "Minnesota State Patrol",
-      city: "Saint Paul",
-      state: "MN",
-      address: "444 Cedar Street",
-      zip_code: "55101",
-      contact_name: null,
-      contact_email: null,
-      slug: "minnesota-state-patrol",
-      location_path_id: "saint-paul-location-path-id",
-      latitude: 44.955097,
-      longitude: -93.102211,
+  function agencyFacadeContext(options?: {
+    client?: DatabaseClient;
+    databaseAgencies?: Record<string, unknown>[];
+    resolveAddress?: (input: unknown) => Promise<unknown>;
+    databaseLocationPaths?: LocationPathRow[];
+    rows?: ImportRows;
+  }): DataContext {
+    return new DataContext({
+      client: options?.client ?? new EmptyClient(),
+      rows: options?.rows ?? rows,
+      commandName: "command-name",
+      sourceNameToCanonicalIds: {
+        agencies: {
+          "mn-state-patrol": { canonicalId: "agency-canonical-id" },
+        },
+        personnel: {},
+        agencyPersonnel: {},
+        locationPaths: {},
+      },
+      ...(options?.databaseAgencies === undefined
+        ? {}
+        : { databaseAgencies: options.databaseAgencies }),
+      ...(options?.databaseLocationPaths === undefined
+        ? {}
+        : {
+            databaseLocationPaths: options.databaseLocationPaths,
+            databaseLocationPathAliases: [],
+          }),
+      ...(options?.resolveAddress === undefined
+        ? {}
+        : {
+            resolveAddress:
+              options.resolveAddress as DataContextOptions["resolveAddress"],
+          }),
     });
+  }
 
-    expect(
-      agency.toMutation({
-        namespace: "mn-post",
-        name: "mn-state-patrol",
-        canonicalId: "agency-canonical-id",
-        commandName: "command-name",
-      }),
-    ).toMatchObject({
+  const resolvedAgencySpec = {
+    name: "Minnesota State Patrol",
+    city: "Saint Paul",
+    state: "MN",
+    address: "444 Cedar Street",
+    zip_code: "55101",
+    contact_name: null,
+    contact_email: null,
+    slug: "minnesota-state-patrol",
+    location_path_id: "saint-paul-location-path-id",
+    latitude: 44.955097,
+    longitude: -93.102211,
+  };
+
+  test("AgencyFacade emits AgencyCreate when no current database row exists", async () => {
+    const context = agencyFacadeContext();
+    const agency = context.fromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: "mn-state-patrol",
+    });
+    agency.merge(resolvedAgencySpec);
+
+    expect(await agency.toMutation()).toMatchObject({
       kind: "AgencyCreate",
       metadata: { namespace: "mn-post", name: "mn-state-patrol" },
       spec: {
@@ -169,90 +206,75 @@ describe("DataContext", () => {
         name: "Minnesota State Patrol",
         slug: "minnesota-state-patrol",
         location_path_id: "saint-paul-location-path-id",
+        latitude: 44.955097,
+        longitude: -93.102211,
       },
     });
   });
 
-  test("AgencyFacade refuses partial AgencyCreate mutations", () => {
-    const agency = new AgencyFacade();
-    agency.merge({
-      name: "Minnesota State Patrol",
-      state: "MN",
+  test("AgencyFacade location_path_id composition fails loud when the address cannot resolve", async () => {
+    // Resolve-or-fail (ADR 0006/0015): a new agency with no pre-resolved
+    // location_path_id and no geocoder cannot resolve, and fails loud.
+    const context = agencyFacadeContext();
+    const agency = context.fromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: "mn-state-patrol",
     });
+    agency.merge({ name: "Minnesota State Patrol", state: "MN" });
 
-    // The slug invariant fails loud (naming the agency) before the AgencyCreate
-    // schema would reject the partial spec.
-    expect(() =>
-      agency.toMutation({
-        namespace: "mn-post",
-        name: "mn-state-patrol",
-        canonicalId: "agency-canonical-id",
-        commandName: "command-name",
-      }),
-    ).toThrow("without a resolved slug");
+    await expect(agency.toMutation()).rejects.toThrow(
+      /Cannot resolve address for agency mn-state-patrol/,
+    );
   });
 
-  test("DatabaseMutations rejects unresolved required create fields", async () => {
-    const invalidRows: ImportRows = {
-      ...rows,
-      agencies: [
-        {
-          ...rows.agencies[0],
-          latitude: undefined,
-          longitude: undefined,
-        },
+  test("AgencyCreate rejects a spec missing a required plain field", async () => {
+    const context = agencyFacadeContext();
+    const agency = context.fromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: "mn-state-patrol",
+    });
+    // Every resolvable field is present, but the required plain `name` is absent,
+    // so the assembled AgencyCreate fails its schema validation.
+    const { name: _name, ...withoutName } = resolvedAgencySpec;
+    agency.merge(withoutName);
+
+    await expect(agency.toMutation()).rejects.toThrow(
+      "AgencyCreate is malformed",
+    );
+  });
+
+  test("AgencyFacade emits AgencyUpdate with checks and from-to sets when current row exists", async () => {
+    const context = agencyFacadeContext({
+      databaseAgencies: [
+        { id: "agency-canonical-id", ...resolvedAgencySpec },
       ],
-      ownedColumns: {
-        ...rows.ownedColumns,
-        agencies: {
-          "agency-canonical-id": ["name", "latitude", "longitude"],
-        },
-      },
-    };
-
-    await expect(
-      new DataContext({ rows: invalidRows }).toDatabaseMutations({
-        namespace: "mn-post",
-        name: "command-name",
-      }),
-    ).rejects.toThrow("DatabaseMutations is malformed");
-  });
-
-  test("AgencyFacade emits AgencyUpdate with checks and from-to sets when current row exists", () => {
-    const agency = new AgencyFacade({
-      id: "agency-canonical-id",
-      name: "Minnesota State Patrol",
-      slug: "minnesota-state-patrol",
     });
-    agency.merge({
-      name: "Minnesota State Patrol",
-      slug: "msp",
+    const agency = context.fromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: "mn-state-patrol",
     });
+    agency.merge({ ...resolvedAgencySpec, slug: "msp" });
 
-    expect(
-      agency.toMutation({
-        namespace: "mn-post",
-        name: "mn-state-patrol",
-        canonicalId: "agency-canonical-id",
-        commandName: "command-name",
-      }),
-    ).toMatchObject({
+    expect(await agency.toMutation()).toMatchObject({
       kind: "AgencyUpdate",
       metadata: { namespace: "mn-post", name: "mn-state-patrol" },
       spec: {
-        operations: [
-          {
+        operations: expect.arrayContaining([
+          expect.objectContaining({
             action: "check",
             path: "name",
             value: "Minnesota State Patrol",
-          },
-          {
+          }),
+          expect.objectContaining({
             action: "set",
             path: "slug",
             from: "minnesota-state-patrol",
             to: "msp",
-          },
-        ],
+          }),
+        ]),
       },
     });
   });
@@ -279,7 +301,7 @@ describe("DataContext", () => {
     });
 
     expect(second).toBe(first);
-    expect(second.string("name")).toBe("Minnesota State Patrol");
+    expect(second.raw("name")).toBe("Minnesota State Patrol");
   });
 
   test("creates agency facade with canonical ID from source mapping and collects create mutation", async () => {
@@ -425,8 +447,43 @@ describe("DataContext", () => {
   });
 
   test("creates agency facade with current database row and collects update mutation", async () => {
+    const context = agencyFacadeContext({
+      databaseAgencies: [
+        { id: "agency-canonical-id", ...resolvedAgencySpec },
+      ],
+    });
+
+    const agency = context.fromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: "mn-state-patrol",
+    });
+    agency.merge({ ...resolvedAgencySpec, slug: "msp" });
+
+    expect(await context.toMutations()).toMatchObject([
+      {
+        kind: "AgencyUpdate",
+        metadata: { namespace: "mn-post", name: "mn-state-patrol" },
+        spec: {
+          operations: expect.arrayContaining([
+            expect.objectContaining({ action: "check", path: "name" }),
+            expect.objectContaining({
+              action: "set",
+              path: "slug",
+              from: "minnesota-state-patrol",
+              to: "msp",
+            }),
+          ]),
+        },
+      },
+    ]);
+  });
+
+  test("AgencyFacade location_path_id composition resolver geocodes then resolves the containing boundary", async () => {
+    // The composition resolver (ADR 0016): geocode the address, then
+    // point-in-polygon containment against the location hierarchy.
     const context = new DataContext({
-      client: new EmptyClient(),
+      client: new BoundaryClient(),
       rows,
       commandName: "command-name",
       sourceNameToCanonicalIds: {
@@ -436,68 +493,6 @@ describe("DataContext", () => {
         personnel: {},
         agencyPersonnel: {},
         locationPaths: {},
-      },
-      databaseAgencies: [
-        {
-          id: "agency-canonical-id",
-          name: "Minnesota State Patrol",
-          slug: "minnesota-state-patrol",
-        },
-      ],
-    });
-
-    const agency = context.fromSource({
-      apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
-      name: "mn-state-patrol",
-    });
-    agency.merge({
-      name: "Minnesota State Patrol",
-      slug: "msp",
-    });
-
-    expect(await context.toMutations()).toMatchObject([
-      {
-        kind: "AgencyUpdate",
-        metadata: { namespace: "mn-post", name: "mn-state-patrol" },
-        spec: {
-          operations: [
-            { action: "check", path: "name" },
-            {
-              action: "set",
-              path: "slug",
-              from: "minnesota-state-patrol",
-              to: "msp",
-            },
-          ],
-        },
-      },
-    ]);
-  });
-
-  test("resolves canonical IDs from a source facade property", async () => {
-    const context = new DataContext({
-      client: new BoundaryClient(),
-      rows: {
-        ...rows,
-        locationPathGeometries: [
-          {
-            location_path_id: "saint-paul-location-path-id",
-            sourceLocationPathKey: "place:GEOID:2743000",
-            geometry: {
-              type: "Polygon",
-              coordinates: [
-                [
-                  [-93.2, 44.9],
-                  [-93.0, 44.9],
-                  [-93.0, 45.0],
-                  [-93.2, 45.0],
-                  [-93.2, 44.9],
-                ],
-              ],
-            },
-          },
-        ],
       },
       databaseLocationPaths: locationPaths,
       databaseLocationPathAliases: [],
@@ -512,6 +507,7 @@ describe("DataContext", () => {
       namespace: "mn-post",
       name: "mn-state-patrol",
     });
+    // No location_path_id supplied — the composition resolver derives it.
     agency.merge({
       name: "Minnesota State Patrol",
       address: "444 Cedar Street",
@@ -520,12 +516,61 @@ describe("DataContext", () => {
       zip_code: "55101",
     });
 
-    await expect(
-      context.canonicalIdFromProperty({
-        source: agency,
-        property: "location_path_id",
-      }),
-    ).resolves.toBe("saint-paul-location-path-id");
+    await expect(agency.value("location_path_id")).resolves.toBe(
+      "saint-paul-location-path-id",
+    );
+    await expect(agency.value("latitude")).resolves.toBe(44.955097);
+  });
+
+  test("AgencyFacade finds a seeded canonical id, else mints and persists it", async () => {
+    const persisted: SourceNameToCanonicalIds[] = [];
+    const context = new DataContext({
+      client: new EmptyClient(),
+      rows,
+      commandName: "command-name",
+      sourceNameToCanonicalIds: {
+        agencies: { seeded: { canonicalId: "seeded-agency-id" } },
+        personnel: {},
+        agencyPersonnel: {},
+        locationPaths: {},
+      },
+      persistSourceNameToCanonicalIds: async (_namespace, mappings) => {
+        persisted.push(JSON.parse(JSON.stringify(mappings)));
+      },
+    });
+
+    const seeded = context.fromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: "seeded",
+    });
+    await expect(seeded.value("id")).resolves.toBe("seeded-agency-id");
+
+    const minted = context.fromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: "new-agency",
+    });
+    const mintedId = await minted.value("id");
+    expect(mintedId).not.toBe("seeded-agency-id");
+    expect(mintedId).toMatch(/^[0-9a-z]+$/);
+    expect(persisted.at(-1)?.agencies["new-agency"]).toEqual({
+      kind: "Agency",
+      canonicalId: mintedId,
+    });
+  });
+
+  test("AgencyFacade generates a slug from the name when none is supplied", async () => {
+    const context = agencyFacadeContext();
+    const agency = context.fromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: "mn-state-patrol",
+    });
+    const { slug: _slug, ...withoutSlug } = resolvedAgencySpec;
+    agency.merge(withoutSlug);
+
+    await expect(agency.value("slug")).resolves.toBe("minnesota-state-patrol");
   });
 
   test("LicensingAuthorityFacade resolves its canonical id from the ledger, minting when absent", async () => {
