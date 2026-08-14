@@ -669,7 +669,7 @@ export function transformArtifacts(
       mappings.licensingAuthorities?.[sourceName]?.canonicalId;
     if (canonicalId === undefined) {
       throw new Error(
-        `Artifacts licensing authority ${sourceName} references unmapped licensing authority ${sourceName}.`,
+        `Artifacts licensing authority ${sourceName} has no canonical id mapping.`,
       );
     }
     const sourceLocationPath = requiredString(
@@ -707,7 +707,7 @@ export function transformArtifacts(
       const canonicalId = mappings.licenses?.[sourceName]?.canonicalId;
       if (canonicalId === undefined) {
         throw new Error(
-          `Artifacts license ${sourceName} references unmapped license ${sourceName}.`,
+          `Artifacts license ${sourceName} has no canonical id mapping.`,
         );
       }
       const sourceOfficerId = requiredString(
@@ -761,7 +761,7 @@ export function transformArtifacts(
     const canonicalId = mappings.licenseActions?.[sourceName]?.canonicalId;
     if (canonicalId === undefined) {
       throw new Error(
-        `Artifacts license action ${sourceName} references unmapped license action ${sourceName}.`,
+        `Artifacts license action ${sourceName} has no canonical id mapping.`,
       );
     }
     const sourceLicenseId = requiredString(
