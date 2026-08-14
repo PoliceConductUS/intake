@@ -1,3 +1,4 @@
+import { createId } from "@paralleldrive/cuid2";
 import { LocationPathSpec } from "../../../shared/io/generated/entity-specs.js";
 import type { ArtifactsEnvelope } from "../../../shared/io/Artifacts.js";
 import {
@@ -54,6 +55,30 @@ import {
   type PersonnelUpdateEnvelope,
 } from "./io/generated-mutations/PersonnelUpdate.js";
 import {
+  LicensingAuthorityCreate,
+  type LicensingAuthorityCreateEnvelope,
+} from "./io/generated-mutations/LicensingAuthorityCreate.js";
+import {
+  LicensingAuthorityUpdate,
+  type LicensingAuthorityUpdateEnvelope,
+} from "./io/generated-mutations/LicensingAuthorityUpdate.js";
+import {
+  LicenseCreate,
+  type LicenseCreateEnvelope,
+} from "./io/generated-mutations/LicenseCreate.js";
+import {
+  LicenseUpdate,
+  type LicenseUpdateEnvelope,
+} from "./io/generated-mutations/LicenseUpdate.js";
+import {
+  LicenseActionCreate,
+  type LicenseActionCreateEnvelope,
+} from "./io/generated-mutations/LicenseActionCreate.js";
+import {
+  LicenseActionUpdate,
+  type LicenseActionUpdateEnvelope,
+} from "./io/generated-mutations/LicenseActionUpdate.js";
+import {
   DatabaseMutations,
   type DatabaseMutationItem,
   type DatabaseMutationsEnvelope,
@@ -103,6 +128,18 @@ export type DataContextOptions = {
   commandName?: string;
   sourceNameToCanonicalIds?: SourceNameToCanonicalIds;
   databaseAgencies?: Record<string, unknown>[];
+  databaseLicensingAuthorities?: Record<string, unknown>[];
+  databaseLicenses?: Record<string, unknown>[];
+  databaseLicenseActions?: Record<string, unknown>[];
+  /**
+   * Durable writer for the SourceNameToCanonicalId ledger. Injected so the
+   * canonical-id resolvers can mint AND persist an entity's own id themselves
+   * (ADR 0016 #4), without depending on any earlier minting stage.
+   */
+  persistSourceNameToCanonicalIds?: (
+    namespace: string,
+    mappings: SourceNameToCanonicalIds,
+  ) => Promise<void>;
 };
 
 type SourceRecordContext = {
@@ -141,13 +178,6 @@ type OwnedColumnsMetadata = {
   agency?: ImportRows["ownedColumns"]["agencies"][string];
   personnel?: ImportRows["ownedColumns"]["officers"][string];
   agencyPersonnel?: ImportRows["ownedColumns"]["agencyOfficers"][string];
-  licensingAuthority?: NonNullable<
-    ImportRows["ownedColumns"]["licensingAuthorities"]
-  >[string];
-  license?: NonNullable<ImportRows["ownedColumns"]["licenses"]>[string];
-  licenseAction?: NonNullable<
-    ImportRows["ownedColumns"]["licenseActions"]
-  >[string];
 };
 
 function validateSourceRecordContext(input: SourceRecordContext): void {
@@ -450,6 +480,822 @@ export class AgencyPersonnelFacade {
   }
 }
 
+// --- ADR 0016: composable per-property resolvers -----------------------------
+//
+// A property that must be derived before a database write is produced by a
+// `Resolver`. A resolver is entity-agnostic: it is handed the source facade (to
+// `await` sibling properties) plus the injected backend capabilities it needs,
+// and it returns a `Promise<T>` typed to its target column. Only the minimal
+// mechanism required to route `LicensingAuthority` through a facade is built
+// here (ADR 0016 #8 proves the mechanism first); the durable cache collapse and
+// the migration of the other entities are deferred.
+
+/**
+ * The database row shape a `LicensingAuthorityFacade` resolves toward. Used to
+ * type the generic property accessor so each property's promise carries its own
+ * target-column type. (`LicensingAuthority` no longer produces a transform row;
+ * the facade owns the column set.)
+ */
+export type LicensingAuthorityRowShape = {
+  id: string;
+  name: string;
+  abbreviation: string | null;
+  website: string | null;
+  location_path_id: string;
+};
+
+/** Backend capabilities the LicensingAuthority resolvers reach through. */
+export type LicensingAuthorityResolverBackend = {
+  /**
+   * Resolve-or-fail location lookup (ADR 0006/0015): a `location_path` is never
+   * minted. Consults current envelope → intake-owned state → database, with
+   * alias handling, via the shared `getByPath`.
+   */
+  getLocationPathByPath(path: string): Promise<LocationPathRow | undefined>;
+  /**
+   * Find-or-create the entity's own canonical id in the durable
+   * `SourceNameToCanonicalId` ledger by `(namespace, kind, source-id)`.
+   */
+  findOrCreateCanonicalId(input: {
+    namespace: string;
+    kind: string;
+    sourceId: string;
+  }): Promise<string>;
+  /**
+   * The existing database row for a resolved canonical id, if any. Lets the
+   * facade decide create-vs-update automatically — mirroring how agencies load
+   * `current` from `databaseAgencies` — so a re-import emits an update, not a
+   * duplicate create.
+   */
+  getCurrentById(id: string): Record<string, unknown> | undefined;
+};
+
+/**
+ * The uniform interface a resolver uses to reach the facade it is attached to,
+ * the source identity, and the injected backend. The backend type is a
+ * parameter so per-entity resolvers (LicensingAuthority, License, LicenseAction)
+ * each carry the capabilities they reach through.
+ */
+export type ResolverContext<
+  Row,
+  Backend = LicensingAuthorityResolverBackend,
+> = {
+  facade: PropertyResolutionFacade<Row>;
+  source: FacadeSource;
+  backend: Backend;
+};
+
+/** A facade that exposes its properties through the generic async accessor. */
+export interface PropertyResolutionFacade<Row> {
+  value<K extends keyof Row>(property: K): Promise<Row[K]>;
+  raw(property: keyof Row): unknown;
+}
+
+/**
+ * A minimal id-resolvable reference returned by the DataContext same-source
+ * foreign-key find (ADR 0016 #4). A FK resolver locates the target facade for a
+ * source id and `await`s its `id`; a missing target is a forward-reference
+ * violation that fails fast and loud (never a minted stub).
+ */
+export interface ForeignKeyIdSource {
+  value(property: "id"): Promise<string>;
+}
+
+type ResolverPolicy<T> =
+  | { readonly defaultValue: T }
+  | { readonly exception: Error }
+  | Record<string, never>;
+
+/**
+ * A per-property resolver. Constructed with **exactly one** unresolved-policy —
+ * a default value OR an exception — or neither. Behavior: resolves → return the
+ * value; else throw the configured exception; else return the configured
+ * default; else fail fast and loud with a message that locates the record in
+ * the source data (`namespace`, `kind`, `source-id`, `property`, offending
+ * value), supplied by the caller's `locate` closure.
+ */
+export class Resolver<T, Ctx> {
+  constructor(
+    private readonly resolveFn: (context: Ctx) => Promise<T | undefined>,
+    private readonly policy: ResolverPolicy<T> = {},
+  ) {
+    if (Object.keys(policy).length > 1) {
+      throw new Error(
+        "A resolver is constructed with at most one of defaultValue or exception.",
+      );
+    }
+  }
+
+  async resolve(context: Ctx, locate: () => string): Promise<T> {
+    const value = await this.resolveFn(context);
+    if (value !== undefined) {
+      return value;
+    }
+    if ("exception" in this.policy) {
+      throw this.policy.exception;
+    }
+    if ("defaultValue" in this.policy) {
+      return this.policy.defaultValue;
+    }
+    throw new Error(locate());
+  }
+}
+
+type LicensingAuthorityResolvers = Partial<{
+  [K in keyof LicensingAuthorityRowShape]: Resolver<
+    LicensingAuthorityRowShape[K],
+    ResolverContext<LicensingAuthorityRowShape>
+  >;
+}>;
+
+/** Canonical-id find-or-create resolver (ADR 0016 #4, "id" property). */
+function licensingAuthorityCanonicalIdResolver(): Resolver<
+  string,
+  ResolverContext<LicensingAuthorityRowShape>
+> {
+  return new Resolver(async ({ source, backend }) =>
+    // Find in the ledger by (namespace, kind, source-id); mint + persist when
+    // absent. Extension point (ADR 0016 #4): a natural-key match against the
+    // database recovers an existing row's id before minting — deferred while
+    // `licensing_authority` is a new table with no legacy rows.
+    backend.findOrCreateCanonicalId({
+      namespace: source.namespace,
+      kind: "LicensingAuthority",
+      sourceId: source.name,
+    }),
+  );
+}
+
+/** `location_path_id` resolve-or-fail resolver (ADR 0006/0015). */
+function licensingAuthorityLocationPathResolver(): Resolver<
+  string,
+  ResolverContext<LicensingAuthorityRowShape>
+> {
+  return new Resolver(async ({ facade, source, backend }) => {
+    // The source supplies a namespace-LOCAL state value (e.g. "tx"); map it to
+    // the path `/<state>/` and resolve against the location hierarchy.
+    const state = valueAsString(facade.raw("location_path_id"));
+    if (state === undefined) {
+      throw new Error(
+        `Cannot resolve location_path_id for LicensingAuthority ${source.namespace}/${source.name}; source location_path_id is missing.`,
+      );
+    }
+    const path = `/${state.toLowerCase()}/`;
+    const locationPath = await backend.getLocationPathByPath(path);
+    if (locationPath === undefined) {
+      // Resolve-or-fail: a location_path is never minted (ADR 0006).
+      throw new Error(
+        `Cannot resolve location_path_id for LicensingAuthority ${source.namespace}/${source.name}; source value ${JSON.stringify(
+          state,
+        )} does not match an imported location_path at ${path}.`,
+      );
+    }
+    return locationPath.location_path_id;
+  });
+}
+
+export class LicensingAuthorityFacade
+  implements PropertyResolutionFacade<LicensingAuthorityRowShape>
+{
+  private static readonly kind = "LicensingAuthority";
+  private readonly current?: Record<string, unknown>;
+  private readonly spec: Record<string, unknown> = {};
+  private readonly source: FacadeSource;
+  private readonly backend: LicensingAuthorityResolverBackend;
+  private readonly resolvers: LicensingAuthorityResolvers;
+  private readonly memo = new Map<
+    keyof LicensingAuthorityRowShape,
+    Promise<unknown>
+  >();
+  private readonly inProgress = new Set<keyof LicensingAuthorityRowShape>();
+
+  constructor(options: {
+    current?: Record<string, unknown>;
+    source: FacadeSource;
+    backend: LicensingAuthorityResolverBackend;
+  }) {
+    this.current = options.current;
+    this.source = options.source;
+    this.backend = options.backend;
+    this.resolvers = {
+      id: licensingAuthorityCanonicalIdResolver(),
+      location_path_id: licensingAuthorityLocationPathResolver(),
+    };
+  }
+
+  merge(spec: Record<string, unknown>): void {
+    Object.assign(this.spec, spec);
+  }
+
+  raw(property: keyof LicensingAuthorityRowShape): unknown {
+    return this.spec[property as string];
+  }
+
+  /**
+   * Uniform, generic, memoized async accessor. A plain property returns an
+   * already-resolved promise of the merged source value; a resolved property
+   * runs its attached resolver once per facade instance. A per-facade
+   * in-progress guard turns a circular dependency into a loud error.
+   */
+  value<K extends keyof LicensingAuthorityRowShape>(
+    property: K,
+  ): Promise<LicensingAuthorityRowShape[K]> {
+    const cached = this.memo.get(property);
+    if (cached !== undefined) {
+      return cached as Promise<LicensingAuthorityRowShape[K]>;
+    }
+    const pending = this.computeValue(property);
+    this.memo.set(property, pending);
+    return pending;
+  }
+
+  private async computeValue<K extends keyof LicensingAuthorityRowShape>(
+    property: K,
+  ): Promise<LicensingAuthorityRowShape[K]> {
+    if (this.inProgress.has(property)) {
+      throw new Error(
+        `Circular property dependency while resolving ${LicensingAuthorityFacade.kind}.${String(
+          property,
+        )} for ${this.source.namespace}/${this.source.name}.`,
+      );
+    }
+    this.inProgress.add(property);
+    try {
+      const resolver = this.resolvers[property];
+      if (resolver === undefined) {
+        return this.plainValue(property);
+      }
+      return await resolver.resolve(
+        { facade: this, source: this.source, backend: this.backend },
+        () => this.unresolvedMessage(property),
+      );
+    } finally {
+      this.inProgress.delete(property);
+    }
+  }
+
+  private plainValue<K extends keyof LicensingAuthorityRowShape>(
+    property: K,
+  ): LicensingAuthorityRowShape[K] {
+    // Plain source properties resolve to the merged source value already in the
+    // target column's datatype; a nullable column with no source value is null.
+    const value = this.spec[property as string];
+    return (value === undefined ? null : value) as LicensingAuthorityRowShape[K];
+  }
+
+  private unresolvedMessage(
+    property: keyof LicensingAuthorityRowShape,
+  ): string {
+    return `Cannot resolve ${LicensingAuthorityFacade.kind}.${String(
+      property,
+    )} for source ${this.source.namespace}/${this.source.name}; offending value ${JSON.stringify(
+      this.spec[property as string],
+    )}.`;
+  }
+
+  async toMutation(): Promise<
+    LicensingAuthorityCreateEnvelope | LicensingAuthorityUpdateEnvelope
+  > {
+    // Await every column this facade writes — resolution runs here, on demand,
+    // and TypeScript enforces that a promise cannot land in a column un-awaited.
+    const id = await this.value("id");
+    const name = await this.value("name");
+    const abbreviation = await this.value("abbreviation");
+    const website = await this.value("website");
+    const locationPathId = await this.value("location_path_id");
+
+    // Auto-load the existing database row for this canonical id (like agencies),
+    // so a re-import emits an update/no-op instead of a duplicate create. This is
+    // automatic in the facade path — no per-record special-casing at the caller.
+    const current = this.current ?? this.backend.getCurrentById(id);
+
+    if (current === undefined) {
+      return LicensingAuthorityCreate.new({
+        metadata: {
+          namespace: this.source.namespace,
+          name: this.source.name,
+        },
+        spec: {
+          id,
+          name,
+          abbreviation,
+          website,
+          location_path_id: locationPathId,
+        } as Parameters<typeof LicensingAuthorityCreate.new>[0]["spec"],
+      });
+    }
+
+    const commandName = valueAsString(this.source.commandName);
+    if (commandName === undefined) {
+      throw new Error(
+        `Cannot create licensing authority update for ${this.source.namespace}/${this.source.name} without command name.`,
+      );
+    }
+
+    const source = {
+      namespace: this.source.namespace,
+      command: { name: commandName },
+      kind: LicensingAuthorityFacade.kind,
+      name: this.source.name,
+    };
+    const desired: Record<string, unknown> = {
+      name,
+      abbreviation,
+      website,
+      location_path_id: locationPathId,
+    };
+    const operations = Object.entries(desired).map(([path, to]) => {
+      const from = current[path];
+      if (Object.is(from, to)) {
+        return {
+          action: "check" as const,
+          path,
+          value: to,
+          reason: `Expected existing ${LicensingAuthorityFacade.kind} ${path}.`,
+          source,
+        };
+      }
+
+      return {
+        action: "set" as const,
+        path,
+        from,
+        to,
+        reason: `Set ${LicensingAuthorityFacade.kind} ${path}.`,
+        source,
+      };
+    });
+
+    return LicensingAuthorityUpdate.new({
+      metadata: {
+        namespace: this.source.namespace,
+        name: this.source.name,
+      },
+      spec: { operations },
+    });
+  }
+}
+
+// --- License / LicenseAction facades (ADR 0016) ------------------------------
+//
+// License and LicenseAction mirror LicensingAuthority: each property is produced
+// by a resolver. The `id` is a canonical-id find-or-create (self-contained mint
+// + persist). Their foreign keys are same-source FINDS (ADR 0016 #4/#9): because
+// the source emits referenced entities first, the target facade already exists;
+// the resolver locates it and awaits its `id`, failing fast and loud when the
+// target is absent (a forward-reference violation) rather than minting a stub.
+
+/** The database row shape a `LicenseFacade` resolves toward. */
+export type LicenseRowShape = {
+  id: string;
+  officer_id: string;
+  license_type: string;
+  status: string | null;
+  first_awarded: string | null;
+  issued_by_authority_id: string;
+};
+
+/** The database row shape a `LicenseActionFacade` resolves toward. */
+export type LicenseActionRowShape = {
+  id: string;
+  license_id: string;
+  action: string;
+  action_date: string | null;
+  status: string | null;
+};
+
+/**
+ * Backend capabilities the License / LicenseAction resolvers reach through:
+ * the entity's own canonical-id find-or-create, the existing DB row for
+ * create-vs-update, and the same-source foreign-key find.
+ */
+export type LicenseResolverBackend = {
+  findOrCreateCanonicalId(input: {
+    namespace: string;
+    kind: string;
+    sourceId: string;
+  }): Promise<string>;
+  getCurrentById(id: string): Record<string, unknown> | undefined;
+  /**
+   * Locate an already-emitted target facade by `(kind, namespace, source-id)`
+   * so a FK resolver can await its `id`. Returns undefined when no such facade
+   * exists — the resolver turns that into a loud forward-reference failure.
+   */
+  findForeignKeyTarget(input: {
+    kind: string;
+    namespace: string;
+    sourceId: string;
+  }): ForeignKeyIdSource | undefined;
+};
+
+/** Canonical-id find-or-create resolver for an entity `kind` (ADR 0016 #4). */
+function facadeCanonicalIdResolver<Row>(
+  kind: string,
+): Resolver<string, ResolverContext<Row, LicenseResolverBackend>> {
+  return new Resolver(async ({ source, backend }) =>
+    backend.findOrCreateCanonicalId({
+      namespace: source.namespace,
+      kind,
+      sourceId: source.name,
+    }),
+  );
+}
+
+/**
+ * Same-source foreign-key FIND resolver (ADR 0016 #4/#9). Reads the source-local
+ * reference value from `property`, locates the target facade of `targetKind`,
+ * and awaits its `id`. A missing source value or a missing target facade
+ * (forward reference) fails fast and loud.
+ */
+function facadeForeignKeyResolver<Row>(
+  entityKind: string,
+  property: keyof Row & string,
+  targetKind: string,
+): Resolver<string, ResolverContext<Row, LicenseResolverBackend>> {
+  return new Resolver(async ({ facade, source, backend }) => {
+    const sourceId = valueAsString(facade.raw(property));
+    if (sourceId === undefined) {
+      throw new Error(
+        `Cannot resolve ${entityKind}.${property} for ${source.namespace}/${source.name}; source ${property} is missing.`,
+      );
+    }
+    const target = backend.findForeignKeyTarget({
+      kind: targetKind,
+      namespace: source.namespace,
+      sourceId,
+    });
+    if (target === undefined) {
+      throw new Error(
+        `Cannot resolve ${entityKind}.${property} for ${source.namespace}/${source.name}; no ${targetKind} facade was emitted for source id ${JSON.stringify(
+          sourceId,
+        )} (forward reference — ADR 0016 #9).`,
+      );
+    }
+    return target.value("id");
+  });
+}
+
+type LicenseResolvers = Partial<{
+  [K in keyof LicenseRowShape]: Resolver<
+    LicenseRowShape[K],
+    ResolverContext<LicenseRowShape, LicenseResolverBackend>
+  >;
+}>;
+
+type LicenseActionResolvers = Partial<{
+  [K in keyof LicenseActionRowShape]: Resolver<
+    LicenseActionRowShape[K],
+    ResolverContext<LicenseActionRowShape, LicenseResolverBackend>
+  >;
+}>;
+
+export class LicenseFacade
+  implements PropertyResolutionFacade<LicenseRowShape>
+{
+  private static readonly kind = "License";
+  private readonly current?: Record<string, unknown>;
+  private readonly spec: Record<string, unknown> = {};
+  private readonly source: FacadeSource;
+  private readonly backend: LicenseResolverBackend;
+  private readonly resolvers: LicenseResolvers;
+  private readonly memo = new Map<keyof LicenseRowShape, Promise<unknown>>();
+  private readonly inProgress = new Set<keyof LicenseRowShape>();
+
+  constructor(options: {
+    current?: Record<string, unknown>;
+    source: FacadeSource;
+    backend: LicenseResolverBackend;
+  }) {
+    this.current = options.current;
+    this.source = options.source;
+    this.backend = options.backend;
+    this.resolvers = {
+      id: facadeCanonicalIdResolver<LicenseRowShape>(LicenseFacade.kind),
+      officer_id: facadeForeignKeyResolver<LicenseRowShape>(
+        LicenseFacade.kind,
+        "officer_id",
+        "Personnel",
+      ),
+      issued_by_authority_id: facadeForeignKeyResolver<LicenseRowShape>(
+        LicenseFacade.kind,
+        "issued_by_authority_id",
+        "LicensingAuthority",
+      ),
+    };
+  }
+
+  merge(spec: Record<string, unknown>): void {
+    Object.assign(this.spec, spec);
+  }
+
+  raw(property: keyof LicenseRowShape): unknown {
+    return this.spec[property as string];
+  }
+
+  value<K extends keyof LicenseRowShape>(
+    property: K,
+  ): Promise<LicenseRowShape[K]> {
+    const cached = this.memo.get(property);
+    if (cached !== undefined) {
+      return cached as Promise<LicenseRowShape[K]>;
+    }
+    const pending = this.computeValue(property);
+    this.memo.set(property, pending);
+    return pending;
+  }
+
+  private async computeValue<K extends keyof LicenseRowShape>(
+    property: K,
+  ): Promise<LicenseRowShape[K]> {
+    if (this.inProgress.has(property)) {
+      throw new Error(
+        `Circular property dependency while resolving ${LicenseFacade.kind}.${String(
+          property,
+        )} for ${this.source.namespace}/${this.source.name}.`,
+      );
+    }
+    this.inProgress.add(property);
+    try {
+      const resolver = this.resolvers[property];
+      if (resolver === undefined) {
+        return this.plainValue(property);
+      }
+      return await resolver.resolve(
+        { facade: this, source: this.source, backend: this.backend },
+        () => this.unresolvedMessage(property),
+      );
+    } finally {
+      this.inProgress.delete(property);
+    }
+  }
+
+  private plainValue<K extends keyof LicenseRowShape>(
+    property: K,
+  ): LicenseRowShape[K] {
+    const value = this.spec[property as string];
+    return (value === undefined ? null : value) as LicenseRowShape[K];
+  }
+
+  private unresolvedMessage(property: keyof LicenseRowShape): string {
+    return `Cannot resolve ${LicenseFacade.kind}.${String(
+      property,
+    )} for source ${this.source.namespace}/${this.source.name}; offending value ${JSON.stringify(
+      this.spec[property as string],
+    )}.`;
+  }
+
+  async toMutation(): Promise<LicenseCreateEnvelope | LicenseUpdateEnvelope> {
+    const id = await this.value("id");
+    const officerId = await this.value("officer_id");
+    const licenseType = await this.value("license_type");
+    const status = await this.value("status");
+    const firstAwarded = await this.value("first_awarded");
+    const issuedByAuthorityId = await this.value("issued_by_authority_id");
+
+    const current = this.current ?? this.backend.getCurrentById(id);
+
+    if (current === undefined) {
+      return LicenseCreate.new({
+        metadata: {
+          namespace: this.source.namespace,
+          name: this.source.name,
+        },
+        spec: {
+          id,
+          officer_id: officerId,
+          license_type: licenseType,
+          status,
+          first_awarded: firstAwarded,
+          issued_by_authority_id: issuedByAuthorityId,
+        } as Parameters<typeof LicenseCreate.new>[0]["spec"],
+      });
+    }
+
+    const commandName = valueAsString(this.source.commandName);
+    if (commandName === undefined) {
+      throw new Error(
+        `Cannot create license update for ${this.source.namespace}/${this.source.name} without command name.`,
+      );
+    }
+
+    const source = {
+      namespace: this.source.namespace,
+      command: { name: commandName },
+      kind: LicenseFacade.kind,
+      name: this.source.name,
+    };
+    const desired: Record<string, unknown> = {
+      officer_id: officerId,
+      license_type: licenseType,
+      status,
+      first_awarded: firstAwarded,
+      issued_by_authority_id: issuedByAuthorityId,
+    };
+    const operations = Object.entries(desired).map(([path, to]) => {
+      const from = current[path];
+      if (Object.is(from, to)) {
+        return {
+          action: "check" as const,
+          path,
+          value: to,
+          reason: `Expected existing ${LicenseFacade.kind} ${path}.`,
+          source,
+        };
+      }
+
+      return {
+        action: "set" as const,
+        path,
+        from,
+        to,
+        reason: `Set ${LicenseFacade.kind} ${path}.`,
+        source,
+      };
+    });
+
+    return LicenseUpdate.new({
+      metadata: {
+        namespace: this.source.namespace,
+        name: this.source.name,
+      },
+      spec: { operations },
+    });
+  }
+}
+
+export class LicenseActionFacade
+  implements PropertyResolutionFacade<LicenseActionRowShape>
+{
+  private static readonly kind = "LicenseAction";
+  private readonly current?: Record<string, unknown>;
+  private readonly spec: Record<string, unknown> = {};
+  private readonly source: FacadeSource;
+  private readonly backend: LicenseResolverBackend;
+  private readonly resolvers: LicenseActionResolvers;
+  private readonly memo = new Map<
+    keyof LicenseActionRowShape,
+    Promise<unknown>
+  >();
+  private readonly inProgress = new Set<keyof LicenseActionRowShape>();
+
+  constructor(options: {
+    current?: Record<string, unknown>;
+    source: FacadeSource;
+    backend: LicenseResolverBackend;
+  }) {
+    this.current = options.current;
+    this.source = options.source;
+    this.backend = options.backend;
+    this.resolvers = {
+      id: facadeCanonicalIdResolver<LicenseActionRowShape>(
+        LicenseActionFacade.kind,
+      ),
+      license_id: facadeForeignKeyResolver<LicenseActionRowShape>(
+        LicenseActionFacade.kind,
+        "license_id",
+        "License",
+      ),
+    };
+  }
+
+  merge(spec: Record<string, unknown>): void {
+    Object.assign(this.spec, spec);
+  }
+
+  raw(property: keyof LicenseActionRowShape): unknown {
+    return this.spec[property as string];
+  }
+
+  value<K extends keyof LicenseActionRowShape>(
+    property: K,
+  ): Promise<LicenseActionRowShape[K]> {
+    const cached = this.memo.get(property);
+    if (cached !== undefined) {
+      return cached as Promise<LicenseActionRowShape[K]>;
+    }
+    const pending = this.computeValue(property);
+    this.memo.set(property, pending);
+    return pending;
+  }
+
+  private async computeValue<K extends keyof LicenseActionRowShape>(
+    property: K,
+  ): Promise<LicenseActionRowShape[K]> {
+    if (this.inProgress.has(property)) {
+      throw new Error(
+        `Circular property dependency while resolving ${LicenseActionFacade.kind}.${String(
+          property,
+        )} for ${this.source.namespace}/${this.source.name}.`,
+      );
+    }
+    this.inProgress.add(property);
+    try {
+      const resolver = this.resolvers[property];
+      if (resolver === undefined) {
+        return this.plainValue(property);
+      }
+      return await resolver.resolve(
+        { facade: this, source: this.source, backend: this.backend },
+        () => this.unresolvedMessage(property),
+      );
+    } finally {
+      this.inProgress.delete(property);
+    }
+  }
+
+  private plainValue<K extends keyof LicenseActionRowShape>(
+    property: K,
+  ): LicenseActionRowShape[K] {
+    const value = this.spec[property as string];
+    return (value === undefined ? null : value) as LicenseActionRowShape[K];
+  }
+
+  private unresolvedMessage(property: keyof LicenseActionRowShape): string {
+    return `Cannot resolve ${LicenseActionFacade.kind}.${String(
+      property,
+    )} for source ${this.source.namespace}/${this.source.name}; offending value ${JSON.stringify(
+      this.spec[property as string],
+    )}.`;
+  }
+
+  async toMutation(): Promise<
+    LicenseActionCreateEnvelope | LicenseActionUpdateEnvelope
+  > {
+    const id = await this.value("id");
+    const licenseId = await this.value("license_id");
+    const action = await this.value("action");
+    const actionDate = await this.value("action_date");
+    const status = await this.value("status");
+
+    const current = this.current ?? this.backend.getCurrentById(id);
+
+    if (current === undefined) {
+      return LicenseActionCreate.new({
+        metadata: {
+          namespace: this.source.namespace,
+          name: this.source.name,
+        },
+        spec: {
+          id,
+          license_id: licenseId,
+          action,
+          action_date: actionDate,
+          status,
+        } as Parameters<typeof LicenseActionCreate.new>[0]["spec"],
+      });
+    }
+
+    const commandName = valueAsString(this.source.commandName);
+    if (commandName === undefined) {
+      throw new Error(
+        `Cannot create license action update for ${this.source.namespace}/${this.source.name} without command name.`,
+      );
+    }
+
+    const source = {
+      namespace: this.source.namespace,
+      command: { name: commandName },
+      kind: LicenseActionFacade.kind,
+      name: this.source.name,
+    };
+    const desired: Record<string, unknown> = {
+      license_id: licenseId,
+      action,
+      action_date: actionDate,
+      status,
+    };
+    const operations = Object.entries(desired).map(([path, to]) => {
+      const from = current[path];
+      if (Object.is(from, to)) {
+        return {
+          action: "check" as const,
+          path,
+          value: to,
+          reason: `Expected existing ${LicenseActionFacade.kind} ${path}.`,
+          source,
+        };
+      }
+
+      return {
+        action: "set" as const,
+        path,
+        from,
+        to,
+        reason: `Set ${LicenseActionFacade.kind} ${path}.`,
+        source,
+      };
+    });
+
+    return LicenseActionUpdate.new({
+      metadata: {
+        namespace: this.source.namespace,
+        name: this.source.name,
+      },
+      spec: { operations },
+    });
+  }
+}
+
 export type LocationAdministrativeAreaRequest = {
   address?: string;
   state: string;
@@ -649,11 +1495,6 @@ function ownedColumnsMetadata(records: ImportRows): OwnedColumnsMetadata {
     agency: mostCommonColumns(records.ownedColumns.agencies),
     personnel: mostCommonColumns(records.ownedColumns.officers),
     agencyPersonnel: mostCommonColumns(records.ownedColumns.agencyOfficers),
-    licensingAuthority: mostCommonColumns(
-      records.ownedColumns.licensingAuthorities ?? {},
-    ),
-    license: mostCommonColumns(records.ownedColumns.licenses ?? {}),
-    licenseAction: mostCommonColumns(records.ownedColumns.licenseActions ?? {}),
   };
 }
 
@@ -731,6 +1572,16 @@ export class DataContext {
   private readonly commandName?: string;
   private readonly sourceNameToCanonicalIds?: SourceNameToCanonicalIds;
   private readonly databaseAgencyById: Map<string, Record<string, unknown>>;
+  private readonly databaseLicensingAuthorityById: Map<
+    string,
+    Record<string, unknown>
+  >;
+  private readonly databaseLicenseById: Map<string, Record<string, unknown>>;
+  private readonly databaseLicenseActionById: Map<
+    string,
+    Record<string, unknown>
+  >;
+  private readonly persistSourceNameToCanonicalIdsFn?: DataContextOptions["persistSourceNameToCanonicalIds"];
   private readonly agencyFacades = new Map<string, FacadeEntry<AgencyFacade>>();
   private readonly personnelFacades = new Map<
     string,
@@ -739,6 +1590,15 @@ export class DataContext {
   private readonly agencyPersonnelFacades = new Map<
     string,
     FacadeEntry<AgencyPersonnelFacade>
+  >();
+  private readonly licensingAuthorityFacades = new Map<
+    string,
+    LicensingAuthorityFacade
+  >();
+  private readonly licenseFacades = new Map<string, LicenseFacade>();
+  private readonly licenseActionFacades = new Map<
+    string,
+    LicenseActionFacade
   >();
 
   constructor(options: DataContextOptions) {
@@ -802,6 +1662,32 @@ export class DataContext {
             entry[0] !== undefined,
         ),
     );
+    this.databaseLicensingAuthorityById = new Map(
+      (options.databaseLicensingAuthorities ?? [])
+        .map((authority) => [valueAsString(authority.id), authority] as const)
+        .filter(
+          (entry): entry is readonly [string, Record<string, unknown>] =>
+            entry[0] !== undefined,
+        ),
+    );
+    this.databaseLicenseById = new Map(
+      (options.databaseLicenses ?? [])
+        .map((license) => [valueAsString(license.id), license] as const)
+        .filter(
+          (entry): entry is readonly [string, Record<string, unknown>] =>
+            entry[0] !== undefined,
+        ),
+    );
+    this.databaseLicenseActionById = new Map(
+      (options.databaseLicenseActions ?? [])
+        .map((action) => [valueAsString(action.id), action] as const)
+        .filter(
+          (entry): entry is readonly [string, Record<string, unknown>] =>
+            entry[0] !== undefined,
+        ),
+    );
+    this.persistSourceNameToCanonicalIdsFn =
+      options.persistSourceNameToCanonicalIds;
     this.locations = new LocationDataContext(this);
     this.locationPaths = new LocationPathDataContext(this);
   }
@@ -1091,14 +1977,277 @@ export class DataContext {
     return facade;
   }
 
-  toMutations(): (
-    | AgencyCreateEnvelope
-    | AgencyUpdateEnvelope
-    | PersonnelCreateEnvelope
-    | PersonnelUpdateEnvelope
-    | AgencyPersonnelCreateEnvelope
-    | AgencyPersonnelUpdateEnvelope
-  )[] {
+  licensingAuthorityFromSource(
+    input: SourceRecordContext,
+  ): LicensingAuthorityFacade {
+    validateSourceRecordContext(input);
+    const key = [
+      input.apiVersion,
+      input.namespace,
+      "LicensingAuthority",
+      input.name,
+    ].join(":");
+    const existing = this.licensingAuthorityFacades.get(key);
+    if (existing !== undefined) {
+      if (input.spec !== undefined) {
+        existing.merge(input.spec);
+      }
+      return existing;
+    }
+    const facade = new LicensingAuthorityFacade({
+      // Current-row loading (create-vs-update against an existing DB row) is
+      // deferred: `licensing_authority` is a new table with no legacy rows
+      // (ADR 0016 #8). The canonical id is still stable via the ledger resolver.
+      current: input.current,
+      source: {
+        namespace: input.namespace,
+        name: input.name,
+        commandName: input.commandName ?? this.commandName,
+      },
+      backend: this.licensingAuthorityResolverBackend(),
+    });
+    if (input.spec !== undefined) {
+      facade.merge(input.spec);
+    }
+    this.licensingAuthorityFacades.set(key, facade);
+    return facade;
+  }
+
+  private licensingAuthorityResolverBackend(): LicensingAuthorityResolverBackend {
+    return {
+      getLocationPathByPath: (path) => this.locationPaths.getByPath(path),
+      findOrCreateCanonicalId: (input) =>
+        this.findOrCreateLicensingAuthorityCanonicalId(input),
+      getCurrentById: (id) => this.databaseLicensingAuthorityById.get(id),
+    };
+  }
+
+  private async findOrCreateLicensingAuthorityCanonicalId(input: {
+    namespace: string;
+    kind: string;
+    sourceId: string;
+  }): Promise<string> {
+    // Find in the ledger by (namespace, kind, source-id).
+    const existing = valueAsString(
+      this.sourceNameToCanonicalIds?.licensingAuthorities?.[input.sourceId]
+        ?.canonicalId,
+    );
+    if (existing !== undefined) {
+      return existing;
+    }
+
+    // Create: mint a stable cuid2, record it in the ledger, and durably persist
+    // it — the resolver is the sole owner of LicensingAuthority identity
+    // (ADR 0016 #4), so it must not depend on any earlier minting stage.
+    // Extension point: a natural-key match against the database would recover an
+    // existing row's id before minting — deferred while `licensing_authority` is
+    // a new table with no legacy rows.
+    const canonicalId = createId();
+    if (this.sourceNameToCanonicalIds === undefined) {
+      return canonicalId;
+    }
+    this.sourceNameToCanonicalIds.licensingAuthorities ??= {};
+    this.sourceNameToCanonicalIds.licensingAuthorities[input.sourceId] = {
+      kind: "LicensingAuthority",
+      canonicalId,
+    };
+    await this.persistSourceNameToCanonicalIdsFn?.(
+      input.namespace,
+      this.sourceNameToCanonicalIds,
+    );
+    return canonicalId;
+  }
+
+  licenseFromSource(input: SourceRecordContext): LicenseFacade {
+    validateSourceRecordContext(input);
+    const key = [
+      input.apiVersion,
+      input.namespace,
+      "License",
+      input.name,
+    ].join(":");
+    const existing = this.licenseFacades.get(key);
+    if (existing !== undefined) {
+      if (input.spec !== undefined) {
+        existing.merge(input.spec);
+      }
+      return existing;
+    }
+    const facade = new LicenseFacade({
+      current: input.current,
+      source: {
+        namespace: input.namespace,
+        name: input.name,
+        commandName: input.commandName ?? this.commandName,
+      },
+      backend: this.licenseResolverBackend(this.databaseLicenseById),
+    });
+    if (input.spec !== undefined) {
+      facade.merge(input.spec);
+    }
+    this.licenseFacades.set(key, facade);
+    return facade;
+  }
+
+  licenseActionFromSource(input: SourceRecordContext): LicenseActionFacade {
+    validateSourceRecordContext(input);
+    const key = [
+      input.apiVersion,
+      input.namespace,
+      "LicenseAction",
+      input.name,
+    ].join(":");
+    const existing = this.licenseActionFacades.get(key);
+    if (existing !== undefined) {
+      if (input.spec !== undefined) {
+        existing.merge(input.spec);
+      }
+      return existing;
+    }
+    const facade = new LicenseActionFacade({
+      current: input.current,
+      source: {
+        namespace: input.namespace,
+        name: input.name,
+        commandName: input.commandName ?? this.commandName,
+      },
+      backend: this.licenseResolverBackend(this.databaseLicenseActionById),
+    });
+    if (input.spec !== undefined) {
+      facade.merge(input.spec);
+    }
+    this.licenseActionFacades.set(key, facade);
+    return facade;
+  }
+
+  private licenseResolverBackend(
+    databaseCurrentById: Map<string, Record<string, unknown>>,
+  ): LicenseResolverBackend {
+    return {
+      findOrCreateCanonicalId: (input) =>
+        this.findOrCreateLicenseCanonicalId(input),
+      getCurrentById: (id) => databaseCurrentById.get(id),
+      findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
+    };
+  }
+
+  /**
+   * Same-source foreign-key FIND (ADR 0016 #4/#9): return an already-emitted
+   * target facade as an id-resolvable reference, or undefined when none exists.
+   * It never creates the target — a missing target is the referrer's
+   * forward-reference violation, raised loudly by the FK resolver.
+   */
+  private findForeignKeyTarget(input: {
+    kind: string;
+    namespace: string;
+    sourceId: string;
+  }): ForeignKeyIdSource | undefined {
+    const key = [
+      INTAKE_API_VERSION,
+      input.namespace,
+      input.kind,
+      input.sourceId,
+    ].join(":");
+    if (input.kind === "Personnel") {
+      const entry = this.personnelFacades.get(key);
+      if (entry === undefined) {
+        return undefined;
+      }
+      const canonicalId = valueAsString(entry.source.canonicalId);
+      return {
+        value: async () => {
+          if (canonicalId === undefined) {
+            throw new Error(
+              `Personnel facade ${input.namespace}/${input.sourceId} has no canonical id to resolve a foreign key against.`,
+            );
+          }
+          return canonicalId;
+        },
+      };
+    }
+    if (input.kind === "LicensingAuthority") {
+      return this.licensingAuthorityFacades.get(key);
+    }
+    if (input.kind === "License") {
+      return this.licenseFacades.get(key);
+    }
+    return undefined;
+  }
+
+  private async findOrCreateLicenseCanonicalId(input: {
+    namespace: string;
+    kind: string;
+    sourceId: string;
+  }): Promise<string> {
+    // Find in the ledger by (namespace, kind, source-id); mint + persist when
+    // absent. The facade is the sole owner of License / LicenseAction identity
+    // (ADR 0016 #4), so it must not depend on any earlier minting stage.
+    const ledger =
+      input.kind === "License"
+        ? this.sourceNameToCanonicalIds?.licenses
+        : this.sourceNameToCanonicalIds?.licenseActions;
+    const existing = valueAsString(ledger?.[input.sourceId]?.canonicalId);
+    if (existing !== undefined) {
+      return existing;
+    }
+
+    const canonicalId = createId();
+    if (this.sourceNameToCanonicalIds === undefined) {
+      return canonicalId;
+    }
+    if (input.kind === "License") {
+      this.sourceNameToCanonicalIds.licenses ??= {};
+      this.sourceNameToCanonicalIds.licenses[input.sourceId] = {
+        kind: "License",
+        canonicalId,
+      };
+    } else {
+      this.sourceNameToCanonicalIds.licenseActions ??= {};
+      this.sourceNameToCanonicalIds.licenseActions[input.sourceId] = {
+        kind: "LicenseAction",
+        canonicalId,
+      };
+    }
+    await this.persistSourceNameToCanonicalIdsFn?.(
+      input.namespace,
+      this.sourceNameToCanonicalIds,
+    );
+    return canonicalId;
+  }
+
+  async toMutations(): Promise<
+    (
+      | AgencyCreateEnvelope
+      | AgencyUpdateEnvelope
+      | PersonnelCreateEnvelope
+      | PersonnelUpdateEnvelope
+      | AgencyPersonnelCreateEnvelope
+      | AgencyPersonnelUpdateEnvelope
+      | LicensingAuthorityCreateEnvelope
+      | LicensingAuthorityUpdateEnvelope
+      | LicenseCreateEnvelope
+      | LicenseUpdateEnvelope
+      | LicenseActionCreateEnvelope
+      | LicenseActionUpdateEnvelope
+    )[]
+  > {
+    // Resolve facade mutations in dependency order so every same-source FK find
+    // (ADR 0016 #4/#9) targets an already-emitted facade: LicensingAuthorities,
+    // then Licenses (find Personnel + LicensingAuthority), then LicenseActions
+    // (find License).
+    const licensingAuthorities = await Promise.all(
+      [...this.licensingAuthorityFacades.values()].map((facade) =>
+        facade.toMutation(),
+      ),
+    );
+    const licenses = await Promise.all(
+      [...this.licenseFacades.values()].map((facade) => facade.toMutation()),
+    );
+    const licenseActions = await Promise.all(
+      [...this.licenseActionFacades.values()].map((facade) =>
+        facade.toMutation(),
+      ),
+    );
     return [
       ...[...this.agencyFacades.values()].map(({ facade, source }) =>
         facade.toMutation(source),
@@ -1109,12 +2258,15 @@ export class DataContext {
       ...[...this.agencyPersonnelFacades.values()].map(({ facade, source }) =>
         facade.toMutation(source),
       ),
+      ...licensingAuthorities,
+      ...licenses,
+      ...licenseActions,
     ];
   }
 
-  toDatabaseMutationItems(): DatabaseMutationItem[] {
+  async toDatabaseMutationItems(): Promise<DatabaseMutationItem[]> {
     const ownedColumns = ownedColumnsMetadata(this.importRows);
-    const facadeMutations = this.toMutations().map((mutation) => ({
+    const facadeMutations = (await this.toMutations()).map((mutation) => ({
       kind: mutation.kind,
       name: mutation.metadata.name,
       spec: mutation.spec,
@@ -1224,64 +2376,18 @@ export class DataContext {
               : { ownedColumns: recordOwnedColumnNames }),
           };
         }),
-      ...(this.importRows.licensingAuthorities ?? []).map((record) => {
-        const recordOwnedColumnNames = recordOwnedColumns(
-          this.importRows.ownedColumns.licensingAuthorities?.[record.id] ?? [],
-          ownedColumns.licensingAuthority,
-        );
-        return {
-          kind: mutationKind(
-            this.operations.licensingAuthorities[record.id],
-            "LicensingAuthority",
-          ),
-          name: record.id,
-          spec: databaseSpec(record),
-          ...(recordOwnedColumnNames === undefined
-            ? {}
-            : { ownedColumns: recordOwnedColumnNames }),
-        };
-      }),
-      ...(this.importRows.licenses ?? []).map((record) => {
-        const recordOwnedColumnNames = recordOwnedColumns(
-          this.importRows.ownedColumns.licenses?.[record.id] ?? [],
-          ownedColumns.license,
-        );
-        return {
-          kind: mutationKind(this.operations.licenses[record.id], "License"),
-          name: record.id,
-          spec: databaseSpec(record),
-          ...(recordOwnedColumnNames === undefined
-            ? {}
-            : { ownedColumns: recordOwnedColumnNames }),
-        };
-      }),
-      ...(this.importRows.licenseActions ?? []).map((record) => {
-        const recordOwnedColumnNames = recordOwnedColumns(
-          this.importRows.ownedColumns.licenseActions?.[record.id] ?? [],
-          ownedColumns.licenseAction,
-        );
-        return {
-          kind: mutationKind(
-            this.operations.licenseActions[record.id],
-            "LicenseAction",
-          ),
-          name: record.id,
-          spec: databaseSpec(record),
-          ...(recordOwnedColumnNames === undefined
-            ? {}
-            : { ownedColumns: recordOwnedColumnNames }),
-        };
-      }),
+      // License and LicenseAction mutations are emitted by their facades via
+      // `facadeMutations` (ADR 0016); there are no transform rows to assemble.
     ];
   }
 
-  toDatabaseMutations(
+  async toDatabaseMutations(
     metadata: DatabaseMutationsMetadataInput,
-  ): DatabaseMutationsEnvelope {
+  ): Promise<DatabaseMutationsEnvelope> {
     return DatabaseMutations.new({
       metadata,
       spec: {
-        mutations: this.toDatabaseMutationItems(),
+        mutations: await this.toDatabaseMutationItems(),
       },
     });
   }

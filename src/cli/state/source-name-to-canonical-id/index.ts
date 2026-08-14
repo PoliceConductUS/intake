@@ -388,21 +388,14 @@ export function assertCanonicalMappingFields(
     }
   }
 
+  // License ids are still minted in resolveArtifactsSourceNameToCanonicalIds (the
+  // row-based AgencyPersonnel transform consumes them), so they are asserted here
+  // as before. LicenseAction identity is owned solely by the LicenseActionFacade
+  // canonical-id resolver (ADR 0016 #4) and is not asserted — mirroring
+  // LicensingAuthorities.
   for (const sourceName of artifactsEntityKeys(artifacts, "licenses")) {
     const mapping = mappings.licenses?.[sourceName];
     const error = formatRequiredMappingError("License", sourceName, mapping);
-    if (error !== undefined) {
-      errors.push(error);
-    }
-  }
-
-  for (const sourceName of artifactsEntityKeys(artifacts, "licenseActions")) {
-    const mapping = mappings.licenseActions?.[sourceName];
-    const error = formatRequiredMappingError(
-      "License action",
-      sourceName,
-      mapping,
-    );
     if (error !== undefined) {
       errors.push(error);
     }
@@ -472,33 +465,21 @@ export async function resolveArtifactsSourceNameToCanonicalIds(
     }
   }
 
-  for (const sourceName of artifactsEntityKeys(
-    artifacts,
-    "licensingAuthorities",
-  )) {
-    if (resolvedMappings.licensingAuthorities![sourceName] === undefined) {
-      resolvedMappings.licensingAuthorities![sourceName] = {
-        kind: sourceNameKinds.licensingAuthority,
-        canonicalId: createId(),
-      };
-      createdMappings = true;
-    }
-  }
-
+  // LicensingAuthority and LicenseAction identity is owned solely by their
+  // facades' canonical-id resolvers (ADR 0016, self-contained find-or-create +
+  // persist), so this stage no longer mints their ids.
+  //
+  // License is different: the row-based AgencyPersonnel transform (not yet
+  // migrated to a facade) still resolves `agency_officer.license_id` against
+  // `mappings.licenses` at transform time — before any facade runs. So License
+  // ids must exist in the ledger before transform. This stage remains the License
+  // minter; the LicenseFacade's canonical-id resolver find-or-creates against the
+  // same ledger and simply finds the id here. When AgencyPersonnel migrates to a
+  // facade FK find, this loop can be removed like the others.
   for (const sourceName of artifactsEntityKeys(artifacts, "licenses")) {
     if (resolvedMappings.licenses![sourceName] === undefined) {
       resolvedMappings.licenses![sourceName] = {
         kind: sourceNameKinds.license,
-        canonicalId: createId(),
-      };
-      createdMappings = true;
-    }
-  }
-
-  for (const sourceName of artifactsEntityKeys(artifacts, "licenseActions")) {
-    if (resolvedMappings.licenseActions![sourceName] === undefined) {
-      resolvedMappings.licenseActions![sourceName] = {
-        kind: sourceNameKinds.licenseAction,
         canonicalId: createId(),
       };
       createdMappings = true;

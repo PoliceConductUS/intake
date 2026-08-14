@@ -16,7 +16,10 @@ import {
   type DatabaseClient,
   type DatabaseClientFactory,
 } from "../../database/index.js";
-import { readDatabaseRecordByColumn } from "../../database/entities.js";
+import {
+  readDatabaseRecordByColumn,
+  readDatabaseRecordsByIds,
+} from "../../database/entities.js";
 import type {
   LocationAdministrativeAreaRequest,
   LocationAdministrativeAreaResolution,
@@ -51,6 +54,7 @@ import {
 import {
   assertCanonicalMappingFields,
   loadSourceNameToCanonicalIds,
+  persistSourceNameToCanonicalIds,
   resolveArtifactsSourceNameToCanonicalIds,
   type SourceNameToCanonicalIds,
 } from "../../state/source-name-to-canonical-id/index.js";
@@ -61,11 +65,7 @@ import {
   writeResolvedProperty,
 } from "../../state/resolved-property/index.js";
 import { replayDatabaseMutations } from "../../replay/database-mutations/config.js";
-import type {
-  ImportRows,
-  ResolvedLicensingAuthorityState,
-  ResolvedProperties,
-} from "./transform.js";
+import type { ImportRows, ResolvedProperties } from "./transform.js";
 import { transformArtifacts } from "./transform.js";
 import {
   IMPORT_ARTIFACT_KINDS,
@@ -433,6 +433,74 @@ function addAgencyPersonnelSourceFacades(
   }
 }
 
+function addLicensingAuthoritySourceFacades(
+  dataContext: DataContext,
+  artifacts: ArtifactsEnvelope,
+): void {
+  // Route each LicensingAuthority source record through its facade (ADR 0016).
+  // The facade's resolvers derive the canonical id (ledger find-or-create) and
+  // the location_path_id (resolve-or-fail), then `toMutation` emits the create
+  // or update. No prepared transform row is involved.
+  for (const artifact of artifacts.spec.artifacts.filter(
+    (item) => item.kind === "LicensingAuthorities",
+  )) {
+    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
+      const sourceName = sourceNameForImportRecord(recordName, record);
+      dataContext.licensingAuthorityFromSource({
+        apiVersion: INTAKE_API_VERSION,
+        namespace: artifacts.metadata.namespace,
+        name: sourceName,
+        spec: valueAsRecord(record),
+      });
+    }
+  }
+}
+
+function addLicenseSourceFacades(
+  dataContext: DataContext,
+  artifacts: ArtifactsEnvelope,
+): void {
+  // Route each License source record through its facade (ADR 0016). The facade's
+  // resolvers derive the canonical id (ledger find-or-create) and the officer /
+  // licensing-authority foreign keys (same-source finds), then `toMutation`
+  // emits the create or update. No prepared transform row is involved.
+  for (const artifact of artifacts.spec.artifacts.filter(
+    (item) => item.kind === "Licenses",
+  )) {
+    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
+      const sourceName = sourceNameForImportRecord(recordName, record);
+      dataContext.licenseFromSource({
+        apiVersion: INTAKE_API_VERSION,
+        namespace: artifacts.metadata.namespace,
+        name: sourceName,
+        spec: valueAsRecord(record),
+      });
+    }
+  }
+}
+
+function addLicenseActionSourceFacades(
+  dataContext: DataContext,
+  artifacts: ArtifactsEnvelope,
+): void {
+  // Route each LicenseAction source record through its facade (ADR 0016). The
+  // facade resolves its canonical id and its license foreign key (same-source
+  // find) before emitting the create or update.
+  for (const artifact of artifacts.spec.artifacts.filter(
+    (item) => item.kind === "LicenseActions",
+  )) {
+    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
+      const sourceName = sourceNameForImportRecord(recordName, record);
+      dataContext.licenseActionFromSource({
+        apiVersion: INTAKE_API_VERSION,
+        namespace: artifacts.metadata.namespace,
+        name: sourceName,
+        spec: valueAsRecord(record),
+      });
+    }
+  }
+}
+
 type ImportArtifactsPipelineContext = {
   commandInput: ImportArtifactsCommandInput;
   artifactsPath: string;
@@ -441,10 +509,6 @@ type ImportArtifactsPipelineContext = {
   artifacts?: ArtifactsEnvelope;
   artifactMutation?: ApplyArtifactMutationResult;
   resolvedMappings?: SourceNameToCanonicalIds;
-  resolvedLicensingAuthorityLocations?: Record<
-    string,
-    ResolvedLicensingAuthorityState
-  >;
   resolvedProperties?: ResolvedProperties;
   rows?: ImportRows;
   preparationError?: DatabaseMutationPlanningError;
@@ -686,106 +750,6 @@ async function resolveSourceNamesStage(
   return { ...context, resolvedMappings };
 }
 
-function emptyLocationResolutionRows(): ImportRows {
-  return {
-    locationPaths: [],
-    locationPathAliases: [],
-    agencies: [],
-    officers: [],
-    agencyOfficers: [],
-    preparationMutations: [],
-    ownedColumns: { agencies: {}, officers: {}, agencyOfficers: {} },
-  };
-}
-
-/**
- * Resolves each emitted LicensingAuthority's namespace-LOCAL state value (e.g.
- * `"tx"`) to a canonical `location_path` at the intake root, using the SAME
- * DataContext location resolver agencies use (`locationPaths.getByPath`). The
- * source's namespace has no location paths of its own (ADR 0015), so the state
- * value is mapped to the path `/<state>/` and looked up against the imported
- * location hierarchy. The resolved canonical id is surfaced to the pure
- * transform via `resolvedProperties.licensingAuthorities`; a value that does not
- * resolve is left absent so the transform fails loud (resolve-or-fail, ADR 0006).
- */
-async function resolveLicensingAuthorityLocationsStage(
-  context: ImportArtifactsPipelineContext,
-): Promise<ImportArtifactsPipelineContext> {
-  if (
-    context.artifacts === undefined ||
-    context.resolvedMappings === undefined
-  ) {
-    throw new Error(
-      "Artifacts and source names must be loaded before resolving licensing authority locations.",
-    );
-  }
-
-  const licensingAuthorityArtifacts = context.artifacts.spec.artifacts.filter(
-    (artifact) => artifact.kind === "LicensingAuthorities",
-  );
-  const hasRecords = licensingAuthorityArtifacts.some(
-    (artifact) => Object.keys(artifact.spec.records).length > 0,
-  );
-  if (!hasRecords) {
-    return context;
-  }
-
-  const databaseUrl = (context.commandInput.env ?? process.env).DATABASE_URL;
-  if (databaseUrl === undefined || databaseUrl.trim().length === 0) {
-    throw new Error(
-      "DATABASE_URL is required to resolve licensing authority locations.",
-    );
-  }
-
-  context.commandInput.logger?.info("Resolving licensing authority locations.");
-  const client = (
-    context.commandInput.clientFactory ?? defaultDatabaseClientFactory
-  )(databaseUrl);
-  const resolvedLicensingAuthorityLocations: Record<
-    string,
-    ResolvedLicensingAuthorityState
-  > = {};
-  try {
-    await client.connect();
-    const dataContext = new DataContext({
-      client,
-      rows: emptyLocationResolutionRows(),
-      sourceNameToCanonicalIds: context.resolvedMappings,
-      commandName: context.commandName,
-    });
-    for (const artifact of licensingAuthorityArtifacts) {
-      for (const [recordName, record] of Object.entries(
-        artifact.spec.records,
-      )) {
-        const sourceName = sourceNameForImportRecord(recordName, record);
-        const canonicalId =
-          context.resolvedMappings.licensingAuthorities?.[sourceName]
-            ?.canonicalId;
-        if (canonicalId === undefined) {
-          continue;
-        }
-        const spec = valueAsRecord(record);
-        const state = valueAsString(spec.location_path_id);
-        if (state === undefined) {
-          continue;
-        }
-        const locationPath = await dataContext.locationPaths.getByPath(
-          `/${state.toLowerCase()}/`,
-        );
-        if (locationPath !== undefined) {
-          resolvedLicensingAuthorityLocations[canonicalId] = {
-            locationPathId: locationPath.location_path_id,
-          };
-        }
-      }
-    }
-  } finally {
-    await client.end();
-  }
-
-  return { ...context, resolvedLicensingAuthorityLocations };
-}
-
 async function transformArtifactsStage(
   context: ImportArtifactsPipelineContext,
 ): Promise<ImportArtifactsPipelineContext> {
@@ -800,10 +764,6 @@ async function transformArtifactsStage(
 
   context.commandInput.logger?.info("Transforming artifact records.");
   const resolvedProperties = await hydrateResolvedSlugs(context);
-  if (context.resolvedLicensingAuthorityLocations !== undefined) {
-    resolvedProperties.licensingAuthorities =
-      context.resolvedLicensingAuthorityLocations;
-  }
   const rows = transformArtifacts(
     context.artifacts,
     context.resolvedMappings,
@@ -952,7 +912,7 @@ async function writeDatabaseMutationsDebugStage(
       errors: [...error.errors],
       preparationMutations: [...error.rows.preparationMutations],
     },
-    spec: { mutations: dataContext.toDatabaseMutationItems() },
+    spec: { mutations: await dataContext.toDatabaseMutationItems() },
   };
   await mkdir(context.commandInput.commandDirectory, { recursive: true });
   const databaseMutationsEnvelope = await DatabaseMutationsDebug.write(
@@ -1236,39 +1196,131 @@ async function writeDatabaseMutationsStage(
       "Command directory is required to write DatabaseMutations.",
     );
   }
-  const dataContext = new DataContext({
-    rows: context.rows,
-    operations: context.databaseResult.operations,
-    sourceNameToCanonicalIds: context.resolvedMappings,
-    commandName: context.commandName,
-    // Must match the preparation pass on which agencies already exist, so an
-    // existing agency is written as an update (not a create missing a slug).
-    databaseAgencies: context.databaseResult.databaseAgencies,
-  });
-  dataContext.mergeAgencyArtifacts(context.artifacts);
-  addPersonnelSourceFacades(
-    dataContext,
-    context.artifacts,
-    context.rows,
-    context.resolvedMappings,
+  // The LicensingAuthority location_path resolver reaches the backend
+  // (resolve-or-fail, ADR 0006/0015), and the License / LicenseAction facades
+  // load existing rows to decide create-vs-update. Give the DataContext a
+  // database client when any of these facade-based entities exist.
+  const facadeEntityKinds = [
+    "LicensingAuthorities",
+    "Licenses",
+    "LicenseActions",
+  ] as const;
+  const hasFacadeEntities = context.artifacts.spec.artifacts.some(
+    (artifact) =>
+      (facadeEntityKinds as readonly string[]).includes(artifact.kind) &&
+      Object.keys(artifact.spec.records).length > 0,
   );
-  addAgencyPersonnelSourceFacades(
-    dataContext,
-    context.artifacts,
-    context.rows,
-    context.resolvedMappings,
-  );
-  const databaseMutations = dataContext.toDatabaseMutations({
-    namespace: context.artifacts.metadata.namespace,
-    name: context.commandName,
-    sourceArtifactsName: context.artifacts.metadata.name,
-    sourceArtifactsPath: context.artifactsPath,
-    sourceArtifactsDigest: await Artifacts.digest(context.artifactsPath),
-    databaseSchema: context.databaseResult.schema,
-    ...(context.artifactMutation.applied
-      ? { artifactMutation: context.artifactMutation.reference }
-      : {}),
-  });
+  let facadeBackendClient: DatabaseClient | undefined;
+  if (hasFacadeEntities) {
+    const databaseUrl = (context.commandInput.env ?? process.env).DATABASE_URL;
+    if (databaseUrl === undefined || databaseUrl.trim().length === 0) {
+      throw new Error(
+        "DATABASE_URL is required to resolve licensing authority, license, and license action mutations.",
+      );
+    }
+    facadeBackendClient = (
+      context.commandInput.clientFactory ?? defaultDatabaseClientFactory
+    )(databaseUrl);
+    await facadeBackendClient.connect();
+  }
+
+  const canonicalIds = (
+    ledger: Record<string, { canonicalId?: string }> | undefined,
+  ): string[] =>
+    Object.values(ledger ?? {})
+      .map((mapping) => mapping.canonicalId)
+      .filter((id): id is string => id !== undefined);
+
+  // Load the already-existing `public.licensing_authority` / `public.license` /
+  // `public.license_action` rows for the ledger's canonical ids so each facade
+  // auto-loads `current` and emits an update (not a duplicate create) on
+  // re-import — mirroring how agencies are loaded via databaseAgencies.
+  const databaseLicensingAuthorities =
+    facadeBackendClient === undefined
+      ? []
+      : await readDatabaseRecordsByIds(
+          facadeBackendClient,
+          "public.licensing_authority",
+          canonicalIds(context.resolvedMappings.licensingAuthorities),
+        );
+  const databaseLicenses =
+    facadeBackendClient === undefined
+      ? []
+      : await readDatabaseRecordsByIds(
+          facadeBackendClient,
+          "public.license",
+          canonicalIds(context.resolvedMappings.licenses),
+        );
+  const databaseLicenseActions =
+    facadeBackendClient === undefined
+      ? []
+      : await readDatabaseRecordsByIds(
+          facadeBackendClient,
+          "public.license_action",
+          canonicalIds(context.resolvedMappings.licenseActions),
+        );
+
+  const workspaceRoot = context.workspaceRoot;
+  let databaseMutations;
+  try {
+    const dataContext = new DataContext({
+      rows: context.rows,
+      operations: context.databaseResult.operations,
+      sourceNameToCanonicalIds: context.resolvedMappings,
+      commandName: context.commandName,
+      // Must match the preparation pass on which agencies already exist, so an
+      // existing agency is written as an update (not a create missing a slug).
+      databaseAgencies: context.databaseResult.databaseAgencies,
+      databaseLicensingAuthorities,
+      databaseLicenses,
+      databaseLicenseActions,
+      // The LicensingAuthority / License / LicenseAction canonical-id resolvers
+      // mint AND durably persist their own ids (ADR 0016 #4); give them the
+      // ledger writer.
+      persistSourceNameToCanonicalIds: (namespace, mappings) =>
+        persistSourceNameToCanonicalIds(namespace, mappings, {
+          ...(workspaceRoot === undefined ? {} : { rootDir: workspaceRoot }),
+        }),
+      ...(facadeBackendClient === undefined
+        ? {}
+        : { client: facadeBackendClient }),
+    });
+    dataContext.mergeAgencyArtifacts(context.artifacts);
+    // Add facades in dependency order so every same-source FK find (ADR 0016
+    // #4/#9) targets an already-registered facade: LicensingAuthorities and
+    // Personnel before Licenses, Licenses before LicenseActions. Agencies and
+    // AgencyPersonnel are unaffected.
+    addLicensingAuthoritySourceFacades(dataContext, context.artifacts);
+    addPersonnelSourceFacades(
+      dataContext,
+      context.artifacts,
+      context.rows,
+      context.resolvedMappings,
+    );
+    addLicenseSourceFacades(dataContext, context.artifacts);
+    addLicenseActionSourceFacades(dataContext, context.artifacts);
+    addAgencyPersonnelSourceFacades(
+      dataContext,
+      context.artifacts,
+      context.rows,
+      context.resolvedMappings,
+    );
+    databaseMutations = await dataContext.toDatabaseMutations({
+      namespace: context.artifacts.metadata.namespace,
+      name: context.commandName,
+      sourceArtifactsName: context.artifacts.metadata.name,
+      sourceArtifactsPath: context.artifactsPath,
+      sourceArtifactsDigest: await Artifacts.digest(context.artifactsPath),
+      databaseSchema: context.databaseResult.schema,
+      ...(context.artifactMutation.applied
+        ? { artifactMutation: context.artifactMutation.reference }
+        : {}),
+    });
+  } finally {
+    if (facadeBackendClient !== undefined) {
+      await facadeBackendClient.end();
+    }
+  }
   await mkdir(context.commandInput.commandDirectory, { recursive: true });
   databaseMutations.spec.mutations =
     await appendStreamingLocationPathGeometryMutations(
@@ -1319,7 +1371,6 @@ const importArtifactsPipelineStages: ImportArtifactsPipelineStage[] = [
     await persistArtifactAgencyCoordinatesStage(context);
     return context;
   },
-  resolveLicensingAuthorityLocationsStage,
   transformArtifactsStage,
   executeDatabaseMutationPlanningStage,
   writeDatabaseMutationsDebugStage,

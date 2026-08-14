@@ -135,41 +135,11 @@ export async function classifyDatabaseOperations(
       : "create";
   }
 
-  for (const licensingAuthority of rows.licensingAuthorities ?? []) {
-    const exists = await rowExists(
-      client,
-      "public.licensing_authority",
-      licensingAuthority.id,
-    );
-    operations.licensingAuthorities[licensingAuthority.id] = exists
-      ? (rows.ownedColumns.licensingAuthorities?.[licensingAuthority.id] ?? [])
-            .length > 0
-        ? "update"
-        : "read"
-      : "create";
-  }
-
-  for (const license of rows.licenses ?? []) {
-    const exists = await rowExists(client, "public.license", license.id);
-    operations.licenses[license.id] = exists
-      ? (rows.ownedColumns.licenses?.[license.id] ?? []).length > 0
-        ? "update"
-        : "read"
-      : "create";
-  }
-
-  for (const licenseAction of rows.licenseActions ?? []) {
-    const exists = await rowExists(
-      client,
-      "public.license_action",
-      licenseAction.id,
-    );
-    operations.licenseActions[licenseAction.id] = exists
-      ? (rows.ownedColumns.licenseActions?.[licenseAction.id] ?? []).length > 0
-        ? "update"
-        : "read"
-      : "create";
-  }
+  // LicensingAuthority, License, and LicenseAction are facade-based (ADR 0016):
+  // each facade owns create-vs-update via composable resolvers and emits its own
+  // mutations (counted like every other entity via countDatabaseMutations). They
+  // have no transform rows to classify here, so their `operations` maps stay
+  // empty.
 
   return operations;
 }

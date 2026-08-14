@@ -429,7 +429,7 @@ describe("importArtifacts", () => {
       "commands",
       "2026-06-08T00-00-00-000Z-test-command",
     );
-    const databaseMutations = new DataContext({
+    const databaseMutations = await new DataContext({
       rows: partialRows,
       operations: result.operations,
     }).toDatabaseMutations({
@@ -718,7 +718,7 @@ describe("importArtifacts", () => {
       "commands",
       `2026-06-08T00-00-00-000Z-${runId}`,
     );
-    const databaseMutations = new DataContext({
+    const databaseMutations = await new DataContext({
       rows,
       operations: createOperations,
     }).toDatabaseMutations({

@@ -332,9 +332,6 @@ describe("transformArtifacts", () => {
           license_id: null,
         },
       ],
-      licensingAuthorities: [],
-      licenses: [],
-      licenseActions: [],
       preparationMutations: [],
       ownedColumns: {
         agencies: {
@@ -372,9 +369,6 @@ describe("transformArtifacts", () => {
             "title",
           ],
         },
-        licensingAuthorities: {},
-        licenses: {},
-        licenseActions: {},
       },
     });
   });
@@ -578,99 +572,11 @@ describe("transformArtifacts", () => {
     );
   });
 
-  test("resolves licensing authority, license, and license action foreign keys", () => {
-    const artifacts = artifactsWithEntities({
-      personnel: { [personnel.id]: personnel },
-      licensingAuthorities: {
-        tcole: {
-          name: "Texas Commission on Law Enforcement",
-          abbreviation: "TCOLE",
-          website: "https://www.tcole.texas.gov",
-          location_path_id: "tx",
-        },
-      },
-      licenses: {
-        "003-personnel-source|Peace Officer License": {
-          officer_id: personnel.id,
-          license_type: "Peace Officer License",
-          status: null,
-          first_awarded: "1994-06-16",
-          issued_by_authority_id: "tcole",
-        },
-      },
-      licenseActions: {
-        "003-personnel-source|Peace Officer License|Issued|1994-06-16": {
-          license_id: "003-personnel-source|Peace Officer License",
-          action: "Issued",
-          action_date: "1994-06-16",
-          status: "Active",
-        },
-      },
-    });
-
-    const rows = transformArtifacts(
-      artifacts,
-      {
-        locationPaths: {},
-        agencies: {},
-        personnel: {
-          [personnel.id]: { canonicalId: "personnel-canonical-id" },
-        },
-        agencyPersonnel: {},
-        licensingAuthorities: {
-          tcole: { canonicalId: "authority-canonical-id" },
-        },
-        licenses: {
-          "003-personnel-source|Peace Officer License": {
-            canonicalId: "license-canonical-id",
-          },
-        },
-        licenseActions: {
-          "003-personnel-source|Peace Officer License|Issued|1994-06-16": {
-            canonicalId: "license-action-canonical-id",
-          },
-        },
-      },
-      {
-        agencies: {},
-        personnel: {},
-        // The intake root resolved the source state value "tx" to this
-        // canonical location_path (mirrors how agencies surface locationPathId).
-        licensingAuthorities: {
-          "authority-canonical-id": { locationPathId: "tx-location-path-id" },
-        },
-      },
-    );
-
-    expect(rows.licensingAuthorities).toEqual([
-      {
-        id: "authority-canonical-id",
-        name: "Texas Commission on Law Enforcement",
-        abbreviation: "TCOLE",
-        website: "https://www.tcole.texas.gov",
-        location_path_id: "tx-location-path-id",
-      },
-    ]);
-    expect(rows.licenses).toEqual([
-      {
-        id: "license-canonical-id",
-        officer_id: "personnel-canonical-id",
-        license_type: "Peace Officer License",
-        status: null,
-        first_awarded: "1994-06-16",
-        issued_by_authority_id: "authority-canonical-id",
-      },
-    ]);
-    expect(rows.licenseActions).toEqual([
-      {
-        id: "license-action-canonical-id",
-        license_id: "license-canonical-id",
-        action: "Issued",
-        action_date: "1994-06-16",
-        status: "Active",
-      },
-    ]);
-  });
+  // License and LicenseAction foreign-key resolution moved from the transform to
+  // the LicenseFacade / LicenseActionFacade resolvers (ADR 0016); they no longer
+  // produce transform rows. Their emit + FK-find behavior is covered by the
+  // DataContext facade tests. The agency-personnel `license_id` reference below
+  // still resolves against the mappings ledger (AgencyPersonnel stays row-based).
 
   test("resolves an agency-personnel license_id reference to its canonical license id", () => {
     const artifacts = artifactsWithEntities({
@@ -716,70 +622,9 @@ describe("transformArtifacts", () => {
     );
   });
 
-  test("fails when a licensing authority location did not resolve to a location_path", () => {
-    const artifacts = artifactsWithEntities({
-      licensingAuthorities: {
-        tcole: {
-          name: "Texas Commission on Law Enforcement",
-          abbreviation: "TCOLE",
-          website: "https://www.tcole.texas.gov",
-          location_path_id: "tx",
-        },
-      },
-    });
-
-    expect(() =>
-      transformArtifacts(
-        artifacts,
-        {
-          locationPaths: {},
-          agencies: {},
-          personnel: {},
-          agencyPersonnel: {},
-          licensingAuthorities: {
-            tcole: { canonicalId: "authority-canonical-id" },
-          },
-        },
-        // No resolved location for the authority -> resolve-or-fail.
-        { agencies: {}, personnel: {}, licensingAuthorities: {} },
-      ),
-    ).toThrow(
-      "Artifacts licensing authority tcole references location tx which is not an imported location_path.",
-    );
-  });
-
-  test("fails when a license references an unmapped licensing authority", () => {
-    const artifacts = artifactsWithEntities({
-      personnel: { [personnel.id]: personnel },
-      licenses: {
-        "003-personnel-source|Peace Officer License": {
-          officer_id: personnel.id,
-          license_type: "Peace Officer License",
-          status: null,
-          first_awarded: null,
-          issued_by_authority_id: "unknown-authority",
-        },
-      },
-    });
-
-    expect(() =>
-      transformArtifacts(artifacts, {
-        locationPaths: {},
-        agencies: {},
-        personnel: {
-          [personnel.id]: { canonicalId: "personnel-canonical-id" },
-        },
-        agencyPersonnel: {},
-        licenses: {
-          "003-personnel-source|Peace Officer License": {
-            canonicalId: "license-canonical-id",
-          },
-        },
-      }),
-    ).toThrow(
-      "Artifacts license 003-personnel-source|Peace Officer License references unmapped licensing authority unknown-authority.",
-    );
-  });
+  // LicensingAuthority location resolve-or-fail and License authority/officer FK
+  // resolution moved from the transform to their facades' resolvers (ADR 0016);
+  // covered by the DataContext facade tests.
 
   test.each([
     ["agencies", agency.id, "name"],
