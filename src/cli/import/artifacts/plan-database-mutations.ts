@@ -38,6 +38,9 @@ export type ImportRowCounts = {
   agencies: number;
   officers: number;
   agencyOfficers: number;
+  licensingAuthorities: number;
+  licenses: number;
+  licenseActions: number;
 };
 
 export type PlanDatabaseMutationsResult = {
@@ -288,6 +291,9 @@ export async function planDatabaseMutations(
       agencies: rows.agencies.length,
       officers: rows.officers.length,
       agencyOfficers: rows.agencyOfficers.length,
+      licensingAuthorities: rows.licensingAuthorities?.length ?? 0,
+      licenses: rows.licenses?.length ?? 0,
+      licenseActions: rows.licenseActions?.length ?? 0,
     },
     operations,
     schema,

@@ -104,6 +104,9 @@ describe("SourceNameToCanonicalId records", () => {
       agencies: {},
       personnel: {},
       agencyPersonnel: {},
+      licensingAuthorities: {},
+      licenses: {},
+      licenseActions: {},
     });
     expect((await stat(mappingPath)).isDirectory()).toBe(true);
   });
@@ -131,6 +134,9 @@ describe("SourceNameToCanonicalId records", () => {
       },
       personnel: {},
       agencyPersonnel: {},
+      licensingAuthorities: {},
+      licenses: {},
+      licenseActions: {},
     });
   });
 

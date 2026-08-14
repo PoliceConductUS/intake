@@ -83,6 +83,9 @@ export async function seedLedgerFromIdentityMaps(
         { kind: "AgencyPersonnel", canonicalId },
       ]),
     ),
+    licensingAuthorities: {},
+    licenses: {},
+    licenseActions: {},
   };
 
   await persistSourceNameToCanonicalIds(namespace, mappings, options);

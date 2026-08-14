@@ -110,9 +110,44 @@ export type AgencyOfficerRow = {
   start_date: string;
   end_date: string | null;
   title: string;
+  license_id: string | null;
 };
 
 export type AgencyOfficerColumn = Exclude<keyof AgencyOfficerRow, "id">;
+
+export type LicensingAuthorityRow = {
+  id: string;
+  name: string;
+  abbreviation: string | null;
+  website: string | null;
+  location_path_id: string;
+};
+
+export type LicensingAuthorityColumn = Exclude<
+  keyof LicensingAuthorityRow,
+  "id"
+>;
+
+export type LicenseRow = {
+  id: string;
+  officer_id: string;
+  license_type: string;
+  status: string | null;
+  first_awarded: string | null;
+  issued_by_authority_id: string;
+};
+
+export type LicenseColumn = Exclude<keyof LicenseRow, "id">;
+
+export type LicenseActionRow = {
+  id: string;
+  license_id: string;
+  action: string;
+  action_date: string | null;
+  status: string | null;
+};
+
+export type LicenseActionColumn = Exclude<keyof LicenseActionRow, "id">;
 
 export type ImportRows = {
   locationPaths: LocationPathRow[];
@@ -121,11 +156,17 @@ export type ImportRows = {
   agencies: AgencyRow[];
   officers: OfficerRow[];
   agencyOfficers: AgencyOfficerRow[];
+  licensingAuthorities?: LicensingAuthorityRow[];
+  licenses?: LicenseRow[];
+  licenseActions?: LicenseActionRow[];
   preparationMutations: PreparationMutation[];
   ownedColumns: {
     agencies: Record<string, AgencyColumn[]>;
     officers: Record<string, OfficerColumn[]>;
     agencyOfficers: Record<string, AgencyOfficerColumn[]>;
+    licensingAuthorities?: Record<string, LicensingAuthorityColumn[]>;
+    licenses?: Record<string, LicenseColumn[]>;
+    licenseActions?: Record<string, LicenseActionColumn[]>;
   };
 };
 
@@ -156,6 +197,29 @@ const agencyOfficerSourceColumns: AgencyOfficerColumn[] = [
   "start_date",
   "end_date",
   "title",
+  "license_id",
+];
+
+const licensingAuthoritySourceColumns: LicensingAuthorityColumn[] = [
+  "name",
+  "abbreviation",
+  "website",
+  "location_path_id",
+];
+
+const licenseSourceColumns: LicenseColumn[] = [
+  "officer_id",
+  "license_type",
+  "status",
+  "first_awarded",
+  "issued_by_authority_id",
+];
+
+const licenseActionSourceColumns: LicenseActionColumn[] = [
+  "license_id",
+  "action",
+  "action_date",
+  "status",
 ];
 
 function entityMap(
@@ -166,7 +230,10 @@ function entityMap(
     | "locationPathAliases"
     | "agencies"
     | "personnel"
-    | "agencyPersonnel",
+    | "agencyPersonnel"
+    | "licensingAuthorities"
+    | "licenses"
+    | "licenseActions",
 ): Record<string, unknown> {
   const kind = importKindByEntityName[entityName];
   return Object.assign(
@@ -402,6 +469,9 @@ export function transformArtifacts(
     agencies: {},
     officers: {},
     agencyOfficers: {},
+    licensingAuthorities: {},
+    licenses: {},
+    licenseActions: {},
   };
 
   const locationPaths = Object.entries(
@@ -566,6 +636,18 @@ export function transformArtifacts(
         hasOwnField(source, columnName),
       );
 
+    const sourceLicenseKey = valueAsStringOrNull(source.license_id);
+    let licenseCanonicalId: string | null = null;
+    if (sourceLicenseKey !== null) {
+      licenseCanonicalId =
+        mappings.licenses?.[sourceLicenseKey]?.canonicalId ?? null;
+      if (licenseCanonicalId === null) {
+        throw new Error(
+          `Agency-personnel source record ${sourceName} references unmapped license ${sourceLicenseKey}.`,
+        );
+      }
+    }
+
     return {
       id: canonicalId,
       agency_id: agencyMapping.canonicalId,
@@ -574,6 +656,137 @@ export function transformArtifacts(
       start_date: requiredString(sourceName, "start_date", source.start_date),
       end_date: valueAsStringOrNull(source.end_date),
       title: requiredString(sourceName, "title", source.title),
+      license_id: licenseCanonicalId,
+    };
+  });
+
+  const licensingAuthorities = Object.entries(
+    entityMap(artifacts, "licensingAuthorities"),
+  ).map(([recordKey, sourceValue]): LicensingAuthorityRow => {
+    const sourceName = sourceNameForImportRecord(recordKey, sourceValue);
+    const source = valueAsRecord(sourceName, sourceValue);
+    const canonicalId =
+      mappings.licensingAuthorities?.[sourceName]?.canonicalId;
+    if (canonicalId === undefined) {
+      throw new Error(
+        `Artifacts licensing authority ${sourceName} references unmapped licensing authority ${sourceName}.`,
+      );
+    }
+    const sourceLocationPath = requiredString(
+      sourceName,
+      "location_path_id",
+      source.location_path_id,
+    );
+    const locationPathSourceKey =
+      locationPathSourceKeyByPath[sourceLocationPath] ?? sourceLocationPath;
+    const locationPathCanonicalId =
+      mappings.locationPaths[locationPathSourceKey]?.canonicalId;
+    if (locationPathCanonicalId === undefined) {
+      throw new Error(
+        `Artifacts licensing authority ${sourceName} references unmapped location path ${sourceLocationPath}.`,
+      );
+    }
+    ownedColumns.licensingAuthorities![canonicalId] =
+      licensingAuthoritySourceColumns.filter((columnName) =>
+        hasOwnField(source, columnName),
+      );
+
+    return {
+      id: canonicalId,
+      name: requiredString(sourceName, "name", source.name),
+      abbreviation: valueAsStringOrNull(source.abbreviation),
+      website: valueAsStringOrNull(source.website),
+      location_path_id: locationPathCanonicalId,
+    };
+  });
+
+  const licenses = Object.entries(entityMap(artifacts, "licenses")).map(
+    ([recordKey, sourceValue]): LicenseRow => {
+      const sourceName = sourceNameForImportRecord(recordKey, sourceValue);
+      const source = valueAsRecord(sourceName, sourceValue);
+      const canonicalId = mappings.licenses?.[sourceName]?.canonicalId;
+      if (canonicalId === undefined) {
+        throw new Error(
+          `Artifacts license ${sourceName} references unmapped license ${sourceName}.`,
+        );
+      }
+      const sourceOfficerId = requiredString(
+        sourceName,
+        "officer_id",
+        source.officer_id,
+      );
+      const officerCanonicalId =
+        mappings.personnel[sourceOfficerId]?.canonicalId;
+      if (officerCanonicalId === undefined) {
+        throw new Error(
+          `Artifacts license ${sourceName} references unmapped personnel ${sourceOfficerId}.`,
+        );
+      }
+      const sourceAuthorityId = requiredString(
+        sourceName,
+        "issued_by_authority_id",
+        source.issued_by_authority_id,
+      );
+      const authorityCanonicalId =
+        mappings.licensingAuthorities?.[sourceAuthorityId]?.canonicalId;
+      if (authorityCanonicalId === undefined) {
+        throw new Error(
+          `Artifacts license ${sourceName} references unmapped licensing authority ${sourceAuthorityId}.`,
+        );
+      }
+      ownedColumns.licenses![canonicalId] = licenseSourceColumns.filter(
+        (columnName) => hasOwnField(source, columnName),
+      );
+
+      return {
+        id: canonicalId,
+        officer_id: officerCanonicalId,
+        license_type: requiredString(
+          sourceName,
+          "license_type",
+          source.license_type,
+        ),
+        status: valueAsStringOrNull(source.status),
+        first_awarded: valueAsStringOrNull(source.first_awarded),
+        issued_by_authority_id: authorityCanonicalId,
+      };
+    },
+  );
+
+  const licenseActions = Object.entries(
+    entityMap(artifacts, "licenseActions"),
+  ).map(([recordKey, sourceValue]): LicenseActionRow => {
+    const sourceName = sourceNameForImportRecord(recordKey, sourceValue);
+    const source = valueAsRecord(sourceName, sourceValue);
+    const canonicalId = mappings.licenseActions?.[sourceName]?.canonicalId;
+    if (canonicalId === undefined) {
+      throw new Error(
+        `Artifacts license action ${sourceName} references unmapped license action ${sourceName}.`,
+      );
+    }
+    const sourceLicenseId = requiredString(
+      sourceName,
+      "license_id",
+      source.license_id,
+    );
+    const licenseCanonicalId =
+      mappings.licenses?.[sourceLicenseId]?.canonicalId;
+    if (licenseCanonicalId === undefined) {
+      throw new Error(
+        `Artifacts license action ${sourceName} references unmapped license ${sourceLicenseId}.`,
+      );
+    }
+    ownedColumns.licenseActions![canonicalId] =
+      licenseActionSourceColumns.filter((columnName) =>
+        hasOwnField(source, columnName),
+      );
+
+    return {
+      id: canonicalId,
+      license_id: licenseCanonicalId,
+      action: requiredString(sourceName, "action", source.action),
+      action_date: valueAsStringOrNull(source.action_date),
+      status: valueAsStringOrNull(source.status),
     };
   });
 
@@ -584,6 +797,9 @@ export function transformArtifacts(
     agencies,
     officers,
     agencyOfficers,
+    licensingAuthorities,
+    licenses,
+    licenseActions,
     preparationMutations: [],
     ownedColumns,
   };

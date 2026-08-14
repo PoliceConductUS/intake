@@ -56,6 +56,18 @@ const databaseMutationMetadataByRecordKind: Record<
     tableName: "public.agency_officers",
     keyColumnName: "id",
   },
+  LicensingAuthority: {
+    tableName: "public.licensing_authority",
+    keyColumnName: "id",
+  },
+  License: {
+    tableName: "public.license",
+    keyColumnName: "id",
+  },
+  LicenseAction: {
+    tableName: "public.license_action",
+    keyColumnName: "id",
+  },
 } satisfies Record<string, DatabaseMutationMetadata>;
 
 function databaseMutationMetadata(

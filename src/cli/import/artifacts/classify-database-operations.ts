@@ -29,6 +29,9 @@ export async function classifyDatabaseOperations(
     agencies: {},
     officers: {},
     agencyOfficers: {},
+    licensingAuthorities: {},
+    licenses: {},
+    licenseActions: {},
   };
   const databaseLocationPathIds = new Set(
     databaseLocationPaths.map((locationPath) => locationPath.location_path_id),
@@ -127,6 +130,42 @@ export async function classifyDatabaseOperations(
     );
     operations.agencyOfficers[agencyOfficer.id] = exists
       ? (rows.ownedColumns.agencyOfficers[agencyOfficer.id] ?? []).length > 0
+        ? "update"
+        : "read"
+      : "create";
+  }
+
+  for (const licensingAuthority of rows.licensingAuthorities ?? []) {
+    const exists = await rowExists(
+      client,
+      "public.licensing_authority",
+      licensingAuthority.id,
+    );
+    operations.licensingAuthorities[licensingAuthority.id] = exists
+      ? (rows.ownedColumns.licensingAuthorities?.[licensingAuthority.id] ?? [])
+            .length > 0
+        ? "update"
+        : "read"
+      : "create";
+  }
+
+  for (const license of rows.licenses ?? []) {
+    const exists = await rowExists(client, "public.license", license.id);
+    operations.licenses[license.id] = exists
+      ? (rows.ownedColumns.licenses?.[license.id] ?? []).length > 0
+        ? "update"
+        : "read"
+      : "create";
+  }
+
+  for (const licenseAction of rows.licenseActions ?? []) {
+    const exists = await rowExists(
+      client,
+      "public.license_action",
+      licenseAction.id,
+    );
+    operations.licenseActions[licenseAction.id] = exists
+      ? (rows.ownedColumns.licenseActions?.[licenseAction.id] ?? []).length > 0
         ? "update"
         : "read"
       : "create";

@@ -5,6 +5,9 @@ export const IMPORT_ARTIFACT_KINDS = [
   "Agencies",
   "Personnel",
   "AgencyPersonnel",
+  "LicensingAuthorities",
+  "Licenses",
+  "LicenseActions",
 ] as const;
 
 export type ImportArtifactKind = (typeof IMPORT_ARTIFACT_KINDS)[number];
@@ -33,7 +36,10 @@ export type ImportEntityName =
   | "locationPathAliases"
   | "agencies"
   | "personnel"
-  | "agencyPersonnel";
+  | "agencyPersonnel"
+  | "licensingAuthorities"
+  | "licenses"
+  | "licenseActions";
 
 export type ImportTypeMetadata = {
   kind: ImportArtifactKind;
@@ -84,6 +90,27 @@ export const importTypeMetadata = {
     recordKind: "AgencyPersonnel",
     entityName: "agencyPersonnel",
     targetTable: "public.agency_officers",
-    dependsOn: ["Agencies", "Personnel"],
+    dependsOn: ["Agencies", "Personnel", "Licenses"],
+  },
+  LicensingAuthorities: {
+    kind: "LicensingAuthorities",
+    recordKind: "LicensingAuthority",
+    entityName: "licensingAuthorities",
+    targetTable: "public.licensing_authority",
+    dependsOn: ["LocationPaths"],
+  },
+  Licenses: {
+    kind: "Licenses",
+    recordKind: "License",
+    entityName: "licenses",
+    targetTable: "public.license",
+    dependsOn: ["LicensingAuthorities", "Personnel"],
+  },
+  LicenseActions: {
+    kind: "LicenseActions",
+    recordKind: "LicenseAction",
+    entityName: "licenseActions",
+    targetTable: "public.license_action",
+    dependsOn: ["Licenses"],
   },
 } satisfies Record<ImportArtifactKind, ImportTypeMetadata>;

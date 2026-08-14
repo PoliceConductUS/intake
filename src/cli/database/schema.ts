@@ -6,7 +6,10 @@ export type SupportedTableName =
   | "public.location_path_alias"
   | "public.agency"
   | "public.officers"
-  | "public.agency_officers";
+  | "public.agency_officers"
+  | "public.licensing_authority"
+  | "public.license"
+  | "public.license_action";
 
 export type ImportDatabaseSchema = {
   appliedMigrations: {

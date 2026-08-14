@@ -4,6 +4,9 @@ import {
   AgencySpec,
   PersonnelSpec,
   AgencyPersonnelSpec,
+  LicensingAuthoritySpec,
+  LicenseSpec,
+  LicenseActionSpec,
 } from "../../src/shared/io/index.js";
 
 const sheets: Record<string, Array<Record<string, string>>> = {
@@ -93,6 +96,39 @@ const sheets: Record<string, Array<Record<string, string>>> = {
       END_DATE: "",
     },
   ],
+  OfficersLicensesActions: [
+    // two actions for 1000038's Peace Officer License -> earliest is first_awarded
+    {
+      PUBLIC_GUID: "1000038",
+      LICENSE: "Peace Officer License",
+      ACTION: "Issued",
+      ACTION_DATE: "1994-06-16T00:00:00.000Z",
+      STATUS: "Active",
+    },
+    {
+      PUBLIC_GUID: "1000038",
+      LICENSE: "Peace Officer License",
+      ACTION: "Renewed",
+      ACTION_DATE: "2000-01-01T00:00:00.000Z",
+      STATUS: "Active",
+    },
+    // 1000033's Temporary Jailer License
+    {
+      PUBLIC_GUID: "1000033",
+      LICENSE: "Temporary Jailer License",
+      ACTION: "Issued",
+      ACTION_DATE: "2024-10-15T00:00:00.000Z",
+      STATUS: "Active",
+    },
+    // action for the dropped (inactive-only) officer 2000001 -> not emitted
+    {
+      PUBLIC_GUID: "2000001",
+      LICENSE: "Jailer License",
+      ACTION: "Issued",
+      ACTION_DATE: "2010-01-01T00:00:00.000Z",
+      STATUS: "Active",
+    },
+  ],
 };
 
 const fakeReadXlsx = async (_path: string, sheet?: string) =>
@@ -107,11 +143,14 @@ const deps = {
 };
 
 describe("gov.tx.tcole run", () => {
-  it("emits Agencies, Personnel, and AgencyPersonnel", async () => {
+  it("emits the licensing kinds in dependency order", async () => {
     const manifest = await run(deps);
     expect(manifest.artifacts.map((a) => a.kind)).toEqual([
+      "LicensingAuthorities",
       "Agencies",
       "Personnel",
+      "Licenses",
+      "LicenseActions",
       "AgencyPersonnel",
     ]);
   });
@@ -197,6 +236,7 @@ describe("gov.tx.tcole run", () => {
       start_date: "2024-10-15",
       end_date: null,
       title: "Jailer",
+      license_id: "1000033|Temporary Jailer License",
     });
     const closed =
       records[
@@ -220,12 +260,95 @@ describe("gov.tx.tcole run", () => {
       start_date: "2020-01-01",
       end_date: null,
       title: "Unknown",
+      license_id: null,
     });
     // the "Unknown" fallback is the column value only — never in the key
     expect(Object.keys(records)).not.toContain(
       "1000038|471100|Unknown||2020-01-01|",
     );
     expect(AgencyPersonnelSpec.safeParse(unknown.spec).success).toBe(true);
+  });
+
+  it("emits a valid TCOLE LicensingAuthority resolving to the /tx/ state path", async () => {
+    const { records } = (await run(deps)).artifacts.find(
+      (a) => a.kind === "LicensingAuthorities",
+    )!;
+    expect(records["tcole"].spec).toEqual({
+      name: "Texas Commission on Law Enforcement",
+      abbreviation: "TCOLE",
+      website: "https://www.tcole.texas.gov",
+      location_path_id: "/tx/",
+    });
+    for (const record of Object.values(records)) {
+      expect(LicensingAuthoritySpec.safeParse(record.spec).success).toBe(true);
+    }
+  });
+
+  it("emits Licenses keyed by PUBLIC_GUID|LICENSE with officer and authority refs", async () => {
+    const { records } = (await run(deps)).artifacts.find(
+      (a) => a.kind === "Licenses",
+    )!;
+    // only licenses for emitted (active) officers with a non-blank LICENSE
+    expect(Object.keys(records).sort()).toEqual([
+      "1000033|Temporary Jailer License",
+      "1000038|Peace Officer License",
+    ]);
+    expect(records["1000038|Peace Officer License"].spec).toEqual({
+      officer_id: "1000038",
+      license_type: "Peace Officer License",
+      status: null,
+      // earliest OfficersLicensesActions ACTION_DATE for the pair
+      first_awarded: "1994-06-16",
+      issued_by_authority_id: "tcole",
+    });
+    for (const record of Object.values(records)) {
+      expect(LicenseSpec.safeParse(record.spec).success).toBe(true);
+    }
+  });
+
+  it("emits LicenseActions keyed by the 4-tuple, skipping dropped officers", async () => {
+    const { records } = (await run(deps)).artifacts.find(
+      (a) => a.kind === "LicenseActions",
+    )!;
+    expect(Object.keys(records).sort()).toEqual([
+      "1000033|Temporary Jailer License|Issued|2024-10-15",
+      "1000038|Peace Officer License|Issued|1994-06-16",
+      "1000038|Peace Officer License|Renewed|2000-01-01",
+    ]);
+    expect(
+      records["1000038|Peace Officer License|Issued|1994-06-16"].spec,
+    ).toEqual({
+      license_id: "1000038|Peace Officer License",
+      action: "Issued",
+      action_date: "1994-06-16",
+      status: "Active",
+    });
+    // the dropped officer 2000001's action is not emitted
+    expect(Object.keys(records)).not.toContain(
+      "2000001|Jailer License|Issued|2010-01-01",
+    );
+    for (const record of Object.values(records)) {
+      expect(LicenseActionSpec.safeParse(record.spec).success).toBe(true);
+    }
+  });
+
+  it("links AgencyPersonnel to its License, or null when LICENSE is blank", async () => {
+    const { records } = (await run(deps)).artifacts.find(
+      (a) => a.kind === "AgencyPersonnel",
+    )!;
+    // licensed assignment -> license_id points at the emitted License key
+    expect(
+      (
+        records[
+          "1000038|201217|Peace Officer|Peace Officer License|1994-06-16|2023-09-30"
+        ].spec as Record<string, unknown>
+      ).license_id,
+    ).toBe("1000038|Peace Officer License");
+    // blank-LICENSE assignment -> null (no dangling ref)
+    expect(
+      (records["1000038|471100|||2020-01-01|"].spec as Record<string, unknown>)
+        .license_id,
+    ).toBeNull();
   });
 
   it("is deterministic", async () => {

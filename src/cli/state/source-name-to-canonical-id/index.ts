@@ -29,11 +29,29 @@ export type LocationPathMapping = {
   canonicalId?: string;
 };
 
+export type LicensingAuthorityMapping = {
+  kind?: "LicensingAuthority";
+  canonicalId?: string;
+};
+
+export type LicenseMapping = {
+  kind?: "License";
+  canonicalId?: string;
+};
+
+export type LicenseActionMapping = {
+  kind?: "LicenseAction";
+  canonicalId?: string;
+};
+
 export type SourceNameToCanonicalIds = {
   locationPaths: Record<string, LocationPathMapping>;
   agencies: Record<string, AgencyMapping>;
   personnel: Record<string, PersonnelMapping>;
   agencyPersonnel: Record<string, AgencyPersonnelMapping>;
+  licensingAuthorities?: Record<string, LicensingAuthorityMapping>;
+  licenses?: Record<string, LicenseMapping>;
+  licenseActions?: Record<string, LicenseActionMapping>;
 };
 
 type MappingPathOptions = {
@@ -45,11 +63,21 @@ const sourceNameKinds = {
   agency: "Agency",
   personnel: "Personnel",
   agencyPersonnel: "AgencyPersonnel",
+  licensingAuthority: "LicensingAuthority",
+  license: "License",
+  licenseAction: "LicenseAction",
 } as const;
 
 function artifactsEntityKeys(
   artifacts: ArtifactsEnvelope,
-  entityName: "locationPaths" | "agencies" | "personnel" | "agencyPersonnel",
+  entityName:
+    | "locationPaths"
+    | "agencies"
+    | "personnel"
+    | "agencyPersonnel"
+    | "licensingAuthorities"
+    | "licenses"
+    | "licenseActions",
 ): string[] {
   const kind = importKindByEntityName[entityName];
   const entityMap = Object.assign(
@@ -215,6 +243,24 @@ export async function loadSourceNameToCanonicalIds(
       "AgencyPersonnel",
       sourceNameKinds.agencyPersonnel,
     ),
+    licensingAuthorities: await readMappingDirectory(
+      mappingDirectory,
+      namespace,
+      "LicensingAuthority",
+      sourceNameKinds.licensingAuthority,
+    ),
+    licenses: await readMappingDirectory(
+      mappingDirectory,
+      namespace,
+      "License",
+      sourceNameKinds.license,
+    ),
+    licenseActions: await readMappingDirectory(
+      mappingDirectory,
+      namespace,
+      "LicenseAction",
+      sourceNameKinds.licenseAction,
+    ),
   };
 
   return mappings;
@@ -238,6 +284,17 @@ export async function persistSourceNameToCanonicalIds(
       "AgencyPersonnel",
       sourceNameKinds.agencyPersonnel,
       mappings.agencyPersonnel,
+    ],
+    [
+      "LicensingAuthority",
+      sourceNameKinds.licensingAuthority,
+      mappings.licensingAuthorities ?? {},
+    ],
+    ["License", sourceNameKinds.license, mappings.licenses ?? {}],
+    [
+      "LicenseAction",
+      sourceNameKinds.licenseAction,
+      mappings.licenseActions ?? {},
     ],
   ] as const) {
     await mkdir(path.join(mappingDirectory, entityDirectory), {
@@ -316,6 +373,41 @@ export function assertCanonicalMappingFields(
     }
   }
 
+  for (const sourceName of artifactsEntityKeys(
+    artifacts,
+    "licensingAuthorities",
+  )) {
+    const mapping = mappings.licensingAuthorities?.[sourceName];
+    const error = formatRequiredMappingError(
+      "Licensing authority",
+      sourceName,
+      mapping,
+    );
+    if (error !== undefined) {
+      errors.push(error);
+    }
+  }
+
+  for (const sourceName of artifactsEntityKeys(artifacts, "licenses")) {
+    const mapping = mappings.licenses?.[sourceName];
+    const error = formatRequiredMappingError("License", sourceName, mapping);
+    if (error !== undefined) {
+      errors.push(error);
+    }
+  }
+
+  for (const sourceName of artifactsEntityKeys(artifacts, "licenseActions")) {
+    const mapping = mappings.licenseActions?.[sourceName];
+    const error = formatRequiredMappingError(
+      "License action",
+      sourceName,
+      mapping,
+    );
+    if (error !== undefined) {
+      errors.push(error);
+    }
+  }
+
   if (errors.length > 0) {
     throw new Error(
       ["SourceNameToCanonicalId records are incomplete.", ...errors].join("\n"),
@@ -334,6 +426,9 @@ export async function resolveArtifactsSourceNameToCanonicalIds(
     agencies: { ...mappings.agencies },
     personnel: { ...mappings.personnel },
     agencyPersonnel: { ...mappings.agencyPersonnel },
+    licensingAuthorities: { ...(mappings.licensingAuthorities ?? {}) },
+    licenses: { ...(mappings.licenses ?? {}) },
+    licenseActions: { ...(mappings.licenseActions ?? {}) },
   };
   let createdMappings = false;
 
@@ -371,6 +466,39 @@ export async function resolveArtifactsSourceNameToCanonicalIds(
     if (resolvedMappings.agencyPersonnel[sourceName] === undefined) {
       resolvedMappings.agencyPersonnel[sourceName] = {
         kind: sourceNameKinds.agencyPersonnel,
+        canonicalId: createId(),
+      };
+      createdMappings = true;
+    }
+  }
+
+  for (const sourceName of artifactsEntityKeys(
+    artifacts,
+    "licensingAuthorities",
+  )) {
+    if (resolvedMappings.licensingAuthorities![sourceName] === undefined) {
+      resolvedMappings.licensingAuthorities![sourceName] = {
+        kind: sourceNameKinds.licensingAuthority,
+        canonicalId: createId(),
+      };
+      createdMappings = true;
+    }
+  }
+
+  for (const sourceName of artifactsEntityKeys(artifacts, "licenses")) {
+    if (resolvedMappings.licenses![sourceName] === undefined) {
+      resolvedMappings.licenses![sourceName] = {
+        kind: sourceNameKinds.license,
+        canonicalId: createId(),
+      };
+      createdMappings = true;
+    }
+  }
+
+  for (const sourceName of artifactsEntityKeys(artifacts, "licenseActions")) {
+    if (resolvedMappings.licenseActions![sourceName] === undefined) {
+      resolvedMappings.licenseActions![sourceName] = {
+        kind: sourceNameKinds.licenseAction,
         canonicalId: createId(),
       };
       createdMappings = true;

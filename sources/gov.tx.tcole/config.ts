@@ -2,6 +2,7 @@ import type {
   SourceRun,
   EmittedRecords,
 } from "../../src/cli/run/source-run.js";
+import { LICENSING_AUTHORITIES } from "./licensing-authorities.js";
 
 /**
  * TX POST (TCOLE) — reconstructs the Texas rows of the database from a single
@@ -22,7 +23,14 @@ import type {
  * Police"), matching how the column is populated today (seed set
  * `agency_officers.title = APPOINTMENT`). A blank APPOINTMENT is recorded as
  * "Unknown" rather than dropped. The separate license reference
- * (`agency_officers.license_id`) is populated in the licensing phase.
+ * (`agency_officers.license_id`) links to the emitted License
+ * (`PUBLIC_GUID|LICENSE`) when the assignment carries a non-blank LICENSE.
+ *
+ * The licensing model adds three more kinds — `LicensingAuthorities` (one per
+ * curated US POST body; TCOLE for TX), `Licenses` (distinct
+ * `PUBLIC_GUID`×`LICENSE`, keyed `PUBLIC_GUID|LICENSE`), and `LicenseActions`
+ * (one per `OfficersLicensesActions` row, keyed
+ * `PUBLIC_GUID|LICENSE|ACTION|ACTION_DATE`).
  *
  * Deterministic: no network, clock, or randomness. Cross-references
  * (`agency_id`, `personnel_id`) carry TCOLE source keys that the import
@@ -56,12 +64,32 @@ export const run: SourceRun = async ({ paths, readXlsx }) => {
     await readXlsx(workbook, "Officers"),
     activeOfficerGuids,
   );
-  const agencyPersonnel = buildAgencyPersonnel(serviceRows, agencies, personnel);
+
+  // Per-license history rows (one per licensing action). Sheet is optional; a
+  // workbook without it simply yields no Licenses/LicenseActions.
+  const licenseActionRows = await readXlsx(workbook, "OfficersLicensesActions");
+
+  const licensingAuthorities = buildLicensingAuthorities();
+  const licenses = buildLicenses(serviceRows, licenseActionRows, personnel);
+  const licenseActions = buildLicenseActions(
+    licenseActionRows,
+    personnel,
+    licenses,
+  );
+  const agencyPersonnel = buildAgencyPersonnel(
+    serviceRows,
+    agencies,
+    personnel,
+    licenses,
+  );
 
   return {
     artifacts: [
+      { kind: "LicensingAuthorities", records: licensingAuthorities },
       { kind: "Agencies", records: agencies },
       { kind: "Personnel", records: personnel },
+      { kind: "Licenses", records: licenses },
+      { kind: "LicenseActions", records: licenseActions },
       { kind: "AgencyPersonnel", records: agencyPersonnel },
     ],
   };
@@ -147,6 +175,7 @@ function buildAgencyPersonnel(
   rows: Array<Record<string, string>>,
   agencies: EmittedRecords,
   personnel: EmittedRecords,
+  licenses: EmittedRecords,
 ): EmittedRecords {
   const records: EmittedRecords = {};
   for (const row of rows) {
@@ -187,6 +216,13 @@ function buildAgencyPersonnel(
       endDate,
     ].join("|");
 
+    // Link to the emitted License (PUBLIC_GUID|LICENSE). A blank LICENSE has no
+    // license; a non-blank LICENSE whose License was not emitted (e.g. the
+    // officer/license was filtered) is left null rather than dangling.
+    const licenseKey = `${publicGuid}|${license}`;
+    const licenseId =
+      license === "" || licenses[licenseKey] === undefined ? null : licenseKey;
+
     records[key] = {
       spec: {
         agency_id: departmentNumber,
@@ -196,6 +232,116 @@ function buildAgencyPersonnel(
         // `title` holds the role (APPOINTMENT). Blank roles are recorded as
         // "Unknown" so the assignment is kept rather than dropped.
         title: appointment === "" ? "Unknown" : appointment,
+        license_id: licenseId,
+      },
+    };
+  }
+  return records;
+}
+
+/**
+ * Emits one LicensingAuthority per curated row in the shared US POST reference.
+ * Keyed by the curated `key` (e.g. `tcole`). `location_path_id` is the state
+ * path string (`/tx/`), which the import transform resolves to the canonical
+ * location_path id via the LocationPath ledger.
+ */
+function buildLicensingAuthorities(): EmittedRecords {
+  const records: EmittedRecords = {};
+  for (const authority of LICENSING_AUTHORITIES) {
+    records[authority.key] = {
+      spec: {
+        name: authority.name,
+        abbreviation: authority.abbreviation,
+        website: authority.website,
+        location_path_id: `/${authority.state.toLowerCase()}/`,
+      },
+    };
+  }
+  return records;
+}
+
+/**
+ * Emits one License per distinct PUBLIC_GUID×LICENSE seen in either the
+ * OfficersLicensesActions history or the Services roster, for officers that
+ * were emitted (active cascade). Keyed by `PUBLIC_GUID|LICENSE`. `first_awarded`
+ * is the earliest OfficersLicensesActions ACTION_DATE for that pair when
+ * available, else null. All TCOLE licenses are issued by `tcole`.
+ */
+function buildLicenses(
+  serviceRows: Array<Record<string, string>>,
+  licenseActionRows: Array<Record<string, string>>,
+  personnel: EmittedRecords,
+): EmittedRecords {
+  // Earliest ACTION_DATE per PUBLIC_GUID|LICENSE (cheap single pass).
+  const earliestActionDate = new Map<string, string>();
+  for (const row of licenseActionRows) {
+    const publicGuid = (row["PUBLIC_GUID"] ?? "").trim();
+    const license = (row["LICENSE"] ?? "").trim();
+    const actionDate = toDate(row["ACTION_DATE"]);
+    if (publicGuid === "" || license === "" || actionDate === "") continue;
+    const key = `${publicGuid}|${license}`;
+    const current = earliestActionDate.get(key);
+    if (current === undefined || actionDate < current) {
+      earliestActionDate.set(key, actionDate);
+    }
+  }
+
+  const records: EmittedRecords = {};
+  for (const row of [...licenseActionRows, ...serviceRows]) {
+    const publicGuid = (row["PUBLIC_GUID"] ?? "").trim();
+    const license = (row["LICENSE"] ?? "").trim();
+    // Skip blanks and officers not emitted by the active cascade.
+    if (publicGuid === "" || license === "") continue;
+    if (personnel[publicGuid] === undefined) continue;
+
+    const key = `${publicGuid}|${license}`;
+    if (records[key] !== undefined) continue;
+
+    records[key] = {
+      spec: {
+        officer_id: publicGuid,
+        license_type: license,
+        status: null,
+        first_awarded: earliestActionDate.get(key) ?? null,
+        issued_by_authority_id: "tcole",
+      },
+    };
+  }
+  return records;
+}
+
+/**
+ * Emits one LicenseAction per OfficersLicensesActions row whose officer and
+ * license were emitted. Keyed by the tuple
+ * `PUBLIC_GUID|LICENSE|ACTION|ACTION_DATE`. `license_id` references the emitted
+ * License by its `PUBLIC_GUID|LICENSE` key; rows referencing an unemitted
+ * license are skipped so no reference dangles.
+ */
+function buildLicenseActions(
+  rows: Array<Record<string, string>>,
+  personnel: EmittedRecords,
+  licenses: EmittedRecords,
+): EmittedRecords {
+  const records: EmittedRecords = {};
+  for (const row of rows) {
+    const publicGuid = (row["PUBLIC_GUID"] ?? "").trim();
+    const license = (row["LICENSE"] ?? "").trim();
+    const action = (row["ACTION"] ?? "").trim();
+    const actionDate = toDate(row["ACTION_DATE"]);
+    const status = (row["STATUS"] ?? "").trim();
+
+    if (publicGuid === "" || license === "" || action === "") continue;
+    if (personnel[publicGuid] === undefined) continue;
+    const licenseKey = `${publicGuid}|${license}`;
+    if (licenses[licenseKey] === undefined) continue;
+
+    const key = `${publicGuid}|${license}|${action}|${actionDate}`;
+    records[key] = {
+      spec: {
+        license_id: licenseKey,
+        action,
+        action_date: actionDate === "" ? null : actionDate,
+        status: status === "" ? null : status,
       },
     };
   }

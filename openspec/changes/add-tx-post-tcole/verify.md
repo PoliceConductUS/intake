@@ -101,7 +101,50 @@ absent from the run:
 
 → 3b.2 is moot; Phase B (additive new kinds) is safe to proceed.
 
-## PENDING — real-data captures to redo before closing Phase A
+## 2026-08-13 — Phase B (licensing model) implemented
+
+Three new import kinds — LicensingAuthority, License, LicenseAction — plus the
+`agency_officers.license_id` link, wired end to end mirroring AgencyPersonnel.
+
+- **Schema** `20260627000100_add_licensing_tables.sql`: the three tables + FKs
+  (license→officers/licensing_authority, license_action→license,
+  agency_officers.license_id→license).
+- **Registry/specs/generated**: `import-type-metadata` (kinds + `dependsOn`),
+  three Zod specs (+CreateSpecs), `license_id` on `AgencyPersonnelSpec`,
+  `import-types`/`Artifacts`/`index` barrels, `schema.SupportedTableName`,
+  `execute.ts` mutation metadata, and generated mutation envelopes.
+- **Ledger**: three entity blocks in `source-name-to-canonical-id/index.ts`
+  (+`seed-from-identity-maps.ts`).
+- **Transform** resolves every FK by source key via the ledger, throwing on
+  unmapped: LicensingAuthority `location_path_id` as a `/state/` **path string**
+  through `mappings.locationPaths` (mirrors LocationPath parent resolution);
+  License `officer_id`→personnel and `issued_by_authority_id`→licensingAuthorities;
+  LicenseAction `license_id`→licenses; Assignment `license_id`→licenses
+  (**null-safe** — null when blank or when the referenced license was not
+  emitted, so no dangling refs). Fresh cuids minted for the new entities.
+- **Op plumbing**: `operations`/`classify`/`plan-database-mutations`/
+  `data-context` extended per kind (additive create/read/update only, per 3b.1).
+- **Config** reads the `OfficersLicensesActions` sheet and emits all six kinds in
+  dependency order (LicensingAuthorities, Agencies, Personnel, Licenses,
+  LicenseActions, AgencyPersonnel). License = distinct `PUBLIC_GUID`×`LICENSE`
+  (issued_by `tcole`, `first_awarded` = earliest action date); LicenseAction per
+  `OfficersLicensesActions` row for emitted officers.
+- **Curated authorities** `sources/gov.tx.tcole/licensing-authorities.ts`: a
+  **verified subset** (TCOLE + AZ/CA/MN POST), not padded with unverified rows —
+  full ~55-row IADLEST normalization is a flagged data task (5.0).
+
+Verified 2026-08-13: `npm run typecheck` clean; `npx openspec validate
+add-tx-post-tcole` valid; full `vitest` run **301 tests / 36 files pass**
+(`seed-display.test.ts` still fails only on the missing `supabase/seed.sql`
+symlink — environmental).
+
+**Design decision — optionality.** The three new `ImportRows` arrays / their
+`ownedColumns` sub-keys / the three `SourceNameToCanonicalIds` sections are typed
+**optional** (mirroring the existing `locationPathGeometries` precedent) so the
+many existing row/mapping literals keep compiling via `?? []`/`?? {}`; runtime
+`load`/`transform` always populate them.
+
+## PENDING — real-data captures (Phase A employment + Phase B licensing)
 
 These require running against the real 02-10 workbook + abandoned maps in the
 dev workspace; numbers were never recorded, so they must be re-run, not guessed:
@@ -113,6 +156,11 @@ dev workspace; numbers were never recorded, so they must be re-run, not guessed:
 - **3.2** Dry-run; reconcile Agency/Personnel/Assignment counts against the
   abandoned manifest; spot-check preserved canonical IDs.
 - **3.3** Record the employment reconstruction result here.
-- **3b.1** Read `plan-database-mutations.ts`; confirm a run applies as additive
-  upserts only (absent entities NOT deleted) — a hard prerequisite for the
-  Phase B two-run/additive strategy. Document the finding here before starting 4.x.
+- **5.3** Full single run emits all six kinds; confirm counts (incl. ~189k
+  license actions), that `/tx/` resolves from the LocationPath ledger (census
+  gazetteer must be imported), and that assignment `license_id` +
+  license `issued_by_authority_id` resolve.
+- **5.4** Record the full reconstruction result (counts, preserved IDs, license
+  linkage) here.
+
+(3b.1 is done — see the additive-load confirmation above.)

@@ -38,6 +38,9 @@ const RECORD_ENVELOPE_KINDS = new Set<ImportArtifactKind>([
   "Agencies",
   "Personnel",
   "AgencyPersonnel",
+  "LicensingAuthorities",
+  "Licenses",
+  "LicenseActions",
 ]);
 
 function supportsRecordEnvelopeFor(kind: ImportArtifactKind): boolean {
@@ -264,10 +267,54 @@ export const AgencyPersonnelSpec = z
     start_date: nonEmptyString,
     end_date: z.string().nullable().optional(),
     title: nonEmptyString,
+    license_id: z.string().nullable().optional(),
   })
   .strict();
 
 export const AgencyPersonnelCreateSpec = AgencyPersonnelSpec.extend({
+  id: nonEmptyString,
+});
+
+export const LicensingAuthoritySpec = z
+  .object({
+    id: nonEmptyString.optional(),
+    name: nonEmptyString,
+    abbreviation: z.string().nullable().optional(),
+    website: z.string().nullable().optional(),
+    location_path_id: nonEmptyString,
+  })
+  .strict();
+
+export const LicensingAuthorityCreateSpec = LicensingAuthoritySpec.extend({
+  id: nonEmptyString,
+});
+
+export const LicenseSpec = z
+  .object({
+    id: nonEmptyString.optional(),
+    officer_id: nonEmptyString,
+    license_type: nonEmptyString,
+    status: z.string().nullable().optional(),
+    first_awarded: z.string().nullable().optional(),
+    issued_by_authority_id: nonEmptyString,
+  })
+  .strict();
+
+export const LicenseCreateSpec = LicenseSpec.extend({
+  id: nonEmptyString,
+});
+
+export const LicenseActionSpec = z
+  .object({
+    id: nonEmptyString.optional(),
+    license_id: nonEmptyString,
+    action: nonEmptyString,
+    action_date: z.string().nullable().optional(),
+    status: z.string().nullable().optional(),
+  })
+  .strict();
+
+export const LicenseActionCreateSpec = LicenseActionSpec.extend({
   id: nonEmptyString,
 });
 `;

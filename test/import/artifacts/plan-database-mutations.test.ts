@@ -57,6 +57,7 @@ const rows: ImportRows = {
       start_date: "2020-01-01",
       end_date: null,
       title: "Peace Officer",
+      license_id: null,
     },
   ],
   preparationMutations: [],
@@ -106,6 +107,9 @@ const createOperations: ImportOperations = {
   agencies: {},
   officers: {},
   agencyOfficers: {},
+  licensingAuthorities: {},
+  licenses: {},
+  licenseActions: {},
 };
 
 test("DatabaseMutationPlanningError summarizes repeated missing cached location paths", () => {
@@ -771,6 +775,9 @@ describe("planDatabaseMutations", () => {
       agencies: 1,
       officers: 1,
       agencyOfficers: 1,
+      licensingAuthorities: 0,
+      licenses: 0,
+      licenseActions: 0,
     });
 
     expect(result.operations.agencies["agency-canonical-id"]).toBe("create");
@@ -1022,6 +1029,9 @@ describe("planDatabaseMutations", () => {
       agencies: 1,
       officers: 1,
       agencyOfficers: 1,
+      licensingAuthorities: 0,
+      licenses: 0,
+      licenseActions: 0,
     });
     expect(
       client.queries.some(({ text }) => /insert into\s+public\./i.test(text)),
@@ -1439,6 +1449,7 @@ describe("planDatabaseMutations", () => {
           start_date: "2020-01-01",
           end_date: null,
           title: "Peace Officer",
+          license_id: null,
         },
         {
           id: "second-agency-personnel-canonical-id",
@@ -1448,6 +1459,7 @@ describe("planDatabaseMutations", () => {
           start_date: "2020-01-01",
           end_date: null,
           title: "Peace Officer",
+          license_id: null,
         },
       ],
       ownedColumns: {
@@ -3151,6 +3163,9 @@ describe("planDatabaseMutations", () => {
       agencies: 1,
       officers: 1,
       agencyOfficers: 1,
+      licensingAuthorities: 0,
+      licenses: 0,
+      licenseActions: 0,
     });
     expect(result.operations).toEqual(
       expect.objectContaining({
@@ -3315,5 +3330,150 @@ describe("planDatabaseMutations", () => {
       "rollback",
     );
     expect(client.ended).toBe(true);
+  });
+
+  const licensingRows: ImportRows = {
+    ...rows,
+    locationPaths: [],
+    agencies: [],
+    officers: [],
+    agencyOfficers: [],
+    licensingAuthorities: [
+      {
+        id: "authority-canonical-id",
+        name: "Texas Commission on Law Enforcement",
+        abbreviation: "TCOLE",
+        website: "https://www.tcole.texas.gov",
+        location_path_id: "tx-location-path-id",
+      },
+    ],
+    licenses: [
+      {
+        id: "license-canonical-id",
+        officer_id: "personnel-canonical-id",
+        license_type: "Peace Officer License",
+        status: null,
+        first_awarded: "1994-06-16",
+        issued_by_authority_id: "authority-canonical-id",
+      },
+    ],
+    licenseActions: [
+      {
+        id: "license-action-canonical-id",
+        license_id: "license-canonical-id",
+        action: "Issued",
+        action_date: "1994-06-16",
+        status: null,
+      },
+    ],
+    ownedColumns: {
+      agencies: {},
+      officers: {},
+      agencyOfficers: {},
+      licensingAuthorities: {
+        "authority-canonical-id": [
+          "name",
+          "abbreviation",
+          "website",
+          "location_path_id",
+        ],
+      },
+      licenses: {
+        "license-canonical-id": [
+          "officer_id",
+          "license_type",
+          "status",
+          "first_awarded",
+          "issued_by_authority_id",
+        ],
+      },
+      licenseActions: {
+        "license-action-canonical-id": [
+          "license_id",
+          "action",
+          "action_date",
+          "status",
+        ],
+      },
+    },
+  };
+
+  test("plans licensing authority, license, and license action rows as creates", async () => {
+    const client = new RecordingClient();
+
+    const result = await planDatabaseMutations(licensingRows, {
+      env: { DATABASE_URL: "postgres://example/intake" },
+      clientFactory: () => client,
+    });
+
+    expect(result.counts).toEqual({
+      locationPaths: 0,
+      locationPathGeometries: 0,
+      locationPathAliases: 0,
+      agencies: 0,
+      officers: 0,
+      agencyOfficers: 0,
+      licensingAuthorities: 1,
+      licenses: 1,
+      licenseActions: 1,
+    });
+    expect(result.operations.licensingAuthorities).toEqual({
+      "authority-canonical-id": "create",
+    });
+    expect(result.operations.licenses).toEqual({
+      "license-canonical-id": "create",
+    });
+    expect(result.operations.licenseActions).toEqual({
+      "license-action-canonical-id": "create",
+    });
+    expect(
+      client.queries.some(({ text }) => /insert into\s+public\./i.test(text)),
+    ).toBe(false);
+    expect(client.queries.map(({ text }) => text.toLowerCase())).toContain(
+      "rollback",
+    );
+  });
+
+  test("plans existing licensing rows as updates without upsert or writes", async () => {
+    const client = new RecordingClient(undefined, undefined, [
+      {
+        pattern: /select \* from public\.licensing_authority\b/i,
+        rows: [{ id: "authority-canonical-id" }],
+      },
+      {
+        pattern: /select \* from public\.license\b/i,
+        rows: [{ id: "license-canonical-id" }],
+      },
+      {
+        pattern: /select \* from public\.license_action\b/i,
+        rows: [{ id: "license-action-canonical-id" }],
+      },
+    ]);
+
+    const result = await planDatabaseMutations(licensingRows, {
+      env: { DATABASE_URL: "postgres://example/intake" },
+      clientFactory: () => client,
+    });
+
+    expect(result.operations.licensingAuthorities["authority-canonical-id"]).toBe(
+      "update",
+    );
+    expect(result.operations.licenses["license-canonical-id"]).toBe("update");
+    expect(
+      result.operations.licenseActions["license-action-canonical-id"],
+    ).toBe("update");
+
+    const sql = client.queries.map(({ text }) => text).join("\n");
+    expect(sql).not.toMatch(/\bon\s+conflict\b/i);
+    expect(sql).not.toMatch(/\bdo\s+nothing\b/i);
+    expect(
+      client.queries.some(({ text }) => /insert into\s+public\./i.test(text)),
+    ).toBe(false);
+    expect(
+      client.queries.some(({ text }) => /update\s+public\./i.test(text)),
+    ).toBe(false);
+    expect(client.queries.map(({ text }) => text.toLowerCase())).toContain(
+      "rollback",
+    );
   });
 });

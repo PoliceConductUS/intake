@@ -39,6 +39,24 @@ import {
   write as writePersonnel,
 } from "./generated/Personnel.js";
 import {
+  LicensingAuthorities,
+  LicensingAuthoritySpec,
+  read as readLicensingAuthorities,
+  write as writeLicensingAuthorities,
+} from "./generated/LicensingAuthorities.js";
+import {
+  Licenses,
+  LicenseSpec,
+  read as readLicenses,
+  write as writeLicenses,
+} from "./generated/Licenses.js";
+import {
+  LicenseActions,
+  LicenseActionSpec,
+  read as readLicenseActions,
+  write as writeLicenseActions,
+} from "./generated/LicenseActions.js";
+import {
   compareImportArtifactKinds,
   type ImportArtifactKind,
 } from "./import-types.js";
@@ -115,6 +133,9 @@ const EXTERNALIZE_RECORD_KINDS = new Set<ImportArtifactKind>([
   "Agencies",
   "Personnel",
   "AgencyPersonnel",
+  "LicensingAuthorities",
+  "Licenses",
+  "LicenseActions",
 ]);
 
 type ArtifactRecordSpec = {
@@ -145,6 +166,18 @@ const artifactReaders: Record<ImportArtifactKind, ArtifactReader> = {
     readLocationPaths(filePath, { ...options, expectedKind: "LocationPaths" }),
   Personnel: (filePath, options) =>
     readPersonnel(filePath, { ...options, expectedKind: "Personnel" }),
+  LicensingAuthorities: (filePath, options) =>
+    readLicensingAuthorities(filePath, {
+      ...options,
+      expectedKind: "LicensingAuthorities",
+    }),
+  Licenses: (filePath, options) =>
+    readLicenses(filePath, { ...options, expectedKind: "Licenses" }),
+  LicenseActions: (filePath, options) =>
+    readLicenseActions(filePath, {
+      ...options,
+      expectedKind: "LicenseActions",
+    }),
 };
 
 const artifactEnvelopeTypes: Record<ImportArtifactKind, ArtifactEnvelopeType> =
@@ -161,6 +194,12 @@ const artifactEnvelopeTypes: Record<ImportArtifactKind, ArtifactEnvelopeType> =
     },
     LocationPaths: { ...LocationPaths, write: writeLocationPaths },
     Personnel: { ...Personnel, write: writePersonnel },
+    LicensingAuthorities: {
+      ...LicensingAuthorities,
+      write: writeLicensingAuthorities,
+    },
+    Licenses: { ...Licenses, write: writeLicenses },
+    LicenseActions: { ...LicenseActions, write: writeLicenseActions },
   };
 
 const artifactRecordSpecs: Record<ImportArtifactKind, ArtifactRecordSpec> = {
@@ -170,6 +209,9 @@ const artifactRecordSpecs: Record<ImportArtifactKind, ArtifactRecordSpec> = {
   LocationPathGeometries: LocationPathGeometrySpec,
   LocationPaths: LocationPathSpec,
   Personnel: PersonnelSpec,
+  LicensingAuthorities: LicensingAuthoritySpec,
+  Licenses: LicenseSpec,
+  LicenseActions: LicenseActionSpec,
 };
 
 function sortedArtifactReferences(

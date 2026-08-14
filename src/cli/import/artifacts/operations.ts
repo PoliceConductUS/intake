@@ -7,6 +7,9 @@ export type ImportOperations = {
   agencies: Record<string, ImportOperation>;
   officers: Record<string, ImportOperation>;
   agencyOfficers: Record<string, ImportOperation>;
+  licensingAuthorities: Record<string, ImportOperation>;
+  licenses: Record<string, ImportOperation>;
+  licenseActions: Record<string, ImportOperation>;
 };
 
 export type DatabaseRowOperations = {
@@ -16,4 +19,7 @@ export type DatabaseRowOperations = {
   agencies: Record<string, "create" | "read" | "update">;
   officers: Record<string, "create" | "read" | "update">;
   agencyOfficers: Record<string, "create" | "read" | "update">;
+  licensingAuthorities: Record<string, "create" | "read" | "update">;
+  licenses: Record<string, "create" | "read" | "update">;
+  licenseActions: Record<string, "create" | "read" | "update">;
 };

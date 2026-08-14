@@ -74,6 +74,7 @@ const rows: ImportRows = {
       start_date: "2020-01-01",
       end_date: null,
       title: "Peace Officer",
+      license_id: null,
     },
   ],
   preparationMutations: [],
@@ -123,6 +124,9 @@ const createOperations: ImportOperations = {
   agencies: {},
   officers: {},
   agencyOfficers: {},
+  licensingAuthorities: {},
+  licenses: {},
+  licenseActions: {},
 };
 
 function locationPathSnapshot(

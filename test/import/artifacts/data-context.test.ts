@@ -353,6 +353,9 @@ describe("DataContext", () => {
         agencies: {},
         officers: {},
         agencyOfficers: {},
+        licensingAuthorities: {},
+        licenses: {},
+        licenseActions: {},
       },
     });
 

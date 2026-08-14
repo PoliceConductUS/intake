@@ -141,6 +141,13 @@ type OwnedColumnsMetadata = {
   agency?: ImportRows["ownedColumns"]["agencies"][string];
   personnel?: ImportRows["ownedColumns"]["officers"][string];
   agencyPersonnel?: ImportRows["ownedColumns"]["agencyOfficers"][string];
+  licensingAuthority?: NonNullable<
+    ImportRows["ownedColumns"]["licensingAuthorities"]
+  >[string];
+  license?: NonNullable<ImportRows["ownedColumns"]["licenses"]>[string];
+  licenseAction?: NonNullable<
+    ImportRows["ownedColumns"]["licenseActions"]
+  >[string];
 };
 
 function validateSourceRecordContext(input: SourceRecordContext): void {
@@ -642,6 +649,11 @@ function ownedColumnsMetadata(records: ImportRows): OwnedColumnsMetadata {
     agency: mostCommonColumns(records.ownedColumns.agencies),
     personnel: mostCommonColumns(records.ownedColumns.officers),
     agencyPersonnel: mostCommonColumns(records.ownedColumns.agencyOfficers),
+    licensingAuthority: mostCommonColumns(
+      records.ownedColumns.licensingAuthorities ?? {},
+    ),
+    license: mostCommonColumns(records.ownedColumns.licenses ?? {}),
+    licenseAction: mostCommonColumns(records.ownedColumns.licenseActions ?? {}),
   };
 }
 
@@ -740,6 +752,9 @@ export class DataContext {
       agencies: {},
       officers: {},
       agencyOfficers: {},
+      licensingAuthorities: {},
+      licenses: {},
+      licenseActions: {},
     };
     this.databaseLocationPathsLoaded =
       options.databaseLocationPaths !== undefined;
@@ -1209,6 +1224,54 @@ export class DataContext {
               : { ownedColumns: recordOwnedColumnNames }),
           };
         }),
+      ...(this.importRows.licensingAuthorities ?? []).map((record) => {
+        const recordOwnedColumnNames = recordOwnedColumns(
+          this.importRows.ownedColumns.licensingAuthorities?.[record.id] ?? [],
+          ownedColumns.licensingAuthority,
+        );
+        return {
+          kind: mutationKind(
+            this.operations.licensingAuthorities[record.id],
+            "LicensingAuthority",
+          ),
+          name: record.id,
+          spec: databaseSpec(record),
+          ...(recordOwnedColumnNames === undefined
+            ? {}
+            : { ownedColumns: recordOwnedColumnNames }),
+        };
+      }),
+      ...(this.importRows.licenses ?? []).map((record) => {
+        const recordOwnedColumnNames = recordOwnedColumns(
+          this.importRows.ownedColumns.licenses?.[record.id] ?? [],
+          ownedColumns.license,
+        );
+        return {
+          kind: mutationKind(this.operations.licenses[record.id], "License"),
+          name: record.id,
+          spec: databaseSpec(record),
+          ...(recordOwnedColumnNames === undefined
+            ? {}
+            : { ownedColumns: recordOwnedColumnNames }),
+        };
+      }),
+      ...(this.importRows.licenseActions ?? []).map((record) => {
+        const recordOwnedColumnNames = recordOwnedColumns(
+          this.importRows.ownedColumns.licenseActions?.[record.id] ?? [],
+          ownedColumns.licenseAction,
+        );
+        return {
+          kind: mutationKind(
+            this.operations.licenseActions[record.id],
+            "LicenseAction",
+          ),
+          name: record.id,
+          spec: databaseSpec(record),
+          ...(recordOwnedColumnNames === undefined
+            ? {}
+            : { ownedColumns: recordOwnedColumnNames }),
+        };
+      }),
     ];
   }
 

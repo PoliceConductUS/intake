@@ -30,6 +30,21 @@ import { AgencyPersonnelRead } from "./AgencyPersonnelRead.js";
 import { AgencyPersonnelUpdate } from "./AgencyPersonnelUpdate.js";
 import { AgencyPersonnelDelete } from "./AgencyPersonnelDelete.js";
 import { AgencyPersonnelList } from "./AgencyPersonnelList.js";
+import { LicensingAuthorityCreate } from "./LicensingAuthorityCreate.js";
+import { LicensingAuthorityRead } from "./LicensingAuthorityRead.js";
+import { LicensingAuthorityUpdate } from "./LicensingAuthorityUpdate.js";
+import { LicensingAuthorityDelete } from "./LicensingAuthorityDelete.js";
+import { LicensingAuthorityList } from "./LicensingAuthorityList.js";
+import { LicenseCreate } from "./LicenseCreate.js";
+import { LicenseRead } from "./LicenseRead.js";
+import { LicenseUpdate } from "./LicenseUpdate.js";
+import { LicenseDelete } from "./LicenseDelete.js";
+import { LicenseList } from "./LicenseList.js";
+import { LicenseActionCreate } from "./LicenseActionCreate.js";
+import { LicenseActionRead } from "./LicenseActionRead.js";
+import { LicenseActionUpdate } from "./LicenseActionUpdate.js";
+import { LicenseActionDelete } from "./LicenseActionDelete.js";
+import { LicenseActionList } from "./LicenseActionList.js";
 
 export const importMutationEnvelopeTypes = {
   LocationPathCreate,
@@ -62,4 +77,19 @@ export const importMutationEnvelopeTypes = {
   AgencyPersonnelUpdate,
   AgencyPersonnelDelete,
   AgencyPersonnelList,
+  LicensingAuthorityCreate,
+  LicensingAuthorityRead,
+  LicensingAuthorityUpdate,
+  LicensingAuthorityDelete,
+  LicensingAuthorityList,
+  LicenseCreate,
+  LicenseRead,
+  LicenseUpdate,
+  LicenseDelete,
+  LicenseList,
+  LicenseActionCreate,
+  LicenseActionRead,
+  LicenseActionUpdate,
+  LicenseActionDelete,
+  LicenseActionList,
 };

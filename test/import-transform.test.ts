@@ -43,6 +43,9 @@ type EntityMaps = {
   agencies?: Record<string, unknown>;
   personnel?: Record<string, unknown>;
   agencyPersonnel?: Record<string, unknown>;
+  licensingAuthorities?: Record<string, unknown>;
+  licenses?: Record<string, unknown>;
+  licenseActions?: Record<string, unknown>;
 };
 
 function artifactsWithEntities(entities: EntityMaps): ArtifactsEnvelope {
@@ -52,6 +55,9 @@ function artifactsWithEntities(entities: EntityMaps): ArtifactsEnvelope {
     agencies: "Agencies",
     personnel: "Personnel",
     agencyPersonnel: "AgencyPersonnel",
+    licensingAuthorities: "LicensingAuthorities",
+    licenses: "Licenses",
+    licenseActions: "LicenseActions",
   } satisfies Record<keyof EntityMaps, ImportArtifactKind>;
   return {
     apiVersion: "policeconduct.org/intake/v1alpha1",
@@ -323,8 +329,12 @@ describe("transformArtifacts", () => {
           start_date: "2020-01-01",
           end_date: null,
           title: "Peace Officer",
+          license_id: null,
         },
       ],
+      licensingAuthorities: [],
+      licenses: [],
+      licenseActions: [],
       preparationMutations: [],
       ownedColumns: {
         agencies: {
@@ -362,6 +372,9 @@ describe("transformArtifacts", () => {
             "title",
           ],
         },
+        licensingAuthorities: {},
+        licenses: {},
+        licenseActions: {},
       },
     });
   });
@@ -562,6 +575,165 @@ describe("transformArtifacts", () => {
       transformArtifacts(artifacts, mappings, resolvedProperties),
     ).toThrow(
       "Agency-personnel source record a2m-roster-source references unmapped personnel missing-personnel.",
+    );
+  });
+
+  test("resolves licensing authority, license, and license action foreign keys", () => {
+    const artifacts = artifactsWithEntities({
+      personnel: { [personnel.id]: personnel },
+      licensingAuthorities: {
+        tcole: {
+          name: "Texas Commission on Law Enforcement",
+          abbreviation: "TCOLE",
+          website: "https://www.tcole.texas.gov",
+          location_path_id: "/tx/",
+        },
+      },
+      licenses: {
+        "003-personnel-source|Peace Officer License": {
+          officer_id: personnel.id,
+          license_type: "Peace Officer License",
+          status: null,
+          first_awarded: "1994-06-16",
+          issued_by_authority_id: "tcole",
+        },
+      },
+      licenseActions: {
+        "003-personnel-source|Peace Officer License|Issued|1994-06-16": {
+          license_id: "003-personnel-source|Peace Officer License",
+          action: "Issued",
+          action_date: "1994-06-16",
+          status: "Active",
+        },
+      },
+    });
+
+    const rows = transformArtifacts(artifacts, {
+      locationPaths: { "/tx/": { canonicalId: "tx-location-path-id" } },
+      agencies: {},
+      personnel: {
+        [personnel.id]: { canonicalId: "personnel-canonical-id" },
+      },
+      agencyPersonnel: {},
+      licensingAuthorities: {
+        tcole: { canonicalId: "authority-canonical-id" },
+      },
+      licenses: {
+        "003-personnel-source|Peace Officer License": {
+          canonicalId: "license-canonical-id",
+        },
+      },
+      licenseActions: {
+        "003-personnel-source|Peace Officer License|Issued|1994-06-16": {
+          canonicalId: "license-action-canonical-id",
+        },
+      },
+    });
+
+    expect(rows.licensingAuthorities).toEqual([
+      {
+        id: "authority-canonical-id",
+        name: "Texas Commission on Law Enforcement",
+        abbreviation: "TCOLE",
+        website: "https://www.tcole.texas.gov",
+        location_path_id: "tx-location-path-id",
+      },
+    ]);
+    expect(rows.licenses).toEqual([
+      {
+        id: "license-canonical-id",
+        officer_id: "personnel-canonical-id",
+        license_type: "Peace Officer License",
+        status: null,
+        first_awarded: "1994-06-16",
+        issued_by_authority_id: "authority-canonical-id",
+      },
+    ]);
+    expect(rows.licenseActions).toEqual([
+      {
+        id: "license-action-canonical-id",
+        license_id: "license-canonical-id",
+        action: "Issued",
+        action_date: "1994-06-16",
+        status: "Active",
+      },
+    ]);
+  });
+
+  test("resolves an agency-personnel license_id reference to its canonical license id", () => {
+    const artifacts = artifactsWithEntities({
+      agencies: { [agency.id]: agency },
+      personnel: { [personnel.id]: personnel },
+      agencyPersonnel: {
+        [roster.id]: {
+          ...roster,
+          license_id: "003-personnel-source|Peace Officer License",
+        },
+      },
+    });
+
+    const rows = transformArtifacts(
+      artifacts,
+      {
+        ...mappings,
+        licenses: {
+          "003-personnel-source|Peace Officer License": {
+            canonicalId: "license-canonical-id",
+          },
+        },
+      },
+      resolvedProperties,
+    );
+
+    expect(rows.agencyOfficers[0]?.license_id).toBe("license-canonical-id");
+  });
+
+  test("fails when an agency-personnel license_id reference is unmapped", () => {
+    const artifacts = artifactsWithEntities({
+      agencies: { [agency.id]: agency },
+      personnel: { [personnel.id]: personnel },
+      agencyPersonnel: {
+        [roster.id]: { ...roster, license_id: "missing-license" },
+      },
+    });
+
+    expect(() =>
+      transformArtifacts(artifacts, mappings, resolvedProperties),
+    ).toThrow(
+      "Agency-personnel source record a2m-roster-source references unmapped license missing-license.",
+    );
+  });
+
+  test("fails when a license references an unmapped licensing authority", () => {
+    const artifacts = artifactsWithEntities({
+      personnel: { [personnel.id]: personnel },
+      licenses: {
+        "003-personnel-source|Peace Officer License": {
+          officer_id: personnel.id,
+          license_type: "Peace Officer License",
+          status: null,
+          first_awarded: null,
+          issued_by_authority_id: "unknown-authority",
+        },
+      },
+    });
+
+    expect(() =>
+      transformArtifacts(artifacts, {
+        locationPaths: {},
+        agencies: {},
+        personnel: {
+          [personnel.id]: { canonicalId: "personnel-canonical-id" },
+        },
+        agencyPersonnel: {},
+        licenses: {
+          "003-personnel-source|Peace Officer License": {
+            canonicalId: "license-canonical-id",
+          },
+        },
+      }),
+    ).toThrow(
+      "Artifacts license 003-personnel-source|Peace Officer License references unmapped licensing authority unknown-authority.",
     );
   });
 

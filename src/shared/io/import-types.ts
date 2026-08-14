@@ -12,6 +12,9 @@ import {
 import {
   AgencyPersonnelSpec,
   AgencySpec,
+  LicenseActionSpec,
+  LicenseSpec,
+  LicensingAuthoritySpec,
   LocationPathAliasSpec,
   LocationPathGeometrySpec,
   LocationPathSpec,
@@ -37,6 +40,9 @@ const recordSchemas = {
   Agencies: AgencySpec,
   Personnel: PersonnelSpec,
   AgencyPersonnel: AgencyPersonnelSpec,
+  LicensingAuthorities: LicensingAuthoritySpec,
+  Licenses: LicenseSpec,
+  LicenseActions: LicenseActionSpec,
 } satisfies Record<ImportArtifactKind, z.ZodType<Record<string, unknown>>>;
 
 export const importTypeRegistry = {
@@ -63,6 +69,18 @@ export const importTypeRegistry = {
   AgencyPersonnel: {
     ...importTypeMetadata.AgencyPersonnel,
     recordSchema: recordSchemas.AgencyPersonnel,
+  },
+  LicensingAuthorities: {
+    ...importTypeMetadata.LicensingAuthorities,
+    recordSchema: recordSchemas.LicensingAuthorities,
+  },
+  Licenses: {
+    ...importTypeMetadata.Licenses,
+    recordSchema: recordSchemas.Licenses,
+  },
+  LicenseActions: {
+    ...importTypeMetadata.LicenseActions,
+    recordSchema: recordSchemas.LicenseActions,
   },
 } satisfies Record<ImportArtifactKind, ImportTypeDefinition>;
 

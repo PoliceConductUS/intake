@@ -143,6 +143,7 @@ const agencyPersonnelSetMutationSchema = artifactMutationOperationBaseSchema
       "start_date",
       "end_date",
       "title",
+      "license_id",
     ]),
   })
   .superRefine(requireValueForSet);

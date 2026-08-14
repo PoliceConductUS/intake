@@ -1,6 +1,9 @@
-> **Reconciled 2026-08-13** against committed work (`7a6d9e4`…`d636958`). Phase A
-> source + ledger + employment import are landed and unit-tested; the Phase A
-> **real-data run capture** (2.3, 3.1–3.3, 3b.1) and all of Phase B remain open.
+> **Updated 2026-08-13.** Phase A source/ledger/employment import + the
+> `license_type`→`title` rename (1.4) are landed and unit-tested. Phase B
+> (licensing model: 4.1–4.5, 5.1–5.2) is fully implemented and unit-tested
+> (301 tests green, typecheck clean). Remaining: the curated authorities file is
+> a verified subset to be grown to ~55 (5.0), and the **real-data run captures**
+> (2.3, 3.1–3.3, 5.3–5.4) need the 02-10 workbook in a populated dev workspace.
 > See `verify.md`.
 
 ## 1. Phase A — Source config (employment kinds) + rename
@@ -32,16 +35,16 @@
 
 ## 4. Phase B — Licensing model (schema + pipeline)
 
-- [ ] 4.1 Migrations: `licensing_authority` (name, abbreviation, website, location_path_id); `license` (officer_id, license_type, status, first_awarded, issued_by_authority_id FK, unique(officer_id,license_type)); `license_action` (license_id FK, action, action_date, status). Explicit checked-in IDs; refresh generated types.
-- [ ] 4.2 Add `LicensingAuthoritySpec`, `LicenseSpec`, `LicenseActionSpec` + generated record schemas; register the three kinds in `importTypeRegistry` with correct `dependsOn` (License→LicensingAuthority+Personnel; LicenseAction→License; Assignment→License).
-- [ ] 4.3 Extend `source-name-to-canonical-id/index.ts` with the three new entity blocks (load/persist/resolve/assert).
-- [ ] 4.4 Extend `transform.ts` + `plan-database-mutations.ts`: build licensing_authority/license/license_action rows; resolve License `issued_by_authority_id` (LicensingAuthority ledger) and Assignment `license_id` (License ledger); mint fresh cuids for the new entities.
-- [ ] 4.5 Pipeline tests for the three new kinds + Assignment `license_id`, and that the pre-existing kinds are unaffected.
+- [x] 4.1 Migration `20260627000100_add_licensing_tables.sql`: `licensing_authority` (name, abbreviation, website, location_path_id FK→location_path); `license` (officer_id FK→officers, license_type, status, first_awarded, issued_by_authority_id FK→licensing_authority, unique(officer_id,license_type)); `license_action` (license_id FK→license, action, action_date, status); plus the `agency_officers.license_id`→license FK. `text` PKs (pipeline supplies canonical ids). Generated types refreshed.
+- [x] 4.2 `LicensingAuthoritySpec`/`LicenseSpec`/`LicenseActionSpec` (+CreateSpecs) added; `license_id` added to `AgencyPersonnelSpec`; three kinds registered in `importTypeRegistry`/`import-type-metadata`/`RECORD_ENVELOPE_KINDS` with `dependsOn` (LicensingAuthorities→LocationPaths; Licenses→LicensingAuthorities+Personnel; LicenseActions→Licenses; AgencyPersonnel→…+Licenses). `Artifacts.ts`/`index.ts` barrels + generated mutation envelopes wired.
+- [x] 4.3 `source-name-to-canonical-id/index.ts` extended with the three entity blocks (types, `sourceNameKinds`, load/persist/assert/resolve); `seed-from-identity-maps.ts` given the three (empty) sections; `artifactsEntityKeys` union widened.
+- [x] 4.4 `transform.ts` builds all three rows + resolves FKs by source key (LicensingAuthority `location_path_id` via the LocationPaths ledger as a `/state/` path string; License `officer_id`→personnel, `issued_by_authority_id`→licensingAuthorities; LicenseAction `license_id`→licenses; Assignment `license_id`→licenses, null-safe, no dangling refs), throwing on unmapped. `operations.ts`/`classify-database-operations.ts`/`plan-database-mutations.ts`/`data-context.ts`/`execute.ts` extended per kind. Fresh cuids minted by `resolveArtifactsSourceNameToCanonicalIds`.
+- [x] 4.5 Pipeline tests extended (`plan-database-mutations`, `import-transform`, `data-context`, `source-name-to-canonical-id`) for the three kinds + Assignment `license_id`; no-upsert/rollback invariants still hold; pre-existing kinds unaffected (301 tests green).
 
 ## 5. Phase B — Licensing emission + full single-run reconstruction
 
-- [ ] 5.0 Create the curated `licensing-authorities` reference file (~55 US POST agencies: `key`, `name`, `abbreviation`, `state`, `website`) checked into the source, normalized from public directories (IADLEST, Army "States' POST" list, agency sites).
-- [ ] 5.1 Extend the config to emit LicensingAuthority for every curated-file row (keyed by `key`; `location_path_id` resolved to the gazetteer `/state/` path), License (distinct `PUBLIC_GUID`×`LICENSE` across `OfficersLicensesActions`+`Services`, `issued_by`=TCOLE), and LicenseAction (`OfficersLicensesActions`, keyed `PUBLIC_GUID|LICENSE|ACTION|ACTION_DATE`); set each Assignment's `license` ref.
-- [ ] 5.2 Source tests for LicensingAuthority/License/LicenseAction shapes + determinism, and that Assignment `license` refs resolve to emitted Licenses.
-- [ ] 5.3 Full reconstruction: one `intake run gov.tx.tcole` emits all six kinds. Confirm counts (incl. ~189k license actions) and that assignment `license_id` + license `issued_by_authority_id` resolve.
-- [ ] 5.4 Record the full reconstruction result (counts, preserved IDs, license linkage) in verify.md.
+- [~] 5.0 Curated `licensing-authorities.ts` module (`key`, `name`, `abbreviation`, `state`, `website`) checked into the source and imported by config. Ships a **verified subset** — TCOLE (TX) + AZ/CA/MN POST — deliberately NOT padded with unverified rows. _Remaining data task: complete to ~55 US POST agencies from IADLEST / Army "States' POST" list. The mechanism is done; only real rows are outstanding._
+- [x] 5.1 Config emits LicensingAuthority for every curated-file row (keyed by `key`; `location_path_id` = `/state/` path string), License (distinct `PUBLIC_GUID`×`LICENSE` across `OfficersLicensesActions`+`Services` for emitted officers, `issued_by`=`tcole`, `first_awarded`=earliest action date), and LicenseAction (`OfficersLicensesActions`, keyed `PUBLIC_GUID|LICENSE|ACTION|ACTION_DATE`); each Assignment sets `license_id` (null when blank or un-emitted). Emit order dependency-respecting.
+- [x] 5.2 Source tests assert LicensingAuthority/License/LicenseAction shapes + determinism, Assignment `license_id` resolves to an emitted License (and is null for the blank-LICENSE row), and actions for dropped officers are not emitted.
+- [ ] 5.3 Full reconstruction: one `intake run gov.tx.tcole` emits all six kinds. Confirm counts (incl. ~189k license actions) and that assignment `license_id` + license `issued_by_authority_id` resolve. _PENDING — needs the real 02-10 workbook in a populated dev workspace (with census-gazetteer LocationPaths imported so `/tx/` resolves)._
+- [ ] 5.4 Record the full reconstruction result (counts, preserved IDs, license linkage) in verify.md. _PENDING — depends on 5.3._
