@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, cp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,8 +12,10 @@ const fixture = path.join(
   "../../fixtures/azpost/officer-list-sample.xlsx",
 );
 
-// End-to-end test of `intake run gov.azpost.roster <fixture> --dry-run`
-// through the real CLI entry point (`runIntake`). It exercises the real
+// End-to-end test of `intake run gov.azpost.roster --dry-run` through the real
+// CLI entry point (`runIntake`). The workbook is staged in the source's
+// namespace input folder ($INTAKE_WORKSPACE/<source-id>/source/); the run
+// command discovers it there (no path argument). It exercises the real
 // source module discovery, the real xlsx parser, the real Artifacts
 // envelope builder, and the real Artifacts writer/reader against a real
 // temp workspace. Only the last dependency in the pipeline -
@@ -56,10 +58,15 @@ describe("intake run gov.azpost.roster (dry-run)", () => {
       return { exitCode: 0 };
     };
 
-    const result = await runIntake(
-      ["run", "gov.azpost.roster", fixture, "--dry-run"],
-      { runImportArtifactsCommand },
-    );
+    // Stage the workbook in the source's namespace input folder — the run
+    // command reads inputs from $INTAKE_WORKSPACE/<source-id>/source/.
+    const sourceInputDir = path.join(workspace, "gov.azpost.roster", "source");
+    await mkdir(sourceInputDir, { recursive: true });
+    await cp(fixture, path.join(sourceInputDir, "officer-list-sample.xlsx"));
+
+    const result = await runIntake(["run", "gov.azpost.roster", "--dry-run"], {
+      runImportArtifactsCommand,
+    });
 
     expect(result.exitCode).toBe(0);
     // gov.azpost.roster has no `excluded.yaml`, so the loaded exclusion set

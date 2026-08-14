@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { Command } from "commander";
 import { Artifacts, loadExcludedRecords } from "../../shared/io/index.js";
 import type { ExcludedRecords } from "../../shared/io/index.js";
-import { createCommandDirectory } from "../command-directory.js";
+import { createCommandDirectory, intakeWorkspace } from "../command-directory.js";
 import { runImportArtifactsCommand } from "../import/artifacts/index.js";
 import type {
   CliCommandDependencies,
@@ -68,6 +68,67 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+const CENSUS_SOURCE_ID = "census-gazetteer";
+
+/** Translates a shell-style glob (`*`, `?`) into an anchored RegExp. */
+function globToRegExp(glob: string): RegExp {
+  const pattern = Array.from(glob)
+    .map((ch) =>
+      ch === "*"
+        ? ".*"
+        : ch === "?"
+          ? "."
+          : ch.replace(/[.+^${}()|[\]\\]/g, "\\$&"),
+    )
+    .join("");
+  return new RegExp(`^${pattern}$`);
+}
+
+/**
+ * Source folder names under `sources/` matching the glob, sorted, with
+ * `census-gazetteer` first when present — it produces the shared `location_path`
+ * concept every other source resolves against, so it must run first (ADR 0015).
+ */
+async function matchSourceIds(
+  sourcesRoot: string,
+  glob: string,
+): Promise<string[]> {
+  const entries = await readdir(sourcesRoot, { withFileTypes: true });
+  const matcher = globToRegExp(glob);
+  const matched = entries
+    .filter((entry) => entry.isDirectory() && matcher.test(entry.name))
+    .map((entry) => entry.name)
+    .sort();
+  matched.sort((a, b) =>
+    a === CENSUS_SOURCE_ID ? -1 : b === CENSUS_SOURCE_ID ? 1 : 0,
+  );
+  return matched;
+}
+
+/** All non-hidden files under `<workspace>/<sourceId>/source/`, recursively. */
+async function sourceInputPaths(
+  workspace: string,
+  sourceId: string,
+): Promise<string[]> {
+  const collect = async (dir: string): Promise<string[]> => {
+    let entries;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return [];
+    }
+    const files: string[] = [];
+    for (const entry of entries) {
+      if (entry.name.startsWith(".")) continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) files.push(...(await collect(full)));
+      else if (entry.isFile()) files.push(full);
+    }
+    return files;
+  };
+  return (await collect(path.join(workspace, sourceId, "source"))).sort();
+}
+
 export async function runSource(
   sourceId: string,
   paths: string[],
@@ -121,45 +182,88 @@ export const registerCliCommand: RegisterCliCommand = (
 ): void => {
   program
     .command("run")
-    .description("Run a source's config.ts and import the records it returns.")
-    .argument("<source-id>", "source id under sources/")
-    .argument("<paths...>", "one or more snapshot files")
+    .description(
+      "Run the config.ts of every source folder matching <glob> and import the " +
+        "records it returns. Inputs are read from $INTAKE_WORKSPACE/<source-id>/source/. " +
+        "When census-gazetteer matches it runs first (ADR 0015); the rest run in name order.",
+    )
+    .argument(
+      "<glob>",
+      "glob matching source folder name(s) under sources/ — quote it, e.g. '*' or 'gov.*'",
+    )
     .option(
       "--dry-run",
-      "Write the DatabaseMutations envelope without applying it",
+      "Write each DatabaseMutations envelope without applying it",
     )
     .action(
-      async (
-        sourceId: string,
-        paths: string[],
-        options: { dryRun?: boolean },
-      ): Promise<void> => {
+      async (glob: string, options: { dryRun?: boolean }): Promise<void> => {
         const env = process.env;
-        const deps: RunSourceDeps = {
-          sourcesRoot: path.join(process.cwd(), "sources"),
-          env,
-          loadSourceModule,
-          readXlsx,
-          state: await sourceStateDir(env, sourceId),
-          digest: digestOfPaths,
-          makeWorkspace: async (e) =>
-            (
-              await createCommandDirectory(e, {
-                namespace: sourceId,
-                args: ["run", sourceId, ...paths],
-              })
-            ).commandDirectory,
-          createEmitSink,
-          loadExcludedRecords,
-          writeEnvelope: async (directory, id, digest, manifest, refItems) =>
-            Artifacts.write(
-              directory,
-              buildArtifactsEnvelope(id, digest, manifest, refItems),
-            ),
-          runImport:
-            dependencies.runImportArtifactsCommand ?? runImportArtifactsCommand,
-        };
-        dependencies.setResult(await runSource(sourceId, paths, options, deps));
+        const sourcesRoot = path.join(process.cwd(), "sources");
+        try {
+          const workspace = intakeWorkspace(env);
+          const sourceIds = await matchSourceIds(sourcesRoot, glob);
+          if (sourceIds.length === 0) {
+            dependencies.setResult({
+              exitCode: 1,
+              stderr: `No source folder under sources/ matches "${glob}".\n`,
+            });
+            return;
+          }
+
+          const stdout: string[] = [];
+          for (const sourceId of sourceIds) {
+            const paths = await sourceInputPaths(workspace, sourceId);
+            if (paths.length === 0) {
+              dependencies.setResult({
+                exitCode: 1,
+                stdout: stdout.join(""),
+                stderr: `No input files for ${sourceId} at ${path.join(workspace, sourceId, "source")}\n`,
+              });
+              return;
+            }
+            const deps: RunSourceDeps = {
+              sourcesRoot,
+              env,
+              loadSourceModule,
+              readXlsx,
+              state: await sourceStateDir(env, sourceId),
+              digest: digestOfPaths,
+              makeWorkspace: async (e) =>
+                (
+                  await createCommandDirectory(e, {
+                    namespace: sourceId,
+                    args: ["run", sourceId, ...paths],
+                  })
+                ).commandDirectory,
+              createEmitSink,
+              loadExcludedRecords,
+              writeEnvelope: async (directory, id, digest, manifest, refItems) =>
+                Artifacts.write(
+                  directory,
+                  buildArtifactsEnvelope(id, digest, manifest, refItems),
+                ),
+              runImport:
+                dependencies.runImportArtifactsCommand ??
+                runImportArtifactsCommand,
+            };
+            const result = await runSource(sourceId, paths, options, deps);
+            if (result.stdout) stdout.push(result.stdout);
+            if (result.exitCode !== 0) {
+              dependencies.setResult({
+                exitCode: result.exitCode,
+                stdout: stdout.join(""),
+                stderr: `${result.stderr ?? ""}intake run failed on source ${sourceId}\n`,
+              });
+              return;
+            }
+          }
+          dependencies.setResult({ exitCode: 0, stdout: stdout.join("") });
+        } catch (error) {
+          dependencies.setResult({
+            exitCode: 1,
+            stderr: `${errorMessage(error)}\n`,
+          });
+        }
       },
     );
 };
