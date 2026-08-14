@@ -4,6 +4,10 @@
 
 Proposed
 
+> Framed by [ADR 0017](0017-intake-persistence-is-a-bespoke-orm.md): these
+> per-property resolvers are the ORM's Lazy Load + Foreign-Key Mapping; facades
+> are Data Mappers; the ledger is the Identity Map's durable half.
+
 ## Context
 
 Before a source record becomes a database mutation, several of its properties
