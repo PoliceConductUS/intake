@@ -104,7 +104,9 @@ function toDate(value: string | undefined): string {
 
 function nullIfBlank(value: string | undefined): string | null {
   const text = (value ?? "").trim();
-  return text === "" ? null : text;
+  // TCOLE uses the literal string "NULL"/"Null"/"null" as a missing-value
+  // sentinel; treat it (and a blank) as an absent value.
+  return text === "" || text.toLowerCase() === "null" ? null : text;
 }
 
 function buildPersonnel(
@@ -114,17 +116,18 @@ function buildPersonnel(
   const records: EmittedRecords = {};
   for (const row of rows) {
     const publicGuid = (row["PUBLIC_GUID"] ?? "").trim();
-    const firstName = (row["FNAME"] ?? "").trim();
-    const lastName = (row["LNAME"] ?? "").trim();
+    const firstName = nullIfBlank(row["FNAME"]);
     // Only import officers attached to an active agency.
     if (!activeOfficerGuids.has(publicGuid)) continue;
-    // Personnel spec requires a stable id and non-empty first/last name.
-    if (publicGuid === "" || firstName === "" || lastName === "") continue;
+    // Personnel spec requires a stable id and a first name. last_name is
+    // nullable: TCOLE sometimes has no last name (sentinel "NULL"), and dropping
+    // those would drop real (often active) officers.
+    if (publicGuid === "" || firstName === null) continue;
     records[publicGuid] = {
       spec: {
         id: publicGuid,
         first_name: firstName,
-        last_name: lastName,
+        last_name: nullIfBlank(row["LNAME"]),
         middle_name: nullIfBlank(row["MNAME"]),
         suffix: nullIfBlank(row["SFX"]),
       },

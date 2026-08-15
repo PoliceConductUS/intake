@@ -559,7 +559,6 @@ describe("transformArtifacts", () => {
     ["agencies", agency.id, "name"],
     ["agencies", agency.id, "state"],
     ["personnel", personnel.id, "first_name"],
-    ["personnel", personnel.id, "last_name"],
     ["agencyPersonnel", roster.id, "start_date"],
   ] as const)(
     "fails before returning rows when %s source record %s has an invalid required field %s",
@@ -584,4 +583,20 @@ describe("transformArtifacts", () => {
       }
     },
   );
+
+  test("accepts a null last_name (some officers have no last name in the source)", async () => {
+    const artifacts = artifactsWithEntities({
+      agencies: { [agency.id]: agency },
+      personnel: { [personnel.id]: { ...personnel, last_name: null } },
+      agencyPersonnel: { [roster.id]: roster },
+    });
+
+    await expect(
+      transformArtifacts(
+        artifacts,
+        fakeSourceNameLedger(mappings),
+        resolvedProperties,
+      ),
+    ).resolves.toBeDefined();
+  });
 });

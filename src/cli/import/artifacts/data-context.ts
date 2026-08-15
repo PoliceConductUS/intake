@@ -1181,7 +1181,7 @@ export class LicenseActionFacade implements PropertyResolutionFacade<LicenseActi
 export type PersonnelRowShape = {
   id: string;
   first_name: string;
-  last_name: string;
+  last_name: string | null;
   middle_name: string | null;
   prefix: string | null;
   suffix: string | null;
@@ -1265,13 +1265,16 @@ function personnelSlugResolver(): Resolver<
     // Generate: derive a base from name + canonical-id suffix, then disambiguate
     // for uniqueness across all three levels.
     const firstName = valueAsString(facade.raw("first_name"));
-    const lastName = valueAsString(facade.raw("last_name"));
-    if (firstName === undefined || lastName === undefined) {
+    if (firstName === undefined) {
       throw new Error(
-        `Cannot generate slug for Personnel ${source.namespace}/${source.name}; first_name and last_name are required.`,
+        `Cannot generate slug for Personnel ${source.namespace}/${source.name}; first_name is required.`,
       );
     }
-    const base = `${slugify(`${firstName} ${lastName}`)}-${canonicalSuffix(id)}`;
+    // last_name is optional (some officers have no last name in the source).
+    const lastName = valueAsString(facade.raw("last_name"));
+    const fullName =
+      lastName === undefined ? firstName : `${firstName} ${lastName}`;
+    const base = `${slugify(fullName)}-${canonicalSuffix(id)}`;
     return backend.ensureUniquePersonnelSlug({ base, canonicalId: id });
   });
 }
@@ -1308,14 +1311,15 @@ export class PersonnelFacade implements PropertyResolutionFacade<PersonnelRowSha
       >(PersonnelFacade.kind),
       slug: personnelSlugResolver(),
       // Casing normalization for ALL-CAPS source names (applied via resolvers so
-      // slugs, which read `facade.raw`, are unaffected). `first_name`/`last_name`
-      // are required; `middle_name`/`prefix`/`suffix` are nullable columns.
+      // slugs, which read `facade.raw`, are unaffected). `first_name` is required;
+      // `last_name`/`middle_name`/`prefix`/`suffix` are nullable columns.
       first_name: nameCaseResolver<PersonnelRowShape, PersonnelResolverBackend>(
         "first_name",
       ),
-      last_name: nameCaseResolver<PersonnelRowShape, PersonnelResolverBackend>(
-        "last_name",
-      ),
+      last_name: nameCaseResolverNullable<
+        PersonnelRowShape,
+        PersonnelResolverBackend
+      >("last_name"),
       middle_name: nameCaseResolverNullable<
         PersonnelRowShape,
         PersonnelResolverBackend

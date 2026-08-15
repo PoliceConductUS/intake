@@ -245,7 +245,9 @@ export const PersonnelSpec = z
   .object({
     id: nonEmptyString.optional(),
     first_name: nonEmptyString,
-    last_name: nonEmptyString,
+    // last_name is nullable: some officers have no last name in the source
+    // (matches officers.last_name being nullable in the database).
+    last_name: nullableNonEmptyString,
     middle_name: z.string().nullable().optional(),
     prefix: z.string().nullable().optional(),
     suffix: z.string().nullable().optional(),
