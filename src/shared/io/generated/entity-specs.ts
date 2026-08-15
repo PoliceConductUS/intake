@@ -13,6 +13,14 @@ export const GENERATED_MIGRATION_FINGERPRINT = "385fc5a968643fc267ab248c3003b583
 // emitted/applied in this order never violate a foreign key.
 export const RECORD_KINDS_IN_DEPENDENCY_ORDER = ["LocationPath","LocationPathGeometry","LocationPathAlias","Agency","Personnel","LicensingAuthority","License","AgencyPersonnel","LicenseAction"] as const;
 
+// Each record kind's foreign keys to other entity kinds (field → target kind),
+// from the database's own FKs. Drives the exclusion cascade: a record whose FK
+// field holds an excluded record's key is dropped too.
+export const FK_REFERENCES: Record<
+  string,
+  ReadonlyArray<{ field: string; targetKind: string }>
+> = {"LocationPathGeometry":[{"field":"location_path_id","targetKind":"LocationPath"}],"LocationPathAlias":[{"field":"location_path_id","targetKind":"LocationPath"}],"Agency":[{"field":"location_path_id","targetKind":"LocationPath"}],"AgencyPersonnel":[{"field":"agency_id","targetKind":"Agency"},{"field":"license_id","targetKind":"License"},{"field":"officer_id","targetKind":"Personnel"}],"LicensingAuthority":[{"field":"location_path_id","targetKind":"LocationPath"}],"License":[{"field":"issued_by_authority_id","targetKind":"LicensingAuthority"},{"field":"officer_id","targetKind":"Personnel"}],"LicenseAction":[{"field":"license_id","targetKind":"License"}]};
+
 const nonEmptyString = z.string().trim().min(1);
 const nullableNonEmptyString = nonEmptyString.nullable();
 

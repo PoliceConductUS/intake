@@ -206,6 +206,40 @@ function dependencyOrderedRecordKinds(schema: IntrospectedSchema): string[] {
   return ordered;
 }
 
+/**
+ * Each record kind's foreign keys to other entity kinds, as
+ * `{ field, targetKind }` (from the introspected FK columns). Drives the
+ * exclusion cascade: a record whose FK field holds an excluded record's key is
+ * itself dropped. Foreign keys to non-entity tables are omitted.
+ */
+function foreignKeyReferences(
+  schema: IntrospectedSchema,
+): Record<string, Array<{ field: string; targetKind: string }>> {
+  const recordKindByTable = new Map(
+    DESCRIPTORS.map((descriptor) => [descriptor.table, descriptor.recordKind]),
+  );
+  const references: Record<
+    string,
+    Array<{ field: string; targetKind: string }>
+  > = {};
+  for (const descriptor of DESCRIPTORS) {
+    const table = schema.tables.get(descriptor.table);
+    const kindReferences = (table?.foreignKeys ?? [])
+      .map((fk) => ({
+        field: fk.column,
+        targetKind: recordKindByTable.get(fk.targetTable),
+      }))
+      .filter(
+        (ref): ref is { field: string; targetKind: string } =>
+          ref.targetKind !== undefined,
+      );
+    if (kindReferences.length > 0) {
+      references[descriptor.recordKind] = kindReferences;
+    }
+  }
+  return references;
+}
+
 type Column = IntrospectedTable["columns"][number];
 
 /** The base zod type for a column, from its database type + non-blank/enum. */
@@ -370,6 +404,14 @@ export const GENERATED_MIGRATION_FINGERPRINT = ${JSON.stringify(
 export const RECORD_KINDS_IN_DEPENDENCY_ORDER = ${JSON.stringify(
     dependencyOrderedRecordKinds(schema),
   )} as const;
+
+// Each record kind's foreign keys to other entity kinds (field → target kind),
+// from the database's own FKs. Drives the exclusion cascade: a record whose FK
+// field holds an excluded record's key is dropped too.
+export const FK_REFERENCES: Record<
+  string,
+  ReadonlyArray<{ field: string; targetKind: string }>
+> = ${JSON.stringify(foreignKeyReferences(schema))};
 
 const nonEmptyString = z.string().trim().min(1);
 const nullableNonEmptyString = nonEmptyString.nullable();

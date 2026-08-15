@@ -24,6 +24,12 @@ export type IntrospectedTable = {
    * applied before its referrer). Self-references are omitted.
    */
   references: Set<string>;
+  /**
+   * Each foreign key as (referencing column → referenced table). Drives both the
+   * apply order and the exclusion cascade (a record referencing an excluded
+   * record is dropped). Self-references are omitted.
+   */
+  foreignKeys: Array<{ column: string; targetTable: string }>;
 };
 
 export type IntrospectedSchema = {
@@ -112,21 +118,26 @@ export async function introspectSchema(
         }
       }
 
-      const foreignKeys = await client.query<{ ref_table: string }>(
-        `select distinct frel.relname as ref_table
+      const foreignKeyRows = await client.query<{
+        column: string;
+        ref_table: string;
+      }>(
+        `select att.attname as column, frel.relname as ref_table
            from pg_constraint con
            join pg_class rel on rel.oid = con.conrelid
            join pg_class frel on frel.oid = con.confrelid
            join pg_namespace ns on ns.oid = rel.relnamespace
+           join unnest(con.conkey) as colnum on true
+           join pg_attribute att
+             on att.attrelid = rel.oid and att.attnum = colnum
           where ns.nspname = 'public' and rel.relname = $1
             and con.contype = 'f'`,
         [table],
       );
-      const references = new Set(
-        foreignKeys.rows
-          .map((row) => row.ref_table)
-          .filter((ref) => ref !== table),
-      );
+      const foreignKeys = foreignKeyRows.rows
+        .filter((row) => row.ref_table !== table)
+        .map((row) => ({ column: row.column, targetTable: row.ref_table }));
+      const references = new Set(foreignKeys.map((fk) => fk.targetTable));
 
       tables.set(table, {
         table,
@@ -139,6 +150,7 @@ export async function introspectSchema(
         nonBlankColumns,
         enums,
         references,
+        foreignKeys,
       });
     }
 

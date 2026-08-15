@@ -20,6 +20,7 @@ import { loadSourceModule } from "./load-source-module.js";
 import { readXlsx } from "./read-xlsx.js";
 import { sourceStateDir } from "./state.js";
 import { seedResolvedPropertyCache } from "../state/resolved-property/index.js";
+import { excludeManifestRecords } from "./exclude-records.js";
 import { createEmitSink } from "./emit-sink.js";
 import type { EmitRefItem, EmitSink } from "./emit-sink.js";
 
@@ -177,18 +178,24 @@ export async function runSource(
       state: deps.state,
       emit: sink.emit,
     });
+    // Apply excluded.yaml at Artifacts generation (with FK cascade) so an
+    // excluded record never enters the Artifacts — the import then sees a clean
+    // envelope and needs no exclusion of its own.
+    const { manifest: filteredManifest } = excludeManifestRecords(
+      manifest,
+      excludedRecords,
+    );
     const digest = await deps.digest(paths);
     const refItems = await sink.flush();
     const { path: artifactsPath } = await deps.writeEnvelope(
       workspace,
       sourceId,
       digest,
-      manifest,
+      filteredManifest,
       refItems,
     );
     return await deps.runImport(artifactsPath, {
       dryImport: options.dryRun,
-      excludedRecords,
     });
   } catch (error) {
     return { exitCode: 1, stderr: `${errorMessage(error)}\n` };

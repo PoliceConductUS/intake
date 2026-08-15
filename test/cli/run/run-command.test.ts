@@ -74,7 +74,6 @@ describe("runSource", () => {
     );
     expect(okDeps.runImport).toHaveBeenCalledWith("/ws/artifacts.yaml", {
       dryImport: true,
-      excludedRecords: new Map(),
     });
     expect(result.exitCode).toBe(0);
   });

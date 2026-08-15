@@ -69,11 +69,10 @@ describe("intake run gov.azpost.roster (dry-run)", () => {
     });
 
     expect(result.exitCode).toBe(0);
-    // gov.azpost.roster has no `excluded.yaml`, so the loaded exclusion set
-    // is empty; the composition root still threads it through.
+    // gov.azpost.roster has no `excluded.yaml`; exclusions are applied to the
+    // manifest at Artifacts generation, so the import receives none.
     expect(capturedOptions).toEqual({
       dryImport: true,
-      excludedRecords: new Map(),
     });
     expect(capturedArtifactsPath).toBeDefined();
 

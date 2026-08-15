@@ -103,7 +103,6 @@ describe("emit sink integration (via runSource)", () => {
     expect(result.exitCode).toBe(0);
     expect(capturedOptions).toEqual({
       dryImport: true,
-      excludedRecords: new Map(),
     });
     expect(capturedArtifactsPath).toBeDefined();
 
