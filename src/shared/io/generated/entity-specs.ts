@@ -5,21 +5,13 @@ import { z } from "zod";
 // Fingerprint of the applied database migrations these specs were generated
 // against. The importer refuses to run when the live database's migrations
 // differ (see assertGeneratedSchemaCurrent).
-export const GENERATED_MIGRATION_VERSIONS = [
-  "20250303232529",
-  "20260520000000",
-  "20260526162500",
-  "20260526173000",
-  "20260608172000",
-  "20260619142000",
-  "20260626000000",
-  "20260627000000",
-  "20260627000100",
-  "20260701000000",
-  "20260702000000",
-] as const;
-export const GENERATED_MIGRATION_FINGERPRINT =
-  "385fc5a968643fc267ab248c3003b5838e98309a1a0e796e065345b5711393f7";
+export const GENERATED_MIGRATION_VERSIONS = ["20250303232529","20260520000000","20260526162500","20260526173000","20260608172000","20260619142000","20260626000000","20260627000000","20260627000100","20260701000000","20260702000000"] as const;
+export const GENERATED_MIGRATION_FINGERPRINT = "385fc5a968643fc267ab248c3003b5838e98309a1a0e796e065345b5711393f7";
+
+// Entity record kinds in database-dependency order (topological sort of the
+// foreign-key graph): a referenced entity precedes its referrer, so mutations
+// emitted/applied in this order never violate a foreign key.
+export const RECORD_KINDS_IN_DEPENDENCY_ORDER = ["LocationPath","LocationPathGeometry","LocationPathAlias","Agency","Personnel","LicensingAuthority","License","AgencyPersonnel","LicenseAction"] as const;
 
 const nonEmptyString = z.string().trim().min(1);
 const nullableNonEmptyString = nonEmptyString.nullable();
@@ -76,8 +68,7 @@ export const LocationPathSpec = z
     centroid: LocationPathCentroidSpec.nullable().optional(),
     bbox: LocationPathBboxSpec.nullable().optional(),
   })
-  .strict()
-  .superRefine((row, context) => {
+  .strict().superRefine((row, context) => {
     if (row.level === "state") {
       for (const fieldName of [
         "administrative_area_slug",

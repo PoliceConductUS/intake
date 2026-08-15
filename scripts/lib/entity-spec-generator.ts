@@ -166,6 +166,46 @@ const DESCRIPTORS: EntityDescriptor[] = [
   },
 ];
 
+/**
+ * The entity record kinds in database-dependency order — a topological sort of
+ * the introspected foreign-key graph, so a referenced entity precedes its
+ * referrer. This is computed at generation time from the database's own FKs (no
+ * hand-declared dependency list) and emitted as a hardcoded constant.
+ */
+function dependencyOrderedRecordKinds(schema: IntrospectedSchema): string[] {
+  const recordKindByTable = new Map(
+    DESCRIPTORS.map((descriptor) => [descriptor.table, descriptor.recordKind]),
+  );
+  const ordered: string[] = [];
+  const done = new Set<string>();
+  const onStack = new Set<string>();
+  const visit = (recordKind: string, table: string): void => {
+    if (done.has(recordKind)) {
+      return;
+    }
+    if (onStack.has(recordKind)) {
+      throw new Error(
+        `Cyclic foreign-key dependency involving ${recordKind}; the FK graph must be a DAG.`,
+      );
+    }
+    onStack.add(recordKind);
+    const introspected = schema.tables.get(table);
+    for (const referencedTable of introspected?.references ?? []) {
+      const referencedKind = recordKindByTable.get(referencedTable);
+      if (referencedKind !== undefined && referencedKind !== recordKind) {
+        visit(referencedKind, referencedTable);
+      }
+    }
+    onStack.delete(recordKind);
+    done.add(recordKind);
+    ordered.push(recordKind);
+  };
+  for (const descriptor of DESCRIPTORS) {
+    visit(descriptor.recordKind, descriptor.table);
+  }
+  return ordered;
+}
+
 type Column = IntrospectedTable["columns"][number];
 
 /** The base zod type for a column, from its database type + non-blank/enum. */
@@ -323,6 +363,13 @@ export const GENERATED_MIGRATION_VERSIONS = ${JSON.stringify(
 export const GENERATED_MIGRATION_FINGERPRINT = ${JSON.stringify(
     schema.migrations.fingerprint,
   )};
+
+// Entity record kinds in database-dependency order (topological sort of the
+// foreign-key graph): a referenced entity precedes its referrer, so mutations
+// emitted/applied in this order never violate a foreign key.
+export const RECORD_KINDS_IN_DEPENDENCY_ORDER = ${JSON.stringify(
+    dependencyOrderedRecordKinds(schema),
+  )} as const;
 
 const nonEmptyString = z.string().trim().min(1);
 const nullableNonEmptyString = nonEmptyString.nullable();

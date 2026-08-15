@@ -1,9 +1,9 @@
 import { createId } from "@paralleldrive/cuid2";
-import { LocationPathSpec } from "../../../shared/io/generated/entity-specs.js";
 import {
-  IMPORT_OPERATION_SUFFIXES,
-  IMPORT_RECORD_KINDS_IN_DEPENDENCY_ORDER,
-} from "../../../shared/io/import-type-metadata.js";
+  LocationPathSpec,
+  RECORD_KINDS_IN_DEPENDENCY_ORDER,
+} from "../../../shared/io/generated/entity-specs.js";
+import { IMPORT_OPERATION_SUFFIXES } from "../../../shared/io/import-type-metadata.js";
 import type { ArtifactsEnvelope } from "../../../shared/io/Artifacts.js";
 import {
   INTAKE_API_VERSION,
@@ -2785,8 +2785,8 @@ function databaseMutationSpec(
  * carries a `set` keeps its sibling `check`s as per-row drift guards, and creates
  * (which have no `operations`) are never affected.
  */
-const DEPENDENCY_ORDER_INDEX = new Map(
-  IMPORT_RECORD_KINDS_IN_DEPENDENCY_ORDER.map((recordKind, index) => [
+const DEPENDENCY_ORDER_INDEX = new Map<string, number>(
+  RECORD_KINDS_IN_DEPENDENCY_ORDER.map((recordKind, index) => [
     recordKind,
     index,
   ]),
@@ -2803,10 +2803,11 @@ function recordKindOfMutation(mutationKind: string): string {
 }
 
 /**
- * Orders mutation items by database dependency (topological sort of `dependsOn`),
- * so a referenced entity is applied before its referrer (e.g. Licenses before
- * the AgencyPersonnel whose `license_id` targets them). A stable sort preserves
- * the within-kind order. Unknown kinds sort last.
+ * Orders mutation items by database dependency, using the generated
+ * `RECORD_KINDS_IN_DEPENDENCY_ORDER` (a topological sort of the introspected
+ * foreign-key graph), so a referenced entity is applied before its referrer
+ * (e.g. Licenses before the AgencyPersonnel whose `license_id` targets them). A
+ * stable sort preserves the within-kind order. Unknown kinds sort last.
  */
 function sortByDependencyOrder(
   items: DatabaseMutationItem[],

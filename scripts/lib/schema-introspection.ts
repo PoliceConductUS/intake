@@ -18,6 +18,12 @@ export type IntrospectedTable = {
   nonBlankColumns: Set<string>;
   /** Columns constrained to a fixed value list via `col = ANY (ARRAY[...])`. */
   enums: Map<string, string[]>;
+  /**
+   * Bare table names this table references via a foreign key — the database's
+   * own dependency edges, used to derive apply order (a referenced table is
+   * applied before its referrer). Self-references are omitted.
+   */
+  references: Set<string>;
 };
 
 export type IntrospectedSchema = {
@@ -106,6 +112,22 @@ export async function introspectSchema(
         }
       }
 
+      const foreignKeys = await client.query<{ ref_table: string }>(
+        `select distinct frel.relname as ref_table
+           from pg_constraint con
+           join pg_class rel on rel.oid = con.conrelid
+           join pg_class frel on frel.oid = con.confrelid
+           join pg_namespace ns on ns.oid = rel.relnamespace
+          where ns.nspname = 'public' and rel.relname = $1
+            and con.contype = 'f'`,
+        [table],
+      );
+      const references = new Set(
+        foreignKeys.rows
+          .map((row) => row.ref_table)
+          .filter((ref) => ref !== table),
+      );
+
       tables.set(table, {
         table,
         columns: columns.rows.map((row) => ({
@@ -116,6 +138,7 @@ export async function introspectSchema(
         })),
         nonBlankColumns,
         enums,
+        references,
       });
     }
 
