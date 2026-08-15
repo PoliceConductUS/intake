@@ -7,6 +7,7 @@ import {
 import {
   firstIssuePath,
   yamlDigest,
+  yamlResourceFileName,
   yamlResourcePath,
 } from "../../../../shared/io/resource.js";
 import {
@@ -99,7 +100,10 @@ export const databaseMutationReferenceSchema = z
     ref: z
       .object({
         path: z.string().trim().min(1),
-        kind: z.enum(IMPORT_MUTATION_KINDS),
+        // A single-mutation kind, or "DatabaseMutations" for a CHUNK file — a
+        // nested DatabaseMutations envelope holding many mutations, so the
+        // top-level never serializes every mutation as one string.
+        kind: z.enum(IMPORT_MUTATION_KINDS).or(z.literal("DatabaseMutations")),
         sha256: z
           .string()
           .regex(/^[a-f0-9]{64}$/)
@@ -237,20 +241,55 @@ async function readDatabaseMutations(
     return databaseMutations;
   }
 
+  const namespace = databaseMutations.metadata.namespace;
+  const expanded = await Promise.all(
+    databaseMutations.spec.mutations.map(
+      async (mutationItem): Promise<DatabaseMutationInline[]> => {
+        if (!("ref" in mutationItem)) {
+          return [mutationItem];
+        }
+        if (mutationItem.ref.kind === "DatabaseMutations") {
+          // Chunk file: read it (recursively expanding its refs) and inline.
+          const chunkPath = path.resolve(
+            path.dirname(filePath),
+            mutationItem.ref.path,
+          );
+          const chunk = await readDatabaseMutations(chunkPath, {
+            expectedNamespace: namespace,
+          });
+          return chunk.spec.mutations;
+        }
+        return [
+          await databaseMutationFromRef(filePath, namespace, mutationItem.ref),
+        ];
+      },
+    ),
+  );
+
   return {
     ...databaseMutations,
-    spec: {
-      mutations: await Promise.all(
-        databaseMutations.spec.mutations.map((mutationItem) =>
-          "ref" in mutationItem
-            ? databaseMutationFromRef(
-                filePath,
-                databaseMutations.metadata.namespace,
-                mutationItem.ref,
-              )
-            : mutationItem,
-        ),
-      ),
+    spec: { mutations: expanded.flat() },
+  };
+}
+
+// Maximum mutations serialized into one DatabaseMutations file. A larger set is
+// split into chunk files referenced from the top-level, so no single file
+// approaches V8's string-length limit.
+const MUTATIONS_PER_FILE = 5000;
+
+/** Rewrite a ref path (relative to `fromDir`) to be relative to `toDir`. */
+function rebaseMutationItem(
+  item: DatabaseMutationItem,
+  fromDir: string,
+  toDir: string,
+): DatabaseMutationItem {
+  if (!("ref" in item)) {
+    return item;
+  }
+  return {
+    ref: {
+      ...item.ref,
+      path: path.relative(toDir, path.resolve(fromDir, item.ref.path)),
     },
   };
 }
@@ -261,7 +300,53 @@ async function writeDatabaseMutations(
 ): Promise<{ path: string }> {
   const parsed = parseDatabaseMutations(envelope);
   const filePath = yamlResourcePath(directory, parsed);
-  await writeYamlDocumentFile(filePath, parsed);
+  const topDirectory = path.dirname(filePath);
+
+  if (parsed.spec.mutations.length <= MUTATIONS_PER_FILE) {
+    await writeYamlDocumentFile(filePath, parsed);
+    return { path: filePath };
+  }
+
+  const recordsDirectory = `${path.basename(filePath, path.extname(filePath))}.records`;
+  const chunkDirectory = path.join(topDirectory, recordsDirectory);
+  const chunkCount = Math.ceil(
+    parsed.spec.mutations.length / MUTATIONS_PER_FILE,
+  );
+  const chunkReferences: DatabaseMutationItem[] = [];
+  for (let index = 0; index < chunkCount; index += 1) {
+    const chunkMutations = parsed.spec.mutations
+      .slice(index * MUTATIONS_PER_FILE, (index + 1) * MUTATIONS_PER_FILE)
+      // Existing refs (e.g. geometry) were relative to the top-level file; make
+      // them relative to the chunk file that now holds them.
+      .map((item) => rebaseMutationItem(item, topDirectory, chunkDirectory));
+    const chunk = newDatabaseMutations({
+      metadata: {
+        name: `${parsed.metadata.name}-${index}`,
+        namespace: parsed.metadata.namespace,
+      },
+      spec: { mutations: chunkMutations },
+    });
+    const chunkPath = path.join(
+      chunkDirectory,
+      yamlResourceFileName(chunk.metadata.name, "DatabaseMutations"),
+    );
+    const contents = await writeYamlDocumentFile(chunkPath, chunk);
+    chunkReferences.push({
+      ref: {
+        path: path.relative(topDirectory, chunkPath),
+        kind: "DatabaseMutations",
+        sha256: yamlDigest(contents),
+      },
+    });
+  }
+
+  await writeYamlDocumentFile(
+    filePath,
+    newDatabaseMutations({
+      metadata: parsed.metadata,
+      spec: { mutations: chunkReferences },
+    }),
+  );
   return { path: filePath };
 }
 

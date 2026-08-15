@@ -9,7 +9,12 @@ import {
   locationPathCentroidGeoJson,
 } from "../../database/location-path-spatial.js";
 import type { SupportedTableName } from "../../database/schema.js";
-import { DatabaseMutations } from "../../import/artifacts/io/DatabaseMutations.js";
+import path from "node:path";
+import {
+  DatabaseMutations,
+  type DatabaseMutationItem,
+  type DatabaseMutationsEnvelope,
+} from "../../import/artifacts/io/DatabaseMutations.js";
 import {
   parseDatabaseMutationKind,
   readDatabaseMutation,
@@ -273,6 +278,43 @@ async function executeUpdate(
   );
 }
 
+// Yield each individual mutation (with its item, for counting), expanding
+// "DatabaseMutations" chunk refs recursively so a chunked envelope replays the
+// same as an inline one — one mutation resident at a time.
+async function* iterateMutations(
+  databaseMutations: DatabaseMutationsEnvelope,
+  databaseMutationsPath: string,
+): AsyncGenerator<{
+  mutation: DatabaseMutationEnvelope;
+  item: DatabaseMutationItem;
+}> {
+  const namespace = databaseMutations.metadata.namespace;
+  for (const item of databaseMutations.spec.mutations) {
+    if ("ref" in item && item.ref.kind === "DatabaseMutations") {
+      const chunkPath = path.resolve(
+        path.dirname(databaseMutationsPath),
+        item.ref.path,
+      );
+      const chunk = await DatabaseMutations.read(chunkPath, { raw: true });
+      yield* iterateMutations(chunk, chunkPath);
+      continue;
+    }
+    const mutation: DatabaseMutationEnvelope =
+      "ref" in item
+        ? await readDatabaseMutation(item.ref, {
+            relativeTo: databaseMutationsPath,
+            expectedNamespace: namespace,
+          })
+        : {
+            apiVersion: databaseMutations.apiVersion,
+            kind: item.kind,
+            metadata: { name: item.name, namespace },
+            spec: item.spec,
+          };
+    yield { mutation, item };
+  }
+}
+
 export async function executeDatabaseMutations(
   client: DatabaseClient,
   databaseMutationsPath: string,
@@ -285,22 +327,10 @@ export async function executeDatabaseMutations(
   );
   const counts = emptyDatabaseMutationCounts();
 
-  for (const mutationItem of databaseMutations.spec.mutations) {
-    const mutation: DatabaseMutationEnvelope =
-      "ref" in mutationItem
-        ? await readDatabaseMutation(mutationItem.ref, {
-            relativeTo: databaseMutationsPath,
-            expectedNamespace: databaseMutations.metadata.namespace,
-          })
-        : {
-            apiVersion: databaseMutations.apiVersion,
-            kind: mutationItem.kind,
-            metadata: {
-              name: mutationItem.name,
-              namespace: databaseMutations.metadata.namespace,
-            },
-            spec: mutationItem.spec,
-          };
+  for await (const { mutation, item } of iterateMutations(
+    databaseMutations,
+    databaseMutationsPath,
+  )) {
     const { operation, recordKind } = parseDatabaseMutationKind(mutation.kind);
     if (operation === "create") {
       await executeCreate(
@@ -321,7 +351,7 @@ export async function executeDatabaseMutations(
         `DatabaseMutation operation ${operation} is not supported.`,
       );
     }
-    incrementDatabaseMutationCounts(counts, mutationItem);
+    incrementDatabaseMutationCounts(counts, item);
   }
 
   return counts;

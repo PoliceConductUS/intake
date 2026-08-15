@@ -70,6 +70,47 @@ describe("database mutation envelopes", () => {
     });
   });
 
+  test("DatabaseMutations chunks a large mutation set and reads it back whole", async () => {
+    const directory = await tempDir();
+    // Over MUTATIONS_PER_FILE (5000) so the writer splits into chunk files. Reads
+    // have empty specs, so this stays cheap.
+    const total = 5001;
+    const mutations = Array.from({ length: total }, (_, index) => ({
+      kind: "AgencyRead" as const,
+      name: `agency-${index}`,
+      spec: {},
+    }));
+
+    const written = await DatabaseMutations.write(
+      directory,
+      DatabaseMutations.new({
+        metadata: { name: "command-name", namespace: "gov.tx.tcole" },
+        spec: { mutations },
+      }),
+    );
+
+    // The top-level envelope holds only chunk refs — never all mutations inline.
+    const raw = await DatabaseMutations.read(written.path, { raw: true });
+    expect(raw.spec.mutations).toHaveLength(2);
+    expect(
+      raw.spec.mutations.every(
+        (item) => "ref" in item && item.ref.kind === "DatabaseMutations",
+      ),
+    ).toBe(true);
+
+    // The ref-expanding read flattens the chunks back to every mutation, in order.
+    const expanded = await DatabaseMutations.read(written.path);
+    expect(expanded.spec.mutations).toHaveLength(total);
+    expect(expanded.spec.mutations[0]).toMatchObject({
+      kind: "AgencyRead",
+      name: "agency-0",
+    });
+    expect(expanded.spec.mutations[total - 1]).toMatchObject({
+      kind: "AgencyRead",
+      name: `agency-${total - 1}`,
+    });
+  });
+
   test("DatabaseMutations rejects inline mutations with malformed generated specs", () => {
     expect(() =>
       DatabaseMutations.new({
