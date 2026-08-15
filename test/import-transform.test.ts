@@ -387,56 +387,6 @@ describe("transformArtifacts", () => {
     );
   });
 
-  test("preserves agency mutation enrichment containers for import preparation", async () => {
-    const artifacts = artifactsWithEntities({
-      agencies: {
-        [agency.id]: {
-          ...agency,
-          latitude: 46.343130015928,
-          longitude: -94.293600020136,
-          addresses: {
-            physical: "13190 Memorywood Dr, Baxter, MN 56425",
-            mailing: "PO Box 380, Baxter, MN 56425",
-          },
-          location: {
-            administrativeAreaName: "Crow Wing County",
-            administrativeAreaSlug: "crow-wing-county",
-          },
-          phones: { main: "(218) 454-5090" },
-          urls: {
-            website: "https://www.baxtermn.gov/government/departments/police",
-          },
-        },
-      },
-    });
-
-    const rows = await transformArtifacts(
-      artifacts,
-      fakeSourceNameLedger(mappings),
-      {
-        agencies: { "agency-canonical-id": {} },
-        personnel: {},
-      },
-    );
-
-    expect(rows.agencies[0]).toMatchObject({
-      latitude: 46.343130015928,
-      longitude: -94.293600020136,
-      addresses: {
-        physical: "13190 Memorywood Dr, Baxter, MN 56425",
-        mailing: "PO Box 380, Baxter, MN 56425",
-      },
-      location: {
-        administrativeAreaName: "Crow Wing County",
-        administrativeAreaSlug: "crow-wing-county",
-      },
-      phones: { main: "(218) 454-5090" },
-      urls: {
-        website: "https://www.baxtermn.gov/government/departments/police",
-      },
-    });
-  });
-
   test("owns only supported source fields present in the artifacts plus intake mapping fields", async () => {
     const artifacts = artifactsWithEntities({
       agencies: {

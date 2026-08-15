@@ -18,3 +18,7 @@ excluded:
     key: "999888"
     name: "NOT APPOINTED"
     reason: "placeholder record, not an agency"
+  - kind: Agency
+    key: "515014"
+    name: "STATE OF INDIANA"
+    reason: "out-of-jurisdiction placeholder (a US state, not a TX agency) with no address, city, or zip in the source — not geocodable and no location data available"

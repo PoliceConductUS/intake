@@ -37,6 +37,7 @@ function makeOkDeps() {
       flush: vi.fn(async () => testRefItems),
     })),
     loadExcludedRecords: vi.fn(async () => new Map()),
+    seedResolvedPropertyCache: vi.fn(async () => ({ seeded: [], skipped: [] })),
     writeEnvelope: vi.fn(async () => ({ path: "/ws/artifacts.yaml" })),
     runImport: vi.fn(async () => ({ exitCode: 0, stdout: "ok" })),
     makeWorkspace: vi.fn(async () => "/ws"),

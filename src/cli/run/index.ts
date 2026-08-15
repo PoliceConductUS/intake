@@ -19,6 +19,7 @@ import type { SourceManifest } from "./source-run.js";
 import { loadSourceModule } from "./load-source-module.js";
 import { readXlsx } from "./read-xlsx.js";
 import { sourceStateDir } from "./state.js";
+import { seedResolvedPropertyCache } from "../state/resolved-property/index.js";
 import { createEmitSink } from "./emit-sink.js";
 import type { EmitRefItem, EmitSink } from "./emit-sink.js";
 
@@ -32,6 +33,10 @@ type RunSourceDeps = {
   makeWorkspace: (env: Record<string, string | undefined>) => Promise<string>;
   createEmitSink: (workspaceDir: string, namespace: string) => EmitSink;
   loadExcludedRecords: (sourceDir: string) => Promise<ExcludedRecords>;
+  seedResolvedPropertyCache: (
+    seedDir: string,
+    rootDir: string,
+  ) => Promise<{ seeded: string[]; skipped: string[] }>;
   writeEnvelope: (
     directory: string,
     sourceId: string,
@@ -150,9 +155,20 @@ export async function runSource(
   }
 
   try {
-    const excludedRecords = await deps.loadExcludedRecords(
-      path.join(deps.sourcesRoot, sourceId),
-    );
+    const sourceDir = path.join(deps.sourcesRoot, sourceId);
+    const excludedRecords = await deps.loadExcludedRecords(sourceDir);
+    // Seed the durable ResolvedProperty cache from the source's committed
+    // resolved-property-seed/ (manual resolutions the resolvers cannot derive)
+    // before the import reads it — copy-if-absent, so anything already resolved
+    // on disk wins (ADR 0018 point 8).
+    const workspaceRoot =
+      deps.env.INTAKE_WORKSPACE_TEST ?? deps.env.INTAKE_WORKSPACE;
+    if (workspaceRoot !== undefined) {
+      await deps.seedResolvedPropertyCache(
+        path.join(sourceDir, "resolved-property-seed"),
+        workspaceRoot,
+      );
+    }
     const workspace = await deps.makeWorkspace(deps.env);
     const sink = deps.createEmitSink(workspace, sourceId);
     const manifest = await run({
@@ -240,6 +256,7 @@ export const registerCliCommand: RegisterCliCommand = (
                 ).commandDirectory,
               createEmitSink,
               loadExcludedRecords,
+              seedResolvedPropertyCache,
               writeEnvelope: async (
                 directory,
                 id,

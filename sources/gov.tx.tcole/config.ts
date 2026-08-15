@@ -152,12 +152,8 @@ function buildAgencies(rows: Array<Record<string, string>>): EmittedRecords {
       .map((part) => (part ?? "").trim())
       .filter((part) => part !== "")
       .join(", ");
-    const phone = (row["PHONE"] ?? "").trim();
-    const fax = (row["FAX"] ?? "").trim();
-    const phones: Record<string, string> = {};
-    if (phone !== "") phones.main = phone;
-    if (fax !== "") phones.fax = fax;
-
+    // Phone/fax are not columns of public.agency (they belong to
+    // agency_phone_numbers, out of scope here), so they are not emitted.
     records[departmentNumber] = {
       spec: {
         name,
@@ -167,7 +163,6 @@ function buildAgencies(rows: Array<Record<string, string>>): EmittedRecords {
         zip_code: nullIfBlank(row["ZIP_CODE"]),
         contact_name: nullIfBlank(row["HEAD_NAME"]),
         contact_email: nullIfBlank(row["E_MAIL"]),
-        ...(Object.keys(phones).length > 0 ? { phones } : {}),
       },
     };
   }

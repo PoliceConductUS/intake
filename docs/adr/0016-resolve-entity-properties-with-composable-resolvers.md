@@ -117,9 +117,10 @@ recomputes a derived value, or re-finds an identity by source-id/natural-key
 duplicate). There is no automatic staleness detection.
 
 **6. Boundary with the mutation layer.** Resolvers produce desired _values_ only.
-The facade's `toMutation` still owns create-vs-update diffing (check vs set); a
-resolver never decides create/update or reads current DB rows for that purpose
-(ADR 0011).
+The facade's `toMutation` still owns create-vs-update diffing (check vs set), and
+an update that reduces to only checks mutates nothing and is dropped (ADR
+0011/0014); a resolver never decides create/update or reads current DB rows for
+that purpose (ADR 0011).
 
 **7. Supersedes `canonicalIdFromProperty` / `canonicalIdFor`.** Both become the
 one general dispatch — `resolveProperty(facade, property)` — that looks up the

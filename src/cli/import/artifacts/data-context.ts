@@ -1,5 +1,9 @@
 import { createId } from "@paralleldrive/cuid2";
 import { LocationPathSpec } from "../../../shared/io/generated/entity-specs.js";
+import {
+  IMPORT_OPERATION_SUFFIXES,
+  IMPORT_RECORD_KINDS_IN_DEPENDENCY_ORDER,
+} from "../../../shared/io/import-type-metadata.js";
 import type { ArtifactsEnvelope } from "../../../shared/io/Artifacts.js";
 import {
   INTAKE_API_VERSION,
@@ -1515,11 +1519,8 @@ export type AgencyRowShape = {
   location_path_id: string;
   latitude: number;
   longitude: number;
-  addresses?: Record<string, unknown>;
-  emails?: Record<string, unknown>;
+  // Envelope-only geocoding hint (administrative-area name/slug); not a column.
   location?: Record<string, unknown>;
-  phones?: Record<string, unknown>;
-  urls?: Record<string, unknown>;
 };
 
 /** Backend capabilities the Agency resolvers reach through. */
@@ -1544,15 +1545,6 @@ export type AgencyResolverBackend = {
     input: ResolveAddressInput,
   ): Promise<LocationResolution>;
 };
-
-/** The columns that are pass-through source metadata (public.agency jsonb). */
-const AGENCY_METADATA_COLUMNS = [
-  "addresses",
-  "emails",
-  "location",
-  "phones",
-  "urls",
-] as const;
 
 /** The scalar database columns the AgencyFacade resolves and writes, in order. */
 const AGENCY_SCALAR_COLUMNS = [
@@ -1786,27 +1778,12 @@ export class AgencyFacade implements PropertyResolutionFacade<AgencyRowShape> {
   }
 
   /** Present pass-through metadata columns (omitted when absent, never null). */
-  private metadataSpec(): Record<string, unknown> {
-    const metadata: Record<string, unknown> = {};
-    for (const column of AGENCY_METADATA_COLUMNS) {
-      const value = valueAsRecordOrUndefined(this.spec[column]);
-      if (value !== undefined) {
-        metadata[column] = value;
-      }
-    }
-    return metadata;
-  }
-
   async toMutation(): Promise<AgencyCreateEnvelope | AgencyUpdateEnvelope> {
     const id = await this.value("id");
-    const scalars: Record<string, unknown> = {};
+    const desired: Record<string, unknown> = {};
     for (const column of AGENCY_SCALAR_COLUMNS) {
-      scalars[column] = await this.value(column);
+      desired[column] = await this.value(column);
     }
-    const desired: Record<string, unknown> = {
-      ...scalars,
-      ...this.metadataSpec(),
-    };
 
     const current = this.current ?? this.backend.getCurrentById(id);
 
@@ -2798,6 +2775,72 @@ function databaseMutationSpec(
   return operation === undefined || operation === "create"
     ? databaseSpec(record)
     : {};
+}
+
+/**
+ * True when an item is an update whose operations are *all* `check` — it asserts
+ * expected state but sets nothing, so it mutates nothing and is not a mutation
+ * (ADR 0011/0014). These are dropped from the emitted plan so a re-import of an
+ * already-matching row emits no SELECT + empty UPDATE; an update that still
+ * carries a `set` keeps its sibling `check`s as per-row drift guards, and creates
+ * (which have no `operations`) are never affected.
+ */
+const DEPENDENCY_ORDER_INDEX = new Map(
+  IMPORT_RECORD_KINDS_IN_DEPENDENCY_ORDER.map((recordKind, index) => [
+    recordKind,
+    index,
+  ]),
+);
+
+/** The record kind of a mutation kind, stripping the operation suffix. */
+function recordKindOfMutation(mutationKind: string): string {
+  for (const suffix of Object.values(IMPORT_OPERATION_SUFFIXES)) {
+    if (mutationKind.endsWith(suffix)) {
+      return mutationKind.slice(0, -suffix.length);
+    }
+  }
+  return mutationKind;
+}
+
+/**
+ * Orders mutation items by database dependency (topological sort of `dependsOn`),
+ * so a referenced entity is applied before its referrer (e.g. Licenses before
+ * the AgencyPersonnel whose `license_id` targets them). A stable sort preserves
+ * the within-kind order. Unknown kinds sort last.
+ */
+function sortByDependencyOrder(
+  items: DatabaseMutationItem[],
+): DatabaseMutationItem[] {
+  const indexOf = (item: DatabaseMutationItem): number => {
+    if (!("kind" in item)) {
+      return Number.MAX_SAFE_INTEGER;
+    }
+    return (
+      DEPENDENCY_ORDER_INDEX.get(recordKindOfMutation(item.kind)) ??
+      Number.MAX_SAFE_INTEGER
+    );
+  };
+  return items
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => indexOf(a.item) - indexOf(b.item) || a.index - b.index)
+    .map(({ item }) => item);
+}
+
+function isCheckOnlyUpdateItem(item: DatabaseMutationItem): boolean {
+  if (!("spec" in item)) {
+    return false;
+  }
+  const operations = (item.spec as { operations?: unknown }).operations;
+  return (
+    Array.isArray(operations) &&
+    operations.length > 0 &&
+    operations.every(
+      (operation) =>
+        typeof operation === "object" &&
+        operation !== null &&
+        (operation as { action?: unknown }).action === "check",
+    )
+  );
 }
 
 function valueAsRecord(value: unknown): Record<string, unknown> {
@@ -3819,10 +3862,13 @@ export class DataContext {
     return [
       ...agencies,
       ...personnel,
-      ...agencyPersonnel,
       ...licensingAuthorities,
       ...licenses,
       ...licenseActions,
+      // AgencyPersonnel last: agency_officers.license_id is a FK to license, so
+      // licenses must be inserted before the assignments that reference them
+      // (dependsOn: Agencies, Personnel, Licenses).
+      ...agencyPersonnel,
     ];
   }
 
@@ -3833,7 +3879,7 @@ export class DataContext {
       spec: mutation.spec,
     }));
 
-    return [
+    const items: DatabaseMutationItem[] = [
       ...this.importRows.locationPaths.map((record) => ({
         kind: mutationKind(
           this.operations.locationPaths[record.location_path_id],
@@ -3873,6 +3919,15 @@ export class DataContext {
       // are no transform rows to assemble. AgencyRow / AgencyOfficerRow are
       // retained only as planning-pass inputs (coexistence), not for emission.
     ];
+
+    // Drop check-only updates: an update whose operations are all `check` mutates
+    // nothing, so it is not a mutation (ADR 0011/0014). Filtering here — the one
+    // point every facade and location-path mutation flows through — keeps the
+    // emitted plan to genuine changes, so a re-import of an already-matching
+    // dataset yields an empty (no-op) plan rather than a wall of no-op updates.
+    return sortByDependencyOrder(
+      items.filter((item) => !isCheckOnlyUpdateItem(item)),
+    );
   }
 
   async toDatabaseMutations(

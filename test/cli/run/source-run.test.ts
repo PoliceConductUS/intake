@@ -34,10 +34,10 @@ describe("buildArtifactsEnvelope", () => {
         artifacts: [
           {
             kind: "Personnel",
-            records: { "1": { spec: { first_name: "Ann" } } },
+            records: { "1": { spec: { last_name: "Woodward" } } },
           },
         ],
       }),
-    ).toThrow(); // PersonnelSpec requires last_name
+    ).toThrow(); // PersonnelSpec requires first_name
   });
 });

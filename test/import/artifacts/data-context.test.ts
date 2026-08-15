@@ -475,6 +475,73 @@ describe("DataContext", () => {
     ]);
   });
 
+  test("toDatabaseMutations drops an AgencyUpdate whose operations are all checks", async () => {
+    // A merge that matches the current database row in every field yields an
+    // update whose operations are all `check`: it mutates nothing, so it is not
+    // a mutation and must not reach the emitted plan (ADR 0011/0014). The facade
+    // still produces it (visible via toMutations); toDatabaseMutations is where
+    // it is filtered out, so a re-import of an unchanged row yields an empty plan.
+    const context = agencyFacadeContext({
+      databaseAgencies: [{ id: "agency-canonical-id", ...resolvedAgencySpec }],
+    });
+
+    const agency = context.fromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: "mn-state-patrol",
+    });
+    agency.merge({ ...resolvedAgencySpec });
+
+    // Unfiltered facade output still contains the all-check update...
+    expect(await context.toMutations()).toContainEqual(
+      expect.objectContaining({ kind: "AgencyUpdate" }),
+    );
+
+    // ...but the emitted plan drops it, leaving an empty (no-op) plan.
+    const envelope = await context.toDatabaseMutations({
+      namespace: "mn-post",
+      name: "command-name",
+    });
+    expect(envelope.spec.mutations).not.toContainEqual(
+      expect.objectContaining({ kind: "AgencyUpdate" }),
+    );
+    expect(envelope.spec.mutations).toHaveLength(0);
+  });
+
+  test("toDatabaseMutations keeps a mixed AgencyUpdate that still has a set, with its sibling checks", async () => {
+    const context = agencyFacadeContext({
+      databaseAgencies: [{ id: "agency-canonical-id", ...resolvedAgencySpec }],
+    });
+
+    const agency = context.fromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: "mn-state-patrol",
+    });
+    agency.merge({ ...resolvedAgencySpec, slug: "msp" });
+
+    const envelope = await context.toDatabaseMutations({
+      namespace: "mn-post",
+      name: "command-name",
+    });
+    expect(envelope.spec.mutations).toContainEqual(
+      expect.objectContaining({
+        kind: "AgencyUpdate",
+        spec: {
+          operations: expect.arrayContaining([
+            expect.objectContaining({ action: "check", path: "name" }),
+            expect.objectContaining({
+              action: "set",
+              path: "slug",
+              from: "minnesota-state-patrol",
+              to: "msp",
+            }),
+          ]),
+        },
+      }),
+    );
+  });
+
   test("AgencyFacade location_path_id composition resolver geocodes then resolves the containing boundary", async () => {
     // The composition resolver (ADR 0016): geocode the address, then
     // point-in-polygon containment against the location hierarchy.

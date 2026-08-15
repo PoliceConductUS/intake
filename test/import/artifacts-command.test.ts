@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
 import { runImportArtifactsCommand } from "../../src/cli/index.js";
+import { GENERATED_MIGRATION_VERSIONS } from "../../src/shared/io/generated/entity-specs.js";
 import {
   planDatabaseMutations,
   type DatabaseClient,
@@ -234,13 +235,10 @@ class RecordingClient implements DatabaseClient {
     }
 
     if (/from supabase_migrations\.schema_migrations\b/i.test(text)) {
+      // Match the fingerprint the envelope specs were generated against, so the
+      // import's schema-currency check (assertGeneratedSchemaCurrent) passes.
       return {
-        rows: [
-          {
-            version: "20260608172000",
-            name: "add_location_path_alias",
-          },
-        ],
+        rows: GENERATED_MIGRATION_VERSIONS.map((version) => ({ version })),
       };
     }
 
@@ -452,12 +450,10 @@ describe("importArtifacts", () => {
       (mutations[1]?.spec as Record<string, unknown>).location_path_id,
     ).toEqual("saint-paul-location-path-id");
     expect(importArtifactsEnvelope.metadata.databaseSchema).toEqual({
-      appliedMigrations: [
-        {
-          version: "20260608172000",
-          name: "add_location_path_alias",
-        },
-      ],
+      appliedMigrations: GENERATED_MIGRATION_VERSIONS.map((version) => ({
+        version,
+        name: null,
+      })),
     });
   });
 

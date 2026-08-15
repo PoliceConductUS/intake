@@ -12,6 +12,7 @@ import type {
   DatabaseClientFactory,
 } from "../../database/index.js";
 import { defaultDatabaseClientFactory } from "../../database/index.js";
+import { assertGeneratedSchemaCurrent } from "./assert-schema-current.js";
 import {
   readLocationPathAliases,
   readLocationPaths,
@@ -202,6 +203,9 @@ export async function planDatabaseMutations(
   try {
     await client.query("begin");
     const { importSchema } = await loadDatabaseSchemaMetadata(client);
+    // Refuse to plan against a schema the envelope specs were not generated
+    // against — a migration applied without regenerating the specs desyncs them.
+    assertGeneratedSchemaCurrent(importSchema.appliedMigrations);
     schema = importSchema;
     const databaseLocationPaths = await readLocationPaths(client);
     const databaseLocationPathAliases = await readLocationPathAliases(client);

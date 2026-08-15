@@ -7,6 +7,7 @@ import {
   readResolvedProperty,
   type ResolvedPropertyCacheInput,
   resolvedPropertyCacheName,
+  seedResolvedPropertyCache,
   typedInputFingerprint,
   writeResolvedProperty,
 } from "../../../src/cli/state/resolved-property/index.js";
@@ -191,5 +192,79 @@ describe("ResolvedProperty state", () => {
         targetProperty: "longitude",
       }),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe("seedResolvedPropertyCache", () => {
+  const cacheInput = {
+    subject: {
+      apiVersion: INTAKE_API_VERSION,
+      kind: "Agency",
+      name: "agency-canonical-id",
+    },
+    targetProperty: "latitude",
+  } satisfies ResolvedPropertyCacheInput;
+
+  async function writeSeedFile(seedDir: string, value: number): Promise<void> {
+    await ResolvedProperty.write(
+      seedDir,
+      ResolvedProperty.new({
+        metadata: {
+          name: resolvedPropertyCacheName(cacheInput),
+          namespace: "intake",
+        },
+        spec: { ...cacheInput, value },
+      }),
+    );
+  }
+
+  test("copies an absent seed file into the cache so it reads as a hit", async () => {
+    const rootDir = await createTempRoot();
+    const seedDir = await mkdtemp(path.join(tmpdir(), "intake-seed-"));
+    await writeSeedFile(seedDir, 29.7110641);
+
+    const result = await seedResolvedPropertyCache(seedDir, rootDir);
+
+    expect(result.seeded).toEqual([
+      `${encodeURIComponent(
+        resolvedPropertyCacheName(cacheInput),
+      )}.ResolvedProperty.yaml`,
+    ]);
+    expect(result.skipped).toEqual([]);
+    await expect(
+      readResolvedProperty({ rootDir, ...cacheInput }),
+    ).resolves.toEqual(29.7110641);
+  });
+
+  test("leaves an existing cache entry untouched — whatever is on disk wins", async () => {
+    const rootDir = await createTempRoot();
+    const seedDir = await mkdtemp(path.join(tmpdir(), "intake-seed-"));
+    // Already resolved on disk with one value...
+    await writeResolvedProperty({ rootDir, ...cacheInput, value: 1.111 });
+    // ...and a seed offering a different value for the same subject/property.
+    await writeSeedFile(seedDir, 2.222);
+
+    const result = await seedResolvedPropertyCache(seedDir, rootDir);
+
+    expect(result.seeded).toEqual([]);
+    expect(result.skipped).toEqual([
+      `${encodeURIComponent(
+        resolvedPropertyCacheName(cacheInput),
+      )}.ResolvedProperty.yaml`,
+    ]);
+    await expect(
+      readResolvedProperty({ rootDir, ...cacheInput }),
+    ).resolves.toEqual(1.111);
+  });
+
+  test("is a no-op when the seed directory does not exist", async () => {
+    const rootDir = await createTempRoot();
+
+    await expect(
+      seedResolvedPropertyCache(
+        path.join(rootDir, "no-such-seed-dir"),
+        rootDir,
+      ),
+    ).resolves.toEqual({ seeded: [], skipped: [] });
   });
 });

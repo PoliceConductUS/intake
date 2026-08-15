@@ -297,6 +297,7 @@ describe("intake CLI", () => {
 
   test("routes a single import artifacts ref to the import action", async () => {
     const originalWorkspace = process.env.INTAKE_WORKSPACE;
+    const originalDatabaseUrl = process.env.DATABASE_URL;
     const directory = await mkdtemp(path.join(tmpdir(), "intake-cli-"));
     const workspace = path.join(directory, "workspace");
     const artifactsPath = path.join(directory, "artifacts.yaml");
@@ -323,6 +324,10 @@ describe("intake CLI", () => {
 
     try {
       process.env.INTAKE_WORKSPACE = workspace;
+      // This scenario asserts the missing-DATABASE_URL failure, so it must not
+      // inherit an ambient DATABASE_URL (the generator needs one, tests may set
+      // it).
+      delete process.env.DATABASE_URL;
 
       const result = await runIntake(["import", "artifacts", artifactsPath]);
 
@@ -335,6 +340,11 @@ describe("intake CLI", () => {
         delete process.env.INTAKE_WORKSPACE;
       } else {
         process.env.INTAKE_WORKSPACE = originalWorkspace;
+      }
+      if (originalDatabaseUrl === undefined) {
+        delete process.env.DATABASE_URL;
+      } else {
+        process.env.DATABASE_URL = originalDatabaseUrl;
       }
     }
   });

@@ -26,11 +26,8 @@ export type AgencyRow = {
   location_path_id: string | undefined;
   latitude: number | undefined;
   longitude: number | undefined;
-  addresses?: Record<string, unknown>;
-  emails?: Record<string, unknown>;
+  // Envelope-only geocoding hint (administrative-area name/slug); not a column.
   location?: Record<string, unknown>;
-  phones?: Record<string, unknown>;
-  urls?: Record<string, unknown>;
 };
 
 export type LocationPathRow = {
@@ -472,21 +469,9 @@ export async function transformArtifacts(
           longitude:
             valueAsNumberOrUndefined(source.longitude) ??
             resolvedAgency.longitude,
-          ...(valueAsObjectOrUndefined(source.addresses) === undefined
-            ? {}
-            : { addresses: valueAsObjectOrUndefined(source.addresses) }),
-          ...(valueAsObjectOrUndefined(source.emails) === undefined
-            ? {}
-            : { emails: valueAsObjectOrUndefined(source.emails) }),
           ...(valueAsObjectOrUndefined(source.location) === undefined
             ? {}
             : { location: valueAsObjectOrUndefined(source.location) }),
-          ...(valueAsObjectOrUndefined(source.phones) === undefined
-            ? {}
-            : { phones: valueAsObjectOrUndefined(source.phones) }),
-          ...(valueAsObjectOrUndefined(source.urls) === undefined
-            ? {}
-            : { urls: valueAsObjectOrUndefined(source.urls) }),
         };
       },
     ),

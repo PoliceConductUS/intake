@@ -213,7 +213,6 @@ describe("gov.tx.tcole run", () => {
       zip_code: "78703",
       contact_name: "Robert Carroll",
       contact_email: "chief@example.tx",
-      phones: { main: "(512) 772-2442" },
     });
     // second agency: empty email/phone become null/absent
     expect(records["201217"].spec).toMatchObject({

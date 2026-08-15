@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { stat } from "node:fs/promises";
+import { copyFile, mkdir, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { INTAKE_API_VERSION } from "../../../shared/io/import-types.js";
 import { yamlResourceFileName } from "../../../shared/io/resource.js";
@@ -106,6 +106,50 @@ async function readableResolvedPropertyFile(
     }
     throw error;
   }
+}
+
+/**
+ * Copies committed `ResolvedProperty` cache files from `seedDir` into the
+ * workspace `ResolvedProperty` cache under `rootDir`, skipping any whose
+ * destination already exists — whatever is on disk wins. The files are copied
+ * opaquely, so this seeds ANY resolved property (coordinates, slugs,
+ * location_path_id, …) without knowing what it holds: a resolver that later
+ * reads the same subject/property simply gets a cache hit instead of resolving
+ * it live. A source commits these under `sources/<id>/resolved-property-seed/`
+ * to supply manual resolutions the resolvers cannot derive (ADR 0018 point 8);
+ * a missing `seedDir` is a no-op. Returns which files were seeded vs. skipped.
+ */
+export async function seedResolvedPropertyCache(
+  seedDir: string,
+  rootDir: string,
+): Promise<{ seeded: string[]; skipped: string[] }> {
+  let entries: string[];
+  try {
+    entries = await readdir(seedDir);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return { seeded: [], skipped: [] };
+    }
+    throw error;
+  }
+
+  const cacheDirectory = resolvedPropertyDirectory(rootDir);
+  const seeded: string[] = [];
+  const skipped: string[] = [];
+  for (const entry of [...entries].sort()) {
+    if (!entry.endsWith(".ResolvedProperty.yaml")) {
+      continue;
+    }
+    const destination = path.join(cacheDirectory, entry);
+    if (await readableResolvedPropertyFile(destination)) {
+      skipped.push(entry);
+      continue;
+    }
+    await mkdir(cacheDirectory, { recursive: true });
+    await copyFile(path.join(seedDir, entry), destination);
+    seeded.push(entry);
+  }
+  return { seeded, skipped };
 }
 
 export async function readResolvedProperty(
