@@ -82,6 +82,30 @@ import {
   type LicenseActionUpdateEnvelope,
 } from "./io/generated-mutations/LicenseActionUpdate.js";
 import {
+  LocationPathCreate,
+  type LocationPathCreateEnvelope,
+} from "./io/generated-mutations/LocationPathCreate.js";
+import {
+  LocationPathRead,
+  type LocationPathReadEnvelope,
+} from "./io/generated-mutations/LocationPathRead.js";
+import {
+  LocationPathAliasCreate,
+  type LocationPathAliasCreateEnvelope,
+} from "./io/generated-mutations/LocationPathAliasCreate.js";
+import {
+  LocationPathAliasRead,
+  type LocationPathAliasReadEnvelope,
+} from "./io/generated-mutations/LocationPathAliasRead.js";
+import {
+  LocationPathGeometryCreate,
+  type LocationPathGeometryCreateEnvelope,
+} from "./io/generated-mutations/LocationPathGeometryCreate.js";
+import {
+  LocationPathGeometryRead,
+  type LocationPathGeometryReadEnvelope,
+} from "./io/generated-mutations/LocationPathGeometryRead.js";
+import {
   DatabaseMutations,
   type DatabaseMutationItem,
   type DatabaseMutationsEnvelope,
@@ -1941,6 +1965,482 @@ export class AgencyPersonnelFacade
   }
 }
 
+// --- Census substrate facades (ADR 0016) -------------------------------------
+//
+// LocationPath / LocationPathGeometry / LocationPathAlias are resolver-based
+// facades. LocationPath's `location_path_id` is a canonical-id find-or-create
+// (ID stability anchors everything) and `parent_location_path_id` is a nullable
+// self-FK find of the parent LocationPath facade (null at the state root).
+// Geometry / Alias find their target LocationPath facade. All emit Create/Read
+// (never update) via `getCurrentById`.
+//
+// COEXISTENCE (flagged): these facades are NOT yet wired into production
+// emission. The prepared (in-run) substrate tier — `LocationPathDataContext`'s
+// preparedByPath/preparedById/getByAliasPath, consumed by the Agency location
+// resolver in the PLANNING pass (before env-writer facades are registered) and
+// by the LicensingAuthority resolver — still reads `toImportRows().locationPaths`.
+// Re-pointing it to these facades is blocked until agency/licensing resolution
+// moves to the facade-driving flush (ADR 0017); likewise the transform rows,
+// classify loops/counts, the LocationPath bulk mint, and the geometry streaming
+// (`appendStreamingLocationPathGeometryMutations`) remain as coexistence. The
+// resolvers below are proven by the facade unit tests, ready for the flush
+// restructure to wire.
+
+/** The database row shape a `LocationPathFacade` resolves toward. */
+export type LocationPathRowShape = {
+  location_path_id: string;
+  path: string;
+  level: "state" | "administrative_area" | "place";
+  state_or_territory_slug: string;
+  administrative_area_slug: string | null;
+  place_slug: string | null;
+  state_or_territory_name: string;
+  administrative_area_name: string | null;
+  place_name: string | null;
+  parent_location_path_id: string | null;
+  centroid?: unknown;
+  bbox?: unknown;
+};
+
+/** Canonical-id find-or-create resolver bound to a non-`id` identity column. */
+function facadeIdentityColumnResolver<Row>(
+  kind: string,
+): Resolver<string, ResolverContext<Row, LicenseResolverBackend>> {
+  return new Resolver(async ({ source, backend }) =>
+    backend.findOrCreateCanonicalId({
+      namespace: source.namespace,
+      kind,
+      sourceId: source.name,
+    }),
+  );
+}
+
+const LOCATION_PATH_COLUMNS = [
+  "path",
+  "level",
+  "state_or_territory_slug",
+  "administrative_area_slug",
+  "place_slug",
+  "state_or_territory_name",
+  "administrative_area_name",
+  "place_name",
+  "parent_location_path_id",
+  "centroid",
+  "bbox",
+] as const satisfies readonly (keyof LocationPathRowShape)[];
+
+type LocationPathResolvers = Partial<{
+  [K in keyof LocationPathRowShape]: Resolver<
+    LocationPathRowShape[K],
+    ResolverContext<LocationPathRowShape, LicenseResolverBackend>
+  >;
+}>;
+
+export class LocationPathFacade
+  implements PropertyResolutionFacade<LocationPathRowShape>
+{
+  private static readonly kind = "LocationPath";
+  private readonly current?: Record<string, unknown>;
+  private readonly spec: Record<string, unknown> = {};
+  private readonly source: FacadeSource;
+  private readonly backend: LicenseResolverBackend;
+  private readonly resolvers: LocationPathResolvers;
+  private readonly memo = new Map<
+    keyof LocationPathRowShape,
+    Promise<unknown>
+  >();
+  private readonly inProgress = new Set<keyof LocationPathRowShape>();
+
+  constructor(options: {
+    current?: Record<string, unknown>;
+    source: FacadeSource;
+    backend: LicenseResolverBackend;
+  }) {
+    this.current = options.current;
+    this.source = options.source;
+    this.backend = options.backend;
+    this.resolvers = {
+      location_path_id: facadeIdentityColumnResolver<LocationPathRowShape>(
+        LocationPathFacade.kind,
+      ),
+      parent_location_path_id:
+        facadeNullableForeignKeyResolver<LocationPathRowShape>(
+          LocationPathFacade.kind,
+          "parent_location_path_id",
+          "LocationPath",
+        ),
+    };
+  }
+
+  merge(spec: Record<string, unknown>): void {
+    Object.assign(this.spec, spec);
+  }
+
+  raw(property: keyof LocationPathRowShape): unknown {
+    return this.spec[property as string];
+  }
+
+  value<K extends keyof LocationPathRowShape>(
+    property: K,
+  ): Promise<LocationPathRowShape[K]> {
+    const cached = this.memo.get(property);
+    if (cached !== undefined) {
+      return cached as Promise<LocationPathRowShape[K]>;
+    }
+    const pending = this.computeValue(property);
+    this.memo.set(property, pending);
+    return pending;
+  }
+
+  private async computeValue<K extends keyof LocationPathRowShape>(
+    property: K,
+  ): Promise<LocationPathRowShape[K]> {
+    if (this.inProgress.has(property)) {
+      throw new Error(
+        `Circular property dependency while resolving ${LocationPathFacade.kind}.${String(
+          property,
+        )} for ${this.source.namespace}/${this.source.name}.`,
+      );
+    }
+    this.inProgress.add(property);
+    try {
+      const resolver = this.resolvers[property];
+      if (resolver === undefined) {
+        return this.plainValue(property);
+      }
+      return await resolver.resolve(
+        { facade: this, source: this.source, backend: this.backend },
+        () => this.unresolvedMessage(property),
+      );
+    } finally {
+      this.inProgress.delete(property);
+    }
+  }
+
+  private plainValue<K extends keyof LocationPathRowShape>(
+    property: K,
+  ): LocationPathRowShape[K] {
+    const value = this.spec[property as string];
+    return (value === undefined ? null : value) as LocationPathRowShape[K];
+  }
+
+  private unresolvedMessage(property: keyof LocationPathRowShape): string {
+    return `Cannot resolve ${LocationPathFacade.kind}.${String(
+      property,
+    )} for source ${this.source.namespace}/${this.source.name}; offending value ${JSON.stringify(
+      this.spec[property as string],
+    )}.`;
+  }
+
+  async toMutation(): Promise<
+    LocationPathCreateEnvelope | LocationPathReadEnvelope
+  > {
+    const locationPathId = await this.value("location_path_id");
+    const columns: Record<string, unknown> = {};
+    for (const column of LOCATION_PATH_COLUMNS) {
+      const value = await this.value(column);
+      if (value !== undefined && value !== null) {
+        columns[column] = value;
+      } else if (column !== "centroid" && column !== "bbox") {
+        columns[column] = value;
+      }
+    }
+
+    const current = this.current ?? this.backend.getCurrentById(locationPathId);
+    if (current !== undefined) {
+      // Read (never update): the census row already exists.
+      return LocationPathRead.new({
+        metadata: {
+          namespace: this.source.namespace,
+          name: locationPathId,
+        },
+        spec: {},
+      });
+    }
+
+    return LocationPathCreate.new({
+      metadata: {
+        namespace: this.source.namespace,
+        name: locationPathId,
+      },
+      spec: {
+        location_path_id: locationPathId,
+        ...columns,
+      } as Parameters<typeof LocationPathCreate.new>[0]["spec"],
+    });
+  }
+}
+
+/** The database row shape a `LocationPathAliasFacade` resolves toward. */
+export type LocationPathAliasRowShape = {
+  alias_path: string;
+  location_path_id: string;
+};
+
+type LocationPathAliasResolvers = Partial<{
+  [K in keyof LocationPathAliasRowShape]: Resolver<
+    LocationPathAliasRowShape[K],
+    ResolverContext<LocationPathAliasRowShape, LicenseResolverBackend>
+  >;
+}>;
+
+export class LocationPathAliasFacade
+  implements PropertyResolutionFacade<LocationPathAliasRowShape>
+{
+  private static readonly kind = "LocationPathAlias";
+  private readonly current?: Record<string, unknown>;
+  private readonly spec: Record<string, unknown> = {};
+  private readonly source: FacadeSource;
+  private readonly backend: LicenseResolverBackend;
+  private readonly resolvers: LocationPathAliasResolvers;
+  private readonly memo = new Map<
+    keyof LocationPathAliasRowShape,
+    Promise<unknown>
+  >();
+  private readonly inProgress = new Set<keyof LocationPathAliasRowShape>();
+
+  constructor(options: {
+    current?: Record<string, unknown>;
+    source: FacadeSource;
+    backend: LicenseResolverBackend;
+  }) {
+    this.current = options.current;
+    this.source = options.source;
+    this.backend = options.backend;
+    this.resolvers = {
+      // The alias's identity is its natural key `alias_path` (plain); only the
+      // FK to the target LocationPath is resolved.
+      location_path_id: facadeForeignKeyResolver<LocationPathAliasRowShape>(
+        LocationPathAliasFacade.kind,
+        "location_path_id",
+        "LocationPath",
+      ),
+    };
+  }
+
+  merge(spec: Record<string, unknown>): void {
+    Object.assign(this.spec, spec);
+  }
+
+  raw(property: keyof LocationPathAliasRowShape): unknown {
+    return this.spec[property as string];
+  }
+
+  value<K extends keyof LocationPathAliasRowShape>(
+    property: K,
+  ): Promise<LocationPathAliasRowShape[K]> {
+    const cached = this.memo.get(property);
+    if (cached !== undefined) {
+      return cached as Promise<LocationPathAliasRowShape[K]>;
+    }
+    const pending = this.computeValue(property);
+    this.memo.set(property, pending);
+    return pending;
+  }
+
+  private async computeValue<K extends keyof LocationPathAliasRowShape>(
+    property: K,
+  ): Promise<LocationPathAliasRowShape[K]> {
+    if (this.inProgress.has(property)) {
+      throw new Error(
+        `Circular property dependency while resolving ${LocationPathAliasFacade.kind}.${String(
+          property,
+        )} for ${this.source.namespace}/${this.source.name}.`,
+      );
+    }
+    this.inProgress.add(property);
+    try {
+      const resolver = this.resolvers[property];
+      if (resolver === undefined) {
+        return this.plainValue(property);
+      }
+      return await resolver.resolve(
+        { facade: this, source: this.source, backend: this.backend },
+        () => this.unresolvedMessage(property),
+      );
+    } finally {
+      this.inProgress.delete(property);
+    }
+  }
+
+  private plainValue<K extends keyof LocationPathAliasRowShape>(
+    property: K,
+  ): LocationPathAliasRowShape[K] {
+    const value = this.spec[property as string];
+    return (value === undefined ? null : value) as LocationPathAliasRowShape[K];
+  }
+
+  private unresolvedMessage(
+    property: keyof LocationPathAliasRowShape,
+  ): string {
+    return `Cannot resolve ${LocationPathAliasFacade.kind}.${String(
+      property,
+    )} for source ${this.source.namespace}/${this.source.name}; offending value ${JSON.stringify(
+      this.spec[property as string],
+    )}.`;
+  }
+
+  async toMutation(): Promise<
+    LocationPathAliasCreateEnvelope | LocationPathAliasReadEnvelope
+  > {
+    const aliasPath = await this.value("alias_path");
+    const locationPathId = await this.value("location_path_id");
+
+    const current = this.current ?? this.backend.getCurrentById(aliasPath);
+    if (current !== undefined) {
+      return LocationPathAliasRead.new({
+        metadata: { namespace: this.source.namespace, name: aliasPath },
+        spec: {},
+      });
+    }
+
+    return LocationPathAliasCreate.new({
+      metadata: { namespace: this.source.namespace, name: aliasPath },
+      spec: {
+        alias_path: aliasPath,
+        location_path_id: locationPathId,
+      } as Parameters<typeof LocationPathAliasCreate.new>[0]["spec"],
+    });
+  }
+}
+
+/** The database row shape a `LocationPathGeometryFacade` resolves toward. */
+export type LocationPathGeometryRowShape = {
+  location_path_id: string;
+  sourceLocationPathKey: string;
+  geometry: unknown;
+};
+
+type LocationPathGeometryResolvers = Partial<{
+  [K in keyof LocationPathGeometryRowShape]: Resolver<
+    LocationPathGeometryRowShape[K],
+    ResolverContext<LocationPathGeometryRowShape, LicenseResolverBackend>
+  >;
+}>;
+
+export class LocationPathGeometryFacade
+  implements PropertyResolutionFacade<LocationPathGeometryRowShape>
+{
+  private static readonly kind = "LocationPathGeometry";
+  private readonly current?: Record<string, unknown>;
+  private readonly spec: Record<string, unknown> = {};
+  private readonly source: FacadeSource;
+  private readonly backend: LicenseResolverBackend;
+  private readonly resolvers: LocationPathGeometryResolvers;
+  private readonly memo = new Map<
+    keyof LocationPathGeometryRowShape,
+    Promise<unknown>
+  >();
+  private readonly inProgress = new Set<keyof LocationPathGeometryRowShape>();
+
+  constructor(options: {
+    current?: Record<string, unknown>;
+    source: FacadeSource;
+    backend: LicenseResolverBackend;
+  }) {
+    this.current = options.current;
+    this.source = options.source;
+    this.backend = options.backend;
+    this.resolvers = {
+      // The geometry's identity is its target `location_path_id` (one geometry
+      // per location path), which is also the FK to the LocationPath facade.
+      location_path_id:
+        facadeForeignKeyResolver<LocationPathGeometryRowShape>(
+          LocationPathGeometryFacade.kind,
+          "location_path_id",
+          "LocationPath",
+        ),
+    };
+  }
+
+  merge(spec: Record<string, unknown>): void {
+    Object.assign(this.spec, spec);
+  }
+
+  raw(property: keyof LocationPathGeometryRowShape): unknown {
+    return this.spec[property as string];
+  }
+
+  value<K extends keyof LocationPathGeometryRowShape>(
+    property: K,
+  ): Promise<LocationPathGeometryRowShape[K]> {
+    const cached = this.memo.get(property);
+    if (cached !== undefined) {
+      return cached as Promise<LocationPathGeometryRowShape[K]>;
+    }
+    const pending = this.computeValue(property);
+    this.memo.set(property, pending);
+    return pending;
+  }
+
+  private async computeValue<K extends keyof LocationPathGeometryRowShape>(
+    property: K,
+  ): Promise<LocationPathGeometryRowShape[K]> {
+    if (this.inProgress.has(property)) {
+      throw new Error(
+        `Circular property dependency while resolving ${LocationPathGeometryFacade.kind}.${String(
+          property,
+        )} for ${this.source.namespace}/${this.source.name}.`,
+      );
+    }
+    this.inProgress.add(property);
+    try {
+      const resolver = this.resolvers[property];
+      if (resolver === undefined) {
+        return this.plainValue(property);
+      }
+      return await resolver.resolve(
+        { facade: this, source: this.source, backend: this.backend },
+        () => this.unresolvedMessage(property),
+      );
+    } finally {
+      this.inProgress.delete(property);
+    }
+  }
+
+  private plainValue<K extends keyof LocationPathGeometryRowShape>(
+    property: K,
+  ): LocationPathGeometryRowShape[K] {
+    const value = this.spec[property as string];
+    return (value === undefined ? null : value) as LocationPathGeometryRowShape[K];
+  }
+
+  private unresolvedMessage(
+    property: keyof LocationPathGeometryRowShape,
+  ): string {
+    return `Cannot resolve ${LocationPathGeometryFacade.kind}.${String(
+      property,
+    )} for source ${this.source.namespace}/${this.source.name}; offending value ${JSON.stringify(
+      this.spec[property as string],
+    )}.`;
+  }
+
+  async toMutation(): Promise<
+    LocationPathGeometryCreateEnvelope | LocationPathGeometryReadEnvelope
+  > {
+    const locationPathId = await this.value("location_path_id");
+    const sourceLocationPathKey = await this.value("sourceLocationPathKey");
+    const geometry = this.spec.geometry;
+
+    const current = this.current ?? this.backend.getCurrentById(locationPathId);
+    if (current !== undefined) {
+      return LocationPathGeometryRead.new({
+        metadata: { namespace: this.source.namespace, name: locationPathId },
+        spec: {},
+      });
+    }
+
+    return LocationPathGeometryCreate.new({
+      metadata: { namespace: this.source.namespace, name: locationPathId },
+      spec: {
+        location_path_id: locationPathId,
+        sourceLocationPathKey,
+        geometry,
+      } as Parameters<typeof LocationPathGeometryCreate.new>[0]["spec"],
+    });
+  }
+}
+
 export type LocationAdministrativeAreaRequest = {
   address?: string;
   state: string;
@@ -2264,6 +2764,15 @@ export class DataContext {
   private readonly licenseActionFacades = new Map<
     string,
     LicenseActionFacade
+  >();
+  private readonly locationPathFacades = new Map<string, LocationPathFacade>();
+  private readonly locationPathAliasFacades = new Map<
+    string,
+    LocationPathAliasFacade
+  >();
+  private readonly locationPathGeometryFacades = new Map<
+    string,
+    LocationPathGeometryFacade
   >();
 
   constructor(options: DataContextOptions) {
@@ -2820,6 +3329,147 @@ export class DataContext {
     };
   }
 
+  locationPathFromSource(input: SourceRecordContext): LocationPathFacade {
+    validateSourceRecordContext(input);
+    const key = [
+      input.apiVersion,
+      input.namespace,
+      "LocationPath",
+      input.name,
+    ].join(":");
+    const existing = this.locationPathFacades.get(key);
+    if (existing !== undefined) {
+      if (input.spec !== undefined) {
+        existing.merge(input.spec);
+      }
+      return existing;
+    }
+    const facade = new LocationPathFacade({
+      current: input.current,
+      source: {
+        namespace: input.namespace,
+        name: input.name,
+        commandName: input.commandName ?? this.commandName,
+      },
+      backend: this.locationPathFacadeBackend((id) => {
+        const row = this.databaseLocationPathById?.get(id);
+        return row as Record<string, unknown> | undefined;
+      }),
+    });
+    if (input.spec !== undefined) {
+      facade.merge(input.spec);
+    }
+    this.locationPathFacades.set(key, facade);
+    return facade;
+  }
+
+  locationPathAliasFromSource(
+    input: SourceRecordContext,
+  ): LocationPathAliasFacade {
+    validateSourceRecordContext(input);
+    const key = [
+      input.apiVersion,
+      input.namespace,
+      "LocationPathAlias",
+      input.name,
+    ].join(":");
+    const existing = this.locationPathAliasFacades.get(key);
+    if (existing !== undefined) {
+      if (input.spec !== undefined) {
+        existing.merge(input.spec);
+      }
+      return existing;
+    }
+    const facade = new LocationPathAliasFacade({
+      current: input.current,
+      source: {
+        namespace: input.namespace,
+        name: input.name,
+        commandName: input.commandName ?? this.commandName,
+      },
+      backend: this.locationPathFacadeBackend(),
+    });
+    if (input.spec !== undefined) {
+      facade.merge(input.spec);
+    }
+    this.locationPathAliasFacades.set(key, facade);
+    return facade;
+  }
+
+  locationPathGeometryFromSource(
+    input: SourceRecordContext,
+  ): LocationPathGeometryFacade {
+    validateSourceRecordContext(input);
+    const key = [
+      input.apiVersion,
+      input.namespace,
+      "LocationPathGeometry",
+      input.name,
+    ].join(":");
+    const existing = this.locationPathGeometryFacades.get(key);
+    if (existing !== undefined) {
+      if (input.spec !== undefined) {
+        existing.merge(input.spec);
+      }
+      return existing;
+    }
+    const facade = new LocationPathGeometryFacade({
+      current: input.current,
+      source: {
+        namespace: input.namespace,
+        name: input.name,
+        commandName: input.commandName ?? this.commandName,
+      },
+      backend: this.locationPathFacadeBackend(),
+    });
+    if (input.spec !== undefined) {
+      facade.merge(input.spec);
+    }
+    this.locationPathGeometryFacades.set(key, facade);
+    return facade;
+  }
+
+  private locationPathFacadeBackend(
+    getCurrentById?: (id: string) => Record<string, unknown> | undefined,
+  ): LicenseResolverBackend {
+    return {
+      findOrCreateCanonicalId: (input) =>
+        this.findOrCreateLocationPathCanonicalId(input),
+      getCurrentById: getCurrentById ?? (() => undefined),
+      findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
+    };
+  }
+
+  private async findOrCreateLocationPathCanonicalId(input: {
+    namespace: string;
+    kind: string;
+    sourceId: string;
+  }): Promise<string> {
+    // Find a seeded/existing id before minting — census location paths anchor
+    // everything, so ID stability is critical.
+    const existing = valueAsString(
+      this.sourceNameToCanonicalIds?.locationPaths?.[input.sourceId]
+        ?.canonicalId,
+    );
+    if (existing !== undefined) {
+      return existing;
+    }
+
+    const canonicalId = createId();
+    if (this.sourceNameToCanonicalIds === undefined) {
+      return canonicalId;
+    }
+    this.sourceNameToCanonicalIds.locationPaths[input.sourceId] = {
+      kind: "LocationPath",
+      canonicalId,
+    };
+    await this.persistSourceNameToCanonicalIdsFn?.(
+      input.namespace,
+      this.sourceNameToCanonicalIds,
+    );
+    return canonicalId;
+  }
+
   private async findOrCreateAgencyPersonnelCanonicalId(input: {
     namespace: string;
     kind: string;
@@ -3020,6 +3670,14 @@ export class DataContext {
       input.kind,
       input.sourceId,
     ].join(":");
+    if (input.kind === "LocationPath") {
+      // A LocationPath's identity column is `location_path_id`, not `id`, so
+      // bridge the FK's `value("id")` to the facade's identity column.
+      const facade = this.locationPathFacades.get(key);
+      return facade === undefined
+        ? undefined
+        : { value: () => facade.value("location_path_id") };
+    }
     if (input.kind === "Agency") {
       // Await the Agency facade's own id resolver (find-or-create).
       return this.agencyFacades.get(key);

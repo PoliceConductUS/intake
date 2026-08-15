@@ -1507,3 +1507,234 @@ describe("AgencyPersonnelFacade", () => {
     );
   });
 });
+
+describe("Census substrate facades", () => {
+  function substrateContext(options?: {
+    locationPaths?: SourceNameToCanonicalIds["locationPaths"];
+  }): DataContext {
+    return new DataContext({
+      client: new EmptyClient(),
+      rows,
+      commandName: "command-name",
+      sourceNameToCanonicalIds: {
+        agencies: {},
+        personnel: {},
+        agencyPersonnel: {},
+        locationPaths: options?.locationPaths ?? {},
+        licensingAuthorities: {},
+        licenses: {},
+        licenseActions: {},
+      },
+    });
+  }
+
+  test("LocationPathFacade emits a LocationPathCreate with a null parent at the state root", async () => {
+    const context = substrateContext({
+      locationPaths: { mn: { canonicalId: "mn-location-path-id" } },
+    });
+    const facade = context.locationPathFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "census",
+      name: "mn",
+      spec: {
+        path: "/mn/",
+        level: "state",
+        state_or_territory_slug: "mn",
+        administrative_area_slug: null,
+        place_slug: null,
+        state_or_territory_name: "Minnesota",
+        administrative_area_name: null,
+        place_name: null,
+        parent_location_path_id: null,
+      },
+    });
+
+    expect(await facade.value("parent_location_path_id")).toBeNull();
+    expect(await facade.toMutation()).toMatchObject({
+      kind: "LocationPathCreate",
+      metadata: { namespace: "census", name: "mn-location-path-id" },
+      spec: {
+        location_path_id: "mn-location-path-id",
+        path: "/mn/",
+        level: "state",
+        parent_location_path_id: null,
+      },
+    });
+  });
+
+  test("LocationPathFacade resolves parent_location_path_id via a self-FK find of the parent facade", async () => {
+    const context = substrateContext({
+      locationPaths: {
+        mn: { canonicalId: "mn-location-path-id" },
+        "ramsey-county": { canonicalId: "ramsey-county-location-path-id" },
+      },
+    });
+    // Dependency order (ADR 0016 #9): the parent is registered before the child.
+    context.locationPathFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "census",
+      name: "mn",
+      spec: {
+        path: "/mn/",
+        level: "state",
+        state_or_territory_slug: "mn",
+        administrative_area_slug: null,
+        place_slug: null,
+        state_or_territory_name: "Minnesota",
+        administrative_area_name: null,
+        place_name: null,
+        parent_location_path_id: null,
+      },
+    });
+    const child = context.locationPathFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "census",
+      name: "ramsey-county",
+      spec: {
+        path: "/mn/ramsey-county/",
+        level: "administrative_area",
+        state_or_territory_slug: "mn",
+        administrative_area_slug: "ramsey-county",
+        place_slug: null,
+        state_or_territory_name: "Minnesota",
+        administrative_area_name: "Ramsey County",
+        place_name: null,
+        parent_location_path_id: "mn",
+      },
+    });
+
+    expect(await child.value("parent_location_path_id")).toBe(
+      "mn-location-path-id",
+    );
+    expect(await child.toMutation()).toMatchObject({
+      kind: "LocationPathCreate",
+      spec: {
+        location_path_id: "ramsey-county-location-path-id",
+        parent_location_path_id: "mn-location-path-id",
+      },
+    });
+  });
+
+  test("LocationPathFacade emits a LocationPathRead when the census row already exists", async () => {
+    const context = substrateContext({
+      locationPaths: { mn: { canonicalId: "mn-location-path-id" } },
+    });
+    const facade = context.locationPathFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "census",
+      name: "mn",
+      current: { location_path_id: "mn-location-path-id", path: "/mn/" },
+      spec: {
+        path: "/mn/",
+        level: "state",
+        state_or_territory_slug: "mn",
+        administrative_area_slug: null,
+        place_slug: null,
+        state_or_territory_name: "Minnesota",
+        administrative_area_name: null,
+        place_name: null,
+        parent_location_path_id: null,
+      },
+    });
+
+    expect(await facade.toMutation()).toMatchObject({
+      kind: "LocationPathRead",
+      metadata: { namespace: "census", name: "mn-location-path-id" },
+      spec: {},
+    });
+  });
+
+  test("LocationPathAliasFacade resolves its location_path_id to the target facade's id", async () => {
+    const context = substrateContext({
+      locationPaths: { mn: { canonicalId: "mn-location-path-id" } },
+    });
+    context.locationPathFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "census",
+      name: "mn",
+      spec: {
+        path: "/mn/",
+        level: "state",
+        state_or_territory_slug: "mn",
+        administrative_area_slug: null,
+        place_slug: null,
+        state_or_territory_name: "Minnesota",
+        administrative_area_name: null,
+        place_name: null,
+        parent_location_path_id: null,
+      },
+    });
+    const alias = context.locationPathAliasFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "census",
+      name: "/minnesota/",
+      spec: { alias_path: "/minnesota/", location_path_id: "mn" },
+    });
+
+    expect(await alias.toMutation()).toMatchObject({
+      kind: "LocationPathAliasCreate",
+      metadata: { namespace: "census", name: "/minnesota/" },
+      spec: { alias_path: "/minnesota/", location_path_id: "mn-location-path-id" },
+    });
+  });
+
+  test("LocationPathGeometryFacade resolves its location_path_id via FK find", async () => {
+    const context = substrateContext({
+      locationPaths: { mn: { canonicalId: "mn-location-path-id" } },
+    });
+    context.locationPathFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "census",
+      name: "mn",
+      spec: {
+        path: "/mn/",
+        level: "state",
+        state_or_territory_slug: "mn",
+        administrative_area_slug: null,
+        place_slug: null,
+        state_or_territory_name: "Minnesota",
+        administrative_area_name: null,
+        place_name: null,
+        parent_location_path_id: null,
+      },
+    });
+    const geometry = context.locationPathGeometryFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "census",
+      name: "mn-geometry",
+      spec: {
+        location_path_id: "mn",
+        sourceLocationPathKey: "state:GEOID:27",
+        geometry: { type: "Polygon", coordinates: [] },
+      },
+    });
+
+    expect(await geometry.toMutation()).toMatchObject({
+      kind: "LocationPathGeometryCreate",
+      metadata: { namespace: "census", name: "mn-location-path-id" },
+      spec: {
+        location_path_id: "mn-location-path-id",
+        sourceLocationPathKey: "state:GEOID:27",
+      },
+    });
+  });
+
+  test("geometry FK find fails fast and loud on a forward reference", async () => {
+    const context = substrateContext();
+    // The referenced LocationPath facade is never registered.
+    const geometry = context.locationPathGeometryFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "census",
+      name: "mn-geometry",
+      spec: {
+        location_path_id: "mn",
+        sourceLocationPathKey: "state:GEOID:27",
+        geometry: { type: "Polygon", coordinates: [] },
+      },
+    });
+
+    await expect(geometry.toMutation()).rejects.toThrow(
+      /no LocationPath facade was emitted for source id "mn" \(forward reference/,
+    );
+  });
+});
