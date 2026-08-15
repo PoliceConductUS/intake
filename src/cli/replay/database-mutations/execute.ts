@@ -134,20 +134,10 @@ function databaseSpecForMutation(
     };
   }
 
-  if (recordKind !== "AgencyPersonnel") {
-    return spec;
-  }
-
-  const { personnel_id, ...databaseSpec } = spec;
-  return personnel_id === undefined
-    ? databaseSpec
-    : { ...databaseSpec, officer_id: personnel_id };
+  return spec;
 }
 
 function databaseFieldName(recordKind: string, fieldName: string): string {
-  if (recordKind === "AgencyPersonnel" && fieldName === "personnel_id") {
-    return "officer_id";
-  }
   if (recordKind === "LocationPathGeometry" && fieldName === "geometry") {
     return "boundary";
   }

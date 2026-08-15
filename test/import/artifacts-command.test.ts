@@ -59,7 +59,7 @@ const rows: ImportRows = {
     {
       id: "agency-personnel-canonical-id",
       agency_id: "agency-canonical-id",
-      personnel_id: "personnel-canonical-id",
+      officer_id: "personnel-canonical-id",
       badge_number: "49112",
       start_date: "2020-01-01",
       end_date: null,
@@ -87,7 +87,7 @@ const rows: ImportRows = {
     agencyOfficers: {
       "agency-personnel-canonical-id": [
         "agency_id",
-        "personnel_id",
+        "officer_id",
         "badge_number",
         "start_date",
         "end_date",
@@ -1057,7 +1057,7 @@ describe("importArtifacts", () => {
                   "agency-personnel-source-id": {
                     spec: {
                       agency_id: "agency-source-id",
-                      personnel_id: "personnel-source-id",
+                      officer_id: "personnel-source-id",
                       badge_number: "49112",
                       start_date: "2020-01-01",
                       end_date: null,
@@ -1178,7 +1178,7 @@ describe("importArtifacts", () => {
         spec: expect.objectContaining({
           id: "agency-personnel-canonical-id",
           agency_id: "agency-canonical-id",
-          personnel_id: "personnel-canonical-id",
+          officer_id: "personnel-canonical-id",
         }),
       }),
     );
@@ -1190,6 +1190,7 @@ describe("importArtifacts", () => {
     const agencyPersonnelInsert = client.queries.find(({ text }) =>
       /^insert into public\.agency_officers\b/i.test(text),
     );
+    // The mutation spec and the DB column are both officer_id — no rename at apply.
     expect(agencyPersonnelInsert?.text).toContain("officer_id");
     expect(agencyPersonnelInsert?.text).not.toContain("personnel_id");
   });
@@ -1684,7 +1685,7 @@ describe("importArtifacts", () => {
           ownedColumns: {
             agency: ["name"],
             personnel: ["first_name", "last_name"],
-            agencyPersonnel: ["agency_id", "personnel_id"],
+            agencyPersonnel: ["agency_id", "officer_id"],
           },
           errors: ["missing latitude", "missing longitude"],
         },
@@ -1711,7 +1712,7 @@ describe("importArtifacts", () => {
       ownedColumns: {
         agency: ["name"],
         personnel: ["first_name", "last_name"],
-        agencyPersonnel: ["agency_id", "personnel_id"],
+        agencyPersonnel: ["agency_id", "officer_id"],
       },
     });
     expect(parsedImportArtifacts.spec).toHaveProperty("mutations");

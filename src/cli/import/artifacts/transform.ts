@@ -94,7 +94,7 @@ export type AgencyColumn = Exclude<keyof AgencyRow, "id">;
 export type AgencyOfficerRow = {
   id: string;
   agency_id: string;
-  personnel_id: string;
+  officer_id: string;
   badge_number: string | null;
   start_date: string;
   end_date: string | null;
@@ -135,7 +135,7 @@ const agencySourceColumns: AgencyColumn[] = [
 
 const agencyOfficerSourceColumns: AgencyOfficerColumn[] = [
   "agency_id",
-  "personnel_id",
+  "officer_id",
   "badge_number",
   "start_date",
   "end_date",
@@ -507,15 +507,15 @@ export async function transformArtifacts(
           sourceName,
         );
         const sourceAgencyId = valueAsStringOrNull(source.agency_id);
-        const sourcePersonnelId = valueAsStringOrNull(source.personnel_id);
+        const sourceOfficerId = valueAsStringOrNull(source.officer_id);
         if (sourceAgencyId === null) {
           throw new Error(
             `Agency-personnel source record ${sourceName} is missing required field agency_id.`,
           );
         }
-        if (sourcePersonnelId === null) {
+        if (sourceOfficerId === null) {
           throw new Error(
-            `Agency-personnel source record ${sourceName} is missing required field personnel_id.`,
+            `Agency-personnel source record ${sourceName} is missing required field officer_id.`,
           );
         }
 
@@ -546,13 +546,13 @@ export async function transformArtifacts(
             hasOwnField(source, columnName),
           );
 
-        // personnel_id / license_id carry the raw source reference; they are not
+        // officer_id / license_id carry the raw source reference; they are not
         // consumed downstream. The AgencyPersonnel record's own foreign-key
         // resolution finds and enforces these when it emits the mutation.
         return {
           id: canonicalId,
           agency_id: agencyCanonicalId,
-          personnel_id: sourcePersonnelId,
+          officer_id: sourceOfficerId,
           badge_number: valueAsStringOrNull(source.badge_number),
           start_date: requiredString(
             sourceName,

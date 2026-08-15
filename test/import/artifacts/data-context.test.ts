@@ -1364,7 +1364,7 @@ describe("AgencyPersonnelFacade", () => {
       name: "ap-source",
       spec: {
         agency_id: "agency-source",
-        personnel_id: "personnel-source",
+        officer_id: "personnel-source",
         license_id: "license-source",
         title: "Peace Officer",
         start_date: "2020-01-01",
@@ -1378,7 +1378,7 @@ describe("AgencyPersonnelFacade", () => {
       metadata: { namespace: "mn-post", name: "ap-source" },
       spec: {
         agency_id: "agency-canonical-id",
-        personnel_id: "personnel-canonical-id",
+        officer_id: "personnel-canonical-id",
         license_id: "license-canonical-id",
         title: "Peace Officer",
         start_date: "2020-01-01",
@@ -1397,7 +1397,7 @@ describe("AgencyPersonnelFacade", () => {
       name: "ap-source",
       spec: {
         agency_id: "agency-source",
-        personnel_id: "personnel-source",
+        officer_id: "personnel-source",
         // no license_id
         title: "Peace Officer",
         start_date: "2020-01-01",
@@ -1421,7 +1421,7 @@ describe("AgencyPersonnelFacade", () => {
         {
           id: "agency-personnel-canonical-id",
           agency_id: "agency-canonical-id",
-          personnel_id: "personnel-canonical-id",
+          officer_id: "personnel-canonical-id",
           license_id: "license-canonical-id",
           title: "Deputy",
           start_date: "2020-01-01",
@@ -1438,7 +1438,7 @@ describe("AgencyPersonnelFacade", () => {
       canonicalId: "agency-personnel-canonical-id",
       spec: {
         agency_id: "agency-source",
-        personnel_id: "personnel-source",
+        officer_id: "personnel-source",
         license_id: "license-source",
         title: "Peace Officer",
         start_date: "2020-01-01",
@@ -1482,7 +1482,7 @@ describe("AgencyPersonnelFacade", () => {
       name: "ap-source",
       spec: {
         agency_id: "agency-source",
-        personnel_id: "personnel-source",
+        officer_id: "personnel-source",
         title: "Peace Officer",
         start_date: "2020-01-01",
       },

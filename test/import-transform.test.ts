@@ -31,7 +31,7 @@ const personnel = {
 const roster = {
   id: "a2m-roster-source",
   agency_id: "a2j-agency-source",
-  personnel_id: "003-personnel-source",
+  officer_id: "003-personnel-source",
   badge_number: "49112",
   start_date: "2020-01-01",
   end_date: null,
@@ -324,9 +324,9 @@ describe("transformArtifacts", () => {
         {
           id: "agency-personnel-canonical-id",
           agency_id: "agency-canonical-id",
-          // personnel_id / license_id carry the raw source reference (vestigial);
+          // officer_id / license_id carry the raw source reference (vestigial);
           // the AgencyPersonnel mapper resolves them at emit time.
-          personnel_id: "003-personnel-source",
+          officer_id: "003-personnel-source",
           badge_number: "49112",
           start_date: "2020-01-01",
           end_date: null,
@@ -354,7 +354,7 @@ describe("transformArtifacts", () => {
         agencyOfficers: {
           "agency-personnel-canonical-id": [
             "agency_id",
-            "personnel_id",
+            "officer_id",
             "badge_number",
             "start_date",
             "end_date",
@@ -521,13 +521,13 @@ describe("transformArtifacts", () => {
   });
 
   // agency_id is resolved to the agency's canonical id (it is consumed by the
-  // excluded-agency cascade). personnel_id / license_id are carried through as
+  // excluded-agency cascade). officer_id / license_id are carried through as
   // the raw source reference — they are not consumed downstream; the
   // AgencyPersonnel mapper resolves and enforces those foreign keys when it emits
   // the mutation (a reference to an entity absent from the namespace fails loud
   // there, covered by the DataContext foreign-key tests).
 
-  test("carries the agency-personnel personnel_id / license_id source references through unresolved", async () => {
+  test("carries the agency-personnel officer_id / license_id source references through unresolved", async () => {
     const artifacts = artifactsWithEntities({
       agencies: { [agency.id]: agency },
       personnel: { [personnel.id]: personnel },
@@ -545,7 +545,7 @@ describe("transformArtifacts", () => {
       resolvedProperties,
     );
 
-    expect(rows.agencyOfficers[0]?.personnel_id).toBe(personnel.id);
+    expect(rows.agencyOfficers[0]?.officer_id).toBe(personnel.id);
     expect(rows.agencyOfficers[0]?.license_id).toBe(
       "003-personnel-source|Peace Officer License",
     );

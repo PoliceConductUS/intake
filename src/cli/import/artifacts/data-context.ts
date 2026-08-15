@@ -1881,7 +1881,7 @@ export class AgencyFacade implements PropertyResolutionFacade<AgencyRowShape> {
 export type AgencyOfficerRowShape = {
   id: string;
   agency_id: string;
-  personnel_id: string;
+  officer_id: string;
   badge_number: string | null;
   start_date: string;
   end_date: string | null;
@@ -1926,9 +1926,10 @@ export class AgencyPersonnelFacade implements PropertyResolutionFacade<AgencyOff
         "agency_id",
         "Agency",
       ),
-      personnel_id: facadeForeignKeyResolver<AgencyOfficerRowShape>(
+      // officer_id is the agency_officers column; the FK still targets Personnel.
+      officer_id: facadeForeignKeyResolver<AgencyOfficerRowShape>(
         AgencyPersonnelFacade.kind,
-        "personnel_id",
+        "officer_id",
         "Personnel",
       ),
       license_id: facadeNullableForeignKeyResolver<AgencyOfficerRowShape>(
@@ -2004,7 +2005,7 @@ export class AgencyPersonnelFacade implements PropertyResolutionFacade<AgencyOff
   > {
     const id = await this.value("id");
     const agencyId = await this.value("agency_id");
-    const personnelId = await this.value("personnel_id");
+    const officerId = await this.value("officer_id");
     const badgeNumber = await this.value("badge_number");
     const startDate = await this.value("start_date");
     const endDate = await this.value("end_date");
@@ -2022,7 +2023,7 @@ export class AgencyPersonnelFacade implements PropertyResolutionFacade<AgencyOff
         spec: {
           id,
           agency_id: agencyId,
-          personnel_id: personnelId,
+          officer_id: officerId,
           badge_number: badgeNumber,
           start_date: startDate,
           end_date: endDate,
@@ -2047,7 +2048,7 @@ export class AgencyPersonnelFacade implements PropertyResolutionFacade<AgencyOff
     };
     const desired: Record<string, unknown> = {
       agency_id: agencyId,
-      personnel_id: personnelId,
+      officer_id: officerId,
       badge_number: badgeNumber,
       start_date: startDate,
       end_date: endDate,

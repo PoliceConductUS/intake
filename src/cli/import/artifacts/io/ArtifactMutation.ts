@@ -138,7 +138,7 @@ const agencyPersonnelSetMutationSchema = artifactMutationOperationBaseSchema
   .extend({
     path: z.enum([
       "agency_id",
-      "personnel_id",
+      "officer_id",
       "badge_number",
       "start_date",
       "end_date",

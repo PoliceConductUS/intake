@@ -229,7 +229,7 @@ function buildAgencyPersonnel(
     records[key] = {
       spec: {
         agency_id: departmentNumber,
-        personnel_id: publicGuid,
+        officer_id: publicGuid,
         start_date: startDate,
         end_date: endDate === "" ? null : endDate,
         // `title` holds the role (APPOINTMENT). Blank roles are recorded as

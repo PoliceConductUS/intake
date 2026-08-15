@@ -264,7 +264,9 @@ export const AgencyPersonnelSpec = z
   .object({
     id: nonEmptyString.optional(),
     agency_id: nonEmptyString,
-    personnel_id: nonEmptyString,
+    // officer_id matches the agency_officers column; the FK still targets the
+    // Personnel entity (an officer's canonical id).
+    officer_id: nonEmptyString,
     badge_number: z.string().nullable().optional(),
     start_date: nonEmptyString,
     end_date: z.string().nullable().optional(),

@@ -41,7 +41,7 @@ const rows: ImportRows = {
     {
       id: "agency-personnel-canonical-id",
       agency_id: "agency-canonical-id",
-      personnel_id: "personnel-canonical-id",
+      officer_id: "personnel-canonical-id",
       badge_number: "49112",
       start_date: "2020-01-01",
       end_date: null,
@@ -69,7 +69,7 @@ const rows: ImportRows = {
     agencyOfficers: {
       "agency-personnel-canonical-id": [
         "agency_id",
-        "personnel_id",
+        "officer_id",
         "badge_number",
         "start_date",
         "end_date",
@@ -1387,7 +1387,7 @@ describe("planDatabaseMutations", () => {
         {
           id: "agency-personnel-canonical-id",
           agency_id: "agency-canonical-id",
-          personnel_id: "personnel-canonical-id",
+          officer_id: "personnel-canonical-id",
           badge_number: "49112",
           start_date: "2020-01-01",
           end_date: null,
@@ -1397,7 +1397,7 @@ describe("planDatabaseMutations", () => {
         {
           id: "second-agency-personnel-canonical-id",
           agency_id: "second-agency-canonical-id",
-          personnel_id: "second-personnel-canonical-id",
+          officer_id: "second-personnel-canonical-id",
           badge_number: "49113",
           start_date: "2020-01-01",
           end_date: null,
@@ -1418,7 +1418,7 @@ describe("planDatabaseMutations", () => {
         agencyOfficers: {
           "agency-personnel-canonical-id": [
             "agency_id",
-            "personnel_id",
+            "officer_id",
             "badge_number",
             "start_date",
             "end_date",
@@ -1426,7 +1426,7 @@ describe("planDatabaseMutations", () => {
           ],
           "second-agency-personnel-canonical-id": [
             "agency_id",
-            "personnel_id",
+            "officer_id",
             "badge_number",
             "start_date",
             "end_date",
