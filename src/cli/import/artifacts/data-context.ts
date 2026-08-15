@@ -12,6 +12,7 @@ import {
   readLocationPathByPath,
   readLocationPathsContainingPoint,
 } from "../../database/location-paths.js";
+import { lowerCaseEmail, nameCase, titleCase } from "./case-normalization.js";
 import type { ImportOperation, ImportOperations } from "./operations.js";
 import {
   type AgencyOfficerRow,
@@ -729,6 +730,71 @@ function facadeNullableForeignKeyResolver<Row>(
   });
 }
 
+/**
+ * Build the shared casing resolveFn: read the source string at `property`, apply
+ * `transform`, or resolve to `undefined` when the source value is absent — so the
+ * resolver's nullability policy (a `null` default for nullable columns, fail-loud
+ * for required ones) decides the outcome. Casing runs through the facade, never a
+ * pre-DB transform (the forbidden pattern).
+ */
+function casingResolveFn<Row, Backend>(
+  property: keyof Row & string,
+  transform: (value: string) => string,
+): (context: ResolverContext<Row, Backend>) => Promise<string | undefined> {
+  return async ({ facade }) => {
+    const raw = valueAsString(facade.raw(property));
+    return raw === undefined ? undefined : transform(raw);
+  };
+}
+
+/** Title-case an organization/address string property (REQUIRED column). */
+function titleCaseResolver<Row, Backend>(
+  property: keyof Row & string,
+): Resolver<string, ResolverContext<Row, Backend>> {
+  return new Resolver<string, ResolverContext<Row, Backend>>(
+    casingResolveFn<Row, Backend>(property, titleCase),
+  );
+}
+
+/** Title-case an organization/address string property (NULLABLE column). */
+function titleCaseResolverNullable<Row, Backend>(
+  property: keyof Row & string,
+): Resolver<string | null, ResolverContext<Row, Backend>> {
+  return new Resolver<string | null, ResolverContext<Row, Backend>>(
+    casingResolveFn<Row, Backend>(property, titleCase),
+    { defaultValue: null },
+  );
+}
+
+/** Name-case a person-name string property (REQUIRED column). */
+function nameCaseResolver<Row, Backend>(
+  property: keyof Row & string,
+): Resolver<string, ResolverContext<Row, Backend>> {
+  return new Resolver<string, ResolverContext<Row, Backend>>(
+    casingResolveFn<Row, Backend>(property, nameCase),
+  );
+}
+
+/** Name-case a person-name string property (NULLABLE column). */
+function nameCaseResolverNullable<Row, Backend>(
+  property: keyof Row & string,
+): Resolver<string | null, ResolverContext<Row, Backend>> {
+  return new Resolver<string | null, ResolverContext<Row, Backend>>(
+    casingResolveFn<Row, Backend>(property, nameCase),
+    { defaultValue: null },
+  );
+}
+
+/** Lowercase an email string property (NULLABLE column). */
+function lowerCaseEmailResolverNullable<Row, Backend>(
+  property: keyof Row & string,
+): Resolver<string | null, ResolverContext<Row, Backend>> {
+  return new Resolver<string | null, ResolverContext<Row, Backend>>(
+    casingResolveFn<Row, Backend>(property, lowerCaseEmail),
+    { defaultValue: null },
+  );
+}
+
 type LicenseResolvers = Partial<{
   [K in keyof LicenseRowShape]: Resolver<
     LicenseRowShape[K],
@@ -1229,6 +1295,27 @@ export class PersonnelFacade
         PersonnelFacade.kind,
       ),
       slug: personnelSlugResolver(),
+      // Casing normalization for ALL-CAPS source names (applied via resolvers so
+      // slugs, which read `facade.raw`, are unaffected). `first_name`/`last_name`
+      // are required; `middle_name`/`prefix`/`suffix` are nullable columns.
+      first_name: nameCaseResolver<PersonnelRowShape, PersonnelResolverBackend>(
+        "first_name",
+      ),
+      last_name: nameCaseResolver<PersonnelRowShape, PersonnelResolverBackend>(
+        "last_name",
+      ),
+      middle_name: nameCaseResolverNullable<
+        PersonnelRowShape,
+        PersonnelResolverBackend
+      >("middle_name"),
+      prefix: nameCaseResolverNullable<
+        PersonnelRowShape,
+        PersonnelResolverBackend
+      >("prefix"),
+      suffix: nameCaseResolverNullable<
+        PersonnelRowShape,
+        PersonnelResolverBackend
+      >("suffix"),
     };
   }
 
@@ -1596,6 +1683,24 @@ export class AgencyFacade implements PropertyResolutionFacade<AgencyRowShape> {
         AgencyFacade.kind,
       ),
       slug: agencySlugResolver(),
+      // Casing normalization for ALL-CAPS source data (applied via resolvers so
+      // slugs, which read `facade.raw`, are unaffected). `name` is required;
+      // `city`/`address`/`contact_name`/`contact_email` are nullable columns.
+      name: titleCaseResolver<AgencyRowShape, AgencyResolverBackend>("name"),
+      city: titleCaseResolverNullable<AgencyRowShape, AgencyResolverBackend>(
+        "city",
+      ),
+      address: titleCaseResolverNullable<AgencyRowShape, AgencyResolverBackend>(
+        "address",
+      ),
+      contact_name: nameCaseResolverNullable<
+        AgencyRowShape,
+        AgencyResolverBackend
+      >("contact_name"),
+      contact_email: lowerCaseEmailResolverNullable<
+        AgencyRowShape,
+        AgencyResolverBackend
+      >("contact_email"),
       location_path_id: agencyLocationPathResolver(),
       latitude: agencyCoordinateResolver("addressLatitude", "latitude"),
       longitude: agencyCoordinateResolver("addressLongitude", "longitude"),

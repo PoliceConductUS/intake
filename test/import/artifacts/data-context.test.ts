@@ -228,28 +228,27 @@ describe("DataContext", () => {
     );
   });
 
-  test("AgencyCreate rejects a spec missing a required plain field", async () => {
+  test("AgencyCreate rejects a spec missing a required field", async () => {
     const context = agencyFacadeContext();
     const agency = context.fromSource({
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "mn-state-patrol",
     });
-    // Every resolvable field is present, but the required plain `name` is absent,
-    // so the assembled AgencyCreate fails its schema validation.
+    // Every resolvable field is present, but the required `name` is absent. Its
+    // title-case resolver carries no unresolved policy, so it fails loud when the
+    // source value is missing (before the envelope is even assembled).
     const { name: _name, ...withoutName } = resolvedAgencySpec;
     agency.merge(withoutName);
 
     await expect(agency.toMutation()).rejects.toThrow(
-      "AgencyCreate is malformed",
+      /Cannot resolve Agency\.name/,
     );
   });
 
   test("AgencyFacade emits AgencyUpdate with checks and from-to sets when current row exists", async () => {
     const context = agencyFacadeContext({
-      databaseAgencies: [
-        { id: "agency-canonical-id", ...resolvedAgencySpec },
-      ],
+      databaseAgencies: [{ id: "agency-canonical-id", ...resolvedAgencySpec }],
     });
     const agency = context.fromSource({
       apiVersion: INTAKE_API_VERSION,
@@ -448,9 +447,7 @@ describe("DataContext", () => {
 
   test("creates agency facade with current database row and collects update mutation", async () => {
     const context = agencyFacadeContext({
-      databaseAgencies: [
-        { id: "agency-canonical-id", ...resolvedAgencySpec },
-      ],
+      databaseAgencies: [{ id: "agency-canonical-id", ...resolvedAgencySpec }],
     });
 
     const agency = context.fromSource({
@@ -834,7 +831,9 @@ describe("DataContext", () => {
         personnel: { "1000038": { canonicalId: "personnel-canonical-id" } },
         agencyPersonnel: {},
         locationPaths: {},
-        licensingAuthorities: { tcole: { canonicalId: "authority-canonical-id" } },
+        licensingAuthorities: {
+          tcole: { canonicalId: "authority-canonical-id" },
+        },
         licenses: options?.licenses ?? {},
         licenseActions: options?.licenseActions ?? {},
       },
@@ -889,7 +888,9 @@ describe("DataContext", () => {
   test("LicenseFacade emits a LicenseCreate resolving its officer and authority foreign keys", async () => {
     const context = licenseClusterContext({
       licenses: {
-        "1000038|Peace Officer License": { canonicalId: "license-canonical-id" },
+        "1000038|Peace Officer License": {
+          canonicalId: "license-canonical-id",
+        },
       },
     });
     registerLicenseCluster(context);
@@ -919,7 +920,9 @@ describe("DataContext", () => {
   test("LicenseFacade emits a LicenseUpdate diff when a current DB row exists", async () => {
     const context = licenseClusterContext({
       licenses: {
-        "1000038|Peace Officer License": { canonicalId: "license-canonical-id" },
+        "1000038|Peace Officer License": {
+          canonicalId: "license-canonical-id",
+        },
       },
       databaseLicenses: [
         {
@@ -941,10 +944,17 @@ describe("DataContext", () => {
 
     expect(await facade.toMutation()).toMatchObject({
       kind: "LicenseUpdate",
-      metadata: { namespace: "gov.tx.tcole", name: "1000038|Peace Officer License" },
+      metadata: {
+        namespace: "gov.tx.tcole",
+        name: "1000038|Peace Officer License",
+      },
       spec: {
         operations: [
-          { action: "check", path: "officer_id", value: "personnel-canonical-id" },
+          {
+            action: "check",
+            path: "officer_id",
+            value: "personnel-canonical-id",
+          },
           { action: "check", path: "license_type" },
           { action: "check", path: "status" },
           {
@@ -966,7 +976,9 @@ describe("DataContext", () => {
   test("LicenseFacade officer foreign-key find fails fast and loud on a forward reference", async () => {
     const context = licenseClusterContext({
       licenses: {
-        "1000038|Peace Officer License": { canonicalId: "license-canonical-id" },
+        "1000038|Peace Officer License": {
+          canonicalId: "license-canonical-id",
+        },
       },
     });
     // Register the authority but NOT the referenced Personnel facade.
@@ -1027,7 +1039,9 @@ describe("DataContext", () => {
   test("LicenseActionFacade emits a LicenseActionCreate resolving its license foreign key", async () => {
     const context = licenseClusterContext({
       licenses: {
-        "1000038|Peace Officer License": { canonicalId: "license-canonical-id" },
+        "1000038|Peace Officer License": {
+          canonicalId: "license-canonical-id",
+        },
       },
       licenseActions: {
         "1000038|Peace Officer License|Issued|1994-06-16": {
@@ -1286,7 +1300,9 @@ describe("PersonnelFacade", () => {
         text = "",
         values: readonly unknown[] = [],
       ): Promise<{ rows: Record<string, unknown>[] }> {
-        if (/select id, slug from public\.officers where slug = any/i.test(text)) {
+        if (
+          /select id, slug from public\.officers where slug = any/i.test(text)
+        ) {
           const slug = (values[0] as string[] | undefined)?.[0];
           if (slug === "marc-denney-icalid") {
             return { rows: [{ id: "someone-else", slug }] };
@@ -1365,7 +1381,9 @@ describe("AgencyPersonnelFacade", () => {
 
   const foreignKeyLedger = {
     agencies: { "agency-source": { canonicalId: "agency-canonical-id" } },
-    personnel: { "personnel-source": { canonicalId: "personnel-canonical-id" } },
+    personnel: {
+      "personnel-source": { canonicalId: "personnel-canonical-id" },
+    },
     licenses: { "license-source": { canonicalId: "license-canonical-id" } },
   };
 
@@ -1674,7 +1692,10 @@ describe("Census substrate facades", () => {
     expect(await alias.toMutation()).toMatchObject({
       kind: "LocationPathAliasCreate",
       metadata: { namespace: "census", name: "/minnesota/" },
-      spec: { alias_path: "/minnesota/", location_path_id: "mn-location-path-id" },
+      spec: {
+        alias_path: "/minnesota/",
+        location_path_id: "mn-location-path-id",
+      },
     });
   });
 

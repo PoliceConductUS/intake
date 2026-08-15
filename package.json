@@ -53,6 +53,7 @@
     "@paralleldrive/cuid2": "^3.3.0",
     "commander": "^15.0.0",
     "exceljs": "^4.4.0",
+    "namecase": "^1.1.2",
     "pg": "^8.21.0",
     "pino": "^10.3.1",
     "polygon-clipping": "^0.15.7",
