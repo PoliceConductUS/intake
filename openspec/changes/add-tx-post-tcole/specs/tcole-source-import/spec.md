@@ -9,10 +9,12 @@ and LicenseAction (`OfficersLicensesActions`). `run()` MUST be deterministic (no
 network, clock, or randomness).
 
 #### Scenario: the workbook yields all six kinds
+
 - **WHEN** `run()` receives the 02-10 workbook
 - **THEN** the manifest contains LicensingAuthority, Agency, Personnel, Assignment (AgencyPersonnel), License, and LicenseAction records
 
 #### Scenario: run() is deterministic
+
 - **WHEN** `run()` executes twice on the same inputs
 - **THEN** the two returned manifests and emitted records are deep-equal
 
@@ -23,6 +25,7 @@ Agency records MUST be keyed by `DEPARTMENT_NUMBER` and MUST NOT carry `slug`,
 via the Census geocoder). Personnel records MUST be keyed by `PUBLIC_GUID`.
 
 #### Scenario: Departments become Agency records
+
 - **WHEN** the Departments sheet has a row with `DEPARTMENT_NUMBER` = `471100`
 - **THEN** an Agency record is emitted keyed by `471100` with `name` from
   `DEPARTMENT_NAME`, `state` from `STATE`, `city` from `CITY`, `address` from
@@ -30,6 +33,7 @@ via the Census geocoder). Personnel records MUST be keyed by `PUBLIC_GUID`.
   `contact_email` from `E_MAIL`
 
 #### Scenario: Officers become Personnel records
+
 - **WHEN** the Officers sheet has a row with `PUBLIC_GUID` = `1000033`
 - **THEN** a Personnel record is emitted keyed by `1000033` with `first_name` from
   `FNAME`, `last_name` from `LNAME`, `middle_name` from `MNAME`, `suffix` from `SFX`
@@ -45,6 +49,7 @@ keyed by the synthetic tuple
 carries `DEPARTMENT_NUMBER` and `personnel_id` carries `PUBLIC_GUID`.
 
 #### Scenario: open-ended service maps title, license ref, and key
+
 - **WHEN** a Services row has `PUBLIC_GUID`=`1000033`, `DEPARTMENT_NUMBER`=`471100`,
   `APPOINTMENT`=`Jailer`, `LICENSE`=`Temporary Jailer License`, `ST_DATE`=2024-10-15,
   and a null `END_DATE`
@@ -62,6 +67,7 @@ same run's manifest (or an already-seeded ledger entry), so the import transform
 never hits an unmapped reference.
 
 #### Scenario: every referenced agency, officer, and license is emitted
+
 - **WHEN** an Assignment references `DEPARTMENT_NUMBER`=`471100`, `PUBLIC_GUID`=`1000033`,
   and license `1000033|Temporary Jailer License`
 - **THEN** the run's manifest also contains an Agency keyed `471100`, a Personnel

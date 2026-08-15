@@ -13,7 +13,6 @@ import {
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
 
-
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -49,15 +48,22 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "PersonnelDelete"} ref requires relativeTo.`);
+  if (
+    options.relativeTo === undefined ||
+    options.relativeTo.trim().length === 0
+  ) {
+    throw new Error(
+      `Relative ${ref.kind ?? "PersonnelDelete"} ref requires relativeTo.`,
+    );
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "PersonnelDelete"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(
+      `${ref.kind ?? "PersonnelDelete"} ref.path escapes its directory: ${ref.path}`,
+    );
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -71,8 +77,6 @@ const metadataSchema = z
   })
   .strict();
 
-
-
 export const specSchema = z.object({}).strict();
 
 export const schema = z
@@ -85,7 +89,10 @@ export const schema = z
   .strict();
 
 export type PersonnelDeleteEnvelope = z.infer<typeof schema>;
-export type PersonnelDeleteInput = Omit<PersonnelDeleteEnvelope, "apiVersion" | "kind">;
+export type PersonnelDeleteInput = Omit<
+  PersonnelDeleteEnvelope,
+  "apiVersion" | "kind"
+>;
 
 function parsePersonnelDelete(value: unknown): PersonnelDeleteEnvelope {
   const result = schema.safeParse(value);
@@ -95,7 +102,9 @@ function parsePersonnelDelete(value: unknown): PersonnelDeleteEnvelope {
   return result.data;
 }
 
-function newPersonnelDelete(input: PersonnelDeleteInput): PersonnelDeleteEnvelope {
+function newPersonnelDelete(
+  input: PersonnelDeleteInput,
+): PersonnelDeleteEnvelope {
   return parsePersonnelDelete({
     apiVersion: INTAKE_API_VERSION,
     kind: "PersonnelDelete",
@@ -109,9 +118,14 @@ async function readPersonnelDelete(
 ): Promise<PersonnelDeleteEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "PersonnelDelete") {
-    throw new Error(`PersonnelDelete ref.kind ${ref.kind} does not match expected kind PersonnelDelete: ${ref.filePath}`);
+    throw new Error(
+      `PersonnelDelete ref.kind ${ref.kind} does not match expected kind PersonnelDelete: ${ref.filePath}`,
+    );
   }
-  const { contents, document } = await readYamlDocumentFile(ref.filePath, "PersonnelDelete");
+  const { contents, document } = await readYamlDocumentFile(
+    ref.filePath,
+    "PersonnelDelete",
+  );
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
     throw new Error(`PersonnelDelete sha256 mismatch: ${ref.filePath}`);
   }

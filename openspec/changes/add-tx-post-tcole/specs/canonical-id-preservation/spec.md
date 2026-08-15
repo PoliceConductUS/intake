@@ -11,6 +11,7 @@ what the loader reads. The ledger entry name MUST equal the source key and its
 `canonicalId` MUST equal the mapped existing ID.
 
 #### Scenario: a mapped department number seeds its existing agency ID
+
 - **WHEN** `agencies.yaml` maps `DEPARTMENT_NUMBER` `101100` to agency ID
   `cm76wpxb601c7vrvgow6oyt53`
 - **THEN** the ledger contains an Agency `SourceNameToCanonicalId` record whose
@@ -18,6 +19,7 @@ what the loader reads. The ledger entry name MUST equal the source key and its
   `cm76wpxb601c7vrvgow6oyt53` under namespace `gov.tx.tcole`
 
 #### Scenario: seeded map round-trips through the loader
+
 - **WHEN** the seed step runs and `loadSourceNameToCanonicalIds("gov.tx.tcole")`
   is then called
 - **THEN** the returned agencies/personnel/agencyPersonnel maps contain every
@@ -31,11 +33,13 @@ and SHALL mint a fresh `cuid2` only for entities with no seeded mapping. Existin
 canonical IDs MUST NOT change.
 
 #### Scenario: a previously-seeded officer keeps its ID
+
 - **WHEN** a Personnel record keyed `1000033` is imported and `1000033` is already
   seeded to `cm7a0bgot04alewvgibyq384j`
 - **THEN** the officer row is written with ID `cm7a0bgot04alewvgibyq384j` (no new ID minted)
 
 #### Scenario: a brand-new officer gets a fresh ID
+
 - **WHEN** a Personnel record keyed by a `PUBLIC_GUID` absent from all seed maps
   is imported
 - **THEN** a new `cuid2` is minted and persisted for it, leaving all seeded IDs unchanged

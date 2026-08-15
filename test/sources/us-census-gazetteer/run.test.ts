@@ -46,7 +46,9 @@ const paths = [
 ];
 
 const notUsed = async () => {
-  throw new Error("readXlsx should not be called by us-census-gazetteer's run()");
+  throw new Error(
+    "readXlsx should not be called by us-census-gazetteer's run()",
+  );
 };
 
 let state: string;

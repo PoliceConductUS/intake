@@ -51,6 +51,7 @@ the rest. Nothing about acquisition, geocoding, or DB mutation is re-implemented
 ### Field mappings (existing kinds)
 
 **Agency** ← `Departments`, keyed `DEPARTMENT_NUMBER`:
+
 - `name` ← `DEPARTMENT_NAME`; `state` ← `STATE`; `city` ← `CITY`
 - `address` ← `ADD_LINE1` (+ `ADD_LINE2` when present); `zip_code` ← `ZIP_CODE`
 - `contact_name` ← `HEAD_NAME`; `contact_email` ← `E_MAIL`
@@ -59,11 +60,13 @@ the rest. Nothing about acquisition, geocoding, or DB mutation is re-implemented
   are produced by the import pipeline's existing agency resolution (see below).
 
 **Personnel** ← `Officers`, keyed `PUBLIC_GUID`:
+
 - `first_name` ← `FNAME`; `last_name` ← `LNAME`; `middle_name` ← `MNAME`; `suffix` ← `SFX`
 
 **AgencyPersonnel** ← `Services`, keyed by the synthetic tuple
 `PUBLIC_GUID|DEPARTMENT_NUMBER|APPOINTMENT|LICENSE|ST_DATE|END_DATE`
 (dates `YYYY-MM-DD`, empty segment when null — must match the abandoned map's key format exactly):
+
 - `agency_id` ← `DEPARTMENT_NUMBER` (**source key**, resolved to canonical via the ledger by `transform.ts`)
 - `personnel_id` ← `PUBLIC_GUID` (**source key**, resolved via the ledger)
 - `start_date` ← `ST_DATE` (`YYYY-MM-DD`); `end_date` ← `END_DATE` or null
@@ -95,6 +98,7 @@ geocoding stays a cached, replayable resolution step outside deterministic `run(
 Existing canonical IDs must be preserved. The abandoned prior attempt
 (`PoliceConductUS/abandoned/data-requests/identity/sources/tcole/*.yaml`) already
 maps every TCOLE source key to its `seed.sql` canonical ID:
+
 - `agencies.yaml`: `DEPARTMENT_NUMBER → agency.id`
 - `personnel.yaml`: `PUBLIC_GUID → officers.id`
 - `agency-officers.yaml`: synthetic tuple → `agency_officers.id`
@@ -114,9 +118,9 @@ Validation note: the source file is newer than seed, so row counts exceed seed
 
 ## Corrected domain model (the "fix the model now" decision)
 
-TCOLE is a *licensing* authority: it issues a **License** of a type directly to a
+TCOLE is a _licensing_ authority: it issues a **License** of a type directly to a
 **Personnel**, and separately records an **Assignment** of that person to an
-employing **Agency**, held *under* a license, with a **title** (role) that changes
+employing **Agency**, held _under_ a license, with a **title** (role) that changes
 over time. The current DB conflates this: `agency_officers.license_type` (renamed
 from `title` by migration `20260626000000`) actually holds the **role**
 (`APPOINTMENT`), and the real license + its status/actions were discarded by seed.
@@ -132,14 +136,14 @@ LicensingAuthority ──issues──> License ──held_by──> Personnel
 
 **Entities**
 
-| Entity | Meaning | Key fields | Source |
-| --- | --- | --- | --- |
-| **LicensingAuthority** (new) | the licensor (TCOLE); jurisdiction = a location_path subtree | `name`, `abbreviation`, `website`, `location_path_id` (`/tx/`) | curated reference file of ~55 US POST agencies (see below) |
-| Personnel | the officer | name | `Officers` |
-| **License** (new) | a license held by a Personnel, issued by an authority | `officer_id`, `license_type`, `status`, first-awarded date, **`issued_by_authority_id`** | distinct `PUBLIC_GUID`×`LICENSE` from `OfficersLicensesActions` + `Services` |
-| **LicenseAction** (new) | an event on a license | `license` ref, `action`, `action_date`, resulting status | `OfficersLicensesActions` rows |
-| Agency | the employer | name, address, … | `Departments` |
-| **Assignment** (AgencyPersonnel, fixed) | employment period | `officer_id`, `agency_id`, **`title`**, `start_date`, `end_date`, **`license`** ref | `Services` |
+| Entity                                  | Meaning                                                      | Key fields                                                                               | Source                                                                       |
+| --------------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| **LicensingAuthority** (new)            | the licensor (TCOLE); jurisdiction = a location_path subtree | `name`, `abbreviation`, `website`, `location_path_id` (`/tx/`)                           | curated reference file of ~55 US POST agencies (see below)                   |
+| Personnel                               | the officer                                                  | name                                                                                     | `Officers`                                                                   |
+| **License** (new)                       | a license held by a Personnel, issued by an authority        | `officer_id`, `license_type`, `status`, first-awarded date, **`issued_by_authority_id`** | distinct `PUBLIC_GUID`×`LICENSE` from `OfficersLicensesActions` + `Services` |
+| **LicenseAction** (new)                 | an event on a license                                        | `license` ref, `action`, `action_date`, resulting status                                 | `OfficersLicensesActions` rows                                               |
+| Agency                                  | the employer                                                 | name, address, …                                                                         | `Departments`                                                                |
+| **Assignment** (AgencyPersonnel, fixed) | employment period                                            | `officer_id`, `agency_id`, **`title`**, `start_date`, `end_date`, **`license`** ref      | `Services`                                                                   |
 
 **Licensing authorities are their own dataset.** Rather than each POST source
 declaring its authority inline, a curated reference file of the ~55 US POST
@@ -150,6 +154,7 @@ emitted as all LicensingAuthority records. The TCOLE source references the TX
 authority by key. Every future state POST source (AZ/MN/CA…) reuses the same file.
 
 **Linking — one FK, the rest by containment:**
+
 - **→ state**: `licensing_authority.location_path_id` = the state path (`/tx/`,
   a `level: state` `location_path` row derived from the authority's `state`). The
   only stored geographic link.
@@ -164,6 +169,7 @@ authority by key. Every future state POST source (AZ/MN/CA…) reuses the same f
   POST it is always the state.
 
 **Schema changes** (additive + one rename):
+
 - new `licensing_authority` table (`name`, `location_path_id`);
 - rename `agency_officers.license_type` → `title`; add `agency_officers.license_id` (FK, nullable);
 - new `license` table (unique `(officer_id, license_type)`, `issued_by_authority_id` FK) and `license_action` table;
@@ -179,6 +185,7 @@ License / LicenseAction rows are new to the DB → fresh `cuid2`; Assignment kee
 its seeded ID and gains `title` + `license_id`.
 
 **Keys**
+
 - LicensingAuthority: a stable source-declared key (e.g. `tcole`).
 - License: `PUBLIC_GUID|LICENSE`.
 - LicenseAction: `PUBLIC_GUID|LICENSE|ACTION|ACTION_DATE` (stable synthetic tuple).
@@ -207,6 +214,7 @@ no cross-run preservation concern.
 
 Both phases run against the single 02-10 file; the split is by what reuses
 existing machinery, not by input:
+
 - **Phase A** (existing-DB reconstruction + rename): Agency + Personnel +
   Assignment (`title`) + the ledger-seed tool + the `license_type`→`title` rename
   migration, reusing the existing four kinds and the Census agency resolution.

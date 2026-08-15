@@ -11,12 +11,36 @@ import {
 
 const sheets: Record<string, Array<Record<string, string>>> = {
   Officers: [
-    { PUBLIC_GUID: "1000033", FNAME: "Scott", MNAME: "D", LNAME: "Garner", SFX: "" },
-    { PUBLIC_GUID: "1000038", FNAME: "Marc", MNAME: "", LNAME: "Denney", SFX: "Jr" },
+    {
+      PUBLIC_GUID: "1000033",
+      FNAME: "Scott",
+      MNAME: "D",
+      LNAME: "Garner",
+      SFX: "",
+    },
+    {
+      PUBLIC_GUID: "1000038",
+      FNAME: "Marc",
+      MNAME: "",
+      LNAME: "Denney",
+      SFX: "Jr",
+    },
     // only attached to an INACTIVE agency -> dropped by the active cascade
-    { PUBLIC_GUID: "2000001", FNAME: "Gone", MNAME: "", LNAME: "Defunct", SFX: "" },
+    {
+      PUBLIC_GUID: "2000001",
+      FNAME: "Gone",
+      MNAME: "",
+      LNAME: "Defunct",
+      SFX: "",
+    },
     // not attached to any agency -> dropped by the active cascade
-    { PUBLIC_GUID: "3000001", FNAME: "Un", MNAME: "", LNAME: "Attached", SFX: "" },
+    {
+      PUBLIC_GUID: "3000001",
+      FNAME: "Un",
+      MNAME: "",
+      LNAME: "Attached",
+      SFX: "",
+    },
   ],
   Departments: [
     {
@@ -214,7 +238,10 @@ describe("gov.tx.tcole run", () => {
     // 2000001 only served the inactive agency; 3000001 has no service -> dropped
     expect(Object.keys(personnel.records)).not.toContain("2000001");
     expect(Object.keys(personnel.records)).not.toContain("3000001");
-    expect(Object.keys(personnel.records).sort()).toEqual(["1000033", "1000038"]);
+    expect(Object.keys(personnel.records).sort()).toEqual([
+      "1000033",
+      "1000038",
+    ]);
   });
 
   it("keys AgencyPersonnel by the identity tuple with title=APPOINTMENT", async () => {

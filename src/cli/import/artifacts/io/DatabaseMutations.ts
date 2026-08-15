@@ -94,7 +94,6 @@ const metadataSchema = z
   })
   .strict();
 
-
 export const databaseMutationReferenceSchema = z
   .object({
     ref: z

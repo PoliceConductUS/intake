@@ -15,14 +15,22 @@ beforeEach(async () => {
 
   await writeFile(
     path.join(identityDir, "agencies.yaml"),
-    ["id_field: DEPARTMENT_NUMBER", "mappings:", "  '101100': cm76agency1", "  103070: cm76agency2"].join(
-      "\n",
-    ),
+    [
+      "id_field: DEPARTMENT_NUMBER",
+      "mappings:",
+      "  '101100': cm76agency1",
+      "  103070: cm76agency2",
+    ].join("\n"),
     "utf8",
   );
   await writeFile(
     path.join(identityDir, "personnel.yaml"),
-    ["id_field: PUBLIC_GUID", "mappings:", "  '1000033': cm7person1", "  1000038: cm7person2"].join("\n"),
+    [
+      "id_field: PUBLIC_GUID",
+      "mappings:",
+      "  '1000033': cm7person1",
+      "  1000038: cm7person2",
+    ].join("\n"),
     "utf8",
   );
   await writeFile(

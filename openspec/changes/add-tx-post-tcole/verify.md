@@ -7,13 +7,13 @@ recorded are listed as **PENDING** rather than estimated._
 
 ## Status summary
 
-| Area | State |
-| --- | --- |
-| Phase A — source config + emission (1.0–1.3, 1.5–1.6) | ✅ committed + unit-tested |
-| Phase A — `license_type`→`title` rename + `license_id` (1.4) | ❌ not started (legacy migration went the wrong way) |
-| Phase A — ledger seed tool + round-trip (2.1–2.2) | ✅ committed + unit-tested |
-| Phase A — real-data seed + employment run capture (2.3, 3.1–3.3, 3b.1) | ⏳ PENDING (no run recorded) |
-| Phase B — licensing model (4.x, 5.x) | ❌ not started |
+| Area                                                                   | State                                                |
+| ---------------------------------------------------------------------- | ---------------------------------------------------- |
+| Phase A — source config + emission (1.0–1.3, 1.5–1.6)                  | ✅ committed + unit-tested                           |
+| Phase A — `license_type`→`title` rename + `license_id` (1.4)           | ❌ not started (legacy migration went the wrong way) |
+| Phase A — ledger seed tool + round-trip (2.1–2.2)                      | ✅ committed + unit-tested                           |
+| Phase A — real-data seed + employment run capture (2.3, 3.1–3.3, 3b.1) | ⏳ PENDING (no run recorded)                         |
+| Phase B — licensing model (4.x, 5.x)                                   | ❌ not started                                       |
 
 ## Verified by passing tests (2026-08-13 local run)
 
@@ -65,8 +65,8 @@ keep NOT NULL), add a nullable `license_id`, refresh generated types, and update
 
 - Migration `20260627000000_rename_agency_officers_license_type_to_title.sql`:
   idempotent `license_type`→`title` rename (preserves rows/ids, keeps NOT NULL)
-  + nullable `license_id` column (no FK yet — added with the `license` table in
-  Phase B).
+  - nullable `license_id` column (no FK yet — added with the `license` table in
+    Phase B).
 - `AgencyPersonnelSpec` field renamed `license_type`→`title`; generated envelope
   types + mutation envelopes regenerated (`npm run generate:envelope-types`).
   Hand-written references updated: `transform.ts` (`AgencyOfficerRow.title`,
@@ -89,6 +89,7 @@ keep NOT NULL), add a nullable `license_id`, refresh generated types, and update
 Read `plan-database-mutations.ts` + `classify-database-operations.ts`. A run
 applies as **additive create/read/update only**; it never deletes entities
 absent from the run:
+
 - `classifyDatabaseOperations` iterates solely over `rows.*` (rows present in the
   run) and assigns `"create"` / `"read"` / `"update"`. `"delete"` is never
   assigned anywhere in `src/cli/import`.
@@ -152,6 +153,7 @@ root; a source emits a namespace-local location value that the root maps). ADRs
 0006/0008 got additive forward-pointers (no reverts).
 
 Consequences applied to the licensing work:
+
 - **No curated authorities list.** `sources/gov.tx.tcole/licensing-authorities.ts`
   deleted. `gov.tx.tcole` emits exactly one authority, TCOLE, in-source. DB
   authorities become {TCOLE, AZ POST, MN POST}, one per POST source; unifying a

@@ -47,13 +47,9 @@ export async function readXlsx(
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.readFile(filePath);
   const worksheet =
-    sheet === undefined
-      ? workbook.worksheets[0]
-      : workbook.getWorksheet(sheet);
+    sheet === undefined ? workbook.worksheets[0] : workbook.getWorksheet(sheet);
   if (sheet !== undefined && !worksheet) {
-    const available = workbook.worksheets
-      .map((ws) => ws.name)
-      .join(", ");
+    const available = workbook.worksheets.map((ws) => ws.name).join(", ");
     throw new Error(
       `Worksheet "${sheet}" not found in ${filePath} (available: ${available}).`,
     );

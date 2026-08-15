@@ -366,7 +366,10 @@ function addAgencyPersonnelSourceFacades(
       const sourceName = sourceNameForImportRecord(recordName, record);
       const canonicalId =
         sourceNameToCanonicalIds.agencyPersonnel[sourceName]?.canonicalId;
-      if (canonicalId === undefined || !survivingAgencyPersonnelIds.has(canonicalId)) {
+      if (
+        canonicalId === undefined ||
+        !survivingAgencyPersonnelIds.has(canonicalId)
+      ) {
         continue;
       }
 

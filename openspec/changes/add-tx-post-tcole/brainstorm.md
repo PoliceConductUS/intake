@@ -14,6 +14,7 @@ preserves seed IDs. A new LicenseAction kind carries the fuller 02-04 data.
 ## Alternatives Considered
 
 ### Approach A — Combine both TCOLE files, reuse existing pipeline (CHOSEN)
+
 - **How**: 02-10 file (with addresses) is the base for Agency/Personnel/
   AgencyPersonnel; 02-04 file supplies a new LicenseAction kind (310k rows).
   Reuse the pipeline's existing Census geocoder + address→location_path
@@ -26,12 +27,14 @@ preserves seed IDs. A new LicenseAction kind carries the fuller 02-04 data.
 - **Why it wins**: Maximizes completeness while reusing everything already built.
 
 ### Approach B — 02-10 file only, defer license actions
+
 - **How**: Build the three existing kinds from 02-10; skip 02-04 entirely.
 - **Pros**: Smallest scope; no pipeline surgery.
 - **Cons**: Silently drops ~121k license-action rows the 02-04 file has.
 - **Why not**: User explicitly wants the fuller dataset ("combine both files now").
 
 ### Approach C — Port the existing `data.policeconduct.org/TX/config.py` pipeline
+
 - **How**: Re-implement the original Python seed-builder's transform in intake.
 - **Pros**: Provably matches how seed was built.
 - **Cons**: Reproduces a stale snapshot and its quirks; ignores the config-driven
@@ -43,6 +46,7 @@ preserves seed IDs. A new LicenseAction kind carries the fuller 02-04 data.
 Config-driven source reusing the existing import pipeline; ID stability via ledger
 seed. **Refined during design** to two decisions that superseded the initial
 combine-both plan:
+
 - **Single file.** The 02-04 export turned out to be a known-problematic interim
   TCOLE export, so it is excluded; TX is one import from the 02-10 file (which has
   all sheets: agencies+addresses, officers, services, license actions).

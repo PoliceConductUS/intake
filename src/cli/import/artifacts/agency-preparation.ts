@@ -158,9 +158,7 @@ export async function prepareAgencyRows(
     try {
       await context.add("agency", agency);
     } catch (error) {
-      errors.push(
-        `Agency ${agencyErrorLabel(agency)}: ${errorMessage(error)}`,
-      );
+      errors.push(`Agency ${agencyErrorLabel(agency)}: ${errorMessage(error)}`);
     }
 
     if (total > 0 && (processed === total || processed % 100 === 0)) {

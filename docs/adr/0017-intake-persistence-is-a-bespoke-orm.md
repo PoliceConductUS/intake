@@ -23,7 +23,7 @@ reporting, exclusion cascade) actually live.
 **1. The intake persistence layer is a bespoke ORM built on classic PoEAA
 patterns:**
 
-- **`DataContext` = Unit of Work + Identity Map** (the ORM *session*; cf. EF
+- **`DataContext` = Unit of Work + Identity Map** (the ORM _session_; cf. EF
   `DbContext` / LINQ-to-SQL `DataContext`). It tracks the entities touched in a
   command, resolves their identities, and builds the batch of changes. **Building
   the mutation set is a Unit of Work's job — not an overload.**
@@ -76,14 +76,14 @@ builder later touches only the executor / read side, not the facades or resolver
 - Resolution logic is unit-testable with fake gateways; the flush/transaction
   script is the composition root that wires the real IO.
 - The persistence layer can adopt a query builder incrementally, because the
-  envelope decouples mutation *building* from *execution*.
+  envelope decouples mutation _building_ from _execution_.
 - No off-the-shelf ORM is adopted; its execution model and DB-generated identity
   conflict with the replay envelope and source-key identity.
 
 ## Alternatives Considered
 
 - **Fold mutation planning into `DataContext` as a big context:** reframed rather
-  than rejected — building mutations *is* the Unit of Work's job; only the
+  than rejected — building mutations _is_ the Unit of Work's job; only the
   transaction/IO/aggregate-reporting move out to the flush script.
 - **Adopt a full ORM (Prisma/TypeORM/MikroORM):** rejected — couples planning and
   execution, hides SQL, assumes DB-generated identity, and duplicates the Unit of

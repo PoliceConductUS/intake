@@ -35,6 +35,7 @@ Supabase/PostgreSQL migrations, cuid2, Vitest.
 ## Phase A — Existing-DB reconstruction + rename
 
 ### Task A1: Source scaffold + employment emission
+
 - **Files:** create `sources/gov.tx.tcole/config.ts`; test `test/sources/gov.tx.tcole/run.test.ts`.
 - [ ] `run(deps)` reads the 02-10 workbook's sheets via `deps.readXlsx`.
 - [ ] Emit Personnel (`PUBLIC_GUID`), Agency (`DEPARTMENT_NUMBER`, address fields, no slug/location/lat/lng), Assignment (synthetic key; `title`=APPOINTMENT; `agency_id`/`personnel_id` source keys; `license` ref=`PUBLIC_GUID|LICENSE`; start/end).
@@ -42,18 +43,21 @@ Supabase/PostgreSQL migrations, cuid2, Vitest.
 - [ ] Tests: shapes, determinism, key-format == `id_field`, `title`==APPOINTMENT. Run `npm run test -- gov.tx.tcole`.
 
 ### Task A2: Rename migration + AgencyPersonnel spec
+
 - **Files:** `supabase/migrations/*_agency_officers_add_license_id.sql`; regenerate `src/shared/io/generated/entity-specs.ts` (or edit generator input).
 - [ ] Idempotent: ensure `license_type`→`title` rename already exists (migration `20260626000000`), add nullable `license_id` FK.
 - [ ] `AgencyPersonnelSpec`: `title` (required) + `license` ref field; regenerate types.
 - [ ] Verify existing rows/IDs unchanged.
 
 ### Task A3: Ledger-seed tool
+
 - **Files:** create `src/cli/**/seed-tcole-ledger.ts` (or a scripts entry); test alongside.
 - [ ] Read abandoned `identity/sources/tcole/{agencies,personnel,agency-officers}.yaml`, build `SourceNameToCanonicalIds`, call `persistSourceNameToCanonicalIds("gov.tx.tcole", …)`.
 - [ ] Round-trip test: seed fixture → `loadSourceNameToCanonicalIds` returns same maps.
 - [ ] Run against real maps; record counts in `verify.md`.
 
 ### Task A4: Employment reconstruction (acceptance)
+
 - [ ] `intake run gov.tx.tcole` dry-run composes with the Census resolver defaulted.
 - [ ] Reconcile Agency/Personnel/Assignment counts vs the abandoned manifest; spot-check preserved IDs + `title` role. Record in `verify.md`.
 
@@ -62,23 +66,28 @@ Supabase/PostgreSQL migrations, cuid2, Vitest.
 ## Phase B — Licensing model
 
 ### Task B1: Additive-load verification (gate)
+
 - [ ] Read `plan-database-mutations.ts`; confirm additive upsert (no delete of absent entities). If reconcile-by-deletion, STOP and escalate. Document in `verify.md`.
 
 ### Task B2: Licensing schema
+
 - **Files:** `supabase/migrations/*_licensing_authority.sql`, `*_license.sql`, `*_license_action.sql`; regenerate types.
 - [ ] `licensing_authority(name, abbreviation, website, location_path_id)`; `license(officer_id, license_type, status, first_awarded, issued_by_authority_id, unique(officer_id,license_type))`; `license_action(license_id, action, action_date, status)`. Explicit IDs.
 
 ### Task B3: Register three kinds + specs
+
 - **Files:** `src/shared/io/import-types.ts`, generated specs.
 - [ ] `LicensingAuthoritySpec`/`LicenseSpec`/`LicenseActionSpec` + record schemas; registry entries with `dependsOn` (License→LicensingAuthority+Personnel; LicenseAction→License; AgencyPersonnel→…+License).
 
 ### Task B4: Ledger + transform plumbing
+
 - **Files:** `src/cli/state/source-name-to-canonical-id/index.ts`, `src/cli/import/artifacts/transform.ts`, `plan-database-mutations.ts`.
 - [ ] Add the three entity blocks (load/persist/resolve/assert).
 - [ ] Build authority/license/license_action rows; resolve License `issued_by_authority_id` and Assignment `license_id` via the ledger; fresh cuids for new entities.
 - [ ] Tests for new kinds + Assignment `license_id`; assert existing kinds unaffected.
 
 ### Task B5: Licensing emission + full reconstruction (acceptance)
+
 - [ ] Create the curated `licensing-authorities` reference file (~55 US POST agencies) and emit a LicensingAuthority per row (`location_path_id` → gazetteer `/state/`).
 - [ ] Emit License (distinct `PUBLIC_GUID`×`LICENSE` across `OfficersLicensesActions`+`Services`, issued_by TCOLE), LicenseAction (`OfficersLicensesActions`). Tests.
 - [ ] One `intake run gov.tx.tcole` emits all six kinds. Confirm ~189k license actions, assignment `license_id` + license `issued_by_authority_id` resolve. Record in `verify.md`.

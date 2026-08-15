@@ -11,6 +11,7 @@ current seed never had.
 ## What Changes
 
 **TX POST (TCOLE) source**
+
 - From: no TCOLE source; TX rows exist only because `seed.sql` hand-loads them.
 - To: `sources/gov.tx.tcole/config.ts` emits Agency/Personnel/AgencyPersonnel
   from the 02-10 TCOLE file; `intake run` reconstructs them with geocoded
@@ -19,6 +20,7 @@ current seed never had.
 - Impact: non-breaking; additive namespace `gov.tx.tcole`.
 
 **Canonical ID preservation**
+
 - From: canonical IDs only exist inside `seed.sql`.
 - To: a one-time ledger-seed transcribes the prior TCOLE identity maps into the
   intake `SourceNameToCanonicalId` ledger so reconstruction reuses existing IDs.
@@ -26,6 +28,7 @@ current seed never had.
 - Impact: writes ledger records under namespace `gov.tx.tcole`.
 
 **Licensing model (new) + Assignment fix**
+
 - From: the pipeline supports four kinds; no licensing authority/license tables;
   `agency_officers.license_type` mis-holds the role.
 - To: rename `agency_officers.license_type`→`title` (+ nullable `license_id`); new
@@ -40,6 +43,7 @@ current seed never had.
 ## Capabilities
 
 ### New Capabilities
+
 - `tcole-source-import`: config-driven TCOLE source that reads the single 02-10
   workbook and emits LicensingAuthority/Agency/Personnel/Assignment/License/
   LicenseAction, keyed by TCOLE source keys, with the Assignment synthetic tuple
@@ -52,10 +56,10 @@ current seed never had.
   `license_id`), and their additive registration in the import pipeline.
 
 ### Modified Capabilities
+
 <!-- None. The import-registry / SourceNameToCanonicalId extension for the fifth
 kind is not a promoted base spec yet, so it is specified as part of the new
 `license-action-import` capability rather than as a delta. -->
-
 
 ## Impact
 
@@ -66,7 +70,7 @@ kind is not a promoted base spec yet, so it is specified as part of the new
 - **Modified code**: `src/shared/io/import-types.ts` (registry gains 3 kinds),
   `src/cli/state/source-name-to-canonical-id/index.ts` (3 new entity blocks),
   `src/cli/import/artifacts/transform.ts` + `plan-database-mutations.ts` (new rows
-  + Assignment `license_id`/License `issued_by_authority_id` resolution).
+  - Assignment `license_id`/License `issued_by_authority_id` resolution).
 - **Reused unchanged**: Census geocoder + address→location_path resolution +
   ResolvedProperty cache (`agency-*-resolution.ts`, `agency-coordinate-*.ts`).
 - **Inputs**: one TCOLE workbook (`PublicInformationRequest_2025-02-10_1410.xlsx`),

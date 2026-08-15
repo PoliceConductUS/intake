@@ -413,7 +413,9 @@ describe("importArtifacts", () => {
       rows: partialRows,
       operations: result.operations,
       sourceNameToCanonicalIds: {
-        agencies: { "agency-source-id": { canonicalId: "agency-canonical-id" } },
+        agencies: {
+          "agency-source-id": { canonicalId: "agency-canonical-id" },
+        },
         personnel: {},
         agencyPersonnel: {},
         locationPaths: {},
@@ -710,7 +712,9 @@ describe("importArtifacts", () => {
       rows,
       operations: createOperations,
       sourceNameToCanonicalIds: {
-        agencies: { "agency-source-id": { canonicalId: "agency-canonical-id" } },
+        agencies: {
+          "agency-source-id": { canonicalId: "agency-canonical-id" },
+        },
         personnel: {},
         agencyPersonnel: {},
         locationPaths: {},

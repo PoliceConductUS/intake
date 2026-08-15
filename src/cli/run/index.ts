@@ -4,7 +4,10 @@ import path from "node:path";
 import { Command } from "commander";
 import { Artifacts, loadExcludedRecords } from "../../shared/io/index.js";
 import type { ExcludedRecords } from "../../shared/io/index.js";
-import { createCommandDirectory, intakeWorkspace } from "../command-directory.js";
+import {
+  createCommandDirectory,
+  intakeWorkspace,
+} from "../command-directory.js";
 import { runImportArtifactsCommand } from "../import/artifacts/index.js";
 import type {
   CliCommandDependencies,
@@ -237,7 +240,13 @@ export const registerCliCommand: RegisterCliCommand = (
                 ).commandDirectory,
               createEmitSink,
               loadExcludedRecords,
-              writeEnvelope: async (directory, id, digest, manifest, refItems) =>
+              writeEnvelope: async (
+                directory,
+                id,
+                digest,
+                manifest,
+                refItems,
+              ) =>
                 Artifacts.write(
                   directory,
                   buildArtifactsEnvelope(id, digest, manifest, refItems),

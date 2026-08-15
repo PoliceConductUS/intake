@@ -403,9 +403,7 @@ function licensingAuthorityLocationPathResolver(): Resolver<
   });
 }
 
-export class LicensingAuthorityFacade
-  implements PropertyResolutionFacade<LicensingAuthorityRowShape>
-{
+export class LicensingAuthorityFacade implements PropertyResolutionFacade<LicensingAuthorityRowShape> {
   private static readonly kind = "LicensingAuthority";
   private readonly current?: Record<string, unknown>;
   private readonly spec: Record<string, unknown> = {};
@@ -489,7 +487,9 @@ export class LicensingAuthorityFacade
     // Plain source properties resolve to the merged source value already in the
     // target column's datatype; a nullable column with no source value is null.
     const value = this.spec[property as string];
-    return (value === undefined ? null : value) as LicensingAuthorityRowShape[K];
+    return (
+      value === undefined ? null : value
+    ) as LicensingAuthorityRowShape[K];
   }
 
   private unresolvedMessage(
@@ -809,9 +809,7 @@ type LicenseActionResolvers = Partial<{
   >;
 }>;
 
-export class LicenseFacade
-  implements PropertyResolutionFacade<LicenseRowShape>
-{
+export class LicenseFacade implements PropertyResolutionFacade<LicenseRowShape> {
   private static readonly kind = "License";
   private readonly current?: Record<string, unknown>;
   private readonly spec: Record<string, unknown> = {};
@@ -983,9 +981,7 @@ export class LicenseFacade
   }
 }
 
-export class LicenseActionFacade
-  implements PropertyResolutionFacade<LicenseActionRowShape>
-{
+export class LicenseActionFacade implements PropertyResolutionFacade<LicenseActionRowShape> {
   private static readonly kind = "LicenseAction";
   private readonly current?: Record<string, unknown>;
   private readonly spec: Record<string, unknown> = {};
@@ -1236,7 +1232,10 @@ function personnelSlugResolver(): Resolver<
     const explicitId = await facade.value("id");
     const explicit = valueAsString(facade.raw("slug"));
     if (explicit !== undefined) {
-      backend.registerPersonnelSlug({ slug: explicit, canonicalId: explicitId });
+      backend.registerPersonnelSlug({
+        slug: explicit,
+        canonicalId: explicitId,
+      });
       return explicit;
     }
     // Stability: reuse the existing DB row's slug so a corrected name does not
@@ -1270,9 +1269,7 @@ type PersonnelResolvers = Partial<{
   >;
 }>;
 
-export class PersonnelFacade
-  implements PropertyResolutionFacade<PersonnelRowShape>
-{
+export class PersonnelFacade implements PropertyResolutionFacade<PersonnelRowShape> {
   private static readonly kind = "Personnel";
   private readonly current?: Record<string, unknown>;
   private readonly spec: Record<string, unknown> = {};
@@ -1291,9 +1288,10 @@ export class PersonnelFacade
     this.source = options.source;
     this.backend = options.backend;
     this.resolvers = {
-      id: facadeCanonicalIdResolver<PersonnelRowShape, PersonnelResolverBackend>(
-        PersonnelFacade.kind,
-      ),
+      id: facadeCanonicalIdResolver<
+        PersonnelRowShape,
+        PersonnelResolverBackend
+      >(PersonnelFacade.kind),
       slug: personnelSlugResolver(),
       // Casing normalization for ALL-CAPS source names (applied via resolvers so
       // slugs, which read `facade.raw`, are unaffected). `first_name`/`last_name`
@@ -1524,7 +1522,9 @@ export type AgencyResolverBackend = {
    * then point-in-polygon containment. Throws (resolve-or-fail) when the address
    * cannot be geocoded or no boundary contains the resolved point.
    */
-  resolveAgencyLocation(input: ResolveAddressInput): Promise<LocationResolution>;
+  resolveAgencyLocation(
+    input: ResolveAddressInput,
+  ): Promise<LocationResolution>;
 };
 
 /** The columns that are pass-through source metadata (public.agency jsonb). */
@@ -1878,9 +1878,7 @@ type AgencyPersonnelResolvers = Partial<{
   >;
 }>;
 
-export class AgencyPersonnelFacade
-  implements PropertyResolutionFacade<AgencyOfficerRowShape>
-{
+export class AgencyPersonnelFacade implements PropertyResolutionFacade<AgencyOfficerRowShape> {
   private static readonly kind = "AgencyPersonnel";
   private readonly current?: Record<string, unknown>;
   private readonly spec: Record<string, unknown> = {};
@@ -2141,9 +2139,7 @@ type LocationPathResolvers = Partial<{
   >;
 }>;
 
-export class LocationPathFacade
-  implements PropertyResolutionFacade<LocationPathRowShape>
-{
+export class LocationPathFacade implements PropertyResolutionFacade<LocationPathRowShape> {
   private static readonly kind = "LocationPath";
   private readonly current?: Record<string, unknown>;
   private readonly spec: Record<string, unknown> = {};
@@ -2289,9 +2285,7 @@ type LocationPathAliasResolvers = Partial<{
   >;
 }>;
 
-export class LocationPathAliasFacade
-  implements PropertyResolutionFacade<LocationPathAliasRowShape>
-{
+export class LocationPathAliasFacade implements PropertyResolutionFacade<LocationPathAliasRowShape> {
   private static readonly kind = "LocationPathAlias";
   private readonly current?: Record<string, unknown>;
   private readonly spec: Record<string, unknown> = {};
@@ -2375,9 +2369,7 @@ export class LocationPathAliasFacade
     return (value === undefined ? null : value) as LocationPathAliasRowShape[K];
   }
 
-  private unresolvedMessage(
-    property: keyof LocationPathAliasRowShape,
-  ): string {
+  private unresolvedMessage(property: keyof LocationPathAliasRowShape): string {
     return `Cannot resolve ${LocationPathAliasFacade.kind}.${String(
       property,
     )} for source ${this.source.namespace}/${this.source.name}; offending value ${JSON.stringify(
@@ -2423,9 +2415,7 @@ type LocationPathGeometryResolvers = Partial<{
   >;
 }>;
 
-export class LocationPathGeometryFacade
-  implements PropertyResolutionFacade<LocationPathGeometryRowShape>
-{
+export class LocationPathGeometryFacade implements PropertyResolutionFacade<LocationPathGeometryRowShape> {
   private static readonly kind = "LocationPathGeometry";
   private readonly current?: Record<string, unknown>;
   private readonly spec: Record<string, unknown> = {};
@@ -2449,12 +2439,11 @@ export class LocationPathGeometryFacade
     this.resolvers = {
       // The geometry's identity is its target `location_path_id` (one geometry
       // per location path), which is also the FK to the LocationPath facade.
-      location_path_id:
-        facadeForeignKeyResolver<LocationPathGeometryRowShape>(
-          LocationPathGeometryFacade.kind,
-          "location_path_id",
-          "LocationPath",
-        ),
+      location_path_id: facadeForeignKeyResolver<LocationPathGeometryRowShape>(
+        LocationPathGeometryFacade.kind,
+        "location_path_id",
+        "LocationPath",
+      ),
     };
   }
 
@@ -2507,7 +2496,9 @@ export class LocationPathGeometryFacade
     property: K,
   ): LocationPathGeometryRowShape[K] {
     const value = this.spec[property as string];
-    return (value === undefined ? null : value) as LocationPathGeometryRowShape[K];
+    return (
+      value === undefined ? null : value
+    ) as LocationPathGeometryRowShape[K];
   }
 
   private unresolvedMessage(
@@ -2975,10 +2966,10 @@ export class DataContext {
     );
     this.databaseAgencyPersonnelById = new Map(
       (options.databaseAgencyPersonnel ?? [])
-        .map((agencyPersonnel) => [
-          valueAsString(agencyPersonnel.id),
-          agencyPersonnel,
-        ] as const)
+        .map(
+          (agencyPersonnel) =>
+            [valueAsString(agencyPersonnel.id), agencyPersonnel] as const,
+        )
         .filter(
           (entry): entry is readonly [string, Record<string, unknown>] =>
             entry[0] !== undefined,
@@ -3352,8 +3343,7 @@ export class DataContext {
   ): Promise<string> {
     const claims = this.slugClaimsFor(table);
     for (let attempt = 1; ; attempt += 1) {
-      const candidate =
-        attempt === 1 ? input.base : `${input.base}-${attempt}`;
+      const candidate = attempt === 1 ? input.base : `${input.base}-${attempt}`;
       const claimant = claims.get(candidate);
       if (claimant !== undefined) {
         if (claimant === input.canonicalId) {
@@ -3687,12 +3677,9 @@ export class DataContext {
 
   licenseFromSource(input: SourceRecordContext): LicenseFacade {
     validateSourceRecordContext(input);
-    const key = [
-      input.apiVersion,
-      input.namespace,
-      "License",
-      input.name,
-    ].join(":");
+    const key = [input.apiVersion, input.namespace, "License", input.name].join(
+      ":",
+    );
     const existing = this.licenseFacades.get(key);
     if (existing !== undefined) {
       if (input.spec !== undefined) {

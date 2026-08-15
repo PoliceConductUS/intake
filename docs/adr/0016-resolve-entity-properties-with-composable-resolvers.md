@@ -77,7 +77,7 @@ in the database. The property kinds and their resolvers:
   `(source-namespace, source-id, natural-key, default-or-exception)`. Find in
   order: exact by `(namespace, kind, source-id)` in the cache; else a
   **natural-key match against the database** — this is how a record already in the
-  DB but not yet in the cache is preserved (its existing id is *recovered*, not
+  DB but not yet in the cache is preserved (its existing id is _recovered_, not
   duplicated); else mint a new `cuid2` and persist. An ambiguous natural-key match
   fails fast and loud. (ADR 0008's assignment, now the "id" property's resolver.)
 - **Foreign key to another entity (same source):** because a source emits no
@@ -116,7 +116,7 @@ recomputes a derived value, or re-finds an identity by source-id/natural-key
 (recovering the existing id from the database, so a delete does not create a
 duplicate). There is no automatic staleness detection.
 
-**6. Boundary with the mutation layer.** Resolvers produce desired *values* only.
+**6. Boundary with the mutation layer.** Resolvers produce desired _values_ only.
 The facade's `toMutation` still owns create-vs-update diffing (check vs set); a
 resolver never decides create/update or reads current DB rows for that purpose
 (ADR 0011).
@@ -143,7 +143,7 @@ owned by another source) are resolve-or-fail against the backend, since a source
 cannot order another source's records.
 
 **10. Batched (DataLoader) resolvers — N+1 avoidance, emergent from concurrency.**
-A resolver whose gateway supports batching MAY be a *batch-loader*: `load(key)`
+A resolver whose gateway supports batching MAY be a _batch-loader_: `load(key)`
 returns a memoized promise, and every `load` in the same tick is **coalesced** into
 one `batchLoad(keys)` call, keyed by the resolver's normalized input (normalized
 address for geocode; id/path for a batched `getById`/`getByPath`; etc.). The loader
@@ -152,9 +152,9 @@ unifies per-key caching (#5) with batching. Because resolution is lazy and memoi
 concurrently (ADR 0017 #3), their `load` calls land in one tick and batch
 automatically — there is **no separate "prewarm" pass**. This is the general
 N+1-avoidance mechanism for any batchable gateway. Keep the cache split by input
-stability (#5): a value derived from a *stable* input (coordinates from a
-normalized address) caches write-once; a value derived from *mutable reference
-data* (a `location_path` from coordinates, which depends on the current geometries)
+stability (#5): a value derived from a _stable_ input (coordinates from a
+normalized address) caches write-once; a value derived from _mutable reference
+data_ (a `location_path` from coordinates, which depends on the current geometries)
 is a separate recomputable/invalidatable loader, not merged into the stable cache.
 
 ## Consequences

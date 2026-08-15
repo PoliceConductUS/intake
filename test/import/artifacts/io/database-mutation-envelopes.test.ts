@@ -299,7 +299,6 @@ describe("database mutation envelopes", () => {
     ).toThrow("DatabaseMutations is malformed");
   });
 
-
   test("LocationPathUpdate rejects nested paths", async () => {
     const filePath = path.join(
       await tempDir(),

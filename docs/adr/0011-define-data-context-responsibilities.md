@@ -16,7 +16,7 @@ Proposed
 > resolvers (find-or-create, resolve-or-fail, generate-unique, derived, constant).
 >
 > Framed by [ADR 0017](0017-intake-persistence-is-a-bespoke-orm.md): `DataContext`
-> is the ORM's Unit of Work + Identity Map (the mutation-*builder*); the
+> is the ORM's Unit of Work + Identity Map (the mutation-_builder_); the
 > transaction/IO/aggregate-reporting live in a thin flush script, not here.
 
 ## Context
