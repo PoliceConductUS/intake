@@ -232,7 +232,6 @@ describe("architecture boundaries", () => {
       "readArtifactsStage",
       "rejectExistingImportStage",
       "applyArtifactMutationsStage",
-      "resolveSourceNamesStage",
       "transformArtifactsStage",
       "executeDatabaseMutationPlanningStage",
       "writeDatabaseMutationsDebugStage",

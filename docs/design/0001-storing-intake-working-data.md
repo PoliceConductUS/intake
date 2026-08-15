@@ -2,10 +2,24 @@
 
 ## Status
 
-Draft / exploration — **no decision yet**. Captures a measured problem and the
-options, to be resolved by a small spike. Relates to ADR 0002 (replayable
-archive), ADR 0015 (namespace isolation), ADR 0016 (#4 canonical-id recovery),
-and ADR 0017 (bespoke ORM).
+**Partially resolved (no database).** Two of the three stores were fixed on
+`redesign-config-driven-intake`:
+
+- **Artifacts** — records are no longer one-file-per-row. Each kind is written as
+  an inline **collection**, split into chunk files of `ARTIFACT_RECORDS_PER_FILE`
+  (10k) records, listed in dependency order and merged on read
+  (`Artifacts.write`/`read`). This collapses the ~456k TX artifact files to a few
+  dozen. The clarification is recorded in ADR 0001 §"Source-produced data" and
+  ADR 0009. (Option C / database staging was explicitly declined.)
+- **Ledger** — the up-front `readdir` + parse of ~451k `SourceNameToCanonicalId`
+  files is deleted; the ledger is now a stateless per-record point read
+  (`createSourceNameToCanonicalIdLedger`), find-or-create against a single derived
+  path. No memoization yet — pending measurement of the real bottleneck.
+- **Resolver cache** — unchanged (already a point read).
+
+Original exploration follows. Relates to ADR 0002 (replayable archive), ADR 0015
+(namespace isolation), ADR 0016 (#4 canonical-id recovery), and ADR 0017 (bespoke
+ORM).
 
 ## Problem
 

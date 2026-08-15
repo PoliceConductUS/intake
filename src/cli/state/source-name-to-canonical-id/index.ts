@@ -1,13 +1,8 @@
-import { mkdir, readdir, stat } from "node:fs/promises";
+import { mkdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { createId } from "@paralleldrive/cuid2";
-import type { ArtifactsEnvelope } from "../../../shared/io/Artifacts.js";
 import { SourceNameToCanonicalId } from "./SourceNameToCanonicalId.js";
 import { yamlResourceFileName } from "../../../shared/io/resource.js";
-import {
-  importKindByEntityName,
-  sourceNameForImportRecord,
-} from "../../../shared/io/import-types.js";
 
 export type AgencyMapping = {
   kind?: "Agency";
@@ -68,41 +63,12 @@ const sourceNameKinds = {
   licenseAction: "LicenseAction",
 } as const;
 
-function artifactsEntityKeys(
-  artifacts: ArtifactsEnvelope,
-  entityName:
-    | "locationPaths"
-    | "agencies"
-    | "personnel"
-    | "agencyPersonnel"
-    | "licensingAuthorities"
-    | "licenses"
-    | "licenseActions",
-): string[] {
-  const kind = importKindByEntityName[entityName];
-  const entityMap = Object.assign(
-    {},
-    ...artifacts.spec.artifacts
-      .filter((artifact) => artifact.kind === kind)
-      .map((artifact) => artifact.spec.records),
-  ) as Record<string, unknown>;
-
-  return Object.entries(entityMap).map(([recordKey, record]) =>
-    sourceNameForImportRecord(recordKey, record),
-  );
-}
-
-function formatRequiredMappingError(
-  mappingType: string,
-  sourceName: string,
-  mapping: { canonicalId?: string } | undefined,
-): string | undefined {
-  if (mapping?.canonicalId !== undefined && mapping.canonicalId.length > 0) {
-    return undefined;
-  }
-
-  return `${mappingType} source name ${sourceName} is missing required field canonicalId.`;
-}
+/**
+ * The entity kinds the ledger tracks. Each kind is also its per-record
+ * subdirectory name under the namespace's ledger directory.
+ */
+export type LedgerEntityKind =
+  (typeof sourceNameKinds)[keyof typeof sourceNameKinds];
 
 export function resolveSourceNameToCanonicalIdPath(
   namespace: string,
@@ -130,140 +96,104 @@ function mappingRecordPath(
   );
 }
 
-async function readMappingRecord<T>(
-  mappingPath: string,
-  namespace: string,
-  expectedKind: string,
-): Promise<{ sourceName: string; spec: T }> {
-  const mapping = await SourceNameToCanonicalId.read(mappingPath, {
-    expectedNamespace: namespace,
-  });
-  if (mapping.spec.kind !== expectedKind) {
-    throw new Error(
-      `SourceNameToCanonicalId kind ${mapping.spec.kind} does not match expected kind ${expectedKind}: ${mappingPath}`,
-    );
-  }
-
-  return {
-    sourceName: mapping.metadata.name,
-    spec: mapping.spec as T,
-  };
-}
-
-async function readMappingDirectory<T>(
-  mappingDirectory: string,
-  namespace: string,
-  entityDirectory: string,
-  expectedKind: string,
-): Promise<Record<string, T>> {
-  const entityPath = path.join(mappingDirectory, entityDirectory);
-  let entries;
+async function mappingRecordExists(filePath: string): Promise<boolean> {
   try {
-    entries = await readdir(entityPath);
-  } catch (error) {
-    const code =
-      typeof error === "object" && error !== null && "code" in error
-        ? error.code
-        : undefined;
-    if (code === "ENOENT") {
-      return {};
+    const fileStat = await stat(filePath);
+    if (!fileStat.isFile()) {
+      throw new Error(
+        `SourceNameToCanonicalId path is not a file: ${filePath}`,
+      );
     }
-    throw new Error(
-      `SourceNameToCanonicalId directory is not readable: ${entityPath}`,
-    );
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return false;
+    }
+    throw error;
   }
-
-  const records: Record<string, T> = {};
-  for (const entry of entries.filter((fileName) =>
-    fileName.endsWith(".SourceNameToCanonicalId.yaml"),
-  )) {
-    const record = await readMappingRecord(
-      path.join(entityPath, entry),
-      namespace,
-      expectedKind,
-    );
-    records[record.sourceName] = record.spec as T;
-  }
-  return records;
 }
 
-export async function loadSourceNameToCanonicalIds(
-  namespace: string,
+/**
+ * A stateless accessor over the durable `SourceNameToCanonicalId` ledger (the
+ * Identity Map's durable half — ADR 0017). Every lookup derives the single
+ * record's file path from the in-memory `(namespace, kind, sourceName)` and reads
+ * that one file — there is NO bulk directory scan and NO in-memory cache. A prior
+ * design bulk-loaded every ledger file up front (`readdir` + parse of hundreds of
+ * thousands of files); that is deliberately gone and must never return.
+ *
+ * `namespace` is per call, not per accessor: a record's identity lives under its
+ * own source namespace (`intake/state/namespaces/<namespace>/`), which is not
+ * necessarily the running command's namespace — e.g. a `gov.tx.tcole` agency
+ * resolves a `LocationPath` id owned by the census namespace (ADR 0015).
+ */
+export type SourceNameToCanonicalIdLedger = {
+  /** The canonical id for a source key, or `undefined` if none is recorded yet. */
+  read(
+    namespace: string,
+    kind: LedgerEntityKind,
+    sourceName: string,
+  ): Promise<string | undefined>;
+  /**
+   * The canonical id for a source key: the recorded id if present, otherwise a
+   * freshly minted `cuid2` that is durably written to its own record file before
+   * returning (find-or-create — "get-or-materialize in the Identity Map").
+   */
+  findOrCreate(
+    namespace: string,
+    kind: LedgerEntityKind,
+    sourceName: string,
+  ): Promise<string>;
+};
+
+export function createSourceNameToCanonicalIdLedger(
   options: MappingPathOptions = {},
-): Promise<SourceNameToCanonicalIds> {
-  const mappingDirectory = resolveSourceNameToCanonicalIdPath(
-    namespace,
-    options,
-  );
-  try {
-    await mkdir(mappingDirectory, { recursive: true });
-  } catch {
-    throw new Error(
-      `SourceNameToCanonicalId directory is not writable: ${mappingDirectory}`,
+): SourceNameToCanonicalIdLedger {
+  async function read(
+    namespace: string,
+    kind: LedgerEntityKind,
+    sourceName: string,
+  ): Promise<string | undefined> {
+    const filePath = mappingRecordPath(
+      resolveSourceNameToCanonicalIdPath(namespace, options),
+      kind,
+      sourceName,
     );
+    if (!(await mappingRecordExists(filePath))) {
+      return undefined;
+    }
+    const envelope = await SourceNameToCanonicalId.read(filePath, {
+      expectedNamespace: namespace,
+    });
+    if (envelope.spec.kind !== kind) {
+      throw new Error(
+        `SourceNameToCanonicalId kind ${envelope.spec.kind} does not match expected kind ${kind}: ${filePath}`,
+      );
+    }
+    return envelope.spec.canonicalId;
   }
 
-  let directoryStat;
-  try {
-    directoryStat = await stat(mappingDirectory);
-  } catch {
-    throw new Error(
-      `SourceNameToCanonicalId directory is not readable: ${mappingDirectory}`,
+  async function findOrCreate(
+    namespace: string,
+    kind: LedgerEntityKind,
+    sourceName: string,
+  ): Promise<string> {
+    const existing = await read(namespace, kind, sourceName);
+    if (existing !== undefined) {
+      return existing;
+    }
+
+    const canonicalId = createId();
+    await SourceNameToCanonicalId.write(
+      path.join(resolveSourceNameToCanonicalIdPath(namespace, options), kind),
+      SourceNameToCanonicalId.new({
+        metadata: { name: sourceName, namespace },
+        spec: { kind, canonicalId },
+      }),
     );
+    return canonicalId;
   }
 
-  if (!directoryStat.isDirectory()) {
-    throw new Error(
-      `SourceNameToCanonicalId path is not a directory: ${mappingDirectory}`,
-    );
-  }
-
-  const mappings: SourceNameToCanonicalIds = {
-    locationPaths: await readMappingDirectory(
-      mappingDirectory,
-      namespace,
-      "LocationPath",
-      sourceNameKinds.locationPath,
-    ),
-    agencies: await readMappingDirectory(
-      mappingDirectory,
-      namespace,
-      "Agency",
-      sourceNameKinds.agency,
-    ),
-    personnel: await readMappingDirectory(
-      mappingDirectory,
-      namespace,
-      "Personnel",
-      sourceNameKinds.personnel,
-    ),
-    agencyPersonnel: await readMappingDirectory(
-      mappingDirectory,
-      namespace,
-      "AgencyPersonnel",
-      sourceNameKinds.agencyPersonnel,
-    ),
-    licensingAuthorities: await readMappingDirectory(
-      mappingDirectory,
-      namespace,
-      "LicensingAuthority",
-      sourceNameKinds.licensingAuthority,
-    ),
-    licenses: await readMappingDirectory(
-      mappingDirectory,
-      namespace,
-      "License",
-      sourceNameKinds.license,
-    ),
-    licenseActions: await readMappingDirectory(
-      mappingDirectory,
-      namespace,
-      "LicenseAction",
-      sourceNameKinds.licenseAction,
-    ),
-  };
-
-  return mappings;
+  return { read, findOrCreate };
 }
 
 export async function persistSourceNameToCanonicalIds(
@@ -318,177 +248,4 @@ export async function persistSourceNameToCanonicalIds(
       );
     }
   }
-}
-
-export function assertRequiredMappingFields(
-  artifacts: ArtifactsEnvelope,
-  mappings: SourceNameToCanonicalIds,
-): void {
-  assertCanonicalMappingFields(artifacts, mappings);
-}
-
-export function assertCanonicalMappingFields(
-  artifacts: ArtifactsEnvelope,
-  mappings: SourceNameToCanonicalIds,
-): void {
-  const errors: string[] = [];
-
-  for (const sourceName of artifactsEntityKeys(artifacts, "locationPaths")) {
-    const mapping = mappings.locationPaths[sourceName];
-    const error = formatRequiredMappingError(
-      "Location path",
-      sourceName,
-      mapping,
-    );
-    if (error !== undefined) {
-      errors.push(error);
-    }
-  }
-
-  for (const sourceName of artifactsEntityKeys(artifacts, "agencies")) {
-    const mapping = mappings.agencies[sourceName];
-    const error = formatRequiredMappingError("Agency", sourceName, mapping);
-    if (error !== undefined) {
-      errors.push(error);
-    }
-  }
-
-  for (const sourceName of artifactsEntityKeys(artifacts, "personnel")) {
-    const mapping = mappings.personnel[sourceName];
-    const error = formatRequiredMappingError("Personnel", sourceName, mapping);
-    if (error !== undefined) {
-      errors.push(error);
-    }
-  }
-
-  for (const sourceName of artifactsEntityKeys(artifacts, "agencyPersonnel")) {
-    const mapping = mappings.agencyPersonnel[sourceName];
-    const error = formatRequiredMappingError(
-      "Agency-personnel",
-      sourceName,
-      mapping,
-    );
-    if (error !== undefined) {
-      errors.push(error);
-    }
-  }
-
-  for (const sourceName of artifactsEntityKeys(
-    artifacts,
-    "licensingAuthorities",
-  )) {
-    const mapping = mappings.licensingAuthorities?.[sourceName];
-    const error = formatRequiredMappingError(
-      "Licensing authority",
-      sourceName,
-      mapping,
-    );
-    if (error !== undefined) {
-      errors.push(error);
-    }
-  }
-
-  // License ids are still minted in resolveArtifactsSourceNameToCanonicalIds (the
-  // row-based AgencyPersonnel transform consumes them), so they are asserted here
-  // as before. LicenseAction identity is owned solely by the LicenseActionFacade
-  // canonical-id resolver (ADR 0016 #4) and is not asserted — mirroring
-  // LicensingAuthorities.
-  for (const sourceName of artifactsEntityKeys(artifacts, "licenses")) {
-    const mapping = mappings.licenses?.[sourceName];
-    const error = formatRequiredMappingError("License", sourceName, mapping);
-    if (error !== undefined) {
-      errors.push(error);
-    }
-  }
-
-  if (errors.length > 0) {
-    throw new Error(
-      ["SourceNameToCanonicalId records are incomplete.", ...errors].join("\n"),
-    );
-  }
-}
-
-export async function resolveArtifactsSourceNameToCanonicalIds(
-  artifacts: ArtifactsEnvelope,
-  mappings: SourceNameToCanonicalIds,
-  options: MappingPathOptions = {},
-): Promise<SourceNameToCanonicalIds> {
-  const namespace = artifacts.metadata.namespace;
-  const resolvedMappings: SourceNameToCanonicalIds = {
-    locationPaths: { ...mappings.locationPaths },
-    agencies: { ...mappings.agencies },
-    personnel: { ...mappings.personnel },
-    agencyPersonnel: { ...mappings.agencyPersonnel },
-    licensingAuthorities: { ...(mappings.licensingAuthorities ?? {}) },
-    licenses: { ...(mappings.licenses ?? {}) },
-    licenseActions: { ...(mappings.licenseActions ?? {}) },
-  };
-  let createdMappings = false;
-
-  for (const sourceName of artifactsEntityKeys(artifacts, "locationPaths")) {
-    if (resolvedMappings.locationPaths[sourceName] === undefined) {
-      resolvedMappings.locationPaths[sourceName] = {
-        kind: sourceNameKinds.locationPath,
-        canonicalId: createId(),
-      };
-      createdMappings = true;
-    }
-  }
-
-  for (const sourceName of artifactsEntityKeys(artifacts, "agencies")) {
-    if (resolvedMappings.agencies[sourceName] === undefined) {
-      resolvedMappings.agencies[sourceName] = {
-        kind: sourceNameKinds.agency,
-        canonicalId: createId(),
-      };
-      createdMappings = true;
-    }
-  }
-
-  for (const sourceName of artifactsEntityKeys(artifacts, "personnel")) {
-    if (resolvedMappings.personnel[sourceName] === undefined) {
-      resolvedMappings.personnel[sourceName] = {
-        kind: sourceNameKinds.personnel,
-        canonicalId: createId(),
-      };
-      createdMappings = true;
-    }
-  }
-
-  for (const sourceName of artifactsEntityKeys(artifacts, "agencyPersonnel")) {
-    if (resolvedMappings.agencyPersonnel[sourceName] === undefined) {
-      resolvedMappings.agencyPersonnel[sourceName] = {
-        kind: sourceNameKinds.agencyPersonnel,
-        canonicalId: createId(),
-      };
-      createdMappings = true;
-    }
-  }
-
-  // LicensingAuthority and LicenseAction identity is owned solely by their
-  // facades' canonical-id resolvers (ADR 0016, self-contained find-or-create +
-  // persist), so this stage no longer mints their ids.
-  //
-  // License is different: the row-based AgencyPersonnel transform (not yet
-  // migrated to a facade) still resolves `agency_officer.license_id` against
-  // `mappings.licenses` at transform time — before any facade runs. So License
-  // ids must exist in the ledger before transform. This stage remains the License
-  // minter; the LicenseFacade's canonical-id resolver find-or-creates against the
-  // same ledger and simply finds the id here. When AgencyPersonnel migrates to a
-  // facade FK find, this loop can be removed like the others.
-  for (const sourceName of artifactsEntityKeys(artifacts, "licenses")) {
-    if (resolvedMappings.licenses![sourceName] === undefined) {
-      resolvedMappings.licenses![sourceName] = {
-        kind: sourceNameKinds.license,
-        canonicalId: createId(),
-      };
-      createdMappings = true;
-    }
-  }
-
-  if (createdMappings) {
-    await persistSourceNameToCanonicalIds(namespace, resolvedMappings, options);
-  }
-
-  return resolvedMappings;
 }

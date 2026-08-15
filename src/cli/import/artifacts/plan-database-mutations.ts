@@ -23,7 +23,7 @@ import {
 } from "../../database/schema.js";
 import type { ImportRows } from "./transform.js";
 import type { DatabaseRowOperations } from "./operations.js";
-import type { SourceNameToCanonicalIds } from "../../state/source-name-to-canonical-id/index.js";
+import type { SourceNameToCanonicalIdLedger } from "../../state/source-name-to-canonical-id/index.js";
 
 export type { DatabaseClient };
 export type {
@@ -112,7 +112,7 @@ export class DatabaseMutationPlanningError extends Error {
 type PlanDatabaseMutationsOptions = AgencyPreparationOptions & {
   env?: Record<string, string | undefined>;
   clientFactory?: DatabaseClientFactory;
-  sourceNameToCanonicalIds?: SourceNameToCanonicalIds;
+  ledger?: SourceNameToCanonicalIdLedger;
 };
 
 function errorMessage(error: unknown): string {
@@ -217,7 +217,7 @@ export async function planDatabaseMutations(
       databaseLocationPaths,
       databaseLocationPathAliases,
       databaseAgencies,
-      sourceNameToCanonicalIds: options.sourceNameToCanonicalIds,
+      ledger: options.ledger,
       agencyFieldResolutionOptions: options,
       resolvedProperties: options.resolvedProperties,
       resolveAddress: (input) => resolveImportAddress(input, options),

@@ -52,11 +52,9 @@ import {
   type DatabaseMutationsDebugInput,
 } from "./io/DatabaseMutationsDebug.js";
 import {
-  assertCanonicalMappingFields,
-  loadSourceNameToCanonicalIds,
-  persistSourceNameToCanonicalIds,
-  resolveArtifactsSourceNameToCanonicalIds,
-  type SourceNameToCanonicalIds,
+  createSourceNameToCanonicalIdLedger,
+  type LedgerEntityKind,
+  type SourceNameToCanonicalIdLedger,
 } from "../../state/source-name-to-canonical-id/index.js";
 import {
   readResolvedProperty,
@@ -213,40 +211,40 @@ async function hydrateResolvedSlug(
 async function hydrateResolvedSlugs(
   context: ImportArtifactsPipelineContext,
 ): Promise<ResolvedProperties> {
-  if (
-    context.artifacts === undefined ||
-    context.resolvedMappings === undefined
-  ) {
+  if (context.artifacts === undefined) {
     throw new Error(
-      "Artifacts and source names must be loaded before hydrating resolved slugs.",
+      "Artifacts must be loaded before hydrating resolved slugs.",
     );
   }
 
+  const namespace = context.artifacts.metadata.namespace;
   const resolvedProperties: ResolvedProperties = {
     agencies: {},
     personnel: {},
   };
   // Personnel slugs are owned by the PersonnelFacade's generate-unique resolver
   // (ADR 0016) and reused from the database for stability, so only agency slugs
-  // are hydrated from the durable cache here.
+  // are hydrated from the durable cache here. The agency id is find-or-created
+  // (its stable Identity Map id), keyed on the slug cache.
   for (const artifact of context.artifacts.spec.artifacts) {
     if (artifact.kind !== "Agencies") {
       continue;
     }
     for (const [recordName, record] of Object.entries(artifact.spec.records)) {
       const sourceName = sourceNameForImportRecord(recordName, record);
-      const canonicalId =
-        context.resolvedMappings.agencies[sourceName]?.canonicalId;
-      if (canonicalId !== undefined) {
-        await hydrateResolvedSlug(context, {
-          resolvedProperties,
-          collection: "agencies",
-          kind: "Agency",
-          sourceName,
-          canonicalId,
-          sourceInput: slugSourceInput("Agency", record),
-        });
-      }
+      const canonicalId = await context.ledger.findOrCreate(
+        namespace,
+        "Agency",
+        sourceName,
+      );
+      await hydrateResolvedSlug(context, {
+        resolvedProperties,
+        collection: "agencies",
+        kind: "Agency",
+        sourceName,
+        canonicalId,
+        sourceInput: slugSourceInput("Agency", record),
+      });
     }
   }
 
@@ -256,16 +254,13 @@ async function hydrateResolvedSlugs(
 async function persistResolvedSlugs(
   context: ImportArtifactsPipelineContext,
 ): Promise<void> {
-  if (
-    context.artifacts === undefined ||
-    context.resolvedMappings === undefined ||
-    context.rows === undefined
-  ) {
+  if (context.artifacts === undefined || context.rows === undefined) {
     throw new Error(
-      "Artifacts, source names, and rows must be available before persisting resolved slugs.",
+      "Artifacts and rows must be available before persisting resolved slugs.",
     );
   }
 
+  const namespace = context.artifacts.metadata.namespace;
   // Personnel slugs are owned by the PersonnelFacade's generate-unique resolver
   // (ADR 0016), which reuses an existing DB slug for stability; they are no
   // longer cached here. Only agency slugs remain row-based.
@@ -279,17 +274,13 @@ async function persistResolvedSlugs(
     }
     for (const [recordName, record] of Object.entries(artifact.spec.records)) {
       const sourceName = sourceNameForImportRecord(recordName, record);
-      const canonicalId =
-        context.resolvedMappings.agencies[sourceName]?.canonicalId;
-      const slug =
-        canonicalId === undefined
-          ? undefined
-          : agencyById.get(canonicalId)?.slug;
-      if (
-        canonicalId === undefined ||
-        typeof slug !== "string" ||
-        slug.trim().length === 0
-      ) {
+      const canonicalId = await context.ledger.findOrCreate(
+        namespace,
+        "Agency",
+        sourceName,
+      );
+      const slug = agencyById.get(canonicalId)?.slug;
+      if (typeof slug !== "string" || slug.trim().length === 0) {
         continue;
       }
 
@@ -334,17 +325,18 @@ function addPersonnelSourceFacades(
         namespace: artifacts.metadata.namespace,
         name: sourceName,
         spec: valueAsRecord(record),
+        sourceFile: artifact.recordSources?.[recordName],
       });
     }
   }
 }
 
-function addAgencyPersonnelSourceFacades(
+async function addAgencyPersonnelSourceFacades(
   dataContext: DataContext,
   artifacts: ArtifactsEnvelope,
   rows: ImportRows,
-  sourceNameToCanonicalIds: SourceNameToCanonicalIds,
-): void {
+  ledger: SourceNameToCanonicalIdLedger,
+): Promise<void> {
   // Route each AgencyPersonnel source record through its facade (ADR 0016). The
   // facade's resolvers derive the canonical id and the agency / personnel /
   // license foreign keys (same-source finds against the source values in the
@@ -364,8 +356,11 @@ function addAgencyPersonnelSourceFacades(
   )) {
     for (const [recordName, record] of Object.entries(artifact.spec.records)) {
       const sourceName = sourceNameForImportRecord(recordName, record);
-      const canonicalId =
-        sourceNameToCanonicalIds.agencyPersonnel[sourceName]?.canonicalId;
+      const canonicalId = await ledger.read(
+        artifacts.metadata.namespace,
+        "AgencyPersonnel",
+        sourceName,
+      );
       if (
         canonicalId === undefined ||
         !survivingAgencyPersonnelIds.has(canonicalId)
@@ -378,6 +373,7 @@ function addAgencyPersonnelSourceFacades(
         namespace: artifacts.metadata.namespace,
         name: sourceName,
         spec: valueAsRecord(record),
+        sourceFile: artifact.recordSources?.[recordName],
       });
     }
   }
@@ -401,6 +397,7 @@ function addLicensingAuthoritySourceFacades(
         namespace: artifacts.metadata.namespace,
         name: sourceName,
         spec: valueAsRecord(record),
+        sourceFile: artifact.recordSources?.[recordName],
       });
     }
   }
@@ -424,6 +421,7 @@ function addLicenseSourceFacades(
         namespace: artifacts.metadata.namespace,
         name: sourceName,
         spec: valueAsRecord(record),
+        sourceFile: artifact.recordSources?.[recordName],
       });
     }
   }
@@ -446,6 +444,7 @@ function addLicenseActionSourceFacades(
         namespace: artifacts.metadata.namespace,
         name: sourceName,
         spec: valueAsRecord(record),
+        sourceFile: artifact.recordSources?.[recordName],
       });
     }
   }
@@ -458,7 +457,7 @@ type ImportArtifactsPipelineContext = {
   workspaceRoot?: string;
   artifacts?: ArtifactsEnvelope;
   artifactMutation?: ApplyArtifactMutationResult;
-  resolvedMappings?: SourceNameToCanonicalIds;
+  ledger: SourceNameToCanonicalIdLedger;
   resolvedProperties?: ResolvedProperties;
   rows?: ImportRows;
   preparationError?: DatabaseMutationPlanningError;
@@ -568,15 +567,13 @@ async function applyArtifactMutationsStage(
 async function persistArtifactAgencyCoordinatesStage(
   context: ImportArtifactsPipelineContext,
 ): Promise<void> {
-  if (
-    context.artifacts === undefined ||
-    context.resolvedMappings === undefined
-  ) {
+  if (context.artifacts === undefined) {
     throw new Error(
-      "Artifacts and source names must be available before caching agency coordinates.",
+      "Artifacts must be available before caching agency coordinates.",
     );
   }
 
+  const namespace = context.artifacts.metadata.namespace;
   let cachedCoordinates = 0;
   for (const artifact of context.artifacts.spec.artifacts.filter(
     (item) => item.kind === "Agencies",
@@ -591,10 +588,12 @@ async function persistArtifactAgencyCoordinatesStage(
       const city = valueAsString(spec.city);
       const state = valueAsString(spec.state);
       const zipCode = valueAsString(spec.zip_code);
-      const canonicalId =
-        context.resolvedMappings.agencies[sourceName]?.canonicalId;
+      const canonicalId = await context.ledger.findOrCreate(
+        namespace,
+        "Agency",
+        sourceName,
+      );
       if (
-        canonicalId === undefined ||
         latitude === undefined ||
         longitude === undefined ||
         name === undefined ||
@@ -649,74 +648,18 @@ async function persistArtifactAgencyCoordinatesStage(
   }
 }
 
-async function resolveSourceNamesStage(
-  context: ImportArtifactsPipelineContext,
-): Promise<ImportArtifactsPipelineContext> {
-  if (context.artifacts === undefined) {
-    throw new Error("Artifacts must be read before resolving source names.");
-  }
-
-  context.commandInput.logger?.info("Reading SourceNameToCanonicalId records.");
-  const mappings = await loadSourceNameToCanonicalIds(
-    context.artifacts.metadata.namespace,
-    { rootDir: context.workspaceRoot },
-  );
-  context.commandInput.logger?.info(
-    "Validating SourceNameToCanonicalId file shape.",
-  );
-  context.commandInput.logger?.debug(
-    {
-      locationPathMappings: Object.keys(mappings.locationPaths).length,
-      agencyMappings: Object.keys(mappings.agencies).length,
-      personnelMappings: Object.keys(mappings.personnel).length,
-      agencyPersonnelMappings: Object.keys(mappings.agencyPersonnel).length,
-    },
-    "SourceNameToCanonicalId records loaded.",
-  );
-
-  context.commandInput.logger?.info(
-    "Resolving canonical SourceNameToCanonicalId records.",
-  );
-  const resolvedMappings = await resolveArtifactsSourceNameToCanonicalIds(
-    context.artifacts,
-    mappings,
-    { rootDir: context.workspaceRoot },
-  );
-  context.commandInput.logger?.debug(
-    {
-      locationPathMappings: Object.keys(resolvedMappings.locationPaths).length,
-      agencyMappings: Object.keys(resolvedMappings.agencies).length,
-      personnelMappings: Object.keys(resolvedMappings.personnel).length,
-      agencyPersonnelMappings: Object.keys(resolvedMappings.agencyPersonnel)
-        .length,
-    },
-    "SourceNameToCanonicalId records resolved.",
-  );
-
-  context.commandInput.logger?.info(
-    "Validating canonical SourceNameToCanonicalId records.",
-  );
-  assertCanonicalMappingFields(context.artifacts, resolvedMappings);
-  return { ...context, resolvedMappings };
-}
-
 async function transformArtifactsStage(
   context: ImportArtifactsPipelineContext,
 ): Promise<ImportArtifactsPipelineContext> {
-  if (
-    context.artifacts === undefined ||
-    context.resolvedMappings === undefined
-  ) {
-    throw new Error(
-      "Artifacts and source names must be loaded before transforming artifacts.",
-    );
+  if (context.artifacts === undefined) {
+    throw new Error("Artifacts must be loaded before transforming artifacts.");
   }
 
   context.commandInput.logger?.info("Transforming artifact records.");
   const resolvedProperties = await hydrateResolvedSlugs(context);
-  const rows = transformArtifacts(
+  const rows = await transformArtifacts(
     context.artifacts,
-    context.resolvedMappings,
+    context.ledger,
     resolvedProperties,
   );
   context.commandInput.logger?.debug(
@@ -776,7 +719,7 @@ async function executeDatabaseMutationPlanningStage(
         createCensusLocationAdministrativeAreaResolver(),
       excludedRecords: context.commandInput.excludedRecords,
       sourceNamespace: context.artifacts.metadata.namespace,
-      sourceNameToCanonicalIds: context.resolvedMappings,
+      ledger: context.ledger,
       resolvedProperties: context.resolvedProperties,
       resolvedPropertyCache: {
         read: (input) =>
@@ -835,7 +778,7 @@ async function writeDatabaseMutationsDebugStage(
       licenses: {},
       licenseActions: {},
     },
-    sourceNameToCanonicalIds: context.resolvedMappings,
+    ledger: context.ledger,
     commandName: context.commandName,
   });
   const envelopeInput: DatabaseMutationsDebugInput = {
@@ -969,11 +912,12 @@ function requiredStreamingString(
   );
 }
 
-function canonicalLocationPathIdForGeometry(
+async function canonicalLocationPathIdForGeometry(
   recordKey: string,
   spec: Record<string, unknown>,
-  mappings: SourceNameToCanonicalIds,
-): { canonicalId: string; sourceLocationPathKey: string } {
+  namespace: string,
+  ledger: SourceNameToCanonicalIdLedger,
+): Promise<{ canonicalId: string; sourceLocationPathKey: string }> {
   const sourceLocationPathKey = requiredStreamingString(
     recordKey,
     "sourceLocationPathKey",
@@ -984,6 +928,8 @@ function canonicalLocationPathIdForGeometry(
     spec.location_path_id.trim().length > 0
       ? spec.location_path_id
       : undefined;
+  // A geometry must reference an already-recorded location path; try the known
+  // source-key candidates and fail loud when none resolves.
   for (const candidate of [
     sourceLocationPathKey,
     sourceLocationPathId,
@@ -992,7 +938,7 @@ function canonicalLocationPathIdForGeometry(
     if (candidate === undefined) {
       continue;
     }
-    const canonicalId = mappings.locationPaths[candidate]?.canonicalId;
+    const canonicalId = await ledger.read(namespace, "LocationPath", candidate);
     if (canonicalId !== undefined && canonicalId.trim().length > 0) {
       return { canonicalId, sourceLocationPathKey };
     }
@@ -1008,12 +954,11 @@ async function writeLocationPathGeometryMutationRefs(
   client: DatabaseClient,
 ): Promise<DatabaseMutationItem[]> {
   if (
-    context.resolvedMappings === undefined ||
     context.artifacts === undefined ||
     context.commandInput.commandDirectory === undefined
   ) {
     throw new Error(
-      "Artifacts, source mappings, and command directory are required to write LocationPathGeometry mutations.",
+      "Artifacts and command directory are required to write LocationPathGeometry mutations.",
     );
   }
 
@@ -1030,10 +975,11 @@ async function writeLocationPathGeometryMutationRefs(
     context.artifacts.metadata.namespace,
   )) {
     const { canonicalId, sourceLocationPathKey } =
-      canonicalLocationPathIdForGeometry(
+      await canonicalLocationPathIdForGeometry(
         recordKey,
         spec,
-        context.resolvedMappings,
+        context.artifacts.metadata.namespace,
+        context.ledger,
       );
 
     const existing = await readDatabaseRecordByColumn(
@@ -1134,11 +1080,13 @@ async function writeDatabaseMutationsStage(
     context.artifacts === undefined ||
     context.artifactMutation === undefined ||
     context.rows === undefined ||
-    context.resolvedMappings === undefined ||
     context.databaseResult === undefined
   ) {
     throw new Error("DatabaseMutations must be prepared before writing.");
   }
+  const namespace = context.artifacts.metadata.namespace;
+  const artifacts = context.artifacts;
+  const ledger = context.ledger;
 
   context.commandInput.logger?.info("Writing DatabaseMutations envelope.");
   if (context.commandInput.commandDirectory === undefined) {
@@ -1178,24 +1126,46 @@ async function writeDatabaseMutationsStage(
     await facadeBackendClient.connect();
   }
 
-  const canonicalIds = (
-    ledger: Record<string, { canonicalId?: string }> | undefined,
-  ): string[] =>
-    Object.values(ledger ?? {})
-      .map((mapping) => mapping.canonicalId)
-      .filter((id): id is string => id !== undefined);
+  // The canonical ids for a facade entity kind, derived by find-or-create over
+  // its in-memory artifact records — the same ids the facades will resolve, so
+  // the DB preload below matches. (Enumerating the ledger directory is exactly
+  // the bulk scan we removed.)
+  const canonicalIdsForKind = async (
+    artifactKind: string,
+    ledgerKind: LedgerEntityKind,
+  ): Promise<string[]> => {
+    const ids: string[] = [];
+    for (const artifact of artifacts.spec.artifacts) {
+      if (artifact.kind !== artifactKind) {
+        continue;
+      }
+      for (const [recordName, record] of Object.entries(
+        artifact.spec.records,
+      )) {
+        ids.push(
+          await ledger.findOrCreate(
+            namespace,
+            ledgerKind,
+            sourceNameForImportRecord(recordName, record),
+          ),
+        );
+      }
+    }
+    return ids;
+  };
 
-  // Load the already-existing `public.licensing_authority` / `public.license` /
-  // `public.license_action` rows for the ledger's canonical ids so each facade
-  // auto-loads `current` and emits an update (not a duplicate create) on
-  // re-import — mirroring how agencies are loaded via databaseAgencies.
+  // Load the already-existing `public.officers` / `public.agency_officers` /
+  // `public.licensing_authority` / `public.license` / `public.license_action`
+  // rows for those canonical ids so each facade auto-loads `current` and emits
+  // an update (not a duplicate create) on re-import — mirroring how agencies are
+  // loaded via databaseAgencies.
   const databaseOfficers =
     facadeBackendClient === undefined
       ? []
       : await readDatabaseRecordsByIds(
           facadeBackendClient,
           "public.officers",
-          canonicalIds(context.resolvedMappings.personnel),
+          await canonicalIdsForKind("Personnel", "Personnel"),
         );
   const databaseAgencyPersonnel =
     facadeBackendClient === undefined
@@ -1203,7 +1173,7 @@ async function writeDatabaseMutationsStage(
       : await readDatabaseRecordsByIds(
           facadeBackendClient,
           "public.agency_officers",
-          canonicalIds(context.resolvedMappings.agencyPersonnel),
+          await canonicalIdsForKind("AgencyPersonnel", "AgencyPersonnel"),
         );
   const databaseLicensingAuthorities =
     facadeBackendClient === undefined
@@ -1211,7 +1181,10 @@ async function writeDatabaseMutationsStage(
       : await readDatabaseRecordsByIds(
           facadeBackendClient,
           "public.licensing_authority",
-          canonicalIds(context.resolvedMappings.licensingAuthorities),
+          await canonicalIdsForKind(
+            "LicensingAuthorities",
+            "LicensingAuthority",
+          ),
         );
   const databaseLicenses =
     facadeBackendClient === undefined
@@ -1219,7 +1192,7 @@ async function writeDatabaseMutationsStage(
       : await readDatabaseRecordsByIds(
           facadeBackendClient,
           "public.license",
-          canonicalIds(context.resolvedMappings.licenses),
+          await canonicalIdsForKind("Licenses", "License"),
         );
   const databaseLicenseActions =
     facadeBackendClient === undefined
@@ -1227,16 +1200,17 @@ async function writeDatabaseMutationsStage(
       : await readDatabaseRecordsByIds(
           facadeBackendClient,
           "public.license_action",
-          canonicalIds(context.resolvedMappings.licenseActions),
+          await canonicalIdsForKind("LicenseActions", "LicenseAction"),
         );
 
-  const workspaceRoot = context.workspaceRoot;
   let databaseMutations;
   try {
     const dataContext = new DataContext({
       rows: context.rows,
       operations: context.databaseResult.operations,
-      sourceNameToCanonicalIds: context.resolvedMappings,
+      // The canonical-id resolvers find-or-create each entity's own id through
+      // the ledger's per-record file read/write (ADR 0016 #4).
+      ledger,
       commandName: context.commandName,
       // Must match the preparation pass on which agencies already exist, so an
       // existing agency is written as an update (not a create missing a slug).
@@ -1246,13 +1220,6 @@ async function writeDatabaseMutationsStage(
       databaseLicensingAuthorities,
       databaseLicenses,
       databaseLicenseActions,
-      // The LicensingAuthority / License / LicenseAction canonical-id resolvers
-      // mint AND durably persist their own ids (ADR 0016 #4); give them the
-      // ledger writer.
-      persistSourceNameToCanonicalIds: (namespace, mappings) =>
-        persistSourceNameToCanonicalIds(namespace, mappings, {
-          ...(workspaceRoot === undefined ? {} : { rootDir: workspaceRoot }),
-        }),
       ...(facadeBackendClient === undefined
         ? {}
         : { client: facadeBackendClient }),
@@ -1266,11 +1233,11 @@ async function writeDatabaseMutationsStage(
     addPersonnelSourceFacades(dataContext, context.artifacts);
     addLicenseSourceFacades(dataContext, context.artifacts);
     addLicenseActionSourceFacades(dataContext, context.artifacts);
-    addAgencyPersonnelSourceFacades(
+    await addAgencyPersonnelSourceFacades(
       dataContext,
       context.artifacts,
       context.rows,
-      context.resolvedMappings,
+      ledger,
     );
     databaseMutations = await dataContext.toDatabaseMutations({
       namespace: context.artifacts.metadata.namespace,
@@ -1333,7 +1300,6 @@ const importArtifactsPipelineStages: ImportArtifactsPipelineStage[] = [
   readArtifactsStage,
   rejectExistingImportStage,
   applyArtifactMutationsStage,
-  resolveSourceNamesStage,
   async (context) => {
     await persistArtifactAgencyCoordinatesStage(context);
     return context;
@@ -1355,11 +1321,15 @@ export async function importArtifacts(
       throw new Error("Command name is required to import artifacts.");
     }
 
+    const workspaceRoot = workspaceRootFromEnv(commandInput.env);
     let context: ImportArtifactsPipelineContext = {
       commandInput,
       artifactsPath: commandInput.artifactsPath,
       commandName: commandInput.commandName,
-      workspaceRoot: workspaceRootFromEnv(commandInput.env),
+      workspaceRoot,
+      ledger: createSourceNameToCanonicalIdLedger(
+        workspaceRoot === undefined ? {} : { rootDir: workspaceRoot },
+      ),
     };
     for (const stage of importArtifactsPipelineStages) {
       context = await stage(context);

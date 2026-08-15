@@ -111,7 +111,10 @@ import {
   type DatabaseMutationItem,
   type DatabaseMutationsEnvelope,
 } from "./io/DatabaseMutations.js";
-import type { SourceNameToCanonicalIds } from "../../state/source-name-to-canonical-id/index.js";
+import type {
+  LedgerEntityKind,
+  SourceNameToCanonicalIdLedger,
+} from "../../state/source-name-to-canonical-id/index.js";
 
 type DataContextLogger = {
   debug?(object: Record<string, unknown>, message: string): void;
@@ -153,22 +156,19 @@ export type DataContextOptions = {
   agencyFieldResolutionOptions?: AgencyFieldResolutionOptions;
   resolvedProperties?: ResolvedProperties;
   commandName?: string;
-  sourceNameToCanonicalIds?: SourceNameToCanonicalIds;
+  /**
+   * Durable Identity Map accessor over the SourceNameToCanonicalId ledger.
+   * Injected so each canonical-id resolver finds-or-creates its own entity's id
+   * with a single per-record file read/write (ADR 0016 #4, ADR 0017) — no bulk
+   * ledger load, no whole-map re-persist.
+   */
+  ledger?: SourceNameToCanonicalIdLedger;
   databaseAgencies?: Record<string, unknown>[];
   databaseOfficers?: Record<string, unknown>[];
   databaseAgencyPersonnel?: Record<string, unknown>[];
   databaseLicensingAuthorities?: Record<string, unknown>[];
   databaseLicenses?: Record<string, unknown>[];
   databaseLicenseActions?: Record<string, unknown>[];
-  /**
-   * Durable writer for the SourceNameToCanonicalId ledger. Injected so the
-   * canonical-id resolvers can mint AND persist an entity's own id themselves
-   * (ADR 0016 #4), without depending on any earlier minting stage.
-   */
-  persistSourceNameToCanonicalIds?: (
-    namespace: string,
-    mappings: SourceNameToCanonicalIds,
-  ) => Promise<void>;
 };
 
 type SourceRecordContext = {
@@ -179,6 +179,8 @@ type SourceRecordContext = {
   commandName?: string;
   current?: Record<string, unknown>;
   spec?: Record<string, unknown>;
+  /** Absolute path of the file this record was read from (for error context). */
+  sourceFile?: string;
 };
 
 type FacadeSource = {
@@ -186,6 +188,8 @@ type FacadeSource = {
   name: string;
   canonicalId?: string;
   commandName?: string;
+  /** Absolute path of the file this record was read from (for error context). */
+  sourceFile?: string;
 };
 
 type FacadeEntry<TFacade> = {
@@ -689,9 +693,14 @@ function facadeForeignKeyResolver<Row>(
     });
     if (target === undefined) {
       throw new Error(
-        `Cannot resolve ${entityKind}.${property} for ${source.namespace}/${source.name}; no ${targetKind} facade was emitted for source id ${JSON.stringify(
-          sourceId,
-        )} (forward reference — ADR 0016 #9).`,
+        [
+          `${entityKind} ${source.namespace}/${source.name} references ${targetKind} ${JSON.stringify(
+            sourceId,
+          )}, which does not exist in namespace ${source.namespace}.`,
+          source.sourceFile && `Source: ${source.sourceFile}.`,
+        ]
+          .filter(Boolean)
+          .join(" "),
       );
     }
     return target.value("id");
@@ -721,9 +730,14 @@ function facadeNullableForeignKeyResolver<Row>(
     });
     if (target === undefined) {
       throw new Error(
-        `Cannot resolve ${entityKind}.${property} for ${source.namespace}/${source.name}; no ${targetKind} facade was emitted for source id ${JSON.stringify(
-          sourceId,
-        )} (forward reference — ADR 0016 #9).`,
+        [
+          `${entityKind} ${source.namespace}/${source.name} references ${targetKind} ${JSON.stringify(
+            sourceId,
+          )}, which does not exist in namespace ${source.namespace}.`,
+          source.sourceFile && `Source: ${source.sourceFile}.`,
+        ]
+          .filter(Boolean)
+          .join(" "),
       );
     }
     return target.value("id");
@@ -2819,7 +2833,7 @@ export class DataContext {
   private readonly agencyFieldResolutionOptions?: AgencyFieldResolutionOptions;
   private readonly resolvedProperties?: ResolvedProperties;
   private readonly commandName?: string;
-  private readonly sourceNameToCanonicalIds?: SourceNameToCanonicalIds;
+  private readonly ledger?: SourceNameToCanonicalIdLedger;
   private readonly databaseAgencyById: Map<string, Record<string, unknown>>;
   private readonly databaseOfficerById: Map<string, Record<string, unknown>>;
   private readonly databaseLicensingAuthorityById: Map<
@@ -2845,7 +2859,6 @@ export class DataContext {
     string,
     Record<string, unknown>
   >;
-  private readonly persistSourceNameToCanonicalIdsFn?: DataContextOptions["persistSourceNameToCanonicalIds"];
   private readonly agencyFacades = new Map<string, AgencyFacade>();
   private readonly personnelFacades = new Map<string, PersonnelFacade>();
   private readonly agencyPersonnelFacades = new Map<
@@ -2923,7 +2936,7 @@ export class DataContext {
     this.agencyFieldResolutionOptions = options.agencyFieldResolutionOptions;
     this.resolvedProperties = options.resolvedProperties;
     this.commandName = options.commandName;
-    this.sourceNameToCanonicalIds = options.sourceNameToCanonicalIds;
+    this.ledger = options.ledger;
     this.databaseAgencyById = new Map(
       (options.databaseAgencies ?? [])
         .map((agency) => [valueAsString(agency.id), agency] as const)
@@ -2975,8 +2988,6 @@ export class DataContext {
             entry[0] !== undefined,
         ),
     );
-    this.persistSourceNameToCanonicalIdsFn =
-      options.persistSourceNameToCanonicalIds;
     this.locations = new LocationDataContext(this);
     this.locationPaths = new LocationPathDataContext(this);
   }
@@ -3140,6 +3151,7 @@ export class DataContext {
       current: input.current,
       source: {
         namespace: input.namespace,
+        sourceFile: input.sourceFile,
         name: input.name,
         commandName: input.commandName ?? this.commandName,
       },
@@ -3171,27 +3183,12 @@ export class DataContext {
     kind: string;
     sourceId: string;
   }): Promise<string> {
-    // Find a seeded/existing id before minting (ID stability).
-    const existing = valueAsString(
-      this.sourceNameToCanonicalIds?.agencies?.[input.sourceId]?.canonicalId,
-    );
-    if (existing !== undefined) {
-      return existing;
+    // Find a seeded/existing id before minting (ID stability). The ledger
+    // point-reads the single record file and mints + writes it when absent.
+    if (this.ledger === undefined) {
+      return createId();
     }
-
-    const canonicalId = createId();
-    if (this.sourceNameToCanonicalIds === undefined) {
-      return canonicalId;
-    }
-    this.sourceNameToCanonicalIds.agencies[input.sourceId] = {
-      kind: "Agency",
-      canonicalId,
-    };
-    await this.persistSourceNameToCanonicalIdsFn?.(
-      input.namespace,
-      this.sourceNameToCanonicalIds,
-    );
-    return canonicalId;
+    return this.ledger.findOrCreate(input.namespace, "Agency", input.sourceId);
   }
 
   mergeAgencyArtifacts(artifacts: ArtifactsEnvelope): void {
@@ -3247,6 +3244,7 @@ export class DataContext {
       current: input.current,
       source: {
         namespace: input.namespace,
+        sourceFile: input.sourceFile,
         name: input.name,
         commandName: input.commandName ?? this.commandName,
       },
@@ -3277,28 +3275,16 @@ export class DataContext {
     kind: string;
     sourceId: string;
   }): Promise<string> {
-    // Find in the ledger by (namespace, kind, source-id); mint + persist when
-    // absent. ID stability: a seeded/existing id is always found before minting.
-    const existing = valueAsString(
-      this.sourceNameToCanonicalIds?.personnel?.[input.sourceId]?.canonicalId,
-    );
-    if (existing !== undefined) {
-      return existing;
+    // Find in the ledger by (kind, source-id); mint + write the single record
+    // file when absent. ID stability: a seeded/existing id is always found first.
+    if (this.ledger === undefined) {
+      return createId();
     }
-
-    const canonicalId = createId();
-    if (this.sourceNameToCanonicalIds === undefined) {
-      return canonicalId;
-    }
-    this.sourceNameToCanonicalIds.personnel[input.sourceId] = {
-      kind: "Personnel",
-      canonicalId,
-    };
-    await this.persistSourceNameToCanonicalIdsFn?.(
+    return this.ledger.findOrCreate(
       input.namespace,
-      this.sourceNameToCanonicalIds,
+      "Personnel",
+      input.sourceId,
     );
-    return canonicalId;
   }
 
   private slugClaimsFor(table: SlugTableName): Map<string, string> {
@@ -3403,6 +3389,7 @@ export class DataContext {
       current: input.current,
       source: {
         namespace: input.namespace,
+        sourceFile: input.sourceFile,
         name: input.name,
         commandName: input.commandName ?? this.commandName,
       },
@@ -3443,6 +3430,7 @@ export class DataContext {
       current: input.current,
       source: {
         namespace: input.namespace,
+        sourceFile: input.sourceFile,
         name: input.name,
         commandName: input.commandName ?? this.commandName,
       },
@@ -3479,6 +3467,7 @@ export class DataContext {
       current: input.current,
       source: {
         namespace: input.namespace,
+        sourceFile: input.sourceFile,
         name: input.name,
         commandName: input.commandName ?? this.commandName,
       },
@@ -3512,6 +3501,7 @@ export class DataContext {
       current: input.current,
       source: {
         namespace: input.namespace,
+        sourceFile: input.sourceFile,
         name: input.name,
         commandName: input.commandName ?? this.commandName,
       },
@@ -3542,27 +3532,14 @@ export class DataContext {
   }): Promise<string> {
     // Find a seeded/existing id before minting — census location paths anchor
     // everything, so ID stability is critical.
-    const existing = valueAsString(
-      this.sourceNameToCanonicalIds?.locationPaths?.[input.sourceId]
-        ?.canonicalId,
-    );
-    if (existing !== undefined) {
-      return existing;
+    if (this.ledger === undefined) {
+      return createId();
     }
-
-    const canonicalId = createId();
-    if (this.sourceNameToCanonicalIds === undefined) {
-      return canonicalId;
-    }
-    this.sourceNameToCanonicalIds.locationPaths[input.sourceId] = {
-      kind: "LocationPath",
-      canonicalId,
-    };
-    await this.persistSourceNameToCanonicalIdsFn?.(
+    return this.ledger.findOrCreate(
       input.namespace,
-      this.sourceNameToCanonicalIds,
+      "LocationPath",
+      input.sourceId,
     );
-    return canonicalId;
   }
 
   private async findOrCreateAgencyPersonnelCanonicalId(input: {
@@ -3571,27 +3548,14 @@ export class DataContext {
     sourceId: string;
   }): Promise<string> {
     // Find a seeded/existing id before minting (ID stability).
-    const existing = valueAsString(
-      this.sourceNameToCanonicalIds?.agencyPersonnel?.[input.sourceId]
-        ?.canonicalId,
-    );
-    if (existing !== undefined) {
-      return existing;
+    if (this.ledger === undefined) {
+      return createId();
     }
-
-    const canonicalId = createId();
-    if (this.sourceNameToCanonicalIds === undefined) {
-      return canonicalId;
-    }
-    this.sourceNameToCanonicalIds.agencyPersonnel[input.sourceId] = {
-      kind: "AgencyPersonnel",
-      canonicalId,
-    };
-    await this.persistSourceNameToCanonicalIdsFn?.(
+    return this.ledger.findOrCreate(
       input.namespace,
-      this.sourceNameToCanonicalIds,
+      "AgencyPersonnel",
+      input.sourceId,
     );
-    return canonicalId;
   }
 
   licensingAuthorityFromSource(
@@ -3618,6 +3582,7 @@ export class DataContext {
       current: input.current,
       source: {
         namespace: input.namespace,
+        sourceFile: input.sourceFile,
         name: input.name,
         commandName: input.commandName ?? this.commandName,
       },
@@ -3644,35 +3609,20 @@ export class DataContext {
     kind: string;
     sourceId: string;
   }): Promise<string> {
-    // Find in the ledger by (namespace, kind, source-id).
-    const existing = valueAsString(
-      this.sourceNameToCanonicalIds?.licensingAuthorities?.[input.sourceId]
-        ?.canonicalId,
-    );
-    if (existing !== undefined) {
-      return existing;
-    }
-
-    // Create: mint a stable cuid2, record it in the ledger, and durably persist
-    // it — the resolver is the sole owner of LicensingAuthority identity
-    // (ADR 0016 #4), so it must not depend on any earlier minting stage.
+    // Find in the ledger by (kind, source-id); mint + write the single record
+    // file when absent — the resolver is the sole owner of LicensingAuthority
+    // identity (ADR 0016 #4), so it must not depend on any earlier minting stage.
     // Extension point: a natural-key match against the database would recover an
     // existing row's id before minting — deferred while `licensing_authority` is
     // a new table with no legacy rows.
-    const canonicalId = createId();
-    if (this.sourceNameToCanonicalIds === undefined) {
-      return canonicalId;
+    if (this.ledger === undefined) {
+      return createId();
     }
-    this.sourceNameToCanonicalIds.licensingAuthorities ??= {};
-    this.sourceNameToCanonicalIds.licensingAuthorities[input.sourceId] = {
-      kind: "LicensingAuthority",
-      canonicalId,
-    };
-    await this.persistSourceNameToCanonicalIdsFn?.(
+    return this.ledger.findOrCreate(
       input.namespace,
-      this.sourceNameToCanonicalIds,
+      "LicensingAuthority",
+      input.sourceId,
     );
-    return canonicalId;
   }
 
   licenseFromSource(input: SourceRecordContext): LicenseFacade {
@@ -3691,6 +3641,7 @@ export class DataContext {
       current: input.current,
       source: {
         namespace: input.namespace,
+        sourceFile: input.sourceFile,
         name: input.name,
         commandName: input.commandName ?? this.commandName,
       },
@@ -3722,6 +3673,7 @@ export class DataContext {
       current: input.current,
       source: {
         namespace: input.namespace,
+        sourceFile: input.sourceFile,
         name: input.name,
         commandName: input.commandName ?? this.commandName,
       },
@@ -3793,40 +3745,19 @@ export class DataContext {
     kind: string;
     sourceId: string;
   }): Promise<string> {
-    // Find in the ledger by (namespace, kind, source-id); mint + persist when
-    // absent. The facade is the sole owner of License / LicenseAction identity
-    // (ADR 0016 #4), so it must not depend on any earlier minting stage.
-    const ledger =
-      input.kind === "License"
-        ? this.sourceNameToCanonicalIds?.licenses
-        : this.sourceNameToCanonicalIds?.licenseActions;
-    const existing = valueAsString(ledger?.[input.sourceId]?.canonicalId);
-    if (existing !== undefined) {
-      return existing;
+    // Find in the ledger by (namespace, kind, source-id); mint + write the single
+    // record file when absent. The facade is the sole owner of License /
+    // LicenseAction identity (ADR 0016 #4), so it must not depend on any earlier
+    // minting stage. `input.kind` is "License" or "LicenseAction" — each its own
+    // ledger entity kind.
+    if (this.ledger === undefined) {
+      return createId();
     }
-
-    const canonicalId = createId();
-    if (this.sourceNameToCanonicalIds === undefined) {
-      return canonicalId;
-    }
-    if (input.kind === "License") {
-      this.sourceNameToCanonicalIds.licenses ??= {};
-      this.sourceNameToCanonicalIds.licenses[input.sourceId] = {
-        kind: "License",
-        canonicalId,
-      };
-    } else {
-      this.sourceNameToCanonicalIds.licenseActions ??= {};
-      this.sourceNameToCanonicalIds.licenseActions[input.sourceId] = {
-        kind: "LicenseAction",
-        canonicalId,
-      };
-    }
-    await this.persistSourceNameToCanonicalIdsFn?.(
+    return this.ledger.findOrCreate(
       input.namespace,
-      this.sourceNameToCanonicalIds,
+      input.kind as LedgerEntityKind,
+      input.sourceId,
     );
-    return canonicalId;
   }
 
   async toMutations(): Promise<

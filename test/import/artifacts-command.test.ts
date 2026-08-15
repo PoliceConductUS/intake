@@ -17,6 +17,7 @@ import { DatabaseMutations } from "../../src/cli/import/artifacts/io/DatabaseMut
 import { DatabaseMutationsDebug } from "../../src/cli/import/artifacts/io/DatabaseMutationsDebug.js";
 import { replayDatabaseMutations } from "../../src/cli/replay/database-mutations/config.js";
 import { persistSourceNameToCanonicalIds } from "../../src/cli/state/source-name-to-canonical-id/index.js";
+import { fakeSourceNameLedger } from "../helpers/fake-source-name-ledger.js";
 import {
   readResolvedProperty,
   type ResolvedPropertyCacheInput,
@@ -412,14 +413,14 @@ describe("importArtifacts", () => {
     const debugContext = new DataContext({
       rows: partialRows,
       operations: result.operations,
-      sourceNameToCanonicalIds: {
+      ledger: fakeSourceNameLedger({
         agencies: {
           "agency-source-id": { canonicalId: "agency-canonical-id" },
         },
         personnel: {},
         agencyPersonnel: {},
         locationPaths: {},
-      },
+      }),
     });
     debugContext.mergeAgencyArtifacts(artifacts);
     const databaseMutations = await debugContext.toDatabaseMutations({
@@ -711,14 +712,14 @@ describe("importArtifacts", () => {
     const runContext = new DataContext({
       rows,
       operations: createOperations,
-      sourceNameToCanonicalIds: {
+      ledger: fakeSourceNameLedger({
         agencies: {
           "agency-source-id": { canonicalId: "agency-canonical-id" },
         },
         personnel: {},
         agencyPersonnel: {},
         locationPaths: {},
-      },
+      }),
     });
     // Agencies are facade-based (ADR 0016): register the (already-resolved) agency
     // through its facade so it emits.

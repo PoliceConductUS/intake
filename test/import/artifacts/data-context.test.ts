@@ -14,10 +14,11 @@ import path from "node:path";
 import { INTAKE_API_VERSION } from "../../../src/shared/io/import-types.js";
 import { countDatabaseMutations } from "../../../src/cli/import/artifacts/io/DatabaseMutationCounts.js";
 import {
-  loadSourceNameToCanonicalIds,
-  persistSourceNameToCanonicalIds,
+  createSourceNameToCanonicalIdLedger,
+  type SourceNameToCanonicalIdLedger,
   type SourceNameToCanonicalIds,
 } from "../../../src/cli/state/source-name-to-canonical-id/index.js";
+import { fakeSourceNameLedger } from "../../helpers/fake-source-name-ledger.js";
 
 class EmptyClient implements DatabaseClient {
   async connect(): Promise<void> {}
@@ -122,9 +123,7 @@ function licensingSourceNameToCanonicalIds(
   };
 }
 
-function licensingContext(
-  sourceNameToCanonicalIds: SourceNameToCanonicalIds,
-): DataContext {
+function licensingContext(ledger: SourceNameToCanonicalIdLedger): DataContext {
   return new DataContext({
     client: new EmptyClient(),
     rows,
@@ -133,7 +132,7 @@ function licensingContext(
     // an unknown state without reaching a live client (resolve-or-fail path).
     databaseLocationPaths: [txLocationPath],
     databaseLocationPathAliases: [],
-    sourceNameToCanonicalIds,
+    ledger,
   });
 }
 
@@ -149,14 +148,14 @@ describe("DataContext", () => {
       client: options?.client ?? new EmptyClient(),
       rows: options?.rows ?? rows,
       commandName: "command-name",
-      sourceNameToCanonicalIds: {
+      ledger: fakeSourceNameLedger({
         agencies: {
           "mn-state-patrol": { canonicalId: "agency-canonical-id" },
         },
         personnel: {},
         agencyPersonnel: {},
         locationPaths: {},
-      },
+      }),
       ...(options?.databaseAgencies === undefined
         ? {}
         : { databaseAgencies: options.databaseAgencies }),
@@ -308,14 +307,14 @@ describe("DataContext", () => {
       client: new EmptyClient(),
       rows,
       commandName: "command-name",
-      sourceNameToCanonicalIds: {
+      ledger: fakeSourceNameLedger({
         agencies: {
           "mn-state-patrol": { canonicalId: "agency-canonical-id" },
         },
         personnel: {},
         agencyPersonnel: {},
         locationPaths: {},
-      },
+      }),
     });
 
     const agency = context.fromSource({
@@ -351,14 +350,14 @@ describe("DataContext", () => {
       client: new EmptyClient(),
       rows,
       commandName: "command-name",
-      sourceNameToCanonicalIds: {
+      ledger: fakeSourceNameLedger({
         agencies: {
           "mn-state-patrol": { canonicalId: "agency-canonical-id" },
         },
         personnel: {},
         agencyPersonnel: {},
         locationPaths: {},
-      },
+      }),
     });
 
     const agency = context.fromSource({
@@ -483,14 +482,14 @@ describe("DataContext", () => {
       client: new BoundaryClient(),
       rows,
       commandName: "command-name",
-      sourceNameToCanonicalIds: {
+      ledger: fakeSourceNameLedger({
         agencies: {
           "mn-state-patrol": { canonicalId: "agency-canonical-id" },
         },
         personnel: {},
         agencyPersonnel: {},
         locationPaths: {},
-      },
+      }),
       databaseLocationPaths: locationPaths,
       databaseLocationPathAliases: [],
       resolveAddress: async () => ({
@@ -520,20 +519,17 @@ describe("DataContext", () => {
   });
 
   test("AgencyFacade finds a seeded canonical id, else mints and persists it", async () => {
-    const persisted: SourceNameToCanonicalIds[] = [];
+    const ledger = fakeSourceNameLedger({
+      agencies: { seeded: { canonicalId: "seeded-agency-id" } },
+      personnel: {},
+      agencyPersonnel: {},
+      locationPaths: {},
+    });
     const context = new DataContext({
       client: new EmptyClient(),
       rows,
       commandName: "command-name",
-      sourceNameToCanonicalIds: {
-        agencies: { seeded: { canonicalId: "seeded-agency-id" } },
-        personnel: {},
-        agencyPersonnel: {},
-        locationPaths: {},
-      },
-      persistSourceNameToCanonicalIds: async (_namespace, mappings) => {
-        persisted.push(JSON.parse(JSON.stringify(mappings)));
-      },
+      ledger,
     });
 
     const seeded = context.fromSource({
@@ -551,10 +547,9 @@ describe("DataContext", () => {
     const mintedId = await minted.value("id");
     expect(mintedId).not.toBe("seeded-agency-id");
     expect(mintedId).toMatch(/^[0-9a-z]+$/);
-    expect(persisted.at(-1)?.agencies["new-agency"]).toEqual({
-      kind: "Agency",
-      canonicalId: mintedId,
-    });
+    await expect(ledger.read("mn-post", "Agency", "new-agency")).resolves.toBe(
+      mintedId,
+    );
   });
 
   test("AgencyFacade generates a slug from the name when none is supplied", async () => {
@@ -571,10 +566,12 @@ describe("DataContext", () => {
   });
 
   test("LicensingAuthorityFacade resolves its canonical id from the ledger, minting when absent", async () => {
-    const sourceNameToCanonicalIds = licensingSourceNameToCanonicalIds({
-      tcole: { canonicalId: "authority-canonical-id" },
-    });
-    const context = licensingContext(sourceNameToCanonicalIds);
+    const ledger = fakeSourceNameLedger(
+      licensingSourceNameToCanonicalIds({
+        tcole: { canonicalId: "authority-canonical-id" },
+      }),
+    );
+    const context = licensingContext(ledger);
 
     // Find: an id already in the SourceNameToCanonicalId ledger is reused.
     const seeded = context.licensingAuthorityFromSource({
@@ -599,25 +596,23 @@ describe("DataContext", () => {
     const mintedId = await minted.value("id");
     expect(mintedId).not.toBe("authority-canonical-id");
     expect(mintedId).toMatch(/^[0-9a-z]+$/);
-    expect(
-      sourceNameToCanonicalIds.licensingAuthorities?.["unseeded-authority"]
-        ?.canonicalId,
-    ).toBe(mintedId);
+    await expect(
+      ledger.read("gov.tx.tcole", "LicensingAuthority", "unseeded-authority"),
+    ).resolves.toBe(mintedId);
   });
 
   test("LicensingAuthorityFacade canonical-id resolver mints and durably persists a new id", async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "la-ledger-"));
+    const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
     const context = new DataContext({
       client: new EmptyClient(),
       rows,
       commandName: "command-name",
       databaseLocationPaths: [txLocationPath],
       databaseLocationPathAliases: [],
-      sourceNameToCanonicalIds: licensingSourceNameToCanonicalIds({}),
       // The resolver is the sole owner of LicensingAuthority identity: it mints
       // AND persists, with no earlier minting stage involved.
-      persistSourceNameToCanonicalIds: (namespace, mappings) =>
-        persistSourceNameToCanonicalIds(namespace, mappings, { rootDir }),
+      ledger,
     });
 
     const facade = context.licensingAuthorityFromSource({
@@ -631,14 +626,11 @@ describe("DataContext", () => {
     });
     const mintedId = await facade.value("id");
 
-    // Persisted to disk by the resolver alone — a fresh load returns it.
-    const reloaded = await loadSourceNameToCanonicalIds("gov.tx.tcole", {
-      rootDir,
-    });
-    expect(reloaded.licensingAuthorities?.tcole).toEqual({
-      kind: "LicensingAuthority",
-      canonicalId: mintedId,
-    });
+    // Persisted to disk by the resolver alone — a fresh accessor returns it.
+    const reloaded = createSourceNameToCanonicalIdLedger({ rootDir });
+    await expect(
+      reloaded.read("gov.tx.tcole", "LicensingAuthority", "tcole"),
+    ).resolves.toBe(mintedId);
   });
 
   test("LicensingAuthorityFacade auto-loads its current DB row and emits an update, not a create", async () => {
@@ -648,9 +640,11 @@ describe("DataContext", () => {
       commandName: "command-name",
       databaseLocationPaths: [txLocationPath],
       databaseLocationPathAliases: [],
-      sourceNameToCanonicalIds: licensingSourceNameToCanonicalIds({
-        tcole: { canonicalId: "authority-canonical-id" },
-      }),
+      ledger: fakeSourceNameLedger(
+        licensingSourceNameToCanonicalIds({
+          tcole: { canonicalId: "authority-canonical-id" },
+        }),
+      ),
       // Mirrors databaseAgencies: the facade loads `current` from here after it
       // resolves the canonical id — no per-record special-casing at the caller.
       databaseLicensingAuthorities: [
@@ -702,9 +696,11 @@ describe("DataContext", () => {
 
   test("LicensingAuthorityFacade.toMutation emits a LicensingAuthorityCreate with the resolved location", async () => {
     const context = licensingContext(
-      licensingSourceNameToCanonicalIds({
-        tcole: { canonicalId: "authority-canonical-id" },
-      }),
+      fakeSourceNameLedger(
+        licensingSourceNameToCanonicalIds({
+          tcole: { canonicalId: "authority-canonical-id" },
+        }),
+      ),
     );
     context.licensingAuthorityFromSource({
       apiVersion: INTAKE_API_VERSION,
@@ -746,9 +742,11 @@ describe("DataContext", () => {
 
   test("LicensingAuthorityFacade.toMutation emits a LicensingAuthorityUpdate diff when a current row exists", async () => {
     const context = licensingContext(
-      licensingSourceNameToCanonicalIds({
-        tcole: { canonicalId: "authority-canonical-id" },
-      }),
+      fakeSourceNameLedger(
+        licensingSourceNameToCanonicalIds({
+          tcole: { canonicalId: "authority-canonical-id" },
+        }),
+      ),
     );
     const facade = context.licensingAuthorityFromSource({
       apiVersion: INTAKE_API_VERSION,
@@ -794,9 +792,11 @@ describe("DataContext", () => {
 
   test("LicensingAuthorityFacade location resolver fails resolve-or-fail when the state does not resolve", async () => {
     const context = licensingContext(
-      licensingSourceNameToCanonicalIds({
-        other: { canonicalId: "authority-canonical-id" },
-      }),
+      fakeSourceNameLedger(
+        licensingSourceNameToCanonicalIds({
+          other: { canonicalId: "authority-canonical-id" },
+        }),
+      ),
     );
     const facade = context.licensingAuthorityFromSource({
       apiVersion: INTAKE_API_VERSION,
@@ -815,10 +815,7 @@ describe("DataContext", () => {
     licenseActions?: SourceNameToCanonicalIds["licenseActions"];
     databaseLicenses?: Record<string, unknown>[];
     databaseLicenseActions?: Record<string, unknown>[];
-    persistSourceNameToCanonicalIds?: (
-      namespace: string,
-      mappings: SourceNameToCanonicalIds,
-    ) => Promise<void>;
+    ledger?: SourceNameToCanonicalIdLedger;
   }): DataContext {
     return new DataContext({
       client: new EmptyClient(),
@@ -826,29 +823,25 @@ describe("DataContext", () => {
       commandName: "command-name",
       databaseLocationPaths: [txLocationPath],
       databaseLocationPathAliases: [],
-      sourceNameToCanonicalIds: {
-        agencies: {},
-        personnel: { "1000038": { canonicalId: "personnel-canonical-id" } },
-        agencyPersonnel: {},
-        locationPaths: {},
-        licensingAuthorities: {
-          tcole: { canonicalId: "authority-canonical-id" },
-        },
-        licenses: options?.licenses ?? {},
-        licenseActions: options?.licenseActions ?? {},
-      },
+      ledger:
+        options?.ledger ??
+        fakeSourceNameLedger({
+          agencies: {},
+          personnel: { "1000038": { canonicalId: "personnel-canonical-id" } },
+          agencyPersonnel: {},
+          locationPaths: {},
+          licensingAuthorities: {
+            tcole: { canonicalId: "authority-canonical-id" },
+          },
+          licenses: options?.licenses ?? {},
+          licenseActions: options?.licenseActions ?? {},
+        }),
       ...(options?.databaseLicenses === undefined
         ? {}
         : { databaseLicenses: options.databaseLicenses }),
       ...(options?.databaseLicenseActions === undefined
         ? {}
         : { databaseLicenseActions: options.databaseLicenseActions }),
-      ...(options?.persistSourceNameToCanonicalIds === undefined
-        ? {}
-        : {
-            persistSourceNameToCanonicalIds:
-              options.persistSourceNameToCanonicalIds,
-          }),
     });
   }
 
@@ -1005,15 +998,14 @@ describe("DataContext", () => {
     });
 
     await expect(facade.toMutation()).rejects.toThrow(
-      /no Personnel facade was emitted for source id "1000038" \(forward reference/,
+      /references Personnel "1000038", which does not exist in namespace/,
     );
   });
 
   test("LicenseFacade canonical-id resolver mints and durably persists a new id", async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "license-ledger-"));
     const context = licenseClusterContext({
-      persistSourceNameToCanonicalIds: (namespace, mappings) =>
-        persistSourceNameToCanonicalIds(namespace, mappings, { rootDir }),
+      ledger: createSourceNameToCanonicalIdLedger({ rootDir }),
     });
     const facade = context.licenseFromSource({
       apiVersion: INTAKE_API_VERSION,
@@ -1027,13 +1019,10 @@ describe("DataContext", () => {
     });
     const mintedId = await facade.value("id");
 
-    const reloaded = await loadSourceNameToCanonicalIds("gov.tx.tcole", {
-      rootDir,
-    });
-    expect(reloaded.licenses?.["1000038|Peace Officer License"]).toEqual({
-      kind: "License",
-      canonicalId: mintedId,
-    });
+    const reloaded = createSourceNameToCanonicalIdLedger({ rootDir });
+    await expect(
+      reloaded.read("gov.tx.tcole", "License", "1000038|Peace Officer License"),
+    ).resolves.toBe(mintedId);
   });
 
   test("LicenseActionFacade emits a LicenseActionCreate resolving its license foreign key", async () => {
@@ -1100,7 +1089,7 @@ describe("DataContext", () => {
     });
 
     await expect(facade.toMutation()).rejects.toThrow(
-      /no License facade was emitted for source id "1000038\|Peace Officer License" \(forward reference/,
+      /references License "1000038\|Peace Officer License", which does not exist in namespace/,
     );
   });
 });
@@ -1122,28 +1111,21 @@ describe("PersonnelFacade", () => {
     client?: DatabaseClient;
     personnel?: SourceNameToCanonicalIds["personnel"];
     databaseOfficers?: Record<string, unknown>[];
-    persistSourceNameToCanonicalIds?: (
-      namespace: string,
-      mappings: SourceNameToCanonicalIds,
-    ) => Promise<void>;
+    ledger?: SourceNameToCanonicalIdLedger;
   }): DataContext {
     return new DataContext({
       client: options?.client ?? new EmptyClient(),
       rows,
       commandName: "command-name",
-      sourceNameToCanonicalIds: {
-        ...emptyPersonnel(),
-        personnel: options?.personnel ?? {},
-      },
+      ledger:
+        options?.ledger ??
+        fakeSourceNameLedger({
+          ...emptyPersonnel(),
+          personnel: options?.personnel ?? {},
+        }),
       ...(options?.databaseOfficers === undefined
         ? {}
         : { databaseOfficers: options.databaseOfficers }),
-      ...(options?.persistSourceNameToCanonicalIds === undefined
-        ? {}
-        : {
-            persistSourceNameToCanonicalIds:
-              options.persistSourceNameToCanonicalIds,
-          }),
     });
   }
 
@@ -1174,18 +1156,8 @@ describe("PersonnelFacade", () => {
   });
 
   test("mints and durably persists a canonical id when none is seeded (id stability)", async () => {
-    const persisted: {
-      namespace: string;
-      mappings: SourceNameToCanonicalIds;
-    }[] = [];
-    const context = personnelContext({
-      persistSourceNameToCanonicalIds: async (namespace, mappings) => {
-        persisted.push({
-          namespace,
-          mappings: JSON.parse(JSON.stringify(mappings)),
-        });
-      },
-    });
+    const ledger = fakeSourceNameLedger(emptyPersonnel());
+    const context = personnelContext({ ledger });
     const facade = context.personnelFromSource({
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
@@ -1199,13 +1171,9 @@ describe("PersonnelFacade", () => {
     // value("id") is memoized: the FK-find and toMutation see the same id.
     expect(await facade.value("id")).toBe(mintedId);
     // The mint is durably persisted to the ledger under the source id.
-    expect(persisted.length).toBeGreaterThan(0);
-    const last = persisted.at(-1)!;
-    expect(last.namespace).toBe("gov.tx.tcole");
-    expect(last.mappings.personnel["new-officer-source"]).toEqual({
-      kind: "Personnel",
-      canonicalId: mintedId,
-    });
+    await expect(
+      ledger.read("gov.tx.tcole", "Personnel", "new-officer-source"),
+    ).resolves.toBe(mintedId);
   });
 
   test("uses an explicitly supplied slug as-is", async () => {
@@ -1338,7 +1306,7 @@ describe("AgencyPersonnelFacade", () => {
       client: new EmptyClient(),
       rows,
       commandName: "command-name",
-      sourceNameToCanonicalIds: {
+      ledger: fakeSourceNameLedger({
         agencies: options?.agencies ?? {},
         personnel: options?.personnel ?? {},
         agencyPersonnel: options?.agencyPersonnel ?? {},
@@ -1346,7 +1314,7 @@ describe("AgencyPersonnelFacade", () => {
         licensingAuthorities: {},
         licenses: options?.licenses ?? {},
         licenseActions: {},
-      },
+      }),
       ...(options?.databaseAgencyPersonnel === undefined
         ? {}
         : { databaseAgencyPersonnel: options.databaseAgencyPersonnel }),
@@ -1521,7 +1489,7 @@ describe("AgencyPersonnelFacade", () => {
     });
 
     await expect(facade.toMutation()).rejects.toThrow(
-      /no Agency facade was emitted for source id "agency-source" \(forward reference/,
+      /references Agency "agency-source", which does not exist in namespace/,
     );
   });
 });
@@ -1534,7 +1502,7 @@ describe("Census substrate facades", () => {
       client: new EmptyClient(),
       rows,
       commandName: "command-name",
-      sourceNameToCanonicalIds: {
+      ledger: fakeSourceNameLedger({
         agencies: {},
         personnel: {},
         agencyPersonnel: {},
@@ -1542,7 +1510,7 @@ describe("Census substrate facades", () => {
         licensingAuthorities: {},
         licenses: {},
         licenseActions: {},
-      },
+      }),
     });
   }
 
@@ -1755,7 +1723,7 @@ describe("Census substrate facades", () => {
     });
 
     await expect(geometry.toMutation()).rejects.toThrow(
-      /no LocationPath facade was emitted for source id "mn" \(forward reference/,
+      /references LocationPath "mn", which does not exist in namespace/,
     );
   });
 });

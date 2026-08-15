@@ -10,10 +10,7 @@ import {
 } from "../../../shared/io/import-types.js";
 import type { z } from "zod";
 import { LocationPathSpec } from "../../../shared/io/generated/entity-specs.js";
-import {
-  assertCanonicalMappingFields,
-  type SourceNameToCanonicalIds,
-} from "../../state/source-name-to-canonical-id/index.js";
+import type { SourceNameToCanonicalIdLedger } from "../../state/source-name-to-canonical-id/index.js";
 
 export type AgencyRow = {
   sourceName?: string;
@@ -168,6 +165,22 @@ function entityMap(
   ) as Record<string, unknown>;
 }
 
+// Merge the per-record source-file paths across all artifacts of one kind (the
+// absolute path each record was read from, attached by Artifacts.read), keyed by
+// record key — so a transform error can cite the file that holds the bad data.
+function recordSourcesFor(
+  artifacts: ArtifactsEnvelope,
+  entityName: Parameters<typeof entityMap>[1],
+): Record<string, string> {
+  const kind = importKindByEntityName[entityName];
+  return Object.assign(
+    {},
+    ...artifacts.spec.artifacts
+      .filter((artifact) => artifact.kind === kind)
+      .map((artifact) => artifact.recordSources ?? {}),
+  ) as Record<string, string>;
+}
+
 function locationPathSourceKeysByPath(
   artifacts: ArtifactsEnvelope,
 ): Record<string, string> {
@@ -264,33 +277,39 @@ function hasOwnField(
   return Object.prototype.hasOwnProperty.call(source, fieldName);
 }
 
-function locationPathRow(
+async function locationPathRow(
   recordKey: string,
   sourceValue: unknown,
-  mappings: SourceNameToCanonicalIds,
-): LocationPathRow {
+  namespace: string,
+  ledger: SourceNameToCanonicalIdLedger,
+): Promise<LocationPathRow> {
   const source = valueAsRecord(recordKey, sourceValue);
   const sourceName = sourceNameForImportRecord(recordKey, sourceValue);
   requiredString(sourceName, "location_path_id", source.location_path_id);
-  const mapping = mappings.locationPaths[sourceName];
+  // find-or-create is order-independent: the parent may be materialized here
+  // before its own row is processed, and its own row finds the same id.
+  const canonicalId = await ledger.findOrCreate(
+    namespace,
+    "LocationPath",
+    sourceName,
+  );
   const parentLocationPathSourceKey = valueAsStringOrNull(
     source.parent_location_path_id,
   );
   const parentCanonicalId =
     parentLocationPathSourceKey === null
       ? null
-      : mappings.locationPaths[parentLocationPathSourceKey]?.canonicalId;
-  if (parentLocationPathSourceKey !== null && parentCanonicalId === undefined) {
-    throw new Error(
-      `Artifacts location path ${sourceName} references unmapped parent location path ${parentLocationPathSourceKey}.`,
-    );
-  }
+      : await ledger.findOrCreate(
+          namespace,
+          "LocationPath",
+          parentLocationPathSourceKey,
+        );
   const databaseFields = Object.fromEntries(
     Object.entries(source).filter(([fieldName]) => !fieldName.startsWith("_")),
   );
   const result = LocationPathSpec.safeParse({
     ...databaseFields,
-    location_path_id: mapping?.canonicalId,
+    location_path_id: canonicalId,
     parent_location_path_id: parentCanonicalId,
   });
   if (!result.success) {
@@ -303,12 +322,13 @@ function locationPathRow(
   return result.data;
 }
 
-function locationPathAliasRow(
+async function locationPathAliasRow(
   sourceName: string,
   sourceValue: unknown,
   locationPathSourceKeyByPath: Record<string, string>,
-  mappings: SourceNameToCanonicalIds,
-): LocationPathAliasRow {
+  namespace: string,
+  ledger: SourceNameToCanonicalIdLedger,
+): Promise<LocationPathAliasRow> {
   const source = valueAsRecord(sourceName, sourceValue);
   const sourceLocationPathId = requiredString(
     sourceName,
@@ -317,8 +337,10 @@ function locationPathAliasRow(
   );
   const locationPathSourceKey =
     locationPathSourceKeyByPath[sourceLocationPathId] ?? sourceLocationPathId;
+  // Reuse a recorded location-path id; fall back to the raw source path when
+  // none exists (legacy alias behavior).
   const canonicalLocationPathId =
-    mappings.locationPaths[locationPathSourceKey]?.canonicalId ??
+    (await ledger.read(namespace, "LocationPath", locationPathSourceKey)) ??
     sourceLocationPathId;
   return {
     alias_path: requiredString(sourceName, "alias_path", source.alias_path),
@@ -326,22 +348,28 @@ function locationPathAliasRow(
   };
 }
 
-function locationPathGeometryRow(
+async function locationPathGeometryRow(
   sourceName: string,
   sourceValue: unknown,
-  mappings: SourceNameToCanonicalIds,
-): LocationPathGeometryRow {
+  namespace: string,
+  ledger: SourceNameToCanonicalIdLedger,
+): Promise<LocationPathGeometryRow> {
   const source = valueAsRecord(sourceName, sourceValue);
   const sourceLocationPathKey = requiredString(
     sourceName,
     "sourceLocationPathKey",
     source.sourceLocationPathKey,
   );
-  const canonicalLocationPathId =
-    mappings.locationPaths[sourceLocationPathKey]?.canonicalId;
+  // Location paths are materialized before geometries, so this reference is
+  // found; a location path that does not exist in this namespace is an error.
+  const canonicalLocationPathId = await ledger.read(
+    namespace,
+    "LocationPath",
+    sourceLocationPathKey,
+  );
   if (canonicalLocationPathId === undefined) {
     throw new Error(
-      `Artifacts location path geometry ${sourceName} references unmapped location path ${sourceLocationPathKey}.`,
+      `Artifacts location path geometry ${sourceName} references location path "${sourceLocationPathKey}", which does not exist in namespace ${namespace}.`,
     );
   }
 
@@ -352,168 +380,192 @@ function locationPathGeometryRow(
   };
 }
 
-export function transformArtifacts(
+export async function transformArtifacts(
   artifacts: ArtifactsEnvelope,
-  mappings: SourceNameToCanonicalIds,
+  ledger: SourceNameToCanonicalIdLedger,
   resolvedProperties: ResolvedProperties = { agencies: {}, personnel: {} },
-): ImportRows {
+): Promise<ImportRows> {
   validateImportRecords(artifacts);
-  assertCanonicalMappingFields(artifacts, mappings);
+  const namespace = artifacts.metadata.namespace;
+  const agencyPersonnelSources = recordSourcesFor(artifacts, "agencyPersonnel");
   const ownedColumns: ImportRows["ownedColumns"] = {
     agencies: {},
     agencyOfficers: {},
   };
 
-  const locationPaths = Object.entries(
-    entityMap(artifacts, "locationPaths"),
-  ).map(([recordKey, sourceValue]) =>
-    locationPathRow(recordKey, sourceValue, mappings),
+  // Location paths are materialized first (find-or-create writes their ledger
+  // files) so aliases and geometries — awaited afterwards — find those ids.
+  const locationPaths = await Promise.all(
+    Object.entries(entityMap(artifacts, "locationPaths")).map(
+      ([recordKey, sourceValue]) =>
+        locationPathRow(recordKey, sourceValue, namespace, ledger),
+    ),
   );
 
   const locationPathSourceKeyByPath = locationPathSourceKeysByPath(artifacts);
-  const locationPathAliases = Object.entries(
-    entityMap(artifacts, "locationPathAliases"),
-  ).map(([sourceName, sourceValue]) =>
-    locationPathAliasRow(
-      sourceName,
-      sourceValue,
-      locationPathSourceKeyByPath,
-      mappings,
+  const locationPathAliases = await Promise.all(
+    Object.entries(entityMap(artifacts, "locationPathAliases")).map(
+      ([sourceName, sourceValue]) =>
+        locationPathAliasRow(
+          sourceName,
+          sourceValue,
+          locationPathSourceKeyByPath,
+          namespace,
+          ledger,
+        ),
     ),
   );
-  const locationPathGeometries = Object.entries(
-    entityMap(artifacts, "locationPathGeometries"),
-  ).map(([sourceName, sourceValue]) =>
-    locationPathGeometryRow(sourceName, sourceValue, mappings),
+  const locationPathGeometries = await Promise.all(
+    Object.entries(entityMap(artifacts, "locationPathGeometries")).map(
+      ([sourceName, sourceValue]) =>
+        locationPathGeometryRow(sourceName, sourceValue, namespace, ledger),
+    ),
   );
 
-  const agencies = Object.entries(entityMap(artifacts, "agencies")).map(
-    ([recordKey, sourceValue]): AgencyRow => {
-      const sourceName = sourceNameForImportRecord(recordKey, sourceValue);
-      const source = valueAsRecord(sourceName, sourceValue);
-      const mapping = mappings.agencies[sourceName];
-      const canonicalId = mapping.canonicalId!;
-      const resolvedAgency = resolvedProperties.agencies[canonicalId] ?? {};
-      const sourceOwnedColumns = agencySourceColumns.filter((columnName) =>
-        hasOwnField(source, columnName),
-      );
-      const mappingOwnedColumns: AgencyColumn[] = [];
-      if (resolvedAgency.slug !== undefined) {
-        mappingOwnedColumns.push("slug");
-      }
-      if (resolvedAgency.locationPathId !== undefined) {
-        mappingOwnedColumns.push("location_path_id");
-      }
-      if (resolvedAgency.latitude !== undefined) {
-        mappingOwnedColumns.push("latitude");
-      }
-      if (resolvedAgency.longitude !== undefined) {
-        mappingOwnedColumns.push("longitude");
-      }
-      ownedColumns.agencies[canonicalId] = [
-        ...sourceOwnedColumns,
-        ...mappingOwnedColumns,
-      ];
+  const agencies = await Promise.all(
+    Object.entries(entityMap(artifacts, "agencies")).map(
+      async ([recordKey, sourceValue]): Promise<AgencyRow> => {
+        const sourceName = sourceNameForImportRecord(recordKey, sourceValue);
+        const source = valueAsRecord(sourceName, sourceValue);
+        const canonicalId = await ledger.findOrCreate(
+          namespace,
+          "Agency",
+          sourceName,
+        );
+        const resolvedAgency = resolvedProperties.agencies[canonicalId] ?? {};
+        const sourceOwnedColumns = agencySourceColumns.filter((columnName) =>
+          hasOwnField(source, columnName),
+        );
+        const mappingOwnedColumns: AgencyColumn[] = [];
+        if (resolvedAgency.slug !== undefined) {
+          mappingOwnedColumns.push("slug");
+        }
+        if (resolvedAgency.locationPathId !== undefined) {
+          mappingOwnedColumns.push("location_path_id");
+        }
+        if (resolvedAgency.latitude !== undefined) {
+          mappingOwnedColumns.push("latitude");
+        }
+        if (resolvedAgency.longitude !== undefined) {
+          mappingOwnedColumns.push("longitude");
+        }
+        ownedColumns.agencies[canonicalId] = [
+          ...sourceOwnedColumns,
+          ...mappingOwnedColumns,
+        ];
 
-      return {
-        sourceName,
-        id: canonicalId,
-        name: requiredString(sourceName, "name", source.name),
-        city: valueAsStringOrNull(source.city),
-        state: requiredString(sourceName, "state", source.state),
-        address: valueAsStringOrNull(source.address),
-        zip_code: valueAsStringOrNull(source.zip_code),
-        contact_name: valueAsStringOrNull(source.contact_name),
-        contact_email: valueAsStringOrNull(source.contact_email),
-        slug: resolvedAgency.slug,
-        location_path_id: resolvedAgency.locationPathId,
-        latitude:
-          valueAsNumberOrUndefined(source.latitude) ?? resolvedAgency.latitude,
-        longitude:
-          valueAsNumberOrUndefined(source.longitude) ??
-          resolvedAgency.longitude,
-        ...(valueAsObjectOrUndefined(source.addresses) === undefined
-          ? {}
-          : { addresses: valueAsObjectOrUndefined(source.addresses) }),
-        ...(valueAsObjectOrUndefined(source.emails) === undefined
-          ? {}
-          : { emails: valueAsObjectOrUndefined(source.emails) }),
-        ...(valueAsObjectOrUndefined(source.location) === undefined
-          ? {}
-          : { location: valueAsObjectOrUndefined(source.location) }),
-        ...(valueAsObjectOrUndefined(source.phones) === undefined
-          ? {}
-          : { phones: valueAsObjectOrUndefined(source.phones) }),
-        ...(valueAsObjectOrUndefined(source.urls) === undefined
-          ? {}
-          : { urls: valueAsObjectOrUndefined(source.urls) }),
-      };
-    },
+        return {
+          sourceName,
+          id: canonicalId,
+          name: requiredString(sourceName, "name", source.name),
+          city: valueAsStringOrNull(source.city),
+          state: requiredString(sourceName, "state", source.state),
+          address: valueAsStringOrNull(source.address),
+          zip_code: valueAsStringOrNull(source.zip_code),
+          contact_name: valueAsStringOrNull(source.contact_name),
+          contact_email: valueAsStringOrNull(source.contact_email),
+          slug: resolvedAgency.slug,
+          location_path_id: resolvedAgency.locationPathId,
+          latitude:
+            valueAsNumberOrUndefined(source.latitude) ??
+            resolvedAgency.latitude,
+          longitude:
+            valueAsNumberOrUndefined(source.longitude) ??
+            resolvedAgency.longitude,
+          ...(valueAsObjectOrUndefined(source.addresses) === undefined
+            ? {}
+            : { addresses: valueAsObjectOrUndefined(source.addresses) }),
+          ...(valueAsObjectOrUndefined(source.emails) === undefined
+            ? {}
+            : { emails: valueAsObjectOrUndefined(source.emails) }),
+          ...(valueAsObjectOrUndefined(source.location) === undefined
+            ? {}
+            : { location: valueAsObjectOrUndefined(source.location) }),
+          ...(valueAsObjectOrUndefined(source.phones) === undefined
+            ? {}
+            : { phones: valueAsObjectOrUndefined(source.phones) }),
+          ...(valueAsObjectOrUndefined(source.urls) === undefined
+            ? {}
+            : { urls: valueAsObjectOrUndefined(source.urls) }),
+        };
+      },
+    ),
   );
 
   // Personnel rows are no longer built here; they are produced by the
   // PersonnelFacade (ADR 0016), which resolves its own canonical id, generates a
   // unique slug, and emits its own mutations.
 
-  const agencyOfficers = Object.entries(
-    entityMap(artifacts, "agencyPersonnel"),
-  ).map(([recordKey, sourceValue]): AgencyOfficerRow => {
-    const sourceName = sourceNameForImportRecord(recordKey, sourceValue);
-    const source = valueAsRecord(sourceName, sourceValue);
-    const mapping = mappings.agencyPersonnel[sourceName];
-    const canonicalId = mapping.canonicalId!;
-    const sourceAgencyId = valueAsStringOrNull(source.agency_id);
-    const sourcePersonnelId = valueAsStringOrNull(source.personnel_id);
-    const agencyMapping =
-      sourceAgencyId === null ? undefined : mappings.agencies[sourceAgencyId];
-    const personnelMapping =
-      sourcePersonnelId === null
-        ? undefined
-        : mappings.personnel[sourcePersonnelId];
-
-    if (sourceAgencyId === null || agencyMapping?.canonicalId === undefined) {
-      throw new Error(
-        `Agency-personnel source record ${sourceName} references unmapped agency ${sourceAgencyId}.`,
-      );
-    }
-
-    if (
-      sourcePersonnelId === null ||
-      personnelMapping?.canonicalId === undefined
-    ) {
-      throw new Error(
-        `Agency-personnel source record ${sourceName} references unmapped personnel ${sourcePersonnelId}.`,
-      );
-    }
-
-    ownedColumns.agencyOfficers[canonicalId] =
-      agencyOfficerSourceColumns.filter((columnName) =>
-        hasOwnField(source, columnName),
-      );
-
-    const sourceLicenseKey = valueAsStringOrNull(source.license_id);
-    let licenseCanonicalId: string | null = null;
-    if (sourceLicenseKey !== null) {
-      licenseCanonicalId =
-        mappings.licenses?.[sourceLicenseKey]?.canonicalId ?? null;
-      if (licenseCanonicalId === null) {
-        throw new Error(
-          `Agency-personnel source record ${sourceName} references unmapped license ${sourceLicenseKey}.`,
+  const agencyOfficers = await Promise.all(
+    Object.entries(entityMap(artifacts, "agencyPersonnel")).map(
+      async ([recordKey, sourceValue]): Promise<AgencyOfficerRow> => {
+        const sourceName = sourceNameForImportRecord(recordKey, sourceValue);
+        const source = valueAsRecord(sourceName, sourceValue);
+        const canonicalId = await ledger.findOrCreate(
+          namespace,
+          "AgencyPersonnel",
+          sourceName,
         );
-      }
-    }
+        const sourceAgencyId = valueAsStringOrNull(source.agency_id);
+        const sourcePersonnelId = valueAsStringOrNull(source.personnel_id);
+        if (sourceAgencyId === null) {
+          throw new Error(
+            `Agency-personnel source record ${sourceName} is missing required field agency_id.`,
+          );
+        }
+        if (sourcePersonnelId === null) {
+          throw new Error(
+            `Agency-personnel source record ${sourceName} is missing required field personnel_id.`,
+          );
+        }
 
-    return {
-      id: canonicalId,
-      agency_id: agencyMapping.canonicalId,
-      personnel_id: personnelMapping.canonicalId,
-      badge_number: valueAsStringOrNull(source.badge_number),
-      start_date: requiredString(sourceName, "start_date", source.start_date),
-      end_date: valueAsStringOrNull(source.end_date),
-      title: requiredString(sourceName, "title", source.title),
-      license_id: licenseCanonicalId,
-    };
-  });
+        // agency_id is the one foreign key consumed downstream (the
+        // excluded-agency cascade), so it is resolved to the agency's canonical
+        // id. Agencies are materialized before agency officers, so a
+        // same-namespace reference is found; a reference to an agency that does
+        // not exist in this namespace is an error (no forward references).
+        const agencyCanonicalId = await ledger.read(
+          namespace,
+          "Agency",
+          sourceAgencyId,
+        );
+        if (agencyCanonicalId === undefined) {
+          const sourceFile = agencyPersonnelSources[recordKey];
+          throw new Error(
+            [
+              `Agency-personnel source record ${sourceName} references agency "${sourceAgencyId}", which does not exist in namespace ${namespace}.`,
+              sourceFile && `Source: ${sourceFile}.`,
+            ]
+              .filter(Boolean)
+              .join(" "),
+          );
+        }
+
+        ownedColumns.agencyOfficers[canonicalId] =
+          agencyOfficerSourceColumns.filter((columnName) =>
+            hasOwnField(source, columnName),
+          );
+
+        // personnel_id / license_id carry the raw source reference; they are not
+        // consumed downstream. The AgencyPersonnel record's own foreign-key
+        // resolution finds and enforces these when it emits the mutation.
+        return {
+          id: canonicalId,
+          agency_id: agencyCanonicalId,
+          personnel_id: sourcePersonnelId,
+          badge_number: valueAsStringOrNull(source.badge_number),
+          start_date: requiredString(
+            sourceName,
+            "start_date",
+            source.start_date,
+          ),
+          end_date: valueAsStringOrNull(source.end_date),
+          title: requiredString(sourceName, "title", source.title),
+          license_id: valueAsStringOrNull(source.license_id),
+        };
+      },
+    ),
+  );
 
   // License and LicenseAction rows are no longer built here; they are produced
   // by LicenseFacade / LicenseActionFacade (ADR 0016), which resolve their own

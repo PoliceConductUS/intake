@@ -93,6 +93,13 @@ type InlineArtifactsArtifact = {
   spec: Record<string, unknown> & {
     records: Record<string, unknown>;
   };
+  /**
+   * Absolute path of the file each record was read from, keyed by record key —
+   * the per-record `.records/*.yaml` file, or the Artifacts file itself for
+   * inline records. Attached at read time so a record's origin can travel with
+   * the envelope and be cited in error messages. Absent when unresolved.
+   */
+  recordSources?: Record<string, string>;
 };
 
 export type ArtifactsEnvelope = Omit<ArtifactsEnvelopeResource, "spec"> & {
@@ -117,6 +124,7 @@ type ArtifactReader = (
 
 type ArtifactEnvelopeType = {
   new: (input: any) => ImportArtifactEnvelope;
+  read: (filePath: string, options: Record<string, unknown>) => Promise<any>;
   write: (
     directory: string,
     envelope: any,
@@ -124,19 +132,12 @@ type ArtifactEnvelopeType = {
   ) => Promise<{ path: string; sha256: string }>;
 };
 
-// Kinds whose records are written one-file-per-record under a `.records`
-// directory (an envelope-of-refs plus a singular record envelope per record),
-// instead of a single large multi-record YAML file. LocationPaths /
-// LocationPathAliases stay inline; LocationPathGeometries are streamed to their
-// own `.records` directory by the run emit-sink.
-const EXTERNALIZE_RECORD_KINDS = new Set<ImportArtifactKind>([
-  "Agencies",
-  "Personnel",
-  "AgencyPersonnel",
-  "LicensingAuthorities",
-  "Licenses",
-  "LicenseActions",
-]);
+// Maximum records per artifact collection file. A kind's records are written as
+// one inline collection, split into chunk files of this size so no single file
+// grows unbounded (ADR 0002/0009). LocationPathGeometries are the exception —
+// streamed to their own `.records` directory by the run emit-sink because a
+// single geometry can be large on its own.
+const ARTIFACT_RECORDS_PER_FILE = 10_000;
 
 type ArtifactRecordSpec = {
   safeParse(
@@ -311,33 +312,86 @@ async function artifactFromArtifactsItem(
   return artifactFromInlineItem(artifactsEnvelope, item);
 }
 
+async function artifactRecordSources(
+  artifactsPath: string,
+  artifactsNamespace: string,
+  item: ArtifactsArtifactReference,
+): Promise<Record<string, string>> {
+  // Inline records have no per-record file — they live in the Artifacts file.
+  if (!("ref" in item)) {
+    const artifactsAbsolute = path.resolve(artifactsPath);
+    const inlineRecords = (item.spec as { records?: Record<string, unknown> })
+      .records;
+    const inlineSources: Record<string, string> = {};
+    for (const recordKey of Object.keys(inlineRecords ?? {})) {
+      inlineSources[recordKey] = artifactsAbsolute;
+    }
+    return inlineSources;
+  }
+
+  const artifactPath = path.resolve(path.dirname(artifactsPath), item.ref.path);
+  const rawArtifact = (await artifactEnvelopeTypes[item.ref.kind].read(
+    artifactPath,
+    {
+      raw: true,
+      expectedKind: item.ref.kind,
+      expectedNamespace: artifactsNamespace,
+      expectedSha256: item.ref.sha256,
+    },
+  )) as { spec: { records: Record<string, unknown> } };
+  const artifactDirectory = path.dirname(artifactPath);
+  const sources: Record<string, string> = {};
+  for (const [recordKey, recordItem] of Object.entries(
+    rawArtifact.spec.records,
+  )) {
+    const recordRefPath =
+      typeof recordItem === "object" &&
+      recordItem !== null &&
+      "ref" in recordItem &&
+      typeof (recordItem as { ref?: { path?: unknown } }).ref?.path === "string"
+        ? (recordItem as { ref: { path: string } }).ref.path
+        : undefined;
+    // Externalized record → its own file; inline-in-artifact record → the
+    // artifact file that holds it.
+    sources[recordKey] =
+      recordRefPath === undefined
+        ? artifactPath
+        : path.resolve(artifactDirectory, recordRefPath);
+  }
+  return sources;
+}
+
 async function resolveArtifactsReferences(
   artifactsPath: string,
   artifactsEnvelope: ArtifactsEnvelopeResource,
   options: { includeKinds?: readonly ImportArtifactKind[] } = {},
 ): Promise<ArtifactsEnvelope> {
-  const artifacts: ImportArtifactEnvelope[] = [];
+  const artifacts: InlineArtifactsArtifact[] = [];
   for (const artifactReference of sortedArtifactReferences(
     artifactsEnvelope,
     options.includeKinds,
   )) {
-    artifacts.push(
-      await artifactFromArtifactsItem(
+    const artifact = await artifactFromArtifactsItem(
+      artifactsPath,
+      artifactsEnvelope,
+      artifactReference,
+    );
+    artifacts.push({
+      kind: artifact.kind,
+      spec: artifact.spec,
+      recordSources: await artifactRecordSources(
         artifactsPath,
-        artifactsEnvelope,
+        artifactsEnvelope.metadata.namespace,
         artifactReference,
       ),
-    );
+    });
   }
 
   return {
     ...artifactsEnvelope,
     spec: {
       ...artifactsEnvelope.spec,
-      artifacts: artifacts.map((artifact) => ({
-        kind: artifact.kind,
-        spec: artifact.spec,
-      })),
+      artifacts,
     },
   };
 }
@@ -375,33 +429,56 @@ export const Artifacts = {
   ): Promise<{ path: string }> {
     const artifactReferences = [];
 
+    // Each artifact kind is written as a collection (records inline), split into
+    // chunk files of at most ARTIFACT_RECORDS_PER_FILE records so no single file
+    // grows unbounded. All chunks of a kind are listed as refs; the read side
+    // merges same-kind refs, so chunking is transparent to consumers. (Records
+    // are NOT one-file-per-row — that rule is for the ledger, not artifacts.)
     for (const artifactItem of envelope.spec.artifacts) {
       if ("ref" in artifactItem) {
         artifactReferences.push(artifactItem);
         continue;
       }
 
-      const artifact = artifactEnvelopeTypes[artifactItem.kind].new({
-        metadata: {
-          name: envelope.metadata.name,
-          namespace: envelope.metadata.namespace,
-        },
-        spec: artifactItem.spec,
-      });
-      const written = await artifactEnvelopeTypes[artifactItem.kind].write(
-        directory,
-        artifact,
-        EXTERNALIZE_RECORD_KINDS.has(artifactItem.kind)
-          ? { externalizeRecords: true }
-          : undefined,
+      const recordEntries = Object.entries(
+        artifactItem.spec.records as Record<string, unknown>,
       );
-      artifactReferences.push({
-        ref: {
-          path: path.basename(written.path),
-          kind: artifactItem.kind,
-          sha256: written.sha256,
-        },
-      });
+      const chunkCount = Math.max(
+        1,
+        Math.ceil(recordEntries.length / ARTIFACT_RECORDS_PER_FILE),
+      );
+      for (let index = 0; index < chunkCount; index += 1) {
+        const chunkRecords = Object.fromEntries(
+          recordEntries.slice(
+            index * ARTIFACT_RECORDS_PER_FILE,
+            (index + 1) * ARTIFACT_RECORDS_PER_FILE,
+          ),
+        );
+        const artifact = artifactEnvelopeTypes[artifactItem.kind].new({
+          metadata: {
+            name:
+              chunkCount === 1
+                ? envelope.metadata.name
+                : `${envelope.metadata.name}-${index}`,
+            namespace: envelope.metadata.namespace,
+          },
+          spec:
+            index === 0
+              ? { ...artifactItem.spec, records: chunkRecords }
+              : { records: chunkRecords },
+        });
+        const written = await artifactEnvelopeTypes[artifactItem.kind].write(
+          directory,
+          artifact,
+        );
+        artifactReferences.push({
+          ref: {
+            path: path.basename(written.path),
+            kind: artifactItem.kind,
+            sha256: written.sha256,
+          },
+        });
+      }
     }
 
     return GeneratedArtifacts.write(directory, {
