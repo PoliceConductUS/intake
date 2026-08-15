@@ -1309,3 +1309,201 @@ describe("PersonnelFacade", () => {
     expect(await facade.value("slug")).toBe("marc-denney-icalid-2");
   });
 });
+
+describe("AgencyPersonnelFacade", () => {
+  function agencyPersonnelContext(options?: {
+    agencies?: SourceNameToCanonicalIds["agencies"];
+    personnel?: SourceNameToCanonicalIds["personnel"];
+    agencyPersonnel?: SourceNameToCanonicalIds["agencyPersonnel"];
+    licenses?: SourceNameToCanonicalIds["licenses"];
+    databaseAgencyPersonnel?: Record<string, unknown>[];
+  }): DataContext {
+    return new DataContext({
+      client: new EmptyClient(),
+      rows,
+      commandName: "command-name",
+      sourceNameToCanonicalIds: {
+        agencies: options?.agencies ?? {},
+        personnel: options?.personnel ?? {},
+        agencyPersonnel: options?.agencyPersonnel ?? {},
+        locationPaths: {},
+        licensingAuthorities: {},
+        licenses: options?.licenses ?? {},
+        licenseActions: {},
+      },
+      ...(options?.databaseAgencyPersonnel === undefined
+        ? {}
+        : { databaseAgencyPersonnel: options.databaseAgencyPersonnel }),
+    });
+  }
+
+  // Register the FK targets (Agency / Personnel / License facades) that an
+  // AgencyPersonnel record references, so each FK find (ADR 0016 #4/#9) resolves.
+  function registerForeignKeyTargets(context: DataContext): void {
+    context.fromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: "agency-source",
+    });
+    context.personnelFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: "personnel-source",
+      spec: { first_name: "Marc", last_name: "Denney" },
+    });
+    context.licenseFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: "license-source",
+      spec: {
+        officer_id: "personnel-source",
+        license_type: "Peace Officer License",
+        issued_by_authority_id: "tcole",
+      },
+    });
+  }
+
+  const foreignKeyLedger = {
+    agencies: { "agency-source": { canonicalId: "agency-canonical-id" } },
+    personnel: { "personnel-source": { canonicalId: "personnel-canonical-id" } },
+    licenses: { "license-source": { canonicalId: "license-canonical-id" } },
+  };
+
+  test("resolves its agency, personnel, and license foreign keys to canonical ids", async () => {
+    const context = agencyPersonnelContext(foreignKeyLedger);
+    registerForeignKeyTargets(context);
+    const facade = context.agencyPersonnelFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: "ap-source",
+      spec: {
+        agency_id: "agency-source",
+        personnel_id: "personnel-source",
+        license_id: "license-source",
+        title: "Peace Officer",
+        start_date: "2020-01-01",
+        end_date: null,
+        badge_number: "49112",
+      },
+    });
+
+    expect(await facade.toMutation()).toMatchObject({
+      kind: "AgencyPersonnelCreate",
+      metadata: { namespace: "mn-post", name: "ap-source" },
+      spec: {
+        agency_id: "agency-canonical-id",
+        personnel_id: "personnel-canonical-id",
+        license_id: "license-canonical-id",
+        title: "Peace Officer",
+        start_date: "2020-01-01",
+        end_date: null,
+        badge_number: "49112",
+      },
+    });
+  });
+
+  test("keeps a null license_id null (nullable foreign key)", async () => {
+    const context = agencyPersonnelContext(foreignKeyLedger);
+    registerForeignKeyTargets(context);
+    const facade = context.agencyPersonnelFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: "ap-source",
+      spec: {
+        agency_id: "agency-source",
+        personnel_id: "personnel-source",
+        // no license_id
+        title: "Peace Officer",
+        start_date: "2020-01-01",
+      },
+    });
+
+    expect(await facade.value("license_id")).toBeNull();
+    expect(await facade.toMutation()).toMatchObject({
+      kind: "AgencyPersonnelCreate",
+      spec: { license_id: null },
+    });
+  });
+
+  test("emits an AgencyPersonnelUpdate diff when a current DB row exists", async () => {
+    const context = agencyPersonnelContext({
+      ...foreignKeyLedger,
+      agencyPersonnel: {
+        "ap-source": { canonicalId: "agency-personnel-canonical-id" },
+      },
+      databaseAgencyPersonnel: [
+        {
+          id: "agency-personnel-canonical-id",
+          agency_id: "agency-canonical-id",
+          personnel_id: "personnel-canonical-id",
+          license_id: "license-canonical-id",
+          title: "Deputy",
+          start_date: "2020-01-01",
+          end_date: null,
+          badge_number: "49112",
+        },
+      ],
+    });
+    registerForeignKeyTargets(context);
+    const facade = context.agencyPersonnelFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: "ap-source",
+      canonicalId: "agency-personnel-canonical-id",
+      spec: {
+        agency_id: "agency-source",
+        personnel_id: "personnel-source",
+        license_id: "license-source",
+        title: "Peace Officer",
+        start_date: "2020-01-01",
+        end_date: null,
+        badge_number: "49112",
+      },
+    });
+
+    expect(await facade.toMutation()).toMatchObject({
+      kind: "AgencyPersonnelUpdate",
+      spec: {
+        operations: expect.arrayContaining([
+          expect.objectContaining({
+            action: "set",
+            path: "title",
+            from: "Deputy",
+            to: "Peace Officer",
+          }),
+          expect.objectContaining({
+            action: "check",
+            path: "agency_id",
+            value: "agency-canonical-id",
+          }),
+        ]),
+      },
+    });
+  });
+
+  test("agency foreign-key find fails fast and loud on a forward reference", async () => {
+    const context = agencyPersonnelContext(foreignKeyLedger);
+    // Register Personnel and License but NOT the referenced Agency facade.
+    context.personnelFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: "personnel-source",
+      spec: { first_name: "Marc", last_name: "Denney" },
+    });
+    const facade = context.agencyPersonnelFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: "ap-source",
+      spec: {
+        agency_id: "agency-source",
+        personnel_id: "personnel-source",
+        title: "Peace Officer",
+        start_date: "2020-01-01",
+      },
+    });
+
+    await expect(facade.toMutation()).rejects.toThrow(
+      /no Agency facade was emitted for source id "agency-source" \(forward reference/,
+    );
+  });
+});

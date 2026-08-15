@@ -154,15 +154,6 @@ function slugSourceInput(
   };
 }
 
-function preparedAgencyPersonnelSpec(
-  agencyPersonnel: ImportRows["agencyOfficers"][number],
-): Record<string, unknown> {
-  const { id: _id, ...spec } = agencyPersonnel;
-  return Object.fromEntries(
-    Object.entries(spec).filter(([, value]) => value !== undefined),
-  );
-}
-
 function slugCacheInput(input: {
   namespace: string;
   kind: "Agency" | "Personnel";
@@ -354,11 +345,18 @@ function addAgencyPersonnelSourceFacades(
   rows: ImportRows,
   sourceNameToCanonicalIds: SourceNameToCanonicalIds,
 ): void {
-  const preparedAgencyPersonnelByCanonicalId = new Map(
-    rows.agencyOfficers.map((agencyPersonnel) => [
-      agencyPersonnel.id,
-      agencyPersonnel,
-    ]),
+  // Route each AgencyPersonnel source record through its facade (ADR 0016). The
+  // facade's resolvers derive the canonical id and the agency / personnel /
+  // license foreign keys (same-source finds against the source values in the
+  // raw record), then `toMutation` emits the create or update.
+  //
+  // COEXISTENCE: the excluded-agency cascade (drop dependent agency_officers)
+  // still runs on `rows.agencyOfficers` in plan-database-mutations; a record
+  // whose canonical id is no longer among the surviving rows was cascaded out
+  // (its agency was excluded), so it is skipped here — otherwise its Agency FK
+  // find would fail loud on the (correctly) absent Agency facade.
+  const survivingAgencyPersonnelIds = new Set(
+    rows.agencyOfficers.map((agencyPersonnel) => agencyPersonnel.id),
   );
 
   for (const artifact of artifacts.spec.artifacts.filter(
@@ -368,24 +366,16 @@ function addAgencyPersonnelSourceFacades(
       const sourceName = sourceNameForImportRecord(recordName, record);
       const canonicalId =
         sourceNameToCanonicalIds.agencyPersonnel[sourceName]?.canonicalId;
-      const agencyPersonnel =
-        canonicalId === undefined
-          ? undefined
-          : preparedAgencyPersonnelByCanonicalId.get(canonicalId);
-      if (agencyPersonnel === undefined) {
-        throw new Error(
-          `Prepared agency-personnel row is missing for source agency-personnel ${sourceName}.`,
-        );
+      if (canonicalId === undefined || !survivingAgencyPersonnelIds.has(canonicalId)) {
+        continue;
       }
 
-      const source = valueAsRecord(record);
-      const facade = dataContext.agencyPersonnelFromSource({
+      dataContext.agencyPersonnelFromSource({
         apiVersion: INTAKE_API_VERSION,
         namespace: artifacts.metadata.namespace,
         name: sourceName,
-        spec: source,
+        spec: valueAsRecord(record),
       });
-      facade.merge(preparedAgencyPersonnelSpec(agencyPersonnel));
     }
   }
 }
@@ -1161,6 +1151,7 @@ async function writeDatabaseMutationsStage(
   // exist.
   const facadeEntityKinds = [
     "Personnel",
+    "AgencyPersonnel",
     "LicensingAuthorities",
     "Licenses",
     "LicenseActions",
@@ -1203,6 +1194,14 @@ async function writeDatabaseMutationsStage(
           "public.officers",
           canonicalIds(context.resolvedMappings.personnel),
         );
+  const databaseAgencyPersonnel =
+    facadeBackendClient === undefined
+      ? []
+      : await readDatabaseRecordsByIds(
+          facadeBackendClient,
+          "public.agency_officers",
+          canonicalIds(context.resolvedMappings.agencyPersonnel),
+        );
   const databaseLicensingAuthorities =
     facadeBackendClient === undefined
       ? []
@@ -1240,6 +1239,7 @@ async function writeDatabaseMutationsStage(
       // existing agency is written as an update (not a create missing a slug).
       databaseAgencies: context.databaseResult.databaseAgencies,
       databaseOfficers,
+      databaseAgencyPersonnel,
       databaseLicensingAuthorities,
       databaseLicenses,
       databaseLicenseActions,
