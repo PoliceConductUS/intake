@@ -49,9 +49,14 @@ not execute; it builds the envelope; a separate executor applies it.
 provider, the ledger persist-writer (DIP; OCP for new entities via new facades /
 resolvers). The command-planning stage (formerly `plan-database-mutations`) slims
 into a thin flush/transaction script: open the read transaction, wire the injected
-IO into `DataContext`, drive the flush, **catch per-entity `toMutation` failures
-and aggregate them into the `DatabaseMutationsDebug` envelope**, and hand off the
-built envelope. It does **not** dissolve into `DataContext`. (Resolvers fail fast
+IO into `DataContext`, and drive the facades' `toMutation` **concurrently**
+(`Promise.allSettled`), which does two things at once — it **catches per-entity
+failures and aggregates them into the `DatabaseMutationsDebug` envelope**, and it
+makes **batch-loader coalescing (ADR 0016 #10) emergent**: the batched geocoder
+(and any other batchable gateway) becomes a single coalesced `load` across
+agencies in one tick, so there is **no separate geocode prewarm stage**. The flush
+then hands off the built envelope. It does **not** dissolve into `DataContext`.
+(Resolvers fail fast
 individually per ADR 0016 #3; the flush aggregates.)
 
 **4. A query builder, not a full ORM, for SQL.** A full ORM (Prisma / TypeORM /

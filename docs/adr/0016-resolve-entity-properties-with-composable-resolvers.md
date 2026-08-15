@@ -142,6 +142,21 @@ same-source references only — cross-source references (e.g. `location_path_id`
 owned by another source) are resolve-or-fail against the backend, since a source
 cannot order another source's records.
 
+**10. Batched (DataLoader) resolvers — N+1 avoidance, emergent from concurrency.**
+A resolver whose gateway supports batching MAY be a *batch-loader*: `load(key)`
+returns a memoized promise, and every `load` in the same tick is **coalesced** into
+one `batchLoad(keys)` call, keyed by the resolver's normalized input (normalized
+address for geocode; id/path for a batched `getById`/`getByPath`; etc.). The loader
+unifies per-key caching (#5) with batching. Because resolution is lazy and memoized
+(#2), **batching is emergent**: when the flush drives every facade's `toMutation`
+concurrently (ADR 0017 #3), their `load` calls land in one tick and batch
+automatically — there is **no separate "prewarm" pass**. This is the general
+N+1-avoidance mechanism for any batchable gateway. Keep the cache split by input
+stability (#5): a value derived from a *stable* input (coordinates from a
+normalized address) caches write-once; a value derived from *mutable reference
+data* (a `location_path` from coordinates, which depends on the current geometries)
+is a separate recomputable/invalidatable loader, not merged into the stable cache.
+
 ## Consequences
 
 - One place and one pattern for canonical ids, foreign keys, coordinates, slugs,
