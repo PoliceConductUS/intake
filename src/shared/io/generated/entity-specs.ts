@@ -11,7 +11,7 @@ export const GENERATED_MIGRATION_FINGERPRINT = "e117ca40e7d45aa1a4522f77181bf501
 // Entity record kinds in database-dependency order (topological sort of the
 // foreign-key graph): a referenced entity precedes its referrer, so mutations
 // emitted/applied in this order never violate a foreign key.
-export const RECORD_KINDS_IN_DEPENDENCY_ORDER = ["LocationPath","LocationPathGeometry","LocationPathAlias","Agency","Personnel","LicensingAuthority","License","AgencyPersonnel","LicenseAction","Discipline","DisciplineAgencyOfficer"] as const;
+export const RECORD_KINDS_IN_DEPENDENCY_ORDER = ["LocationPath","LocationPathGeometry","LocationPathAlias","Agency","Personnel","LicensingAuthority","License","AgencyPersonnel","LicenseAction","Discipline","DisciplineAgencyOfficer","CoverageLink","CoverageLinkAgencyOfficer"] as const;
 
 // Each record kind's foreign keys to other entity kinds (field → target kind),
 // from the database's own FKs. Drives the exclusion cascade: a record whose FK
@@ -19,7 +19,7 @@ export const RECORD_KINDS_IN_DEPENDENCY_ORDER = ["LocationPath","LocationPathGeo
 export const FK_REFERENCES: Record<
   string,
   ReadonlyArray<{ field: string; targetKind: string }>
-> = {"LocationPathGeometry":[{"field":"location_path_id","targetKind":"LocationPath"}],"LocationPathAlias":[{"field":"location_path_id","targetKind":"LocationPath"}],"Agency":[{"field":"location_path_id","targetKind":"LocationPath"}],"AgencyPersonnel":[{"field":"agency_id","targetKind":"Agency"},{"field":"license_id","targetKind":"License"},{"field":"officer_id","targetKind":"Personnel"}],"LicensingAuthority":[{"field":"location_path_id","targetKind":"LocationPath"}],"License":[{"field":"issued_by_authority_id","targetKind":"LicensingAuthority"},{"field":"officer_id","targetKind":"Personnel"}],"LicenseAction":[{"field":"license_id","targetKind":"License"}],"DisciplineAgencyOfficer":[{"field":"agency_officer_id","targetKind":"AgencyPersonnel"},{"field":"discipline_id","targetKind":"Discipline"}]};
+> = {"LocationPathGeometry":[{"field":"location_path_id","targetKind":"LocationPath"}],"LocationPathAlias":[{"field":"location_path_id","targetKind":"LocationPath"}],"Agency":[{"field":"location_path_id","targetKind":"LocationPath"}],"AgencyPersonnel":[{"field":"agency_id","targetKind":"Agency"},{"field":"license_id","targetKind":"License"},{"field":"officer_id","targetKind":"Personnel"}],"LicensingAuthority":[{"field":"location_path_id","targetKind":"LocationPath"}],"License":[{"field":"issued_by_authority_id","targetKind":"LicensingAuthority"},{"field":"officer_id","targetKind":"Personnel"}],"LicenseAction":[{"field":"license_id","targetKind":"License"}],"DisciplineAgencyOfficer":[{"field":"agency_officer_id","targetKind":"AgencyPersonnel"},{"field":"discipline_id","targetKind":"Discipline"}],"CoverageLinkAgencyOfficer":[{"field":"agency_officer_id","targetKind":"AgencyPersonnel"},{"field":"coverage_link_id","targetKind":"CoverageLink"}]};
 
 const nonEmptyString = z.string().trim().min(1);
 const nullableNonEmptyString = nonEmptyString.nullable();
@@ -291,5 +291,35 @@ export const DisciplineAgencyOfficerSpec = z
   .strict();
 
 export const DisciplineAgencyOfficerCreateSpec = DisciplineAgencyOfficerSpec.extend({
+  id: z.string(),
+});
+
+export const CoverageLinkSpec = z
+  .object({
+    id: z.string().optional(),
+    url: z.string(),
+    normalized_url: z.string(),
+    title: z.string(),
+    source_name: z.string().nullable().optional(),
+    published_at: nullableNonEmptyString.optional(),
+    notes: z.string().nullable().optional(),
+  })
+  .strict();
+
+export const CoverageLinkCreateSpec = CoverageLinkSpec.extend({
+  id: z.string(),
+});
+
+export const CoverageLinkAgencyOfficerSpec = z
+  .object({
+    id: z.string().optional(),
+    coverage_link_id: z.string(),
+    agency_officer_id: z.string(),
+    confidence: z.string(),
+    notes: z.string().nullable().optional(),
+  })
+  .strict();
+
+export const CoverageLinkAgencyOfficerCreateSpec = CoverageLinkAgencyOfficerSpec.extend({
   id: z.string(),
 });
