@@ -1,5 +1,13 @@
 import { createId } from "@paralleldrive/cuid2";
 import {
+  Resolver,
+  type PropertyResolutionFacade,
+  type ForeignKeyIdSource,
+} from "./resolver-kit.js";
+// Re-exported so existing importers of these symbols from ./data-context keep
+// working while the generic kit lives in its own module.
+export { Resolver, type PropertyResolutionFacade, type ForeignKeyIdSource };
+import {
   LocationPathSpec,
   RECORD_KINDS_IN_DEPENDENCY_ORDER,
 } from "../../../shared/io/generated/entity-specs.js";
@@ -302,61 +310,8 @@ export type ResolverContext<
   backend: Backend;
 };
 
-/** A facade that exposes its properties through the generic async accessor. */
-export interface PropertyResolutionFacade<Row> {
-  value<K extends keyof Row>(property: K): Promise<Row[K]>;
-  raw(property: keyof Row): unknown;
-}
-
-/**
- * A minimal id-resolvable reference returned by the DataContext same-source
- * foreign-key find (ADR 0016 #4). A FK resolver locates the target facade for a
- * source id and `await`s its `id`; a missing target is a forward-reference
- * violation that fails fast and loud (never a minted stub).
- */
-export interface ForeignKeyIdSource {
-  value(property: "id"): Promise<string>;
-}
-
-type ResolverPolicy<T> =
-  | { readonly defaultValue: T }
-  | { readonly exception: Error }
-  | Record<string, never>;
-
-/**
- * A per-property resolver. Constructed with **exactly one** unresolved-policy —
- * a default value OR an exception — or neither. Behavior: resolves → return the
- * value; else throw the configured exception; else return the configured
- * default; else fail fast and loud with a message that locates the record in
- * the source data (`namespace`, `kind`, `source-id`, `property`, offending
- * value), supplied by the caller's `locate` closure.
- */
-export class Resolver<T, Ctx> {
-  constructor(
-    private readonly resolveFn: (context: Ctx) => Promise<T | undefined>,
-    private readonly policy: ResolverPolicy<T> = {},
-  ) {
-    if (Object.keys(policy).length > 1) {
-      throw new Error(
-        "A resolver is constructed with at most one of defaultValue or exception.",
-      );
-    }
-  }
-
-  async resolve(context: Ctx, locate: () => string): Promise<T> {
-    const value = await this.resolveFn(context);
-    if (value !== undefined) {
-      return value;
-    }
-    if ("exception" in this.policy) {
-      throw this.policy.exception;
-    }
-    if ("defaultValue" in this.policy) {
-      return this.policy.defaultValue;
-    }
-    throw new Error(locate());
-  }
-}
+// PropertyResolutionFacade, ForeignKeyIdSource, and the Resolver class now live
+// in ./resolver-kit.ts — imported and re-exported at the top of this file.
 
 type LicensingAuthorityResolvers = Partial<{
   [K in keyof LicensingAuthorityRowShape]: Resolver<
