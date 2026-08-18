@@ -164,6 +164,12 @@ const DESCRIPTORS: EntityDescriptor[] = [
     table: "license_action",
     createRequired: ["id"],
   },
+  { recordKind: "Discipline", table: "discipline", createRequired: ["id"] },
+  {
+    recordKind: "DisciplineAgencyOfficer",
+    table: "discipline_agency_officers",
+    createRequired: ["id"],
+  },
 ];
 
 /**

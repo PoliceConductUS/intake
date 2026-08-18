@@ -5,13 +5,13 @@ import { z } from "zod";
 // Fingerprint of the applied database migrations these specs were generated
 // against. The importer refuses to run when the live database's migrations
 // differ (see assertGeneratedSchemaCurrent).
-export const GENERATED_MIGRATION_VERSIONS = ["20250303232529","20260520000000","20260526162500","20260526173000","20260608172000","20260619142000","20260626000000","20260627000000","20260627000100","20260701000000","20260702000000"] as const;
-export const GENERATED_MIGRATION_FINGERPRINT = "385fc5a968643fc267ab248c3003b5838e98309a1a0e796e065345b5711393f7";
+export const GENERATED_MIGRATION_VERSIONS = ["20250303232529","20260520000000","20260526162500","20260526173000","20260608172000","20260619142000","20260626000000","20260627000000","20260627000100","20260701000000","20260702000000","20260703000000"] as const;
+export const GENERATED_MIGRATION_FINGERPRINT = "e117ca40e7d45aa1a4522f77181bf501d0dadc9b1ce694c68dbe5d98692b7364";
 
 // Entity record kinds in database-dependency order (topological sort of the
 // foreign-key graph): a referenced entity precedes its referrer, so mutations
 // emitted/applied in this order never violate a foreign key.
-export const RECORD_KINDS_IN_DEPENDENCY_ORDER = ["LocationPath","LocationPathGeometry","LocationPathAlias","Agency","Personnel","LicensingAuthority","License","AgencyPersonnel","LicenseAction"] as const;
+export const RECORD_KINDS_IN_DEPENDENCY_ORDER = ["LocationPath","LocationPathGeometry","LocationPathAlias","Agency","Personnel","LicensingAuthority","License","AgencyPersonnel","LicenseAction","Discipline","DisciplineAgencyOfficer"] as const;
 
 // Each record kind's foreign keys to other entity kinds (field → target kind),
 // from the database's own FKs. Drives the exclusion cascade: a record whose FK
@@ -19,7 +19,7 @@ export const RECORD_KINDS_IN_DEPENDENCY_ORDER = ["LocationPath","LocationPathGeo
 export const FK_REFERENCES: Record<
   string,
   ReadonlyArray<{ field: string; targetKind: string }>
-> = {"LocationPathGeometry":[{"field":"location_path_id","targetKind":"LocationPath"}],"LocationPathAlias":[{"field":"location_path_id","targetKind":"LocationPath"}],"Agency":[{"field":"location_path_id","targetKind":"LocationPath"}],"AgencyPersonnel":[{"field":"agency_id","targetKind":"Agency"},{"field":"license_id","targetKind":"License"},{"field":"officer_id","targetKind":"Personnel"}],"LicensingAuthority":[{"field":"location_path_id","targetKind":"LocationPath"}],"License":[{"field":"issued_by_authority_id","targetKind":"LicensingAuthority"},{"field":"officer_id","targetKind":"Personnel"}],"LicenseAction":[{"field":"license_id","targetKind":"License"}]};
+> = {"LocationPathGeometry":[{"field":"location_path_id","targetKind":"LocationPath"}],"LocationPathAlias":[{"field":"location_path_id","targetKind":"LocationPath"}],"Agency":[{"field":"location_path_id","targetKind":"LocationPath"}],"AgencyPersonnel":[{"field":"agency_id","targetKind":"Agency"},{"field":"license_id","targetKind":"License"},{"field":"officer_id","targetKind":"Personnel"}],"LicensingAuthority":[{"field":"location_path_id","targetKind":"LocationPath"}],"License":[{"field":"issued_by_authority_id","targetKind":"LicensingAuthority"},{"field":"officer_id","targetKind":"Personnel"}],"LicenseAction":[{"field":"license_id","targetKind":"License"}],"DisciplineAgencyOfficer":[{"field":"agency_officer_id","targetKind":"AgencyPersonnel"},{"field":"discipline_id","targetKind":"Discipline"}]};
 
 const nonEmptyString = z.string().trim().min(1);
 const nullableNonEmptyString = nonEmptyString.nullable();
@@ -266,4 +266,30 @@ export const LicenseActionSpec = z
 
 export const LicenseActionCreateSpec = LicenseActionSpec.extend({
   id: nonEmptyString,
+});
+
+export const DisciplineSpec = z
+  .object({
+    id: z.string().optional(),
+    action: nonEmptyString,
+    effective_date: nullableNonEmptyString.optional(),
+    expiration_date: nullableNonEmptyString.optional(),
+    case_number: nullableNonEmptyString.optional(),
+  })
+  .strict();
+
+export const DisciplineCreateSpec = DisciplineSpec.extend({
+  id: z.string(),
+});
+
+export const DisciplineAgencyOfficerSpec = z
+  .object({
+    id: z.string().optional(),
+    discipline_id: z.string(),
+    agency_officer_id: z.string(),
+  })
+  .strict();
+
+export const DisciplineAgencyOfficerCreateSpec = DisciplineAgencyOfficerSpec.extend({
+  id: z.string(),
 });
