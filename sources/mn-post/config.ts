@@ -1,0 +1,297 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { parse as parseYaml } from "yaml";
+import type {
+  SourceRun,
+  EmittedRecords,
+} from "../../src/cli/run/source-run.js";
+
+/**
+ * MN POST — reconstructs the Minnesota rows from the scraped POST License Search
+ * data. Three staged inputs (under `$INTAKE_WORKSPACE/mn-post/source/`):
+ *
+ *   - `agency-ids.yaml`  — agency name → Salesforce `a2j…` id (the durable
+ *                          identity map; every emitted agency is keyed by this id).
+ *   - `agencies.csv`     — the Q2 active-agency list (name, address, city, state,
+ *                          zip, chief, email); joined to agencies by name.
+ *   - `*.list.yaml`      — one per-agency roster (395), the officer list. The
+ *                          filename slug identifies the agency; each row carries
+ *                          `contactId` (person), `licenseId` (license), `name`
+ *                          ("Last, First Middle"), `licenseType`, `status`, and
+ *                          `originalLicenseIssueDate`.
+ *
+ * Entities (TCOLE-shaped): a single `LicensingAuthorities` (MN POST), `Agencies`
+ * (keyed by the a2j id), `Personnel` (keyed by `contactId`), `Licenses` (keyed by
+ * `licenseId`), and `AgencyPersonnel` (an officer's assignment at the roster's
+ * agency). Cross-references carry source keys the import resolves to canonical
+ * ids. `title` holds the `licenseType` (the closest role MN provides);
+ * `start_date` is `originalLicenseIssueDate` (the roster is a current snapshot
+ * with no assignment dates). Deterministic: no network, clock, or randomness.
+ */
+export const run: SourceRun = async ({ paths }) => {
+  const rosterPaths = paths.filter((p) => p.endsWith(".list.yaml")).sort();
+  const idMapPath = paths.find((p) => path.basename(p) === "agency-ids.yaml");
+  const csvPath = paths.find((p) => p.toLowerCase().endsWith(".csv"));
+  if (idMapPath === undefined) {
+    throw new Error(
+      "mn-post expects an agency-ids.yaml (agency name → a2j id).",
+    );
+  }
+
+  const idMap = parseYaml(await readFile(idMapPath, "utf8")) as Record<
+    string,
+    { id?: string }
+  >;
+  const agencyBySlug = new Map<string, { name: string; id: string }>();
+  for (const [name, entry] of Object.entries(idMap)) {
+    const id = entry?.id;
+    if (typeof id === "string" && id.trim() !== "") {
+      agencyBySlug.set(slugify(name), { name, id });
+    }
+  }
+
+  const csvByName = new Map<string, Record<string, string>>();
+  if (csvPath !== undefined) {
+    for (const row of parseCsv(await readFile(csvPath, "utf8"))) {
+      const name = (row["Agency"] ?? "").trim();
+      if (name !== "") {
+        csvByName.set(name, row);
+      }
+    }
+  }
+
+  const licensingAuthorities: EmittedRecords = {
+    "mn-post": {
+      spec: {
+        name: "Minnesota Board of Peace Officer Standards and Training",
+        abbreviation: "MN POST",
+        website: "https://dps.mn.gov/entity/post",
+        location_path_id: "mn",
+      },
+    },
+  };
+  const agencies: EmittedRecords = {};
+  const personnel: EmittedRecords = {};
+  const licenses: EmittedRecords = {};
+  const agencyPersonnel: EmittedRecords = {};
+
+  for (const rosterPath of rosterPaths) {
+    const fileSlug = path
+      .basename(rosterPath, ".list.yaml")
+      .replace(/-[0-9a-f]{12}$/, "");
+    const agency = agencyBySlug.get(fileSlug);
+    if (agency === undefined) {
+      throw new Error(
+        `mn-post roster ${path.basename(rosterPath)} has no agency in agency-ids.yaml (slug ${fileSlug}).`,
+      );
+    }
+
+    if (agencies[agency.id] === undefined) {
+      const csv = csvByName.get(agency.name);
+      agencies[agency.id] = {
+        spec: {
+          name: agency.name,
+          // Every MN POST agency is in Minnesota; the Q2 sheet confirms it.
+          state: nullIfBlank(csv?.["State"]) ?? "MN",
+          city: nullIfBlank(csv?.["City"]),
+          address: nullIfBlank(csv?.["Address"]),
+          zip_code: nullIfBlank(csv?.["Zip"]),
+          contact_name: nullIfBlank(csv?.["Chief Law Enforcement Officer"]),
+          contact_email: nullIfBlank(csv?.["Email"]),
+        },
+      };
+    }
+
+    const roster = parseYaml(await readFile(rosterPath, "utf8"));
+    if (!Array.isArray(roster)) {
+      continue;
+    }
+    for (const rawRow of roster) {
+      const row = (rawRow ?? {}) as Record<string, unknown>;
+      // Every officer on the roster is imported, disciplined or not — an
+      // officer's discipline history is exactly what this database exists to
+      // record, so it is never a reason to drop them. (The per-officer detail
+      // JSONs carry the `disciplinaryActions` themselves; importing those as
+      // LicenseActions is a separate, additive step.)
+      const contactId = nullIfBlank(asString(row.contactId));
+      // A person needs a stable id and a first name; skip rows without them.
+      if (contactId === null) {
+        continue;
+      }
+      const name = parseOfficerName(asString(row.name));
+      if (name.first === null) {
+        continue;
+      }
+      const licenseId = nullIfBlank(asString(row.licenseId));
+      const licenseType = nullIfBlank(asString(row.licenseType));
+      const startDate = toDate(asString(row.originalLicenseIssueDate));
+
+      personnel[contactId] = {
+        spec: {
+          id: contactId,
+          first_name: name.first,
+          last_name: name.last,
+          middle_name: name.middle,
+        },
+      };
+
+      // One License per distinct licenseId, issued by MN POST.
+      if (licenseId !== null && licenseType !== null) {
+        licenses[licenseId] = {
+          spec: {
+            officer_id: contactId,
+            license_type: licenseType,
+            status: nullIfBlank(asString(row.status)),
+            first_awarded: startDate,
+            issued_by_authority_id: "mn-post",
+          },
+        };
+      }
+
+      // Assignment at this roster's agency. title = licenseType (the closest role
+      // MN provides); start_date = the license issue date (no assignment dates in
+      // the snapshot). Keyed by (officer, agency) — one current assignment each.
+      if (startDate !== null && licenseType !== null) {
+        agencyPersonnel[`${contactId}|${agency.id}`] = {
+          spec: {
+            agency_id: agency.id,
+            officer_id: contactId,
+            start_date: startDate,
+            end_date: null,
+            title: licenseType,
+            license_id:
+              licenseId !== null && licenses[licenseId] !== undefined
+                ? licenseId
+                : null,
+          },
+        };
+      }
+    }
+  }
+
+  return {
+    artifacts: [
+      { kind: "LicensingAuthorities", records: licensingAuthorities },
+      { kind: "Agencies", records: agencies },
+      { kind: "Personnel", records: personnel },
+      { kind: "Licenses", records: licenses },
+      { kind: "AgencyPersonnel", records: agencyPersonnel },
+    ],
+  };
+};
+
+function asString(value: unknown): string | undefined {
+  return typeof value === "string"
+    ? value
+    : typeof value === "number"
+      ? String(value)
+      : undefined;
+}
+
+function nullIfBlank(value: string | undefined): string | null {
+  const text = (value ?? "").trim();
+  return text === "" ? null : text;
+}
+
+/** Trims a scraped date to `YYYY-MM-DD`, or null when absent/malformed. */
+function toDate(value: string | undefined): string | null {
+  const match = (value ?? "").trim().match(/^\d{4}-\d{2}-\d{2}/);
+  return match ? match[0] : null;
+}
+
+/** `Agency Name` → `agency-name` (matches the roster filename slugs). */
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * Splits `"Last, First Middle"` into parts; the comma anchors the last name.
+ * Falls back to first/last tokens when there is no comma.
+ */
+function parseOfficerName(name: string | undefined): {
+  first: string | null;
+  middle: string | null;
+  last: string | null;
+} {
+  const text = (name ?? "").trim();
+  if (text === "") {
+    return { first: null, middle: null, last: null };
+  }
+  if (text.includes(",")) {
+    const [last, rest = ""] = text.split(",", 2).map((part) => part.trim());
+    const parts = rest.split(/\s+/).filter(Boolean);
+    return {
+      first: parts[0] ?? null,
+      middle: parts.slice(1).join(" ") || null,
+      last: nullIfBlank(last),
+    };
+  }
+  const parts = text.split(/\s+/).filter(Boolean);
+  return {
+    first: parts[0] ?? null,
+    middle: parts.length > 2 ? parts.slice(1, -1).join(" ") : null,
+    last: parts.length > 1 ? (parts.at(-1) ?? null) : null,
+  };
+}
+
+/** Minimal RFC-4180 CSV parser (handles quoted fields and embedded commas). */
+function parseCsv(text: string): Array<Record<string, string>> {
+  const rows: string[][] = [];
+  let field = "";
+  let record: string[] = [];
+  let inQuotes = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (inQuotes) {
+      if (char === '"') {
+        if (text[index + 1] === '"') {
+          field += '"';
+          index += 1;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += char;
+      }
+      continue;
+    }
+    if (char === '"') {
+      inQuotes = true;
+    } else if (char === ",") {
+      record.push(field);
+      field = "";
+    } else if (char === "\n" || char === "\r") {
+      if (char === "\r" && text[index + 1] === "\n") {
+        index += 1;
+      }
+      record.push(field);
+      field = "";
+      if (record.some((value) => value !== "")) {
+        rows.push(record);
+      }
+      record = [];
+    } else {
+      field += char;
+    }
+  }
+  if (field !== "" || record.length > 0) {
+    record.push(field);
+    if (record.some((value) => value !== "")) {
+      rows.push(record);
+    }
+  }
+  if (rows.length === 0) {
+    return [];
+  }
+  const header = rows[0].map((column) => column.trim());
+  return rows
+    .slice(1)
+    .map((values) =>
+      Object.fromEntries(
+        header.map((column, index) => [column, values[index] ?? ""]),
+      ),
+    );
+}
