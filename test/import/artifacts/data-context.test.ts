@@ -1793,4 +1793,67 @@ describe("Census substrate facades", () => {
       /references LocationPath "mn", which does not exist in namespace/,
     );
   });
+
+  test("resolves a discipline attribution's FKs to the discipline and assignment ids", async () => {
+    const ledger = fakeSourceNameLedger({
+      agencyPersonnel: { "0031|a2jALPHA": { canonicalId: "ao-canonical-id" } },
+    });
+    const context = licensingContext(ledger);
+
+    // Register the assignment so the attribution's agency_officer_id FK resolves.
+    context.agencyPersonnelFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: "0031|a2jALPHA",
+      spec: {
+        agency_id: "a2jALPHA",
+        officer_id: "0031",
+        start_date: "2010-05-01",
+        title: "Peace Officer",
+      },
+    });
+
+    const discipline = context.disciplineFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: "0031|PB24-1-01",
+      spec: {
+        action: "SACO",
+        effective_date: "2024-03-01",
+        expiration_date: "2026-03-01",
+        case_number: "PB24-1-01",
+      },
+    });
+    const attribution = context.disciplineAgencyOfficerFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: "0031|PB24-1-01|a2jALPHA",
+      spec: {
+        discipline_id: "0031|PB24-1-01",
+        agency_officer_id: "0031|a2jALPHA",
+      },
+    });
+
+    const disciplineId = await discipline.value("id");
+    expect(await discipline.toMutation()).toMatchObject({
+      kind: "DisciplineCreate",
+      spec: {
+        id: disciplineId,
+        action: "SACO",
+        effective_date: "2024-03-01",
+        expiration_date: "2026-03-01",
+        case_number: "PB24-1-01",
+      },
+    });
+    // The attribution's FKs resolve — through the DataContext's
+    // findForeignKeyTarget — to the discipline event's id and the assignment's
+    // canonical id.
+    expect(await attribution.toMutation()).toMatchObject({
+      kind: "DisciplineAgencyOfficerCreate",
+      spec: {
+        discipline_id: disciplineId,
+        agency_officer_id: "ao-canonical-id",
+      },
+    });
+  });
 });
