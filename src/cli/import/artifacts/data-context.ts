@@ -23,6 +23,30 @@ export {
   type ForeignKeyIdSource,
   type ResolverContext,
 };
+import type {
+  EntityFacade,
+  EntityFacadeBackend,
+} from "./facades/entity-facade.js";
+import {
+  createDisciplineFacade,
+  type DisciplineRow,
+  type DisciplineEnvelope,
+} from "./facades/discipline.js";
+import {
+  createDisciplineAgencyOfficerFacade,
+  type DisciplineAgencyOfficerRow,
+  type DisciplineAgencyOfficerEnvelope,
+} from "./facades/discipline-agency-officer.js";
+import {
+  createCoverageLinkFacade,
+  type CoverageLinkRow,
+  type CoverageLinkEnvelope,
+} from "./facades/coverage-link.js";
+import {
+  createCoverageLinkAgencyOfficerFacade,
+  type CoverageLinkAgencyOfficerRow,
+  type CoverageLinkAgencyOfficerEnvelope,
+} from "./facades/coverage-link-agency-officer.js";
 import {
   LocationPathSpec,
   RECORD_KINDS_IN_DEPENDENCY_ORDER,
@@ -2707,6 +2731,40 @@ export class DataContext {
     string,
     LocationPathGeometryFacade
   >();
+  private readonly disciplineFacades = new Map<
+    string,
+    EntityFacade<DisciplineRow, DisciplineEnvelope>
+  >();
+  private readonly disciplineAgencyOfficerFacades = new Map<
+    string,
+    EntityFacade<DisciplineAgencyOfficerRow, DisciplineAgencyOfficerEnvelope>
+  >();
+  private readonly coverageLinkFacades = new Map<
+    string,
+    EntityFacade<CoverageLinkRow, CoverageLinkEnvelope>
+  >();
+  private readonly coverageLinkAgencyOfficerFacades = new Map<
+    string,
+    EntityFacade<
+      CoverageLinkAgencyOfficerRow,
+      CoverageLinkAgencyOfficerEnvelope
+    >
+  >();
+  // First-import snapshots for the discipline/coverage kinds are empty (blank
+  // tables); re-import snapshot loading is a later addition.
+  private readonly disciplineById = new Map<string, Record<string, unknown>>();
+  private readonly disciplineAgencyOfficerById = new Map<
+    string,
+    Record<string, unknown>
+  >();
+  private readonly coverageLinkById = new Map<
+    string,
+    Record<string, unknown>
+  >();
+  private readonly coverageLinkAgencyOfficerById = new Map<
+    string,
+    Record<string, unknown>
+  >();
 
   constructor(options: DataContextOptions) {
     this.client = options.client;
@@ -3521,6 +3579,130 @@ export class DataContext {
     };
   }
 
+  /** The shared backend for the generic EntityFacade-based kinds. */
+  private entityFacadeBackend(
+    databaseCurrentById: Map<string, Record<string, unknown>>,
+  ): EntityFacadeBackend {
+    return {
+      findOrCreateCanonicalId: (input) =>
+        this.findOrCreateLicenseCanonicalId(input),
+      getCurrentById: (id) => databaseCurrentById.get(id),
+      findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
+    };
+  }
+
+  private entityFacadeSource(input: SourceRecordContext): FacadeSource {
+    return {
+      namespace: input.namespace,
+      sourceFile: input.sourceFile,
+      name: input.name,
+      commandName: input.commandName ?? this.commandName,
+    };
+  }
+
+  disciplineFromSource(
+    input: SourceRecordContext,
+  ): EntityFacade<DisciplineRow, DisciplineEnvelope> {
+    validateSourceRecordContext(input);
+    const key = [
+      input.apiVersion,
+      input.namespace,
+      "Discipline",
+      input.name,
+    ].join(":");
+    const existing = this.disciplineFacades.get(key);
+    if (existing !== undefined) {
+      if (input.spec !== undefined) existing.merge(input.spec);
+      return existing;
+    }
+    const facade = createDisciplineFacade({
+      current: input.current,
+      source: this.entityFacadeSource(input),
+      backend: this.entityFacadeBackend(this.disciplineById),
+    });
+    if (input.spec !== undefined) facade.merge(input.spec);
+    this.disciplineFacades.set(key, facade);
+    return facade;
+  }
+
+  disciplineAgencyOfficerFromSource(
+    input: SourceRecordContext,
+  ): EntityFacade<DisciplineAgencyOfficerRow, DisciplineAgencyOfficerEnvelope> {
+    validateSourceRecordContext(input);
+    const key = [
+      input.apiVersion,
+      input.namespace,
+      "DisciplineAgencyOfficer",
+      input.name,
+    ].join(":");
+    const existing = this.disciplineAgencyOfficerFacades.get(key);
+    if (existing !== undefined) {
+      if (input.spec !== undefined) existing.merge(input.spec);
+      return existing;
+    }
+    const facade = createDisciplineAgencyOfficerFacade({
+      current: input.current,
+      source: this.entityFacadeSource(input),
+      backend: this.entityFacadeBackend(this.disciplineAgencyOfficerById),
+    });
+    if (input.spec !== undefined) facade.merge(input.spec);
+    this.disciplineAgencyOfficerFacades.set(key, facade);
+    return facade;
+  }
+
+  coverageLinkFromSource(
+    input: SourceRecordContext,
+  ): EntityFacade<CoverageLinkRow, CoverageLinkEnvelope> {
+    validateSourceRecordContext(input);
+    const key = [
+      input.apiVersion,
+      input.namespace,
+      "CoverageLink",
+      input.name,
+    ].join(":");
+    const existing = this.coverageLinkFacades.get(key);
+    if (existing !== undefined) {
+      if (input.spec !== undefined) existing.merge(input.spec);
+      return existing;
+    }
+    const facade = createCoverageLinkFacade({
+      current: input.current,
+      source: this.entityFacadeSource(input),
+      backend: this.entityFacadeBackend(this.coverageLinkById),
+    });
+    if (input.spec !== undefined) facade.merge(input.spec);
+    this.coverageLinkFacades.set(key, facade);
+    return facade;
+  }
+
+  coverageLinkAgencyOfficerFromSource(
+    input: SourceRecordContext,
+  ): EntityFacade<
+    CoverageLinkAgencyOfficerRow,
+    CoverageLinkAgencyOfficerEnvelope
+  > {
+    validateSourceRecordContext(input);
+    const key = [
+      input.apiVersion,
+      input.namespace,
+      "CoverageLinkAgencyOfficer",
+      input.name,
+    ].join(":");
+    const existing = this.coverageLinkAgencyOfficerFacades.get(key);
+    if (existing !== undefined) {
+      if (input.spec !== undefined) existing.merge(input.spec);
+      return existing;
+    }
+    const facade = createCoverageLinkAgencyOfficerFacade({
+      current: input.current,
+      source: this.entityFacadeSource(input),
+      backend: this.entityFacadeBackend(this.coverageLinkAgencyOfficerById),
+    });
+    if (input.spec !== undefined) facade.merge(input.spec);
+    this.coverageLinkAgencyOfficerFacades.set(key, facade);
+    return facade;
+  }
+
   /**
    * Same-source foreign-key FIND (ADR 0016 #4/#9): return an already-emitted
    * target facade as an id-resolvable reference, or undefined when none exists.
@@ -3561,6 +3743,15 @@ export class DataContext {
     if (input.kind === "License") {
       return this.licenseFacades.get(key);
     }
+    if (input.kind === "AgencyPersonnel") {
+      return this.agencyPersonnelFacades.get(key);
+    }
+    if (input.kind === "Discipline") {
+      return this.disciplineFacades.get(key);
+    }
+    if (input.kind === "CoverageLink") {
+      return this.coverageLinkFacades.get(key);
+    }
     return undefined;
   }
 
@@ -3598,6 +3789,10 @@ export class DataContext {
       | LicenseUpdateEnvelope
       | LicenseActionCreateEnvelope
       | LicenseActionUpdateEnvelope
+      | DisciplineEnvelope
+      | DisciplineAgencyOfficerEnvelope
+      | CoverageLinkEnvelope
+      | CoverageLinkAgencyOfficerEnvelope
     )[]
   > {
     // Resolve facade mutations in dependency order so every same-source FK find
@@ -3635,6 +3830,27 @@ export class DataContext {
         facade.toMutation(),
       ),
     );
+    // Discipline + coverage attributions FK-find AgencyPersonnel (and the
+    // discipline/coverage events), all registered above; the final apply order is
+    // re-sorted by the FK-derived topo sort, so this only fixes registration.
+    const disciplines = await Promise.all(
+      [...this.disciplineFacades.values()].map((facade) => facade.toMutation()),
+    );
+    const coverageLinks = await Promise.all(
+      [...this.coverageLinkFacades.values()].map((facade) =>
+        facade.toMutation(),
+      ),
+    );
+    const disciplineAgencyOfficers = await Promise.all(
+      [...this.disciplineAgencyOfficerFacades.values()].map((facade) =>
+        facade.toMutation(),
+      ),
+    );
+    const coverageLinkAgencyOfficers = await Promise.all(
+      [...this.coverageLinkAgencyOfficerFacades.values()].map((facade) =>
+        facade.toMutation(),
+      ),
+    );
     return [
       ...agencies,
       ...personnel,
@@ -3645,6 +3861,10 @@ export class DataContext {
       // licenses must be inserted before the assignments that reference them
       // (dependsOn: Agencies, Personnel, Licenses).
       ...agencyPersonnel,
+      ...disciplines,
+      ...coverageLinks,
+      ...disciplineAgencyOfficers,
+      ...coverageLinkAgencyOfficers,
     ];
   }
 

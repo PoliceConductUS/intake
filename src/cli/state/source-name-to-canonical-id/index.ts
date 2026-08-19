@@ -61,6 +61,10 @@ const sourceNameKinds = {
   licensingAuthority: "LicensingAuthority",
   license: "License",
   licenseAction: "LicenseAction",
+  discipline: "Discipline",
+  disciplineAgencyOfficer: "DisciplineAgencyOfficer",
+  coverageLink: "CoverageLink",
+  coverageLinkAgencyOfficer: "CoverageLinkAgencyOfficer",
 } as const;
 
 /**

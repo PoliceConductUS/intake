@@ -450,6 +450,82 @@ function addLicenseActionSourceFacades(
   }
 }
 
+function addDisciplineSourceFacades(
+  dataContext: DataContext,
+  artifacts: ArtifactsEnvelope,
+): void {
+  for (const artifact of artifacts.spec.artifacts.filter(
+    (item) => item.kind === "Disciplines",
+  )) {
+    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
+      dataContext.disciplineFromSource({
+        apiVersion: INTAKE_API_VERSION,
+        namespace: artifacts.metadata.namespace,
+        name: sourceNameForImportRecord(recordName, record),
+        spec: valueAsRecord(record),
+        sourceFile: artifact.recordSources?.[recordName],
+      });
+    }
+  }
+}
+
+function addDisciplineAgencyOfficerSourceFacades(
+  dataContext: DataContext,
+  artifacts: ArtifactsEnvelope,
+): void {
+  for (const artifact of artifacts.spec.artifacts.filter(
+    (item) => item.kind === "DisciplineAgencyOfficers",
+  )) {
+    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
+      dataContext.disciplineAgencyOfficerFromSource({
+        apiVersion: INTAKE_API_VERSION,
+        namespace: artifacts.metadata.namespace,
+        name: sourceNameForImportRecord(recordName, record),
+        spec: valueAsRecord(record),
+        sourceFile: artifact.recordSources?.[recordName],
+      });
+    }
+  }
+}
+
+function addCoverageLinkSourceFacades(
+  dataContext: DataContext,
+  artifacts: ArtifactsEnvelope,
+): void {
+  for (const artifact of artifacts.spec.artifacts.filter(
+    (item) => item.kind === "CoverageLinks",
+  )) {
+    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
+      dataContext.coverageLinkFromSource({
+        apiVersion: INTAKE_API_VERSION,
+        namespace: artifacts.metadata.namespace,
+        name: sourceNameForImportRecord(recordName, record),
+        spec: valueAsRecord(record),
+        sourceFile: artifact.recordSources?.[recordName],
+      });
+    }
+  }
+}
+
+function addCoverageLinkAgencyOfficerSourceFacades(
+  dataContext: DataContext,
+  artifacts: ArtifactsEnvelope,
+): void {
+  for (const artifact of artifacts.spec.artifacts.filter(
+    (item) => item.kind === "CoverageLinkAgencyOfficers",
+  )) {
+    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
+      dataContext.coverageLinkAgencyOfficerFromSource({
+        apiVersion: INTAKE_API_VERSION,
+        namespace: artifacts.metadata.namespace,
+        name: sourceNameForImportRecord(recordName, record),
+        spec: valueAsRecord(record),
+        sourceFile: artifact.recordSources?.[recordName],
+      });
+    }
+  }
+}
+
 type ImportArtifactsPipelineContext = {
   commandInput: ImportArtifactsCommandInput;
   artifactsPath: string;
@@ -1239,6 +1315,10 @@ async function writeDatabaseMutationsStage(
       context.rows,
       ledger,
     );
+    addDisciplineSourceFacades(dataContext, context.artifacts);
+    addDisciplineAgencyOfficerSourceFacades(dataContext, context.artifacts);
+    addCoverageLinkSourceFacades(dataContext, context.artifacts);
+    addCoverageLinkAgencyOfficerSourceFacades(dataContext, context.artifacts);
     databaseMutations = await dataContext.toDatabaseMutations({
       namespace: context.artifacts.metadata.namespace,
       name: context.commandName,
