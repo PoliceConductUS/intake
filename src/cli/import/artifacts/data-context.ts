@@ -1,12 +1,28 @@
 import { createId } from "@paralleldrive/cuid2";
 import {
   Resolver,
+  facadeCanonicalIdResolver,
+  facadeForeignKeyResolver,
+  facadeNullableForeignKeyResolver,
+  titleCaseResolver,
+  titleCaseResolverNullable,
+  nameCaseResolver,
+  nameCaseResolverNullable,
+  lowerCaseEmailResolverNullable,
+  valueAsString,
   type PropertyResolutionFacade,
   type ForeignKeyIdSource,
+  type ResolverContext,
+  type FacadeSource,
 } from "./resolver-kit.js";
 // Re-exported so existing importers of these symbols from ./data-context keep
 // working while the generic kit lives in its own module.
-export { Resolver, type PropertyResolutionFacade, type ForeignKeyIdSource };
+export {
+  Resolver,
+  type PropertyResolutionFacade,
+  type ForeignKeyIdSource,
+  type ResolverContext,
+};
 import {
   LocationPathSpec,
   RECORD_KINDS_IN_DEPENDENCY_ORDER,
@@ -24,7 +40,6 @@ import {
   readLocationPathByPath,
   readLocationPathsContainingPoint,
 } from "../../database/location-paths.js";
-import { lowerCaseEmail, nameCase, titleCase } from "./case-normalization.js";
 import type { ImportOperation, ImportOperations } from "./operations.js";
 import {
   type AgencyOfficerRow,
@@ -195,15 +210,6 @@ type SourceRecordContext = {
   sourceFile?: string;
 };
 
-type FacadeSource = {
-  namespace: string;
-  name: string;
-  canonicalId?: string;
-  commandName?: string;
-  /** Absolute path of the file this record was read from (for error context). */
-  sourceFile?: string;
-};
-
 type FacadeEntry<TFacade> = {
   source: FacadeSource;
   facade: TFacade;
@@ -295,35 +301,23 @@ export type LicensingAuthorityResolverBackend = {
   getCurrentById(id: string): Record<string, unknown> | undefined;
 };
 
-/**
- * The uniform interface a resolver uses to reach the facade it is attached to,
- * the source identity, and the injected backend. The backend type is a
- * parameter so per-entity resolvers (LicensingAuthority, License, LicenseAction)
- * each carry the capabilities they reach through.
- */
-export type ResolverContext<
-  Row,
-  Backend = LicensingAuthorityResolverBackend,
-> = {
-  facade: PropertyResolutionFacade<Row>;
-  source: FacadeSource;
-  backend: Backend;
-};
-
 // PropertyResolutionFacade, ForeignKeyIdSource, and the Resolver class now live
 // in ./resolver-kit.ts — imported and re-exported at the top of this file.
 
 type LicensingAuthorityResolvers = Partial<{
   [K in keyof LicensingAuthorityRowShape]: Resolver<
     LicensingAuthorityRowShape[K],
-    ResolverContext<LicensingAuthorityRowShape>
+    ResolverContext<
+      LicensingAuthorityRowShape,
+      LicensingAuthorityResolverBackend
+    >
   >;
 }>;
 
 /** Canonical-id find-or-create resolver (ADR 0016 #4, "id" property). */
 function licensingAuthorityCanonicalIdResolver(): Resolver<
   string,
-  ResolverContext<LicensingAuthorityRowShape>
+  ResolverContext<LicensingAuthorityRowShape, LicensingAuthorityResolverBackend>
 > {
   return new Resolver(async ({ source, backend }) =>
     // Find in the ledger by (namespace, kind, source-id); mint + persist when
@@ -341,7 +335,7 @@ function licensingAuthorityCanonicalIdResolver(): Resolver<
 /** `location_path_id` resolve-or-fail resolver (ADR 0006/0015). */
 function licensingAuthorityLocationPathResolver(): Resolver<
   string,
-  ResolverContext<LicensingAuthorityRowShape>
+  ResolverContext<LicensingAuthorityRowShape, LicensingAuthorityResolverBackend>
 > {
   return new Resolver(async ({ facade, source, backend }) => {
     // The source supplies a namespace-LOCAL state value (e.g. "tx"); map it to
@@ -599,174 +593,6 @@ export type LicenseResolverBackend = {
     sourceId: string;
   }): ForeignKeyIdSource | undefined;
 };
-
-/**
- * The minimal capability a canonical-id resolver reaches through: the durable
- * ledger find-or-create. Backend-generic so any entity's facade (License,
- * LicenseAction, Personnel, …) can reuse the same resolver.
- */
-type CanonicalIdBackend = {
-  findOrCreateCanonicalId(input: {
-    namespace: string;
-    kind: string;
-    sourceId: string;
-  }): Promise<string>;
-};
-
-/** Canonical-id find-or-create resolver for an entity `kind` (ADR 0016 #4). */
-function facadeCanonicalIdResolver<
-  Row,
-  Backend extends CanonicalIdBackend = LicenseResolverBackend,
->(kind: string): Resolver<string, ResolverContext<Row, Backend>> {
-  return new Resolver(async ({ source, backend }) =>
-    backend.findOrCreateCanonicalId({
-      namespace: source.namespace,
-      kind,
-      sourceId: source.name,
-    }),
-  );
-}
-
-/**
- * Same-source foreign-key FIND resolver (ADR 0016 #4/#9). Reads the source-local
- * reference value from `property`, locates the target facade of `targetKind`,
- * and awaits its `id`. A missing source value or a missing target facade
- * (forward reference) fails fast and loud.
- */
-function facadeForeignKeyResolver<Row>(
-  entityKind: string,
-  property: keyof Row & string,
-  targetKind: string,
-): Resolver<string, ResolverContext<Row, LicenseResolverBackend>> {
-  return new Resolver(async ({ facade, source, backend }) => {
-    const sourceId = valueAsString(facade.raw(property));
-    if (sourceId === undefined) {
-      throw new Error(
-        `Cannot resolve ${entityKind}.${property} for ${source.namespace}/${source.name}; source ${property} is missing.`,
-      );
-    }
-    const target = backend.findForeignKeyTarget({
-      kind: targetKind,
-      namespace: source.namespace,
-      sourceId,
-    });
-    if (target === undefined) {
-      throw new Error(
-        [
-          `${entityKind} ${source.namespace}/${source.name} references ${targetKind} ${JSON.stringify(
-            sourceId,
-          )}, which does not exist in namespace ${source.namespace}.`,
-          source.sourceFile && `Source: ${source.sourceFile}.`,
-        ]
-          .filter(Boolean)
-          .join(" "),
-      );
-    }
-    return target.value("id");
-  });
-}
-
-/**
- * Nullable same-source foreign-key FIND resolver (ADR 0016 #4/#9). Like
- * `facadeForeignKeyResolver`, but an absent/null source reference resolves to
- * `null` (the FK is optional per the source spec) rather than failing; a present
- * reference to a missing target facade still fails fast and loud.
- */
-function facadeNullableForeignKeyResolver<Row>(
-  entityKind: string,
-  property: keyof Row & string,
-  targetKind: string,
-): Resolver<string | null, ResolverContext<Row, LicenseResolverBackend>> {
-  return new Resolver(async ({ facade, source, backend }) => {
-    const sourceId = valueAsString(facade.raw(property));
-    if (sourceId === undefined) {
-      return null;
-    }
-    const target = backend.findForeignKeyTarget({
-      kind: targetKind,
-      namespace: source.namespace,
-      sourceId,
-    });
-    if (target === undefined) {
-      throw new Error(
-        [
-          `${entityKind} ${source.namespace}/${source.name} references ${targetKind} ${JSON.stringify(
-            sourceId,
-          )}, which does not exist in namespace ${source.namespace}.`,
-          source.sourceFile && `Source: ${source.sourceFile}.`,
-        ]
-          .filter(Boolean)
-          .join(" "),
-      );
-    }
-    return target.value("id");
-  });
-}
-
-/**
- * Build the shared casing resolveFn: read the source string at `property`, apply
- * `transform`, or resolve to `undefined` when the source value is absent — so the
- * resolver's nullability policy (a `null` default for nullable columns, fail-loud
- * for required ones) decides the outcome. Casing runs through the facade, never a
- * pre-DB transform (the forbidden pattern).
- */
-function casingResolveFn<Row, Backend>(
-  property: keyof Row & string,
-  transform: (value: string) => string,
-): (context: ResolverContext<Row, Backend>) => Promise<string | undefined> {
-  return async ({ facade }) => {
-    const raw = valueAsString(facade.raw(property));
-    return raw === undefined ? undefined : transform(raw);
-  };
-}
-
-/** Title-case an organization/address string property (REQUIRED column). */
-function titleCaseResolver<Row, Backend>(
-  property: keyof Row & string,
-): Resolver<string, ResolverContext<Row, Backend>> {
-  return new Resolver<string, ResolverContext<Row, Backend>>(
-    casingResolveFn<Row, Backend>(property, titleCase),
-  );
-}
-
-/** Title-case an organization/address string property (NULLABLE column). */
-function titleCaseResolverNullable<Row, Backend>(
-  property: keyof Row & string,
-): Resolver<string | null, ResolverContext<Row, Backend>> {
-  return new Resolver<string | null, ResolverContext<Row, Backend>>(
-    casingResolveFn<Row, Backend>(property, titleCase),
-    { defaultValue: null },
-  );
-}
-
-/** Name-case a person-name string property (REQUIRED column). */
-function nameCaseResolver<Row, Backend>(
-  property: keyof Row & string,
-): Resolver<string, ResolverContext<Row, Backend>> {
-  return new Resolver<string, ResolverContext<Row, Backend>>(
-    casingResolveFn<Row, Backend>(property, nameCase),
-  );
-}
-
-/** Name-case a person-name string property (NULLABLE column). */
-function nameCaseResolverNullable<Row, Backend>(
-  property: keyof Row & string,
-): Resolver<string | null, ResolverContext<Row, Backend>> {
-  return new Resolver<string | null, ResolverContext<Row, Backend>>(
-    casingResolveFn<Row, Backend>(property, nameCase),
-    { defaultValue: null },
-  );
-}
-
-/** Lowercase an email string property (NULLABLE column). */
-function lowerCaseEmailResolverNullable<Row, Backend>(
-  property: keyof Row & string,
-): Resolver<string | null, ResolverContext<Row, Backend>> {
-  return new Resolver<string | null, ResolverContext<Row, Backend>>(
-    casingResolveFn<Row, Backend>(property, lowerCaseEmail),
-    { defaultValue: null },
-  );
-}
 
 type LicenseResolvers = Partial<{
   [K in keyof LicenseRowShape]: Resolver<
@@ -2542,12 +2368,6 @@ export type ResolveAddressInput = {
   sourceName?: string;
   preferredLocationPathId?: string;
 };
-
-function valueAsString(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0
-    ? value
-    : undefined;
-}
 
 function valueAsFiniteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value)
