@@ -32,6 +32,14 @@ export {
   LicenseActions,
   LicenseAction,
   LicenseActionSpec,
+  Disciplines,
+  DisciplineSpec,
+  DisciplineAgencyOfficers,
+  DisciplineAgencyOfficerSpec,
+  CoverageLinks,
+  CoverageLinkSpec,
+  CoverageLinkAgencyOfficers,
+  CoverageLinkAgencyOfficerSpec,
 } from "./generated/index.js";
 export type {
   AgenciesEnvelope,

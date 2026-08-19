@@ -74,6 +74,10 @@ export const run: SourceRun = async ({ paths }) => {
   const personnel: EmittedRecords = {};
   const licenses: EmittedRecords = {};
   const agencyPersonnel: EmittedRecords = {};
+  // Officer (contactId) → the agency ids they hold an emitted assignment at. A
+  // disciplinary action attributes to every one of them (an officer active at
+  // several agencies implicates all of them).
+  const assignmentAgenciesByContact = new Map<string, Set<string>>();
 
   for (const rosterPath of rosterPaths) {
     const fileSlug = path
@@ -165,6 +169,98 @@ export const run: SourceRun = async ({ paths }) => {
                 : null,
           },
         };
+        const held =
+          assignmentAgenciesByContact.get(contactId) ?? new Set<string>();
+        held.add(agency.id);
+        assignmentAgenciesByContact.set(contactId, held);
+      }
+    }
+  }
+
+  // Discipline: each officer's detail JSON carries a `disciplinaryActions` list
+  // (the string "No POST Disciplinary Actions found" when there are none). Every
+  // action is a POST order — read them for all officers, since the roster's
+  // boolean flag can drift from the authoritative list.
+  const discipline: EmittedRecords = {};
+  const disciplineAgencyOfficers: EmittedRecords = {};
+  const coverageLinks: EmittedRecords = {};
+  const coverageLinkAgencyOfficers: EmittedRecords = {};
+
+  for (const jsonPath of paths.filter((p) =>
+    p.toLowerCase().endsWith(".json"),
+  )) {
+    let detail: unknown;
+    try {
+      detail = JSON.parse(await readFile(jsonPath, "utf8"));
+    } catch {
+      continue;
+    }
+    const actions = (detail as { disciplinaryActions?: unknown })
+      .disciplinaryActions;
+    if (!Array.isArray(actions)) {
+      continue;
+    }
+    for (const rawAction of actions) {
+      const action = (rawAction ?? {}) as Record<string, unknown>;
+      const contactId = nullIfBlank(asString(action.contactId));
+      const caseNumber = nullIfBlank(asString(action.caseNumber));
+      // A disciplinary record needs its POST case id and an officer to attribute
+      // it to. An officer with no known assignment (best-effort attribution
+      // isn't possible) is a future manual-resolution case; skip for now.
+      if (contactId === null || caseNumber === null) {
+        continue;
+      }
+      const heldAgencies = assignmentAgenciesByContact.get(contactId);
+      if (heldAgencies === undefined || heldAgencies.size === 0) {
+        continue;
+      }
+      const documentName = nullIfBlank(asString(action.documentName));
+      const documentUrl = nullIfBlank(asString(action.documentURL));
+      const effectiveDate = toDate(asString(action.effectiveDate));
+      // Key per officer+case: MN's `caseNumber` is heterogeneous (a PB-style id
+      // for some, a descriptive string for others), so officer-scoping keeps
+      // each officer's disciplinary record distinct and collision-free.
+      const disciplineKey = `${contactId}|${caseNumber}`;
+
+      discipline[disciplineKey] = {
+        spec: {
+          action: documentName ?? "POST Disciplinary Action",
+          effective_date: effectiveDate,
+          expiration_date: toDate(asString(action.expirationDate)),
+          case_number: caseNumber,
+        },
+      };
+      // The order document as a coverage link (when the order URL is present).
+      if (documentUrl !== null) {
+        coverageLinks[disciplineKey] = {
+          spec: {
+            url: documentUrl,
+            normalized_url: normalizeUrl(documentUrl),
+            title: [documentName, caseNumber].filter(Boolean).join(" "),
+            source_name: "Minnesota POST",
+            published_at: effectiveDate,
+          },
+        };
+      }
+      // Attribute the event (and its document) to every assignment the officer
+      // held — all implicated agencies, per the multi-agency rule.
+      for (const agencyId of heldAgencies) {
+        const assignmentKey = `${contactId}|${agencyId}`;
+        disciplineAgencyOfficers[`${disciplineKey}|${agencyId}`] = {
+          spec: {
+            discipline_id: disciplineKey,
+            agency_officer_id: assignmentKey,
+          },
+        };
+        if (documentUrl !== null) {
+          coverageLinkAgencyOfficers[`${disciplineKey}|${agencyId}`] = {
+            spec: {
+              coverage_link_id: disciplineKey,
+              agency_officer_id: assignmentKey,
+              confidence: "documented",
+            },
+          };
+        }
       }
     }
   }
@@ -176,6 +272,13 @@ export const run: SourceRun = async ({ paths }) => {
       { kind: "Personnel", records: personnel },
       { kind: "Licenses", records: licenses },
       { kind: "AgencyPersonnel", records: agencyPersonnel },
+      { kind: "Disciplines", records: discipline },
+      { kind: "DisciplineAgencyOfficers", records: disciplineAgencyOfficers },
+      { kind: "CoverageLinks", records: coverageLinks },
+      {
+        kind: "CoverageLinkAgencyOfficers",
+        records: coverageLinkAgencyOfficers,
+      },
     ],
   };
 };
@@ -197,6 +300,19 @@ function nullIfBlank(value: string | undefined): string | null {
 function toDate(value: string | undefined): string | null {
   const match = (value ?? "").trim().match(/^\d{4}-\d{2}-\d{2}/);
   return match ? match[0] : null;
+}
+
+/** Normalize a document URL for dedup: lowercase scheme+host, drop fragment and trailing slash. */
+function normalizeUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.hash = "";
+    parsed.protocol = parsed.protocol.toLowerCase();
+    parsed.hostname = parsed.hostname.toLowerCase();
+    return parsed.toString().replace(/\/$/, "");
+  } catch {
+    return url.trim();
+  }
 }
 
 /** `Agency Name` → `agency-name` (matches the roster filename slugs). */

@@ -10,6 +10,10 @@ import {
   AgencyPersonnelSpec,
   LicensingAuthoritySpec,
   LicenseSpec,
+  DisciplineSpec,
+  DisciplineAgencyOfficerSpec,
+  CoverageLinkSpec,
+  CoverageLinkAgencyOfficerSpec,
 } from "../../src/shared/io/index.js";
 import type { SourceManifest } from "../../src/cli/run/source-run.js";
 
@@ -99,6 +103,27 @@ const betaRoster = [
   }),
 ].join("\n");
 
+// Officer 0031's detail JSON carries a disciplinary order. 0031 is assigned to
+// both agencies, so it attributes to both. 0032's detail has the no-discipline
+// sentinel string and must produce nothing.
+const detail0031 = JSON.stringify({
+  disciplinaryActions: [
+    {
+      contactId: "0031",
+      caseNumber: "PB24-1-01",
+      documentName: "SACO",
+      documentURL: "https://example.mn/orders/PB24-1-01.pdf",
+      effectiveDate: "2024-03-01",
+      expirationDate: "2026-03-01",
+      complaintId: "cmp-001",
+    },
+  ],
+  activeEmployment: [],
+});
+const detail0032 = JSON.stringify({
+  disciplinaryActions: "No POST Disciplinary Actions found",
+});
+
 let sourceDir: string;
 let workspace: string;
 
@@ -115,6 +140,14 @@ beforeAll(async () => {
   await writeFile(
     path.join(sourceDir, "beta-county-sheriff-000000000002.list.yaml"),
     betaRoster,
+  );
+  await writeFile(
+    path.join(sourceDir, "a2jofficer0031-detail.json"),
+    detail0031,
+  );
+  await writeFile(
+    path.join(sourceDir, "a2jofficer0032-detail.json"),
+    detail0032,
   );
 });
 
@@ -145,6 +178,10 @@ describe("mn-post run", () => {
       "Personnel",
       "Licenses",
       "AgencyPersonnel",
+      "Disciplines",
+      "DisciplineAgencyOfficers",
+      "CoverageLinks",
+      "CoverageLinkAgencyOfficers",
     ]);
   });
 
@@ -246,6 +283,66 @@ describe("mn-post run", () => {
     });
     for (const record of Object.values(assignments)) {
       expect(AgencyPersonnelSpec.safeParse(record.spec).success).toBe(true);
+    }
+  });
+
+  it("emits a discipline event per order, with a coverage link and multi-agency attribution", async () => {
+    const manifest = await runFixture();
+    const discipline = recordsOf(manifest, "Disciplines");
+    const attributions = recordsOf(manifest, "DisciplineAgencyOfficers");
+    const coverage = recordsOf(manifest, "CoverageLinks");
+    const coverageAttr = recordsOf(manifest, "CoverageLinkAgencyOfficers");
+
+    // 0031 has one order; 0032's sentinel string yields nothing.
+    expect(Object.keys(discipline)).toEqual(["0031|PB24-1-01"]);
+    expect(discipline["0031|PB24-1-01"].spec).toEqual({
+      action: "SACO",
+      effective_date: "2024-03-01",
+      expiration_date: "2026-03-01",
+      case_number: "PB24-1-01",
+    });
+
+    // 0031 is at both agencies → the order attributes to both assignments.
+    expect(Object.keys(attributions).sort()).toEqual([
+      "0031|PB24-1-01|a2jALPHA",
+      "0031|PB24-1-01|a2jBETA",
+    ]);
+    expect(attributions["0031|PB24-1-01|a2jALPHA"].spec).toEqual({
+      discipline_id: "0031|PB24-1-01",
+      agency_officer_id: "0031|a2jALPHA",
+    });
+
+    expect(coverage["0031|PB24-1-01"].spec).toMatchObject({
+      url: "https://example.mn/orders/PB24-1-01.pdf",
+      title: "SACO PB24-1-01",
+      source_name: "Minnesota POST",
+      published_at: "2024-03-01",
+    });
+    expect(Object.keys(coverageAttr).sort()).toEqual([
+      "0031|PB24-1-01|a2jALPHA",
+      "0031|PB24-1-01|a2jBETA",
+    ]);
+    expect(coverageAttr["0031|PB24-1-01|a2jBETA"].spec).toMatchObject({
+      coverage_link_id: "0031|PB24-1-01",
+      agency_officer_id: "0031|a2jBETA",
+      confidence: "documented",
+    });
+
+    for (const record of Object.values(discipline)) {
+      expect(DisciplineSpec.safeParse(record.spec).success).toBe(true);
+    }
+    for (const record of Object.values(attributions)) {
+      expect(DisciplineAgencyOfficerSpec.safeParse(record.spec).success).toBe(
+        true,
+      );
+    }
+    for (const record of Object.values(coverage)) {
+      expect(CoverageLinkSpec.safeParse(record.spec).success).toBe(true);
+    }
+    for (const record of Object.values(coverageAttr)) {
+      expect(CoverageLinkAgencyOfficerSpec.safeParse(record.spec).success).toBe(
+        true,
+      );
     }
   });
 });
