@@ -9,7 +9,11 @@ export type SupportedTableName =
   | "public.agency_officers"
   | "public.licensing_authority"
   | "public.license"
-  | "public.license_action";
+  | "public.license_action"
+  | "public.discipline"
+  | "public.discipline_agency_officers"
+  | "public.coverage_links"
+  | "public.coverage_link_agency_officers";
 
 export type ImportDatabaseSchema = {
   appliedMigrations: {
