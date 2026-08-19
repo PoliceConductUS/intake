@@ -73,6 +73,22 @@ const databaseMutationMetadataByRecordKind: Record<
     tableName: "public.license_action",
     keyColumnName: "id",
   },
+  Discipline: {
+    tableName: "public.discipline",
+    keyColumnName: "id",
+  },
+  DisciplineAgencyOfficer: {
+    tableName: "public.discipline_agency_officers",
+    keyColumnName: "id",
+  },
+  CoverageLink: {
+    tableName: "public.coverage_links",
+    keyColumnName: "id",
+  },
+  CoverageLinkAgencyOfficer: {
+    tableName: "public.coverage_link_agency_officers",
+    keyColumnName: "id",
+  },
 } satisfies Record<string, DatabaseMutationMetadata>;
 
 function databaseMutationMetadata(
