@@ -8,6 +8,10 @@ export const IMPORT_ARTIFACT_KINDS = [
   "LicensingAuthorities",
   "Licenses",
   "LicenseActions",
+  "Disciplines",
+  "DisciplineAgencyOfficers",
+  "CoverageLinks",
+  "CoverageLinkAgencyOfficers",
 ] as const;
 
 export type ImportArtifactKind = (typeof IMPORT_ARTIFACT_KINDS)[number];
@@ -39,7 +43,11 @@ export type ImportEntityName =
   | "agencyPersonnel"
   | "licensingAuthorities"
   | "licenses"
-  | "licenseActions";
+  | "licenseActions"
+  | "disciplines"
+  | "disciplineAgencyOfficers"
+  | "coverageLinks"
+  | "coverageLinkAgencyOfficers";
 
 export type ImportTypeMetadata = {
   kind: ImportArtifactKind;
@@ -112,5 +120,33 @@ export const importTypeMetadata = {
     entityName: "licenseActions",
     targetTable: "public.license_action",
     dependsOn: ["Licenses"],
+  },
+  Disciplines: {
+    kind: "Disciplines",
+    recordKind: "Discipline",
+    entityName: "disciplines",
+    targetTable: "public.discipline",
+    dependsOn: [],
+  },
+  DisciplineAgencyOfficers: {
+    kind: "DisciplineAgencyOfficers",
+    recordKind: "DisciplineAgencyOfficer",
+    entityName: "disciplineAgencyOfficers",
+    targetTable: "public.discipline_agency_officers",
+    dependsOn: ["Disciplines", "AgencyPersonnel"],
+  },
+  CoverageLinks: {
+    kind: "CoverageLinks",
+    recordKind: "CoverageLink",
+    entityName: "coverageLinks",
+    targetTable: "public.coverage_links",
+    dependsOn: [],
+  },
+  CoverageLinkAgencyOfficers: {
+    kind: "CoverageLinkAgencyOfficers",
+    recordKind: "CoverageLinkAgencyOfficer",
+    entityName: "coverageLinkAgencyOfficers",
+    targetTable: "public.coverage_link_agency_officers",
+    dependsOn: ["CoverageLinks", "AgencyPersonnel"],
   },
 } satisfies Record<ImportArtifactKind, ImportTypeMetadata>;

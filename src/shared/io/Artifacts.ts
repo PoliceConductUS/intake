@@ -57,6 +57,30 @@ import {
   write as writeLicenseActions,
 } from "./generated/LicenseActions.js";
 import {
+  Disciplines,
+  DisciplineSpec,
+  read as readDisciplines,
+  write as writeDisciplines,
+} from "./generated/Disciplines.js";
+import {
+  DisciplineAgencyOfficers,
+  DisciplineAgencyOfficerSpec,
+  read as readDisciplineAgencyOfficers,
+  write as writeDisciplineAgencyOfficers,
+} from "./generated/DisciplineAgencyOfficers.js";
+import {
+  CoverageLinks,
+  CoverageLinkSpec,
+  read as readCoverageLinks,
+  write as writeCoverageLinks,
+} from "./generated/CoverageLinks.js";
+import {
+  CoverageLinkAgencyOfficers,
+  CoverageLinkAgencyOfficerSpec,
+  read as readCoverageLinkAgencyOfficers,
+  write as writeCoverageLinkAgencyOfficers,
+} from "./generated/CoverageLinkAgencyOfficers.js";
+import {
   compareImportArtifactKinds,
   type ImportArtifactKind,
 } from "./import-types.js";
@@ -179,6 +203,20 @@ const artifactReaders: Record<ImportArtifactKind, ArtifactReader> = {
       ...options,
       expectedKind: "LicenseActions",
     }),
+  Disciplines: (filePath, options) =>
+    readDisciplines(filePath, { ...options, expectedKind: "Disciplines" }),
+  DisciplineAgencyOfficers: (filePath, options) =>
+    readDisciplineAgencyOfficers(filePath, {
+      ...options,
+      expectedKind: "DisciplineAgencyOfficers",
+    }),
+  CoverageLinks: (filePath, options) =>
+    readCoverageLinks(filePath, { ...options, expectedKind: "CoverageLinks" }),
+  CoverageLinkAgencyOfficers: (filePath, options) =>
+    readCoverageLinkAgencyOfficers(filePath, {
+      ...options,
+      expectedKind: "CoverageLinkAgencyOfficers",
+    }),
 };
 
 const artifactEnvelopeTypes: Record<ImportArtifactKind, ArtifactEnvelopeType> =
@@ -201,6 +239,16 @@ const artifactEnvelopeTypes: Record<ImportArtifactKind, ArtifactEnvelopeType> =
     },
     Licenses: { ...Licenses, write: writeLicenses },
     LicenseActions: { ...LicenseActions, write: writeLicenseActions },
+    Disciplines: { ...Disciplines, write: writeDisciplines },
+    DisciplineAgencyOfficers: {
+      ...DisciplineAgencyOfficers,
+      write: writeDisciplineAgencyOfficers,
+    },
+    CoverageLinks: { ...CoverageLinks, write: writeCoverageLinks },
+    CoverageLinkAgencyOfficers: {
+      ...CoverageLinkAgencyOfficers,
+      write: writeCoverageLinkAgencyOfficers,
+    },
   };
 
 const artifactRecordSpecs: Record<ImportArtifactKind, ArtifactRecordSpec> = {
@@ -213,6 +261,10 @@ const artifactRecordSpecs: Record<ImportArtifactKind, ArtifactRecordSpec> = {
   LicensingAuthorities: LicensingAuthoritySpec,
   Licenses: LicenseSpec,
   LicenseActions: LicenseActionSpec,
+  Disciplines: DisciplineSpec,
+  DisciplineAgencyOfficers: DisciplineAgencyOfficerSpec,
+  CoverageLinks: CoverageLinkSpec,
+  CoverageLinkAgencyOfficers: CoverageLinkAgencyOfficerSpec,
 };
 
 function sortedArtifactReferences(

@@ -12,6 +12,10 @@ import {
 import {
   AgencyPersonnelSpec,
   AgencySpec,
+  CoverageLinkAgencyOfficerSpec,
+  CoverageLinkSpec,
+  DisciplineAgencyOfficerSpec,
+  DisciplineSpec,
   LicenseActionSpec,
   LicenseSpec,
   LicensingAuthoritySpec,
@@ -43,6 +47,10 @@ const recordSchemas = {
   LicensingAuthorities: LicensingAuthoritySpec,
   Licenses: LicenseSpec,
   LicenseActions: LicenseActionSpec,
+  Disciplines: DisciplineSpec,
+  DisciplineAgencyOfficers: DisciplineAgencyOfficerSpec,
+  CoverageLinks: CoverageLinkSpec,
+  CoverageLinkAgencyOfficers: CoverageLinkAgencyOfficerSpec,
 } satisfies Record<ImportArtifactKind, z.ZodType<Record<string, unknown>>>;
 
 export const importTypeRegistry = {
@@ -81,6 +89,22 @@ export const importTypeRegistry = {
   LicenseActions: {
     ...importTypeMetadata.LicenseActions,
     recordSchema: recordSchemas.LicenseActions,
+  },
+  Disciplines: {
+    ...importTypeMetadata.Disciplines,
+    recordSchema: recordSchemas.Disciplines,
+  },
+  DisciplineAgencyOfficers: {
+    ...importTypeMetadata.DisciplineAgencyOfficers,
+    recordSchema: recordSchemas.DisciplineAgencyOfficers,
+  },
+  CoverageLinks: {
+    ...importTypeMetadata.CoverageLinks,
+    recordSchema: recordSchemas.CoverageLinks,
+  },
+  CoverageLinkAgencyOfficers: {
+    ...importTypeMetadata.CoverageLinkAgencyOfficers,
+    recordSchema: recordSchemas.CoverageLinkAgencyOfficers,
   },
 } satisfies Record<ImportArtifactKind, ImportTypeDefinition>;
 

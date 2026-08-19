@@ -45,6 +45,26 @@ import { LicenseActionRead } from "./LicenseActionRead.js";
 import { LicenseActionUpdate } from "./LicenseActionUpdate.js";
 import { LicenseActionDelete } from "./LicenseActionDelete.js";
 import { LicenseActionList } from "./LicenseActionList.js";
+import { DisciplineCreate } from "./DisciplineCreate.js";
+import { DisciplineRead } from "./DisciplineRead.js";
+import { DisciplineUpdate } from "./DisciplineUpdate.js";
+import { DisciplineDelete } from "./DisciplineDelete.js";
+import { DisciplineList } from "./DisciplineList.js";
+import { DisciplineAgencyOfficerCreate } from "./DisciplineAgencyOfficerCreate.js";
+import { DisciplineAgencyOfficerRead } from "./DisciplineAgencyOfficerRead.js";
+import { DisciplineAgencyOfficerUpdate } from "./DisciplineAgencyOfficerUpdate.js";
+import { DisciplineAgencyOfficerDelete } from "./DisciplineAgencyOfficerDelete.js";
+import { DisciplineAgencyOfficerList } from "./DisciplineAgencyOfficerList.js";
+import { CoverageLinkCreate } from "./CoverageLinkCreate.js";
+import { CoverageLinkRead } from "./CoverageLinkRead.js";
+import { CoverageLinkUpdate } from "./CoverageLinkUpdate.js";
+import { CoverageLinkDelete } from "./CoverageLinkDelete.js";
+import { CoverageLinkList } from "./CoverageLinkList.js";
+import { CoverageLinkAgencyOfficerCreate } from "./CoverageLinkAgencyOfficerCreate.js";
+import { CoverageLinkAgencyOfficerRead } from "./CoverageLinkAgencyOfficerRead.js";
+import { CoverageLinkAgencyOfficerUpdate } from "./CoverageLinkAgencyOfficerUpdate.js";
+import { CoverageLinkAgencyOfficerDelete } from "./CoverageLinkAgencyOfficerDelete.js";
+import { CoverageLinkAgencyOfficerList } from "./CoverageLinkAgencyOfficerList.js";
 
 export const importMutationEnvelopeTypes = {
   LocationPathCreate,
@@ -92,4 +112,24 @@ export const importMutationEnvelopeTypes = {
   LicenseActionUpdate,
   LicenseActionDelete,
   LicenseActionList,
+  DisciplineCreate,
+  DisciplineRead,
+  DisciplineUpdate,
+  DisciplineDelete,
+  DisciplineList,
+  DisciplineAgencyOfficerCreate,
+  DisciplineAgencyOfficerRead,
+  DisciplineAgencyOfficerUpdate,
+  DisciplineAgencyOfficerDelete,
+  DisciplineAgencyOfficerList,
+  CoverageLinkCreate,
+  CoverageLinkRead,
+  CoverageLinkUpdate,
+  CoverageLinkDelete,
+  CoverageLinkList,
+  CoverageLinkAgencyOfficerCreate,
+  CoverageLinkAgencyOfficerRead,
+  CoverageLinkAgencyOfficerUpdate,
+  CoverageLinkAgencyOfficerDelete,
+  CoverageLinkAgencyOfficerList,
 };
