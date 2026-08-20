@@ -810,6 +810,22 @@ describe("DataContext", () => {
     await expect(agency.value("slug")).resolves.toBe("minnesota-state-patrol");
   });
 
+  test("AgencyFacade fails loud when a required city is missing", async () => {
+    // The Verndale case: a source record with no city. `city` is a required,
+    // non-null column, so the resolver must fail loud rather than emit a bad row.
+    const context = agencyFacadeContext();
+    const agency = context.fromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: "mn-state-patrol",
+    });
+    agency.merge({ name: "Verndale Police Dept.", state: "MN" });
+
+    await expect(agency.value("city")).rejects.toThrow(
+      /Cannot resolve Agency\.city .*offending value undefined/,
+    );
+  });
+
   test("LicensingAuthorityFacade resolves its canonical id from the ledger, minting when absent", async () => {
     const ledger = fakeSourceNameLedger(
       licensingSourceNameToCanonicalIds({
@@ -1910,6 +1926,50 @@ describe("Census substrate facades", () => {
         location_path_id: "mn-location-path-id",
       },
     });
+  });
+
+  test("LocationPathFacade parent FK fails loud when the parent is not registered", async () => {
+    // Resolve-or-fail: a parent_location_path_id that names no same-source path
+    // (and no DB row) must throw, never mint a dangling reference.
+    const context = substrateContext({
+      locationPaths: {
+        "ramsey-county": { canonicalId: "ramsey-county-location-path-id" },
+      },
+    });
+    const child = context.locationPathFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "census",
+      name: "ramsey-county",
+      spec: {
+        path: "/mn/ramsey-county/",
+        level: "administrative_area",
+        state_or_territory_slug: "mn",
+        administrative_area_slug: "ramsey-county",
+        place_slug: null,
+        state_or_territory_name: "Minnesota",
+        administrative_area_name: "Ramsey County",
+        place_name: null,
+        parent_location_path_id: "mn",
+      },
+    });
+
+    await expect(child.toMutation()).rejects.toThrow(
+      /references LocationPath "mn", which does not exist/,
+    );
+  });
+
+  test("LocationPathAliasFacade fails loud when its target path is not registered", async () => {
+    const context = substrateContext();
+    const alias = context.locationPathAliasFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "census",
+      name: "/minnesota/",
+      spec: { alias_path: "/minnesota/", location_path_id: "mn" },
+    });
+
+    await expect(alias.toMutation()).rejects.toThrow(
+      /references LocationPath "mn", which does not exist/,
+    );
   });
 
   test("resolves a discipline attribution's FKs to the discipline and assignment ids", async () => {

@@ -1,0 +1,9 @@
+# Records intentionally excluded from import for sources/mn-post.
+#
+# The import FAILS LOUDLY on any record it cannot resolve. A record only avoids
+# that hard failure by appearing here, with a documented reason.
+excluded:
+  - kind: Agency
+    key: "i38sky9x3znxic1rlpwroak7"
+    name: "Verndale Police Dept."
+    reason: "no city, address, or zip in the 2026 source export — city is a required, non-null column and the value is not geocodable; no agency_officers in the roster reference this agency, so nothing is dropped by excluding it"
