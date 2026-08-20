@@ -76,10 +76,7 @@ import {
   type LocationPathRow,
   type ResolvedProperties,
 } from "./transform.js";
-import {
-  readDatabaseRecordsByColumn,
-  readDatabaseRecordsBySlugs,
-} from "../../database/entities.js";
+import { readDatabaseRecordsByColumn } from "../../database/entities.js";
 import type { SupportedTableName } from "../../database/schema.js";
 
 /** Tables whose slug uniqueness the DataContext enforces (generate-unique). */
@@ -2929,14 +2926,8 @@ export class DataContext {
     if (cached !== undefined) {
       return cached ?? undefined;
     }
-    const rows = await readDatabaseRecordsBySlugs(
-      this.databaseClient(),
-      table,
-      [slug],
-    );
-    const owner = rows
-      .map((row) => valueAsString(row.id))
-      .find((id): id is string => id !== undefined);
+    const row = await this.currentRow(table, undefined, slug, "slug");
+    const owner = row === undefined ? undefined : valueAsString(row.id);
     owners.set(slug, owner ?? null);
     return owner;
   }
@@ -3239,7 +3230,7 @@ export class DataContext {
     if (fromPreloaded !== undefined) {
       return Promise.resolve(fromPreloaded);
     }
-    const cacheKey = `${tableName}:${id}`;
+    const cacheKey = `${tableName}:${identityColumn}:${id}`;
     let pending = this.lazyCurrentRowCache.get(cacheKey);
     if (pending === undefined) {
       pending = this.enqueueRowRead(tableName, identityColumn, id);

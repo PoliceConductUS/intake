@@ -1427,6 +1427,7 @@ describe("PersonnelFacade", () => {
 
   test("coalesces a group's concurrent current-row reads into one query (ADR 0019)", async () => {
     const officerCurrentRowReads: string[] = [];
+    const officerSlugReads: string[] = [];
     class CountingClient extends EmptyDatabaseClient {
       async query(
         text = "",
@@ -1434,6 +1435,9 @@ describe("PersonnelFacade", () => {
       ): Promise<{ rows: Record<string, unknown>[] }> {
         if (/from public\.officers where id = any/i.test(text)) {
           officerCurrentRowReads.push(text);
+        }
+        if (/from public\.officers where slug = any/i.test(text)) {
+          officerSlugReads.push(text);
         }
         return super.query(text, values);
       }
@@ -1466,6 +1470,7 @@ describe("PersonnelFacade", () => {
     });
 
     expect(officerCurrentRowReads).toHaveLength(1);
+    expect(officerSlugReads).toHaveLength(1);
   });
 
   test("uses an explicitly supplied slug as-is", async () => {
@@ -1560,12 +1565,12 @@ describe("PersonnelFacade", () => {
         text = "",
         values: readonly unknown[] = [],
       ): Promise<{ rows: Record<string, unknown>[] }> {
-        if (
-          /select id, slug from public\.officers where slug = any/i.test(text)
-        ) {
-          const slug = (values[0] as string[] | undefined)?.[0];
-          if (slug === "marc-denney-icalid") {
-            return { rows: [{ id: "someone-else", slug }] };
+        if (/select \* from public\.officers where slug = any/i.test(text)) {
+          const slugs = (values[0] as string[] | undefined) ?? [];
+          if (slugs.includes("marc-denney-icalid")) {
+            return {
+              rows: [{ id: "someone-else", slug: "marc-denney-icalid" }],
+            };
           }
         }
         return { rows: [] };
