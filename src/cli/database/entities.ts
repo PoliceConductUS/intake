@@ -85,24 +85,32 @@ export async function readDatabaseRecordsBySlugs(
   );
 }
 
+// Insert a record, doing nothing if `conflictKeyColumn` already holds this key.
+// Returns whether a row was inserted, so the caller can fail loud on a
+// pre-existing key without a separate existence read (the key column's unique
+// constraint is the authority).
 export async function createDatabaseRecord(
   client: DatabaseClient,
   tableName: SupportedTableName,
   record: Record<string, unknown>,
-): Promise<void> {
+  conflictKeyColumn: string,
+): Promise<boolean> {
   const entries = Object.entries(record).filter(
     ([, value]) => value !== undefined,
   );
-  await client.query(
+  const result = await client.query(
     `insert into ${tableName} (${entries
       .map(([columnName]) => columnName)
       .join(", ")}) values (${entries
       .map(([columnName], index) =>
         databaseValueExpression(tableName, columnName, index + 1),
       )
-      .join(", ")})`,
+      .join(
+        ", ",
+      )}) on conflict (${conflictKeyColumn}) do nothing returning ${conflictKeyColumn}`,
     entries.map(([, value]) => value),
   );
+  return rowsFromResult(result).length > 0;
 }
 
 export async function updateDatabaseRecordFields(

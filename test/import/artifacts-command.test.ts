@@ -232,6 +232,12 @@ class RecordingClient implements DatabaseClient {
       };
     }
 
+    if (/^\s*insert into\b/i.test(text) && /\breturning\b/i.test(text)) {
+      // Simulate a successful insert: `on conflict do nothing returning` yields
+      // the inserted row against this empty database.
+      return { rows: [{ inserted: true }] };
+    }
+
     if (
       /from public\.location_path\s+where location_path_id = \$1/i.test(text)
     ) {
@@ -1349,6 +1355,52 @@ describe("importArtifacts", () => {
         /^insert into public\.agency/i.test(query.text),
       ),
     ).toBe(true);
+  });
+
+  test("replay fails loud when a create targets an already-existing row", async () => {
+    const rootDir = await mkdtemp(path.join(tmpdir(), "intake-run-ref-"));
+    const writtenAgencyCreate = await AgencyCreate.write(
+      path.join(rootDir, "mutations"),
+      AgencyCreate.new({
+        metadata: { name: "agency-canonical-id", namespace: "mn-post" },
+        spec: rows.agencies[0] as Parameters<
+          typeof AgencyCreate.new
+        >[0]["spec"],
+      }),
+    );
+    const writtenImportArtifacts = await DatabaseMutations.write(
+      rootDir,
+      DatabaseMutations.new({
+        metadata: { name: "run-1", namespace: "mn-post" },
+        spec: {
+          mutations: [
+            {
+              ref: {
+                path: path.relative(rootDir, writtenAgencyCreate.path),
+                kind: "AgencyCreate",
+              },
+            },
+          ],
+        },
+      }),
+    );
+
+    // `on conflict do nothing returning` yields no row when the id already
+    // exists; the create must fail loud rather than silently no-op.
+    const client = new RecordingClient(undefined, undefined, [
+      { pattern: /^\s*insert into public\.agency\b/i, rows: [] },
+    ]);
+    const result = await replayDatabaseMutations({
+      databaseMutationsPath: writtenImportArtifacts.path,
+      env: { DATABASE_URL: "postgres://example" },
+      clientFactory: () => client,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error:
+        "DatabaseMutation agency-canonical-id cannot create existing Agency.",
+    });
   });
 
   test("replays location path centroid and bbox as PostGIS values", async () => {

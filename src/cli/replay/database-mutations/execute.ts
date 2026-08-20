@@ -101,14 +101,6 @@ function databaseMutationMetadata(
   return metadata;
 }
 
-function mutationKeyValue(
-  mutationName: string,
-  spec: Record<string, unknown>,
-  keyColumnName: string,
-): unknown {
-  return spec[keyColumnName] ?? mutationName;
-}
-
 function assertExpectedValue(
   mutationName: string,
   fieldName: string,
@@ -188,23 +180,17 @@ async function executeCreate(
 ): Promise<void> {
   const metadata = databaseMutationMetadata(recordKind);
   const databaseSpec = databaseSpecForMutation(recordKind, spec);
-  const keyValue = mutationKeyValue(
-    mutationName,
+  const inserted = await createDatabaseRecord(
+    client,
+    metadata.tableName,
     databaseSpec,
     metadata.keyColumnName,
   );
-  const current = await readDatabaseRecordByColumn(
-    client,
-    metadata.tableName,
-    metadata.keyColumnName,
-    keyValue,
-  );
-  if (current !== undefined) {
+  if (!inserted) {
     throw new Error(
       `DatabaseMutation ${mutationName} cannot create existing ${recordKind}.`,
     );
   }
-  await createDatabaseRecord(client, metadata.tableName, databaseSpec);
 }
 
 async function executeUpdate(
