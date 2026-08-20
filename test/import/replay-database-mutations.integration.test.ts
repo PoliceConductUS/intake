@@ -221,7 +221,7 @@ describeWithDocker("replay against a real Postgres", () => {
         spec: {
           location_path_id: "lp",
           sourceLocationPathKey: "place:GEOID:2743000",
-          geometry: {
+          geometry: JSON.stringify({
             type: "MultiPolygon",
             coordinates: [
               [
@@ -234,7 +234,7 @@ describeWithDocker("replay against a real Postgres", () => {
                 ],
               ],
             ],
-          },
+          }),
         },
       }),
     );
@@ -303,7 +303,7 @@ describeWithDocker("replay against a real Postgres", () => {
                     spec: {
                       location_path_id: "/mn/ramsey-county/saint-paul/",
                       sourceLocationPathKey: "place:GEOID:2743000",
-                      geometry: {
+                      geometry: JSON.stringify({
                         type: "Polygon",
                         coordinates: [
                           [
@@ -314,7 +314,7 @@ describeWithDocker("replay against a real Postgres", () => {
                             [-93.2, 44.9],
                           ],
                         ],
-                      },
+                      }),
                     },
                   },
                 },

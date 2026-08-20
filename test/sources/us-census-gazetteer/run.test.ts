@@ -161,7 +161,12 @@ describe("us-census-gazetteer run", () => {
         "number",
       );
     }
-    expect((geometryEmits[0][2] as { geometry: unknown }).geometry).toEqual({
+    // Geometry is emitted as an opaque JSON string (parsed once as a scalar on
+    // import, not a deep coordinate tree); it round-trips to the source GeoJSON.
+    const emittedGeometry = (geometryEmits[0][2] as { geometry: unknown })
+      .geometry;
+    expect(typeof emittedGeometry).toBe("string");
+    expect(JSON.parse(emittedGeometry as string)).toEqual({
       type: "MultiPolygon",
       coordinates: [
         [

@@ -92,7 +92,11 @@ export const run: SourceRun = async (deps: RunDeps) => {
     onGeometryRow: async (path, row) => {
       await deps.emit("LocationPathGeometries", path, {
         location_path_id: row.location_path_id,
-        geometry: row.geometry,
+        // Opaque GeoJSON blob (pass-through to ST_GeomFromGeoJSON): store it as a
+        // JSON string so the artifact reader parses one scalar, not a deep
+        // coordinate tree — the dominant census-import parse cost (ADR: geometry
+        // is never structurally read by intake or the site).
+        geometry: JSON.stringify(row.geometry),
         sourceLocationPathKey: path,
         // Emit the vintage as a number to match the original producer's output
         // (selectedYear is `2025`, not `"2025"`); `inputs.year` is parsed from a filename.

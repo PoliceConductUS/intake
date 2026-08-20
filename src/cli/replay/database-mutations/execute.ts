@@ -136,9 +136,11 @@ function databaseSpecForMutation(
       selectedYear: _selectedYear,
       ...databaseSpec
     } = spec;
+    // geometry is a pre-serialized GeoJSON string (opaque blob), fed straight to
+    // ST_GeomFromGeoJSON.
     return {
       ...databaseSpec,
-      ...(geometry === undefined ? {} : { boundary: JSON.stringify(geometry) }),
+      ...(geometry === undefined ? {} : { boundary: geometry }),
     };
   }
 
@@ -157,9 +159,6 @@ function databaseFieldValue(
   fieldName: string,
   value: unknown,
 ): unknown {
-  if (recordKind === "LocationPathGeometry" && fieldName === "boundary") {
-    return JSON.stringify(value);
-  }
   if (recordKind !== "LocationPath") {
     return value;
   }
