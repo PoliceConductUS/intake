@@ -3263,7 +3263,11 @@ export class DataContext {
       batch.requests.set(id, { resolve, reject });
       if (!this.rowReadFlushScheduled) {
         this.rowReadFlushScheduled = true;
-        queueMicrotask(() => void this.flushRowReads());
+        // setImmediate, not queueMicrotask: a group's facades reach this read
+        // spread across many microtasks (FK and slug resolution), so a microtask
+        // flush fires before they gather and each read runs alone. Deferring to
+        // the macrotask boundary lets the whole group batch into one query.
+        setImmediate(() => void this.flushRowReads());
       }
     });
   }
