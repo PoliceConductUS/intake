@@ -85,32 +85,42 @@ export async function readDatabaseRecordsBySlugs(
   );
 }
 
-// Insert a record, doing nothing if `conflictKeyColumn` already holds this key.
-// Returns whether a row was inserted, so the caller can fail loud on a
-// pre-existing key without a separate existence read (the key column's unique
-// constraint is the authority).
-export async function createDatabaseRecord(
+// Insert one multi-row statement, doing nothing where `conflictKeyColumn`
+// already holds a key. Returns the set of keys actually inserted, so the caller
+// can fail loud on any pre-existing key without a separate existence read (the
+// key column's unique constraint is the authority). Every record must carry the
+// same defined columns — the caller batches by column signature.
+export async function createDatabaseRecords(
   client: DatabaseClient,
   tableName: SupportedTableName,
-  record: Record<string, unknown>,
+  records: readonly Record<string, unknown>[],
   conflictKeyColumn: string,
-): Promise<boolean> {
-  const entries = Object.entries(record).filter(
-    ([, value]) => value !== undefined,
+): Promise<Set<string>> {
+  if (records.length === 0) {
+    return new Set();
+  }
+  const columns = Object.entries(records[0]!)
+    .filter(([, value]) => value !== undefined)
+    .map(([columnName]) => columnName);
+  const values: unknown[] = [];
+  const rowClauses = records.map(
+    (record) =>
+      `(${columns
+        .map((columnName) => {
+          values.push(record[columnName]);
+          return databaseValueExpression(tableName, columnName, values.length);
+        })
+        .join(", ")})`,
   );
   const result = await client.query(
-    `insert into ${tableName} (${entries
-      .map(([columnName]) => columnName)
-      .join(", ")}) values (${entries
-      .map(([columnName], index) =>
-        databaseValueExpression(tableName, columnName, index + 1),
-      )
-      .join(
-        ", ",
-      )}) on conflict (${conflictKeyColumn}) do nothing returning ${conflictKeyColumn}`,
-    entries.map(([, value]) => value),
+    `insert into ${tableName} (${columns.join(", ")}) values ${rowClauses.join(
+      ", ",
+    )} on conflict (${conflictKeyColumn}) do nothing returning ${conflictKeyColumn}`,
+    values,
   );
-  return rowsFromResult(result).length > 0;
+  return new Set(
+    rowsFromResult(result).map((row) => String(row[conflictKeyColumn])),
+  );
 }
 
 export async function updateDatabaseRecordFields(

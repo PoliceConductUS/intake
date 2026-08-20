@@ -1,5 +1,5 @@
 import {
-  createDatabaseRecord,
+  createDatabaseRecords,
   readDatabaseRecordByColumn,
   updateDatabaseRecordFields,
 } from "../../database/entities.js";
@@ -172,24 +172,39 @@ function databaseFieldValue(
   return value;
 }
 
-async function executeCreate(
+type PendingCreate = { mutationName: string; databaseSpec: Record<string, unknown> };
+
+// Postgres caps a statement at 65535 bind parameters; keep a margin.
+const MAX_INSERT_PARAMETERS = 60000;
+
+function definedColumns(spec: Record<string, unknown>): string[] {
+  return Object.entries(spec)
+    .filter(([, value]) => value !== undefined)
+    .map(([columnName]) => columnName);
+}
+
+async function executeCreateBatch(
   client: DatabaseClient,
-  mutationName: string,
   recordKind: string,
-  spec: Record<string, unknown>,
+  creates: readonly PendingCreate[],
 ): Promise<void> {
+  if (creates.length === 0) {
+    return;
+  }
   const metadata = databaseMutationMetadata(recordKind);
-  const databaseSpec = databaseSpecForMutation(recordKind, spec);
-  const inserted = await createDatabaseRecord(
+  const insertedKeys = await createDatabaseRecords(
     client,
     metadata.tableName,
-    databaseSpec,
+    creates.map((create) => create.databaseSpec),
     metadata.keyColumnName,
   );
-  if (!inserted) {
-    throw new Error(
-      `DatabaseMutation ${mutationName} cannot create existing ${recordKind}.`,
-    );
+  for (const create of creates) {
+    const keyValue = String(create.databaseSpec[metadata.keyColumnName]);
+    if (!insertedKeys.has(keyValue)) {
+      throw new Error(
+        `DatabaseMutation ${create.mutationName} cannot create existing ${recordKind}.`,
+      );
+    }
   }
 }
 
@@ -319,32 +334,58 @@ export async function executeDatabaseMutations(
   );
   const counts = emptyDatabaseMutationCounts();
 
+  // Creates are emitted contiguously and ahead of every update (ADR 0020), so
+  // buffer a run of same-kind, same-column creates and flush it as one multi-row
+  // insert — on a kind/column change, the parameter cap, or the first non-create.
+  let pending:
+    | { recordKind: string; signature: string; creates: PendingCreate[] }
+    | undefined;
+  const flushPending = async (): Promise<void> => {
+    if (pending !== undefined) {
+      const batch = pending;
+      pending = undefined;
+      await executeCreateBatch(client, batch.recordKind, batch.creates);
+    }
+  };
+
   for await (const { mutation, item } of iterateMutations(
     databaseMutations,
     databaseMutationsPath,
   )) {
     const { operation, recordKind } = parseDatabaseMutationKind(mutation.kind);
     if (operation === "create") {
-      await executeCreate(
-        client,
-        mutation.metadata.name,
-        recordKind,
-        mutation.spec,
-      );
-    } else if (operation === "update") {
-      await executeUpdate(
-        client,
-        mutation.metadata.name,
-        recordKind,
-        mutation.spec,
-      );
-    } else if (operation !== "read") {
-      throw new Error(
-        `DatabaseMutation operation ${operation} is not supported.`,
-      );
+      const databaseSpec = databaseSpecForMutation(recordKind, mutation.spec);
+      const columns = definedColumns(databaseSpec);
+      const signature = `${recordKind}(${columns.join(",")})`;
+      const rowCap = Math.max(1, Math.floor(MAX_INSERT_PARAMETERS / columns.length));
+      if (
+        pending !== undefined &&
+        (pending.signature !== signature || pending.creates.length >= rowCap)
+      ) {
+        await flushPending();
+      }
+      if (pending === undefined) {
+        pending = { recordKind, signature, creates: [] };
+      }
+      pending.creates.push({ mutationName: mutation.metadata.name, databaseSpec });
+    } else {
+      await flushPending();
+      if (operation === "update") {
+        await executeUpdate(
+          client,
+          mutation.metadata.name,
+          recordKind,
+          mutation.spec,
+        );
+      } else if (operation !== "read") {
+        throw new Error(
+          `DatabaseMutation operation ${operation} is not supported.`,
+        );
+      }
     }
     incrementDatabaseMutationCounts(counts, item);
   }
+  await flushPending();
 
   return counts;
 }
