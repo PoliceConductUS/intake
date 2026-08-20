@@ -9,7 +9,14 @@ export function parseYamlDocument(
   label: string,
 ): unknown {
   try {
-    const document = parseDocument(contents, { prettyErrors: false });
+    // uniqueKeys: false — the yaml duplicate-key check is O(n^2) per map, and
+    // artifact/envelope files are single maps of thousands of generated,
+    // digest-validated record keys, so the check is redundant and dominates parse
+    // time. Disabling it is the top import-perf win (see profiling notes).
+    const document = parseDocument(contents, {
+      prettyErrors: false,
+      uniqueKeys: false,
+    });
     if (document.errors.length > 0) {
       throw document.errors[0];
     }
