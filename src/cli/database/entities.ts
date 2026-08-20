@@ -14,16 +14,6 @@ function rowsFromResult(
     : [];
 }
 
-export async function readDatabaseRecordById(
-  client: DatabaseClient,
-  tableName: SupportedTableName,
-  rowId: unknown,
-): Promise<Record<string, unknown> | undefined> {
-  return rowsFromResult(
-    await client.query(`select * from ${tableName} where id = $1`, [rowId]),
-  )[0];
-}
-
 export async function readDatabaseRecordByColumn(
   client: DatabaseClient,
   tableName: SupportedTableName,
@@ -55,21 +45,24 @@ export async function readDatabaseRecordsByColumn(
   );
 }
 
+// The rows whose id is not already in the database, found with one
+// `where id = any($1)` rather than a read per row.
 export async function readNewDatabaseRecords(
   client: DatabaseClient,
   tableName: SupportedTableName,
   rows: readonly DatabaseRecord[],
 ): Promise<DatabaseRecord[]> {
-  const newRows: DatabaseRecord[] = [];
-
-  for (const row of rows) {
-    const existingRow = await readDatabaseRecordById(client, tableName, row.id);
-    if (existingRow === undefined) {
-      newRows.push(row);
-    }
+  if (rows.length === 0) {
+    return [];
   }
-
-  return newRows;
+  const existing = await readDatabaseRecordsByColumn(
+    client,
+    tableName,
+    "id",
+    rows.map((row) => String(row.id)),
+  );
+  const existingIds = new Set(existing.map((row) => String(row.id)));
+  return rows.filter((row) => !existingIds.has(String(row.id)));
 }
 
 export async function readDatabaseRecordsBySlugs(
