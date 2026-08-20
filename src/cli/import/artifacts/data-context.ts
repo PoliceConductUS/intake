@@ -59,6 +59,7 @@ import { IMPORT_OPERATION_SUFFIXES } from "../../../shared/io/import-type-metada
 import type { ArtifactsEnvelope } from "../../../shared/io/Artifacts.js";
 import {
   INTAKE_API_VERSION,
+  parseMutationKind,
   sourceNameForImportRecord,
 } from "../../../shared/io/import-types.js";
 import type { DatabaseClient } from "../../database/index.js";
@@ -2394,21 +2395,32 @@ function recordKindOfMutation(mutationKind: string): string {
  * (e.g. Licenses before the AgencyPersonnel whose `license_id` targets them). A
  * stable sort preserves the within-kind order. Unknown kinds sort last.
  */
+// Order every create before any update (ADR 0020). Creates keep FK-dependency
+// order among themselves (a row's FK targets are created first); updates follow
+// all creates, so an update's FK to a row created this import already exists and
+// an update never gates a create (its own target row already existed). The
+// replay can then batch each contiguous create run and apply updates singly —
+// the first update marks the end of the creates.
 function sortByDependencyOrder(
   items: DatabaseMutationItem[],
 ): DatabaseMutationItem[] {
-  const indexOf = (item: DatabaseMutationItem): number => {
-    if (!("kind" in item)) {
-      return Number.MAX_SAFE_INTEGER;
-    }
-    return (
-      DEPENDENCY_ORDER_INDEX.get(recordKindOfMutation(item.kind)) ??
-      Number.MAX_SAFE_INTEGER
-    );
-  };
+  const operationRank = (item: DatabaseMutationItem): number =>
+    "kind" in item && parseMutationKind(item.kind).operation === "create"
+      ? 0
+      : 1;
+  const dependencyIndex = (item: DatabaseMutationItem): number =>
+    "kind" in item
+      ? (DEPENDENCY_ORDER_INDEX.get(recordKindOfMutation(item.kind)) ??
+        Number.MAX_SAFE_INTEGER)
+      : Number.MAX_SAFE_INTEGER;
   return items
     .map((item, index) => ({ item, index }))
-    .sort((a, b) => indexOf(a.item) - indexOf(b.item) || a.index - b.index)
+    .sort(
+      (a, b) =>
+        operationRank(a.item) - operationRank(b.item) ||
+        dependencyIndex(a.item) - dependencyIndex(b.item) ||
+        a.index - b.index,
+    )
     .map(({ item }) => item);
 }
 

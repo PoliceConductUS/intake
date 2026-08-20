@@ -1473,6 +1473,52 @@ describe("PersonnelFacade", () => {
     expect(officerSlugReads).toHaveLength(1);
   });
 
+  test("orders every create before any update (ADR 0020)", async () => {
+    const context = personnelContext({
+      personnel: {
+        "1000001": { canonicalId: "existing-officer" },
+        "1000002": { canonicalId: "new-officer" },
+      },
+      databaseOfficers: [
+        {
+          id: "existing-officer",
+          first_name: "Old",
+          last_name: "Name",
+          middle_name: null,
+          prefix: null,
+          suffix: null,
+          slug: "old-slug",
+        },
+      ],
+    });
+    // Register the update before the create; the emitted order must still put the
+    // create first.
+    context.personnelFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "gov.tx.tcole",
+      name: "1000001",
+      spec: { first_name: "New", last_name: "Name" },
+    });
+    context.personnelFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "gov.tx.tcole",
+      name: "1000002",
+      spec: { first_name: "Fresh", last_name: "Officer" },
+    });
+
+    const envelope = await context.toDatabaseMutations({
+      namespace: "gov.tx.tcole",
+      name: "command-name",
+      sourceArtifactsName: "source-artifacts-name",
+    });
+
+    expect(
+      envelope.spec.mutations.map((mutation) =>
+        "kind" in mutation ? mutation.kind : mutation.ref.kind,
+      ),
+    ).toEqual(["PersonnelCreate", "PersonnelUpdate"]);
+  });
+
   test("uses an explicitly supplied slug as-is", async () => {
     const context = personnelContext({
       personnel: { "1000038": { canonicalId: "personnel-canonical-id" } },
