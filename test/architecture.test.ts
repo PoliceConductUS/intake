@@ -199,20 +199,23 @@ describe("architecture boundaries", () => {
     expect(violations).toEqual([]);
   });
 
-  test("keeps import operation classification out of replay CRU", async () => {
+  test("keeps import operation classification out of the write pass", async () => {
     const filePath = path.join(
       sourceRoot,
       "cli",
       "import",
       "artifacts",
-      "plan-database-mutations.ts",
+      "config.ts",
     );
     const contents = await readFile(filePath, "utf8");
 
+    // Create-vs-read/update is decided by each facade's own current-row read at
+    // mutation time (ADR 0019), never by a separate operation-classification pass.
     expect(contents).not.toContain(
       "function resolvePreparedDatabaseOperations",
     );
     expect(contents).not.toContain("function rowExists");
+    expect(contents).not.toContain("classifyDatabaseOperations");
   });
 
   test("implements import artifacts as named pipeline stages", async () => {
@@ -233,15 +236,13 @@ describe("architecture boundaries", () => {
       "rejectExistingImportStage",
       "applyArtifactMutationsStage",
       "transformArtifactsStage",
-      "executeDatabaseMutationPlanningStage",
-      "writeDatabaseMutationsDebugStage",
       "writeDatabaseMutationsStage",
     ]) {
       expect(contents).toContain(stageName);
     }
   });
 
-  test("keeps DatabaseMutationsDebug writing out of database planning stage", async () => {
+  test("isolates failed DatabaseMutationsDebug writing to a dedicated helper", async () => {
     const filePath = path.join(
       sourceRoot,
       "cli",
@@ -250,13 +251,18 @@ describe("architecture boundaries", () => {
       "config.ts",
     );
     const contents = await readFile(filePath, "utf8");
-    const executeStage = contents.slice(
-      contents.indexOf("async function executeDatabaseMutationPlanningStage"),
-      contents.indexOf("async function writeDatabaseMutationsDebugStage"),
+    const helperStart = contents.indexOf(
+      "async function writeFailedDatabaseMutationsDebugEnvelope",
     );
+    const helperEnd = contents.indexOf("\nasync function ", helperStart + 1);
+    const helper = contents.slice(helperStart, helperEnd);
 
-    expect(executeStage).not.toContain("DatabaseMutationsDebug.write");
-    expect(executeStage).not.toContain("DatabaseMutationsDebug.new");
+    // The debug envelope is written only by the dedicated failure helper — never
+    // inline in the success/emit path.
+    expect(helperStart).toBeGreaterThanOrEqual(0);
+    expect(helper).toContain("DatabaseMutationsDebug.write");
+    expect(contents.split("DatabaseMutationsDebug.write").length - 1).toBe(1);
+    expect(contents.split("DatabaseMutationsDebug.new").length - 1).toBe(1);
   });
 
   test("keeps DatabaseMutations assembly on DataContext and exact kind IO", async () => {
@@ -293,7 +299,7 @@ describe("architecture boundaries", () => {
       "cli",
       "import",
       "artifacts",
-      "plan-database-mutations.ts",
+      "config.ts",
     );
     const contents = await readFile(filePath, "utf8");
 
@@ -302,19 +308,21 @@ describe("architecture boundaries", () => {
     expect(contents).not.toContain("requiredInsertColumns");
   });
 
-  test("keeps import artifact planning free of database writes", async () => {
+  test("keeps the import artifact write pass free of database writes", async () => {
     const filePath = path.join(
       sourceRoot,
       "cli",
       "import",
       "artifacts",
-      "plan-database-mutations.ts",
+      "config.ts",
     );
     const contents = await readFile(filePath, "utf8");
 
+    // The write pass only reads (schema, location paths, current rows); records
+    // are created/updated later by the separate replay client.
     expect(contents).not.toContain("createMissingLocationPathRecords");
     expect(contents).not.toContain("createOrUpdateOwnedDatabaseRecord");
-    expect(contents).not.toContain("commit");
+    expect(contents).not.toContain('query("commit")');
   });
 
   test("keeps import artifact stages on narrow adapters instead of DataContext reach-through", async () => {
@@ -325,13 +333,6 @@ describe("architecture boundaries", () => {
         "import",
         "artifacts",
         "agency-address-resolution.ts",
-      ),
-      path.join(
-        sourceRoot,
-        "cli",
-        "import",
-        "artifacts",
-        "agency-field-resolution.ts",
       ),
     ];
     const violations: string[] = [];
@@ -428,7 +429,6 @@ describe("architecture boundaries", () => {
     const files = await existingFiles(sourceRoot);
     const sourceFiles = files.filter((file) => /\.[cm]?tsx?$/.test(file));
     const allowed = new Set([
-      "src/cli/import/artifacts/agency-coordinate-cache.ts",
       "src/cli/import/artifacts/config.ts",
       "src/cli/state/resolved-property/ResolvedProperty.ts",
       "src/cli/state/resolved-property/index.ts",

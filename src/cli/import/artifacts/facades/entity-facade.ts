@@ -15,7 +15,7 @@ import {
  */
 export type EntityFacadeBackend = CanonicalIdBackend &
   ForeignKeyBackend & {
-    getCurrentById(id: string): Record<string, unknown> | undefined;
+    getCurrentById(id: string): Promise<Record<string, unknown> | undefined>;
   };
 
 /** Per-property resolvers for a facade's row (ADR 0016). */
@@ -160,7 +160,8 @@ export class EntityFacade<
     }
 
     const current =
-      this.current ?? this.backend.getCurrentById(id as unknown as string);
+      this.current ??
+      (await this.backend.getCurrentById(id as unknown as string));
 
     if (current === undefined) {
       return this.mutations.create.new({

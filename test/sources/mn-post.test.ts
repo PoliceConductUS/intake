@@ -209,13 +209,12 @@ describe("mn-post run", () => {
       contact_name: "Jane Chief",
       contact_email: "chief@alpha.mn",
     });
-    // Not in the CSV -> MN fallback, null address fields.
+    // Not in the CSV -> MN fallback; the resolved-location fields (city, address,
+    // zip) are OMITTED, not null — a valid partial artifact whose location is
+    // resolved from a property-cache seed at import (required by the mutation).
     expect(agencies["a2jBETA"].spec).toEqual({
       name: "Beta County Sheriff",
       state: "MN",
-      city: null,
-      address: null,
-      zip_code: null,
       contact_name: null,
       contact_email: null,
     });

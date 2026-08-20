@@ -1,7 +1,7 @@
 import type {
   AgencyCoordinateRequest,
   AgencyCoordinateResolution,
-} from "./plan-database-mutations.js";
+} from "./agency-preparation.js";
 import type {
   LocationAdministrativeAreaRequest,
   LocationAdministrativeAreaResolution,

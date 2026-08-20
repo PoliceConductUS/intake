@@ -21,6 +21,13 @@ export const FK_REFERENCES: Record<
   ReadonlyArray<{ field: string; targetKind: string }>
 > = {"LocationPathGeometry":[{"field":"location_path_id","targetKind":"LocationPath"}],"LocationPathAlias":[{"field":"location_path_id","targetKind":"LocationPath"}],"Agency":[{"field":"location_path_id","targetKind":"LocationPath"}],"AgencyPersonnel":[{"field":"agency_id","targetKind":"Agency"},{"field":"license_id","targetKind":"License"},{"field":"officer_id","targetKind":"Personnel"}],"LicensingAuthority":[{"field":"location_path_id","targetKind":"LocationPath"}],"License":[{"field":"issued_by_authority_id","targetKind":"LicensingAuthority"},{"field":"officer_id","targetKind":"Personnel"}],"LicenseAction":[{"field":"license_id","targetKind":"License"}],"DisciplineAgencyOfficer":[{"field":"agency_officer_id","targetKind":"AgencyPersonnel"},{"field":"discipline_id","targetKind":"Discipline"}],"CoverageLinkAgencyOfficer":[{"field":"agency_officer_id","targetKind":"AgencyPersonnel"},{"field":"coverage_link_id","targetKind":"CoverageLink"}]};
 
+// Each record kind's properties resolved during import rather than supplied by
+// the source (`createRequired`): optional in the base spec, required in the
+// *Create mutation. The facade caches every one of these except `id` (which the
+// ledger mints) through the property cache — so a resolved field becomes
+// cache-backed and seedable automatically, with no per-resolver wiring.
+export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = {"LocationPath":[],"LocationPathGeometry":[],"LocationPathAlias":[],"Agency":["id","slug","address","city","zip_code","location_path_id","latitude","longitude"],"Personnel":["id","slug"],"AgencyPersonnel":["id"],"LicensingAuthority":["id"],"License":["id"],"LicenseAction":["id"],"Discipline":["id"],"DisciplineAgencyOfficer":["id"],"CoverageLink":["id"],"CoverageLinkAgencyOfficer":["id"]};
+
 const nonEmptyString = z.string().trim().min(1);
 const nullableNonEmptyString = nonEmptyString.nullable();
 
@@ -166,10 +173,10 @@ export const AgencySpec = z
   .object({
     id: nonEmptyString.optional(),
     name: nonEmptyString,
-    city: nullableNonEmptyString.optional(),
+    city: nonEmptyString.optional(),
     state: nonEmptyString,
-    address: nullableNonEmptyString.optional(),
-    zip_code: nullableNonEmptyString.optional(),
+    address: nonEmptyString.optional(),
+    zip_code: nonEmptyString.optional(),
     contact_name: nullableNonEmptyString.optional(),
     contact_email: nullableNonEmptyString.optional(),
     slug: nonEmptyString.optional(),
@@ -183,6 +190,9 @@ export const AgencySpec = z
 export const AgencyCreateSpec = AgencySpec.extend({
   id: nonEmptyString,
   slug: nonEmptyString,
+  address: nonEmptyString,
+  city: nonEmptyString,
+  zip_code: nonEmptyString,
   location_path_id: nonEmptyString,
   latitude: z.number().finite(),
   longitude: z.number().finite(),

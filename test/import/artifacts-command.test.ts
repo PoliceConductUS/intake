@@ -4,16 +4,13 @@ import path from "node:path";
 import { describe, expect, test } from "vitest";
 import { runImportArtifactsCommand } from "../../src/cli/index.js";
 import { GENERATED_MIGRATION_VERSIONS } from "../../src/shared/io/generated/entity-specs.js";
-import {
-  planDatabaseMutations,
-  type DatabaseClient,
-} from "../../src/cli/import/artifacts/plan-database-mutations.js";
+import type { DatabaseClient } from "../../src/cli/database/index.js";
 import { importArtifacts } from "../../src/cli/import/artifacts/config.js";
 import { DataContext } from "../../src/cli/import/artifacts/data-context.js";
+import { resolveImportAddress } from "../../src/cli/import/artifacts/agency-address-resolution.js";
 import { applyOptionalArtifactMutation } from "../../src/cli/import/artifacts/artifact-mutation.js";
 import { ArtifactMutation } from "../../src/cli/import/artifacts/io/ArtifactMutation.js";
 import { ArtifactMutations } from "../../src/cli/import/artifacts/io/ArtifactMutations.js";
-import { type ImportOperations } from "../../src/cli/import/artifacts/operations.js";
 import { DatabaseMutations } from "../../src/cli/import/artifacts/io/DatabaseMutations.js";
 import { DatabaseMutationsDebug } from "../../src/cli/import/artifacts/io/DatabaseMutationsDebug.js";
 import { replayDatabaseMutations } from "../../src/cli/replay/database-mutations/config.js";
@@ -33,7 +30,6 @@ import { INTAKE_API_VERSION } from "../../src/shared/io/import-types.js";
 import { yamlResourceFileName } from "../../src/shared/io/resource.js";
 import type {
   ImportRows,
-  LocationPathGeometryRow,
   LocationPathRow,
 } from "../../src/cli/import/artifacts/transform.js";
 
@@ -98,18 +94,6 @@ const rows: ImportRows = {
   },
 };
 
-const createOperations: ImportOperations = {
-  locationPaths: {},
-  locationPathGeometries: {},
-  locationPathAliases: {},
-  agencies: {},
-  officers: {},
-  agencyOfficers: {},
-  licensingAuthorities: {},
-  licenses: {},
-  licenseActions: {},
-};
-
 function locationPathSnapshot(
   placeLocationPathId = "mn/saint-paul/minnesota-state-patrol",
 ): LocationPathRow[] {
@@ -151,25 +135,6 @@ function locationPathSnapshot(
       parent_location_path_id: "ramsey-county-location-path-id",
     },
   ];
-}
-
-function locationPathGeometry(locationPathId: string): LocationPathGeometryRow {
-  return {
-    location_path_id: locationPathId,
-    sourceLocationPathKey: `source:${locationPathId}`,
-    geometry: {
-      type: "Polygon",
-      coordinates: [
-        [
-          [-93.2, 44.9],
-          [-93.0, 44.9],
-          [-93.0, 45.0],
-          [-93.2, 45.0],
-          [-93.2, 44.9],
-        ],
-      ],
-    },
-  };
 }
 
 const schemaRowsByTable: Record<string, Record<string, unknown>[]> = {
@@ -325,7 +290,10 @@ describe("importArtifacts", () => {
                   "agency-source-id": {
                     spec: {
                       name: "Minnesota State Patrol",
+                      city: "Saint Paul",
                       state: "MN",
+                      address: "444 Cedar Street",
+                      zip_code: "55101",
                     },
                   },
                 },
@@ -340,9 +308,6 @@ describe("importArtifacts", () => {
     const partialRows: ImportRows = {
       ...rows,
       locationPaths: [],
-      locationPathGeometries: [
-        locationPathGeometry("saint-paul-location-path-id"),
-      ],
       agencies: [
         {
           ...rows.agencies[0],
@@ -385,32 +350,19 @@ describe("importArtifacts", () => {
       },
     ]);
 
-    const result = await planDatabaseMutations(partialRows, {
-      env: { DATABASE_URL: "postgres://example/intake" },
-      clientFactory: () => client,
-      resolveAgencyCoordinates: async () => [
-        {
-          rowId: "agency-canonical-id",
-          latitude: 44.955097,
-          longitude: -93.102211,
-        },
-      ],
-      resolveLocationAdministrativeArea: async () => ({
-        administrativeAreaName: "Ramsey County",
-      }),
-    });
     const commandDirectory = path.join(
       rootDir,
       "intake",
       "commands",
       "2026-06-08T00-00-00-000Z-test-command",
     );
-    // Agencies are facade-based (ADR 0016): register them from the artifacts so
-    // the AgencyFacade emits (resolve-if-present from the planning-pass-resolved
-    // row).
-    const debugContext = new DataContext({
+    // One DataContext, mirroring the write pass: the AgencyFacade resolves the
+    // agency's location itself (geocode > administrative area > existing location
+    // path, read through the client) and emits an AgencyCreate that references
+    // the resolved path — it never creates the path.
+    const dataContext = new DataContext({
       rows: partialRows,
-      operations: result.operations,
+      client,
       ledger: fakeSourceNameLedger({
         agencies: {
           "agency-source-id": { canonicalId: "agency-canonical-id" },
@@ -419,15 +371,33 @@ describe("importArtifacts", () => {
         agencyPersonnel: {},
         locationPaths: {},
       }),
+      resolveAddress: (input) =>
+        resolveImportAddress(input, {
+          resolveAgencyCoordinates: async () => [
+            {
+              rowId: "agency-canonical-id",
+              latitude: 44.955097,
+              longitude: -93.102211,
+            },
+          ],
+        }),
+      resolveAdministrativeArea: async () => ({
+        administrativeAreaName: "Ramsey County",
+      }),
     });
-    debugContext.mergeAgencyArtifacts(artifacts);
-    const databaseMutations = await debugContext.toDatabaseMutations({
+    dataContext.mergeAgencyArtifacts(artifacts);
+    const databaseMutations = await dataContext.toDatabaseMutations({
       namespace: artifacts.metadata.namespace,
       name: "test-command",
       sourceArtifactsName: artifacts.metadata.name,
       sourceArtifactsPath: artifactsPath,
       sourceArtifactsDigest: await Artifacts.digest(artifactsPath),
-      databaseSchema: result.schema,
+      databaseSchema: {
+        appliedMigrations: GENERATED_MIGRATION_VERSIONS.map((version) => ({
+          version,
+          name: null,
+        })),
+      },
     });
     const replayImportArtifactsEnvelope = await DatabaseMutations.write(
       commandDirectory,
@@ -439,15 +409,12 @@ describe("importArtifacts", () => {
     );
     const mutations = importArtifactsEnvelope.spec.mutations;
 
-    expect(mutations.map((mutation) => mutation.kind)).toEqual([
-      "LocationPathGeometryCreate",
-      "AgencyCreate",
-    ]);
+    expect(mutations.map((mutation) => mutation.kind)).toEqual(["AgencyCreate"]);
     expect(mutations.map((mutation) => mutation.kind)).not.toContain(
       "LocationPathCreate",
     );
     expect(
-      (mutations[1]?.spec as Record<string, unknown>).location_path_id,
+      (mutations[0]?.spec as Record<string, unknown>).location_path_id,
     ).toEqual("saint-paul-location-path-id");
     expect(importArtifactsEnvelope.metadata.databaseSchema).toEqual({
       appliedMigrations: GENERATED_MIGRATION_VERSIONS.map((version) => ({
@@ -707,7 +674,6 @@ describe("importArtifacts", () => {
     );
     const runContext = new DataContext({
       rows,
-      operations: createOperations,
       ledger: fakeSourceNameLedger({
         agencies: {
           "agency-source-id": { canonicalId: "agency-canonical-id" },
@@ -891,10 +857,10 @@ describe("importArtifacts", () => {
     if (!firstImport.ok) {
       throw new Error(firstImport.error);
     }
-    // Agency slugs are cached in intake-owned state (ResolvedProperty). Personnel
-    // slugs are facade-based (ADR 0016): stability comes from reusing the existing
-    // database row's slug, not a durable slug cache, so only the agency slug is
-    // asserted against the cache here.
+    // The agency slug is resolved and cached by the AgencyFacade through its
+    // PropertyCache (ADR 0016/0019), keyed by canonical id + property — so a
+    // re-import reuses it. Personnel slug stability comes from reusing the
+    // existing database row's slug, so only the agency slug is asserted here.
     const agencyCacheInput = {
       subject: {
         apiVersion: INTAKE_API_VERSION,
@@ -905,7 +871,7 @@ describe("importArtifacts", () => {
     } satisfies ResolvedPropertyCacheInput;
     await expect(
       readResolvedProperty({ ...agencyCacheInput, rootDir }),
-    ).resolves.toBe("minnesota-state-patrol-icalid");
+    ).resolves.toBe("minnesota-state-patrol");
 
     const secondImport = await importArtifacts({
       artifactsPath: await writeArtifacts(
@@ -967,7 +933,7 @@ describe("importArtifacts", () => {
     const serializedMutations = JSON.stringify(
       databaseMutations.spec.mutations,
     );
-    expect(serializedMutations).toContain("minnesota-state-patrol-icalid");
+    expect(serializedMutations).toContain("minnesota-state-patrol");
     expect(serializedMutations).toContain("spenser-stockwell-icalid");
     expect(serializedMutations).not.toContain("changed-agency-name");
     expect(serializedMutations).not.toContain("changed-person");

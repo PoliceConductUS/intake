@@ -9,13 +9,8 @@ import type {
   AgencyCoordinateRequest,
   AgencyCoordinateResolution,
 } from "./agency-coordinate-types.js";
-import {
-  type AgencyCoordinateCacheOptions,
-  cachedAgencyCoordinateResolution,
-  writeAgencyCoordinateResolutionCache,
-} from "./agency-coordinate-cache.js";
 
-export type AgencyAddressResolutionOptions = AgencyCoordinateCacheOptions & {
+export type AgencyAddressResolutionOptions = {
   resolveAgencyCoordinates?: (
     requests: AgencyCoordinateRequest[],
   ) => Promise<AgencyCoordinateResolution[]>;
@@ -134,41 +129,27 @@ export async function resolveImportAddress(
 
   const inputLatitude = valueAsFiniteNumber(input.latitude);
   const inputLongitude = valueAsFiniteNumber(input.longitude);
-  let latitude = inputLatitude;
-  let longitude = inputLongitude;
-
-  if (latitude === undefined || longitude === undefined) {
-    const request = coordinateRequest(input);
-    const cached = await cachedAgencyCoordinateResolution(request, options);
-    if (cached?.status === "resolved") {
-      latitude = cached.resolution.latitude;
-      longitude = cached.resolution.longitude;
-    } else {
-      const [coordinateResolution] = await options.resolveAgencyCoordinates([
-        request,
-      ]);
-      if (
-        coordinateResolution === undefined ||
-        !Number.isFinite(coordinateResolution.latitude) ||
-        !Number.isFinite(coordinateResolution.longitude)
-      ) {
-        throw new Error(
-          `Cannot resolve coordinates for public.agency ${input.entityId} from ${locationDescription(input)}.`,
-        );
-      }
-      await writeAgencyCoordinateResolutionCache(
-        request,
-        coordinateResolution,
-        options,
-      );
-      latitude = coordinateResolution.latitude;
-      longitude = coordinateResolution.longitude;
-    }
+  if (inputLatitude !== undefined && inputLongitude !== undefined) {
+    return { latitude: inputLatitude, longitude: inputLongitude };
   }
 
+  // Coordinates are cached and seeded by the facade's PropertyCache (ADR 0019);
+  // this is the live geocode on a cache miss.
+  const [coordinateResolution] = await options.resolveAgencyCoordinates([
+    coordinateRequest(input),
+  ]);
+  if (
+    coordinateResolution === undefined ||
+    !Number.isFinite(coordinateResolution.latitude) ||
+    !Number.isFinite(coordinateResolution.longitude)
+  ) {
+    throw new Error(
+      `Cannot resolve coordinates for public.agency ${input.entityId} from ${locationDescription(input)}.`,
+    );
+  }
   return {
-    latitude,
-    longitude,
+    latitude: coordinateResolution.latitude,
+    longitude: coordinateResolution.longitude,
   };
 }
 

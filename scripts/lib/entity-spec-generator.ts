@@ -136,7 +136,24 @@ const DESCRIPTORS: EntityDescriptor[] = [
   {
     recordKind: "Agency",
     table: "agency",
-    createRequired: ["id", "slug", "location_path_id", "latitude", "longitude"],
+    // `address`/`city`/`zip_code` join the resolved-during-import bucket: an
+    // agency's street location can be supplied by the source OR resolved from the
+    // property cache (a committed seed) at import, so the artifact may omit them
+    // (the temporarily-absent partial model), but the *Create mutation requires
+    // them — "a valid agency has a non-empty, geocodable location" is enforced at
+    // mutation generation, not artifact read. `state` stays required at read: it
+    // is always source-provided (never seeded), so a missing state is a source
+    // defect that should fail loud immediately.
+    createRequired: [
+      "id",
+      "slug",
+      "address",
+      "city",
+      "zip_code",
+      "location_path_id",
+      "latitude",
+      "longitude",
+    ],
     // Envelope-only geocoding hint consumed during resolution (administrative-
     // area name/slug); not a column of public.agency.
     extras: {
@@ -428,6 +445,20 @@ export const FK_REFERENCES: Record<
   string,
   ReadonlyArray<{ field: string; targetKind: string }>
 > = ${JSON.stringify(foreignKeyReferences(schema))};
+
+// Each record kind's properties resolved during import rather than supplied by
+// the source (\`createRequired\`): optional in the base spec, required in the
+// *Create mutation. The facade caches every one of these except \`id\` (which the
+// ledger mints) through the property cache — so a resolved field becomes
+// cache-backed and seedable automatically, with no per-resolver wiring.
+export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = ${JSON.stringify(
+    Object.fromEntries(
+      DESCRIPTORS.map((descriptor) => [
+        descriptor.recordKind,
+        descriptor.createRequired ?? [],
+      ]),
+    ),
+  )};
 
 const nonEmptyString = z.string().trim().min(1);
 const nullableNonEmptyString = nonEmptyString.nullable();

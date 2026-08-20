@@ -60,6 +60,7 @@ export const run: SourceRun = async ({ paths }) => {
     }
   }
 
+
   const licensingAuthorities: EmittedRecords = {
     "mn-post": {
       spec: {
@@ -92,14 +93,25 @@ export const run: SourceRun = async ({ paths }) => {
 
     if (agencies[agency.id] === undefined) {
       const csv = csvByName.get(agency.name);
+      // address/city/zip are OMITTED (undefined) when the Q2 sheet lacks them —
+      // never null. An omitted field is the temporarily-absent partial state,
+      // resolved at import from a property-cache seed and required non-empty by
+      // the AgencyCreate mutation; null would instead mean "set this column to
+      // null", which a required location field must never be.
+      const location: Record<string, string> = {
+        // Every MN POST agency is in Minnesota; the Q2 sheet confirms it.
+        state: nullIfBlank(csv?.["State"]) ?? "MN",
+      };
+      const city = nullIfBlank(csv?.["City"]);
+      const address = nullIfBlank(csv?.["Address"]);
+      const zipCode = nullIfBlank(csv?.["Zip"]);
+      if (city !== null) location.city = city;
+      if (address !== null) location.address = address;
+      if (zipCode !== null) location.zip_code = zipCode;
       agencies[agency.id] = {
         spec: {
           name: agency.name,
-          // Every MN POST agency is in Minnesota; the Q2 sheet confirms it.
-          state: nullIfBlank(csv?.["State"]) ?? "MN",
-          city: nullIfBlank(csv?.["City"]),
-          address: nullIfBlank(csv?.["Address"]),
-          zip_code: nullIfBlank(csv?.["Zip"]),
+          ...location,
           contact_name: nullIfBlank(csv?.["Chief Law Enforcement Officer"]),
           contact_email: nullIfBlank(csv?.["Email"]),
         },

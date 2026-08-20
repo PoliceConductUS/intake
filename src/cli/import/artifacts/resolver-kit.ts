@@ -87,6 +87,172 @@ export type ResolverContext<Row, Backend> = {
 };
 
 /**
+ * A persistent, resolver-agnostic property cache keyed by `(entity kind, subject
+ * id, property)`. It backs both seeding and geocode reuse: a resolver-backed
+ * property whose source value is absent is read from here before it is resolved
+ * live, and a live resolution is written back. Source-provided values are never
+ * written (the source is authoritative and re-read each run). Seed files are the
+ * same cache under version control.
+ */
+export interface PropertyCache {
+  read(key: {
+    kind: string;
+    id: string;
+    property: string;
+  }): Promise<unknown | undefined>;
+  write(
+    key: { kind: string; id: string; property: string },
+    value: unknown,
+  ): Promise<void>;
+}
+
+/**
+ * The shared resolution engine every entity facade composes from: per-property
+ * memoization, circular-dependency detection, plain pass-through for columns no
+ * resolver manages, and the generic property cache. Subclasses supply the entity
+ * `kind`, the source identity, the injected `backend`, an optional `cache`, and a
+ * `resolvers` map — everything entity-specific — while this base owns the uniform
+ * `value`/`raw`/`merge` accessors and the source > cache > live-resolve policy.
+ */
+export abstract class ResolvingFacade<Row, Backend>
+  implements PropertyResolutionFacade<Row>
+{
+  protected readonly spec: Record<string, unknown> = {};
+  private readonly memo = new Map<keyof Row, Promise<unknown>>();
+  private readonly inProgress = new Set<keyof Row>();
+  private readonly cacheableProperties: ReadonlySet<string>;
+
+  constructor(
+    private readonly kind: string,
+    protected readonly source: FacadeSource,
+    protected readonly backend: Backend,
+    private readonly cache: PropertyCache | undefined,
+    // The entity's resolved-during-import properties (`RESOLVED_PROPERTIES[kind]`
+    // from the generated specs). Every one is cached except `id`, which the
+    // ledger mints — so caching is derived, never hand-marked per resolver.
+    cacheableProperties: readonly string[] = [],
+  ) {
+    this.cacheableProperties = new Set(
+      cacheableProperties.filter((property) => property !== "id"),
+    );
+  }
+
+  /** The per-property resolvers, supplied by the concrete facade. */
+  protected abstract readonly resolvers: Partial<{
+    [K in keyof Row]: Resolver<Row[K], ResolverContext<Row, Backend>>;
+  }>;
+
+  /** The entity's canonical id — the cache subject. Each facade names its own
+   * identity property (`id`, or `location_path_id` for location paths). */
+  protected abstract canonicalId(): Promise<string>;
+
+  merge(spec: Record<string, unknown>): void {
+    Object.assign(this.spec, spec);
+  }
+
+  raw(property: keyof Row): unknown {
+    return this.spec[property as string];
+  }
+
+  value<K extends keyof Row>(property: K): Promise<Row[K]> {
+    const memoized = this.memo.get(property);
+    if (memoized !== undefined) {
+      return memoized as Promise<Row[K]>;
+    }
+    const pending = this.computeValue(property);
+    this.memo.set(property, pending);
+    return pending;
+  }
+
+  private async computeValue<K extends keyof Row>(property: K): Promise<Row[K]> {
+    if (this.inProgress.has(property)) {
+      throw new Error(
+        `Circular property dependency while resolving ${this.kind}.${String(
+          property,
+        )} for ${this.source.namespace}/${this.source.name}.`,
+      );
+    }
+    this.inProgress.add(property);
+    try {
+      const resolver = this.resolvers[property];
+      if (resolver === undefined) {
+        return this.plainValue(property);
+      }
+      const context: ResolverContext<Row, Backend> = {
+        facade: this,
+        source: this.source,
+        backend: this.backend,
+      };
+      const locate = () => this.unresolvedMessage(property);
+      const cache = this.cache;
+      if (cache === undefined || !this.cacheableProperties.has(String(property))) {
+        return await resolver.resolve(context, locate);
+      }
+      return await this.resolveThroughCache(property, resolver, context, locate, cache);
+    } finally {
+      this.inProgress.delete(property);
+    }
+  }
+
+  /**
+   * source > cache > live-resolve. A source-provided value wins and is returned
+   * untouched — never cached, because the source is authoritative and re-read
+   * each run, and persisting it would risk a later "already has a different
+   * value" write conflict. With no source value, a cache hit short-circuits the
+   * resolver; a miss resolves live and writes the result back.
+   */
+  private async resolveThroughCache<K extends keyof Row>(
+    property: K,
+    resolver: Resolver<Row[K], ResolverContext<Row, Backend>>,
+    context: ResolverContext<Row, Backend>,
+    locate: () => string,
+    cache: PropertyCache,
+  ): Promise<Row[K]> {
+    if (this.hasSourceValue(property)) {
+      return resolver.resolve(context, locate);
+    }
+    const key = {
+      kind: this.kind,
+      id: await this.canonicalId(),
+      property: String(property),
+    };
+    const cached = await cache.read(key);
+    if (cached !== undefined) {
+      return cached as Row[K];
+    }
+    const resolved = await resolver.resolve(context, locate);
+    // Never cache an absent result: a nullable column that resolved to null has
+    // nothing worth pinning, and a null entry would masquerade as a hit and
+    // shadow a later seed.
+    if (resolved !== null && resolved !== undefined) {
+      await cache.write(key, resolved);
+    }
+    return resolved;
+  }
+
+  private hasSourceValue(property: keyof Row): boolean {
+    const raw = this.spec[property as string];
+    if (raw === undefined || raw === null) {
+      return false;
+    }
+    return typeof raw === "string" ? raw.trim() !== "" : true;
+  }
+
+  private plainValue<K extends keyof Row>(property: K): Row[K] {
+    const value = this.spec[property as string];
+    return (value === undefined ? null : value) as Row[K];
+  }
+
+  private unresolvedMessage(property: keyof Row): string {
+    return `Cannot resolve ${this.kind}.${String(
+      property,
+    )} for source ${this.source.namespace}/${this.source.name}; offending value ${JSON.stringify(
+      this.spec[property as string],
+    )}.`;
+  }
+}
+
+/**
  * The minimal capability a canonical-id resolver reaches through: the durable
  * ledger find-or-create. Backend-generic so any entity's facade can reuse it.
  */
@@ -271,5 +437,18 @@ export function lowerCaseEmailResolverNullable<Row, Backend>(
   return new Resolver<string | null, ResolverContext<Row, Backend>>(
     casingResolveFn<Row, Backend>(property, lowerCaseEmail),
     { defaultValue: null },
+  );
+}
+
+/**
+ * Pass a string property through unchanged — no casing — for values a transform
+ * would corrupt (a state code like `TX`, a ZIP). REQUIRED column: fail-loud when
+ * the source (and any cache/seed) supplies nothing.
+ */
+export function passthroughResolver<Row, Backend>(
+  property: keyof Row & string,
+): Resolver<string, ResolverContext<Row, Backend>> {
+  return new Resolver<string, ResolverContext<Row, Backend>>(
+    casingResolveFn<Row, Backend>(property, (value) => value),
   );
 }

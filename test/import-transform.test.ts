@@ -301,7 +301,6 @@ describe("transformArtifacts", () => {
 
     expect(rows).toEqual({
       locationPaths: [],
-      locationPathGeometries: [],
       locationPathAliases: [],
       agencies: [
         {

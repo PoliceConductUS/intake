@@ -211,9 +211,11 @@ describe("DataContext", () => {
     });
   });
 
-  test("AgencyFacade location_path_id composition fails loud when the address cannot resolve", async () => {
-    // Resolve-or-fail (ADR 0006/0015): a new agency with no pre-resolved
-    // location_path_id and no geocoder cannot resolve, and fails loud.
+  test("AgencyFacade fails loud at the toMutation boundary when a required address component has no source or cached value", async () => {
+    // The model may hold a partial spec; completeness is enforced only at the
+    // read/write/toMutation boundary. A new agency with no city/address/zip and
+    // no seed in the property cache cannot resolve its required columns, so
+    // toMutation fails loud (resolve-or-fail, ADR 0006/0015).
     const context = agencyFacadeContext();
     const agency = context.fromSource({
       apiVersion: INTAKE_API_VERSION,
@@ -223,7 +225,7 @@ describe("DataContext", () => {
     agency.merge({ name: "Minnesota State Patrol", state: "MN" });
 
     await expect(agency.toMutation()).rejects.toThrow(
-      /Cannot resolve address for agency mn-state-patrol/,
+      /Cannot resolve Agency\.city for source mn-post\/mn-state-patrol/,
     );
   });
 
@@ -271,6 +273,41 @@ describe("DataContext", () => {
             path: "slug",
             from: "minnesota-state-patrol",
             to: "msp",
+          }),
+        ]),
+      },
+    });
+  });
+
+  test("emits a from-value-to-null set when the source nulls an optional field", async () => {
+    // The source-config contract (ADR 0019): emitting `null` deliberately sets a
+    // column null, distinct from omitting the field. An existing contact_name is
+    // driven to null in the update.
+    const context = agencyFacadeContext({
+      databaseAgencies: [
+        {
+          id: "agency-canonical-id",
+          ...resolvedAgencySpec,
+          contact_name: "Jane Chief",
+        },
+      ],
+    });
+    const agency = context.fromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: "mn-state-patrol",
+    });
+    agency.merge({ ...resolvedAgencySpec, contact_name: null });
+
+    expect(await agency.toMutation()).toMatchObject({
+      kind: "AgencyUpdate",
+      spec: {
+        operations: expect.arrayContaining([
+          expect.objectContaining({
+            action: "set",
+            path: "contact_name",
+            from: "Jane Chief",
+            to: null,
           }),
         ]),
       },
@@ -404,25 +441,47 @@ describe("DataContext", () => {
     });
   });
 
-  test("emits empty specs for read-only location path mutations", async () => {
+  test("emits an empty-spec read for an existing location path through the envelope", async () => {
     const existingLocationPath = locationPaths[0]!;
     const context = new DataContext({
-      rows: {
-        ...rows,
-        locationPaths: [existingLocationPath],
-      },
-      operations: {
-        locationPaths: {
-          [existingLocationPath.location_path_id]: "read",
-        },
-        locationPathGeometries: {},
-        locationPathAliases: {},
+      client: new EmptyClient(),
+      rows,
+      commandName: "command-name",
+      ledger: fakeSourceNameLedger({
         agencies: {},
-        officers: {},
-        agencyOfficers: {},
+        personnel: {},
+        agencyPersonnel: {},
+        locationPaths: {
+          [existingLocationPath.path]: {
+            canonicalId: existingLocationPath.location_path_id,
+          },
+        },
         licensingAuthorities: {},
         licenses: {},
         licenseActions: {},
+      }),
+    });
+    // The census row already exists (`current` set), so the facade emits a Read.
+    context.locationPathFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: existingLocationPath.path,
+      current: {
+        location_path_id: existingLocationPath.location_path_id,
+        path: existingLocationPath.path,
+      },
+      spec: {
+        path: existingLocationPath.path,
+        level: existingLocationPath.level,
+        state_or_territory_slug: existingLocationPath.state_or_territory_slug,
+        administrative_area_slug:
+          existingLocationPath.administrative_area_slug,
+        place_slug: existingLocationPath.place_slug,
+        state_or_territory_name: existingLocationPath.state_or_territory_name,
+        administrative_area_name:
+          existingLocationPath.administrative_area_name,
+        place_name: existingLocationPath.place_name,
+        parent_location_path_id: existingLocationPath.parent_location_path_id,
       },
     });
 
@@ -442,6 +501,125 @@ describe("DataContext", () => {
         ],
       },
     });
+  });
+
+  test("validateLocationPathIdStability rejects an imported path whose id drifted from the database", () => {
+    // The path /ak/ already exists in the database under a different id than the
+    // import mapped it to — a fail-loud id-stability violation (never emit a
+    // create/read that would fork the path onto a second id).
+    const context = new DataContext({
+      rows: {
+        ...rows,
+        locationPaths: [
+          {
+            location_path_id: "mapped-ak-id",
+            path: "/ak/",
+            level: "state",
+            state_or_territory_slug: "ak",
+            administrative_area_slug: null,
+            place_slug: null,
+            state_or_territory_name: "Alaska",
+            administrative_area_name: null,
+            place_name: null,
+            parent_location_path_id: null,
+          },
+        ],
+      },
+      databaseLocationPaths: [
+        {
+          location_path_id: "existing-ak-id",
+          path: "/ak/",
+          level: "state",
+          state_or_territory_slug: "ak",
+          administrative_area_slug: null,
+          place_slug: null,
+          state_or_territory_name: "Alaska",
+          administrative_area_name: null,
+          place_name: null,
+          parent_location_path_id: null,
+        },
+      ],
+    });
+
+    expect(context.validateLocationPathIdStability()).toEqual([
+      "Location path /ak/ already exists with location_path_id existing-ak-id, but import mapped it to mapped-ak-id.",
+    ]);
+  });
+
+  test("validateLocationPathIdStability accepts an imported path whose id matches the database", () => {
+    const context = new DataContext({
+      rows: {
+        ...rows,
+        locationPaths: [
+          {
+            location_path_id: "ak-id",
+            path: "/ak/",
+            level: "state",
+            state_or_territory_slug: "ak",
+            administrative_area_slug: null,
+            place_slug: null,
+            state_or_territory_name: "Alaska",
+            administrative_area_name: null,
+            place_name: null,
+            parent_location_path_id: null,
+          },
+        ],
+      },
+      databaseLocationPaths: [
+        {
+          location_path_id: "ak-id",
+          path: "/ak/",
+          level: "state",
+          state_or_territory_slug: "ak",
+          administrative_area_slug: null,
+          place_slug: null,
+          state_or_territory_name: "Alaska",
+          administrative_area_name: null,
+          place_name: null,
+          parent_location_path_id: null,
+        },
+      ],
+    });
+
+    expect(context.validateLocationPathIdStability()).toEqual([]);
+  });
+
+  test("validatePreparedRows rejects two prepared location paths that share a path with different ids", () => {
+    const context = new DataContext({
+      rows: {
+        ...rows,
+        locationPaths: [
+          {
+            location_path_id: "ak-id-a",
+            path: "/ak/",
+            level: "state",
+            state_or_territory_slug: "ak",
+            administrative_area_slug: null,
+            place_slug: null,
+            state_or_territory_name: "Alaska",
+            administrative_area_name: null,
+            place_name: null,
+            parent_location_path_id: null,
+          },
+          {
+            location_path_id: "ak-id-b",
+            path: "/ak/",
+            level: "state",
+            state_or_territory_slug: "ak",
+            administrative_area_slug: null,
+            place_slug: null,
+            state_or_territory_name: "Alaska",
+            administrative_area_name: null,
+            place_name: null,
+            parent_location_path_id: null,
+          },
+        ],
+      },
+    });
+
+    expect(context.validatePreparedRows()).toContain(
+      "Cannot prepare public.location_path ak-id-b; path /ak/ already belongs to prepared location path ak-id-a.",
+    );
   });
 
   test("creates agency facade with current database row and collects update mutation", async () => {
@@ -1732,66 +1910,6 @@ describe("Census substrate facades", () => {
         location_path_id: "mn-location-path-id",
       },
     });
-  });
-
-  test("LocationPathGeometryFacade resolves its location_path_id via FK find", async () => {
-    const context = substrateContext({
-      locationPaths: { mn: { canonicalId: "mn-location-path-id" } },
-    });
-    context.locationPathFromSource({
-      apiVersion: INTAKE_API_VERSION,
-      namespace: "census",
-      name: "mn",
-      spec: {
-        path: "/mn/",
-        level: "state",
-        state_or_territory_slug: "mn",
-        administrative_area_slug: null,
-        place_slug: null,
-        state_or_territory_name: "Minnesota",
-        administrative_area_name: null,
-        place_name: null,
-        parent_location_path_id: null,
-      },
-    });
-    const geometry = context.locationPathGeometryFromSource({
-      apiVersion: INTAKE_API_VERSION,
-      namespace: "census",
-      name: "mn-geometry",
-      spec: {
-        location_path_id: "mn",
-        sourceLocationPathKey: "state:GEOID:27",
-        geometry: { type: "Polygon", coordinates: [] },
-      },
-    });
-
-    expect(await geometry.toMutation()).toMatchObject({
-      kind: "LocationPathGeometryCreate",
-      metadata: { namespace: "census", name: "mn-location-path-id" },
-      spec: {
-        location_path_id: "mn-location-path-id",
-        sourceLocationPathKey: "state:GEOID:27",
-      },
-    });
-  });
-
-  test("geometry FK find fails fast and loud on a forward reference", async () => {
-    const context = substrateContext();
-    // The referenced LocationPath facade is never registered.
-    const geometry = context.locationPathGeometryFromSource({
-      apiVersion: INTAKE_API_VERSION,
-      namespace: "census",
-      name: "mn-geometry",
-      spec: {
-        location_path_id: "mn",
-        sourceLocationPathKey: "state:GEOID:27",
-        geometry: { type: "Polygon", coordinates: [] },
-      },
-    });
-
-    await expect(geometry.toMutation()).rejects.toThrow(
-      /references LocationPath "mn", which does not exist in namespace/,
-    );
   });
 
   test("resolves a discipline attribution's FKs to the discipline and assignment ids", async () => {

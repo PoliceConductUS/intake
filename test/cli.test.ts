@@ -333,7 +333,7 @@ describe("intake CLI", () => {
 
       expect(result).toMatchObject({ exitCode: 1 });
       expect(result.stderr).toContain(
-        "DATABASE_URL is required to plan database mutations.",
+        "DATABASE_URL is required to write database mutations.",
       );
     } finally {
       if (originalWorkspace === undefined) {

@@ -345,38 +345,6 @@ async function locationPathAliasRow(
   };
 }
 
-async function locationPathGeometryRow(
-  sourceName: string,
-  sourceValue: unknown,
-  namespace: string,
-  ledger: SourceNameToCanonicalIdLedger,
-): Promise<LocationPathGeometryRow> {
-  const source = valueAsRecord(sourceName, sourceValue);
-  const sourceLocationPathKey = requiredString(
-    sourceName,
-    "sourceLocationPathKey",
-    source.sourceLocationPathKey,
-  );
-  // Location paths are materialized before geometries, so this reference is
-  // found; a location path that does not exist in this namespace is an error.
-  const canonicalLocationPathId = await ledger.read(
-    namespace,
-    "LocationPath",
-    sourceLocationPathKey,
-  );
-  if (canonicalLocationPathId === undefined) {
-    throw new Error(
-      `Artifacts location path geometry ${sourceName} references location path "${sourceLocationPathKey}", which does not exist in namespace ${namespace}.`,
-    );
-  }
-
-  return {
-    location_path_id: canonicalLocationPathId,
-    sourceLocationPathKey,
-    geometry: source.geometry,
-  };
-}
-
 export async function transformArtifacts(
   artifacts: ArtifactsEnvelope,
   ledger: SourceNameToCanonicalIdLedger,
@@ -391,7 +359,7 @@ export async function transformArtifacts(
   };
 
   // Location paths are materialized first (find-or-create writes their ledger
-  // files) so aliases and geometries — awaited afterwards — find those ids.
+  // files) so aliases — awaited afterwards — find those ids.
   const locationPaths = await Promise.all(
     Object.entries(entityMap(artifacts, "locationPaths")).map(
       ([recordKey, sourceValue]) =>
@@ -412,13 +380,6 @@ export async function transformArtifacts(
         ),
     ),
   );
-  const locationPathGeometries = await Promise.all(
-    Object.entries(entityMap(artifacts, "locationPathGeometries")).map(
-      ([sourceName, sourceValue]) =>
-        locationPathGeometryRow(sourceName, sourceValue, namespace, ledger),
-    ),
-  );
-
   const agencies = await Promise.all(
     Object.entries(entityMap(artifacts, "agencies")).map(
       async ([recordKey, sourceValue]): Promise<AgencyRow> => {
@@ -558,7 +519,6 @@ export async function transformArtifacts(
 
   return {
     locationPaths,
-    locationPathGeometries,
     locationPathAliases,
     agencies,
     agencyOfficers,

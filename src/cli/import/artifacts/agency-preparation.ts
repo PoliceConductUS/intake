@@ -1,10 +1,10 @@
 import { DataContext } from "./data-context.js";
-import {
-  type AgencyAddressResolutionOptions,
-  resolveImportAddress,
-} from "./agency-address-resolution.js";
-import { type AgencyFieldResolutionOptions } from "./agency-field-resolution.js";
-import type { AgencyRow, ImportRows, ResolvedProperties } from "./transform.js";
+import { type AgencyAddressResolutionOptions } from "./agency-address-resolution.js";
+import type {
+  AgencyRow,
+  ImportRows,
+  ResolvedProperties,
+} from "./transform.js";
 import {
   excludedRecordKey,
   type ExcludedRecords,
@@ -16,11 +16,10 @@ export type {
 } from "./agency-coordinate-types.js";
 export { resolveImportAddress } from "./agency-address-resolution.js";
 
-export type AgencyPreparationOptions = AgencyAddressResolutionOptions &
-  AgencyFieldResolutionOptions & {
-    resolvedProperties?: ResolvedProperties;
-    excludedRecords?: ExcludedRecords;
-  };
+export type AgencyPreparationOptions = AgencyAddressResolutionOptions & {
+  resolvedProperties?: ResolvedProperties;
+  excludedRecords?: ExcludedRecords;
+};
 
 type AgencyPreparationLogger = {
   debug?(object: Record<string, unknown>, message: string): void;
@@ -35,7 +34,7 @@ type AgencyPreparationLogger = {
  * (geocoding, location-path lookup) is attempted, so they are never
  * resolved. Every OTHER agency row that fails to resolve is fatal: it is
  * collected into `PrepareAgencyRowsResult.errors`, which aborts the import
- * (see `DatabaseMutationPlanningError` in plan-database-mutations.ts).
+ * (see `DatabaseMutationPlanningError` in mutation-planning-error.ts).
  */
 export type ExcludedAgency = {
   rowId: string;
@@ -132,47 +131,9 @@ export async function prepareAgencyRows(
     }
   }
 
-  const total = rows.agencies.length;
-
-  if (total > 0) {
-    logger?.info?.(
-      { entityType: "agency", total },
-      `Preparing ${total} ${total === 1 ? "agency row" : "agency rows"}.`,
-    );
-  }
-
-  for (const [index, agency] of rows.agencies.entries()) {
-    const processed = index + 1;
-    logger?.debug?.(
-      {
-        entityType: "agency",
-        processed,
-        total,
-        rowId: agency.id,
-        sourceName: agency.sourceName,
-        name: agency.name,
-      },
-      `Preparing agency row ${processed} of ${total}.`,
-    );
-
-    try {
-      await context.add("agency", agency);
-    } catch (error) {
-      errors.push(`Agency ${agencyErrorLabel(agency)}: ${errorMessage(error)}`);
-    }
-
-    if (total > 0 && (processed === total || processed % 100 === 0)) {
-      logger?.info?.(
-        {
-          entityType: "agency",
-          processed,
-          total,
-          errors: errors.length,
-        },
-        `Prepared ${processed} of ${total} agency rows.`,
-      );
-    }
-  }
-
+  // Agencies are resolved (slug / location_path / coordinates) by the
+  // AgencyFacade in the envelope-writing pass, not here (ADR 0016/0019). This
+  // pass only partitions excluded agencies; the kept rows stay raw and carry the
+  // canonical ids the current-state read and the exclusion cascade need.
   return { errors, excluded };
 }

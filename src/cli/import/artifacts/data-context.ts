@@ -9,8 +9,11 @@ import {
   nameCaseResolver,
   nameCaseResolverNullable,
   lowerCaseEmailResolverNullable,
+  passthroughResolver,
   valueAsString,
+  ResolvingFacade,
   type PropertyResolutionFacade,
+  type PropertyCache,
   type ForeignKeyIdSource,
   type ResolverContext,
   type FacadeSource,
@@ -50,6 +53,7 @@ import {
 import {
   LocationPathSpec,
   RECORD_KINDS_IN_DEPENDENCY_ORDER,
+  RESOLVED_PROPERTIES,
 } from "../../../shared/io/generated/entity-specs.js";
 import { IMPORT_OPERATION_SUFFIXES } from "../../../shared/io/import-type-metadata.js";
 import type { ArtifactsEnvelope } from "../../../shared/io/Artifacts.js";
@@ -64,7 +68,6 @@ import {
   readLocationPathByPath,
   readLocationPathsContainingPoint,
 } from "../../database/location-paths.js";
-import type { ImportOperation, ImportOperations } from "./operations.js";
 import {
   type AgencyOfficerRow,
   type AgencyRow,
@@ -73,18 +76,26 @@ import {
   type LocationPathRow,
   type ResolvedProperties,
 } from "./transform.js";
-import { readDatabaseRecordsBySlugs } from "../../database/entities.js";
+import {
+  readDatabaseRecordByColumn,
+  readDatabaseRecordsByIds,
+  readDatabaseRecordsBySlugs,
+} from "../../database/entities.js";
+import type { SupportedTableName } from "../../database/schema.js";
 
 /** Tables whose slug uniqueness the DataContext enforces (generate-unique). */
 type SlugTableName = "public.officers" | "public.agency";
-import {
-  AgencyFieldResolutionError,
-  type AgencyFieldResolutionOptions,
-  type AgencyResolvedPropertyUpdate,
-  missingResolvableAgencyFields,
-  resolveAgencyMissingFields,
-  resolveCachedAgencyLocationPath,
-} from "./agency-field-resolution.js";
+import type { ResolvedPropertyCacheInput } from "../../state/resolved-property/index.js";
+
+/**
+ * The workspace `ResolvedProperty` store, adapted to `(input) -> value`. The
+ * agency facade's `PropertyCache` reads and writes resolved properties (and
+ * seeds) through it (ADR 0019).
+ */
+type ResolvedPropertyStore = {
+  read(input: ResolvedPropertyCacheInput): Promise<unknown | undefined>;
+  write(input: ResolvedPropertyCacheInput & { value: unknown }): Promise<void>;
+};
 import {
   AgencyCreate,
   type AgencyCreateEnvelope,
@@ -188,7 +199,6 @@ export type DataContextOptions = {
   logger?: DataContextLogger;
   databaseLocationPaths?: LocationPathRow[];
   databaseLocationPathAliases?: LocationPathAliasRow[];
-  operations?: ImportOperations;
   entityResolvers?: Partial<{
     [EntityType in ImportEntityType]: ImportEntityResolver<EntityType>;
   }>;
@@ -204,7 +214,7 @@ export type DataContextOptions = {
   resolveAdministrativeArea?: (
     input: LocationAdministrativeAreaRequest,
   ) => Promise<LocationAdministrativeAreaResolution | undefined>;
-  agencyFieldResolutionOptions?: AgencyFieldResolutionOptions;
+  resolvedPropertyStore?: ResolvedPropertyStore;
   resolvedProperties?: ResolvedProperties;
   commandName?: string;
   /**
@@ -322,7 +332,7 @@ export type LicensingAuthorityResolverBackend = {
    * `current` from `databaseAgencies` — so a re-import emits an update, not a
    * duplicate create.
    */
-  getCurrentById(id: string): Record<string, unknown> | undefined;
+  getCurrentById(id: string): Promise<Record<string, unknown> | undefined>;
 };
 
 // PropertyResolutionFacade, ForeignKeyIdSource, and the Resolver class now live
@@ -497,7 +507,7 @@ export class LicensingAuthorityFacade implements PropertyResolutionFacade<Licens
     // Auto-load the existing database row for this canonical id (like agencies),
     // so a re-import emits an update/no-op instead of a duplicate create. This is
     // automatic in the facade path — no per-record special-casing at the caller.
-    const current = this.current ?? this.backend.getCurrentById(id);
+    const current = this.current ?? (await this.backend.getCurrentById(id));
 
     if (current === undefined) {
       return LicensingAuthorityCreate.new({
@@ -605,7 +615,7 @@ export type LicenseResolverBackend = {
     kind: string;
     sourceId: string;
   }): Promise<string>;
-  getCurrentById(id: string): Record<string, unknown> | undefined;
+  getCurrentById(id: string): Promise<Record<string, unknown> | undefined>;
   /**
    * Locate an already-emitted target facade by `(kind, namespace, source-id)`
    * so a FK resolver can await its `id`. Returns undefined when no such facade
@@ -733,7 +743,7 @@ export class LicenseFacade implements PropertyResolutionFacade<LicenseRowShape> 
     const firstAwarded = await this.value("first_awarded");
     const issuedByAuthorityId = await this.value("issued_by_authority_id");
 
-    const current = this.current ?? this.backend.getCurrentById(id);
+    const current = this.current ?? (await this.backend.getCurrentById(id));
 
     if (current === undefined) {
       return LicenseCreate.new({
@@ -906,7 +916,7 @@ export class LicenseActionFacade implements PropertyResolutionFacade<LicenseActi
     const actionDate = await this.value("action_date");
     const status = await this.value("status");
 
-    const current = this.current ?? this.backend.getCurrentById(id);
+    const current = this.current ?? (await this.backend.getCurrentById(id));
 
     if (current === undefined) {
       return LicenseActionCreate.new({
@@ -1008,7 +1018,7 @@ export type PersonnelResolverBackend = {
     kind: string;
     sourceId: string;
   }): Promise<string>;
-  getCurrentById(id: string): Record<string, unknown> | undefined;
+  getCurrentById(id: string): Promise<Record<string, unknown> | undefined>;
   /**
    * Given a base slug and the owning canonical id, return a slug guaranteed
    * unique across all three resolution levels — appending a numeric suffix when
@@ -1064,7 +1074,7 @@ function personnelSlugResolver(): Resolver<
     // Stability: reuse the existing DB row's slug so a corrected name does not
     // change an officer's slug.
     const id = explicitId;
-    const current = backend.getCurrentById(id);
+    const current = await backend.getCurrentById(id);
     const currentSlug =
       current === undefined ? undefined : valueAsString(current.slug);
     if (currentSlug !== undefined) {
@@ -1215,7 +1225,7 @@ export class PersonnelFacade implements PropertyResolutionFacade<PersonnelRowSha
     const suffix = await this.value("suffix");
     const slug = await this.value("slug");
 
-    const current = this.current ?? this.backend.getCurrentById(id);
+    const current = this.current ?? (await this.backend.getCurrentById(id));
 
     if (current === undefined) {
       return PersonnelCreate.new({
@@ -1298,26 +1308,21 @@ export class PersonnelFacade implements PropertyResolutionFacade<PersonnelRowSha
 // containment, resolve-or-fail (ADR 0006/0015), never minted. `latitude` /
 // `longitude` fall out of the same geocode.
 //
-// COEXISTENCE (flagged): eager agency resolution, the excluded-agency cascade,
-// the batched geocode pass, slug-conflict validation, and fail-loud aggregation
-// with the DatabaseMutationsDebug envelope still run in the planning pass on the
-// `AgencyRow` transform rows (see plan-database-mutations.ts / agency-*.ts). The
-// planning pass writes the resolved location_path_id / slug / coordinates into
-// the row, which `mergeAgencyArtifacts` merges into the facade spec — so these
-// resolvers take the resolve-if-present branch in production today. The
-// composition / generate branches are the intended active path once that eager
-// pass is folded into the flush/transaction script (ADR 0017); they are proven
-// by the facade unit tests. `AgencyRow` and the agency classify loop/count are
-// retained as coexistence for the same reason.
+// Agencies resolve fully through the facade in the write pass: `mergeAgencyArtifacts`
+// feeds the raw source record (no pre-resolved row values), so the composition
+// (location_path_id) and generate-unique (slug) resolvers are the active
+// production path. The `AgencyRow` transform rows survive only as the substrate
+// the exclusion cascade and row validation read (which agencies were excluded);
+// they are not an emission input.
 
 /** The database row shape an `AgencyFacade` resolves toward (public.agency). */
 export type AgencyRowShape = {
   id: string;
   name: string;
-  city: string | null;
+  city: string;
   state: string;
-  address: string | null;
-  zip_code: string | null;
+  address: string;
+  zip_code: string;
   contact_name: string | null;
   contact_email: string | null;
   slug: string;
@@ -1335,7 +1340,7 @@ export type AgencyResolverBackend = {
     kind: string;
     sourceId: string;
   }): Promise<string>;
-  getCurrentById(id: string): Record<string, unknown> | undefined;
+  getCurrentById(id: string): Promise<Record<string, unknown> | undefined>;
   ensureUniqueAgencySlug(input: {
     base: string;
     canonicalId: string;
@@ -1400,7 +1405,7 @@ function agencyLocationPathResolver(): Resolver<
     // Stability: an existing agency keeps its current location rather than
     // being re-geocoded on update.
     const id = await facade.value("id");
-    const current = backend.getCurrentById(id);
+    const current = await backend.getCurrentById(id);
     const currentValue =
       current === undefined
         ? undefined
@@ -1425,7 +1430,7 @@ function agencyCoordinateResolver(
       return present;
     }
     const id = await facade.value("id");
-    const current = backend.getCurrentById(id);
+    const current = await backend.getCurrentById(id);
     const currentValue =
       current === undefined ? undefined : valueAsFiniteNumber(current[column]);
     if (currentValue !== undefined) {
@@ -1450,7 +1455,7 @@ function agencySlugResolver(): Resolver<
       backend.registerAgencySlug({ slug: explicit, canonicalId: id });
       return explicit;
     }
-    const current = backend.getCurrentById(id);
+    const current = await backend.getCurrentById(id);
     const currentSlug =
       current === undefined ? undefined : valueAsString(current.slug);
     if (currentSlug !== undefined) {
@@ -1475,111 +1480,67 @@ type AgencyResolvers = Partial<{
   >;
 }>;
 
-export class AgencyFacade implements PropertyResolutionFacade<AgencyRowShape> {
+export class AgencyFacade extends ResolvingFacade<
+  AgencyRowShape,
+  AgencyResolverBackend
+> {
   private static readonly kind = "Agency";
   private readonly current?: Record<string, unknown>;
-  private readonly spec: Record<string, unknown> = {};
-  private readonly source: FacadeSource;
-  private readonly backend: AgencyResolverBackend;
-  private readonly resolvers: AgencyResolvers;
-  private readonly memo = new Map<keyof AgencyRowShape, Promise<unknown>>();
-  private readonly inProgress = new Set<keyof AgencyRowShape>();
+
+  protected readonly resolvers: AgencyResolvers = {
+    id: facadeCanonicalIdResolver<AgencyRowShape, AgencyResolverBackend>(
+      AgencyFacade.kind,
+    ),
+    slug: agencySlugResolver(),
+    // Casing normalization for ALL-CAPS source data (applied via resolvers so
+    // slugs, which read `facade.raw`, are unaffected). `name` is required;
+    // `city`/`address`/`contact_name`/`contact_email` are nullable columns.
+    name: titleCaseResolver<AgencyRowShape, AgencyResolverBackend>("name"),
+    // `address`/`city`/`zip_code` are optional in the artifact but required in
+    // the *Create mutation (`RESOLVED_PROPERTIES.Agency`): a source that omits
+    // one is supplied from the property cache (a committed seed) — which then
+    // feeds the coordinate + location-path resolvers below via `facade.value`;
+    // with neither source nor seed, the required resolver fails loud at the
+    // mutation boundary. Which properties are cached is derived from
+    // `RESOLVED_PROPERTIES`, not marked here. `state`/`zip_code` pass through
+    // uncased (a code, not prose); `state` is always source-provided.
+    city: titleCaseResolver<AgencyRowShape, AgencyResolverBackend>("city"),
+    state: passthroughResolver<AgencyRowShape, AgencyResolverBackend>("state"),
+    address: titleCaseResolver<AgencyRowShape, AgencyResolverBackend>("address"),
+    zip_code: passthroughResolver<AgencyRowShape, AgencyResolverBackend>(
+      "zip_code",
+    ),
+    contact_name: nameCaseResolverNullable<
+      AgencyRowShape,
+      AgencyResolverBackend
+    >("contact_name"),
+    contact_email: lowerCaseEmailResolverNullable<
+      AgencyRowShape,
+      AgencyResolverBackend
+    >("contact_email"),
+    location_path_id: agencyLocationPathResolver(),
+    latitude: agencyCoordinateResolver("addressLatitude", "latitude"),
+    longitude: agencyCoordinateResolver("addressLongitude", "longitude"),
+  };
 
   constructor(options: {
     current?: Record<string, unknown>;
     source: FacadeSource;
     backend: AgencyResolverBackend;
+    cache?: PropertyCache;
   }) {
+    super(
+      AgencyFacade.kind,
+      options.source,
+      options.backend,
+      options.cache,
+      RESOLVED_PROPERTIES[AgencyFacade.kind],
+    );
     this.current = options.current;
-    this.source = options.source;
-    this.backend = options.backend;
-    this.resolvers = {
-      id: facadeCanonicalIdResolver<AgencyRowShape, AgencyResolverBackend>(
-        AgencyFacade.kind,
-      ),
-      slug: agencySlugResolver(),
-      // Casing normalization for ALL-CAPS source data (applied via resolvers so
-      // slugs, which read `facade.raw`, are unaffected). `name` is required;
-      // `city`/`address`/`contact_name`/`contact_email` are nullable columns.
-      name: titleCaseResolver<AgencyRowShape, AgencyResolverBackend>("name"),
-      city: titleCaseResolverNullable<AgencyRowShape, AgencyResolverBackend>(
-        "city",
-      ),
-      address: titleCaseResolverNullable<AgencyRowShape, AgencyResolverBackend>(
-        "address",
-      ),
-      contact_name: nameCaseResolverNullable<
-        AgencyRowShape,
-        AgencyResolverBackend
-      >("contact_name"),
-      contact_email: lowerCaseEmailResolverNullable<
-        AgencyRowShape,
-        AgencyResolverBackend
-      >("contact_email"),
-      location_path_id: agencyLocationPathResolver(),
-      latitude: agencyCoordinateResolver("addressLatitude", "latitude"),
-      longitude: agencyCoordinateResolver("addressLongitude", "longitude"),
-    };
   }
 
-  merge(spec: Record<string, unknown>): void {
-    Object.assign(this.spec, spec);
-  }
-
-  raw(property: keyof AgencyRowShape): unknown {
-    return this.spec[property as string];
-  }
-
-  value<K extends keyof AgencyRowShape>(
-    property: K,
-  ): Promise<AgencyRowShape[K]> {
-    const cached = this.memo.get(property);
-    if (cached !== undefined) {
-      return cached as Promise<AgencyRowShape[K]>;
-    }
-    const pending = this.computeValue(property);
-    this.memo.set(property, pending);
-    return pending;
-  }
-
-  private async computeValue<K extends keyof AgencyRowShape>(
-    property: K,
-  ): Promise<AgencyRowShape[K]> {
-    if (this.inProgress.has(property)) {
-      throw new Error(
-        `Circular property dependency while resolving ${AgencyFacade.kind}.${String(
-          property,
-        )} for ${this.source.namespace}/${this.source.name}.`,
-      );
-    }
-    this.inProgress.add(property);
-    try {
-      const resolver = this.resolvers[property];
-      if (resolver === undefined) {
-        return this.plainValue(property);
-      }
-      return await resolver.resolve(
-        { facade: this, source: this.source, backend: this.backend },
-        () => this.unresolvedMessage(property),
-      );
-    } finally {
-      this.inProgress.delete(property);
-    }
-  }
-
-  private plainValue<K extends keyof AgencyRowShape>(
-    property: K,
-  ): AgencyRowShape[K] {
-    const value = this.spec[property as string];
-    return (value === undefined ? null : value) as AgencyRowShape[K];
-  }
-
-  private unresolvedMessage(property: keyof AgencyRowShape): string {
-    return `Cannot resolve ${AgencyFacade.kind}.${String(
-      property,
-    )} for source ${this.source.namespace}/${this.source.name}; offending value ${JSON.stringify(
-      this.spec[property as string],
-    )}.`;
+  protected canonicalId(): Promise<string> {
+    return this.value("id");
   }
 
   /** Present pass-through metadata columns (omitted when absent, never null). */
@@ -1590,7 +1551,7 @@ export class AgencyFacade implements PropertyResolutionFacade<AgencyRowShape> {
       desired[column] = await this.value(column);
     }
 
-    const current = this.current ?? this.backend.getCurrentById(id);
+    const current = this.current ?? (await this.backend.getCurrentById(id));
 
     if (current === undefined) {
       return AgencyCreate.new({
@@ -1794,7 +1755,7 @@ export class AgencyPersonnelFacade implements PropertyResolutionFacade<AgencyOff
     const title = await this.value("title");
     const licenseId = await this.value("license_id");
 
-    const current = this.current ?? this.backend.getCurrentById(id);
+    const current = this.current ?? (await this.backend.getCurrentById(id));
 
     if (current === undefined) {
       return AgencyPersonnelCreate.new({
@@ -1875,20 +1836,14 @@ export class AgencyPersonnelFacade implements PropertyResolutionFacade<AgencyOff
 // facades. LocationPath's `location_path_id` is a canonical-id find-or-create
 // (ID stability anchors everything) and `parent_location_path_id` is a nullable
 // self-FK find of the parent LocationPath facade (null at the state root).
-// Geometry / Alias find their target LocationPath facade. All emit Create/Read
-// (never update) via `getCurrentById`.
+// Alias finds its target LocationPath facade. All emit Create/Read (never
+// update) via `getCurrentById`.
 //
-// COEXISTENCE (flagged): these facades are NOT yet wired into production
-// emission. The prepared (in-run) substrate tier — `LocationPathDataContext`'s
-// preparedByPath/preparedById/getByAliasPath, consumed by the Agency location
-// resolver in the PLANNING pass (before env-writer facades are registered) and
-// by the LicensingAuthority resolver — still reads `toImportRows().locationPaths`.
-// Re-pointing it to these facades is blocked until agency/licensing resolution
-// moves to the facade-driving flush (ADR 0017); likewise the transform rows,
-// classify loops/counts, the LocationPath bulk mint, and the geometry streaming
-// (`appendStreamingLocationPathGeometryMutations`) remain as coexistence. The
-// resolvers below are proven by the facade unit tests, ready for the flush
-// restructure to wire.
+// LocationPath and LocationPathAlias emit through these facades in the write pass
+// (registered by `addLocationPathSourceFacades` / `addLocationPathAliasSourceFacades`).
+// The `LocationPathRow` transform rows survive only as the substrate the Agency /
+// LicensingAuthority location resolvers and the id-stability validation read;
+// geometries still stream separately via `appendStreamingLocationPathGeometryMutations`.
 
 /** The database row shape a `LocationPathFacade` resolves toward. */
 export type LocationPathRowShape = {
@@ -2048,7 +2003,7 @@ export class LocationPathFacade implements PropertyResolutionFacade<LocationPath
       }
     }
 
-    const current = this.current ?? this.backend.getCurrentById(locationPathId);
+    const current = this.current ?? (await this.backend.getCurrentById(locationPathId));
     if (current !== undefined) {
       // Read (never update): the census row already exists.
       return LocationPathRead.new({
@@ -2184,7 +2139,7 @@ export class LocationPathAliasFacade implements PropertyResolutionFacade<Locatio
     const aliasPath = await this.value("alias_path");
     const locationPathId = await this.value("location_path_id");
 
-    const current = this.current ?? this.backend.getCurrentById(aliasPath);
+    const current = this.current ?? (await this.backend.getCurrentById(aliasPath));
     if (current !== undefined) {
       return LocationPathAliasRead.new({
         metadata: { namespace: this.source.namespace, name: aliasPath },
@@ -2198,142 +2153,6 @@ export class LocationPathAliasFacade implements PropertyResolutionFacade<Locatio
         alias_path: aliasPath,
         location_path_id: locationPathId,
       } as Parameters<typeof LocationPathAliasCreate.new>[0]["spec"],
-    });
-  }
-}
-
-/** The database row shape a `LocationPathGeometryFacade` resolves toward. */
-export type LocationPathGeometryRowShape = {
-  location_path_id: string;
-  sourceLocationPathKey: string;
-  geometry: unknown;
-};
-
-type LocationPathGeometryResolvers = Partial<{
-  [K in keyof LocationPathGeometryRowShape]: Resolver<
-    LocationPathGeometryRowShape[K],
-    ResolverContext<LocationPathGeometryRowShape, LicenseResolverBackend>
-  >;
-}>;
-
-export class LocationPathGeometryFacade implements PropertyResolutionFacade<LocationPathGeometryRowShape> {
-  private static readonly kind = "LocationPathGeometry";
-  private readonly current?: Record<string, unknown>;
-  private readonly spec: Record<string, unknown> = {};
-  private readonly source: FacadeSource;
-  private readonly backend: LicenseResolverBackend;
-  private readonly resolvers: LocationPathGeometryResolvers;
-  private readonly memo = new Map<
-    keyof LocationPathGeometryRowShape,
-    Promise<unknown>
-  >();
-  private readonly inProgress = new Set<keyof LocationPathGeometryRowShape>();
-
-  constructor(options: {
-    current?: Record<string, unknown>;
-    source: FacadeSource;
-    backend: LicenseResolverBackend;
-  }) {
-    this.current = options.current;
-    this.source = options.source;
-    this.backend = options.backend;
-    this.resolvers = {
-      // The geometry's identity is its target `location_path_id` (one geometry
-      // per location path), which is also the FK to the LocationPath facade.
-      location_path_id: facadeForeignKeyResolver<LocationPathGeometryRowShape>(
-        LocationPathGeometryFacade.kind,
-        "location_path_id",
-        "LocationPath",
-      ),
-    };
-  }
-
-  merge(spec: Record<string, unknown>): void {
-    Object.assign(this.spec, spec);
-  }
-
-  raw(property: keyof LocationPathGeometryRowShape): unknown {
-    return this.spec[property as string];
-  }
-
-  value<K extends keyof LocationPathGeometryRowShape>(
-    property: K,
-  ): Promise<LocationPathGeometryRowShape[K]> {
-    const cached = this.memo.get(property);
-    if (cached !== undefined) {
-      return cached as Promise<LocationPathGeometryRowShape[K]>;
-    }
-    const pending = this.computeValue(property);
-    this.memo.set(property, pending);
-    return pending;
-  }
-
-  private async computeValue<K extends keyof LocationPathGeometryRowShape>(
-    property: K,
-  ): Promise<LocationPathGeometryRowShape[K]> {
-    if (this.inProgress.has(property)) {
-      throw new Error(
-        `Circular property dependency while resolving ${LocationPathGeometryFacade.kind}.${String(
-          property,
-        )} for ${this.source.namespace}/${this.source.name}.`,
-      );
-    }
-    this.inProgress.add(property);
-    try {
-      const resolver = this.resolvers[property];
-      if (resolver === undefined) {
-        return this.plainValue(property);
-      }
-      return await resolver.resolve(
-        { facade: this, source: this.source, backend: this.backend },
-        () => this.unresolvedMessage(property),
-      );
-    } finally {
-      this.inProgress.delete(property);
-    }
-  }
-
-  private plainValue<K extends keyof LocationPathGeometryRowShape>(
-    property: K,
-  ): LocationPathGeometryRowShape[K] {
-    const value = this.spec[property as string];
-    return (
-      value === undefined ? null : value
-    ) as LocationPathGeometryRowShape[K];
-  }
-
-  private unresolvedMessage(
-    property: keyof LocationPathGeometryRowShape,
-  ): string {
-    return `Cannot resolve ${LocationPathGeometryFacade.kind}.${String(
-      property,
-    )} for source ${this.source.namespace}/${this.source.name}; offending value ${JSON.stringify(
-      this.spec[property as string],
-    )}.`;
-  }
-
-  async toMutation(): Promise<
-    LocationPathGeometryCreateEnvelope | LocationPathGeometryReadEnvelope
-  > {
-    const locationPathId = await this.value("location_path_id");
-    const sourceLocationPathKey = await this.value("sourceLocationPathKey");
-    const geometry = this.spec.geometry;
-
-    const current = this.current ?? this.backend.getCurrentById(locationPathId);
-    if (current !== undefined) {
-      return LocationPathGeometryRead.new({
-        metadata: { namespace: this.source.namespace, name: locationPathId },
-        spec: {},
-      });
-    }
-
-    return LocationPathGeometryCreate.new({
-      metadata: { namespace: this.source.namespace, name: locationPathId },
-      spec: {
-        location_path_id: locationPathId,
-        sourceLocationPathKey,
-        geometry,
-      } as Parameters<typeof LocationPathGeometryCreate.new>[0]["spec"],
     });
   }
 }
@@ -2552,30 +2371,6 @@ function recordOwnedColumns<T extends readonly string[]>(
     : ownedColumns;
 }
 
-function mutationKind(
-  operation: ImportOperation | undefined,
-  recordKind: string,
-): string {
-  const resolvedOperation = operation ?? "create";
-  return `${recordKind}${resolvedOperation[0]!.toUpperCase()}${resolvedOperation.slice(1)}`;
-}
-
-function databaseSpec(
-  record: Record<string, unknown>,
-): Record<string, unknown> {
-  const { sourceName, ...spec } = record;
-  return spec;
-}
-
-function databaseMutationSpec(
-  operation: ImportOperation | undefined,
-  record: Record<string, unknown>,
-): Record<string, unknown> {
-  return operation === undefined || operation === "create"
-    ? databaseSpec(record)
-    : {};
-}
-
 /**
  * True when an item is an update whose operations are *all* `check` — it asserts
  * expected state but sets nothing, so it mutates nothing and is not a mutation
@@ -2662,6 +2457,10 @@ export class DataContext {
   readonly locations: LocationDataContext;
   readonly locationPaths: LocationPathDataContext;
   private readonly client?: DatabaseClient;
+  private readonly lazyCurrentRowCache = new Map<
+    string,
+    Promise<Record<string, unknown> | undefined>
+  >();
   readonly logger?: DataContextLogger;
   private readonly addressResolutionCache = new Map<
     string,
@@ -2673,12 +2472,11 @@ export class DataContext {
   private readonly databaseLocationPathIdByAliasPath?: Map<string, string>;
   private readonly entityResolvers?: DataContextOptions["entityResolvers"];
   private readonly importRows: ImportRows;
-  private readonly operations: ImportOperations;
   private readonly loadLocationPathById?: DataContextOptions["loadLocationPathById"];
   private readonly loadLocationPathByPath?: DataContextOptions["loadLocationPathByPath"];
   private readonly resolveAddressFn?: DataContextOptions["resolveAddress"];
   private readonly resolveAdministrativeArea?: DataContextOptions["resolveAdministrativeArea"];
-  private readonly agencyFieldResolutionOptions?: AgencyFieldResolutionOptions;
+  private readonly resolvedPropertyStore?: ResolvedPropertyStore;
   private readonly resolvedProperties?: ResolvedProperties;
   private readonly commandName?: string;
   private readonly ledger?: SourceNameToCanonicalIdLedger;
@@ -2727,10 +2525,6 @@ export class DataContext {
     string,
     LocationPathAliasFacade
   >();
-  private readonly locationPathGeometryFacades = new Map<
-    string,
-    LocationPathGeometryFacade
-  >();
   private readonly disciplineFacades = new Map<
     string,
     EntityFacade<DisciplineRow, DisciplineEnvelope>
@@ -2770,17 +2564,6 @@ export class DataContext {
     this.client = options.client;
     this.importRows = options.rows;
     this.logger = options.logger;
-    this.operations = options.operations ?? {
-      locationPaths: {},
-      locationPathGeometries: {},
-      locationPathAliases: {},
-      agencies: {},
-      officers: {},
-      agencyOfficers: {},
-      licensingAuthorities: {},
-      licenses: {},
-      licenseActions: {},
-    };
     this.databaseLocationPathsLoaded =
       options.databaseLocationPaths !== undefined;
     this.databaseLocationPathById =
@@ -2815,7 +2598,7 @@ export class DataContext {
     this.loadLocationPathByPath = options.loadLocationPathByPath;
     this.resolveAddressFn = options.resolveAddress;
     this.resolveAdministrativeArea = options.resolveAdministrativeArea;
-    this.agencyFieldResolutionOptions = options.agencyFieldResolutionOptions;
+    this.resolvedPropertyStore = options.resolvedPropertyStore;
     this.resolvedProperties = options.resolvedProperties;
     this.commandName = options.commandName;
     this.ledger = options.ledger;
@@ -2882,37 +2665,36 @@ export class DataContext {
     return this.locationPaths.validatePreparedRows();
   }
 
-  toImportOperations(): ImportOperations {
-    return this.operations;
-  }
-
-  setOperation(
-    entityType: ImportEntityType | "locationPath",
-    rowId: string,
-    operation: ImportOperation,
-  ): void {
-    if (entityType === "locationPath") {
-      this.operations.locationPaths[rowId] = operation;
-      return;
+  /**
+   * Fail-loud id-stability check: an imported LocationPath must not already
+   * exist in the database under a *different* location_path_id than the import
+   * mapped it to. The facade emits create-vs-read by canonical id, so it cannot
+   * catch a path whose id drifted — this guards it explicitly. Returns one error
+   * string per collision (empty when the database paths were not preloaded).
+   */
+  validateLocationPathIdStability(): string[] {
+    if (this.databaseLocationPathByPath === undefined) {
+      return [];
     }
-
-    if (entityType === "agency") {
-      this.operations.agencies[rowId] = operation;
-      return;
+    const errors: string[] = [];
+    for (const locationPath of this.importRows.locationPaths) {
+      const existing = this.databaseLocationPathByPath.get(locationPath.path);
+      if (
+        existing !== undefined &&
+        existing.location_path_id !== locationPath.location_path_id
+      ) {
+        errors.push(
+          `Location path ${locationPath.path} already exists with location_path_id ${existing.location_path_id}, but import mapped it to ${locationPath.location_path_id}.`,
+        );
+      }
     }
-
-    this.operations.agencyOfficers[rowId] = operation;
+    return errors;
   }
 
   async add<EntityType extends ImportEntityType>(
     entityType: EntityType,
     row: ImportEntityRow[EntityType],
   ): Promise<void> {
-    if (entityType === "agency") {
-      await this.addAgency(row as AgencyRow);
-      return;
-    }
-
     const resolver = this.entityResolvers?.[entityType] as
       | ImportEntityResolver<EntityType>
       | undefined;
@@ -2921,100 +2703,6 @@ export class DataContext {
     }
 
     await resolver(row, this);
-  }
-
-  private applyAgencyResolvedPropertyUpdates(
-    updates: readonly AgencyResolvedPropertyUpdate[],
-  ): void {
-    if (this.resolvedProperties === undefined) {
-      return;
-    }
-
-    for (const update of updates) {
-      this.resolvedProperties.agencies[update.rowId] ??= {};
-      Object.assign(
-        this.resolvedProperties.agencies[update.rowId],
-        update.mutation,
-      );
-    }
-  }
-
-  private async addAgency(agency: AgencyRow): Promise<void> {
-    const existingAgency = this.databaseAgencyById.get(agency.id);
-    if (existingAgency !== undefined) {
-      return;
-    }
-
-    const adapters = {
-      getLocationPathById: (locationPathId: string) =>
-        this.locationPaths.getById(locationPathId),
-      resolveAddress: (input: ResolveAddressInput) =>
-        this.locations.resolveAddress(input),
-    };
-
-    try {
-      const resolvedPropertyUpdates = await resolveCachedAgencyLocationPath(
-        agency,
-        adapters,
-      );
-      this.applyAgencyResolvedPropertyUpdates(resolvedPropertyUpdates);
-    } catch (error) {
-      agency.location_path_id = undefined;
-      this.logger?.debug?.(
-        {
-          tableName: "public.agency",
-          entityType: "agency",
-          rowId: agency.id,
-          locationPathId: agency.location_path_id,
-          error: errorMessage(error),
-        },
-        "Cached import location path validation failed.",
-      );
-      throw error;
-    }
-
-    const missingColumns = missingResolvableAgencyFields(agency);
-    if (missingColumns.length === 0) {
-      return;
-    }
-
-    try {
-      const resolution = await resolveAgencyMissingFields(
-        agency,
-        missingColumns,
-        {
-          adapters,
-          agencyRows: this.toImportRows().agencies,
-        },
-        this.agencyFieldResolutionOptions ?? {},
-      );
-      this.applyAgencyResolvedPropertyUpdates(
-        resolution.resolvedPropertyUpdates,
-      );
-      this.toImportRows().preparationMutations.push(
-        ...resolution.preparationMutations,
-      );
-    } catch (error) {
-      if (error instanceof AgencyFieldResolutionError) {
-        this.applyAgencyResolvedPropertyUpdates(
-          error.result.resolvedPropertyUpdates,
-        );
-        this.toImportRows().preparationMutations.push(
-          ...error.result.preparationMutations,
-        );
-      }
-      this.logger?.debug?.(
-        {
-          tableName: "public.agency",
-          entityType: "agency",
-          rowId: agency.id,
-          missingFields: missingColumns,
-          error: errorMessage(error),
-        },
-        "Agency field resolution failed.",
-      );
-      throw error;
-    }
   }
 
   fromSource(input: SourceRecordContext): AgencyFacade {
@@ -3038,6 +2726,7 @@ export class DataContext {
         commandName: input.commandName ?? this.commandName,
       },
       backend: this.agencyResolverBackend(),
+      cache: this.propertyCache(),
     });
     if (input.spec !== undefined) {
       facade.merge(input.spec);
@@ -3046,11 +2735,37 @@ export class DataContext {
     return facade;
   }
 
+  /**
+   * Adapts the workspace `ResolvedProperty` store to the facade `PropertyCache`,
+   * keyed by `(kind, canonical id, property)`. The generic resolver cache and the
+   * committed seeds share this store, so a resolved property (or a seed) is a
+   * cache hit — no source- or property-specific code (ADR 0019).
+   */
+  private propertyCache(): PropertyCache | undefined {
+    const cache = this.resolvedPropertyStore;
+    if (cache === undefined) {
+      return undefined;
+    }
+    return {
+      read: ({ kind, id, property }) =>
+        cache.read({
+          subject: { apiVersion: INTAKE_API_VERSION, kind, name: id },
+          targetProperty: property,
+        }),
+      write: ({ kind, id, property }, value) =>
+        cache.write({
+          subject: { apiVersion: INTAKE_API_VERSION, kind, name: id },
+          targetProperty: property,
+          value,
+        }),
+    };
+  }
+
   private agencyResolverBackend(): AgencyResolverBackend {
     return {
-      findOrCreateCanonicalId: (input) =>
-        this.findOrCreateAgencyCanonicalId(input),
-      getCurrentById: (id) => this.databaseAgencyById.get(id),
+      findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
+      getCurrentById: (id) =>
+        this.currentRow("public.agency", this.databaseAgencyById, id),
       ensureUniqueAgencySlug: (input) =>
         this.ensureUniqueSlug("public.agency", input),
       registerAgencySlug: (input) => {
@@ -3058,19 +2773,6 @@ export class DataContext {
       },
       resolveAgencyLocation: (input) => this.locations.resolveAddress(input),
     };
-  }
-
-  private async findOrCreateAgencyCanonicalId(input: {
-    namespace: string;
-    kind: string;
-    sourceId: string;
-  }): Promise<string> {
-    // Find a seeded/existing id before minting (ID stability). The ledger
-    // point-reads the single record file and mints + writes it when absent.
-    if (this.ledger === undefined) {
-      return createId();
-    }
-    return this.ledger.findOrCreate(input.namespace, "Agency", input.sourceId);
   }
 
   mergeAgencyArtifacts(artifacts: ArtifactsEnvelope): void {
@@ -3097,12 +2799,15 @@ export class DataContext {
           continue;
         }
 
+        // Feed the raw source record only — the facade resolves slug /
+        // location_path / coordinates itself (source > cache > geocode) and holds
+        // them in its memo. No pre-resolved values are merged in.
         this.fromSource({
           apiVersion: INTAKE_API_VERSION,
           namespace: artifacts.metadata.namespace,
           name: sourceName,
           spec: valueAsRecord(record),
-        }).merge(preparedAgencySpec(agency));
+        });
       }
     }
   }
@@ -3141,9 +2846,9 @@ export class DataContext {
 
   private personnelResolverBackend(): PersonnelResolverBackend {
     return {
-      findOrCreateCanonicalId: (input) =>
-        this.findOrCreatePersonnelCanonicalId(input),
-      getCurrentById: (id) => this.databaseOfficerById.get(id),
+      findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
+      getCurrentById: (id) =>
+        this.currentRow("public.officers", this.databaseOfficerById, id),
       ensureUniquePersonnelSlug: (input) =>
         this.ensureUniqueSlug("public.officers", input),
       registerPersonnelSlug: (input) => {
@@ -3152,22 +2857,6 @@ export class DataContext {
     };
   }
 
-  private async findOrCreatePersonnelCanonicalId(input: {
-    namespace: string;
-    kind: string;
-    sourceId: string;
-  }): Promise<string> {
-    // Find in the ledger by (kind, source-id); mint + write the single record
-    // file when absent. ID stability: a seeded/existing id is always found first.
-    if (this.ledger === undefined) {
-      return createId();
-    }
-    return this.ledger.findOrCreate(
-      input.namespace,
-      "Personnel",
-      input.sourceId,
-    );
-  }
 
   private slugClaimsFor(table: SlugTableName): Map<string, string> {
     let claims = this.slugClaimsByTable.get(table);
@@ -3286,9 +2975,13 @@ export class DataContext {
 
   private agencyPersonnelResolverBackend(): LicenseResolverBackend {
     return {
-      findOrCreateCanonicalId: (input) =>
-        this.findOrCreateAgencyPersonnelCanonicalId(input),
-      getCurrentById: (id) => this.databaseAgencyPersonnelById.get(id),
+      findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
+      getCurrentById: (id) =>
+        this.currentRow(
+          "public.agency_officers",
+          this.databaseAgencyPersonnelById,
+          id,
+        ),
       findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
     };
   }
@@ -3316,10 +3009,11 @@ export class DataContext {
         name: input.name,
         commandName: input.commandName ?? this.commandName,
       },
-      backend: this.locationPathFacadeBackend((id) => {
-        const row = this.databaseLocationPathById?.get(id);
-        return row as Record<string, unknown> | undefined;
-      }),
+      backend: this.resolverBackend(
+        "public.location_path",
+        this.databaseLocationPathById,
+        "location_path_id",
+      ),
     });
     if (input.spec !== undefined) {
       facade.merge(input.spec);
@@ -3353,7 +3047,11 @@ export class DataContext {
         name: input.name,
         commandName: input.commandName ?? this.commandName,
       },
-      backend: this.locationPathFacadeBackend(),
+      backend: this.resolverBackend(
+        "public.location_path_alias",
+        undefined,
+        "alias_path",
+      ),
     });
     if (input.spec !== undefined) {
       facade.merge(input.spec);
@@ -3362,80 +3060,42 @@ export class DataContext {
     return facade;
   }
 
-  locationPathGeometryFromSource(
-    input: SourceRecordContext,
-  ): LocationPathGeometryFacade {
-    validateSourceRecordContext(input);
-    const key = [
-      input.apiVersion,
-      input.namespace,
-      "LocationPathGeometry",
-      input.name,
-    ].join(":");
-    const existing = this.locationPathGeometryFacades.get(key);
-    if (existing !== undefined) {
-      if (input.spec !== undefined) {
-        existing.merge(input.spec);
-      }
-      return existing;
-    }
-    const facade = new LocationPathGeometryFacade({
-      current: input.current,
-      source: {
-        namespace: input.namespace,
-        sourceFile: input.sourceFile,
-        name: input.name,
-        commandName: input.commandName ?? this.commandName,
-      },
-      backend: this.locationPathFacadeBackend(),
-    });
-    if (input.spec !== undefined) {
-      facade.merge(input.spec);
-    }
-    this.locationPathGeometryFacades.set(key, facade);
-    return facade;
-  }
-
-  private locationPathFacadeBackend(
-    getCurrentById?: (id: string) => Record<string, unknown> | undefined,
+  /**
+   * A resolver backend for any facade whose backend needs are the common three:
+   * canonical-id find-or-create, lazy current-row loading, and same-source FK
+   * finds. `getCurrentById` reads `tableName` lazily by `identityColumn` (ADR
+   * 0019). Facades needing more (slug uniqueness, address resolution, location
+   * lookups) compose their own backend around these.
+   */
+  private resolverBackend(
+    tableName: SupportedTableName,
+    preloaded: ReadonlyMap<string, Record<string, unknown>> | undefined,
+    identityColumn?: string,
   ): LicenseResolverBackend {
     return {
-      findOrCreateCanonicalId: (input) =>
-        this.findOrCreateLocationPathCanonicalId(input),
-      getCurrentById: getCurrentById ?? (() => undefined),
+      findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
+      getCurrentById: (id) =>
+        this.currentRow(tableName, preloaded, id, identityColumn),
       findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
     };
   }
 
-  private async findOrCreateLocationPathCanonicalId(input: {
+  /**
+   * Find-or-create an entity's canonical id in the ledger by its own `kind`
+   * (ADR 0016 #4): a seeded/existing id is always found before a new one is
+   * minted, so ids stay stable across imports.
+   */
+  private async findOrCreateCanonicalId(input: {
     namespace: string;
     kind: string;
     sourceId: string;
   }): Promise<string> {
-    // Find a seeded/existing id before minting — census location paths anchor
-    // everything, so ID stability is critical.
     if (this.ledger === undefined) {
       return createId();
     }
     return this.ledger.findOrCreate(
       input.namespace,
-      "LocationPath",
-      input.sourceId,
-    );
-  }
-
-  private async findOrCreateAgencyPersonnelCanonicalId(input: {
-    namespace: string;
-    kind: string;
-    sourceId: string;
-  }): Promise<string> {
-    // Find a seeded/existing id before minting (ID stability).
-    if (this.ledger === undefined) {
-      return createId();
-    }
-    return this.ledger.findOrCreate(
-      input.namespace,
-      "AgencyPersonnel",
+      input.kind as LedgerEntityKind,
       input.sourceId,
     );
   }
@@ -3480,31 +3140,14 @@ export class DataContext {
   private licensingAuthorityResolverBackend(): LicensingAuthorityResolverBackend {
     return {
       getLocationPathByPath: (path) => this.locationPaths.getByPath(path),
-      findOrCreateCanonicalId: (input) =>
-        this.findOrCreateLicensingAuthorityCanonicalId(input),
-      getCurrentById: (id) => this.databaseLicensingAuthorityById.get(id),
+      findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
+      getCurrentById: (id) =>
+        this.currentRow(
+          "public.licensing_authority",
+          this.databaseLicensingAuthorityById,
+          id,
+        ),
     };
-  }
-
-  private async findOrCreateLicensingAuthorityCanonicalId(input: {
-    namespace: string;
-    kind: string;
-    sourceId: string;
-  }): Promise<string> {
-    // Find in the ledger by (kind, source-id); mint + write the single record
-    // file when absent — the resolver is the sole owner of LicensingAuthority
-    // identity (ADR 0016 #4), so it must not depend on any earlier minting stage.
-    // Extension point: a natural-key match against the database would recover an
-    // existing row's id before minting — deferred while `licensing_authority` is
-    // a new table with no legacy rows.
-    if (this.ledger === undefined) {
-      return createId();
-    }
-    return this.ledger.findOrCreate(
-      input.namespace,
-      "LicensingAuthority",
-      input.sourceId,
-    );
   }
 
   licenseFromSource(input: SourceRecordContext): LicenseFacade {
@@ -3527,7 +3170,10 @@ export class DataContext {
         name: input.name,
         commandName: input.commandName ?? this.commandName,
       },
-      backend: this.licenseResolverBackend(this.databaseLicenseById),
+      backend: this.licenseResolverBackend(
+        "public.license",
+        this.databaseLicenseById,
+      ),
     });
     if (input.spec !== undefined) {
       facade.merge(input.spec);
@@ -3559,7 +3205,10 @@ export class DataContext {
         name: input.name,
         commandName: input.commandName ?? this.commandName,
       },
-      backend: this.licenseResolverBackend(this.databaseLicenseActionById),
+      backend: this.licenseResolverBackend(
+        "public.license_action",
+        this.databaseLicenseActionById,
+      ),
     });
     if (input.spec !== undefined) {
       facade.merge(input.spec);
@@ -3569,14 +3218,50 @@ export class DataContext {
   }
 
   private licenseResolverBackend(
+    tableName: SupportedTableName,
     databaseCurrentById: Map<string, Record<string, unknown>>,
   ): LicenseResolverBackend {
     return {
-      findOrCreateCanonicalId: (input) =>
-        this.findOrCreateLicenseCanonicalId(input),
-      getCurrentById: (id) => databaseCurrentById.get(id),
+      findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
+      getCurrentById: (id) =>
+        this.currentRow(tableName, databaseCurrentById, id),
       findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
     };
+  }
+
+  /**
+   * The existing database row for a resolved canonical id, decided lazily at
+   * mutation time (ADR 0019): a preloaded row wins; otherwise one row is read
+   * from the database on demand and memoized. No bulk current-row read at
+   * startup.
+   */
+  private currentRow(
+    tableName: SupportedTableName,
+    preloaded: ReadonlyMap<string, Record<string, unknown>> | undefined,
+    id: string,
+    // The row's identity column. Defaults to `id`; location paths and aliases
+    // key on `location_path_id` / `alias_path`, which have no `id` column.
+    identityColumn = "id",
+  ): Promise<Record<string, unknown> | undefined> {
+    const fromPreloaded = preloaded?.get(id);
+    if (fromPreloaded !== undefined) {
+      return Promise.resolve(fromPreloaded);
+    }
+    const cacheKey = `${tableName}:${id}`;
+    let pending = this.lazyCurrentRowCache.get(cacheKey);
+    if (pending === undefined) {
+      const client = this.client;
+      pending =
+        client === undefined
+          ? Promise.resolve(undefined)
+          : identityColumn === "id"
+            ? readDatabaseRecordsByIds(client, tableName, [id]).then((rows) =>
+                rows.find((row) => row.id === id),
+              )
+            : readDatabaseRecordByColumn(client, tableName, identityColumn, id);
+      this.lazyCurrentRowCache.set(cacheKey, pending);
+    }
+    return pending;
   }
 
   /** The shared backend for the generic EntityFacade-based kinds. */
@@ -3584,9 +3269,8 @@ export class DataContext {
     databaseCurrentById: Map<string, Record<string, unknown>>,
   ): EntityFacadeBackend {
     return {
-      findOrCreateCanonicalId: (input) =>
-        this.findOrCreateLicenseCanonicalId(input),
-      getCurrentById: (id) => databaseCurrentById.get(id),
+      findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
+      getCurrentById: async (id) => databaseCurrentById.get(id),
       findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
     };
   }
@@ -3755,28 +3439,13 @@ export class DataContext {
     return undefined;
   }
 
-  private async findOrCreateLicenseCanonicalId(input: {
-    namespace: string;
-    kind: string;
-    sourceId: string;
-  }): Promise<string> {
-    // Find in the ledger by (namespace, kind, source-id); mint + write the single
-    // record file when absent. The facade is the sole owner of License /
-    // LicenseAction identity (ADR 0016 #4), so it must not depend on any earlier
-    // minting stage. `input.kind` is "License" or "LicenseAction" — each its own
-    // ledger entity kind.
-    if (this.ledger === undefined) {
-      return createId();
-    }
-    return this.ledger.findOrCreate(
-      input.namespace,
-      input.kind as LedgerEntityKind,
-      input.sourceId,
-    );
-  }
 
   async toMutations(): Promise<
     (
+      | LocationPathCreateEnvelope
+      | LocationPathReadEnvelope
+      | LocationPathAliasCreateEnvelope
+      | LocationPathAliasReadEnvelope
       | AgencyCreateEnvelope
       | AgencyUpdateEnvelope
       | PersonnelCreateEnvelope
@@ -3796,9 +3465,21 @@ export class DataContext {
     )[]
   > {
     // Resolve facade mutations in dependency order so every same-source FK find
-    // (ADR 0016 #4/#9) targets an already-emitted facade: LicensingAuthorities,
-    // then Licenses (find Personnel + LicensingAuthority), then LicenseActions
-    // (find License).
+    // (ADR 0016 #4/#9) targets an already-registered facade. LocationPaths first:
+    // a path's parent_location_path_id self-FK finds another path, and aliases
+    // FK-find their target path. Registration (not resolution) order is what
+    // matters — id resolution is idempotent/memoized — so all paths are drained
+    // before aliases.
+    const locationPaths = await Promise.all(
+      [...this.locationPathFacades.values()].map((facade) =>
+        facade.toMutation(),
+      ),
+    );
+    const locationPathAliases = await Promise.all(
+      [...this.locationPathAliasFacades.values()].map((facade) =>
+        facade.toMutation(),
+      ),
+    );
     const licensingAuthorities = await Promise.all(
       [...this.licensingAuthorityFacades.values()].map((facade) =>
         facade.toMutation(),
@@ -3852,6 +3533,10 @@ export class DataContext {
       ),
     );
     return [
+      // LocationPaths + aliases first: they are FK targets for agencies and each
+      // other, and never depend on the entities below.
+      ...locationPaths,
+      ...locationPathAliases,
       ...agencies,
       ...personnel,
       ...licensingAuthorities,
@@ -3875,46 +3560,11 @@ export class DataContext {
       spec: mutation.spec,
     }));
 
-    const items: DatabaseMutationItem[] = [
-      ...this.importRows.locationPaths.map((record) => ({
-        kind: mutationKind(
-          this.operations.locationPaths[record.location_path_id],
-          "LocationPath",
-        ),
-        name: record.location_path_id,
-        spec: databaseMutationSpec(
-          this.operations.locationPaths[record.location_path_id],
-          record,
-        ),
-      })),
-      ...(this.importRows.locationPathGeometries ?? []).map((record) => ({
-        kind: mutationKind(
-          this.operations.locationPathGeometries[record.location_path_id],
-          "LocationPathGeometry",
-        ),
-        name: record.location_path_id,
-        spec: databaseMutationSpec(
-          this.operations.locationPathGeometries[record.location_path_id],
-          record,
-        ),
-      })),
-      ...this.importRows.locationPathAliases.map((record) => ({
-        kind: mutationKind(
-          this.operations.locationPathAliases[record.alias_path],
-          "LocationPathAlias",
-        ),
-        name: record.alias_path,
-        spec: databaseMutationSpec(
-          this.operations.locationPathAliases[record.alias_path],
-          record,
-        ),
-      })),
-      ...facadeMutations,
-      // Agency, Personnel, AgencyPersonnel, License, and LicenseAction mutations
-      // are all emitted by their facades via `facadeMutations` (ADR 0016); there
-      // are no transform rows to assemble. AgencyRow / AgencyOfficerRow are
-      // retained only as planning-pass inputs (coexistence), not for emission.
-    ];
+    // Every entity — LocationPaths and aliases included — is emitted by its
+    // facade via `facadeMutations` (ADR 0016). AgencyRow / AgencyOfficerRow /
+    // LocationPathRow are retained only as planning-pass inputs (coexistence),
+    // not for emission.
+    const items: DatabaseMutationItem[] = [...facadeMutations];
 
     // Drop check-only updates: an update whose operations are all `check` mutates
     // nothing, so it is not a mutation (ADR 0011/0014). Filtering here — the one
