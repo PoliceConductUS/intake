@@ -6,7 +6,7 @@ import type {
 } from "../src/shared/io/Artifacts.js";
 import type { SourceNameToCanonicalIds } from "../src/cli/state/source-name-to-canonical-id/index.js";
 import { transformArtifacts } from "../src/cli/import/artifacts/transform.js";
-import { fakeSourceNameLedger } from "./helpers/fake-source-name-ledger.js";
+import { fakeSourceNameLedger } from "./cli/state/fake-source-name-ledger.js";
 
 const agency = {
   id: "a2j-agency-source",

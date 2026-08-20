@@ -77,8 +77,7 @@ import {
   type ResolvedProperties,
 } from "./transform.js";
 import {
-  readDatabaseRecordByColumn,
-  readDatabaseRecordsByIds,
+  readDatabaseRecordsByColumn,
   readDatabaseRecordsBySlugs,
 } from "../../database/entities.js";
 import type { SupportedTableName } from "../../database/schema.js";
@@ -2448,6 +2447,18 @@ function preparedAgencySpec(agency: AgencyRow): Record<string, unknown> {
   );
 }
 
+type RowReadBatch = {
+  tableName: SupportedTableName;
+  identityColumn: string;
+  requests: Map<
+    string,
+    {
+      resolve: (row: Record<string, unknown> | undefined) => void;
+      reject: (error: unknown) => void;
+    }
+  >;
+};
+
 export class DataContext {
   readonly locations: LocationDataContext;
   readonly locationPaths: LocationPathDataContext;
@@ -2456,6 +2467,8 @@ export class DataContext {
     string,
     Promise<Record<string, unknown> | undefined>
   >();
+  private readonly pendingRowReads = new Map<string, RowReadBatch>();
+  private rowReadFlushScheduled = false;
   readonly logger?: DataContextLogger;
   private readonly addressResolutionCache = new Map<
     string,
@@ -2911,9 +2924,6 @@ export class DataContext {
     table: SlugTableName,
     slug: string,
   ): Promise<string | undefined> {
-    if (this.client === undefined) {
-      return undefined;
-    }
     const owners = this.slugDatabaseOwnerFor(table);
     const cached = owners.get(slug);
     if (cached !== undefined) {
@@ -3212,9 +3222,10 @@ export class DataContext {
 
   /**
    * The existing database row for a resolved canonical id, decided lazily at
-   * mutation time (ADR 0019): a preloaded row wins; otherwise one row is read
-   * from the database on demand and memoized. No bulk current-row read at
-   * startup.
+   * mutation time (ADR 0019): a preloaded row wins; otherwise the read is
+   * enqueued and coalesced with every other read requested in the same tick
+   * into one `where <col> = any($1)`, then memoized. No bulk current-row read
+   * at startup.
    */
   private currentRow(
     tableName: SupportedTableName,
@@ -3231,18 +3242,58 @@ export class DataContext {
     const cacheKey = `${tableName}:${id}`;
     let pending = this.lazyCurrentRowCache.get(cacheKey);
     if (pending === undefined) {
-      const client = this.client;
-      pending =
-        client === undefined
-          ? Promise.resolve(undefined)
-          : identityColumn === "id"
-            ? readDatabaseRecordsByIds(client, tableName, [id]).then((rows) =>
-                rows.find((row) => row.id === id),
-              )
-            : readDatabaseRecordByColumn(client, tableName, identityColumn, id);
+      pending = this.enqueueRowRead(tableName, identityColumn, id);
       this.lazyCurrentRowCache.set(cacheKey, pending);
     }
     return pending;
+  }
+
+  private enqueueRowRead(
+    tableName: SupportedTableName,
+    identityColumn: string,
+    id: string,
+  ): Promise<Record<string, unknown> | undefined> {
+    const batchKey = `${tableName}:${identityColumn}`;
+    let batch = this.pendingRowReads.get(batchKey);
+    if (batch === undefined) {
+      batch = { tableName, identityColumn, requests: new Map() };
+      this.pendingRowReads.set(batchKey, batch);
+    }
+    return new Promise((resolve, reject) => {
+      batch.requests.set(id, { resolve, reject });
+      if (!this.rowReadFlushScheduled) {
+        this.rowReadFlushScheduled = true;
+        queueMicrotask(() => void this.flushRowReads());
+      }
+    });
+  }
+
+  private async flushRowReads(): Promise<void> {
+    this.rowReadFlushScheduled = false;
+    const batches = [...this.pendingRowReads.values()];
+    this.pendingRowReads.clear();
+    await Promise.all(batches.map((batch) => this.runRowReadBatch(batch)));
+  }
+
+  private async runRowReadBatch(batch: RowReadBatch): Promise<void> {
+    try {
+      const rows = await readDatabaseRecordsByColumn(
+        this.databaseClient(),
+        batch.tableName,
+        batch.identityColumn,
+        [...batch.requests.keys()],
+      );
+      const rowByKey = new Map(
+        rows.map((row) => [String(row[batch.identityColumn]), row] as const),
+      );
+      for (const [id, request] of batch.requests) {
+        request.resolve(rowByKey.get(id));
+      }
+    } catch (error) {
+      for (const request of batch.requests.values()) {
+        request.reject(error);
+      }
+    }
   }
 
   /** The shared backend for the generic EntityFacade-based kinds. */

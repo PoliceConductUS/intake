@@ -37,19 +37,21 @@ export async function readDatabaseRecordByColumn(
   )[0];
 }
 
-export async function readDatabaseRecordsByIds(
+export async function readDatabaseRecordsByColumn(
   client: DatabaseClient,
   tableName: SupportedTableName,
-  rowIds: readonly string[],
+  columnName: string,
+  values: readonly string[],
 ): Promise<Record<string, unknown>[]> {
-  if (rowIds.length === 0) {
+  if (values.length === 0) {
     return [];
   }
 
   return rowsFromResult(
-    await client.query(`select * from ${tableName} where id = any($1)`, [
-      [...new Set(rowIds)],
-    ]),
+    await client.query(
+      `select * from ${tableName} where ${columnName} = any($1)`,
+      [[...new Set(values)]],
+    ),
   );
 }
 

@@ -18,22 +18,10 @@ import {
   type SourceNameToCanonicalIdLedger,
   type SourceNameToCanonicalIds,
 } from "../../../src/cli/state/source-name-to-canonical-id/index.js";
-import { fakeSourceNameLedger } from "../../helpers/fake-source-name-ledger.js";
+import { fakeSourceNameLedger } from "../../cli/state/fake-source-name-ledger.js";
+import { EmptyDatabaseClient } from "../../cli/database/empty-database-client.js";
 
-class EmptyClient implements DatabaseClient {
-  async connect(): Promise<void> {}
-
-  async query(
-    _text = "",
-    _values: readonly unknown[] = [],
-  ): Promise<{ rows: Record<string, unknown>[] }> {
-    return { rows: [] };
-  }
-
-  async end(): Promise<void> {}
-}
-
-class BoundaryClient extends EmptyClient {
+class BoundaryClient extends EmptyDatabaseClient {
   async query(text: string): Promise<{ rows: Record<string, unknown>[] }> {
     if (/join public\.location_path_geometry\b/i.test(text)) {
       return {
@@ -125,7 +113,7 @@ function licensingSourceNameToCanonicalIds(
 
 function licensingContext(ledger: SourceNameToCanonicalIdLedger): DataContext {
   return new DataContext({
-    client: new EmptyClient(),
+    client: new EmptyDatabaseClient(),
     rows,
     commandName: "command-name",
     // A loaded snapshot lets getByPath resolve "/tx/" and return undefined for
@@ -145,7 +133,7 @@ describe("DataContext", () => {
     rows?: ImportRows;
   }): DataContext {
     return new DataContext({
-      client: options?.client ?? new EmptyClient(),
+      client: options?.client ?? new EmptyDatabaseClient(),
       rows: options?.rows ?? rows,
       commandName: "command-name",
       ledger: fakeSourceNameLedger({
@@ -316,7 +304,7 @@ describe("DataContext", () => {
 
   test("returns the same facade for the same source identity", () => {
     const context = new DataContext({
-      client: new EmptyClient(),
+      client: new EmptyDatabaseClient(),
       rows,
       databaseLocationPaths: locationPaths,
       databaseLocationPathAliases: [],
@@ -341,7 +329,7 @@ describe("DataContext", () => {
 
   test("creates agency facade with canonical ID from source mapping and collects create mutation", async () => {
     const context = new DataContext({
-      client: new EmptyClient(),
+      client: new EmptyDatabaseClient(),
       rows,
       commandName: "command-name",
       ledger: fakeSourceNameLedger({
@@ -384,7 +372,7 @@ describe("DataContext", () => {
 
   test("collects touched facades into a DatabaseMutations envelope", async () => {
     const context = new DataContext({
-      client: new EmptyClient(),
+      client: new EmptyDatabaseClient(),
       rows,
       commandName: "command-name",
       ledger: fakeSourceNameLedger({
@@ -444,7 +432,7 @@ describe("DataContext", () => {
   test("emits an empty-spec read for an existing location path through the envelope", async () => {
     const existingLocationPath = locationPaths[0]!;
     const context = new DataContext({
-      client: new EmptyClient(),
+      client: new EmptyDatabaseClient(),
       rows,
       commandName: "command-name",
       ledger: fakeSourceNameLedger({
@@ -771,7 +759,7 @@ describe("DataContext", () => {
       locationPaths: {},
     });
     const context = new DataContext({
-      client: new EmptyClient(),
+      client: new EmptyDatabaseClient(),
       rows,
       commandName: "command-name",
       ledger,
@@ -866,7 +854,7 @@ describe("DataContext", () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "la-ledger-"));
     const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
     const context = new DataContext({
-      client: new EmptyClient(),
+      client: new EmptyDatabaseClient(),
       rows,
       commandName: "command-name",
       databaseLocationPaths: [txLocationPath],
@@ -896,7 +884,7 @@ describe("DataContext", () => {
 
   test("LicensingAuthorityFacade auto-loads its current DB row and emits an update, not a create", async () => {
     const context = new DataContext({
-      client: new EmptyClient(),
+      client: new EmptyDatabaseClient(),
       rows,
       commandName: "command-name",
       databaseLocationPaths: [txLocationPath],
@@ -1079,7 +1067,7 @@ describe("DataContext", () => {
     ledger?: SourceNameToCanonicalIdLedger;
   }): DataContext {
     return new DataContext({
-      client: new EmptyClient(),
+      client: new EmptyDatabaseClient(),
       rows,
       commandName: "command-name",
       databaseLocationPaths: [txLocationPath],
@@ -1375,7 +1363,7 @@ describe("PersonnelFacade", () => {
     ledger?: SourceNameToCanonicalIdLedger;
   }): DataContext {
     return new DataContext({
-      client: options?.client ?? new EmptyClient(),
+      client: options?.client ?? new EmptyDatabaseClient(),
       rows,
       commandName: "command-name",
       ledger:
@@ -1435,6 +1423,49 @@ describe("PersonnelFacade", () => {
     await expect(
       ledger.read("gov.tx.tcole", "Personnel", "new-officer-source"),
     ).resolves.toBe(mintedId);
+  });
+
+  test("coalesces a group's concurrent current-row reads into one query (ADR 0019)", async () => {
+    const officerCurrentRowReads: string[] = [];
+    class CountingClient extends EmptyDatabaseClient {
+      async query(
+        text = "",
+        values: readonly unknown[] = [],
+      ): Promise<{ rows: Record<string, unknown>[] }> {
+        if (/from public\.officers where id = any/i.test(text)) {
+          officerCurrentRowReads.push(text);
+        }
+        return super.query(text, values);
+      }
+    }
+    const context = personnelContext({
+      client: new CountingClient(),
+      personnel: {
+        "1000001": { canonicalId: "officer-1" },
+        "1000002": { canonicalId: "officer-2" },
+        "1000003": { canonicalId: "officer-3" },
+      },
+    });
+    for (const [name, firstName] of [
+      ["1000001", "Ada"],
+      ["1000002", "Bela"],
+      ["1000003", "Cyra"],
+    ] as const) {
+      context.personnelFromSource({
+        apiVersion: INTAKE_API_VERSION,
+        namespace: "gov.tx.tcole",
+        name,
+        spec: { first_name: firstName, last_name: "Officer" },
+      });
+    }
+
+    await context.toDatabaseMutations({
+      namespace: "gov.tx.tcole",
+      name: "command-name",
+      sourceArtifactsName: "source-artifacts-name",
+    });
+
+    expect(officerCurrentRowReads).toHaveLength(1);
   });
 
   test("uses an explicitly supplied slug as-is", async () => {
@@ -1524,7 +1555,7 @@ describe("PersonnelFacade", () => {
   });
 
   test("slug uniqueness disambiguates against a conflicting database row (level 3)", async () => {
-    class OfficerSlugClient extends EmptyClient {
+    class OfficerSlugClient extends EmptyDatabaseClient {
       async query(
         text = "",
         values: readonly unknown[] = [],
@@ -1564,7 +1595,7 @@ describe("AgencyPersonnelFacade", () => {
     databaseAgencyPersonnel?: Record<string, unknown>[];
   }): DataContext {
     return new DataContext({
-      client: new EmptyClient(),
+      client: new EmptyDatabaseClient(),
       rows,
       commandName: "command-name",
       ledger: fakeSourceNameLedger({
@@ -1760,7 +1791,7 @@ describe("Census substrate facades", () => {
     locationPaths?: SourceNameToCanonicalIds["locationPaths"];
   }): DataContext {
     return new DataContext({
-      client: new EmptyClient(),
+      client: new EmptyDatabaseClient(),
       rows,
       commandName: "command-name",
       ledger: fakeSourceNameLedger({

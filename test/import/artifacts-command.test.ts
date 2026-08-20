@@ -15,7 +15,8 @@ import { DatabaseMutations } from "../../src/cli/import/artifacts/io/DatabaseMut
 import { DatabaseMutationsDebug } from "../../src/cli/import/artifacts/io/DatabaseMutationsDebug.js";
 import { replayDatabaseMutations } from "../../src/cli/replay/database-mutations/config.js";
 import { persistSourceNameToCanonicalIds } from "../../src/cli/state/source-name-to-canonical-id/index.js";
-import { fakeSourceNameLedger } from "../helpers/fake-source-name-ledger.js";
+import { fakeSourceNameLedger } from "../cli/state/fake-source-name-ledger.js";
+import { EmptyDatabaseClient } from "../cli/database/empty-database-client.js";
 import {
   readResolvedProperty,
   type ResolvedPropertyCacheInput,
@@ -674,6 +675,7 @@ describe("importArtifacts", () => {
     );
     const runContext = new DataContext({
       rows,
+      client: new EmptyDatabaseClient(),
       ledger: fakeSourceNameLedger({
         agencies: {
           "agency-source-id": { canonicalId: "agency-canonical-id" },
