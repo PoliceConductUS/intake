@@ -1308,12 +1308,9 @@ export class PersonnelFacade implements PropertyResolutionFacade<PersonnelRowSha
 // containment, resolve-or-fail (ADR 0006/0015), never minted. `latitude` /
 // `longitude` fall out of the same geocode.
 //
-// Agencies resolve fully through the facade in the write pass: `mergeAgencyArtifacts`
-// feeds the raw source record (no pre-resolved row values), so the composition
-// (location_path_id) and generate-unique (slug) resolvers are the active
-// production path. The `AgencyRow` transform rows survive only as the substrate
-// the exclusion cascade and row validation read (which agencies were excluded);
-// they are not an emission input.
+// `mergeAgencyArtifacts` feeds the raw source record, so these resolvers run in
+// production; `AgencyRow` transform rows survive only as exclusion/validation
+// substrate, not an emission input.
 
 /** The database row shape an `AgencyFacade` resolves toward (public.agency). */
 export type AgencyRowShape = {
@@ -1839,11 +1836,9 @@ export class AgencyPersonnelFacade implements PropertyResolutionFacade<AgencyOff
 // Alias finds its target LocationPath facade. All emit Create/Read (never
 // update) via `getCurrentById`.
 //
-// LocationPath and LocationPathAlias emit through these facades in the write pass
-// (registered by `addLocationPathSourceFacades` / `addLocationPathAliasSourceFacades`).
-// The `LocationPathRow` transform rows survive only as the substrate the Agency /
-// LicensingAuthority location resolvers and the id-stability validation read;
-// geometries still stream separately via `appendStreamingLocationPathGeometryMutations`.
+// Registered in the write pass; the `LocationPathRow` transform rows survive only
+// as location-resolver / id-stability-validation substrate. Geometries stream
+// separately (`appendStreamingLocationPathGeometryMutations`).
 
 /** The database row shape a `LocationPathFacade` resolves toward. */
 export type LocationPathRowShape = {
@@ -2665,13 +2660,8 @@ export class DataContext {
     return this.locationPaths.validatePreparedRows();
   }
 
-  /**
-   * Fail-loud id-stability check: an imported LocationPath must not already
-   * exist in the database under a *different* location_path_id than the import
-   * mapped it to. The facade emits create-vs-read by canonical id, so it cannot
-   * catch a path whose id drifted — this guards it explicitly. Returns one error
-   * string per collision (empty when the database paths were not preloaded).
-   */
+  // The facade decides create-vs-read by canonical id, so it cannot catch a path
+  // whose id drifted from the database — this guards it explicitly (fail-loud).
   validateLocationPathIdStability(): string[] {
     if (this.databaseLocationPathByPath === undefined) {
       return [];
@@ -3060,13 +3050,8 @@ export class DataContext {
     return facade;
   }
 
-  /**
-   * A resolver backend for any facade whose backend needs are the common three:
-   * canonical-id find-or-create, lazy current-row loading, and same-source FK
-   * finds. `getCurrentById` reads `tableName` lazily by `identityColumn` (ADR
-   * 0019). Facades needing more (slug uniqueness, address resolution, location
-   * lookups) compose their own backend around these.
-   */
+  // Generic backend (ADR 0016/0019): canonical-id find-or-create, lazy current-row
+  // read by identityColumn, same-source FK finds. Richer facades compose their own.
   private resolverBackend(
     tableName: SupportedTableName,
     preloaded: ReadonlyMap<string, Record<string, unknown>> | undefined,
@@ -3080,11 +3065,7 @@ export class DataContext {
     };
   }
 
-  /**
-   * Find-or-create an entity's canonical id in the ledger by its own `kind`
-   * (ADR 0016 #4): a seeded/existing id is always found before a new one is
-   * minted, so ids stay stable across imports.
-   */
+  // Find a seeded/existing id before minting, so ids stay stable (ADR 0016 #4).
   private async findOrCreateCanonicalId(input: {
     namespace: string;
     kind: string;
@@ -3464,12 +3445,8 @@ export class DataContext {
       | CoverageLinkAgencyOfficerEnvelope
     )[]
   > {
-    // Resolve facade mutations in dependency order so every same-source FK find
-    // (ADR 0016 #4/#9) targets an already-registered facade. LocationPaths first:
-    // a path's parent_location_path_id self-FK finds another path, and aliases
-    // FK-find their target path. Registration (not resolution) order is what
-    // matters — id resolution is idempotent/memoized — so all paths are drained
-    // before aliases.
+    // Drain in FK-dependency order (ADR 0016 #4/#9): paths before aliases — a
+    // path's parent self-FK and an alias's target both find an already-drained path.
     const locationPaths = await Promise.all(
       [...this.locationPathFacades.values()].map((facade) =>
         facade.toMutation(),
@@ -3533,8 +3510,7 @@ export class DataContext {
       ),
     );
     return [
-      // LocationPaths + aliases first: they are FK targets for agencies and each
-      // other, and never depend on the entities below.
+      // Paths + aliases first: FK targets for the entities below, dependents of none.
       ...locationPaths,
       ...locationPathAliases,
       ...agencies,
@@ -3560,10 +3536,8 @@ export class DataContext {
       spec: mutation.spec,
     }));
 
-    // Every entity — LocationPaths and aliases included — is emitted by its
-    // facade via `facadeMutations` (ADR 0016). AgencyRow / AgencyOfficerRow /
-    // LocationPathRow are retained only as planning-pass inputs (coexistence),
-    // not for emission.
+    // Every entity emits through its facade (ADR 0016); the transform rows are
+    // validation/exclusion substrate, never an emission input.
     const items: DatabaseMutationItem[] = [...facadeMutations];
 
     // Drop check-only updates: an update whose operations are all `check` mutates

@@ -32,11 +32,8 @@ function formatPlanningErrors(errors: readonly string[]): string[] {
   ];
 }
 
-/**
- * Raised when row preparation/validation fails before any DatabaseMutations are
- * written. Carries the prepared rows and schema so the pipeline can still emit a
- * failed DatabaseMutationsDebug envelope for inspection.
- */
+// Carries the prepared rows and schema so the pipeline can still emit a failed
+// DatabaseMutationsDebug envelope for inspection.
 export class DatabaseMutationPlanningError extends Error {
   readonly rows: ImportRows;
   readonly errors: readonly string[];

@@ -314,11 +314,6 @@ function addLocationPathSourceFacades(
   dataContext: DataContext,
   artifacts: ArtifactsEnvelope,
 ): void {
-  // Route each LocationPath source record through its facade (ADR 0016). The
-  // facade's resolvers derive the canonical id (ledger find-or-create) and the
-  // parent_location_path_id (resolve-or-fail self-FK against an already-
-  // registered path), then `toMutation` emits a create (new census row) or read
-  // (already exists — never update). No prepared transform row is involved.
   for (const artifact of artifacts.spec.artifacts.filter(
     (item) => item.kind === "LocationPaths",
   )) {
@@ -339,10 +334,6 @@ function addLocationPathAliasSourceFacades(
   dataContext: DataContext,
   artifacts: ArtifactsEnvelope,
 ): void {
-  // Route each LocationPathAlias source record through its facade (ADR 0016).
-  // The facade's location_path_id resolver is a resolve-or-fail FK find of the
-  // target LocationPath facade (registered first), then `toMutation` emits a
-  // create or read. No prepared transform row is involved.
   for (const artifact of artifacts.spec.artifacts.filter(
     (item) => item.kind === "LocationPathAliases",
   )) {
@@ -363,10 +354,6 @@ function addPersonnelSourceFacades(
   dataContext: DataContext,
   artifacts: ArtifactsEnvelope,
 ): void {
-  // Route each Personnel source record through its facade (ADR 0016). The
-  // facade's resolvers derive the canonical id (ledger find-or-create) and a
-  // unique slug (generate-unique), then `toMutation` emits the create or update.
-  // No prepared transform row is involved.
   for (const artifact of artifacts.spec.artifacts.filter(
     (item) => item.kind === "Personnel",
   )) {
@@ -389,16 +376,8 @@ async function addAgencyPersonnelSourceFacades(
   rows: ImportRows,
   ledger: SourceNameToCanonicalIdLedger,
 ): Promise<void> {
-  // Route each AgencyPersonnel source record through its facade (ADR 0016). The
-  // facade's resolvers derive the canonical id and the agency / personnel /
-  // license foreign keys (same-source finds against the source values in the
-  // raw record), then `toMutation` emits the create or update.
-  //
-  // The excluded-agency cascade (drop dependent agency_officers) has already run
-  // on `rows.agencyOfficers` earlier in the write pass; a record whose canonical
-  // id is no longer among the surviving rows was cascaded out (its agency was
-  // excluded), so it is skipped here — otherwise its Agency FK find would fail
-  // loud on the (correctly) absent Agency facade.
+  // Skip assignments whose agency was excluded (cascaded out of rows.agencyOfficers
+  // upstream): their Agency FK find would otherwise fail loud on the absent facade.
   const survivingAgencyPersonnelIds = new Set(
     rows.agencyOfficers.map((agencyPersonnel) => agencyPersonnel.id),
   );
@@ -435,10 +414,6 @@ function addLicensingAuthoritySourceFacades(
   dataContext: DataContext,
   artifacts: ArtifactsEnvelope,
 ): void {
-  // Route each LicensingAuthority source record through its facade (ADR 0016).
-  // The facade's resolvers derive the canonical id (ledger find-or-create) and
-  // the location_path_id (resolve-or-fail), then `toMutation` emits the create
-  // or update. No prepared transform row is involved.
   for (const artifact of artifacts.spec.artifacts.filter(
     (item) => item.kind === "LicensingAuthorities",
   )) {
@@ -459,10 +434,6 @@ function addLicenseSourceFacades(
   dataContext: DataContext,
   artifacts: ArtifactsEnvelope,
 ): void {
-  // Route each License source record through its facade (ADR 0016). The facade's
-  // resolvers derive the canonical id (ledger find-or-create) and the officer /
-  // licensing-authority foreign keys (same-source finds), then `toMutation`
-  // emits the create or update. No prepared transform row is involved.
   for (const artifact of artifacts.spec.artifacts.filter(
     (item) => item.kind === "Licenses",
   )) {
@@ -483,9 +454,6 @@ function addLicenseActionSourceFacades(
   dataContext: DataContext,
   artifacts: ArtifactsEnvelope,
 ): void {
-  // Route each LicenseAction source record through its facade (ADR 0016). The
-  // facade resolves its canonical id and its license foreign key (same-source
-  // find) before emitting the create or update.
   for (const artifact of artifacts.spec.artifacts.filter(
     (item) => item.kind === "LicenseActions",
   )) {
@@ -768,14 +736,7 @@ async function closeClient(client: DatabaseClient): Promise<void> {
   }
 }
 
-/**
- * Cascades an excluded-agency drop to any agency_officers rows that reference
- * it, preserving referential integrity. `prepareAgencyRows` has already removed
- * the excluded agencies themselves from `rows.agencies`; this handles the
- * dependent agency_officers rows and its own summary log line. Personnel/officer
- * rows are unaffected.
- */
-function dropExcludedAgencyDependents(
+function dropExcludedAgencyAndDependentRows(
   rows: ImportRows,
   excluded: readonly ExcludedAgency[],
   logger?: { warn?(object: Record<string, unknown>, message: string): void },
@@ -808,11 +769,6 @@ function dropExcludedAgencyDependents(
   }
 }
 
-/**
- * Writes a failed DatabaseMutationsDebug envelope so a preparation/validation
- * failure's errors and prepared-row counts stay inspectable, then rethrows. The
- * debug envelope carries no mutations — preparation never reached emission.
- */
 async function writeFailedDatabaseMutationsDebugEnvelope(
   context: ImportArtifactsPipelineContext,
   error: DatabaseMutationPlanningError,
@@ -1152,10 +1108,8 @@ async function writeDatabaseMutationsStage(
   }
   rows.preparationMutations = [];
 
-  // One client and one DataContext for the whole pass: the schema-current check,
-  // the LocationPath reads that back validation, the row validation, and every
-  // facade's lazy current-row read (ADR 0019) all run against this connection.
-  // Reads only — the envelope is applied later by a separate replay client.
+  // Read-only connection (ADR 0019): validation and every facade's lazy
+  // current-row read share it; the envelope is applied by the replay client.
   const deps = agencyResolutionDeps(context);
   const client = (
     context.commandInput.clientFactory ?? defaultDatabaseClientFactory
@@ -1171,8 +1125,6 @@ async function writeDatabaseMutationsStage(
   let databaseMutations;
   try {
     const { importSchema } = await loadDatabaseSchemaMetadata(client);
-    // Refuse to plan against a schema the envelope specs were not generated
-    // against — a migration applied without regenerating the specs desyncs them.
     assertGeneratedSchemaCurrent(importSchema.appliedMigrations);
     const databaseLocationPaths = await readLocationPaths(client);
     const databaseLocationPathAliases = await readLocationPathAliases(client);
@@ -1180,29 +1132,27 @@ async function writeDatabaseMutationsStage(
       client,
       rows,
       logger,
-      // The canonical-id resolvers find-or-create each entity's own id through
-      // the ledger's per-record file read/write (ADR 0016 #4).
       ledger,
       commandName: context.commandName,
       databaseLocationPaths,
       databaseLocationPathAliases,
-      // The agency facade resolves its own location (slug/location_path/
-      // coordinates), source > cache > geocode, held in the facade's memo.
       resolvedPropertyStore: deps.resolvedPropertyCache,
       resolveAddress: (input) => resolveImportAddress(input, deps),
       resolveAdministrativeArea: deps.resolveLocationAdministrativeArea,
     });
 
-    // Exclude before registering agency facades: `mergeAgencyArtifacts` skips any
-    // agency no longer in `rows.agencies`, and `addAgencyPersonnelSourceFacades`
-    // skips assignments whose agency was cascaded out.
+    // mergeAgencyArtifacts (below) skips agencies dropped here, so exclude first.
     const agencyPreparationResult = await prepareAgencyRows(
       rows,
       dataContext,
       logger,
       context.commandInput.excludedRecords,
     );
-    dropExcludedAgencyDependents(rows, agencyPreparationResult.excluded, logger);
+    dropExcludedAgencyAndDependentRows(
+      rows,
+      agencyPreparationResult.excluded,
+      logger,
+    );
 
     const preparationErrors = [
       ...agencyPreparationResult.errors,
@@ -1215,25 +1165,18 @@ async function writeDatabaseMutationsStage(
         { errorCount: preparationErrors.length },
         "Database row preparation failed.",
       );
-      // Throws after writing the failed debug envelope.
       await writeFailedDatabaseMutationsDebugEnvelope(
         context,
-        new DatabaseMutationPlanningError(
-          rows,
-          preparationErrors,
-          importSchema,
-        ),
+        new DatabaseMutationPlanningError(rows, preparationErrors, importSchema),
       );
     }
 
     await persistResolvedSlugs(context);
 
     dataContext.mergeAgencyArtifacts(artifacts);
-    // Add facades in dependency order so every same-source FK find (ADR 0016
-    // #4/#9) targets an already-registered facade: LocationPaths before their
-    // aliases (and before agencies, which FK-find a path); LicensingAuthorities
-    // and Personnel before Licenses, Licenses before LicenseActions. Agencies and
-    // AgencyPersonnel are unaffected.
+    // Register in FK-dependency order so each same-source find targets an
+    // already-registered facade (ADR 0016 #4/#9): paths before aliases, all
+    // before licenses/actions, agencyPersonnel last.
     addLocationPathSourceFacades(dataContext, artifacts);
     addLocationPathAliasSourceFacades(dataContext, artifacts);
     addLicensingAuthoritySourceFacades(dataContext, artifacts);
@@ -1305,43 +1248,42 @@ const importArtifactsPipelineStages: ImportArtifactsPipelineStage[] = [
   rejectExistingImportStage,
   applyArtifactMutationsStage,
   transformArtifactsStage,
-  // Prepare, validate, emit, and apply are one pass over a single DataContext:
-  // schema check, exclusion, and row validation (failing to a debug envelope)
-  // precede facade emission and replay, all on one database connection.
+  // Prepares, validates, emits, and applies in one pass over a single DataContext.
   writeDatabaseMutationsStage,
 ];
 
 export async function importArtifacts(
   commandInput: ImportArtifactsCommandInput,
 ): Promise<ImportArtifactsResult> {
-  try {
-    if (
-      commandInput.commandName === undefined ||
-      commandInput.commandName.trim().length === 0
-    ) {
-      throw new Error("Command name is required to import artifacts.");
-    }
+  if (
+    commandInput.commandName === undefined ||
+    commandInput.commandName.trim().length === 0
+  ) {
+    return { ok: false, error: "Command name is required to import artifacts." };
+  }
 
-    const workspaceRoot = workspaceRootFromEnv(commandInput.env);
-    let context: ImportArtifactsPipelineContext = {
-      commandInput,
-      artifactsPath: commandInput.artifactsPath,
-      commandName: commandInput.commandName,
-      workspaceRoot,
-      ledger: createSourceNameToCanonicalIdLedger(
-        workspaceRoot === undefined ? {} : { rootDir: workspaceRoot },
-      ),
-    };
+  const workspaceRoot = workspaceRootFromEnv(commandInput.env);
+  let context: ImportArtifactsPipelineContext = {
+    commandInput,
+    artifactsPath: commandInput.artifactsPath,
+    commandName: commandInput.commandName,
+    workspaceRoot,
+    ledger: createSourceNameToCanonicalIdLedger(
+      workspaceRoot === undefined ? {} : { rootDir: workspaceRoot },
+    ),
+  };
+  try {
     for (const stage of importArtifactsPipelineStages) {
       context = await stage(context);
     }
-    if (context.databaseMutationCounts === undefined) {
-      throw new Error(
-        "DatabaseMutations pipeline finished without mutation counts.",
-      );
-    }
-    return { ok: true, counts: context.databaseMutationCounts };
   } catch (error) {
     return { ok: false, error: errorMessage(error) };
   }
+  if (context.databaseMutationCounts === undefined) {
+    return {
+      ok: false,
+      error: "DatabaseMutations pipeline finished without mutation counts.",
+    };
+  }
+  return { ok: true, counts: context.databaseMutationCounts };
 }
