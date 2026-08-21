@@ -52,7 +52,16 @@ export const acquire: SourceAcquire = async ({
     const { agencyMatches } = await collectSources({
       sourceDir,
       agencyFilters,
-      fetchAgencyCsv: () => fetchPostAgencyCsv({ executablePath, logger: log }),
+      fetchAgencyCsv: () =>
+        fetchPostAgencyCsv({
+          userDataDir: path.join(state, "browser-profile"),
+          executablePath,
+          headless: env.MN_POST_HEADLESS === "true",
+          captchaWaitMs: env.MN_POST_CAPTCHA_WAIT_MS
+            ? Number(env.MN_POST_CAPTCHA_WAIT_MS)
+            : undefined,
+          logger: log,
+        }),
       client,
       logger: log,
     });
