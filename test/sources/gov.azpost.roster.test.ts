@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { run } from "../../sources/gov.azpost.roster/config.js";
+import { run } from "../../sources/gov.azpost.roster/run.js";
 
 const rows = [
   {

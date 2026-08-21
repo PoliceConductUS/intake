@@ -173,7 +173,7 @@ export const registerCliCommand: RegisterCliCommand = (
   program
     .command("run")
     .description(
-      "Run the config.ts of every source folder matching <glob> and import the " +
+      "Run the run.ts of every source folder matching <glob> and import the " +
         "records it returns. Inputs are read from $INTAKE_WORKSPACE/<source-id>/source/. " +
         "When us-census-gazetteer matches it runs first (ADR 0015); the rest run in name order.",
     )

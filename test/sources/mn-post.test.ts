@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { run } from "../../sources/mn-post/config.js";
+import { run } from "../../sources/mn-post/run.js";
 import {
   AgencySpec,
   PersonnelSpec,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { run } from "../../sources/gov.tx.tcole/config.js";
+import { run } from "../../sources/gov.tx.tcole/run.js";
 import {
   AgencySpec,
   PersonnelSpec,

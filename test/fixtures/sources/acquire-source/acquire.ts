@@ -1,8 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 
-export const run = async () => ({ artifacts: [] });
-
 export const acquire = async (deps: {
   sourceDir: string;
   logger?: { info: (message: string) => void };

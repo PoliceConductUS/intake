@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { run } from "../../../sources/us-census-gazetteer/config.js";
+import { run } from "../../../sources/us-census-gazetteer/run.js";
 import { buildArtifactsEnvelope } from "../../../src/cli/run/source-run.js";
 import {
   LocationPathGeometrySpec,
@@ -11,7 +11,7 @@ import {
 } from "../../../src/shared/io/index.js";
 
 /**
- * Synthetic end-to-end coverage for `sources/us-census-gazetteer/config.ts`'s
+ * Synthetic end-to-end coverage for `sources/us-census-gazetteer/run.ts`'s
  * `run()` — the Phase-2 Task 7 orchestrator wiring the six ported domain
  * modules (`inputs`, `gazetteer-parser`, `hierarchy-parser`/`tiger-hierarchy`,
  * `location-paths`, `location-geometries`) into the runtime's manifest+emit
