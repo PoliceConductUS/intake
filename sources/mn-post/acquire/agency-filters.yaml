@@ -1,0 +1,8 @@
+# Agencies whose POST search legitimately returns no officers (small/inactive
+# departments) — allowed to have an empty roster instead of failing the run.
+allowEmptyAgencySearch:
+  - Howard Lake Police Dept.
+  - Verndale Police Dept.
+# Agencies missing from the downloaded CSV that must still be searched.
+supplementalAgencies:
+  - agencyName: Verndale Police Dept.
