@@ -18,11 +18,12 @@ import {
 import type { SourceManifest } from "../../src/cli/run/source-run.js";
 
 // The mn-post source reads its inputs from files under the source folder (an
-// `agency-ids.yaml` name→id map, an `agencies.csv` address list, and one
-// `*.list.yaml` roster per agency), so the fixture writes those files to a temp
-// dir and drives `run()` with their paths. Two agencies: "Alpha Police Dept."
-// (in the CSV, with an address) and "Beta County Sheriff" (absent from the CSV,
-// so it falls back to state "MN" with no address). Officer 0031 works at both.
+// `agency-ids.yaml` name→id map, an `agencies.csv` address list, and one raw
+// `*.roster.json` officer list per agency), so the fixture writes those files to
+// a temp dir and drives `run()` with their paths. Two agencies: "Alpha Police
+// Dept." (in the CSV, with an address) and "Beta County Sheriff" (absent from
+// the CSV, so it falls back to state "MN" with no address). Officer 0031 works
+// at both.
 const agencyIds = [
   "Alpha Police Dept.:",
   "  id: a2jALPHA",
@@ -35,18 +36,10 @@ const agenciesCsv = [
   "Alpha Police Dept.,Police,Jane Chief,100 Main St,Alphaville,MN,55111,555-1000,chief@alpha.mn",
 ].join("\n");
 
-// Roster row helper — mirrors the scraped `*.list.yaml` shape.
-function row(fields: Record<string, string | boolean>): string {
-  return Object.entries(fields)
-    .map(
-      ([k, v]) => `  ${k}: ${typeof v === "boolean" ? v : JSON.stringify(v)}`,
-    )
-    .join("\n");
-}
-
-const alphaRoster = [
-  "- ",
-  row({
+// Rosters are the raw officer-list JSON the site returns (an array of officer
+// rows) — written verbatim as `*.roster.json`, no transform.
+const alphaRoster = JSON.stringify([
+  {
     name: "Smith, John Robert",
     contactId: "0031",
     licenseId: "a2jLIC31",
@@ -54,9 +47,8 @@ const alphaRoster = [
     status: "Active",
     originalLicenseIssueDate: "2010-05-01",
     disciplinaryAction: false,
-  }),
-  "- ",
-  row({
+  },
+  {
     name: "Jones, Mary",
     contactId: "0032",
     licenseId: "a2jLIC32",
@@ -64,10 +56,9 @@ const alphaRoster = [
     status: "Active",
     originalLicenseIssueDate: "2015-03-15",
     disciplinaryAction: false,
-  }),
+  },
   // disciplined -> still imported; discipline is never a reason to drop an officer
-  "- ",
-  row({
+  {
     name: "Bad, Actor",
     contactId: "0099",
     licenseId: "a2jLIC99",
@@ -75,13 +66,12 @@ const alphaRoster = [
     status: "Active",
     originalLicenseIssueDate: "2012-01-01",
     disciplinaryAction: true,
-  }),
-].join("\n");
+  },
+]);
 
-const betaRoster = [
+const betaRoster = JSON.stringify([
   // same officer 0031, second agency -> one Personnel, a second assignment
-  "- ",
-  row({
+  {
     name: "Smith, John Robert",
     contactId: "0031",
     licenseId: "a2jLIC31",
@@ -89,10 +79,9 @@ const betaRoster = [
     status: "Active",
     originalLicenseIssueDate: "2010-05-01",
     disciplinaryAction: false,
-  }),
+  },
   // blank contactId -> skipped (no stable person id)
-  "- ",
-  row({
+  {
     name: "No, Id",
     contactId: "",
     licenseId: "a2jLICXX",
@@ -100,8 +89,8 @@ const betaRoster = [
     status: "Active",
     originalLicenseIssueDate: "2018-08-08",
     disciplinaryAction: false,
-  }),
-].join("\n");
+  },
+]);
 
 // Officer 0031's detail JSON carries a disciplinary order. 0031 is assigned to
 // both agencies, so it attributes to both. 0032's detail has the no-discipline
@@ -134,19 +123,19 @@ beforeAll(async () => {
   await writeFile(path.join(sourceDir, "agency-ids.yaml"), agencyIds);
   await writeFile(path.join(sourceDir, "agencies.csv"), agenciesCsv);
   await writeFile(
-    path.join(sourceDir, "alpha-police-dept-000000000001.list.yaml"),
+    path.join(sourceDir, "alpha-police-dept-000000000001.roster.json"),
     alphaRoster,
   );
   await writeFile(
-    path.join(sourceDir, "beta-county-sheriff-000000000002.list.yaml"),
+    path.join(sourceDir, "beta-county-sheriff-000000000002.roster.json"),
     betaRoster,
   );
   await writeFile(
-    path.join(sourceDir, "a2jofficer0031-detail.json"),
+    path.join(sourceDir, "a2jofficer0031.detail.json"),
     detail0031,
   );
   await writeFile(
-    path.join(sourceDir, "a2jofficer0032-detail.json"),
+    path.join(sourceDir, "a2jofficer0032.detail.json"),
     detail0032,
   );
 });

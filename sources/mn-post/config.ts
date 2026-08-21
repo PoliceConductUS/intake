@@ -8,17 +8,21 @@ import type {
 
 /**
  * MN POST — reconstructs the Minnesota rows from the scraped POST License Search
- * data. Three staged inputs (under `$INTAKE_WORKSPACE/mn-post/source/`):
+ * data. The `acquire` phase downloads these raw inputs (preserving the site's
+ * own format — csv stays csv, json stays json) under
+ * `$INTAKE_WORKSPACE/mn-post/source/`:
  *
  *   - `agency-ids.yaml`  — agency name → Salesforce `a2j…` id (the durable
- *                          identity map; every emitted agency is keyed by this id).
- *   - `agencies.csv`     — the Q2 active-agency list (name, address, city, state,
+ *                          identity ledger; every emitted agency is keyed by this id).
+ *   - `agencies.csv`     — the active-agency list (name, address, city, state,
  *                          zip, chief, email); joined to agencies by name.
- *   - `*.list.yaml`      — one per-agency roster (395), the officer list. The
- *                          filename slug identifies the agency; each row carries
- *                          `contactId` (person), `licenseId` (license), `name`
- *                          ("Last, First Middle"), `licenseType`, `status`, and
- *                          `originalLicenseIssueDate`.
+ *   - `*.roster.json`    — one per-agency roster (the raw officer list from the
+ *                          site). The filename slug identifies the agency; each
+ *                          row carries `contactId` (person), `licenseId`
+ *                          (license), `name` ("Last, First Middle"),
+ *                          `licenseType`, `status`, and `originalLicenseIssueDate`.
+ *   - `*.detail.json`    — one per-officer detail (the raw officer JSON), whose
+ *                          `disciplinaryActions` drives the discipline records.
  *
  * Entities (TCOLE-shaped): a single `LicensingAuthorities` (MN POST), `Agencies`
  * (keyed by the a2j id), `Personnel` (keyed by `contactId`), `Licenses` (keyed by
@@ -29,7 +33,7 @@ import type {
  * with no assignment dates). Deterministic: no network, clock, or randomness.
  */
 export const run: SourceRun = async ({ paths }) => {
-  const rosterPaths = paths.filter((p) => p.endsWith(".list.yaml")).sort();
+  const rosterPaths = paths.filter((p) => p.endsWith(".roster.json")).sort();
   const idMapPath = paths.find((p) => path.basename(p) === "agency-ids.yaml");
   const csvPath = paths.find((p) => p.toLowerCase().endsWith(".csv"));
   if (idMapPath === undefined) {
@@ -82,7 +86,7 @@ export const run: SourceRun = async ({ paths }) => {
 
   for (const rosterPath of rosterPaths) {
     const fileSlug = path
-      .basename(rosterPath, ".list.yaml")
+      .basename(rosterPath, ".roster.json")
       .replace(/-[0-9a-f]{12}$/, "");
     const agency = agencyBySlug.get(fileSlug);
     if (agency === undefined) {
@@ -118,7 +122,7 @@ export const run: SourceRun = async ({ paths }) => {
       };
     }
 
-    const roster = parseYaml(await readFile(rosterPath, "utf8"));
+    const roster = JSON.parse(await readFile(rosterPath, "utf8"));
     if (!Array.isArray(roster)) {
       continue;
     }
@@ -199,7 +203,7 @@ export const run: SourceRun = async ({ paths }) => {
   const coverageLinkAgencyOfficers: EmittedRecords = {};
 
   for (const jsonPath of paths.filter((p) =>
-    p.toLowerCase().endsWith(".json"),
+    p.toLowerCase().endsWith(".detail.json"),
   )) {
     let detail: unknown;
     try {
