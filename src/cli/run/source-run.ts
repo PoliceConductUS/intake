@@ -18,6 +18,18 @@ export type RunDeps = {
 };
 export type SourceRun = (deps: RunDeps) => Promise<SourceManifest>;
 
+// The optional acquire phase: a source downloads/scrapes its raw inputs into
+// `sourceDir` (preserving the original format — html/csv/json, no transforms),
+// so the deterministic `run` (produce) phase can then read them. Network and
+// non-determinism live here, never in `run`.
+export type AcquireDeps = {
+  sourceDir: string;
+  state: string;
+  env: Record<string, string | undefined>;
+  logger?: { info: (message: string) => void };
+};
+export type SourceAcquire = (deps: AcquireDeps) => Promise<void>;
+
 export function buildArtifactsEnvelope(
   sourceId: string,
   digest: string,

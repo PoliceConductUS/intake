@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { loadSourceModule } from "../../../src/cli/run/load-source-module.js";
+import {
+  loadSourceModule,
+  loadSourceAcquire,
+} from "../../../src/cli/run/load-source-module.js";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -29,6 +32,25 @@ describe("loadSourceModule", () => {
   it("rejects a source id containing path traversal", async () => {
     await expect(loadSourceModule("../evil", sourcesRoot)).rejects.toThrow(
       /invalid source id/i,
+    );
+  });
+});
+
+describe("loadSourceAcquire", () => {
+  it("loads a module exporting acquire", async () => {
+    const acquire = await loadSourceAcquire("acquire-source", sourcesRoot);
+    expect(typeof acquire).toBe("function");
+  });
+
+  it("fails when the source does not export acquire", async () => {
+    await expect(
+      loadSourceAcquire("ok-source", sourcesRoot),
+    ).rejects.toThrow(/does not support acquire/);
+  });
+
+  it("fails clearly for an unknown source id", async () => {
+    await expect(loadSourceAcquire("missing", sourcesRoot)).rejects.toThrow(
+      /missing/,
     );
   });
 });
