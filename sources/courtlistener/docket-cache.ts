@@ -47,11 +47,6 @@ export async function saveDocketCache(
   );
 }
 
-/**
- * An agency must be searched again when it has never been searched or its last
- * search was more than `refreshDays` ago, so CourtListener is queried for any
- * one agency only every few months.
- */
 export function agencyNeedsSearch(
   entry: AgencyCacheEntry | undefined,
   nowMs: number,

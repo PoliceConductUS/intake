@@ -42,7 +42,6 @@ function docketUrl(docket: Docket): string {
 export const run: SourceRun = async ({ paths, logger }: RunDeps) => {
   const log = logger ?? { info() {} };
   const envelopePaths = paths.filter((p) => p.endsWith(".dockets.json"));
-  // paths may be a flat list already; also accept a directory of envelopes.
   const files =
     envelopePaths.length > 0
       ? envelopePaths
@@ -133,7 +132,7 @@ async function collectEnvelopePaths(paths: string[]): Promise<string[]> {
         if (entry.endsWith(".dockets.json")) files.push(path.join(p, entry));
       }
     } catch {
-      // Not a directory; ignore.
+      continue;
     }
   }
   return files;

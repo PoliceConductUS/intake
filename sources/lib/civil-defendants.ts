@@ -8,7 +8,6 @@ export function slugify(value: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-/** A defendant name that looks like an individual (a possible officer). */
 export function isPersonDefendant(name: string): boolean {
   const trimmed = name.trim();
   return (
@@ -18,7 +17,6 @@ export function isPersonDefendant(name: string): boolean {
   );
 }
 
-/** The first defendant that names an institution (the agency being sued). */
 export function primaryAgencyName(
   names: readonly string[],
 ): string | undefined {
