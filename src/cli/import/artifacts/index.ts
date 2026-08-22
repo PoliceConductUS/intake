@@ -5,7 +5,11 @@ import { Command } from "commander";
 import { importArtifacts, type ImportArtifactsResult } from "./config.js";
 import { formatDatabaseMutationCountLines } from "./io/DatabaseMutationCounts.js";
 import { createIntakeLog } from "../../../logging.js";
-import { createCommandDirectory } from "../../command-directory.js";
+import {
+  createCommandDirectory,
+  intakeWorkspace,
+} from "../../command-directory.js";
+import { writeCommandPointer } from "../../state/command-pointer.js";
 import { Artifacts } from "../../../shared/io/index.js";
 import type {
   CliCommandDependencies,
@@ -101,12 +105,13 @@ export async function runImportArtifactsCommand(
   } = {},
 ): Promise<CommandResult> {
   const env = dependencies.env ?? process.env;
+  const namespace = await artifactsNamespace(artifactsRef);
   let command;
   try {
     command = await createCommandDirectory(env, {
       now: dependencies.now,
       createCommandName: dependencies.createCommandName,
-      namespace: await artifactsNamespace(artifactsRef),
+      namespace,
       args: dependencies.args ?? [
         "import",
         "artifacts",
@@ -164,6 +169,17 @@ export async function runImportArtifactsCommand(
     },
     "Artifacts import succeeded.",
   );
+
+  if (namespace !== undefined && dependencies.dryImport !== true) {
+    const workspace = intakeWorkspace(env);
+    await writeCommandPointer(
+      path.join(workspace, "state", namespace),
+      "import",
+      {
+        latest: path.relative(workspace, command.outputDirectory),
+      },
+    );
+  }
 
   return {
     exitCode: 0,

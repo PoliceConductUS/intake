@@ -14,7 +14,10 @@ import type { AcquireDeps, SourceAcquire } from "../run/source-run.js";
 import { loadSourceAcquire } from "../run/load-source-module.js";
 import { sourceStateDir } from "../run/state.js";
 import { matchSourceIds } from "../source-glob.js";
-import { readAcquirePointer, writeAcquirePointer } from "./acquire-pointer.js";
+import {
+  readCommandPointer,
+  writeCommandPointer,
+} from "../state/command-pointer.js";
 
 type AcquireSourceDeps = {
   sourcesRoot: string;
@@ -51,7 +54,7 @@ export async function acquireSource(
   }
 
   try {
-    const pointer = await readAcquirePointer(deps.state);
+    const pointer = await readCommandPointer(deps.state, "acquire");
     const { outputDirectory: outputDir } = await deps.createCommandDirectory(
       deps.env,
       { namespace: sourceId, args: ["acquire", sourceId] },
@@ -70,7 +73,7 @@ export async function acquireSource(
     }
 
     const outputRelative = path.relative(deps.workspace, outputDir);
-    await writeAcquirePointer(deps.state, {
+    await writeCommandPointer(deps.state, "acquire", {
       ...pointer,
       resume: outputRelative,
     });
@@ -83,7 +86,9 @@ export async function acquireSource(
     };
     await acquire(acquireDeps);
 
-    await writeAcquirePointer(deps.state, { latest: outputRelative });
+    await writeCommandPointer(deps.state, "acquire", {
+      latest: outputRelative,
+    });
     return { exitCode: 0 };
   } catch (error) {
     return { exitCode: 1, stderr: `${errorMessage(error)}\n` };

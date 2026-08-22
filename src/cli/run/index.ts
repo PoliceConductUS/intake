@@ -24,7 +24,7 @@ import { excludeManifestRecords } from "./exclude-records.js";
 import { createEmitSink } from "./emit-sink.js";
 import type { EmitRefItem, EmitSink } from "./emit-sink.js";
 import { matchSourceIds } from "../source-glob.js";
-import { readAcquirePointer } from "../acquire/acquire-pointer.js";
+import { readCommandPointer } from "../state/command-pointer.js";
 
 type RunSourceDeps = {
   sourcesRoot: string;
@@ -83,8 +83,9 @@ async function sourceInputDir(
   workspace: string,
   sourceId: string,
 ): Promise<string> {
-  const { latest } = await readAcquirePointer(
+  const { latest } = await readCommandPointer(
     path.join(workspace, "state", sourceId),
+    "acquire",
   );
   return latest === undefined
     ? path.join(workspace, sourceId, "source")

@@ -2,18 +2,17 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
-export type AcquirePointer = { resume?: string; latest?: string };
+export type CommandPointer = { resume?: string; latest?: string };
 
-const POINTER_FILE = "acquire.yaml";
-
-export async function readAcquirePointer(
+export async function readCommandPointer(
   statePath: string,
-): Promise<AcquirePointer> {
+  command: string,
+): Promise<CommandPointer> {
   try {
     const parsed =
       (parseYaml(
-        await readFile(path.join(statePath, POINTER_FILE), "utf8"),
-      ) as AcquirePointer | null) ?? {};
+        await readFile(path.join(statePath, `${command}.yaml`), "utf8"),
+      ) as CommandPointer | null) ?? {};
     return {
       resume: typeof parsed.resume === "string" ? parsed.resume : undefined,
       latest: typeof parsed.latest === "string" ? parsed.latest : undefined,
@@ -24,13 +23,17 @@ export async function readAcquirePointer(
   }
 }
 
-export async function writeAcquirePointer(
+export async function writeCommandPointer(
   statePath: string,
-  pointer: AcquirePointer,
+  command: string,
+  pointer: CommandPointer,
 ): Promise<void> {
   await mkdir(statePath, { recursive: true });
-  const content: AcquirePointer = {};
+  const content: CommandPointer = {};
   if (pointer.latest) content.latest = pointer.latest;
   if (pointer.resume) content.resume = pointer.resume;
-  await writeFile(path.join(statePath, POINTER_FILE), stringifyYaml(content));
+  await writeFile(
+    path.join(statePath, `${command}.yaml`),
+    stringifyYaml(content),
+  );
 }
