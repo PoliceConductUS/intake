@@ -93,6 +93,7 @@ import {
   type ResolvedProperties,
 } from "./transform.js";
 import { readDatabaseRecordsByColumn } from "../../database/entities.js";
+import { nameSimilarity, normalizeName } from "./name-similarity.js";
 import type { SupportedTableName } from "../../database/schema.js";
 
 /** Tables whose slug uniqueness the DataContext enforces (generate-unique). */
@@ -3827,6 +3828,93 @@ export class DataContext {
     }
     return this.client;
   }
+
+  async search(
+    input: AgencyOfficerSearch,
+  ): Promise<AgencyOfficerMatch | undefined> {
+    const officerName = valueAsString(input.officerName);
+    const agencyName = valueAsString(input.agencyName);
+    const state = valueAsString(input.state);
+    if (
+      officerName === undefined ||
+      agencyName === undefined ||
+      state === undefined
+    ) {
+      return undefined;
+    }
+    const tokens = normalizeName(officerName)
+      .split(" ")
+      .filter((token) => token.length >= 2);
+    if (tokens.length === 0) return undefined;
+
+    const likeClauses = tokens
+      .map(
+        (_, index) =>
+          `(o.first_name ilike $${index + 2} or o.last_name ilike $${index + 2})`,
+      )
+      .join(" or ");
+    const result = await this.databaseClient().query(
+      `select ao.id as agency_officer_id, o.id as officer_id,
+              o.first_name, o.middle_name, o.last_name,
+              a.id as agency_id, a.name as agency_name
+       from agency_officers ao
+       join officers o on o.id = ao.officer_id
+       join agency a on a.id = ao.agency_id
+       where a.state = $1 and (${likeClauses})`,
+      [state, ...tokens.map((token) => `%${token}%`)],
+    );
+
+    let best: AgencyOfficerMatch | undefined;
+    for (const row of searchRows(result)) {
+      const candidate = [row.first_name, row.middle_name, row.last_name]
+        .filter((part) => typeof part === "string" && part.trim() !== "")
+        .join(" ");
+      const officerConfidence = nameSimilarity(officerName, candidate);
+      const agencyConfidence = nameSimilarity(
+        agencyName,
+        String(row.agency_name ?? ""),
+      );
+      const confidence = officerConfidence * 0.6 + agencyConfidence * 0.4;
+      if (confidence < input.confidenceLevel) continue;
+      if (best === undefined || confidence > best.confidence) {
+        best = {
+          agencyOfficerId: String(row.agency_officer_id),
+          officerId: String(row.officer_id),
+          agencyId: String(row.agency_id),
+          confidence,
+          officerConfidence,
+          agencyConfidence,
+        };
+      }
+    }
+    return best;
+  }
+}
+
+export type AgencyOfficerSearch = {
+  state: string;
+  place?: string;
+  agencyName: string;
+  officerName: string;
+  confidenceLevel: number;
+};
+
+export type AgencyOfficerMatch = {
+  agencyOfficerId: string;
+  officerId: string;
+  agencyId: string;
+  confidence: number;
+  officerConfidence: number;
+  agencyConfidence: number;
+};
+
+function searchRows(result: unknown): Record<string, unknown>[] {
+  return typeof result === "object" &&
+    result !== null &&
+    "rows" in result &&
+    Array.isArray((result as { rows?: unknown[] }).rows)
+    ? (result as { rows: Record<string, unknown>[] }).rows
+    : [];
 }
 
 function addressResolutionRequest(
