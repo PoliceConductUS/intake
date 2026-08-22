@@ -10,10 +10,9 @@ import { collectSources, type AgencyFilters } from "./acquire/collect.js";
 import { fetchPostAgencyCsv } from "./acquire/agency-csv.js";
 import { createPostLicenseSearchClient } from "./acquire/post-client.js";
 import {
-  loadAgencyLedger,
-  updateAgencyLedger,
-  writeSourceAgencyIds,
-} from "./acquire/ledger.js";
+  openAgencyIdCache,
+  writeAgencyIds,
+} from "./acquire/agency-id-cache.js";
 import { writeSkipReport } from "./acquire/skip-report.js";
 
 const FILTERS_PATH = path.join(
@@ -33,18 +32,6 @@ async function loadAgencyFilters(): Promise<AgencyFilters> {
   };
 }
 
-/**
- * MN POST — scrape the POST License Search site into raw source files. Downloads
- * the agency CSV, searches each agency, and fetches every officer's roster and
- * detail, writing them verbatim (csv/json, no transform) for the deterministic
- * `run` phase. Reconciles the durable agency-identity ledger (a known agency
- * keeps its stored id — see updateAgencyLedger).
- *
- * The whole site is bot-protected, so everything runs in one headed Chrome with
- * a persistent profile (under the source state dir): a human solves the CAPTCHA
- * once, and that verified session is shared by the CSV page and the Salesforce
- * Aura calls and reused on later runs.
- */
 export const acquire: SourceAcquire = async ({
   sourceDir,
   state,
@@ -55,17 +42,7 @@ export const acquire: SourceAcquire = async ({
   const captchaWaitMs = env.MN_POST_CAPTCHA_WAIT_MS
     ? Number(env.MN_POST_CAPTCHA_WAIT_MS)
     : undefined;
-  const agencyFilters = await loadAgencyFilters();
-
-  // The cached ledger: agency ids resolved on earlier runs. A cached id is
-  // trusted over the (unreliable) live search, and lets an agency the site can't
-  // resolve by name — pin its id here once — be scraped anyway.
-  const cachedLedger = await loadAgencyLedger(state);
-  const knownAgencyIds = new Map(
-    Object.entries(cachedLedger)
-      .filter(([, entry]) => typeof entry?.id === "string" && entry.id !== "")
-      .map(([name, entry]) => [name, entry.id]),
-  );
+  const filters = await loadAgencyFilters();
 
   const { chromium } = await import("playwright");
   const context = await chromium.launchPersistentContext(
@@ -81,23 +58,25 @@ export const acquire: SourceAcquire = async ({
       context,
       logger: log,
     });
-    const { agencyMatches, skippedAgencies, skippedOfficers } =
-      await collectSources({
-        sourceDir,
-        agencyFilters,
-        fetchAgencyCsv: () =>
-          fetchPostAgencyCsv({ context, captchaWaitMs, logger: log }),
-        client,
-        knownAgencyIds,
-        logger: log,
-      });
-    await writeSkipReport(sourceDir, skippedAgencies, skippedOfficers, log);
-    const ledger = await updateAgencyLedger({
+    const cache = await openAgencyIdCache({
       statePath: state,
-      agencyMatches,
+      searchAgency: (agencyName) => client.searchAgency(agencyName),
+      allowEmptyAgencySearch: filters.allowEmptyAgencySearch,
       now: new Date().toISOString(),
     });
-    await writeSourceAgencyIds(sourceDir, ledger);
+    const { skippedAgencies, skippedOfficers } = await collectSources({
+      sourceDir,
+      supplementalAgencyNames: filters.supplementalAgencies.map(
+        (agency) => agency.agencyName,
+      ),
+      fetchAgencyCsv: () =>
+        fetchPostAgencyCsv({ context, captchaWaitMs, logger: log }),
+      cache,
+      client,
+      logger: log,
+    });
+    await writeSkipReport(sourceDir, skippedAgencies, skippedOfficers, log);
+    await writeAgencyIds(sourceDir, cache.entries());
   } finally {
     await context.close();
   }

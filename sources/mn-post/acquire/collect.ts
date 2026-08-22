@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { parse as parseCsv } from "csv-parse/sync";
+import type { AgencyIdCache } from "./agency-id-cache.js";
 
 export type AgencyMatch = {
   Id: string;
@@ -12,7 +14,6 @@ export type AgencyMatchResult = {
   recordCount?: number;
   candidateMatches: AgencyMatch[];
   matches: AgencyMatch[];
-  allowEmptyAgencySearch?: boolean;
 };
 export type OfficerRow = Record<string, unknown> & {
   contactId?: string;
@@ -34,7 +35,7 @@ export type AgencyCsv = { body: string; citation: unknown };
 
 export type PostClient = {
   searchAgency(agencyName: string): Promise<AgencyMatchResult>;
-  fetchOfficerList(match: AgencyMatch): Promise<OfficerRow[]>;
+  fetchOfficerList(agencyId: string): Promise<OfficerRow[]>;
   fetchOfficerDetail(officer: OfficerRow): Promise<OfficerDetail>;
 };
 
@@ -52,46 +53,33 @@ export type SkippedOfficer = {
   reason: string;
 };
 export type CollectResult = {
-  agencyMatches: AgencyMatchResult[];
   skippedAgencies: SkippedAgency[];
   skippedOfficers: SkippedOfficer[];
 };
 
 export type CollectDeps = {
   sourceDir: string;
-  agencyFilters: AgencyFilters;
+  supplementalAgencyNames: readonly string[];
   fetchAgencyCsv: () => Promise<AgencyCsv>;
+  cache: AgencyIdCache;
   client: PostClient;
-  /**
-   * Agency name → stored Salesforce id from the durable ledger. A known agency
-   * is trusted outright: the site's agency search is unreliable and returns
-   * nothing for some real agencies, so we never re-derive an id we already have.
-   */
-  knownAgencyIds?: ReadonlyMap<string, string>;
   logger?: CollectLogger;
 };
 
 /**
- * Download every raw input the produce phase needs, preserving the site's own
- * format — csv stays csv, json stays json, nothing is re-serialized to YAML:
- *
- *   - `agencies/agencies.csv`          the raw agency list
- *   - `agencies/<stem>.matches.json`   the raw agency search result (per agency)
- *   - `officers/<stem>.roster.json`    the raw officer list (per agency)
- *   - `officers/<stem>.detail.json`    the raw per-officer detail
- *
- * Every artifact is written once and reused on a later run, so an interrupted
- * scrape resumes instead of re-fetching. Returns the agency matches (so the
- * caller can reconcile the identity ledger) and what was skipped: an agency the
- * site cannot resolve to an id, or an officer missing a licenseId, is skipped
- * and reported rather than aborting the whole scrape.
+ * Download every raw input the produce phase reads, preserving the site's own
+ * format (csv stays csv, json stays json): `agencies/agencies.csv`, and per
+ * agency `officers/<stem>.roster.json` and `officers/<stem>.detail.json`. Each
+ * artifact is written once and reused, so an interrupted scrape resumes. An
+ * agency the cache cannot resolve, or an officer with no licenseId, is skipped
+ * and reported rather than aborting the scrape.
  */
 export async function collectSources({
   sourceDir,
-  agencyFilters,
+  supplementalAgencyNames,
   fetchAgencyCsv,
+  cache,
   client,
-  knownAgencyIds = new Map(),
   logger = silentLogger,
 }: CollectDeps): Promise<CollectResult> {
   const agenciesDir = path.join(sourceDir, "agencies");
@@ -108,89 +96,45 @@ export async function collectSources({
     await writeJson(path.join(agenciesDir, "citation.json"), csv.citation);
   }
 
-  const agencyNames = mergeSupplementalAgencyNames(
+  const agencyNames = withSupplementalNames(
     parseAgencyNames(csvBody),
-    agencyFilters.supplementalAgencies,
+    supplementalAgencyNames,
   );
-  logger.info(`mn-post: ${agencyNames.length} agencies to search`);
+  logger.info(`mn-post: ${agencyNames.length} agencies`);
 
-  const agencyMatches: AgencyMatchResult[] = [];
-  for (const agencyName of agencyNames) {
-    const matchPath = path.join(
-      agenciesDir,
-      `${artifactStem(agencyName)}.matches.json`,
-    );
-    let matchResult = await readJsonIfExists<AgencyMatchResult>(matchPath);
-    if (matchResult === null) {
-      matchResult = await client.searchAgency(agencyName);
-      await writeJson(matchPath, matchResult);
-    }
-    agencyMatches.push(
-      applyEmptyOfficerListAllowance(agencyName, matchResult, agencyFilters),
-    );
-  }
-
-  // Resolve each agency's id: a known agency trusts its cached ledger id; a new
-  // agency needs the search to yield exactly one match. An agency the site
-  // cannot resolve (and that is not allow-empty) is skipped and reported — its
-  // officers cannot be fetched without an id — never silently dropped.
-  const resolvedIdByAgency = new Map<string, string>();
   const skippedAgencies: SkippedAgency[] = [];
-  for (const matchResult of agencyMatches) {
-    const resolvedId =
-      knownAgencyIds.get(matchResult.agencyName) ??
-      (matchResult.matches.length === 1
-        ? matchResult.matches[0].Id
-        : undefined);
-    if (resolvedId !== undefined) {
-      resolvedIdByAgency.set(matchResult.agencyName, resolvedId);
-    } else if (matchResult.allowEmptyAgencySearch !== true) {
-      skippedAgencies.push({
-        agencyName: matchResult.agencyName,
-        reason: "site agency search returned no resolvable id",
-        candidateCount: matchResult.matches.length,
-      });
-    }
-  }
-  if (skippedAgencies.length > 0) {
-    logger.info(
-      `mn-post: skipping ${skippedAgencies.length} unresolvable agenc${skippedAgencies.length === 1 ? "y" : "ies"}: ${skippedAgencies
-        .map((s) => s.agencyName)
-        .join(", ")}`,
-    );
-  }
-
   const skippedOfficers: SkippedOfficer[] = [];
-  for (const matchResult of agencyMatches) {
-    const agencyId = resolvedIdByAgency.get(matchResult.agencyName);
-    if (agencyId === undefined && matchResult.allowEmptyAgencySearch !== true) {
-      continue; // skipped agency: no id, nothing to fetch
+  for (const agencyName of agencyNames) {
+    const lookup = await cache.resolve(agencyName);
+    if (lookup.kind === "skip") {
+      skippedAgencies.push({
+        agencyName,
+        reason: lookup.reason,
+        candidateCount: lookup.candidateCount,
+      });
+      logger.info(`mn-post: skipping ${agencyName} — ${lookup.reason}`);
+      continue;
     }
+
     const rosterPath = path.join(
       officersDir,
-      `${artifactStem(matchResult.agencyName)}.roster.json`,
+      `${artifactStem(agencyName)}.roster.json`,
     );
     let roster = await readJsonIfExists<OfficerRow[]>(rosterPath);
     if (roster === null) {
-      // A known agency whose search failed still fetches by its cached id via a
-      // synthetic match; an allow-empty agency with no id keeps an empty roster.
       roster =
-        agencyId === undefined
+        lookup.kind === "empty"
           ? []
-          : await client.fetchOfficerList(
-              matchResult.matches[0] ?? { Id: agencyId },
-            );
+          : await client.fetchOfficerList(lookup.agencyId);
       await writeJson(rosterPath, roster);
     }
-    logger.info(
-      `mn-post: ${matchResult.agencyName} — ${roster.length} officers`,
-    );
+    logger.info(`mn-post: ${agencyName} — ${roster.length} officers`);
 
     for (const officer of roster) {
       const licenseId = asNonEmptyString(officer.licenseId);
       if (licenseId === null) {
         skippedOfficers.push({
-          agencyName: matchResult.agencyName,
+          agencyName,
           officer: describeOfficer(officer),
           reason: "roster row is missing a licenseId",
         });
@@ -206,7 +150,7 @@ export async function collectSources({
     }
   }
 
-  return { agencyMatches, skippedAgencies, skippedOfficers };
+  return { skippedAgencies, skippedOfficers };
 }
 
 function describeOfficer(officer: OfficerRow): string {
@@ -217,48 +161,29 @@ function describeOfficer(officer: OfficerRow): string {
   );
 }
 
-function applyEmptyOfficerListAllowance(
-  agencyName: string,
-  matchResult: AgencyMatchResult,
-  agencyFilters: AgencyFilters,
-): AgencyMatchResult {
-  if (
-    matchResult.matches.length !== 0 ||
-    !agencyFilters.allowEmptyAgencySearch.includes(agencyName)
-  ) {
-    return matchResult;
-  }
-  return { ...matchResult, allowEmptyAgencySearch: true };
-}
-
-function mergeSupplementalAgencyNames(
+function withSupplementalNames(
   agencyNames: string[],
-  supplementalAgencies: AgencyFilters["supplementalAgencies"],
+  supplementalAgencyNames: readonly string[],
 ): string[] {
   const seen = new Set(agencyNames);
   return [
     ...agencyNames,
-    ...supplementalAgencies
-      .map((agency) => agency.agencyName)
-      .filter((name) => !seen.has(name)),
+    ...supplementalAgencyNames.filter((name) => !seen.has(name)),
   ];
 }
 
-/** Agency names from the raw CSV's `Agency`/`Agency Name` column. */
 export function parseAgencyNames(csv: string): string[] {
-  const rows = parseCsv(csv);
-  if (rows.length < 2) return [];
-  const header = rows[0];
-  const nameIndex = header.findIndex((column) =>
-    ["agency name", "agency"].includes(column.trim().toLowerCase()),
-  );
-  if (nameIndex === -1) {
-    throw new Error("mn-post agency CSV is missing an Agency Name column");
+  const rows = parseCsv(csv, {
+    bom: true,
+    columns: true,
+    skip_empty_lines: true,
+    relax_column_count: true,
+    trim: true,
+  }) as Array<Record<string, string>>;
+  if (rows.length > 0 && !("Agency" in rows[0])) {
+    throw new Error('mn-post agency CSV is missing the "Agency" column');
   }
-  return rows
-    .slice(1)
-    .map((values) => values[nameIndex]?.trim())
-    .filter((name): name is string => !!name);
+  return rows.map((row) => row["Agency"]).filter((name) => Boolean(name));
 }
 
 function asNonEmptyString(value: unknown): string | null {
@@ -285,7 +210,6 @@ async function writeJson(filePath: string, value: unknown): Promise<void> {
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-/** A stable, filesystem-safe artifact name: slug + a short content hash. */
 function artifactStem(value: string): string {
   const slug =
     value
@@ -298,47 +222,4 @@ function artifactStem(value: string): string {
     .digest("hex")
     .slice(0, 12);
   return `${slug}-${hash}`;
-}
-
-/** Minimal RFC-4180 CSV parser (handles quoted fields and embedded commas). */
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let field = "";
-  let record: string[] = [];
-  let inQuotes = false;
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    if (inQuotes) {
-      if (char === '"') {
-        if (text[index + 1] === '"') {
-          field += '"';
-          index += 1;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        field += char;
-      }
-      continue;
-    }
-    if (char === '"') {
-      inQuotes = true;
-    } else if (char === ",") {
-      record.push(field);
-      field = "";
-    } else if (char === "\n" || char === "\r") {
-      if (char === "\r" && text[index + 1] === "\n") index += 1;
-      record.push(field);
-      field = "";
-      if (record.some((value) => value !== "")) rows.push(record);
-      record = [];
-    } else {
-      field += char;
-    }
-  }
-  if (field !== "" || record.length > 0) {
-    record.push(field);
-    if (record.some((value) => value !== "")) rows.push(record);
-  }
-  return rows;
 }

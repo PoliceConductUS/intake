@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { parse as parseCsvSync } from "csv-parse/sync";
 import { parse as parseYaml } from "yaml";
 import type {
   SourceRun,
@@ -63,7 +64,6 @@ export const run: SourceRun = async ({ paths }) => {
       }
     }
   }
-
 
   const licensingAuthorities: EmittedRecords = {
     "mn-post": {
@@ -369,61 +369,12 @@ function parseOfficerName(name: string | undefined): {
   };
 }
 
-/** Minimal RFC-4180 CSV parser (handles quoted fields and embedded commas). */
 function parseCsv(text: string): Array<Record<string, string>> {
-  const rows: string[][] = [];
-  let field = "";
-  let record: string[] = [];
-  let inQuotes = false;
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    if (inQuotes) {
-      if (char === '"') {
-        if (text[index + 1] === '"') {
-          field += '"';
-          index += 1;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        field += char;
-      }
-      continue;
-    }
-    if (char === '"') {
-      inQuotes = true;
-    } else if (char === ",") {
-      record.push(field);
-      field = "";
-    } else if (char === "\n" || char === "\r") {
-      if (char === "\r" && text[index + 1] === "\n") {
-        index += 1;
-      }
-      record.push(field);
-      field = "";
-      if (record.some((value) => value !== "")) {
-        rows.push(record);
-      }
-      record = [];
-    } else {
-      field += char;
-    }
-  }
-  if (field !== "" || record.length > 0) {
-    record.push(field);
-    if (record.some((value) => value !== "")) {
-      rows.push(record);
-    }
-  }
-  if (rows.length === 0) {
-    return [];
-  }
-  const header = rows[0].map((column) => column.trim());
-  return rows
-    .slice(1)
-    .map((values) =>
-      Object.fromEntries(
-        header.map((column, index) => [column, values[index] ?? ""]),
-      ),
-    );
+  return parseCsvSync(text, {
+    bom: true,
+    columns: (header: string[]) => header.map((column) => column.trim()),
+    skip_empty_lines: true,
+    relax_column_count: true,
+    trim: true,
+  });
 }

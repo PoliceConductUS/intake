@@ -147,14 +147,13 @@ export async function createPostLicenseSearchClient({
         matches: selectExactAgencyMatches(agencyName, candidateMatches),
       };
     },
-    async fetchOfficerList(match: AgencyMatch): Promise<OfficerRow[]> {
+    async fetchOfficerList(agencyId: string): Promise<OfficerRow[]> {
       const result = (await executeApexAction({
         classname: "POSTSearch",
         method: "getLicensesByAgency",
         params: {
-          agencyId: match.Id,
+          agencyId,
           hasBeenDisciplined: false,
-          contactIdCleo: match.Licensee__c,
           maxThreshold: "2000",
         },
       })) as { POSTLicenseList?: OfficerRow[]; recordCount?: number };
