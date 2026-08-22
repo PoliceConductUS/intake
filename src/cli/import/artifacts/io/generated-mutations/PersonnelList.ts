@@ -13,7 +13,6 @@ import {
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
 
-
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -49,15 +48,22 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "PersonnelList"} ref requires relativeTo.`);
+  if (
+    options.relativeTo === undefined ||
+    options.relativeTo.trim().length === 0
+  ) {
+    throw new Error(
+      `Relative ${ref.kind ?? "PersonnelList"} ref requires relativeTo.`,
+    );
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "PersonnelList"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(
+      `${ref.kind ?? "PersonnelList"} ref.path escapes its directory: ${ref.path}`,
+    );
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -71,8 +77,6 @@ const metadataSchema = z
   })
   .strict();
 
-
-
 export const specSchema = z.object({}).strict();
 
 export const schema = z
@@ -85,7 +89,10 @@ export const schema = z
   .strict();
 
 export type PersonnelListEnvelope = z.infer<typeof schema>;
-export type PersonnelListInput = Omit<PersonnelListEnvelope, "apiVersion" | "kind">;
+export type PersonnelListInput = Omit<
+  PersonnelListEnvelope,
+  "apiVersion" | "kind"
+>;
 
 function parsePersonnelList(value: unknown): PersonnelListEnvelope {
   const result = schema.safeParse(value);
@@ -109,9 +116,14 @@ async function readPersonnelList(
 ): Promise<PersonnelListEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "PersonnelList") {
-    throw new Error(`PersonnelList ref.kind ${ref.kind} does not match expected kind PersonnelList: ${ref.filePath}`);
+    throw new Error(
+      `PersonnelList ref.kind ${ref.kind} does not match expected kind PersonnelList: ${ref.filePath}`,
+    );
   }
-  const { contents, document } = await readYamlDocumentFile(ref.filePath, "PersonnelList");
+  const { contents, document } = await readYamlDocumentFile(
+    ref.filePath,
+    "PersonnelList",
+  );
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
     throw new Error(`PersonnelList sha256 mismatch: ${ref.filePath}`);
   }

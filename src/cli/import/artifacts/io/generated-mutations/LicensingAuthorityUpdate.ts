@@ -14,7 +14,6 @@ import {
 } from "../../../../../shared/io/internal/yaml-document.js";
 import { LicensingAuthoritySpec } from "../../../../../shared/io/generated/entity-specs.js";
 
-
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -50,15 +49,22 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "LicensingAuthorityUpdate"} ref requires relativeTo.`);
+  if (
+    options.relativeTo === undefined ||
+    options.relativeTo.trim().length === 0
+  ) {
+    throw new Error(
+      `Relative ${ref.kind ?? "LicensingAuthorityUpdate"} ref requires relativeTo.`,
+    );
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "LicensingAuthorityUpdate"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(
+      `${ref.kind ?? "LicensingAuthorityUpdate"} ref.path escapes its directory: ${ref.path}`,
+    );
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -72,10 +78,24 @@ const metadataSchema = z
   })
   .strict();
 
-
-const fieldSchemas = (LicensingAuthoritySpec as z.ZodObject<z.ZodRawShape>).shape;
+const fieldSchemas = (LicensingAuthoritySpec as z.ZodObject<z.ZodRawShape>)
+  .shape;
 const fieldNames = Object.keys(fieldSchemas);
-const fieldSchemaByName: Record<string, { safeParse(value: unknown): { success: true } | { success: false; error: z.ZodError } }> = fieldSchemas as unknown as Record<string, { safeParse(value: unknown): { success: true } | { success: false; error: z.ZodError } }>;
+const fieldSchemaByName: Record<
+  string,
+  {
+    safeParse(
+      value: unknown,
+    ): { success: true } | { success: false; error: z.ZodError };
+  }
+> = fieldSchemas as unknown as Record<
+  string,
+  {
+    safeParse(
+      value: unknown,
+    ): { success: true } | { success: false; error: z.ZodError };
+  }
+>;
 
 const mutationOperationSourceSchema = z
   .object({
@@ -90,7 +110,9 @@ const mutationOperationSourceSchema = z
   })
   .strict();
 
-const mutationOperationEvidenceSchema = z.array(z.record(z.string(), z.unknown()));
+const mutationOperationEvidenceSchema = z.array(
+  z.record(z.string(), z.unknown()),
+);
 
 const mutationOperationBaseSchema = z
   .object({
@@ -107,18 +129,23 @@ const mutationOperationBaseSchema = z
   })
   .strict();
 
-const operationSchema = z.union([
-  mutationOperationBaseSchema.extend({
-    action: z.literal("set"),
-    from: z.unknown(),
-    to: z.unknown(),
-  }).strict(),
-  mutationOperationBaseSchema.extend({
-    action: z.literal("check"),
-    value: z.unknown(),
-  }).strict(),
-]).superRefine(
-  (operation, context) => {
+const operationSchema = z
+  .union([
+    mutationOperationBaseSchema
+      .extend({
+        action: z.literal("set"),
+        from: z.unknown(),
+        to: z.unknown(),
+      })
+      .strict(),
+    mutationOperationBaseSchema
+      .extend({
+        action: z.literal("check"),
+        value: z.unknown(),
+      })
+      .strict(),
+  ])
+  .superRefine((operation, context) => {
     if (operation.path.includes(".")) {
       context.addIssue({
         code: "custom",
@@ -157,9 +184,7 @@ const operationSchema = z.union([
         context.addIssue({ ...issue, path: ["value", ...issue.path] });
       }
     }
-  },
-);
-
+  });
 
 export const specSchema = z
   .object({
@@ -177,9 +202,14 @@ export const schema = z
   .strict();
 
 export type LicensingAuthorityUpdateEnvelope = z.infer<typeof schema>;
-export type LicensingAuthorityUpdateInput = Omit<LicensingAuthorityUpdateEnvelope, "apiVersion" | "kind">;
+export type LicensingAuthorityUpdateInput = Omit<
+  LicensingAuthorityUpdateEnvelope,
+  "apiVersion" | "kind"
+>;
 
-function parseLicensingAuthorityUpdate(value: unknown): LicensingAuthorityUpdateEnvelope {
+function parseLicensingAuthorityUpdate(
+  value: unknown,
+): LicensingAuthorityUpdateEnvelope {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new Error(formatError(result.error));
@@ -187,7 +217,9 @@ function parseLicensingAuthorityUpdate(value: unknown): LicensingAuthorityUpdate
   return result.data;
 }
 
-function newLicensingAuthorityUpdate(input: LicensingAuthorityUpdateInput): LicensingAuthorityUpdateEnvelope {
+function newLicensingAuthorityUpdate(
+  input: LicensingAuthorityUpdateInput,
+): LicensingAuthorityUpdateEnvelope {
   return parseLicensingAuthorityUpdate({
     apiVersion: INTAKE_API_VERSION,
     kind: "LicensingAuthorityUpdate",
@@ -201,11 +233,18 @@ async function readLicensingAuthorityUpdate(
 ): Promise<LicensingAuthorityUpdateEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "LicensingAuthorityUpdate") {
-    throw new Error(`LicensingAuthorityUpdate ref.kind ${ref.kind} does not match expected kind LicensingAuthorityUpdate: ${ref.filePath}`);
+    throw new Error(
+      `LicensingAuthorityUpdate ref.kind ${ref.kind} does not match expected kind LicensingAuthorityUpdate: ${ref.filePath}`,
+    );
   }
-  const { contents, document } = await readYamlDocumentFile(ref.filePath, "LicensingAuthorityUpdate");
+  const { contents, document } = await readYamlDocumentFile(
+    ref.filePath,
+    "LicensingAuthorityUpdate",
+  );
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
-    throw new Error(`LicensingAuthorityUpdate sha256 mismatch: ${ref.filePath}`);
+    throw new Error(
+      `LicensingAuthorityUpdate sha256 mismatch: ${ref.filePath}`,
+    );
   }
   const envelope = parseLicensingAuthorityUpdate(document);
   if (

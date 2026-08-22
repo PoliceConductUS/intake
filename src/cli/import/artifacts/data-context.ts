@@ -10,6 +10,7 @@ import {
   nameCaseResolverNullable,
   lowerCaseEmailResolverNullable,
   passthroughResolver,
+  facadeStateLocationPathResolver,
   valueAsString,
   ResolvingFacade,
   type PropertyResolutionFacade,
@@ -65,6 +66,21 @@ import {
   type FederalAgencyBranchRow,
   type FederalAgencyBranchEnvelope,
 } from "./facades/federal-agency-branch.js";
+import {
+  createCivilCaseFacade,
+  type CivilCaseRow,
+  type CivilCaseEnvelope,
+} from "./facades/civil-case.js";
+import {
+  createCivilCaseOfficerFacade,
+  type CivilCaseOfficerRow,
+  type CivilCaseOfficerEnvelope,
+} from "./facades/civil-case-officer.js";
+import {
+  createCivilCaseLinkFacade,
+  type CivilCaseLinkRow,
+  type CivilCaseLinkEnvelope,
+} from "./facades/civil-case-link.js";
 import {
   LocationPathSpec,
   RECORD_KINDS_IN_DEPENDENCY_ORDER,
@@ -383,34 +399,6 @@ function licensingAuthorityCanonicalIdResolver(): Resolver<
   );
 }
 
-/** `location_path_id` resolve-or-fail resolver (ADR 0006/0015). */
-function licensingAuthorityLocationPathResolver(): Resolver<
-  string,
-  ResolverContext<LicensingAuthorityRowShape, LicensingAuthorityResolverBackend>
-> {
-  return new Resolver(async ({ facade, source, backend }) => {
-    // The source supplies a namespace-LOCAL state value (e.g. "tx"); map it to
-    // the path `/<state>/` and resolve against the location hierarchy.
-    const state = valueAsString(facade.raw("location_path_id"));
-    if (state === undefined) {
-      throw new Error(
-        `Cannot resolve location_path_id for LicensingAuthority ${source.namespace}/${source.name}; source location_path_id is missing.`,
-      );
-    }
-    const path = `/${state.toLowerCase()}/`;
-    const locationPath = await backend.getLocationPathByPath(path);
-    if (locationPath === undefined) {
-      // Resolve-or-fail: a location_path is never minted (ADR 0006).
-      throw new Error(
-        `Cannot resolve location_path_id for LicensingAuthority ${source.namespace}/${source.name}; source value ${JSON.stringify(
-          state,
-        )} does not match an imported location_path at ${path}.`,
-      );
-    }
-    return locationPath.location_path_id;
-  });
-}
-
 export class LicensingAuthorityFacade implements PropertyResolutionFacade<LicensingAuthorityRowShape> {
   private static readonly kind = "LicensingAuthority";
   private readonly current?: Record<string, unknown>;
@@ -434,7 +422,10 @@ export class LicensingAuthorityFacade implements PropertyResolutionFacade<Licens
     this.backend = options.backend;
     this.resolvers = {
       id: licensingAuthorityCanonicalIdResolver(),
-      location_path_id: licensingAuthorityLocationPathResolver(),
+      location_path_id: facadeStateLocationPathResolver<
+        LicensingAuthorityRowShape,
+        LicensingAuthorityResolverBackend
+      >("LicensingAuthority"),
     };
   }
 
@@ -2597,6 +2588,18 @@ export class DataContext {
     string,
     EntityFacade<FederalAgencyBranchRow, FederalAgencyBranchEnvelope>
   >();
+  private readonly civilCaseFacades = new Map<
+    string,
+    EntityFacade<CivilCaseRow, CivilCaseEnvelope>
+  >();
+  private readonly civilCaseOfficerFacades = new Map<
+    string,
+    EntityFacade<CivilCaseOfficerRow, CivilCaseOfficerEnvelope>
+  >();
+  private readonly civilCaseLinkFacades = new Map<
+    string,
+    EntityFacade<CivilCaseLinkRow, CivilCaseLinkEnvelope>
+  >();
   // First-import snapshots for the discipline/coverage kinds are empty (blank
   // tables); re-import snapshot loading is a later addition.
   private readonly disciplineById = new Map<string, Record<string, unknown>>();
@@ -2621,6 +2624,15 @@ export class DataContext {
     Record<string, unknown>
   >();
   private readonly federalAgencyBranchById = new Map<
+    string,
+    Record<string, unknown>
+  >();
+  private readonly civilCaseById = new Map<string, Record<string, unknown>>();
+  private readonly civilCaseOfficerById = new Map<
+    string,
+    Record<string, unknown>
+  >();
+  private readonly civilCaseLinkById = new Map<
     string,
     Record<string, unknown>
   >();
@@ -3358,6 +3370,7 @@ export class DataContext {
       findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
       getCurrentById: async (id) => databaseCurrentById.get(id),
       findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
+      getLocationPathByPath: (path) => this.locationPaths.getByPath(path),
     };
   }
 
@@ -3548,6 +3561,81 @@ export class DataContext {
     return facade;
   }
 
+  civilCaseFromSource(
+    input: SourceRecordContext,
+  ): EntityFacade<CivilCaseRow, CivilCaseEnvelope> {
+    validateSourceRecordContext(input);
+    const key = [
+      input.apiVersion,
+      input.namespace,
+      "CivilCase",
+      input.name,
+    ].join(":");
+    const existing = this.civilCaseFacades.get(key);
+    if (existing !== undefined) {
+      if (input.spec !== undefined) existing.merge(input.spec);
+      return existing;
+    }
+    const facade = createCivilCaseFacade({
+      current: input.current,
+      source: this.entityFacadeSource(input),
+      backend: this.entityFacadeBackend(this.civilCaseById),
+    });
+    if (input.spec !== undefined) facade.merge(input.spec);
+    this.civilCaseFacades.set(key, facade);
+    return facade;
+  }
+
+  civilCaseOfficerFromSource(
+    input: SourceRecordContext,
+  ): EntityFacade<CivilCaseOfficerRow, CivilCaseOfficerEnvelope> {
+    validateSourceRecordContext(input);
+    const key = [
+      input.apiVersion,
+      input.namespace,
+      "CivilCaseOfficer",
+      input.name,
+    ].join(":");
+    const existing = this.civilCaseOfficerFacades.get(key);
+    if (existing !== undefined) {
+      if (input.spec !== undefined) existing.merge(input.spec);
+      return existing;
+    }
+    const facade = createCivilCaseOfficerFacade({
+      current: input.current,
+      source: this.entityFacadeSource(input),
+      backend: this.entityFacadeBackend(this.civilCaseOfficerById),
+    });
+    if (input.spec !== undefined) facade.merge(input.spec);
+    this.civilCaseOfficerFacades.set(key, facade);
+    return facade;
+  }
+
+  civilCaseLinkFromSource(
+    input: SourceRecordContext,
+  ): EntityFacade<CivilCaseLinkRow, CivilCaseLinkEnvelope> {
+    validateSourceRecordContext(input);
+    const key = [
+      input.apiVersion,
+      input.namespace,
+      "CivilCaseLink",
+      input.name,
+    ].join(":");
+    const existing = this.civilCaseLinkFacades.get(key);
+    if (existing !== undefined) {
+      if (input.spec !== undefined) existing.merge(input.spec);
+      return existing;
+    }
+    const facade = createCivilCaseLinkFacade({
+      current: input.current,
+      source: this.entityFacadeSource(input),
+      backend: this.entityFacadeBackend(this.civilCaseLinkById),
+    });
+    if (input.spec !== undefined) facade.merge(input.spec);
+    this.civilCaseLinkFacades.set(key, facade);
+    return facade;
+  }
+
   /**
    * Same-source foreign-key FIND (ADR 0016 #4/#9): return an already-emitted
    * target facade as an id-resolvable reference, or undefined when none exists.
@@ -3600,6 +3688,9 @@ export class DataContext {
     if (input.kind === "FederalAgency") {
       return this.federalAgencyFacades.get(key);
     }
+    if (input.kind === "CivilCase") {
+      return this.civilCaseFacades.get(key);
+    }
     return undefined;
   }
 
@@ -3628,6 +3719,9 @@ export class DataContext {
       | AgencyPhoneNumberEnvelope
       | FederalAgencyEnvelope
       | FederalAgencyBranchEnvelope
+      | CivilCaseEnvelope
+      | CivilCaseOfficerEnvelope
+      | CivilCaseLinkEnvelope
     )[]
   > {
     // Drain in FK-dependency order (ADR 0016 #4/#9): paths before aliases — a
@@ -3711,6 +3805,20 @@ export class DataContext {
         facade.toMutation(),
       ),
     );
+    // Civil cases before their officers/links (FK targets).
+    const civilCases = await Promise.all(
+      [...this.civilCaseFacades.values()].map((facade) => facade.toMutation()),
+    );
+    const civilCaseOfficers = await Promise.all(
+      [...this.civilCaseOfficerFacades.values()].map((facade) =>
+        facade.toMutation(),
+      ),
+    );
+    const civilCaseLinks = await Promise.all(
+      [...this.civilCaseLinkFacades.values()].map((facade) =>
+        facade.toMutation(),
+      ),
+    );
     return [
       // Paths + aliases first: FK targets for the entities below, dependents of none.
       ...locationPaths,
@@ -3731,6 +3839,9 @@ export class DataContext {
       ...agencyPhoneNumbers,
       ...federalAgencies,
       ...federalAgencyBranches,
+      ...civilCases,
+      ...civilCaseOfficers,
+      ...civilCaseLinks,
     ];
   }
 

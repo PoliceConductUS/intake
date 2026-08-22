@@ -297,6 +297,45 @@ export function valueAsString(value: unknown): string | undefined {
     : undefined;
 }
 
+/**
+ * The capability a state→location_path resolver reaches through: resolve an
+ * existing location_path by its `/state/` path (resolve-or-fail, never mints).
+ */
+export type LocationPathByPathBackend = {
+  getLocationPathByPath(
+    path: string,
+  ): Promise<{ location_path_id: string } | undefined>;
+};
+
+/**
+ * `location_path_id` resolve-or-fail resolver (ADR 0006/0015): the source supplies
+ * a namespace-local state value (e.g. "tx"); map it to `/<state>/` and resolve
+ * against the imported location hierarchy. Never mints a location_path.
+ */
+export function facadeStateLocationPathResolver<
+  Row,
+  Backend extends LocationPathByPathBackend = LocationPathByPathBackend,
+>(entityKind: string): Resolver<string, ResolverContext<Row, Backend>> {
+  return new Resolver(async ({ facade, source, backend }) => {
+    const state = valueAsString(facade.raw("location_path_id" as keyof Row));
+    if (state === undefined) {
+      throw new Error(
+        `Cannot resolve location_path_id for ${entityKind} ${source.namespace}/${source.name}; source location_path_id is missing.`,
+      );
+    }
+    const path = `/${state.toLowerCase()}/`;
+    const locationPath = await backend.getLocationPathByPath(path);
+    if (locationPath === undefined) {
+      throw new Error(
+        `Cannot resolve location_path_id for ${entityKind} ${source.namespace}/${source.name}; source value ${JSON.stringify(
+          state,
+        )} does not match an imported location_path at ${path}.`,
+      );
+    }
+    return locationPath.location_path_id;
+  });
+}
+
 /** Canonical-id find-or-create resolver for an entity `kind` (ADR 0016 #4). */
 export function facadeCanonicalIdResolver<
   Row,

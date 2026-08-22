@@ -16,6 +16,9 @@ import {
 export type EntityFacadeBackend = CanonicalIdBackend &
   ForeignKeyBackend & {
     getCurrentById(id: string): Promise<Record<string, unknown> | undefined>;
+    getLocationPathByPath(
+      path: string,
+    ): Promise<{ location_path_id: string } | undefined>;
   };
 
 /** Per-property resolvers for a facade's row (ADR 0016). */

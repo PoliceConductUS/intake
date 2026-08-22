@@ -13,7 +13,6 @@ import {
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
 
-
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -49,15 +48,22 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "LocationPathGeometryList"} ref requires relativeTo.`);
+  if (
+    options.relativeTo === undefined ||
+    options.relativeTo.trim().length === 0
+  ) {
+    throw new Error(
+      `Relative ${ref.kind ?? "LocationPathGeometryList"} ref requires relativeTo.`,
+    );
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "LocationPathGeometryList"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(
+      `${ref.kind ?? "LocationPathGeometryList"} ref.path escapes its directory: ${ref.path}`,
+    );
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -71,8 +77,6 @@ const metadataSchema = z
   })
   .strict();
 
-
-
 export const specSchema = z.object({}).strict();
 
 export const schema = z
@@ -85,9 +89,14 @@ export const schema = z
   .strict();
 
 export type LocationPathGeometryListEnvelope = z.infer<typeof schema>;
-export type LocationPathGeometryListInput = Omit<LocationPathGeometryListEnvelope, "apiVersion" | "kind">;
+export type LocationPathGeometryListInput = Omit<
+  LocationPathGeometryListEnvelope,
+  "apiVersion" | "kind"
+>;
 
-function parseLocationPathGeometryList(value: unknown): LocationPathGeometryListEnvelope {
+function parseLocationPathGeometryList(
+  value: unknown,
+): LocationPathGeometryListEnvelope {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new Error(formatError(result.error));
@@ -95,7 +104,9 @@ function parseLocationPathGeometryList(value: unknown): LocationPathGeometryList
   return result.data;
 }
 
-function newLocationPathGeometryList(input: LocationPathGeometryListInput): LocationPathGeometryListEnvelope {
+function newLocationPathGeometryList(
+  input: LocationPathGeometryListInput,
+): LocationPathGeometryListEnvelope {
   return parseLocationPathGeometryList({
     apiVersion: INTAKE_API_VERSION,
     kind: "LocationPathGeometryList",
@@ -109,11 +120,18 @@ async function readLocationPathGeometryList(
 ): Promise<LocationPathGeometryListEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "LocationPathGeometryList") {
-    throw new Error(`LocationPathGeometryList ref.kind ${ref.kind} does not match expected kind LocationPathGeometryList: ${ref.filePath}`);
+    throw new Error(
+      `LocationPathGeometryList ref.kind ${ref.kind} does not match expected kind LocationPathGeometryList: ${ref.filePath}`,
+    );
   }
-  const { contents, document } = await readYamlDocumentFile(ref.filePath, "LocationPathGeometryList");
+  const { contents, document } = await readYamlDocumentFile(
+    ref.filePath,
+    "LocationPathGeometryList",
+  );
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
-    throw new Error(`LocationPathGeometryList sha256 mismatch: ${ref.filePath}`);
+    throw new Error(
+      `LocationPathGeometryList sha256 mismatch: ${ref.filePath}`,
+    );
   }
   const envelope = parseLocationPathGeometryList(document);
   if (
