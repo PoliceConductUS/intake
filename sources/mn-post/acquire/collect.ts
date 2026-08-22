@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { parse as parseCsv } from "csv-parse/sync";
 import type { AgencyIdCache } from "./agency-id-cache.js";
@@ -36,8 +36,12 @@ export type AgencyCsv = { body: string; citation: unknown };
 export type PostClient = {
   searchAgency(agencyName: string): Promise<AgencyMatchResult>;
   fetchOfficerList(agencyId: string): Promise<OfficerRow[]>;
-  fetchOfficerDetail(officer: OfficerRow): Promise<OfficerDetail>;
+  fetchOfficerDetails(officers: OfficerRow[]): Promise<OfficerDetail[]>;
 };
+
+// An agency's officers are fetched in one batched Aura request, capped so a very
+// large agency chunks instead of sending one oversized payload.
+const OFFICER_DETAIL_BATCH = 25;
 
 export type CollectLogger = { info: (message: string) => void };
 const silentLogger: CollectLogger = { info() {} };
@@ -135,10 +139,8 @@ export async function collectSources({
       `mn-post: ${position} ${agencyName} — ${roster.length} officers`,
     );
 
-    let processed = 0;
-    let detailsFetched = 0;
+    const pending: Array<{ officer: OfficerRow; detailPath: string }> = [];
     for (const officer of roster) {
-      processed += 1;
       const licenseId = asNonEmptyString(officer.licenseId);
       if (licenseId === null) {
         skippedOfficers.push({
@@ -146,23 +148,30 @@ export async function collectSources({
           officer: describeOfficer(officer),
           reason: "roster row is missing a licenseId",
         });
-      } else {
-        const detailPath = path.join(
-          officersDir,
-          `${artifactStem(licenseId)}.detail.json`,
-        );
-        if ((await readTextIfExists(detailPath)) === null) {
-          await writeJson(detailPath, await client.fetchOfficerDetail(officer));
-          detailsFetched += 1;
-        }
+        continue;
       }
-      // Heartbeat only while actively fetching, so a resumed (cached) agency
-      // stays quiet.
-      if (processed % 50 === 0 && detailsFetched > 0) {
-        logger.info(
-          `mn-post: ${position} ${agencyName} — ${processed}/${roster.length} officers`,
-        );
+      const detailPath = path.join(
+        officersDir,
+        `${artifactStem(licenseId)}.detail.json`,
+      );
+      if (!(await fileExists(detailPath))) {
+        pending.push({ officer, detailPath });
       }
+    }
+
+    for (let start = 0; start < pending.length; start += OFFICER_DETAIL_BATCH) {
+      const batch = pending.slice(start, start + OFFICER_DETAIL_BATCH);
+      const details = await client.fetchOfficerDetails(
+        batch.map((entry) => entry.officer),
+      );
+      await Promise.all(
+        batch.map((entry, index) =>
+          writeJson(entry.detailPath, details[index]),
+        ),
+      );
+      logger.info(
+        `mn-post: ${position} ${agencyName} — ${start + batch.length}/${pending.length} officer details`,
+      );
     }
   }
 
@@ -206,6 +215,15 @@ function asNonEmptyString(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed === "" ? null : trimmed;
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function readTextIfExists(filePath: string): Promise<string | null> {

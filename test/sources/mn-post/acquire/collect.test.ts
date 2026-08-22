@@ -22,6 +22,25 @@ async function makeSourceDir(): Promise<string> {
   return path.join(dir, "source");
 }
 
+// Production-shaped fixtures: a roster row and an officer detail as the POST
+// site returns them.
+const sampleOfficer = {
+  status: "Active",
+  originalLicenseIssueDate: "2010-05-01",
+  name: "Smith, John Robert",
+  licenseType: "Peace Officer",
+  licenseNumber: "12527",
+  licenseId: "a2j40000000cso1AAA",
+  isCLEO: false,
+  contactId: "0034000001mtIB3AAM",
+};
+const noDisciplineDetail = {
+  education: [],
+  disciplinaryActions: "No POST Disciplinary Actions found",
+  activeEmployment: [],
+  licenses: [],
+};
+
 function fakeClient(overrides: Partial<PostClient> = {}): PostClient {
   return {
     searchAgency: vi.fn(async (agencyName: string) => ({
@@ -29,12 +48,10 @@ function fakeClient(overrides: Partial<PostClient> = {}): PostClient {
       candidateMatches: [],
       matches: [],
     })),
-    fetchOfficerList: vi.fn(async () => [
-      { contactId: "c1", licenseId: "lic1", name: "Smith, John" },
-    ]),
-    fetchOfficerDetail: vi.fn(async () => ({
-      disciplinaryActions: "No POST Disciplinary Actions found",
-    })),
+    fetchOfficerList: vi.fn(async () => [sampleOfficer]),
+    fetchOfficerDetails: vi.fn(async (officers) =>
+      officers.map(() => ({ ...noDisciplineDetail })),
+    ),
     ...overrides,
   };
 }
@@ -74,10 +91,13 @@ describe("collectSources", () => {
     expect(rosters).toHaveLength(1);
     expect(
       JSON.parse(await readFile(path.join(officersDir, rosters[0]), "utf8")),
-    ).toEqual([{ contactId: "c1", licenseId: "lic1", name: "Smith, John" }]);
+    ).toEqual([sampleOfficer]);
 
     const details = await filesEndingWith(officersDir, ".detail.json");
     expect(details).toHaveLength(1);
+    expect(
+      JSON.parse(await readFile(path.join(officersDir, details[0]), "utf8")),
+    ).toEqual(noDisciplineDetail);
     expect(client.fetchOfficerList).toHaveBeenCalledWith(
       "id-Alpha Police Dept.",
     );
@@ -103,7 +123,7 @@ describe("collectSources", () => {
 
     expect(fetchAgencyCsv).toHaveBeenCalledTimes(1);
     expect(client.fetchOfficerList).toHaveBeenCalledTimes(1);
-    expect(client.fetchOfficerDetail).toHaveBeenCalledTimes(1);
+    expect(client.fetchOfficerDetails).toHaveBeenCalledTimes(1);
   });
 
   it("skips (and reports) an agency the cache cannot resolve", async () => {
@@ -154,11 +174,15 @@ describe("collectSources", () => {
 
   it("skips (and reports) a roster officer missing a licenseId", async () => {
     const sourceDir = await makeSourceDir();
+    const withLicense = { ...sampleOfficer, name: "Has, License" };
+    const withoutLicense = {
+      ...sampleOfficer,
+      name: "No, License",
+      contactId: "0034000001noLICaa",
+      licenseId: undefined,
+    };
     const client = fakeClient({
-      fetchOfficerList: vi.fn(async () => [
-        { contactId: "c1", licenseId: "lic1", name: "Has, License" },
-        { contactId: "c2", name: "No, License" },
-      ]),
+      fetchOfficerList: vi.fn(async () => [withLicense, withoutLicense]),
     });
     const result = await collectSources({
       sourceDir,
@@ -167,7 +191,8 @@ describe("collectSources", () => {
       cache: fakeCache(),
       client,
     });
-    expect(client.fetchOfficerDetail).toHaveBeenCalledTimes(1);
+    // only the licensed officer is batched for detail fetching
+    expect(client.fetchOfficerDetails).toHaveBeenCalledWith([withLicense]);
     expect(result.skippedOfficers).toEqual([
       {
         agencyName: "Alpha Police Dept.",

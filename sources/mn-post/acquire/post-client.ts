@@ -180,40 +180,58 @@ export async function createPostLicenseSearchClient({
       );
       return officers;
     },
-    async fetchOfficerDetail(officer: OfficerRow): Promise<OfficerDetail> {
-      const [education, disciplinaryActions, activeEmployment, licenses] =
-        await executeApexActions([
-          {
-            classname: "POSTSearchEducation",
-            method: "getOfficerEducation",
-            params: { contactId: officer.contactId },
-            cacheable: true,
-          },
-          {
-            classname: "POSTSearch",
-            method: "getOfficerDisciplinaryActions",
-            params: { contactId: officer.contactId },
-            cacheable: true,
-          },
-          {
-            classname: "POSTSearch",
-            method: "getOfficerActiveEmployment",
-            params: { licensePOId: officer.licenseId },
-            cacheable: true,
-          },
-          {
-            classname: "POSTSearch",
-            method: "getOfficerLicenses",
-            params: { contactId: officer.contactId },
-            cacheable: true,
-          },
-        ]);
-      return { education, disciplinaryActions, activeEmployment, licenses };
+    async fetchOfficerDetails(
+      officers: OfficerRow[],
+    ): Promise<OfficerDetail[]> {
+      if (officers.length === 0) return [];
+      const values = await executeApexActions(
+        officers.flatMap(officerDetailSpecs),
+      );
+      return officers.map((_, index) => {
+        const base = index * DETAIL_ACTIONS_PER_OFFICER;
+        return {
+          education: values[base],
+          disciplinaryActions: values[base + 1],
+          activeEmployment: values[base + 2],
+          licenses: values[base + 3],
+        };
+      });
     },
     async close(): Promise<void> {
       await page.close();
     },
   };
+}
+
+const DETAIL_ACTIONS_PER_OFFICER = 4;
+
+function officerDetailSpecs(officer: OfficerRow): ApexActionSpec[] {
+  return [
+    {
+      classname: "POSTSearchEducation",
+      method: "getOfficerEducation",
+      params: { contactId: officer.contactId },
+      cacheable: true,
+    },
+    {
+      classname: "POSTSearch",
+      method: "getOfficerDisciplinaryActions",
+      params: { contactId: officer.contactId },
+      cacheable: true,
+    },
+    {
+      classname: "POSTSearch",
+      method: "getOfficerActiveEmployment",
+      params: { licensePOId: officer.licenseId },
+      cacheable: true,
+    },
+    {
+      classname: "POSTSearch",
+      method: "getOfficerLicenses",
+      params: { contactId: officer.contactId },
+      cacheable: true,
+    },
+  ];
 }
 
 export function parseApexActions(
