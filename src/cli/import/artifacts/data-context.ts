@@ -3856,10 +3856,12 @@ export class DataContext {
     const result = await this.databaseClient().query(
       `select row_to_json(o.*) as officer,
               row_to_json(a.*) as agency,
-              row_to_json(ao.*) as agency_officer
+              row_to_json(ao.*) as agency_officer,
+              row_to_json(lp.*) as location_path
        from agency_officers ao
        join officers o on o.id = ao.officer_id
        join agency a on a.id = ao.agency_id
+       left join location_path lp on lp.location_path_id = a.location_path_id
        where a.state = $1 and (${likeClauses})`,
       [state, ...tokens.map((token) => `%${token}%`)],
     );
@@ -3868,10 +3870,6 @@ export class DataContext {
       (row) => {
         const officer = (row.officer ?? {}) as Record<string, unknown>;
         const agency = (row.agency ?? {}) as Record<string, unknown>;
-        const agencyOfficerRow = (row.agency_officer ?? {}) as Record<
-          string,
-          unknown
-        >;
         const candidate = [
           officer.first_name,
           officer.middle_name,
@@ -3884,11 +3882,21 @@ export class DataContext {
           agencyName,
           String(agency.name ?? ""),
         );
+        const locationPath = row.location_path as
+          | Record<string, unknown>
+          | null
+          | undefined;
         return {
           confidence: officerConfidence * 0.6 + agencyConfidence * 0.4,
-          officerConfidence,
-          agencyConfidence,
-          agencyOfficer: { ...agencyOfficerRow, agency, officer },
+          agency: { confidence: agencyConfidence, record: agency },
+          officer: { confidence: officerConfidence, record: officer },
+          agencyOfficer: {
+            record: (row.agency_officer ?? {}) as Record<string, unknown>,
+          },
+          locationPath:
+            locationPath === null || locationPath === undefined
+              ? null
+              : { record: locationPath },
         };
       },
     );
@@ -3906,16 +3914,21 @@ export type AgencyOfficerSearch = {
   topN: number;
 };
 
-export type ResolvedAgencyOfficer = Record<string, unknown> & {
-  agency: Record<string, unknown>;
-  officer: Record<string, unknown>;
+export type ScoredRecord = {
+  confidence: number;
+  record: Record<string, unknown>;
+};
+
+export type SearchRecord = {
+  record: Record<string, unknown>;
 };
 
 export type AgencyOfficerSearchResult = {
   confidence: number;
-  officerConfidence: number;
-  agencyConfidence: number;
-  agencyOfficer: ResolvedAgencyOfficer;
+  agency: ScoredRecord;
+  officer: ScoredRecord;
+  agencyOfficer: SearchRecord;
+  locationPath: SearchRecord | null;
 };
 
 export type AgencyOfficerSearchResults = {
