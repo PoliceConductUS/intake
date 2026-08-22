@@ -35,8 +35,7 @@ export async function createCommandDirectory(
   const commandName = (options.createCommandName ?? createId)();
   const commandDirectory = path.join(
     workspace,
-    "intake",
-    "commands",
+    "command",
     `${timestampForPath(options.now ?? new Date())}-${encodeURIComponent(commandName)}`,
   );
 
@@ -56,7 +55,7 @@ export async function createCommandDirectory(
       spec: {
         statePath: path.relative(
           commandDirectory,
-          path.join(workspace, "intake", "state"),
+          path.join(workspace, "state"),
         ),
         path: ".",
         sharedIoRoot:
@@ -69,4 +68,18 @@ export async function createCommandDirectory(
   );
 
   return { commandDirectory, commandName, commandPath: command.path };
+}
+
+export function commandOutputDir(
+  commandDirectory: string,
+  namespace: string,
+): string {
+  return path.join(commandDirectory, namespace, "output");
+}
+
+export function commandNamespaceStateDir(
+  commandDirectory: string,
+  namespace: string,
+): string {
+  return path.join(commandDirectory, namespace, "state");
 }

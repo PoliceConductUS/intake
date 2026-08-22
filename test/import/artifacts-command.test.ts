@@ -298,8 +298,7 @@ describe("importArtifacts", () => {
     const artifactsPath = await writeSourceArtifactsFile(rootDir);
     const existingPath = path.join(
       rootDir,
-      "intake",
-      "commands",
+      "command",
       `2026-06-08T00-00-00-000Z-${replayImportArtifactsId}`,
       yamlResourceFileName(replayImportArtifactsId, "DatabaseMutations"),
     );
@@ -324,8 +323,7 @@ describe("importArtifacts", () => {
       commandName: "test-command",
       commandDirectory: path.join(
         rootDir,
-        "intake",
-        "commands",
+        "command",
         "2026-06-08T00-00-00-000Z-test-command",
       ),
     });
@@ -346,8 +344,7 @@ describe("importArtifacts", () => {
     const artifacts = await Artifacts.read(artifactsPath);
     const commandDirectory = path.join(
       rootDir,
-      "intake",
-      "commands",
+      "command",
       `2026-06-08T00-00-00-000Z-${runId}`,
     );
     const runContext = new DataContext({
@@ -385,17 +382,17 @@ describe("importArtifacts", () => {
     );
 
     expect(replayImportArtifacts?.path).toContain(
-      path.join(rootDir, "intake", "commands"),
+      path.join(rootDir, "command"),
     );
     expect(path.dirname(replayImportArtifacts!.path)).toMatch(
       new RegExp(
-        `${path.join(rootDir, "intake", "commands").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/\\d{4}-\\d{2}-\\d{2}T.*-${runId}$`,
+        `${path.join(rootDir, "command").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/\\d{4}-\\d{2}-\\d{2}T.*-${runId}$`,
       ),
     );
     expect(path.basename(replayImportArtifacts!.path)).toBe(
       yamlResourceFileName(runId, "DatabaseMutations"),
     );
-    const commandRoot = path.join(rootDir, "intake", "commands");
+    const commandRoot = path.join(rootDir, "command");
     const [commandFolder] = await readdir(commandRoot);
     const parsedImportArtifacts = await DatabaseMutations.read(
       path.join(
@@ -430,12 +427,7 @@ describe("importArtifacts", () => {
     const artifactsPath = await writeSourceArtifactsFile(rootDir);
     const artifacts = await Artifacts.read(artifactsPath);
     const replayImportArtifactsArtifact = await DatabaseMutations.write(
-      path.join(
-        rootDir,
-        "intake",
-        "commands",
-        "2026-06-08T00-00-00-000Z-test-command",
-      ),
+      path.join(rootDir, "command", "2026-06-08T00-00-00-000Z-test-command"),
       DatabaseMutations.new({
         metadata: {
           namespace: artifacts.metadata.namespace,
@@ -472,12 +464,7 @@ describe("importArtifacts", () => {
     );
 
     const replayImportArtifacts = await DatabaseMutations.write(
-      path.join(
-        rootDir,
-        "intake",
-        "commands",
-        "2026-06-08T00-00-00-000Z-test-command",
-      ),
+      path.join(rootDir, "command", "2026-06-08T00-00-00-000Z-test-command"),
       DatabaseMutations.new({
         metadata: {
           namespace: artifacts.metadata.namespace,
@@ -510,12 +497,7 @@ describe("importArtifacts", () => {
     const artifactsPath = await writeSourceArtifactsFile(rootDir);
     const artifacts = await Artifacts.read(artifactsPath);
     const replayImportArtifacts = await DatabaseMutationsDebug.write(
-      path.join(
-        rootDir,
-        "intake",
-        "commands",
-        `2026-06-08T00-00-00-000Z-${runId}`,
-      ),
+      path.join(rootDir, "command", `2026-06-08T00-00-00-000Z-${runId}`),
       DatabaseMutationsDebug.new({
         metadata: {
           namespace: artifacts.metadata.namespace,
@@ -569,12 +551,7 @@ describe("importArtifacts", () => {
     const rootDir = await mkdtemp(path.join(tmpdir(), "intake-run-debug-"));
     const runId = "tz4a98xxat96iws9zmbrgj3a";
     const replayImportArtifacts = await DatabaseMutationsDebug.write(
-      path.join(
-        rootDir,
-        "intake",
-        "commands",
-        `2026-06-08T00-00-00-000Z-${runId}`,
-      ),
+      path.join(rootDir, "command", `2026-06-08T00-00-00-000Z-${runId}`),
       DatabaseMutationsDebug.new({
         metadata: {
           namespace: "mn-post",
@@ -619,12 +596,7 @@ describe("importArtifacts", () => {
     const artifactsPath = await writeSourceArtifactsFile(rootDir);
     const artifacts = await Artifacts.read(artifactsPath);
     const replayImportArtifacts = await DatabaseMutations.write(
-      path.join(
-        rootDir,
-        "intake",
-        "commands",
-        "2026-06-08T00-00-00-000Z-test-command",
-      ),
+      path.join(rootDir, "command", "2026-06-08T00-00-00-000Z-test-command"),
       DatabaseMutations.new({
         metadata: {
           namespace: artifacts.metadata.namespace,
@@ -638,9 +610,9 @@ describe("importArtifacts", () => {
     );
 
     expect(replayImportArtifacts?.path).toContain(
-      path.join(rootDir, "intake", "commands"),
+      path.join(rootDir, "command"),
     );
-    const commandRoot = path.join(rootDir, "intake", "commands");
+    const commandRoot = path.join(rootDir, "command");
     await expect(readdir(commandRoot)).resolves.toHaveLength(1);
   });
 
@@ -650,7 +622,7 @@ describe("importArtifacts", () => {
     await writeFile(workspaceFile, "not a directory");
     const artifactsPath = await writeSourceArtifactsFile(rootDir);
     const artifacts = await Artifacts.read(artifactsPath);
-    const commandRoot = path.join(workspaceFile, "intake", "commands");
+    const commandRoot = path.join(workspaceFile, "command");
 
     await expect(
       DatabaseMutations.write(
@@ -703,15 +675,13 @@ describe("importArtifacts", () => {
 
     const logPath = path.join(
       workspace,
-      "intake",
-      "commands",
+      "command",
       "2026-06-10T00-00-00-000Z-tz4a98xxat96iws9zmbrgj3a",
       "tz4a98xxat96iws9zmbrgj3a.log",
     );
     const commandPath = path.join(
       workspace,
-      "intake",
-      "commands",
+      "command",
       "2026-06-10T00-00-00-000Z-tz4a98xxat96iws9zmbrgj3a",
       "tz4a98xxat96iws9zmbrgj3a.Command.yaml",
     );
@@ -835,8 +805,7 @@ describe("importArtifacts", () => {
 
     const logPath = path.join(
       workspace,
-      "intake",
-      "commands",
+      "command",
       "2026-06-10T00-00-00-000Z-tz4a98xxat96iws9zmbrgj3a",
       "tz4a98xxat96iws9zmbrgj3a.log",
     );

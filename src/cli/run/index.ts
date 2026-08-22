@@ -24,6 +24,7 @@ import { excludeManifestRecords } from "./exclude-records.js";
 import { createEmitSink } from "./emit-sink.js";
 import type { EmitRefItem, EmitSink } from "./emit-sink.js";
 import { matchSourceIds } from "../source-glob.js";
+import { readAcquirePointer } from "../acquire/acquire-pointer.js";
 
 type RunSourceDeps = {
   sourcesRoot: string;
@@ -78,11 +79,19 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** All non-hidden files under `<workspace>/<sourceId>/source/`, recursively. */
-async function sourceInputPaths(
+async function sourceInputDir(
   workspace: string,
   sourceId: string,
-): Promise<string[]> {
+): Promise<string> {
+  const { latest } = await readAcquirePointer(
+    path.join(workspace, "state", sourceId),
+  );
+  return latest === undefined
+    ? path.join(workspace, sourceId, "source")
+    : path.join(workspace, latest);
+}
+
+async function sourceInputPaths(inputDir: string): Promise<string[]> {
   const collect = async (dir: string): Promise<string[]> => {
     let entries;
     try {
@@ -99,7 +108,7 @@ async function sourceInputPaths(
     }
     return files;
   };
-  return (await collect(path.join(workspace, sourceId, "source"))).sort();
+  return (await collect(inputDir)).sort();
 }
 
 export async function runSource(
@@ -202,12 +211,13 @@ export const registerCliCommand: RegisterCliCommand = (
 
           const stdout: string[] = [];
           for (const sourceId of sourceIds) {
-            const paths = await sourceInputPaths(workspace, sourceId);
+            const inputDir = await sourceInputDir(workspace, sourceId);
+            const paths = await sourceInputPaths(inputDir);
             if (paths.length === 0) {
               dependencies.setResult({
                 exitCode: 1,
                 stdout: stdout.join(""),
-                stderr: `No input files for ${sourceId} at ${path.join(workspace, sourceId, "source")}\n`,
+                stderr: `No input files for ${sourceId} at ${inputDir}\n`,
               });
               return;
             }

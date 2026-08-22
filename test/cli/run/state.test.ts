@@ -13,9 +13,7 @@ describe("sourceStateDir", () => {
     const workspace = await tempDir();
     const dir = await sourceStateDir({ INTAKE_WORKSPACE: workspace }, "gov.x");
 
-    expect(dir).toBe(
-      path.join(workspace, "intake", "state", "sources", "gov.x"),
-    );
+    expect(dir).toBe(path.join(workspace, "state", "gov.x"));
     const stats = await stat(dir);
     expect(stats.isDirectory()).toBe(true);
   });
