@@ -6,7 +6,7 @@ import type {
   SourceAcquire,
 } from "../../src/cli/run/source-run.js";
 import { parseFederalLeAgencies, slugify } from "./acquire/parse.js";
-import { ORGS_FILE, mergeOrgs, type Org } from "./model.js";
+import { CANDIDATES_FILE, ORGS_FILE, type Org } from "./model.js";
 
 const DEFAULT_PAGE_URL =
   "https://en.wikipedia.org/wiki/List_of_United_States_federal_law_enforcement_agencies";
@@ -42,16 +42,25 @@ async function maintainOrgs(
   }));
 
   await mkdir(stateDir, { recursive: true });
-  const filePath = path.join(stateDir, ORGS_FILE);
-  const { orgs, added } = mergeOrgs(
-    await readExistingOrgs(filePath),
-    discovered,
+  await writeFile(
+    path.join(stateDir, CANDIDATES_FILE),
+    stringifyYaml({ agencies: discovered }),
   );
-  await writeFile(filePath, stringifyYaml({ agencies: orgs }));
+
+  const orgsPath = path.join(stateDir, ORGS_FILE);
+  if (!(await fileExists(orgsPath))) {
+    await writeFile(orgsPath, stringifyYaml({ agencies: discovered }));
+    log.info(
+      `federal-le: created ${ORGS_FILE} with ${discovered.length} agencies — trim it to the agencies you want`,
+    );
+    return;
+  }
+
+  const curated = await readExistingOrgs(orgsPath);
+  const curatedSlugs = new Set(curated.map((org) => org.slug));
+  const fresh = discovered.filter((org) => !curatedSlugs.has(org.slug));
   log.info(
-    added.length === 0
-      ? `federal-le: ${ORGS_FILE} already lists ${orgs.length} agencies`
-      : `federal-le: added ${added.length} agency/agencies to ${ORGS_FILE}`,
+    `federal-le: ${curated.length} curated agencies; ${fresh.length} new candidate(s) in ${CANDIDATES_FILE} to review`,
   );
 }
 

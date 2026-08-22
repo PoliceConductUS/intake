@@ -1,4 +1,5 @@
 export const ORGS_FILE = "federal-agencies.yaml";
+export const CANDIDATES_FILE = "federal-agencies.candidates.yaml";
 export const OFFICES_FILE = "offices.yaml";
 
 export type Org = {
@@ -15,23 +16,6 @@ export type Office = {
   address: string;
   zip_code: string;
 };
-
-export function mergeOrgs(
-  existing: readonly Org[],
-  discovered: readonly Org[],
-): { orgs: Org[]; added: string[] } {
-  const bySlug = new Map(existing.map((org) => [org.slug, org]));
-  const added: string[] = [];
-  for (const org of discovered) {
-    if (bySlug.has(org.slug)) continue;
-    bySlug.set(org.slug, org);
-    added.push(org.slug);
-  }
-  const orgs = [...bySlug.values()].sort((left, right) =>
-    left.slug.localeCompare(right.slug),
-  );
-  return { orgs, added };
-}
 
 export function officeIsComplete(office: Office): boolean {
   return (
