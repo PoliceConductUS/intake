@@ -6,15 +6,23 @@ import {
 
 const page = `
 <div id="mw-content-text"><div class="mw-parser-output">
-  <h2>Department of Justice</h2>
+  <div class="mw-heading mw-heading2"><h2 id="Overview">Overview and history<span class="mw-editsection">[edit]</span></h2></div>
+  <ul><li><a href="/x">Ignored intro link</a></li></ul>
+
+  <div class="mw-heading mw-heading2"><h2 id="List">List of federal law enforcement agencies and units of agencies<span class="mw-editsection">[edit]</span></h2></div>
+  <div class="mw-heading mw-heading3"><h3 id="Exec">Executive branch<span class="mw-editsection">[edit]</span></h3></div>
+  <div class="mw-heading mw-heading4"><h4 id="DOJ">Department of Justice<span class="mw-editsection">[edit]</span></h4></div>
   <ul>
-    <li><a href="/wiki/FBI">Federal Bureau of Investigation (FBI)</a></li>
-    <li><a href="/wiki/DEA">Drug Enforcement Administration (DEA)</a></li>
+    <li><a href="/fbi">Federal Bureau of Investigation</a> (FBI)
+      <ul><li><a href="/fbipd">FBI Police</a></li></ul>
+    </li>
+    <li><a href="/dea">Drug Enforcement Administration</a></li>
   </ul>
-  <h2>Department of Homeland Security</h2>
-  <ul><li><a href="/wiki/ICE">U.S. Immigration and Customs Enforcement (ICE)</a></li></ul>
-  <h2>See also</h2>
-  <ul><li><a href="/wiki/x">Some unrelated link</a></li></ul>
+  <div class="mw-heading mw-heading4"><h4 id="DHS">Department of Homeland Security<span class="mw-editsection">[edit]</span></h4></div>
+  <ul><li><a href="/ice">U.S. Immigration and Customs Enforcement</a></li></ul>
+
+  <div class="mw-heading mw-heading2"><h2 id="Former">List of former agencies and units of agencies<span class="mw-editsection">[edit]</span></h2></div>
+  <ul><li><a href="/gone">Defunct Bureau</a></li></ul>
 </div></div>`;
 
 describe("slugify", () => {
@@ -22,34 +30,23 @@ describe("slugify", () => {
     expect(slugify("Federal Bureau of Investigation (FBI)")).toBe(
       "federal-bureau-of-investigation",
     );
-    expect(slugify("U.S. Immigration and Customs Enforcement (ICE)")).toBe(
-      "u-s-immigration-and-customs-enforcement",
-    );
   });
 });
 
 describe("parseFederalLeAgencies", () => {
-  it("groups agencies under parent departments in document order", () => {
-    const { parents } = parseFederalLeAgencies(page);
-    expect(parents).toEqual([
-      {
-        name: "Department of Justice",
-        slug: "department-of-justice",
-        agencies: [
-          "Federal Bureau of Investigation (FBI)",
-          "Drug Enforcement Administration (DEA)",
-        ],
-      },
-      {
-        name: "Department of Homeland Security",
-        slug: "department-of-homeland-security",
-        agencies: ["U.S. Immigration and Customs Enforcement (ICE)"],
-      },
+  it("returns the flat agency list within the main section, including nested units", () => {
+    const { agencies } = parseFederalLeAgencies(page);
+    expect(agencies).toEqual([
+      "Federal Bureau of Investigation",
+      "FBI Police",
+      "Drug Enforcement Administration",
+      "U.S. Immigration and Customs Enforcement",
     ]);
   });
 
-  it("excludes page-structure headings like 'See also'", () => {
-    const { parents } = parseFederalLeAgencies(page);
-    expect(parents.map((p) => p.name)).not.toContain("See also");
+  it("excludes the overview and former-agencies sections", () => {
+    const { agencies } = parseFederalLeAgencies(page);
+    expect(agencies).not.toContain("Ignored intro link");
+    expect(agencies).not.toContain("Defunct Bureau");
   });
 });

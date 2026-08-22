@@ -9,7 +9,7 @@ import { parseFederalLeAgencies, slugify } from "./acquire/parse.js";
 import { ORGS_FILE, mergeOrgs, type Org } from "./model.js";
 
 const DEFAULT_PAGE_URL =
-  "https://en.wikipedia.org/wiki/List_of_federal_law_enforcement_agencies_of_the_United_States";
+  "https://en.wikipedia.org/wiki/List_of_United_States_federal_law_enforcement_agencies";
 
 export const SOURCE_HTML_FILE = "federal-le.html";
 
@@ -35,10 +35,11 @@ async function maintainOrgs(
   html: string,
   log: { info: (message: string) => void },
 ): Promise<void> {
-  const { parents } = parseFederalLeAgencies(html);
-  const discovered: Org[] = parents
-    .flatMap((parent) => parent.agencies)
-    .map((name) => ({ slug: slugify(name), name }));
+  const { agencies } = parseFederalLeAgencies(html);
+  const discovered: Org[] = agencies.map((name) => ({
+    slug: slugify(name),
+    name,
+  }));
 
   await mkdir(stateDir, { recursive: true });
   const filePath = path.join(stateDir, ORGS_FILE);

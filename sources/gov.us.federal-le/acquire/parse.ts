@@ -1,13 +1,7 @@
 import { parse as parseHtml } from "node-html-parser";
 
-export type FederalParent = {
-  name: string;
-  slug: string;
-  agencies: string[];
-};
-
 export type FederalLeList = {
-  parents: FederalParent[];
+  agencies: string[];
 };
 
 export function slugify(name: string): string {
@@ -18,12 +12,12 @@ export function slugify(name: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-const PARENT_HEADING = /^(department|office|u\.?s\.?|united states|the )/i;
-const NON_PARENT_HEADING =
-  /^(see also|references|external links|notes|further reading|contents|history)/i;
+const MAIN_SECTION =
+  /^list of (united states )?federal law enforcement agencies/i;
 
 function cleanText(value: string): string {
   return value
+    .replace(/\[edit\]/gi, "")
     .replace(/\[\d+\]/g, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -32,31 +26,29 @@ function cleanText(value: string): string {
 export function parseFederalLeAgencies(html: string): FederalLeList {
   const root = parseHtml(html);
   const content = root.querySelector("#mw-content-text") ?? root;
-  const parents: FederalParent[] = [];
-  let current: FederalParent | undefined;
+  const agencies: string[] = [];
+  const seen = new Set<string>();
+  let inMainSection = false;
 
-  for (const node of content.querySelectorAll("h2, h3, ul")) {
-    if (node.tagName === "H2" || node.tagName === "H3") {
-      const heading = cleanText(node.text);
-      if (heading === "" || NON_PARENT_HEADING.test(heading)) {
-        current = undefined;
-        continue;
+  for (const node of content.querySelectorAll("div.mw-heading, ul")) {
+    if ((node.getAttribute("class") ?? "").includes("mw-heading")) {
+      const heading = node.querySelector("h1, h2, h3, h4, h5, h6");
+      const level = heading ? Number(heading.tagName.slice(1)) : 0;
+      if (level <= 2) {
+        inMainSection = MAIN_SECTION.test(cleanText(node.text));
       }
-      if (!PARENT_HEADING.test(heading)) {
-        current = undefined;
-        continue;
-      }
-      current = { name: heading, slug: slugify(heading), agencies: [] };
-      parents.push(current);
       continue;
     }
-    if (current === undefined) continue;
+    if (!inMainSection) continue;
     for (const item of node.querySelectorAll("li")) {
-      const link = item.querySelector("a");
-      const name = cleanText(link?.text ?? item.text);
-      if (name !== "") current.agencies.push(name);
+      const name = cleanText(item.querySelector("a")?.text ?? "");
+      if (name === "") continue;
+      const slug = slugify(name);
+      if (seen.has(slug)) continue;
+      seen.add(slug);
+      agencies.push(name);
     }
   }
 
-  return { parents: parents.filter((parent) => parent.agencies.length > 0) };
+  return { agencies };
 }
