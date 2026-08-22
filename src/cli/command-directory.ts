@@ -30,17 +30,20 @@ export async function createCommandDirectory(
   commandDirectory: string;
   commandName: string;
   commandPath: string;
+  outputDirectory: string;
 }> {
   const workspace = intakeWorkspace(env);
   const commandName = (options.createCommandName ?? createId)();
+  const namespace = options.namespace ?? "intake";
   const commandDirectory = path.join(
     workspace,
     "command",
     `${timestampForPath(options.now ?? new Date())}-${encodeURIComponent(commandName)}`,
   );
+  const outputDirectory = commandOutputDir(commandDirectory, namespace);
 
   try {
-    await mkdir(commandDirectory, { recursive: true });
+    await mkdir(outputDirectory, { recursive: true });
   } catch {
     throw new Error(`Command directory is not writable: ${commandDirectory}`);
   }
@@ -50,7 +53,7 @@ export async function createCommandDirectory(
     Command.new({
       metadata: {
         name: commandName,
-        namespace: options.namespace ?? "intake",
+        namespace,
       },
       spec: {
         statePath: path.relative(
@@ -67,7 +70,12 @@ export async function createCommandDirectory(
     }),
   );
 
-  return { commandDirectory, commandName, commandPath: command.path };
+  return {
+    commandDirectory,
+    commandName,
+    commandPath: command.path,
+    outputDirectory,
+  };
 }
 
 export function commandOutputDir(

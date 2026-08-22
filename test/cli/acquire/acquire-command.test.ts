@@ -28,14 +28,27 @@ async function makeWorkspace(): Promise<string> {
 // A createCommandDirectory that mirrors the real command layout under the
 // workspace, so the pointer paths the test asserts are workspace-relative.
 function fakeCreateCommandDirectory(commandId: string) {
-  return async (env: Record<string, string | undefined>) => {
+  return async (
+    env: Record<string, string | undefined>,
+    options: { namespace?: string } = {},
+  ) => {
     const commandDirectory = path.join(
       env.INTAKE_WORKSPACE as string,
       "command",
       commandId,
     );
-    await mkdir(commandDirectory, { recursive: true });
-    return { commandDirectory, commandName: commandId, commandPath: "" };
+    const outputDirectory = path.join(
+      commandDirectory,
+      options.namespace ?? "intake",
+      "output",
+    );
+    await mkdir(outputDirectory, { recursive: true });
+    return {
+      commandDirectory,
+      commandName: commandId,
+      commandPath: "",
+      outputDirectory,
+    };
   };
 }
 

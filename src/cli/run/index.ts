@@ -234,7 +234,7 @@ export const registerCliCommand: RegisterCliCommand = (
                     namespace: sourceId,
                     args: ["run", sourceId, ...paths],
                   })
-                ).commandDirectory,
+                ).outputDirectory,
               createEmitSink,
               loadExcludedRecords,
               seedResolvedPropertyCache,

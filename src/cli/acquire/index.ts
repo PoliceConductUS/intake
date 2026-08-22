@@ -1,8 +1,7 @@
-import { cp, mkdir, access } from "node:fs/promises";
+import { cp, access } from "node:fs/promises";
 import path from "node:path";
 import { Command } from "commander";
 import {
-  commandOutputDir,
   createCommandDirectory,
   intakeWorkspace,
 } from "../command-directory.js";
@@ -53,12 +52,10 @@ export async function acquireSource(
 
   try {
     const pointer = await readAcquirePointer(deps.state);
-    const { commandDirectory } = await deps.createCommandDirectory(deps.env, {
-      namespace: sourceId,
-      args: ["acquire", sourceId],
-    });
-    const outputDir = commandOutputDir(commandDirectory, sourceId);
-    await mkdir(outputDir, { recursive: true });
+    const { outputDirectory: outputDir } = await deps.createCommandDirectory(
+      deps.env,
+      { namespace: sourceId, args: ["acquire", sourceId] },
+    );
 
     if (pointer.resume) {
       const resumeDir = path.join(deps.workspace, pointer.resume);
