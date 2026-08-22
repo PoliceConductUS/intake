@@ -603,6 +603,124 @@ function addFederalAgencyBranchSourceFacades(
   }
 }
 
+// The caller's acceptance bar for a fuzzy civil-case → agency_personnel match.
+// search() applies no threshold; this is where the import decides.
+const CIVIL_CASE_OFFICER_CONFIDENCE_FLOOR = 0.6;
+
+type CivilCaseRecordRef = {
+  sourceName: string;
+  spec: Record<string, unknown>;
+  sourceFile?: string;
+};
+
+function collectCivilCaseRecords(
+  artifacts: ArtifactsEnvelope,
+  kind: "CivilCases" | "CivilCaseOfficers" | "CivilCaseLinks",
+): CivilCaseRecordRef[] {
+  const records: CivilCaseRecordRef[] = [];
+  for (const artifact of artifacts.spec.artifacts.filter(
+    (item) => item.kind === kind,
+  )) {
+    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
+      records.push({
+        sourceName: sourceNameForImportRecord(recordName, record),
+        spec: valueAsRecord(record),
+        sourceFile: artifact.recordSources?.[recordName],
+      });
+    }
+  }
+  return records;
+}
+
+/**
+ * Resolve each civil-case officer defendant against existing agency_personnel
+ * (fuzzy, DataContext.search) and register only the cases that resolve at least
+ * one officer — dropping cases (and their links) that resolve none, per the
+ * "everything points to an officer" rule. Runs at import because search needs
+ * the database.
+ */
+async function addCivilCaseSourceFacades(
+  dataContext: DataContext,
+  artifacts: ArtifactsEnvelope,
+  logger?: ImportLogger,
+): Promise<void> {
+  const namespace = artifacts.metadata.namespace;
+  const cases = collectCivilCaseRecords(artifacts, "CivilCases");
+  const officers = collectCivilCaseRecords(artifacts, "CivilCaseOfficers");
+  const links = collectCivilCaseRecords(artifacts, "CivilCaseLinks");
+  if (cases.length === 0) return;
+
+  const resolvedOfficerId = new Map<string, string>();
+  const casesWithOfficer = new Set<string>();
+  for (const officer of officers) {
+    const match = await dataContext.search({
+      state: String(officer.spec.state ?? ""),
+      agencyName: String(officer.spec.agency_name ?? ""),
+      officerName: String(officer.spec.officer_name ?? ""),
+      topN: 5,
+    });
+    const best = match.results[0];
+    if (
+      best === undefined ||
+      best.confidence < CIVIL_CASE_OFFICER_CONFIDENCE_FLOOR
+    ) {
+      continue;
+    }
+    resolvedOfficerId.set(
+      officer.sourceName,
+      String(best.agencyOfficer.record.id),
+    );
+    casesWithOfficer.add(String(officer.spec.civil_case_id));
+  }
+
+  for (const civilCase of cases) {
+    if (!casesWithOfficer.has(civilCase.sourceName)) continue;
+    dataContext.civilCaseFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace,
+      name: civilCase.sourceName,
+      spec: civilCase.spec,
+      sourceFile: civilCase.sourceFile,
+    });
+  }
+  let linkedOfficers = 0;
+  for (const officer of officers) {
+    const agencyOfficerId = resolvedOfficerId.get(officer.sourceName);
+    if (agencyOfficerId === undefined) continue;
+    if (!casesWithOfficer.has(String(officer.spec.civil_case_id))) continue;
+    dataContext.civilCaseOfficerFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace,
+      name: officer.sourceName,
+      spec: { ...officer.spec, agency_officer_id: agencyOfficerId },
+      sourceFile: officer.sourceFile,
+    });
+    linkedOfficers += 1;
+  }
+  let linkedLinks = 0;
+  for (const link of links) {
+    if (!casesWithOfficer.has(String(link.spec.civil_case_id))) continue;
+    dataContext.civilCaseLinkFromSource({
+      apiVersion: INTAKE_API_VERSION,
+      namespace,
+      name: link.sourceName,
+      spec: link.spec,
+      sourceFile: link.sourceFile,
+    });
+    linkedLinks += 1;
+  }
+
+  logger?.info(
+    {
+      cases: casesWithOfficer.size,
+      officers: linkedOfficers,
+      links: linkedLinks,
+      skippedCases: cases.length - casesWithOfficer.size,
+    },
+    `Civil cases: linked ${casesWithOfficer.size} to ${linkedOfficers} officer(s); skipped ${cases.length - casesWithOfficer.size} with no resolved officer.`,
+  );
+}
+
 type ImportArtifactsPipelineContext = {
   commandInput: ImportArtifactsCommandInput;
   artifactsPath: string;
@@ -1252,6 +1370,7 @@ async function writeDatabaseMutationsStage(
     addAgencyPhoneNumberSourceFacades(dataContext, artifacts);
     addFederalAgencySourceFacades(dataContext, artifacts);
     addFederalAgencyBranchSourceFacades(dataContext, artifacts);
+    await addCivilCaseSourceFacades(dataContext, artifacts, logger);
     databaseMutations = await dataContext.toDatabaseMutations({
       namespace: artifacts.metadata.namespace,
       name: context.commandName,
