@@ -315,8 +315,8 @@ describe("intake CLI", () => {
     );
     const mappingPath = path.join(
       workspace,
-      "intake",
       "state",
+      "intake",
       "namespaces",
       "mn-post",
     );

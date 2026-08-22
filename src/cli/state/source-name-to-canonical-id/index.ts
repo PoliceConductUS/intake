@@ -85,7 +85,7 @@ export function resolveSourceNameToCanonicalIdPath(
     );
   }
 
-  return path.join(rootDir, "state", namespace);
+  return path.join(rootDir, "state", "intake", "namespaces", namespace);
 }
 
 function mappingRecordPath(

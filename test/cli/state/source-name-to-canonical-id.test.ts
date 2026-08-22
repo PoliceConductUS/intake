@@ -35,7 +35,7 @@ describe("SourceNameToCanonicalId records", () => {
     const rootDir = "/tmp/intake-test-root";
 
     expect(resolveSourceNameToCanonicalIdPath("mn-post", { rootDir })).toBe(
-      path.join(rootDir, "state", "mn-post"),
+      path.join(rootDir, "state", "intake", "namespaces", "mn-post"),
     );
   });
 
