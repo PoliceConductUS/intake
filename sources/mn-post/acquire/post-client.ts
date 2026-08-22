@@ -166,31 +166,33 @@ export async function createPostLicenseSearchClient({
       return officers;
     },
     async fetchOfficerDetail(officer: OfficerRow): Promise<OfficerDetail> {
-      // Sequential, one Apex action at a time, to stay gentle on the site.
-      const education = await executeApexAction({
-        classname: "POSTSearchEducation",
-        method: "getOfficerEducation",
-        params: { contactId: officer.contactId },
-        cacheable: true,
-      });
-      const disciplinaryActions = await executeApexAction({
-        classname: "POSTSearch",
-        method: "getOfficerDisciplinaryActions",
-        params: { contactId: officer.contactId },
-        cacheable: true,
-      });
-      const activeEmployment = await executeApexAction({
-        classname: "POSTSearch",
-        method: "getOfficerActiveEmployment",
-        params: { licensePOId: officer.licenseId },
-        cacheable: true,
-      });
-      const licenses = await executeApexAction({
-        classname: "POSTSearch",
-        method: "getOfficerLicenses",
-        params: { contactId: officer.contactId },
-        cacheable: true,
-      });
+      const [education, disciplinaryActions, activeEmployment, licenses] =
+        await Promise.all([
+          executeApexAction({
+            classname: "POSTSearchEducation",
+            method: "getOfficerEducation",
+            params: { contactId: officer.contactId },
+            cacheable: true,
+          }),
+          executeApexAction({
+            classname: "POSTSearch",
+            method: "getOfficerDisciplinaryActions",
+            params: { contactId: officer.contactId },
+            cacheable: true,
+          }),
+          executeApexAction({
+            classname: "POSTSearch",
+            method: "getOfficerActiveEmployment",
+            params: { licensePOId: officer.licenseId },
+            cacheable: true,
+          }),
+          executeApexAction({
+            classname: "POSTSearch",
+            method: "getOfficerLicenses",
+            params: { contactId: officer.contactId },
+            cacheable: true,
+          }),
+        ]);
       return { education, disciplinaryActions, activeEmployment, licenses };
     },
     async close(): Promise<void> {
