@@ -1,6 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 import type {
   EmittedRecords,
@@ -9,26 +8,30 @@ import type {
 } from "../../src/cli/run/source-run.js";
 import { parseFederalLeAgencies, slugify } from "./acquire/parse.js";
 import { SOURCE_HTML_FILE } from "./acquire.js";
+import { LOCATIONS_FILE, type AgencyLocation } from "./locations.js";
 
 export const description =
-  "US federal law-enforcement agencies — parent departments, their agencies, and the parent→agency links, from the Wikipedia federal LE list joined to curated HQ locations.";
+  "US federal law-enforcement agencies — parent departments, their agencies, and the parent→agency links, from the Wikipedia federal LE list joined to curated HQ locations in state.";
 
-type AgencyLocation = {
-  slug: string;
-  name: string;
-  state: string;
-  city: string;
-  address: string;
-  zip_code: string;
-};
+function isComplete(location: AgencyLocation): boolean {
+  return (
+    (location.state ?? "").trim() !== "" &&
+    (location.city ?? "").trim() !== "" &&
+    (location.address ?? "").trim() !== "" &&
+    (location.zip_code ?? "").trim() !== ""
+  );
+}
 
-const LOCATIONS_PATH = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "agency-locations.yaml",
-);
-
-async function loadAgencyLocations(): Promise<Map<string, AgencyLocation>> {
-  const parsed = parseYaml(await readFile(LOCATIONS_PATH, "utf8")) as {
+async function loadAgencyLocations(
+  stateDir: string,
+): Promise<Map<string, AgencyLocation>> {
+  const filePath = path.join(stateDir, LOCATIONS_FILE);
+  try {
+    await access(filePath);
+  } catch {
+    return new Map();
+  }
+  const parsed = parseYaml(await readFile(filePath, "utf8")) as {
     agencies?: AgencyLocation[];
   };
   return new Map(
@@ -36,7 +39,7 @@ async function loadAgencyLocations(): Promise<Map<string, AgencyLocation>> {
   );
 }
 
-export const run: SourceRun = async ({ paths, logger }: RunDeps) => {
+export const run: SourceRun = async ({ paths, state, logger }: RunDeps) => {
   const log = logger ?? { info() {} };
   const htmlPath = paths.find((p) => path.basename(p) === SOURCE_HTML_FILE);
   if (htmlPath === undefined) {
@@ -47,7 +50,7 @@ export const run: SourceRun = async ({ paths, logger }: RunDeps) => {
 
   log.info("federal-le: parsing agency list");
   const { parents } = parseFederalLeAgencies(await readFile(htmlPath, "utf8"));
-  const locations = await loadAgencyLocations();
+  const locations = await loadAgencyLocations(state);
 
   const federalAgencies: EmittedRecords = {};
   const agencies: EmittedRecords = {};
@@ -62,7 +65,7 @@ export const run: SourceRun = async ({ paths, logger }: RunDeps) => {
     for (const agencyName of parent.agencies) {
       const slug = slugify(agencyName);
       const location = locations.get(slug);
-      if (location === undefined) {
+      if (location === undefined || !isComplete(location)) {
         skipped.push(agencyName);
         continue;
       }
@@ -90,10 +93,12 @@ export const run: SourceRun = async ({ paths, logger }: RunDeps) => {
     `federal-le: ${Object.keys(federalAgencies).length} parents, ` +
       `${Object.keys(agencies).length} agencies, ` +
       `${Object.keys(branches).length} branches, ` +
-      `${skipped.length} skipped (no curated location)`,
+      `${skipped.length} skipped (no complete location in state)`,
   );
   if (skipped.length > 0) {
-    log.info(`federal-le: skipped without a location: ${skipped.join("; ")}`);
+    log.info(
+      `federal-le: fill ${LOCATIONS_FILE} in state to import: ${skipped.join("; ")}`,
+    );
   }
 
   return {
