@@ -17,7 +17,6 @@ import {
   type FederalAgencyBranchUpdateEnvelope,
 } from "../io/generated-mutations/FederalAgencyBranchUpdate.js";
 
-/** Links a federal parent org to one of its agencies (public.federal_agency_branch). */
 export type FederalAgencyBranchRow = {
   id: string;
   federal_agency_id: string;
@@ -31,7 +30,6 @@ export type FederalAgencyBranchEnvelope =
 const KIND = "FederalAgencyBranch";
 const COLUMNS = ["federal_agency_id", "agency_id"] as const;
 
-/** A federal parent → agency link; both fields are FK resolvers. */
 export function createFederalAgencyBranchFacade(options: {
   current?: Record<string, unknown>;
   source: FacadeSource;

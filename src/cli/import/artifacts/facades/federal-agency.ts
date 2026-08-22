@@ -16,7 +16,6 @@ import {
   type FederalAgencyUpdateEnvelope,
 } from "../io/generated-mutations/FederalAgencyUpdate.js";
 
-/** A federal parent organization (public.federal_agency). */
 export type FederalAgencyRow = {
   id: string;
   name: string;
@@ -30,7 +29,6 @@ export type FederalAgencyEnvelope =
 const KIND = "FederalAgency";
 const COLUMNS = ["name", "slug"] as const;
 
-/** A federal parent org: canonical-id find-or-create + plain name/slug columns. */
 export function createFederalAgencyFacade(options: {
   current?: Record<string, unknown>;
   source: FacadeSource;

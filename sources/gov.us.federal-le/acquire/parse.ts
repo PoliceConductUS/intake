@@ -10,7 +10,6 @@ export type FederalLeList = {
   parents: FederalParent[];
 };
 
-/** Lowercase, hyphenate, strip to a stable url-safe slug. */
 export function slugify(name: string): string {
   return name
     .toLowerCase()
@@ -30,13 +29,6 @@ function cleanText(value: string): string {
     .trim();
 }
 
-/**
- * Parse the Wikipedia "List of federal law enforcement agencies of the United
- * States" into parent departments and the agencies grouped under each. The page
- * groups agencies under h2/h3 department headings followed by lists of agency
- * links; a heading is treated as a parent when it names a department/office and
- * is not a page-structure heading (See also, References, …).
- */
 export function parseFederalLeAgencies(html: string): FederalLeList {
   const root = parseHtml(html);
   const content = root.querySelector("#mw-content-text") ?? root;

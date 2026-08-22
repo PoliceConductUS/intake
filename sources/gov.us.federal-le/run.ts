@@ -69,8 +69,6 @@ export const run: SourceRun = async ({ paths, state, logger }: RunDeps) => {
         skipped.push(agencyName);
         continue;
       }
-      // unique(agency_id): an agency belongs to at most one federal parent, so
-      // the first parent that claims it wins; later duplicates are ignored.
       if (claimedAgencies.has(slug)) continue;
       claimedAgencies.add(slug);
 

@@ -36,11 +36,6 @@ async function readExistingLocations(
   return parsed.agencies ?? [];
 }
 
-/**
- * Maintain the curated agency-locations list in state: add a blank stub for
- * every agency discovered on the page that is not already listed, preserving
- * existing curated entries. `run` skips stubs until a curator fills them in.
- */
 async function maintainLocations(
   stateDir: string,
   html: string,
