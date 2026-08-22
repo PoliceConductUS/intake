@@ -1,4 +1,9 @@
 import path from "node:path";
+import {
+  classifyGazetteerRole,
+  GAZETTEER_SINGLETON_ROLES,
+  type GazetteerRole,
+} from "./roles.js";
 
 export interface MatchedInputs {
   statesZip: string;
@@ -20,11 +25,6 @@ const GAZETTEER_YEAR_PATTERN = /(\d{4})_gaz_/i;
 const TIGER_YEAR_PATTERN = /^tl_(\d{4})_/i;
 const HIERARCHY_YEAR_PATTERN = /(\d{4})/;
 
-/**
- * Extract the 4-digit year a matched filename claims to be for. Gazetteer
- * files encode it as `<year>_Gaz_...`; TIGER files as `tl_<year>_...`; the
- * (rare) hierarchy/relationship file falls back to the first 4-digit run.
- */
 function extractYear(basename: string): string | undefined {
   const gazetteerMatch = basename.match(GAZETTEER_YEAR_PATTERN);
   if (gazetteerMatch) return gazetteerMatch[1];
@@ -34,56 +34,8 @@ function extractYear(basename: string): string | undefined {
   return fallbackMatch?.[1];
 }
 
-/**
- * Classify a single file into the first role whose pattern matches its
- * basename (case-insensitive). Patterns are checked in an order that keeps
- * the gazetteer-place vs TIGER-place distinction unambiguous.
- */
-function classify(p: string): keyof typeof ROLE_PATTERNS | undefined {
-  const basename = path.basename(p);
-  for (const role of ROLE_ORDER) {
-    if (ROLE_PATTERNS[role].test(basename)) return role;
-  }
-  return undefined;
-}
-
-const ROLE_PATTERNS = {
-  statesZip: /gaz_state|state_national/i,
-  adminAreasZip: /gaz_count|counties_national|county_national/i,
-  placesZip: /gaz_place|place_national/i,
-  stateTigerZip: /^tl_\d{4}_us_state\.zip$/i,
-  countyTigerZip: /^tl_\d{4}_us_county\.zip$/i,
-  placeTigerZips: /^tl_\d{4}_\d{2}_place\.zip$/i,
-  hierarchyFile: /relationship|rel20\d{2}/i,
-} as const;
-
-// Checked in this order so TIGER place zips (tl_YYYY_SS_place.zip) never
-// fall through to the gazetteer-place pattern, and vice versa.
-const ROLE_ORDER = [
-  "stateTigerZip",
-  "countyTigerZip",
-  "placeTigerZips",
-  "statesZip",
-  "adminAreasZip",
-  "placesZip",
-  "hierarchyFile",
-] as const satisfies ReadonlyArray<keyof typeof ROLE_PATTERNS>;
-
-const SINGLETON_ROLES = [
-  "statesZip",
-  "adminAreasZip",
-  "placesZip",
-  "stateTigerZip",
-  "countyTigerZip",
-] as const satisfies ReadonlyArray<keyof typeof ROLE_PATTERNS>;
-
-/**
- * Classify census input file paths by basename into their gazetteer/TIGER
- * roles and extract (and cross-check) the vintage year. Pure/deterministic:
- * operates on the path strings only, no filesystem access.
- */
 export function matchInputs(paths: string[]): MatchedInputs {
-  const matches: Record<keyof typeof ROLE_PATTERNS, RoleMatch[]> = {
+  const matches: Record<GazetteerRole, RoleMatch[]> = {
     statesZip: [],
     adminAreasZip: [],
     placesZip: [],
@@ -94,9 +46,9 @@ export function matchInputs(paths: string[]): MatchedInputs {
   };
 
   for (const p of paths) {
-    const role = classify(p);
-    if (!role) continue;
     const basename = path.basename(p);
+    const role = classifyGazetteerRole(basename);
+    if (!role) continue;
     const year = extractYear(basename);
     if (!year) {
       throw new Error(
@@ -106,7 +58,7 @@ export function matchInputs(paths: string[]): MatchedInputs {
     matches[role].push({ path: p, year });
   }
 
-  for (const role of SINGLETON_ROLES) {
+  for (const role of GAZETTEER_SINGLETON_ROLES) {
     const found = matches[role];
     if (found.length === 0) {
       throw new Error(

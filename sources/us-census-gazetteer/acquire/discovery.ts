@@ -1,4 +1,5 @@
 import { parse as parseHtml } from "node-html-parser";
+import { classifyGazetteerRole, type GazetteerRole } from "../lib/roles.js";
 
 const STATE_GEOIDS = [
   "01",
@@ -65,7 +66,12 @@ export type GazetteerLinks = {
   hierarchyUrl?: string;
 };
 
-type DiscoveredLink = { label: string; searchText: string; url: string };
+type DiscoveredLink = { searchText: string; url: string };
+
+type ClassifiedLinks = {
+  singles: Map<GazetteerRole, string>;
+  placeTigerUrls: string[];
+};
 
 export function discoverLatestGazetteerLinks(
   html: string,
@@ -76,23 +82,11 @@ export function discoverLatestGazetteerLinks(
   if (year === undefined) {
     throw new Error("No Census Gazetteer source year links were discovered");
   }
-  const yearLinks = links.filter((link) =>
-    link.searchText.includes(String(year)),
-  );
+  const classified = classifyLinks(forYear(links, year));
 
-  const stateUrl = findSourceUrl(yearLinks, isStateGazetteerLink);
-  const administrativeAreaUrl = findSourceUrl(
-    yearLinks,
-    isAdministrativeAreaGazetteerLink,
+  const missing = (["statesZip", "adminAreasZip", "placesZip"] as const).filter(
+    (role) => !classified.singles.has(role),
   );
-  const placesUrl = findSourceUrl(yearLinks, isPlaceGazetteerLink);
-  const missing = Object.entries({
-    stateUrl,
-    administrativeAreaUrl,
-    placesUrl,
-  })
-    .filter(([, url]) => url === undefined)
-    .map(([field]) => field);
   if (missing.length > 0) {
     throw new Error(
       `Missing required ${year} Gazetteer source links: ${missing.join(", ")}`,
@@ -101,22 +95,23 @@ export function discoverLatestGazetteerLinks(
 
   return {
     year: String(year),
-    stateUrl: stateUrl!,
-    administrativeAreaUrl: administrativeAreaUrl!,
-    placesUrl: placesUrl!,
+    stateUrl: classified.singles.get("statesZip")!,
+    administrativeAreaUrl: classified.singles.get("adminAreasZip")!,
+    placesUrl: classified.singles.get("placesZip")!,
     stateTigerUrl:
-      findSourceUrl(yearLinks, isStateTigerLink) ??
+      classified.singles.get("stateTigerZip") ??
       `https://www2.census.gov/geo/tiger/TIGER${year}/STATE/tl_${year}_us_state.zip`,
     countyTigerUrl:
-      findSourceUrl(yearLinks, isCountyTigerLink) ??
+      classified.singles.get("countyTigerZip") ??
       `https://www2.census.gov/geo/tiger/TIGER${year}/COUNTY/tl_${year}_us_county.zip`,
     placeTigerUrls:
-      findPlaceTigerUrls(yearLinks) ??
-      STATE_GEOIDS.map(
-        (geoid) =>
-          `https://www2.census.gov/geo/tiger/TIGER${year}/PLACE/tl_${year}_${geoid}_place.zip`,
-      ),
-    hierarchyUrl: findSourceUrl(yearLinks, isHierarchyLink),
+      classified.placeTigerUrls.length > 0
+        ? classified.placeTigerUrls
+        : STATE_GEOIDS.map(
+            (geoid) =>
+              `https://www2.census.gov/geo/tiger/TIGER${year}/PLACE/tl_${year}_${geoid}_place.zip`,
+          ),
+    hierarchyUrl: classified.singles.get("hierarchyFile"),
   };
 }
 
@@ -133,8 +128,27 @@ function extractLinks(html: string, pageUrl: string): DiscoveredLink[] {
         return [];
       }
       const label = anchor.text.replace(/\s+/g, " ").trim();
-      return [{ label, url, searchText: `${url} ${label}`.toLowerCase() }];
+      return [{ url, searchText: `${url} ${label}`.toLowerCase() }];
     });
+}
+
+function forYear(links: DiscoveredLink[], year: number): DiscoveredLink[] {
+  return links.filter((link) => link.searchText.includes(String(year)));
+}
+
+function classifyLinks(links: DiscoveredLink[]): ClassifiedLinks {
+  const singles = new Map<GazetteerRole, string>();
+  const placeTigerUrls: string[] = [];
+  for (const link of links) {
+    const role = classifyGazetteerRole(link.searchText);
+    if (role === undefined) continue;
+    if (role === "placeTigerZips") {
+      placeTigerUrls.push(link.url);
+    } else if (!singles.has(role)) {
+      singles.set(role, link.url);
+    }
+  }
+  return { singles, placeTigerUrls };
 }
 
 function findLatestSourceYear(links: DiscoveredLink[]): number | undefined {
@@ -146,85 +160,14 @@ function findLatestSourceYear(links: DiscoveredLink[]): number | undefined {
   }
   const descending = [...years].sort((left, right) => right - left);
   for (const year of descending) {
-    const yearLinks = links.filter((link) =>
-      link.searchText.includes(String(year)),
-    );
+    const { singles } = classifyLinks(forYear(links, year));
     if (
-      findSourceUrl(yearLinks, isStateGazetteerLink) !== undefined &&
-      findSourceUrl(yearLinks, isAdministrativeAreaGazetteerLink) !==
-        undefined &&
-      findSourceUrl(yearLinks, isPlaceGazetteerLink) !== undefined
+      singles.has("statesZip") &&
+      singles.has("adminAreasZip") &&
+      singles.has("placesZip")
     ) {
       return year;
     }
   }
   return descending[0];
-}
-
-function findSourceUrl(
-  links: DiscoveredLink[],
-  predicate: (link: DiscoveredLink) => boolean,
-): string | undefined {
-  return links.find(predicate)?.url;
-}
-
-function findPlaceTigerUrls(links: DiscoveredLink[]): string[] | undefined {
-  const urls = links.filter(isPlaceTigerLink).map((link) => link.url);
-  return urls.length > 0 ? urls : undefined;
-}
-
-function isZip(link: DiscoveredLink): boolean {
-  return link.url.toLowerCase().endsWith(".zip");
-}
-
-function isGazetteerZip(link: DiscoveredLink): boolean {
-  return isZip(link) && /gazetteer|_gaz_/.test(link.searchText);
-}
-
-function isStateGazetteerLink(link: DiscoveredLink): boolean {
-  return (
-    isGazetteerZip(link) && /gaz_state|state_national/.test(link.searchText)
-  );
-}
-
-function isAdministrativeAreaGazetteerLink(link: DiscoveredLink): boolean {
-  return (
-    isGazetteerZip(link) &&
-    /gaz_count|counties_national|county_national/.test(link.searchText)
-  );
-}
-
-function isPlaceGazetteerLink(link: DiscoveredLink): boolean {
-  return (
-    isGazetteerZip(link) && /gaz_place|place_national/.test(link.searchText)
-  );
-}
-
-function isStateTigerLink(link: DiscoveredLink): boolean {
-  return (
-    isZip(link) &&
-    /tiger20\d{2}\/state|tl_20\d{2}_us_state/.test(link.searchText)
-  );
-}
-
-function isCountyTigerLink(link: DiscoveredLink): boolean {
-  return (
-    isZip(link) &&
-    /tiger20\d{2}\/county|tl_20\d{2}_us_county/.test(link.searchText)
-  );
-}
-
-function isPlaceTigerLink(link: DiscoveredLink): boolean {
-  return (
-    isZip(link) &&
-    /tiger20\d{2}\/place|tl_20\d{2}_\d{2}_place/.test(link.searchText)
-  );
-}
-
-function isHierarchyLink(link: DiscoveredLink): boolean {
-  return (
-    /relationship|rel20\d{2}/.test(link.searchText) &&
-    /place/.test(link.searchText) &&
-    /count/.test(link.searchText)
-  );
 }
