@@ -34,6 +34,11 @@ async function loadAgencyFilters(): Promise<AgencyFilters> {
  * detail, writing them verbatim (csv/json, no transform) for the deterministic
  * `run` phase. Reconciles the durable agency-identity ledger (a known agency
  * keeps its stored id — see updateAgencyLedger).
+ *
+ * The whole site is bot-protected, so everything runs in one headed Chrome with
+ * a persistent profile (under the source state dir): a human solves the CAPTCHA
+ * once, and that verified session is shared by the CSV page and the Salesforce
+ * Aura calls and reused on later runs.
  */
 export const acquire: SourceAcquire = async ({
   sourceDir,
@@ -42,26 +47,30 @@ export const acquire: SourceAcquire = async ({
   logger,
 }: AcquireDeps) => {
   const log = logger ?? { info() {} };
-  const executablePath = env.CHROME_EXECUTABLE_PATH;
+  const captchaWaitMs = env.MN_POST_CAPTCHA_WAIT_MS
+    ? Number(env.MN_POST_CAPTCHA_WAIT_MS)
+    : undefined;
   const agencyFilters = await loadAgencyFilters();
-  const client = await createPostLicenseSearchClient({
-    executablePath,
-    logger: log,
-  });
+
+  const { chromium } = await import("playwright");
+  const context = await chromium.launchPersistentContext(
+    path.join(state, "browser-profile"),
+    {
+      headless: env.MN_POST_HEADLESS === "true",
+      executablePath: env.CHROME_EXECUTABLE_PATH,
+      acceptDownloads: true,
+    },
+  );
   try {
+    const client = await createPostLicenseSearchClient({
+      context,
+      logger: log,
+    });
     const { agencyMatches } = await collectSources({
       sourceDir,
       agencyFilters,
       fetchAgencyCsv: () =>
-        fetchPostAgencyCsv({
-          userDataDir: path.join(state, "browser-profile"),
-          executablePath,
-          headless: env.MN_POST_HEADLESS === "true",
-          captchaWaitMs: env.MN_POST_CAPTCHA_WAIT_MS
-            ? Number(env.MN_POST_CAPTCHA_WAIT_MS)
-            : undefined,
-          logger: log,
-        }),
+        fetchPostAgencyCsv({ context, captchaWaitMs, logger: log }),
       client,
       logger: log,
     });
@@ -72,6 +81,6 @@ export const acquire: SourceAcquire = async ({
     });
     await writeSourceAgencyIds(sourceDir, ledger);
   } finally {
-    await client.close();
+    await context.close();
   }
 };

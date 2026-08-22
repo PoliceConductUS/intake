@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import type { AgencyCsv, CollectLogger } from "./collect.js";
 
 const STATISTICS_URL =
@@ -8,11 +9,8 @@ const DEFAULT_CAPTCHA_WAIT_MS = 180_000;
 const silentLogger: CollectLogger = { info() {} };
 
 export type AgencyCsvOptions = {
-  /** A persistent browser-profile dir so a solved CAPTCHA carries across runs. */
-  userDataDir: string;
-  executablePath?: string;
-  /** Headed by default so a human can solve the CAPTCHA; set true to force headless. */
-  headless?: boolean;
+  /** The caller's headed, human-verified browser context. */
+  context: import("playwright").BrowserContext;
   /** How long to wait for a manual CAPTCHA solve before failing. 0 disables the wait. */
   captchaWaitMs?: number;
   logger?: CollectLogger;
@@ -20,26 +18,18 @@ export type AgencyCsvOptions = {
 
 /**
  * Download the raw agency CSV from the MN POST statistics page. The page is
- * Radware bot-protected, so a headless browser is challenged with a CAPTCHA. We
- * open a real (headed) browser with a persistent profile; when the page shows a
- * CAPTCHA we pause for a human to solve it, then reuse that session on later
- * runs. A bot-challenge response is never written as if it were data.
+ * Radware bot-protected, so it runs in the caller's headed browser; when the
+ * page shows a CAPTCHA we pause for a human to solve it (the persistent profile
+ * reuses that session on later runs). A bot-challenge response is never written
+ * as if it were data.
  */
 export async function fetchPostAgencyCsv({
-  userDataDir,
-  executablePath = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  headless = false,
+  context,
   captchaWaitMs = DEFAULT_CAPTCHA_WAIT_MS,
   logger = silentLogger,
 }: AgencyCsvOptions): Promise<AgencyCsv> {
-  const { chromium } = await import("playwright");
-  const context = await chromium.launchPersistentContext(userDataDir, {
-    headless,
-    executablePath,
-    acceptDownloads: true,
-  });
+  const page = await context.newPage();
   try {
-    const page = context.pages()[0] ?? (await context.newPage());
     await page.goto(STATISTICS_URL, {
       waitUntil: "domcontentloaded",
       timeout: 60_000,
@@ -64,13 +54,9 @@ export async function fetchPostAgencyCsv({
 
     const csvUrl = findAgencyCsvUrl(await page.content());
     logger.info(`mn-post: downloading agency CSV from ${csvUrl}`);
-    // Fetch through the page's request context so the request carries the solved
-    // session cookies (the CSV asset sits behind the same bot protection).
-    const response = await page.request.get(csvUrl);
-    if (!response.ok()) {
-      throw new Error(`Failed to fetch POST agency CSV: ${response.status()}`);
-    }
-    const body = await response.text();
+    // Click the link (a real in-page navigation carries the bot-challenge
+    // cookies); a direct asset request is flagged as a bot.
+    const body = await clickAndReadCsv(page, csvUrl);
     assertNotBotChallenge(body, "POST agency CSV");
 
     return {
@@ -83,8 +69,52 @@ export async function fetchPostAgencyCsv({
       },
     };
   } finally {
-    await context.close();
+    await page.close();
   }
+}
+
+/**
+ * Click the labelled CSV link and read its body, whether the browser renders it
+ * inline (a response) or downloads it. A locator is used (not an in-page script)
+ * so nothing is serialized into the page.
+ */
+async function clickAndReadCsv(
+  page: import("playwright").Page,
+  csvUrl: string,
+): Promise<string> {
+  const link = page
+    .getByRole("link", { name: new RegExp(escapeRegExp(CSV_LINK_LABEL), "i") })
+    .first();
+  const responsePromise = page
+    .waitForResponse((candidate) => candidate.url() === csvUrl, {
+      timeout: 60_000,
+    })
+    .then((response) => ({ kind: "response" as const, response }))
+    .catch(() => null);
+  const downloadPromise = page
+    .waitForEvent("download", { timeout: 60_000 })
+    .then((download) => ({ kind: "download" as const, download }))
+    .catch(() => null);
+
+  await link.click();
+  const result = await Promise.race([responsePromise, downloadPromise]);
+  if (result === null) {
+    throw new Error("Timed out downloading the POST agency CSV after clicking");
+  }
+  if (result.kind === "download") {
+    const downloadPath = await result.download.path();
+    return readFile(downloadPath, "utf8");
+  }
+  if (!result.response.ok()) {
+    throw new Error(
+      `Failed to fetch POST agency CSV: ${result.response.status()}`,
+    );
+  }
+  return result.response.text();
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 async function waitForManualCaptchaResolution(

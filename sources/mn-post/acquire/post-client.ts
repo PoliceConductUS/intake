@@ -16,21 +16,18 @@ export type PostClientHandle = PostClient & { close(): Promise<void> };
 
 /**
  * A live POST License Search client. The site is a Salesforce Experience site
- * that speaks the Aura/Apex protocol; we drive a headless browser to obtain an
- * Aura context, then POST Apex actions from within the page (so they carry the
- * page's session). Playwright is imported dynamically so the deterministic
- * produce phase never loads a browser dependency.
+ * that speaks the Aura/Apex protocol; we open a page in the caller's (headed,
+ * human-verified) browser context to obtain an Aura context, then POST Apex
+ * actions from within the page so they carry the page's verified session.
  */
 export async function createPostLicenseSearchClient({
-  executablePath = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  context,
   logger = silentLogger,
 }: {
-  executablePath?: string;
+  context: import("playwright").BrowserContext;
   logger?: CollectLogger;
-} = {}): Promise<PostClientHandle> {
-  const { chromium } = await import("playwright");
-  const browser = await chromium.launch({ headless: true, executablePath });
-  const page = await browser.newPage();
+}): Promise<PostClientHandle> {
+  const page = await context.newPage();
   let auraContext: string | undefined;
   let requestCounter = 1;
   let actionCounter = 100;
@@ -49,7 +46,7 @@ export async function createPostLicenseSearchClient({
   });
   if (!auraContext) await page.waitForTimeout(1_000);
   if (!auraContext) {
-    await browser.close();
+    await page.close();
     throw new Error("POST license search did not expose an Aura context");
   }
 
@@ -188,7 +185,7 @@ export async function createPostLicenseSearchClient({
       return { education, disciplinaryActions, activeEmployment, licenses };
     },
     async close(): Promise<void> {
-      await browser.close();
+      await page.close();
     },
   };
 }
