@@ -11,6 +11,9 @@ import type {
  * An officer can appear in multiple agency rows; later rows win on dedup.
  * Deterministic: no network/clock/randomness.
  */
+export const description =
+  "Arizona POST officer roster — Personnel records (name, POST ID) from the AZ POST roster workbook.";
+
 export const run: SourceRun = async ({ paths, readXlsx }) => {
   const records: EmittedRecords = {};
   for (const path of paths) {

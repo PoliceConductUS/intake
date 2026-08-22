@@ -37,6 +37,9 @@ import type {
  * transform resolves to canonical IDs via the ledger; every referenced agency
  * and officer is emitted here so no reference is left unmapped.
  */
+export const description =
+  "Texas TCOLE — agencies, officers, licenses, and assignments reconstructed from the TCOLE public-information workbook.";
+
 export const run: SourceRun = async ({ paths, readXlsx, logger }) => {
   const log = logger ?? { info() {} };
   const workbook = paths.find((path) => path.toLowerCase().endsWith(".xlsx"));

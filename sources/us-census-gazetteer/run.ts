@@ -51,6 +51,9 @@ import { matchInputs } from "./lib/inputs.js";
  * spec instead has `centroid`/`bbox`, which the geometry stage also
  * attaches. `toLocationPathSpec` below picks exactly the spec's fields.
  */
+export const description =
+  "US Census Gazetteer + TIGER — the canonical location-path tree (state/county/place) with geometry; runs first so other sources resolve against it (ADR 0015).";
+
 export const run: SourceRun = async (deps: RunDeps) => {
   const inputs = matchInputs(deps.paths);
 

@@ -111,6 +111,10 @@ export const registerCliCommand: RegisterCliCommand = (
       "<glob>",
       "glob matching source folder name(s) under sources/ — quote it, e.g. '*' or 'mn-post'",
     )
+    .addHelpText(
+      "after",
+      "\nRun `intake sources` to list which sources support acquire.",
+    )
     .action(async (glob: string): Promise<void> => {
       const env = process.env;
       const sourcesRoot = path.join(process.cwd(), "sources");

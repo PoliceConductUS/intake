@@ -33,6 +33,9 @@ import type {
  * `start_date` is `originalLicenseIssueDate` (the roster is a current snapshot
  * with no assignment dates). Deterministic: no network, clock, or randomness.
  */
+export const description =
+  "Minnesota POST — agencies, officers, licenses, and disciplinary/coverage records from the MN POST license-lookup rosters.";
+
 export const run: SourceRun = async ({ paths }) => {
   const rosterPaths = paths.filter((p) => p.endsWith(".roster.json")).sort();
   const idMapPath = paths.find((p) => path.basename(p) === "agency-ids.yaml");

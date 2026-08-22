@@ -185,9 +185,11 @@ export const registerCliCommand: RegisterCliCommand = (
   program
     .command("run")
     .description(
-      "Run the run.ts of every source folder matching <glob> and import the " +
-        "records it returns. Inputs are read from $INTAKE_WORKSPACE/<source-id>/source/. " +
-        "When us-census-gazetteer matches it runs first (ADR 0015); the rest run in name order.",
+      "Run the run.ts (produce) phase of every source folder matching <glob> " +
+        "and import the records it returns. Inputs come from the source's latest " +
+        "successful acquire (via $INTAKE_WORKSPACE/state/<source-id>/acquire.yaml), " +
+        "falling back to $INTAKE_WORKSPACE/<source-id>/source/. When " +
+        "us-census-gazetteer matches it runs first (ADR 0015); the rest run in name order.",
     )
     .argument(
       "<glob>",
@@ -197,6 +199,7 @@ export const registerCliCommand: RegisterCliCommand = (
       "--dry-run",
       "Write each DatabaseMutations envelope without applying it",
     )
+    .addHelpText("after", "\nRun `intake sources` to list available sources.")
     .action(
       async (glob: string, options: { dryRun?: boolean }): Promise<void> => {
         const env = process.env;
