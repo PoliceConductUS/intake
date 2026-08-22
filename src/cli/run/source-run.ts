@@ -15,6 +15,7 @@ export type RunDeps = {
   readXlsx: typeof readXlsx;
   state: string;
   emit: (kind: string, key: string, spec: unknown) => Promise<void>;
+  env?: Record<string, string | undefined>;
   logger?: { info: (message: string) => void };
 };
 export type SourceRun = (deps: RunDeps) => Promise<SourceManifest>;
@@ -23,10 +24,34 @@ export type SourceRun = (deps: RunDeps) => Promise<SourceManifest>;
 // `sourceDir` (preserving the original format — html/csv/json, no transforms),
 // so the deterministic `run` (produce) phase can then read them. Network and
 // non-determinism live here, never in `run`.
+export type AcquireAgencyRecord = {
+  state: string;
+  county: string | null;
+  place: string | null;
+  agency: Record<string, unknown>;
+};
+
+export type AcquireAgencyPage = {
+  items: AcquireAgencyRecord[];
+  nextCursor?: string;
+};
+
+// A read-only facade over already-imported data an acquire may need to decide
+// what to download (e.g. which agencies to search). Sources ask the facade;
+// they never touch the database directly.
+export type AcquireDataContext = {
+  agencies(query: {
+    states?: string[];
+    cursor?: string;
+    limit?: number;
+  }): Promise<AcquireAgencyPage>;
+};
+
 export type AcquireDeps = {
   sourceDir: string;
   state: string;
   env: Record<string, string | undefined>;
+  data: AcquireDataContext;
   logger?: { info: (message: string) => void };
 };
 export type SourceAcquire = (deps: AcquireDeps) => Promise<void>;

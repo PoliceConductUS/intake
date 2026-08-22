@@ -152,6 +152,7 @@ export async function runSource(
       readXlsx: deps.readXlsx,
       state: deps.state,
       emit: sink.emit,
+      env: deps.env,
       logger: deps.logger,
     });
     // Apply excluded.yaml at Artifacts generation (with FK cascade) so an

@@ -60,6 +60,7 @@ function baseDeps(workspace: string, overrides = {}) {
     state: path.join(workspace, "state", "acquire-source"),
     loadSourceAcquire,
     createCommandDirectory: fakeCreateCommandDirectory("cmd-1"),
+    data: { agencies: async () => ({ items: [] }) },
     logger: { info: () => {} },
     ...overrides,
   };

@@ -10,7 +10,13 @@ import type {
   CommandResult,
   RegisterCliCommand,
 } from "../../shared/cli/types.js";
-import type { AcquireDeps, SourceAcquire } from "../run/source-run.js";
+import type {
+  AcquireDataContext,
+  AcquireDeps,
+  SourceAcquire,
+} from "../run/source-run.js";
+import { defaultDatabaseClientFactory } from "../database/index.js";
+import { createAcquireDataContext } from "./acquire-data-context.js";
 import { loadSourceAcquire } from "../run/load-source-module.js";
 import { sourceStateDir } from "../run/state.js";
 import { matchSourceIds } from "../source-glob.js";
@@ -26,6 +32,7 @@ type AcquireSourceDeps = {
   state: string;
   loadSourceAcquire: typeof loadSourceAcquire;
   createCommandDirectory: typeof createCommandDirectory;
+  data: AcquireDataContext;
   logger: { info: (message: string) => void };
 };
 
@@ -82,6 +89,7 @@ export async function acquireSource(
       sourceDir: outputDir,
       state: deps.state,
       env: deps.env,
+      data: deps.data,
       logger: deps.logger,
     };
     await acquire(acquireDeps);
@@ -133,25 +141,46 @@ export const registerCliCommand: RegisterCliCommand = (
         const logger = {
           info: (message: string) => process.stderr.write(`${message}\n`),
         };
-        for (const sourceId of sourceIds) {
-          const result = await acquireSource(sourceId, {
-            sourcesRoot,
-            env,
-            workspace,
-            state: await sourceStateDir(env, sourceId),
-            loadSourceAcquire,
-            createCommandDirectory,
-            logger,
-          });
-          if (result.exitCode !== 0) {
-            dependencies.setResult({
-              exitCode: result.exitCode,
-              stderr: `${result.stderr ?? ""}intake acquire failed on source ${sourceId}\n`,
+        const databaseUrl = env.DATABASE_URL;
+        const client =
+          databaseUrl !== undefined && databaseUrl.trim().length > 0
+            ? defaultDatabaseClientFactory(databaseUrl)
+            : undefined;
+        if (client !== undefined) await client.connect();
+        const data: AcquireDataContext =
+          client !== undefined
+            ? createAcquireDataContext(client)
+            : {
+                agencies: () => {
+                  throw new Error(
+                    "DATABASE_URL is required for acquire data access (agencies).",
+                  );
+                },
+              };
+        try {
+          for (const sourceId of sourceIds) {
+            const result = await acquireSource(sourceId, {
+              sourcesRoot,
+              env,
+              workspace,
+              state: await sourceStateDir(env, sourceId),
+              loadSourceAcquire,
+              createCommandDirectory,
+              data,
+              logger,
             });
-            return;
+            if (result.exitCode !== 0) {
+              dependencies.setResult({
+                exitCode: result.exitCode,
+                stderr: `${result.stderr ?? ""}intake acquire failed on source ${sourceId}\n`,
+              });
+              return;
+            }
           }
+          dependencies.setResult({ exitCode: 0 });
+        } finally {
+          if (client !== undefined) await client.end();
         }
-        dependencies.setResult({ exitCode: 0 });
       } catch (error) {
         dependencies.setResult({
           exitCode: 1,
