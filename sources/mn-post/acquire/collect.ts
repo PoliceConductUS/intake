@@ -104,7 +104,8 @@ export async function collectSources({
 
   const skippedAgencies: SkippedAgency[] = [];
   const skippedOfficers: SkippedOfficer[] = [];
-  for (const agencyName of agencyNames) {
+  for (const [index, agencyName] of agencyNames.entries()) {
+    const position = `[${index + 1}/${agencyNames.length}]`;
     const lookup = await cache.resolve(agencyName);
     if (lookup.kind === "skip") {
       skippedAgencies.push({
@@ -112,7 +113,9 @@ export async function collectSources({
         reason: lookup.reason,
         candidateCount: lookup.candidateCount,
       });
-      logger.info(`mn-post: skipping ${agencyName} — ${lookup.reason}`);
+      logger.info(
+        `mn-post: ${position} skipping ${agencyName} — ${lookup.reason}`,
+      );
       continue;
     }
 
@@ -128,8 +131,11 @@ export async function collectSources({
           : await client.fetchOfficerList(lookup.agencyId);
       await writeJson(rosterPath, roster);
     }
-    logger.info(`mn-post: ${agencyName} — ${roster.length} officers`);
+    logger.info(
+      `mn-post: ${position} ${agencyName} — ${roster.length} officers`,
+    );
 
+    let detailsFetched = 0;
     for (const officer of roster) {
       const licenseId = asNonEmptyString(officer.licenseId);
       if (licenseId === null) {
@@ -146,6 +152,12 @@ export async function collectSources({
       );
       if ((await readTextIfExists(detailPath)) === null) {
         await writeJson(detailPath, await client.fetchOfficerDetail(officer));
+        detailsFetched += 1;
+        if (detailsFetched % 50 === 0) {
+          logger.info(
+            `mn-post: ${position} ${agencyName} — ${detailsFetched}/${roster.length} officer details`,
+          );
+        }
       }
     }
   }

@@ -81,9 +81,10 @@ export const registerCliCommand: RegisterCliCommand = (
           return;
         }
 
-        const stdout: string[] = [];
+        // Acquire is long-running, so progress streams live to stderr rather
+        // than buffering into the command result.
         const logger = {
-          info: (message: string) => stdout.push(`${message}\n`),
+          info: (message: string) => process.stderr.write(`${message}\n`),
         };
         for (const sourceId of sourceIds) {
           const result = await acquireSource(sourceId, {
@@ -97,13 +98,12 @@ export const registerCliCommand: RegisterCliCommand = (
           if (result.exitCode !== 0) {
             dependencies.setResult({
               exitCode: result.exitCode,
-              stdout: stdout.join(""),
               stderr: `${result.stderr ?? ""}intake acquire failed on source ${sourceId}\n`,
             });
             return;
           }
         }
-        dependencies.setResult({ exitCode: 0, stdout: stdout.join("") });
+        dependencies.setResult({ exitCode: 0 });
       } catch (error) {
         dependencies.setResult({
           exitCode: 1,
