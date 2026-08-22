@@ -1,6 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { createId } from "@paralleldrive/cuid2";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import type { AgencyMatchResult } from "./collect.js";
 
@@ -9,7 +8,6 @@ export type AgencyLedger = Record<string, AgencyLedgerEntry>;
 
 export type AgencyIdLookup =
   | { kind: "resolved"; agencyId: string }
-  | { kind: "empty" }
   | { kind: "skip"; reason: string; candidateCount: number };
 
 export type AgencyIdCache = {
@@ -32,27 +30,22 @@ async function readLedger(filePath: string): Promise<AgencyLedger> {
 
 /**
  * A cache of agency name → Salesforce id, persisted at `<statePath>/agencies.yaml`.
- * A cached id is returned without searching; a cache miss searches the site,
- * caches an unambiguous result, and returns it. An allow-empty agency resolves
- * to an empty roster; anything else resolves to a skip. A cached id is never
- * re-derived, so a changed Salesforce id cannot break a known agency.
+ * A cached id is returned without searching; a cache miss searches the site and
+ * caches an unambiguous result. An agency the site cannot resolve to exactly one
+ * match is a skip. A cached id is never re-derived, so a changed Salesforce id
+ * cannot break a known agency.
  */
 export async function openAgencyIdCache({
   statePath,
   searchAgency,
-  allowEmptyAgencySearch,
   now,
-  createAgencyId = createId,
 }: {
   statePath: string;
   searchAgency: (agencyName: string) => Promise<AgencyMatchResult>;
-  allowEmptyAgencySearch: readonly string[];
   now: string;
-  createAgencyId?: () => string;
 }): Promise<AgencyIdCache> {
   const filePath = path.join(statePath, LEDGER_FILE);
   const ledger = await readLedger(filePath);
-  const allowEmpty = new Set(allowEmptyAgencySearch);
 
   async function cache(agencyName: string, id: string): Promise<void> {
     ledger[agencyName] = { id, firstSeenAt: now };
@@ -70,9 +63,6 @@ export async function openAgencyIdCache({
       if (matches.length === 1) {
         await cache(agencyName, matches[0].Id);
         return { kind: "resolved", agencyId: matches[0].Id };
-      }
-      if (allowEmpty.has(agencyName)) {
-        return { kind: "empty" };
       }
       return {
         kind: "skip",

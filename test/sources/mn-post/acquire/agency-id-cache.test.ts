@@ -33,7 +33,6 @@ describe("openAgencyIdCache", () => {
     const cache = await openAgencyIdCache({
       statePath,
       searchAgency,
-      allowEmptyAgencySearch: [],
       now: "2026-01-01T00:00:00Z",
     });
 
@@ -57,7 +56,6 @@ describe("openAgencyIdCache", () => {
     const cache = await openAgencyIdCache({
       statePath,
       searchAgency,
-      allowEmptyAgencySearch: [],
       now: "2026-01-01T00:00:00Z",
     });
 
@@ -68,16 +66,17 @@ describe("openAgencyIdCache", () => {
     expect(searchAgency).not.toHaveBeenCalled();
   });
 
-  it("resolves an allow-empty agency with no matches to an empty roster", async () => {
+  it("skips an agency the search returns nothing for", async () => {
     const statePath = await makeStatePath();
     const cache = await openAgencyIdCache({
       statePath,
       searchAgency: search([]),
-      allowEmptyAgencySearch: ["Howard Lake Police Dept."],
       now: "2026-01-01T00:00:00Z",
     });
     expect(await cache.resolve("Howard Lake Police Dept.")).toEqual({
-      kind: "empty",
+      kind: "skip",
+      reason: "site agency search returned no resolvable id",
+      candidateCount: 0,
     });
   });
 
@@ -86,7 +85,6 @@ describe("openAgencyIdCache", () => {
     const cache = await openAgencyIdCache({
       statePath,
       searchAgency: search(["a", "b"]),
-      allowEmptyAgencySearch: [],
       now: "2026-01-01T00:00:00Z",
     });
     expect(await cache.resolve("Ambiguous Police Dept.")).toEqual({

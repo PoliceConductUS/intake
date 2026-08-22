@@ -27,7 +27,6 @@ export type OfficerDetail = {
 };
 
 export type AgencyFilters = {
-  allowEmptyAgencySearch: string[];
   supplementalAgencies: Array<{ agencyName: string } & Record<string, unknown>>;
 };
 
@@ -64,6 +63,7 @@ export type CollectResult = {
 export type CollectDeps = {
   sourceDir: string;
   supplementalAgencyNames: readonly string[];
+  excludedAgencyNames: readonly string[];
   fetchAgencyCsv: () => Promise<AgencyCsv>;
   cache: AgencyIdCache;
   client: PostClient;
@@ -81,6 +81,7 @@ export type CollectDeps = {
 export async function collectSources({
   sourceDir,
   supplementalAgencyNames,
+  excludedAgencyNames,
   fetchAgencyCsv,
   cache,
   client,
@@ -100,11 +101,17 @@ export async function collectSources({
     await writeJson(path.join(agenciesDir, "citation.json"), csv.citation);
   }
 
-  const agencyNames = withSupplementalNames(
+  const excluded = new Set(excludedAgencyNames);
+  const allAgencyNames = withSupplementalNames(
     parseAgencyNames(csvBody),
     supplementalAgencyNames,
   );
-  logger.info(`mn-post: ${agencyNames.length} agencies`);
+  const agencyNames = allAgencyNames.filter((name) => !excluded.has(name));
+  const excludedCount = allAgencyNames.length - agencyNames.length;
+  logger.info(
+    `mn-post: ${agencyNames.length} agencies` +
+      (excludedCount > 0 ? ` (${excludedCount} excluded)` : ""),
+  );
 
   const skippedAgencies: SkippedAgency[] = [];
   const skippedOfficers: SkippedOfficer[] = [];
@@ -127,10 +134,6 @@ export async function collectSources({
       officersDir,
       `${artifactStem(agencyName)}.roster.json`,
     );
-    if (lookup.kind === "empty") {
-      logger.info(`mn-post: ${position} ${agencyName} — 0 officers (empty)`);
-      continue;
-    }
     let roster = await readJsonIfExists<OfficerRow[]>(rosterPath);
     if (roster === null) {
       roster = await client.fetchOfficerList(lookup.agencyId);

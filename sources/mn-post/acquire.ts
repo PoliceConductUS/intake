@@ -14,6 +14,7 @@ import {
   writeAgencyIds,
 } from "./acquire/agency-id-cache.js";
 import { writeSkipReport } from "./acquire/skip-report.js";
+import { loadExcludedRecords } from "../../src/shared/io/index.js";
 
 const FILTERS_PATH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -27,9 +28,21 @@ async function loadAgencyFilters(): Promise<AgencyFilters> {
       await readFile(FILTERS_PATH, "utf8"),
     ) as Partial<AgencyFilters>) ?? {};
   return {
-    allowEmptyAgencySearch: config.allowEmptyAgencySearch ?? [],
     supplementalAgencies: config.supplementalAgencies ?? [],
   };
+}
+
+// Excluded agencies live in state (they change without a software version): a
+// kind:Agency entry in <state>/excluded.yaml, matched by name/key.
+async function loadExcludedAgencyNames(statePath: string): Promise<string[]> {
+  const excluded = await loadExcludedRecords(statePath);
+  return [...excluded.values()]
+    .filter((record) => record.kind === "Agency")
+    .flatMap((record) =>
+      [record.key, record.name].filter((value): value is string =>
+        Boolean(value),
+      ),
+    );
 }
 
 export const acquire: SourceAcquire = async ({
@@ -43,6 +56,7 @@ export const acquire: SourceAcquire = async ({
     ? Number(env.MN_POST_CAPTCHA_WAIT_MS)
     : undefined;
   const filters = await loadAgencyFilters();
+  const excludedAgencyNames = await loadExcludedAgencyNames(state);
 
   const { chromium } = await import("playwright");
   const context = await chromium.launchPersistentContext(
@@ -61,7 +75,6 @@ export const acquire: SourceAcquire = async ({
     const cache = await openAgencyIdCache({
       statePath: state,
       searchAgency: (agencyName) => client.searchAgency(agencyName),
-      allowEmptyAgencySearch: filters.allowEmptyAgencySearch,
       now: new Date().toISOString(),
     });
     const { skippedAgencies, skippedOfficers } = await collectSources({
@@ -69,6 +82,7 @@ export const acquire: SourceAcquire = async ({
       supplementalAgencyNames: filters.supplementalAgencies.map(
         (agency) => agency.agencyName,
       ),
+      excludedAgencyNames,
       fetchAgencyCsv: () =>
         fetchPostAgencyCsv({ context, captchaWaitMs, logger: log }),
       cache,

@@ -77,6 +77,7 @@ describe("collectSources", () => {
     await collectSources({
       sourceDir,
       supplementalAgencyNames: [],
+      excludedAgencyNames: [],
       fetchAgencyCsv: async () => ({ body: oneAgencyCsv, citation: { s: 1 } }),
       cache: fakeCache(),
       client,
@@ -113,6 +114,7 @@ describe("collectSources", () => {
     const deps = {
       sourceDir,
       supplementalAgencyNames: [],
+      excludedAgencyNames: [],
       fetchAgencyCsv,
       cache: fakeCache(),
       client,
@@ -132,6 +134,7 @@ describe("collectSources", () => {
     const result = await collectSources({
       sourceDir,
       supplementalAgencyNames: [],
+      excludedAgencyNames: [],
       fetchAgencyCsv: async () => ({ body: oneAgencyCsv, citation: {} }),
       cache: fakeCache(async () => ({
         kind: "skip",
@@ -150,18 +153,18 @@ describe("collectSources", () => {
     ]);
   });
 
-  it("writes no roster and fetches nothing when the cache resolves to empty", async () => {
+  it("does not resolve or scrape an excluded agency", async () => {
     const sourceDir = await makeSourceDir();
-    const client = fakeClient();
+    const cache = fakeCache();
     await collectSources({
       sourceDir,
       supplementalAgencyNames: [],
+      excludedAgencyNames: ["Alpha Police Dept."],
       fetchAgencyCsv: async () => ({ body: oneAgencyCsv, citation: {} }),
-      cache: fakeCache(async () => ({ kind: "empty" })),
-      client,
+      cache,
+      client: fakeClient(),
     });
-    expect(client.fetchOfficerList).not.toHaveBeenCalled();
-    expect(client.fetchOfficerDetails).not.toHaveBeenCalled();
+    expect(cache.resolve).not.toHaveBeenCalled();
     expect(
       await filesEndingWith(path.join(sourceDir, "officers"), ".roster.json"),
     ).toEqual([]);
@@ -182,6 +185,7 @@ describe("collectSources", () => {
     const result = await collectSources({
       sourceDir,
       supplementalAgencyNames: [],
+      excludedAgencyNames: [],
       fetchAgencyCsv: async () => ({ body: oneAgencyCsv, citation: {} }),
       cache: fakeCache(),
       client,
@@ -203,6 +207,7 @@ describe("collectSources", () => {
     await collectSources({
       sourceDir,
       supplementalAgencyNames: ["Beta County Sheriff"],
+      excludedAgencyNames: [],
       fetchAgencyCsv: async () => ({ body: oneAgencyCsv, citation: {} }),
       cache,
       client: fakeClient(),
