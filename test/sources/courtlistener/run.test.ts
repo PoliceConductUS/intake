@@ -20,7 +20,9 @@ const envelope = {
       court: "txnd",
       date_filed: "2023-04-01",
       absolute_url: "/docket/123/doe-v-city-of-irving/",
-      defendants: ["City of Irving", "John Smith"],
+      cause: "28:1983 Civil Rights",
+      date_terminated: "2023-11-20",
+      parties: ["City of Irving", "John Smith"],
     },
     // no filing date -> skipped
     {
@@ -62,6 +64,8 @@ describe("courtlistener run", () => {
       title: "Doe v. City of Irving",
       cause_number: "3:23-cv-001",
       filed_date: "2023-04-01",
+      claims_summary: "28:1983 Civil Rights",
+      date_terminated: "2023-11-20",
       location_path_id: "tx",
       primary_source_url:
         "https://www.courtlistener.com/docket/123/doe-v-city-of-irving/",

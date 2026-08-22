@@ -18,8 +18,10 @@ type Docket = {
   docket_number?: string;
   court?: string;
   date_filed?: string | null;
+  date_terminated?: string | null;
+  cause?: string;
   absolute_url?: string;
-  defendants?: string[];
+  parties?: string[];
 };
 
 type AgencyDockets = {
@@ -63,17 +65,20 @@ export const run: SourceRun = async ({ paths, logger }: RunDeps) => {
       const caseKey = `cl-${docket.id}`;
       const url = docketUrl(docket);
 
+      const terminated = text(docket.date_terminated);
       civilCases[caseKey] = {
         spec: {
           title,
           cause_number: text(docket.docket_number) || caseKey,
           court: text(docket.court) || null,
           filed_date: filed.slice(0, 10),
-          claims_summary: title,
+          claims_summary: text(docket.cause) || title,
           slug: `${slugify(title)}-${caseKey}`,
           outcome: null,
           primary_source_url: url || null,
-          date_terminated: null,
+          date_terminated: /^\d{4}-\d{2}-\d{2}/.test(terminated)
+            ? terminated.slice(0, 10)
+            : null,
           location_path_id: state.toLowerCase(),
         },
       };
@@ -86,8 +91,8 @@ export const run: SourceRun = async ({ paths, logger }: RunDeps) => {
           },
         };
       }
-      for (const defendant of docket.defendants ?? []) {
-        const officerName = text(defendant);
+      for (const party of docket.parties ?? []) {
+        const officerName = text(party);
         if (!isPersonDefendant(officerName)) continue;
         officers[`${caseKey}|${slugify(officerName)}`] = {
           spec: {

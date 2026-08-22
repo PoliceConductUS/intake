@@ -11,17 +11,19 @@ const STATE_COURTS: Record<string, string[]> = {
   TX: ["txnd", "txsd", "txed", "txwd"],
   MN: ["mnd"],
 };
+const NATURE_OF_SUIT = ["440", "550", "555"];
 const DEFAULT_MIN_YEAR = 2022;
-const NATURE_OF_SUIT_CIVIL_RIGHTS = "440,550,555";
 
 type Docket = {
-  id: number | string;
+  id: string;
   case_name: string;
   docket_number: string;
   court: string;
   date_filed: string | null;
+  date_terminated: string | null;
+  cause: string;
   absolute_url: string;
-  defendants: string[];
+  parties: string[];
 };
 
 async function fileExists(filePath: string): Promise<boolean> {
@@ -33,20 +35,6 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
-function authedFetch(
-  token: string,
-): (url: string) => Promise<Record<string, unknown>> {
-  return async (url) => {
-    const response = await fetch(url, {
-      headers: { Authorization: `Token ${token}` },
-    });
-    if (!response.ok) {
-      throw new Error(`courtlistener: ${response.status} for ${url}`);
-    }
-    return (await response.json()) as Record<string, unknown>;
-  };
-}
-
 function asArray(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
 }
@@ -55,19 +43,25 @@ function str(value: unknown): string {
   return typeof value === "string" ? value : value == null ? "" : String(value);
 }
 
-async function fetchDefendants(
-  docketId: string,
-  fetchJson: (url: string) => Promise<Record<string, unknown>>,
-): Promise<string[]> {
-  const body = await fetchJson(`${API}/parties/?docket=${docketId}`);
-  return asArray(body.results)
-    .filter((party) =>
-      asArray(party.party_types).some((type) =>
-        /defendant/i.test(str(type.name)),
-      ),
-    )
-    .map((party) => str(party.name).trim())
-    .filter((name) => name !== "");
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.map((v) => str(v).trim()).filter((v) => v !== "")
+    : [];
+}
+
+function searchUrl(
+  agencyName: string,
+  courts: string[],
+  filedAfter: string,
+): string {
+  const params = new URLSearchParams({
+    type: "r",
+    q: `"${agencyName}"`,
+    filed_after: filedAfter,
+  });
+  for (const court of courts) params.append("court", court);
+  for (const nos of NATURE_OF_SUIT) params.append("nature_of_suit", nos);
+  return `${API}/search/?${params.toString()}`;
 }
 
 async function searchAgencyDockets(
@@ -76,27 +70,26 @@ async function searchAgencyDockets(
   filedAfter: string,
   fetchJson: (url: string) => Promise<Record<string, unknown>>,
 ): Promise<Docket[]> {
-  const params = new URLSearchParams({
-    type: "r",
-    q: `"${agencyName}"`,
-    court: courts.join(" "),
-    filed_after: filedAfter,
-    nature_of_suit: NATURE_OF_SUIT_CIVIL_RIGHTS,
-  });
-  const body = await fetchJson(`${API}/search/?${params.toString()}`);
   const dockets: Docket[] = [];
-  for (const hit of asArray(body.results)) {
-    const id = str(hit.docket_id ?? hit.id);
-    if (id === "") continue;
-    dockets.push({
-      id,
-      case_name: str(hit.caseName ?? hit.case_name),
-      docket_number: str(hit.docketNumber ?? hit.docket_number),
-      court: str(hit.court_id ?? hit.court),
-      date_filed: str(hit.dateFiled ?? hit.date_filed) || null,
-      absolute_url: str(hit.docket_absolute_url ?? hit.absolute_url),
-      defendants: await fetchDefendants(id, fetchJson),
-    });
+  let url = searchUrl(agencyName, courts, filedAfter);
+  while (url !== "") {
+    const body = await fetchJson(url);
+    for (const hit of asArray(body.results)) {
+      const id = str(hit.docket_id ?? hit.id);
+      if (id === "") continue;
+      dockets.push({
+        id,
+        case_name: str(hit.caseName ?? hit.case_name),
+        docket_number: str(hit.docketNumber ?? hit.docket_number),
+        court: str(hit.court_id ?? hit.court),
+        date_filed: str(hit.dateFiled ?? hit.date_filed) || null,
+        date_terminated: str(hit.dateTerminated ?? hit.date_terminated) || null,
+        cause: str(hit.cause),
+        absolute_url: str(hit.docket_absolute_url ?? hit.absolute_url),
+        parties: stringArray(hit.party),
+      });
+    }
+    url = str(body.next);
   }
   return dockets;
 }
@@ -114,7 +107,15 @@ export const acquire: SourceAcquire = async ({
       "courtlistener: COURT_LISTENER_API_TOKEN is required to search CourtListener.",
     );
   }
-  const fetchJson = authedFetch(token);
+  const fetchJson = async (url: string): Promise<Record<string, unknown>> => {
+    const response = await fetch(url, {
+      headers: { Authorization: `Token ${token}` },
+    });
+    if (!response.ok) {
+      throw new Error(`courtlistener: ${response.status} for ${url}`);
+    }
+    return (await response.json()) as Record<string, unknown>;
+  };
   const minYear = Number(env.COURTLISTENER_MIN_YEAR ?? DEFAULT_MIN_YEAR);
   const filedAfter = `${minYear}-01-01`;
   await mkdir(sourceDir, { recursive: true });
@@ -135,9 +136,8 @@ export const acquire: SourceAcquire = async ({
         sourceDir,
         `${slugify(agencyName)}.dockets.json`,
       );
-      if (await fileExists(destination)) {
-        continue;
-      }
+      if (await fileExists(destination)) continue;
+
       const dockets = await searchAgencyDockets(
         agencyName,
         courts,
