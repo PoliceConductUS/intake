@@ -6,11 +6,7 @@ import type {
   SourceAcquire,
 } from "../../src/cli/run/source-run.js";
 import { parseFederalLeAgencies, slugify } from "./acquire/parse.js";
-import {
-  LOCATIONS_FILE,
-  mergeLocationStubs,
-  type AgencyLocation,
-} from "./locations.js";
+import { ORGS_FILE, mergeOrgs, type Org } from "./model.js";
 
 const DEFAULT_PAGE_URL =
   "https://en.wikipedia.org/wiki/List_of_federal_law_enforcement_agencies_of_the_United_States";
@@ -26,37 +22,35 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
-async function readExistingLocations(
-  filePath: string,
-): Promise<AgencyLocation[]> {
+async function readExistingOrgs(filePath: string): Promise<Org[]> {
   if (!(await fileExists(filePath))) return [];
   const parsed = parseYaml(await readFile(filePath, "utf8")) as {
-    agencies?: AgencyLocation[];
+    agencies?: Org[];
   };
   return parsed.agencies ?? [];
 }
 
-async function maintainLocations(
+async function maintainOrgs(
   stateDir: string,
   html: string,
   log: { info: (message: string) => void },
 ): Promise<void> {
   const { parents } = parseFederalLeAgencies(html);
-  const discovered = parents
+  const discovered: Org[] = parents
     .flatMap((parent) => parent.agencies)
     .map((name) => ({ slug: slugify(name), name }));
 
   await mkdir(stateDir, { recursive: true });
-  const filePath = path.join(stateDir, LOCATIONS_FILE);
-  const { agencies, added } = mergeLocationStubs(
-    await readExistingLocations(filePath),
+  const filePath = path.join(stateDir, ORGS_FILE);
+  const { orgs, added } = mergeOrgs(
+    await readExistingOrgs(filePath),
     discovered,
   );
-  await writeFile(filePath, stringifyYaml({ agencies }));
+  await writeFile(filePath, stringifyYaml({ agencies: orgs }));
   log.info(
     added.length === 0
-      ? `federal-le: ${LOCATIONS_FILE} already covers ${agencies.length} agencies`
-      : `federal-le: added ${added.length} agency location stub(s) to ${LOCATIONS_FILE}; fill them in to import`,
+      ? `federal-le: ${ORGS_FILE} already lists ${orgs.length} agencies`
+      : `federal-le: added ${added.length} agency/agencies to ${ORGS_FILE}`,
   );
 }
 
@@ -85,5 +79,5 @@ export const acquire: SourceAcquire = async ({
     log.info(`federal-le: saved ${SOURCE_HTML_FILE}`);
   }
 
-  await maintainLocations(state, await readFile(destination, "utf8"), log);
+  await maintainOrgs(state, await readFile(destination, "utf8"), log);
 };

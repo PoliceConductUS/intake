@@ -6,97 +6,79 @@ import type {
   RunDeps,
   SourceRun,
 } from "../../src/cli/run/source-run.js";
-import { parseFederalLeAgencies, slugify } from "./acquire/parse.js";
-import { SOURCE_HTML_FILE } from "./acquire.js";
-import { LOCATIONS_FILE, type AgencyLocation } from "./locations.js";
+import {
+  OFFICES_FILE,
+  ORGS_FILE,
+  officeIsComplete,
+  type Office,
+  type Org,
+} from "./model.js";
 
 export const description =
-  "US federal law-enforcement agencies — parent departments, their agencies, and the parent→agency links, from the Wikipedia federal LE list joined to curated HQ locations in state.";
+  "US federal law-enforcement agencies — each agency (FBI, DEA, …) as a federal_agency, its offices (HQ + field offices) as agency records, linked by federal_agency_branch. Agencies are discovered from Wikipedia; offices are curated in state.";
 
-function isComplete(location: AgencyLocation): boolean {
-  return (
-    (location.state ?? "").trim() !== "" &&
-    (location.city ?? "").trim() !== "" &&
-    (location.address ?? "").trim() !== "" &&
-    (location.zip_code ?? "").trim() !== ""
-  );
-}
-
-async function loadAgencyLocations(
+async function loadYamlList<T>(
   stateDir: string,
-): Promise<Map<string, AgencyLocation>> {
-  const filePath = path.join(stateDir, LOCATIONS_FILE);
+  file: string,
+  key: string,
+): Promise<T[]> {
+  const filePath = path.join(stateDir, file);
   try {
     await access(filePath);
   } catch {
-    return new Map();
+    return [];
   }
-  const parsed = parseYaml(await readFile(filePath, "utf8")) as {
-    agencies?: AgencyLocation[];
-  };
-  return new Map(
-    (parsed.agencies ?? []).map((location) => [location.slug, location]),
-  );
+  const parsed = parseYaml(await readFile(filePath, "utf8")) as Record<
+    string,
+    T[] | undefined
+  >;
+  return parsed[key] ?? [];
 }
 
-export const run: SourceRun = async ({ paths, state, logger }: RunDeps) => {
+export const run: SourceRun = async ({ state, logger }: RunDeps) => {
   const log = logger ?? { info() {} };
-  const htmlPath = paths.find((p) => path.basename(p) === SOURCE_HTML_FILE);
-  if (htmlPath === undefined) {
-    throw new Error(
-      `gov.us.federal-le expects the acquired ${SOURCE_HTML_FILE} input.`,
-    );
-  }
-
-  log.info("federal-le: parsing agency list");
-  const { parents } = parseFederalLeAgencies(await readFile(htmlPath, "utf8"));
-  const locations = await loadAgencyLocations(state);
+  const orgs = await loadYamlList<Org>(state, ORGS_FILE, "agencies");
+  const offices = await loadYamlList<Office>(state, OFFICES_FILE, "offices");
+  const orgSlugs = new Set(orgs.map((org) => org.slug));
 
   const federalAgencies: EmittedRecords = {};
+  for (const org of orgs) {
+    federalAgencies[org.slug] = { spec: { name: org.name, slug: org.slug } };
+  }
+
   const agencies: EmittedRecords = {};
   const branches: EmittedRecords = {};
-  const claimedAgencies = new Set<string>();
   const skipped: string[] = [];
-
-  for (const parent of parents) {
-    federalAgencies[parent.slug] = {
-      spec: { name: parent.name, slug: parent.slug },
-    };
-    for (const agencyName of parent.agencies) {
-      const slug = slugify(agencyName);
-      const location = locations.get(slug);
-      if (location === undefined || !isComplete(location)) {
-        skipped.push(agencyName);
-        continue;
-      }
-      if (claimedAgencies.has(slug)) continue;
-      claimedAgencies.add(slug);
-
-      agencies[slug] = {
-        spec: {
-          name: location.name,
-          state: location.state,
-          city: location.city,
-          address: location.address,
-          zip_code: location.zip_code,
-        },
-      };
-      branches[`${parent.slug}|${slug}`] = {
-        spec: { federal_agency_id: parent.slug, agency_id: slug },
-      };
+  for (const office of offices) {
+    if (!officeIsComplete(office) || !orgSlugs.has(office.federal_agency)) {
+      skipped.push(office.name || office.slug || "(unnamed office)");
+      continue;
     }
+    agencies[office.slug] = {
+      spec: {
+        name: office.name,
+        state: office.state,
+        city: office.city,
+        address: office.address,
+        zip_code: office.zip_code,
+      },
+    };
+    branches[`${office.federal_agency}|${office.slug}`] = {
+      spec: {
+        federal_agency_id: office.federal_agency,
+        agency_id: office.slug,
+      },
+    };
   }
 
   log.info(
-    `federal-le: ${Object.keys(federalAgencies).length} parents, ` +
-      `${Object.keys(agencies).length} agencies, ` +
+    `federal-le: ${Object.keys(federalAgencies).length} agencies, ` +
+      `${Object.keys(agencies).length} offices, ` +
       `${Object.keys(branches).length} branches, ` +
-      `${skipped.length} skipped (no complete location in state)`,
+      `${skipped.length} offices skipped (incomplete or unknown agency)`,
   );
   if (skipped.length > 0) {
-    log.info(
-      `federal-le: fill ${LOCATIONS_FILE} in state to import: ${skipped.join("; ")}`,
-    );
+    log.info(`federal-le: fix ${OFFICES_FILE} in state: ${skipped.join("; ")}`);
   }
 
   return {
