@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type {
   AcquireDeps,
@@ -115,66 +115,89 @@ export const acquire: SourceAcquire = async ({
   const minYear = Number(env.COURTLISTENER_MIN_YEAR ?? DEFAULT_MIN_YEAR);
   const filedAfter = `${minYear}-01-01`;
   const onlyWithCases = env.COURTLISTENER_ONLY_WITH_CASES === "true";
+  const agenciesFile = env.COURTLISTENER_AGENCIES_FILE;
   await mkdir(sourceDir, { recursive: true });
 
   const cache = await loadDocketCache(state);
   const nowMs = Date.now();
   const nowIso = new Date(nowMs).toISOString();
-
-  let cursor: string | undefined;
   let searched = 0;
   let cached = 0;
-  do {
-    const page = await data.agencies({
-      states: Object.keys(STATE_COURTS),
-      minOfficers: 1,
-      hasCivilCase: onlyWithCases,
-      cursor,
-      limit: 50,
-    });
-    for (const record of page.items) {
-      const agencyName = str(record.agency.name).trim();
-      const courts = STATE_COURTS[record.state] ?? [];
-      if (agencyName === "" || courts.length === 0) continue;
-      const slug = slugify(agencyName);
 
-      let dockets: Docket[];
-      if (agencyNeedsSearch(cache.agencies[slug], nowMs)) {
-        dockets = await searchAgencyDockets(
-          agencyName,
-          courts,
-          filedAfter,
-          fetchJson,
-        );
-        cache.agencies[slug] = { lastSearchedAt: nowIso, dockets };
-        await saveDocketCache(state, cache);
-        searched += 1;
-        log.info(
-          `courtlistener: ${agencyName} — ${dockets.length} docket(s) [searched ${searched}]`,
-        );
-      } else {
-        dockets = cache.agencies[slug].dockets;
-        cached += 1;
-      }
+  const processAgency = async (
+    agencyId: string,
+    agencyName: string,
+    agencyState: string,
+  ): Promise<void> => {
+    const courts = STATE_COURTS[agencyState] ?? [];
+    if (agencyName === "" || courts.length === 0) return;
+    const slug = slugify(agencyName);
 
-      await writeFile(
-        path.join(sourceDir, `${slug}.dockets.json`),
-        JSON.stringify(
-          {
-            agency: {
-              id: str(record.agency.id),
-              name: agencyName,
-              state: record.state,
-            },
-            dockets,
-          },
-          null,
-          2,
-        ),
+    let dockets: Docket[];
+    if (agencyNeedsSearch(cache.agencies[slug], nowMs)) {
+      dockets = await searchAgencyDockets(
+        agencyName,
+        courts,
+        filedAfter,
+        fetchJson,
+      );
+      cache.agencies[slug] = { lastSearchedAt: nowIso, dockets };
+      await saveDocketCache(state, cache);
+      searched += 1;
+      log.info(
+        `courtlistener: ${agencyName} — ${dockets.length} docket(s) [searched ${searched}]`,
+      );
+    } else {
+      dockets = cache.agencies[slug].dockets;
+      cached += 1;
+    }
+
+    await writeFile(
+      path.join(sourceDir, `${slug}.dockets.json`),
+      JSON.stringify(
+        {
+          agency: { id: agencyId, name: agencyName, state: agencyState },
+          dockets,
+        },
+        null,
+        2,
+      ),
+    );
+  };
+
+  if (agenciesFile !== undefined && agenciesFile.trim() !== "") {
+    const list = JSON.parse(await readFile(agenciesFile, "utf8")) as {
+      id?: string;
+      name?: string;
+      state?: string;
+    }[];
+    for (const entry of list) {
+      await processAgency(
+        str(entry.id),
+        str(entry.name).trim(),
+        str(entry.state).trim().toUpperCase(),
       );
     }
-    cursor = page.nextCursor;
-  } while (cursor !== undefined);
+  } else {
+    let cursor: string | undefined;
+    do {
+      const page = await data.agencies({
+        states: Object.keys(STATE_COURTS),
+        minOfficers: 1,
+        hasCivilCase: onlyWithCases,
+        cursor,
+        limit: 50,
+      });
+      for (const record of page.items) {
+        await processAgency(
+          str(record.agency.id),
+          str(record.agency.name).trim(),
+          record.state,
+        );
+      }
+      cursor = page.nextCursor;
+    } while (cursor !== undefined);
+  }
 
   log.info(
     `courtlistener: ${searched} agencies searched, ${cached} served from cache (< ${REFRESH_DAYS} days).`,
