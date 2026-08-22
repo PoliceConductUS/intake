@@ -5,6 +5,11 @@ import type {
   RunDeps,
   SourceRun,
 } from "../../src/cli/run/source-run.js";
+import {
+  isPersonDefendant,
+  primaryAgencyName,
+  slugify,
+} from "../lib/civil-defendants.js";
 
 export const description =
   "Civil Rights Litigation Clearinghouse — policing civil cases (TX + MN), linked to the officers named as defendants via the fuzzy agency_personnel resolver.";
@@ -41,24 +46,8 @@ type Case = {
   case_defendants?: Defendant[];
 };
 
-const INSTITUTION =
-  /county|city|department|dept|police|sheriff|state|univ|correction|bureau|office|division|commission|board|district|authority|jail|prison|town|village|dps|patrol|marshal|constable|agency|department of/i;
-
-function slugify(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
-}
-
-function isPersonDefendant(name: string): boolean {
-  return (
-    name !== "" && !INSTITUTION.test(name) && /^[A-Z][a-z]+ [A-Z]/.test(name)
-  );
 }
 
 function filedDate(civilCase: Case): string | undefined {
@@ -119,9 +108,9 @@ export const run: SourceRun = async ({ paths, env, logger }: RunDeps) => {
     };
 
     const defendants = civilCase.case_defendants ?? [];
-    const agencyName = defendants
-      .map((d) => text(d.institution) || text(d.name))
-      .find((name) => name !== "" && INSTITUTION.test(name));
+    const agencyName = primaryAgencyName(
+      defendants.map((d) => text(d.institution) || text(d.name)),
+    );
     for (const defendant of defendants) {
       const officerName = text(defendant.name);
       if (!isPersonDefendant(officerName) || agencyName === undefined) continue;

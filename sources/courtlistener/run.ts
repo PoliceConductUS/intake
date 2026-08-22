@@ -1,0 +1,135 @@
+import { readdir, readFile } from "node:fs/promises";
+import path from "node:path";
+import type {
+  EmittedRecords,
+  RunDeps,
+  SourceRun,
+} from "../../src/cli/run/source-run.js";
+import { isPersonDefendant, slugify } from "../lib/civil-defendants.js";
+
+export const description =
+  "CourtListener — federal §1983 dockets naming TX/MN agencies, linked to the officer defendants via the fuzzy agency_personnel resolver.";
+
+const COURTLISTENER = "https://www.courtlistener.com";
+
+type Docket = {
+  id: number | string;
+  case_name?: string;
+  docket_number?: string;
+  court?: string;
+  date_filed?: string | null;
+  absolute_url?: string;
+  defendants?: string[];
+};
+
+type AgencyDockets = {
+  agency: { id?: string; name?: string; state?: string };
+  dockets?: Docket[];
+};
+
+function text(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function docketUrl(docket: Docket): string {
+  const url = text(docket.absolute_url);
+  if (url === "") return "";
+  return url.startsWith("http") ? url : `${COURTLISTENER}${url}`;
+}
+
+export const run: SourceRun = async ({ paths, logger }: RunDeps) => {
+  const log = logger ?? { info() {} };
+  const envelopePaths = paths.filter((p) => p.endsWith(".dockets.json"));
+  // paths may be a flat list already; also accept a directory of envelopes.
+  const files =
+    envelopePaths.length > 0
+      ? envelopePaths
+      : await collectEnvelopePaths(paths);
+
+  const civilCases: EmittedRecords = {};
+  const officers: EmittedRecords = {};
+  const links: EmittedRecords = {};
+
+  for (const file of files) {
+    const envelope = JSON.parse(await readFile(file, "utf8")) as AgencyDockets;
+    const agencyName = text(envelope.agency.name);
+    const state = text(envelope.agency.state).toUpperCase();
+    if (agencyName === "" || state === "") continue;
+
+    for (const docket of envelope.dockets ?? []) {
+      const title = text(docket.case_name);
+      const filed = text(docket.date_filed);
+      if (title === "" || !/^\d{4}-\d{2}-\d{2}/.test(filed)) continue;
+      const caseKey = `cl-${docket.id}`;
+      const url = docketUrl(docket);
+
+      civilCases[caseKey] = {
+        spec: {
+          title,
+          cause_number: text(docket.docket_number) || caseKey,
+          court: text(docket.court) || null,
+          filed_date: filed.slice(0, 10),
+          claims_summary: title,
+          slug: `${slugify(title)}-${caseKey}`,
+          outcome: null,
+          primary_source_url: url || null,
+          date_terminated: null,
+          location_path_id: state.toLowerCase(),
+        },
+      };
+      if (url !== "") {
+        links[`${caseKey}|courtlistener`] = {
+          spec: {
+            civil_case_id: caseKey,
+            url,
+            title: "CourtListener docket",
+          },
+        };
+      }
+      for (const defendant of docket.defendants ?? []) {
+        const officerName = text(defendant);
+        if (!isPersonDefendant(officerName)) continue;
+        officers[`${caseKey}|${slugify(officerName)}`] = {
+          spec: {
+            civil_case_id: caseKey,
+            state,
+            agency_name: agencyName,
+            officer_name: officerName,
+          },
+        };
+      }
+    }
+  }
+
+  log.info(
+    `courtlistener: ${Object.keys(civilCases).length} dockets, ` +
+      `${Object.keys(officers).length} officer defendants, ${Object.keys(links).length} links (linking resolved at import)`,
+  );
+
+  return {
+    artifacts: [
+      { kind: "CivilCases", records: civilCases },
+      { kind: "CivilCaseOfficers", records: officers },
+      { kind: "CivilCaseLinks", records: links },
+    ],
+  };
+};
+
+async function collectEnvelopePaths(paths: string[]): Promise<string[]> {
+  const files: string[] = [];
+  for (const p of paths) {
+    if (p.endsWith(".dockets.json")) {
+      files.push(p);
+      continue;
+    }
+    try {
+      const entries = await readdir(p);
+      for (const entry of entries) {
+        if (entry.endsWith(".dockets.json")) files.push(path.join(p, entry));
+      }
+    } catch {
+      // Not a directory; ignore.
+    }
+  }
+  return files;
+}
