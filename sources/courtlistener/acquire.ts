@@ -1,10 +1,17 @@
-import { access, mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type {
   AcquireDeps,
   SourceAcquire,
 } from "../../src/cli/run/source-run.js";
 import { slugify } from "../lib/civil-defendants.js";
+import {
+  agencyNeedsSearch,
+  loadDocketCache,
+  REFRESH_DAYS,
+  saveDocketCache,
+  type Docket,
+} from "./docket-cache.js";
 
 const API = "https://www.courtlistener.com/api/rest/v4";
 const STATE_COURTS: Record<string, string[]> = {
@@ -13,27 +20,6 @@ const STATE_COURTS: Record<string, string[]> = {
 };
 const NATURE_OF_SUIT = ["440", "550", "555"];
 const DEFAULT_MIN_YEAR = 2022;
-
-type Docket = {
-  id: string;
-  case_name: string;
-  docket_number: string;
-  court: string;
-  date_filed: string | null;
-  date_terminated: string | null;
-  cause: string;
-  absolute_url: string;
-  defendants: string[];
-};
-
-async function fileExists(filePath: string): Promise<boolean> {
-  try {
-    await access(filePath);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 function asArray(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
@@ -105,6 +91,7 @@ async function searchAgencyDockets(
 
 export const acquire: SourceAcquire = async ({
   sourceDir,
+  state,
   env,
   data,
   logger,
@@ -129,8 +116,13 @@ export const acquire: SourceAcquire = async ({
   const filedAfter = `${minYear}-01-01`;
   await mkdir(sourceDir, { recursive: true });
 
+  const cache = await loadDocketCache(state);
+  const nowMs = Date.now();
+  const nowIso = new Date(nowMs).toISOString();
+
   let cursor: string | undefined;
   let searched = 0;
+  let cached = 0;
   do {
     const page = await data.agencies({
       states: Object.keys(STATE_COURTS),
@@ -142,20 +134,29 @@ export const acquire: SourceAcquire = async ({
       const agencyName = str(record.agency.name).trim();
       const courts = STATE_COURTS[record.state] ?? [];
       if (agencyName === "" || courts.length === 0) continue;
-      const destination = path.join(
-        sourceDir,
-        `${slugify(agencyName)}.dockets.json`,
-      );
-      if (await fileExists(destination)) continue;
+      const slug = slugify(agencyName);
 
-      const dockets = await searchAgencyDockets(
-        agencyName,
-        courts,
-        filedAfter,
-        fetchJson,
-      );
+      let dockets: Docket[];
+      if (agencyNeedsSearch(cache.agencies[slug], nowMs)) {
+        dockets = await searchAgencyDockets(
+          agencyName,
+          courts,
+          filedAfter,
+          fetchJson,
+        );
+        cache.agencies[slug] = { lastSearchedAt: nowIso, dockets };
+        await saveDocketCache(state, cache);
+        searched += 1;
+        log.info(
+          `courtlistener: ${agencyName} — ${dockets.length} docket(s) [searched ${searched}]`,
+        );
+      } else {
+        dockets = cache.agencies[slug].dockets;
+        cached += 1;
+      }
+
       await writeFile(
-        destination,
+        path.join(sourceDir, `${slug}.dockets.json`),
         JSON.stringify(
           {
             agency: {
@@ -169,11 +170,11 @@ export const acquire: SourceAcquire = async ({
           2,
         ),
       );
-      searched += 1;
-      log.info(
-        `courtlistener: ${agencyName} — ${dockets.length} docket(s) [${searched}]`,
-      );
     }
     cursor = page.nextCursor;
   } while (cursor !== undefined);
+
+  log.info(
+    `courtlistener: ${searched} agencies searched, ${cached} served from cache (< ${REFRESH_DAYS} days).`,
+  );
 };
