@@ -55,14 +55,7 @@ export function resolvedPropertyCacheName(
 }
 
 function resolvedPropertyDirectory(rootDir: string): string {
-  return path.join(
-    rootDir,
-    "intake",
-    "state",
-    "namespaces",
-    "intake",
-    "ResolvedProperty",
-  );
+  return path.join(rootDir, "state", "intake", "ResolvedProperty");
 }
 
 function resolvedPropertyPath(

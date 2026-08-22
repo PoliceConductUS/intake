@@ -85,14 +85,7 @@ describe("ResolvedProperty state", () => {
     ).resolves.toEqual(44.955097);
 
     const fileNames = await readdir(
-      path.join(
-        rootDir,
-        "intake",
-        "state",
-        "namespaces",
-        "intake",
-        "ResolvedProperty",
-      ),
+      path.join(rootDir, "state", "intake", "ResolvedProperty"),
     );
     expect(fileNames).toEqual([
       `${encodeURIComponent(
@@ -138,9 +131,7 @@ describe("ResolvedProperty state", () => {
     const envelope = await ResolvedProperty.read(
       path.join(
         rootDir,
-        "intake",
         "state",
-        "namespaces",
         "intake",
         "ResolvedProperty",
         `${encodeURIComponent(

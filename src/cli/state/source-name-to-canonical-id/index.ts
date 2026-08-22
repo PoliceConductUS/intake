@@ -85,7 +85,7 @@ export function resolveSourceNameToCanonicalIdPath(
     );
   }
 
-  return path.join(rootDir, "intake", "state", "namespaces", namespace);
+  return path.join(rootDir, "state", namespace);
 }
 
 function mappingRecordPath(
@@ -126,7 +126,7 @@ async function mappingRecordExists(filePath: string): Promise<boolean> {
  * thousands of files); that is deliberately gone and must never return.
  *
  * `namespace` is per call, not per accessor: a record's identity lives under its
- * own source namespace (`intake/state/namespaces/<namespace>/`), which is not
+ * own source namespace (`state/<namespace>/`), which is not
  * necessarily the running command's namespace — e.g. a `gov.tx.tcole` agency
  * resolves a `LocationPath` id owned by the census namespace (ADR 0015).
  */
