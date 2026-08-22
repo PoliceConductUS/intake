@@ -9,7 +9,12 @@ import type {
 import { collectSources, type AgencyFilters } from "./acquire/collect.js";
 import { fetchPostAgencyCsv } from "./acquire/agency-csv.js";
 import { createPostLicenseSearchClient } from "./acquire/post-client.js";
-import { updateAgencyLedger, writeSourceAgencyIds } from "./acquire/ledger.js";
+import {
+  loadAgencyLedger,
+  updateAgencyLedger,
+  writeSourceAgencyIds,
+} from "./acquire/ledger.js";
+import { writeSkipReport } from "./acquire/skip-report.js";
 
 const FILTERS_PATH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -52,6 +57,16 @@ export const acquire: SourceAcquire = async ({
     : undefined;
   const agencyFilters = await loadAgencyFilters();
 
+  // The cached ledger: agency ids resolved on earlier runs. A cached id is
+  // trusted over the (unreliable) live search, and lets an agency the site can't
+  // resolve by name — pin its id here once — be scraped anyway.
+  const cachedLedger = await loadAgencyLedger(state);
+  const knownAgencyIds = new Map(
+    Object.entries(cachedLedger)
+      .filter(([, entry]) => typeof entry?.id === "string" && entry.id !== "")
+      .map(([name, entry]) => [name, entry.id]),
+  );
+
   const { chromium } = await import("playwright");
   const context = await chromium.launchPersistentContext(
     path.join(state, "browser-profile"),
@@ -66,14 +81,17 @@ export const acquire: SourceAcquire = async ({
       context,
       logger: log,
     });
-    const { agencyMatches } = await collectSources({
-      sourceDir,
-      agencyFilters,
-      fetchAgencyCsv: () =>
-        fetchPostAgencyCsv({ context, captchaWaitMs, logger: log }),
-      client,
-      logger: log,
-    });
+    const { agencyMatches, skippedAgencies, skippedOfficers } =
+      await collectSources({
+        sourceDir,
+        agencyFilters,
+        fetchAgencyCsv: () =>
+          fetchPostAgencyCsv({ context, captchaWaitMs, logger: log }),
+        client,
+        knownAgencyIds,
+        logger: log,
+      });
+    await writeSkipReport(sourceDir, skippedAgencies, skippedOfficers, log);
     const ledger = await updateAgencyLedger({
       statePath: state,
       agencyMatches,

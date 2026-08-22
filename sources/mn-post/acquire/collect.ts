@@ -41,11 +41,33 @@ export type PostClient = {
 export type CollectLogger = { info: (message: string) => void };
 const silentLogger: CollectLogger = { info() {} };
 
+export type SkippedAgency = {
+  agencyName: string;
+  reason: string;
+  candidateCount: number;
+};
+export type SkippedOfficer = {
+  agencyName: string;
+  officer: string;
+  reason: string;
+};
+export type CollectResult = {
+  agencyMatches: AgencyMatchResult[];
+  skippedAgencies: SkippedAgency[];
+  skippedOfficers: SkippedOfficer[];
+};
+
 export type CollectDeps = {
   sourceDir: string;
   agencyFilters: AgencyFilters;
   fetchAgencyCsv: () => Promise<AgencyCsv>;
   client: PostClient;
+  /**
+   * Agency name → stored Salesforce id from the durable ledger. A known agency
+   * is trusted outright: the site's agency search is unreliable and returns
+   * nothing for some real agencies, so we never re-derive an id we already have.
+   */
+  knownAgencyIds?: ReadonlyMap<string, string>;
   logger?: CollectLogger;
 };
 
@@ -59,16 +81,19 @@ export type CollectDeps = {
  *   - `officers/<stem>.detail.json`    the raw per-officer detail
  *
  * Every artifact is written once and reused on a later run, so an interrupted
- * scrape resumes instead of re-fetching. Returns the agency matches so the
- * caller can reconcile the identity ledger.
+ * scrape resumes instead of re-fetching. Returns the agency matches (so the
+ * caller can reconcile the identity ledger) and what was skipped: an agency the
+ * site cannot resolve to an id, or an officer missing a licenseId, is skipped
+ * and reported rather than aborting the whole scrape.
  */
 export async function collectSources({
   sourceDir,
   agencyFilters,
   fetchAgencyCsv,
   client,
+  knownAgencyIds = new Map(),
   logger = silentLogger,
-}: CollectDeps): Promise<{ agencyMatches: AgencyMatchResult[] }> {
+}: CollectDeps): Promise<CollectResult> {
   const agenciesDir = path.join(sourceDir, "agencies");
   const officersDir = path.join(sourceDir, "officers");
   await mkdir(agenciesDir, { recursive: true });
@@ -105,25 +130,56 @@ export async function collectSources({
     );
   }
 
-  const failures = findAgencyMatchFailures(agencyMatches);
-  if (failures.length > 0) {
-    throw new Error(
-      `mn-post agency search did not resolve to exactly one match: ${failures
-        .map((f) => `${f.agencyName} (${f.matchCount})`)
+  // Resolve each agency's id: a known agency trusts its cached ledger id; a new
+  // agency needs the search to yield exactly one match. An agency the site
+  // cannot resolve (and that is not allow-empty) is skipped and reported — its
+  // officers cannot be fetched without an id — never silently dropped.
+  const resolvedIdByAgency = new Map<string, string>();
+  const skippedAgencies: SkippedAgency[] = [];
+  for (const matchResult of agencyMatches) {
+    const resolvedId =
+      knownAgencyIds.get(matchResult.agencyName) ??
+      (matchResult.matches.length === 1
+        ? matchResult.matches[0].Id
+        : undefined);
+    if (resolvedId !== undefined) {
+      resolvedIdByAgency.set(matchResult.agencyName, resolvedId);
+    } else if (matchResult.allowEmptyAgencySearch !== true) {
+      skippedAgencies.push({
+        agencyName: matchResult.agencyName,
+        reason: "site agency search returned no resolvable id",
+        candidateCount: matchResult.matches.length,
+      });
+    }
+  }
+  if (skippedAgencies.length > 0) {
+    logger.info(
+      `mn-post: skipping ${skippedAgencies.length} unresolvable agenc${skippedAgencies.length === 1 ? "y" : "ies"}: ${skippedAgencies
+        .map((s) => s.agencyName)
         .join(", ")}`,
     );
   }
 
+  const skippedOfficers: SkippedOfficer[] = [];
   for (const matchResult of agencyMatches) {
+    const agencyId = resolvedIdByAgency.get(matchResult.agencyName);
+    if (agencyId === undefined && matchResult.allowEmptyAgencySearch !== true) {
+      continue; // skipped agency: no id, nothing to fetch
+    }
     const rosterPath = path.join(
       officersDir,
       `${artifactStem(matchResult.agencyName)}.roster.json`,
     );
     let roster = await readJsonIfExists<OfficerRow[]>(rosterPath);
     if (roster === null) {
-      roster = matchResult.allowEmptyAgencySearch
-        ? []
-        : await client.fetchOfficerList(matchResult.matches[0]);
+      // A known agency whose search failed still fetches by its cached id via a
+      // synthetic match; an allow-empty agency with no id keeps an empty roster.
+      roster =
+        agencyId === undefined
+          ? []
+          : await client.fetchOfficerList(
+              matchResult.matches[0] ?? { Id: agencyId },
+            );
       await writeJson(rosterPath, roster);
     }
     logger.info(
@@ -133,9 +189,12 @@ export async function collectSources({
     for (const officer of roster) {
       const licenseId = asNonEmptyString(officer.licenseId);
       if (licenseId === null) {
-        throw new Error(
-          `mn-post officer on ${matchResult.agencyName} roster is missing a licenseId`,
-        );
+        skippedOfficers.push({
+          agencyName: matchResult.agencyName,
+          officer: describeOfficer(officer),
+          reason: "roster row is missing a licenseId",
+        });
+        continue;
       }
       const detailPath = path.join(
         officersDir,
@@ -147,7 +206,15 @@ export async function collectSources({
     }
   }
 
-  return { agencyMatches };
+  return { agencyMatches, skippedAgencies, skippedOfficers };
+}
+
+function describeOfficer(officer: OfficerRow): string {
+  return (
+    asNonEmptyString(officer.name) ??
+    asNonEmptyString(officer.contactId) ??
+    "unknown officer"
+  );
 }
 
 function applyEmptyOfficerListAllowance(
@@ -162,20 +229,6 @@ function applyEmptyOfficerListAllowance(
     return matchResult;
   }
   return { ...matchResult, allowEmptyAgencySearch: true };
-}
-
-export function findAgencyMatchFailures(
-  agencyMatches: readonly AgencyMatchResult[],
-): Array<{ agencyName: string; matchCount: number }> {
-  return agencyMatches
-    .filter(
-      (result) =>
-        result.matches.length !== 1 && result.allowEmptyAgencySearch !== true,
-    )
-    .map((result) => ({
-      agencyName: result.agencyName,
-      matchCount: result.matches.length,
-    }));
 }
 
 function mergeSupplementalAgencyNames(

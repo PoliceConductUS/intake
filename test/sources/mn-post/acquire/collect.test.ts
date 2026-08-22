@@ -104,7 +104,7 @@ describe("collectSources", () => {
     expect(client.fetchOfficerDetail).toHaveBeenCalledTimes(1);
   });
 
-  it("fails loud when an agency does not resolve to exactly one match", async () => {
+  it("skips (and reports) an agency the site cannot resolve, without fetching its officers", async () => {
     const sourceDir = await makeSourceDir();
     const client = fakeClient({
       searchAgency: vi.fn(async (agencyName: string) => ({
@@ -113,14 +113,65 @@ describe("collectSources", () => {
         matches: [{ Id: "a" }, { Id: "b" }],
       })),
     });
-    await expect(
-      collectSources({
-        sourceDir,
-        agencyFilters: noFilters,
-        fetchAgencyCsv: async () => ({ body: oneAgencyCsv, citation: {} }),
-        client,
-      }),
-    ).rejects.toThrow(/exactly one match/);
+    const result = await collectSources({
+      sourceDir,
+      agencyFilters: noFilters,
+      fetchAgencyCsv: async () => ({ body: oneAgencyCsv, citation: {} }),
+      client,
+    });
+    expect(client.fetchOfficerList).not.toHaveBeenCalled();
+    expect(result.skippedAgencies).toEqual([
+      {
+        agencyName: "Alpha Police Dept.",
+        reason: "site agency search returned no resolvable id",
+        candidateCount: 2,
+      },
+    ]);
+  });
+
+  it("fetches the roster from a cached id when the site search returns nothing", async () => {
+    const sourceDir = await makeSourceDir();
+    const client = fakeClient({
+      searchAgency: vi.fn(async (agencyName: string) => ({
+        agencyName,
+        candidateMatches: [],
+        matches: [],
+      })),
+    });
+    const result = await collectSources({
+      sourceDir,
+      agencyFilters: noFilters,
+      fetchAgencyCsv: async () => ({ body: oneAgencyCsv, citation: {} }),
+      client,
+      knownAgencyIds: new Map([["Alpha Police Dept.", "a2jCACHED"]]),
+    });
+    expect(result.skippedAgencies).toEqual([]);
+    // fetched by the cached id via a synthetic match, not the (empty) search result
+    expect(client.fetchOfficerList).toHaveBeenCalledWith({ Id: "a2jCACHED" });
+  });
+
+  it("skips (and reports) a roster officer missing a licenseId", async () => {
+    const sourceDir = await makeSourceDir();
+    const client = fakeClient({
+      fetchOfficerList: vi.fn(async () => [
+        { contactId: "c1", licenseId: "lic1", name: "Has, License" },
+        { contactId: "c2", name: "No, License" },
+      ]),
+    });
+    const result = await collectSources({
+      sourceDir,
+      agencyFilters: noFilters,
+      fetchAgencyCsv: async () => ({ body: oneAgencyCsv, citation: {} }),
+      client,
+    });
+    expect(client.fetchOfficerDetail).toHaveBeenCalledTimes(1);
+    expect(result.skippedOfficers).toEqual([
+      {
+        agencyName: "Alpha Police Dept.",
+        officer: "No, License",
+        reason: "roster row is missing a licenseId",
+      },
+    ]);
   });
 
   it("allows an empty roster for an allow-listed agency without fetching officers", async () => {
