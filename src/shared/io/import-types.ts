@@ -17,6 +17,8 @@ import {
   CoverageLinkSpec,
   DisciplineAgencyOfficerSpec,
   DisciplineSpec,
+  FederalAgencyBranchSpec,
+  FederalAgencySpec,
   LicenseActionSpec,
   LicenseSpec,
   LicensingAuthoritySpec,
@@ -53,6 +55,8 @@ const recordSchemas = {
   CoverageLinks: CoverageLinkSpec,
   CoverageLinkAgencyOfficers: CoverageLinkAgencyOfficerSpec,
   AgencyPhoneNumbers: AgencyPhoneNumberSpec,
+  FederalAgencies: FederalAgencySpec,
+  FederalAgencyBranches: FederalAgencyBranchSpec,
 } satisfies Record<ImportArtifactKind, z.ZodType<Record<string, unknown>>>;
 
 export const importTypeRegistry = {
@@ -111,6 +115,14 @@ export const importTypeRegistry = {
   AgencyPhoneNumbers: {
     ...importTypeMetadata.AgencyPhoneNumbers,
     recordSchema: recordSchemas.AgencyPhoneNumbers,
+  },
+  FederalAgencies: {
+    ...importTypeMetadata.FederalAgencies,
+    recordSchema: recordSchemas.FederalAgencies,
+  },
+  FederalAgencyBranches: {
+    ...importTypeMetadata.FederalAgencyBranches,
+    recordSchema: recordSchemas.FederalAgencyBranches,
   },
 } satisfies Record<ImportArtifactKind, ImportTypeDefinition>;
 

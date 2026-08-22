@@ -42,6 +42,10 @@ export {
   CoverageLinkAgencyOfficerSpec,
   AgencyPhoneNumbers,
   AgencyPhoneNumberSpec,
+  FederalAgencies,
+  FederalAgencySpec,
+  FederalAgencyBranches,
+  FederalAgencyBranchSpec,
 } from "./generated/index.js";
 export type {
   AgenciesEnvelope,

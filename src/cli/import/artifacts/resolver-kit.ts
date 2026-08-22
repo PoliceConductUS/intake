@@ -114,9 +114,10 @@ export interface PropertyCache {
  * `resolvers` map — everything entity-specific — while this base owns the uniform
  * `value`/`raw`/`merge` accessors and the source > cache > live-resolve policy.
  */
-export abstract class ResolvingFacade<Row, Backend>
-  implements PropertyResolutionFacade<Row>
-{
+export abstract class ResolvingFacade<
+  Row,
+  Backend,
+> implements PropertyResolutionFacade<Row> {
   protected readonly spec: Record<string, unknown> = {};
   private readonly memo = new Map<keyof Row, Promise<unknown>>();
   private readonly inProgress = new Set<keyof Row>();
@@ -164,7 +165,9 @@ export abstract class ResolvingFacade<Row, Backend>
     return pending;
   }
 
-  private async computeValue<K extends keyof Row>(property: K): Promise<Row[K]> {
+  private async computeValue<K extends keyof Row>(
+    property: K,
+  ): Promise<Row[K]> {
     if (this.inProgress.has(property)) {
       throw new Error(
         `Circular property dependency while resolving ${this.kind}.${String(
@@ -185,10 +188,19 @@ export abstract class ResolvingFacade<Row, Backend>
       };
       const locate = () => this.unresolvedMessage(property);
       const cache = this.cache;
-      if (cache === undefined || !this.cacheableProperties.has(String(property))) {
+      if (
+        cache === undefined ||
+        !this.cacheableProperties.has(String(property))
+      ) {
         return await resolver.resolve(context, locate);
       }
-      return await this.resolveThroughCache(property, resolver, context, locate, cache);
+      return await this.resolveThroughCache(
+        property,
+        resolver,
+        context,
+        locate,
+        cache,
+      );
     } finally {
       this.inProgress.delete(property);
     }

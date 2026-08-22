@@ -13,7 +13,6 @@ import {
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
 
-
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -49,15 +48,22 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "LocationPathList"} ref requires relativeTo.`);
+  if (
+    options.relativeTo === undefined ||
+    options.relativeTo.trim().length === 0
+  ) {
+    throw new Error(
+      `Relative ${ref.kind ?? "LocationPathList"} ref requires relativeTo.`,
+    );
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "LocationPathList"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(
+      `${ref.kind ?? "LocationPathList"} ref.path escapes its directory: ${ref.path}`,
+    );
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -71,8 +77,6 @@ const metadataSchema = z
   })
   .strict();
 
-
-
 export const specSchema = z.object({}).strict();
 
 export const schema = z
@@ -85,7 +89,10 @@ export const schema = z
   .strict();
 
 export type LocationPathListEnvelope = z.infer<typeof schema>;
-export type LocationPathListInput = Omit<LocationPathListEnvelope, "apiVersion" | "kind">;
+export type LocationPathListInput = Omit<
+  LocationPathListEnvelope,
+  "apiVersion" | "kind"
+>;
 
 function parseLocationPathList(value: unknown): LocationPathListEnvelope {
   const result = schema.safeParse(value);
@@ -95,7 +102,9 @@ function parseLocationPathList(value: unknown): LocationPathListEnvelope {
   return result.data;
 }
 
-function newLocationPathList(input: LocationPathListInput): LocationPathListEnvelope {
+function newLocationPathList(
+  input: LocationPathListInput,
+): LocationPathListEnvelope {
   return parseLocationPathList({
     apiVersion: INTAKE_API_VERSION,
     kind: "LocationPathList",
@@ -109,9 +118,14 @@ async function readLocationPathList(
 ): Promise<LocationPathListEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "LocationPathList") {
-    throw new Error(`LocationPathList ref.kind ${ref.kind} does not match expected kind LocationPathList: ${ref.filePath}`);
+    throw new Error(
+      `LocationPathList ref.kind ${ref.kind} does not match expected kind LocationPathList: ${ref.filePath}`,
+    );
   }
-  const { contents, document } = await readYamlDocumentFile(ref.filePath, "LocationPathList");
+  const { contents, document } = await readYamlDocumentFile(
+    ref.filePath,
+    "LocationPathList",
+  );
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
     throw new Error(`LocationPathList sha256 mismatch: ${ref.filePath}`);
   }

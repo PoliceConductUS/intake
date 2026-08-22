@@ -55,7 +55,10 @@ export function excludeManifestRecords(
         const spec = record.spec as Record<string, unknown> | undefined;
         for (const { field, targetKind } of references) {
           const value = spec?.[field];
-          if (typeof value === "string" && removed.get(targetKind)?.has(value)) {
+          if (
+            typeof value === "string" &&
+            removed.get(targetKind)?.has(value)
+          ) {
             if (markRemoved(recordKind, key)) {
               changed = true;
             }

@@ -14,7 +14,9 @@ export type SupportedTableName =
   | "public.discipline_agency_officers"
   | "public.coverage_links"
   | "public.coverage_link_agency_officers"
-  | "public.agency_phone_numbers";
+  | "public.agency_phone_numbers"
+  | "public.federal_agency"
+  | "public.federal_agency_branch";
 
 export type ImportDatabaseSchema = {
   appliedMigrations: {

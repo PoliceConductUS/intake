@@ -70,6 +70,16 @@ import { AgencyPhoneNumberRead } from "./AgencyPhoneNumberRead.js";
 import { AgencyPhoneNumberUpdate } from "./AgencyPhoneNumberUpdate.js";
 import { AgencyPhoneNumberDelete } from "./AgencyPhoneNumberDelete.js";
 import { AgencyPhoneNumberList } from "./AgencyPhoneNumberList.js";
+import { FederalAgencyCreate } from "./FederalAgencyCreate.js";
+import { FederalAgencyRead } from "./FederalAgencyRead.js";
+import { FederalAgencyUpdate } from "./FederalAgencyUpdate.js";
+import { FederalAgencyDelete } from "./FederalAgencyDelete.js";
+import { FederalAgencyList } from "./FederalAgencyList.js";
+import { FederalAgencyBranchCreate } from "./FederalAgencyBranchCreate.js";
+import { FederalAgencyBranchRead } from "./FederalAgencyBranchRead.js";
+import { FederalAgencyBranchUpdate } from "./FederalAgencyBranchUpdate.js";
+import { FederalAgencyBranchDelete } from "./FederalAgencyBranchDelete.js";
+import { FederalAgencyBranchList } from "./FederalAgencyBranchList.js";
 
 export const importMutationEnvelopeTypes = {
   LocationPathCreate,
@@ -142,4 +152,14 @@ export const importMutationEnvelopeTypes = {
   AgencyPhoneNumberUpdate,
   AgencyPhoneNumberDelete,
   AgencyPhoneNumberList,
+  FederalAgencyCreate,
+  FederalAgencyRead,
+  FederalAgencyUpdate,
+  FederalAgencyDelete,
+  FederalAgencyList,
+  FederalAgencyBranchCreate,
+  FederalAgencyBranchRead,
+  FederalAgencyBranchUpdate,
+  FederalAgencyBranchDelete,
+  FederalAgencyBranchList,
 };

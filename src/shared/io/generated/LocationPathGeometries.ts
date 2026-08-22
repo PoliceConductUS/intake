@@ -16,7 +16,6 @@ import {
 import { LocationPathGeometrySpec } from "./entity-specs.js";
 export { LocationPathGeometrySpec } from "./entity-specs.js";
 
-
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -52,19 +51,25 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "LocationPathGeometries"} ref requires relativeTo.`);
+  if (
+    options.relativeTo === undefined ||
+    options.relativeTo.trim().length === 0
+  ) {
+    throw new Error(
+      `Relative ${ref.kind ?? "LocationPathGeometries"} ref requires relativeTo.`,
+    );
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "LocationPathGeometries"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(
+      `${ref.kind ?? "LocationPathGeometries"} ref.path escapes its directory: ${ref.path}`,
+    );
   }
   return { ...ref, filePath: resolvedPath };
 }
-
 
 const metadataSchema = z
   .object({
@@ -84,7 +89,10 @@ const recordReferenceSchema = z
       .object({
         path: z.string().trim().min(1),
         kind: z.literal("LocationPathGeometry"),
-        sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+        sha256: z
+          .string()
+          .regex(/^[a-f0-9]{64}$/)
+          .optional(),
       })
       .strict(),
   })
@@ -92,7 +100,10 @@ const recordReferenceSchema = z
 const inlineRecordItemSchema = z
   .object({ spec: LocationPathGeometrySpec })
   .strict();
-const recordItemSchema = z.union([recordReferenceSchema, inlineRecordItemSchema]);
+const recordItemSchema = z.union([
+  recordReferenceSchema,
+  inlineRecordItemSchema,
+]);
 
 export const schema = z
   .object({
@@ -110,8 +121,14 @@ export const schema = z
   .strict();
 
 export type LocationPathGeometriesEnvelope = z.infer<typeof schema>;
-export type LocationPathGeometriesInput = Omit<LocationPathGeometriesEnvelope, "apiVersion" | "kind">;
-export type LocationPathGeometriesResolvedEnvelope = Omit<LocationPathGeometriesEnvelope, "spec"> & {
+export type LocationPathGeometriesInput = Omit<
+  LocationPathGeometriesEnvelope,
+  "apiVersion" | "kind"
+>;
+export type LocationPathGeometriesResolvedEnvelope = Omit<
+  LocationPathGeometriesEnvelope,
+  "spec"
+> & {
   spec: Omit<LocationPathGeometriesEnvelope["spec"], "records"> & {
     records: Record<string, z.infer<typeof LocationPathGeometrySpec>>;
   };
@@ -122,7 +139,9 @@ export type ImportArtifactWriteOptions = {
   recordsDirectory?: string;
 };
 
-function parseLocationPathGeometries(value: unknown): LocationPathGeometriesEnvelope {
+function parseLocationPathGeometries(
+  value: unknown,
+): LocationPathGeometriesEnvelope {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new Error(formatError(result.error));
@@ -130,7 +149,9 @@ function parseLocationPathGeometries(value: unknown): LocationPathGeometriesEnve
   return result.data;
 }
 
-function newLocationPathGeometries(input: LocationPathGeometriesInput): LocationPathGeometriesEnvelope {
+function newLocationPathGeometries(
+  input: LocationPathGeometriesInput,
+): LocationPathGeometriesEnvelope {
   return parseLocationPathGeometries({
     apiVersion: INTAKE_API_VERSION,
     kind: "LocationPathGeometries",
@@ -152,7 +173,6 @@ function validateRecord(
   return result.data;
 }
 
-
 export const recordSchema = z
   .object({
     apiVersion: z.literal(INTAKE_API_VERSION),
@@ -170,17 +190,26 @@ export const recordSchema = z
   .strict();
 
 export type LocationPathGeometryEnvelope = z.infer<typeof recordSchema>;
-export type LocationPathGeometryInput = Omit<LocationPathGeometryEnvelope, "apiVersion" | "kind">;
+export type LocationPathGeometryInput = Omit<
+  LocationPathGeometryEnvelope,
+  "apiVersion" | "kind"
+>;
 
-function parseLocationPathGeometry(value: unknown): LocationPathGeometryEnvelope {
+function parseLocationPathGeometry(
+  value: unknown,
+): LocationPathGeometryEnvelope {
   const result = recordSchema.safeParse(value);
   if (!result.success) {
-    throw new Error(`LocationPathGeometry is malformed at ${firstIssuePath(result.error)}.`);
+    throw new Error(
+      `LocationPathGeometry is malformed at ${firstIssuePath(result.error)}.`,
+    );
   }
   return result.data;
 }
 
-function newLocationPathGeometry(input: LocationPathGeometryInput): LocationPathGeometryEnvelope {
+function newLocationPathGeometry(
+  input: LocationPathGeometryInput,
+): LocationPathGeometryEnvelope {
   return parseLocationPathGeometry({
     apiVersion: INTAKE_API_VERSION,
     kind: "LocationPathGeometry",
@@ -194,9 +223,14 @@ async function readLocationPathGeometry(
 ): Promise<LocationPathGeometryEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "LocationPathGeometry") {
-    throw new Error(`LocationPathGeometry ref.kind ${ref.kind} does not match expected kind LocationPathGeometry: ${ref.filePath}`);
+    throw new Error(
+      `LocationPathGeometry ref.kind ${ref.kind} does not match expected kind LocationPathGeometry: ${ref.filePath}`,
+    );
   }
-  const { contents, document } = await readYamlDocumentFile(ref.filePath, "LocationPathGeometry");
+  const { contents, document } = await readYamlDocumentFile(
+    ref.filePath,
+    "LocationPathGeometry",
+  );
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
     throw new Error(`LocationPathGeometry sha256 mismatch: ${ref.filePath}`);
   }
@@ -222,7 +256,6 @@ async function writeLocationPathGeometry(
   return { path: filePath, sha256: yamlDigest(contents) };
 }
 
-
 async function readLocationPathGeometries(
   filePath: string,
   options: EnvelopeReadOptions & {
@@ -246,14 +279,27 @@ async function readLocationPathGeometries(
     expectedSha256?: string;
     raw?: boolean;
   } = {},
-): Promise<LocationPathGeometriesEnvelope | LocationPathGeometriesResolvedEnvelope> {
-  const { contents, document } = await readYamlDocumentFile(filePath, "LocationPathGeometries");
-  if (options.expectedSha256 !== undefined && yamlDigest(contents) !== options.expectedSha256) {
+): Promise<
+  LocationPathGeometriesEnvelope | LocationPathGeometriesResolvedEnvelope
+> {
+  const { contents, document } = await readYamlDocumentFile(
+    filePath,
+    "LocationPathGeometries",
+  );
+  if (
+    options.expectedSha256 !== undefined &&
+    yamlDigest(contents) !== options.expectedSha256
+  ) {
     throw new Error(`LocationPathGeometries sha256 mismatch: ${filePath}`);
   }
   const artifact = parseLocationPathGeometries(document);
-  if (options.expectedKind !== undefined && artifact.kind !== options.expectedKind) {
-    throw new Error(`LocationPathGeometries kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`);
+  if (
+    options.expectedKind !== undefined &&
+    artifact.kind !== options.expectedKind
+  ) {
+    throw new Error(
+      `LocationPathGeometries kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`,
+    );
   }
   if (
     options.expectedNamespace !== undefined &&
@@ -306,9 +352,14 @@ async function writeLocationPathGeometries(
     const recordsDirectory =
       options.recordsDirectory ??
       `${path.basename(artifactPath, path.extname(artifactPath))}.records`;
-    const records: Record<string, { ref: { path: string; kind: "LocationPathGeometry"; sha256?: string } }> = {};
+    const records: Record<
+      string,
+      { ref: { path: string; kind: "LocationPathGeometry"; sha256?: string } }
+    > = {};
 
-    for (const [recordKey, recordItem] of Object.entries(artifact.spec.records)) {
+    for (const [recordKey, recordItem] of Object.entries(
+      artifact.spec.records,
+    )) {
       if ("ref" in recordItem) {
         records[recordKey] = recordItem;
         continue;
@@ -356,7 +407,6 @@ export const LocationPathGeometries = {
   write: writeLocationPathGeometries,
 };
 
-
 export const LocationPathGeometry = {
   kind: "LocationPathGeometry",
   schema: recordSchema,
@@ -364,7 +414,6 @@ export const LocationPathGeometry = {
   read: readLocationPathGeometry,
   write: writeLocationPathGeometry,
 };
-
 
 export const read = readLocationPathGeometries;
 export const write = writeLocationPathGeometries;

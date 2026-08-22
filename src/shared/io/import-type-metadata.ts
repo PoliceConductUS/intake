@@ -13,6 +13,8 @@ export const IMPORT_ARTIFACT_KINDS = [
   "CoverageLinks",
   "CoverageLinkAgencyOfficers",
   "AgencyPhoneNumbers",
+  "FederalAgencies",
+  "FederalAgencyBranches",
 ] as const;
 
 export type ImportArtifactKind = (typeof IMPORT_ARTIFACT_KINDS)[number];
@@ -49,7 +51,9 @@ export type ImportEntityName =
   | "disciplineAgencyOfficers"
   | "coverageLinks"
   | "coverageLinkAgencyOfficers"
-  | "agencyPhoneNumbers";
+  | "agencyPhoneNumbers"
+  | "federalAgencies"
+  | "federalAgencyBranches";
 
 export type ImportTypeMetadata = {
   kind: ImportArtifactKind;
@@ -157,5 +161,19 @@ export const importTypeMetadata = {
     entityName: "agencyPhoneNumbers",
     targetTable: "public.agency_phone_numbers",
     dependsOn: ["Agencies"],
+  },
+  FederalAgencies: {
+    kind: "FederalAgencies",
+    recordKind: "FederalAgency",
+    entityName: "federalAgencies",
+    targetTable: "public.federal_agency",
+    dependsOn: [],
+  },
+  FederalAgencyBranches: {
+    kind: "FederalAgencyBranches",
+    recordKind: "FederalAgencyBranch",
+    entityName: "federalAgencyBranches",
+    targetTable: "public.federal_agency_branch",
+    dependsOn: ["FederalAgencies", "Agencies"],
   },
 } satisfies Record<ImportArtifactKind, ImportTypeMetadata>;

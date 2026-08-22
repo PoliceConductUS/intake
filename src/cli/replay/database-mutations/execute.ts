@@ -93,6 +93,14 @@ const databaseMutationMetadataByRecordKind: Record<
     tableName: "public.agency_phone_numbers",
     keyColumnName: "id",
   },
+  FederalAgency: {
+    tableName: "public.federal_agency",
+    keyColumnName: "id",
+  },
+  FederalAgencyBranch: {
+    tableName: "public.federal_agency_branch",
+    keyColumnName: "id",
+  },
 } satisfies Record<string, DatabaseMutationMetadata>;
 
 function databaseMutationMetadata(

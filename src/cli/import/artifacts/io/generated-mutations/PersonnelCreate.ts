@@ -12,8 +12,10 @@ import {
   readYamlDocumentFile,
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
-import { PersonnelSpec, PersonnelCreateSpec } from "../../../../../shared/io/generated/entity-specs.js";
-
+import {
+  PersonnelSpec,
+  PersonnelCreateSpec,
+} from "../../../../../shared/io/generated/entity-specs.js";
 
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
@@ -50,15 +52,22 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "PersonnelCreate"} ref requires relativeTo.`);
+  if (
+    options.relativeTo === undefined ||
+    options.relativeTo.trim().length === 0
+  ) {
+    throw new Error(
+      `Relative ${ref.kind ?? "PersonnelCreate"} ref requires relativeTo.`,
+    );
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "PersonnelCreate"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(
+      `${ref.kind ?? "PersonnelCreate"} ref.path escapes its directory: ${ref.path}`,
+    );
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -72,8 +81,6 @@ const metadataSchema = z
   })
   .strict();
 
-
-
 export const specSchema = PersonnelCreateSpec;
 
 export const schema = z
@@ -86,7 +93,10 @@ export const schema = z
   .strict();
 
 export type PersonnelCreateEnvelope = z.infer<typeof schema>;
-export type PersonnelCreateInput = Omit<PersonnelCreateEnvelope, "apiVersion" | "kind">;
+export type PersonnelCreateInput = Omit<
+  PersonnelCreateEnvelope,
+  "apiVersion" | "kind"
+>;
 
 function parsePersonnelCreate(value: unknown): PersonnelCreateEnvelope {
   const result = schema.safeParse(value);
@@ -96,7 +106,9 @@ function parsePersonnelCreate(value: unknown): PersonnelCreateEnvelope {
   return result.data;
 }
 
-function newPersonnelCreate(input: PersonnelCreateInput): PersonnelCreateEnvelope {
+function newPersonnelCreate(
+  input: PersonnelCreateInput,
+): PersonnelCreateEnvelope {
   return parsePersonnelCreate({
     apiVersion: INTAKE_API_VERSION,
     kind: "PersonnelCreate",
@@ -110,9 +122,14 @@ async function readPersonnelCreate(
 ): Promise<PersonnelCreateEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "PersonnelCreate") {
-    throw new Error(`PersonnelCreate ref.kind ${ref.kind} does not match expected kind PersonnelCreate: ${ref.filePath}`);
+    throw new Error(
+      `PersonnelCreate ref.kind ${ref.kind} does not match expected kind PersonnelCreate: ${ref.filePath}`,
+    );
   }
-  const { contents, document } = await readYamlDocumentFile(ref.filePath, "PersonnelCreate");
+  const { contents, document } = await readYamlDocumentFile(
+    ref.filePath,
+    "PersonnelCreate",
+  );
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
     throw new Error(`PersonnelCreate sha256 mismatch: ${ref.filePath}`);
   }

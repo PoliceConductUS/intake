@@ -1,10 +1,6 @@
 import { DataContext } from "./data-context.js";
 import { type AgencyAddressResolutionOptions } from "./agency-address-resolution.js";
-import type {
-  AgencyRow,
-  ImportRows,
-  ResolvedProperties,
-} from "./transform.js";
+import type { AgencyRow, ImportRows, ResolvedProperties } from "./transform.js";
 import {
   excludedRecordKey,
   type ExcludedRecords,

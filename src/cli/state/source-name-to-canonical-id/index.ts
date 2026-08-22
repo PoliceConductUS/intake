@@ -66,6 +66,8 @@ const sourceNameKinds = {
   coverageLink: "CoverageLink",
   coverageLinkAgencyOfficer: "CoverageLinkAgencyOfficer",
   agencyPhoneNumber: "AgencyPhoneNumber",
+  federalAgency: "FederalAgency",
+  federalAgencyBranch: "FederalAgencyBranch",
 } as const;
 
 /**

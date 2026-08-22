@@ -56,6 +56,16 @@ import {
   type AgencyPhoneNumberEnvelope,
 } from "./facades/agency-phone-number.js";
 import {
+  createFederalAgencyFacade,
+  type FederalAgencyRow,
+  type FederalAgencyEnvelope,
+} from "./facades/federal-agency.js";
+import {
+  createFederalAgencyBranchFacade,
+  type FederalAgencyBranchRow,
+  type FederalAgencyBranchEnvelope,
+} from "./facades/federal-agency-branch.js";
+import {
   LocationPathSpec,
   RECORD_KINDS_IN_DEPENDENCY_ORDER,
   RESOLVED_PROPERTIES,
@@ -2574,6 +2584,14 @@ export class DataContext {
     string,
     EntityFacade<AgencyPhoneNumberRow, AgencyPhoneNumberEnvelope>
   >();
+  private readonly federalAgencyFacades = new Map<
+    string,
+    EntityFacade<FederalAgencyRow, FederalAgencyEnvelope>
+  >();
+  private readonly federalAgencyBranchFacades = new Map<
+    string,
+    EntityFacade<FederalAgencyBranchRow, FederalAgencyBranchEnvelope>
+  >();
   // First-import snapshots for the discipline/coverage kinds are empty (blank
   // tables); re-import snapshot loading is a later addition.
   private readonly disciplineById = new Map<string, Record<string, unknown>>();
@@ -2590,6 +2608,14 @@ export class DataContext {
     Record<string, unknown>
   >();
   private readonly agencyPhoneNumberById = new Map<
+    string,
+    Record<string, unknown>
+  >();
+  private readonly federalAgencyById = new Map<
+    string,
+    Record<string, unknown>
+  >();
+  private readonly federalAgencyBranchById = new Map<
     string,
     Record<string, unknown>
   >();
@@ -3467,6 +3493,56 @@ export class DataContext {
     return facade;
   }
 
+  federalAgencyFromSource(
+    input: SourceRecordContext,
+  ): EntityFacade<FederalAgencyRow, FederalAgencyEnvelope> {
+    validateSourceRecordContext(input);
+    const key = [
+      input.apiVersion,
+      input.namespace,
+      "FederalAgency",
+      input.name,
+    ].join(":");
+    const existing = this.federalAgencyFacades.get(key);
+    if (existing !== undefined) {
+      if (input.spec !== undefined) existing.merge(input.spec);
+      return existing;
+    }
+    const facade = createFederalAgencyFacade({
+      current: input.current,
+      source: this.entityFacadeSource(input),
+      backend: this.entityFacadeBackend(this.federalAgencyById),
+    });
+    if (input.spec !== undefined) facade.merge(input.spec);
+    this.federalAgencyFacades.set(key, facade);
+    return facade;
+  }
+
+  federalAgencyBranchFromSource(
+    input: SourceRecordContext,
+  ): EntityFacade<FederalAgencyBranchRow, FederalAgencyBranchEnvelope> {
+    validateSourceRecordContext(input);
+    const key = [
+      input.apiVersion,
+      input.namespace,
+      "FederalAgencyBranch",
+      input.name,
+    ].join(":");
+    const existing = this.federalAgencyBranchFacades.get(key);
+    if (existing !== undefined) {
+      if (input.spec !== undefined) existing.merge(input.spec);
+      return existing;
+    }
+    const facade = createFederalAgencyBranchFacade({
+      current: input.current,
+      source: this.entityFacadeSource(input),
+      backend: this.entityFacadeBackend(this.federalAgencyBranchById),
+    });
+    if (input.spec !== undefined) facade.merge(input.spec);
+    this.federalAgencyBranchFacades.set(key, facade);
+    return facade;
+  }
+
   /**
    * Same-source foreign-key FIND (ADR 0016 #4/#9): return an already-emitted
    * target facade as an id-resolvable reference, or undefined when none exists.
@@ -3516,6 +3592,9 @@ export class DataContext {
     if (input.kind === "CoverageLink") {
       return this.coverageLinkFacades.get(key);
     }
+    if (input.kind === "FederalAgency") {
+      return this.federalAgencyFacades.get(key);
+    }
     return undefined;
   }
 
@@ -3542,6 +3621,8 @@ export class DataContext {
       | CoverageLinkEnvelope
       | CoverageLinkAgencyOfficerEnvelope
       | AgencyPhoneNumberEnvelope
+      | FederalAgencyEnvelope
+      | FederalAgencyBranchEnvelope
     )[]
   > {
     // Drain in FK-dependency order (ADR 0016 #4/#9): paths before aliases — a
@@ -3614,6 +3695,17 @@ export class DataContext {
         facade.toMutation(),
       ),
     );
+    // FederalAgencies are independent; branches depend on FederalAgencies + Agencies.
+    const federalAgencies = await Promise.all(
+      [...this.federalAgencyFacades.values()].map((facade) =>
+        facade.toMutation(),
+      ),
+    );
+    const federalAgencyBranches = await Promise.all(
+      [...this.federalAgencyBranchFacades.values()].map((facade) =>
+        facade.toMutation(),
+      ),
+    );
     return [
       // Paths + aliases first: FK targets for the entities below, dependents of none.
       ...locationPaths,
@@ -3632,6 +3724,8 @@ export class DataContext {
       ...disciplineAgencyOfficers,
       ...coverageLinkAgencyOfficers,
       ...agencyPhoneNumbers,
+      ...federalAgencies,
+      ...federalAgencyBranches,
     ];
   }
 

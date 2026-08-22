@@ -87,6 +87,18 @@ import {
   write as writeAgencyPhoneNumbers,
 } from "./generated/AgencyPhoneNumbers.js";
 import {
+  FederalAgencies,
+  FederalAgencySpec,
+  read as readFederalAgencies,
+  write as writeFederalAgencies,
+} from "./generated/FederalAgencies.js";
+import {
+  FederalAgencyBranches,
+  FederalAgencyBranchSpec,
+  read as readFederalAgencyBranches,
+  write as writeFederalAgencyBranches,
+} from "./generated/FederalAgencyBranches.js";
+import {
   compareImportArtifactKinds,
   type ImportArtifactKind,
 } from "./import-types.js";
@@ -228,6 +240,16 @@ const artifactReaders: Record<ImportArtifactKind, ArtifactReader> = {
       ...options,
       expectedKind: "AgencyPhoneNumbers",
     }),
+  FederalAgencies: (filePath, options) =>
+    readFederalAgencies(filePath, {
+      ...options,
+      expectedKind: "FederalAgencies",
+    }),
+  FederalAgencyBranches: (filePath, options) =>
+    readFederalAgencyBranches(filePath, {
+      ...options,
+      expectedKind: "FederalAgencyBranches",
+    }),
 };
 
 const artifactEnvelopeTypes: Record<ImportArtifactKind, ArtifactEnvelopeType> =
@@ -264,6 +286,11 @@ const artifactEnvelopeTypes: Record<ImportArtifactKind, ArtifactEnvelopeType> =
       ...AgencyPhoneNumbers,
       write: writeAgencyPhoneNumbers,
     },
+    FederalAgencies: { ...FederalAgencies, write: writeFederalAgencies },
+    FederalAgencyBranches: {
+      ...FederalAgencyBranches,
+      write: writeFederalAgencyBranches,
+    },
   };
 
 const artifactRecordSpecs: Record<ImportArtifactKind, ArtifactRecordSpec> = {
@@ -281,6 +308,8 @@ const artifactRecordSpecs: Record<ImportArtifactKind, ArtifactRecordSpec> = {
   CoverageLinks: CoverageLinkSpec,
   CoverageLinkAgencyOfficers: CoverageLinkAgencyOfficerSpec,
   AgencyPhoneNumbers: AgencyPhoneNumberSpec,
+  FederalAgencies: FederalAgencySpec,
+  FederalAgencyBranches: FederalAgencyBranchSpec,
 };
 
 function sortedArtifactReferences(

@@ -565,6 +565,44 @@ function addAgencyPhoneNumberSourceFacades(
   }
 }
 
+function addFederalAgencySourceFacades(
+  dataContext: DataContext,
+  artifacts: ArtifactsEnvelope,
+): void {
+  for (const artifact of artifacts.spec.artifacts.filter(
+    (item) => item.kind === "FederalAgencies",
+  )) {
+    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
+      dataContext.federalAgencyFromSource({
+        apiVersion: INTAKE_API_VERSION,
+        namespace: artifacts.metadata.namespace,
+        name: sourceNameForImportRecord(recordName, record),
+        spec: valueAsRecord(record),
+        sourceFile: artifact.recordSources?.[recordName],
+      });
+    }
+  }
+}
+
+function addFederalAgencyBranchSourceFacades(
+  dataContext: DataContext,
+  artifacts: ArtifactsEnvelope,
+): void {
+  for (const artifact of artifacts.spec.artifacts.filter(
+    (item) => item.kind === "FederalAgencyBranches",
+  )) {
+    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
+      dataContext.federalAgencyBranchFromSource({
+        apiVersion: INTAKE_API_VERSION,
+        namespace: artifacts.metadata.namespace,
+        name: sourceNameForImportRecord(recordName, record),
+        spec: valueAsRecord(record),
+        sourceFile: artifact.recordSources?.[recordName],
+      });
+    }
+  }
+}
+
 type ImportArtifactsPipelineContext = {
   commandInput: ImportArtifactsCommandInput;
   artifactsPath: string;
@@ -1212,6 +1250,8 @@ async function writeDatabaseMutationsStage(
     addCoverageLinkSourceFacades(dataContext, artifacts);
     addCoverageLinkAgencyOfficerSourceFacades(dataContext, artifacts);
     addAgencyPhoneNumberSourceFacades(dataContext, artifacts);
+    addFederalAgencySourceFacades(dataContext, artifacts);
+    addFederalAgencyBranchSourceFacades(dataContext, artifacts);
     databaseMutations = await dataContext.toDatabaseMutations({
       namespace: artifacts.metadata.namespace,
       name: context.commandName,
