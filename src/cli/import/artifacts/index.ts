@@ -6,11 +6,23 @@ import { importArtifacts, type ImportArtifactsResult } from "./config.js";
 import { formatDatabaseMutationCountLines } from "./io/DatabaseMutationCounts.js";
 import { createIntakeLog } from "../../../logging.js";
 import { createCommandDirectory } from "../../command-directory.js";
+import { Artifacts } from "../../../shared/io/index.js";
 import type {
   CliCommandDependencies,
   CommandResult,
 } from "../../../shared/cli/types.js";
 import type { ExcludedRecords } from "../../../shared/io/excluded-records.js";
+
+async function artifactsNamespace(
+  artifactsRef: string,
+): Promise<string | undefined> {
+  try {
+    return (await Artifacts.read(artifactsRef, { raw: true })).metadata
+      .namespace;
+  } catch {
+    return undefined;
+  }
+}
 
 async function readableArtifactsFileResult(
   artifactsRef: string,
@@ -94,6 +106,7 @@ export async function runImportArtifactsCommand(
     command = await createCommandDirectory(env, {
       now: dependencies.now,
       createCommandName: dependencies.createCommandName,
+      namespace: await artifactsNamespace(artifactsRef),
       args: dependencies.args ?? [
         "import",
         "artifacts",
@@ -127,7 +140,7 @@ export async function runImportArtifactsCommand(
     logger,
     dryImport: dependencies.dryImport,
     env,
-    commandDirectory: command.commandDirectory,
+    commandDirectory: command.outputDirectory,
     commandName: command.commandName,
     excludedRecords: dependencies.excludedRecords,
   });
