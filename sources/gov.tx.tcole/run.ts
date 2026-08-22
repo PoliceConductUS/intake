@@ -37,7 +37,8 @@ import type {
  * transform resolves to canonical IDs via the ledger; every referenced agency
  * and officer is emitted here so no reference is left unmapped.
  */
-export const run: SourceRun = async ({ paths, readXlsx }) => {
+export const run: SourceRun = async ({ paths, readXlsx, logger }) => {
+  const log = logger ?? { info() {} };
   const workbook = paths.find((path) => path.toLowerCase().endsWith(".xlsx"));
   if (workbook === undefined) {
     throw new Error("gov.tx.tcole expects a single .xlsx workbook input.");
@@ -45,12 +46,16 @@ export const run: SourceRun = async ({ paths, readXlsx }) => {
 
   // Agencies: STATUS = ACTIVE only (the original seed omitted the 953 inactive
   // departments). Everything else cascades from that decision.
+  log.info("tcole: reading Departments sheet");
   const agencies = buildAgencies(await readXlsx(workbook, "Departments"));
+  log.info(`tcole: ${Object.keys(agencies).length} active agencies`);
 
   // Only officers attached to an active agency are imported: an officer is kept
   // iff some Services row links them to an emitted (active) agency. Officers with
   // no services, or only services at inactive agencies, are dropped.
+  log.info("tcole: reading Services sheet");
   const serviceRows = await readXlsx(workbook, "Services");
+  log.info(`tcole: ${serviceRows.length} service rows`);
   const activeOfficerGuids = new Set<string>();
   for (const row of serviceRows) {
     const departmentNumber = (row["DEPARTMENT_NUMBER"] ?? "").trim();
@@ -60,15 +65,19 @@ export const run: SourceRun = async ({ paths, readXlsx }) => {
     }
   }
 
+  log.info("tcole: reading Officers sheet");
   const personnel = buildPersonnel(
     await readXlsx(workbook, "Officers"),
     activeOfficerGuids,
   );
+  log.info(`tcole: ${Object.keys(personnel).length} active officers`);
 
   // Per-license history rows (one per licensing action). Sheet is optional; a
   // workbook without it simply yields no Licenses/LicenseActions.
+  log.info("tcole: reading OfficersLicensesActions sheet");
   const licenseActionRows = await readXlsx(workbook, "OfficersLicensesActions");
 
+  log.info("tcole: building records");
   const licensingAuthorities = buildLicensingAuthorities();
   const licenses = buildLicenses(serviceRows, licenseActionRows, personnel);
   const licenseActions = buildLicenseActions(
@@ -81,6 +90,11 @@ export const run: SourceRun = async ({ paths, readXlsx }) => {
     agencies,
     personnel,
     licenses,
+  );
+  log.info(
+    `tcole: ${Object.keys(licenses).length} licenses, ` +
+      `${Object.keys(licenseActions).length} license actions, ` +
+      `${Object.keys(agencyPersonnel).length} assignments`,
   );
 
   return {

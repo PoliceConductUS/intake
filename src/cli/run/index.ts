@@ -51,6 +51,7 @@ type RunSourceDeps = {
     ref: string,
     opts: { dryImport?: boolean; excludedRecords?: ExcludedRecords },
   ) => Promise<CommandResult>;
+  logger?: { info: (message: string) => void };
 };
 
 /**
@@ -151,6 +152,7 @@ export async function runSource(
       readXlsx: deps.readXlsx,
       state: deps.state,
       emit: sink.emit,
+      logger: deps.logger,
     });
     // Apply excluded.yaml at Artifacts generation (with FK cascade) so an
     // excluded record never enters the Artifacts — the import then sees a clean
@@ -210,6 +212,9 @@ export const registerCliCommand: RegisterCliCommand = (
             return;
           }
 
+          const logger = {
+            info: (message: string) => process.stderr.write(`${message}\n`),
+          };
           const stdout: string[] = [];
           for (const sourceId of sourceIds) {
             const inputDir = await sourceInputDir(workspace, sourceId);
@@ -253,7 +258,9 @@ export const registerCliCommand: RegisterCliCommand = (
               runImport:
                 dependencies.runImportArtifactsCommand ??
                 runImportArtifactsCommand,
+              logger,
             };
+            logger.info(`${sourceId}: run — ${paths.length} input file(s)`);
             const result = await runSource(sourceId, paths, options, deps);
             if (result.stdout) stdout.push(result.stdout);
             if (result.exitCode !== 0) {

@@ -15,6 +15,7 @@ export type RunDeps = {
   readXlsx: typeof readXlsx;
   state: string;
   emit: (kind: string, key: string, spec: unknown) => Promise<void>;
+  logger?: { info: (message: string) => void };
 };
 export type SourceRun = (deps: RunDeps) => Promise<SourceManifest>;
 
