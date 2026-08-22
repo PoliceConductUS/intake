@@ -3831,7 +3831,7 @@ export class DataContext {
 
   async search(
     input: AgencyOfficerSearch,
-  ): Promise<AgencyOfficerMatch | undefined> {
+  ): Promise<AgencyOfficerSearchResults> {
     const officerName = valueAsString(input.officerName);
     const agencyName = valueAsString(input.agencyName);
     const state = valueAsString(input.state);
@@ -3840,12 +3840,12 @@ export class DataContext {
       agencyName === undefined ||
       state === undefined
     ) {
-      return undefined;
+      return { results: [] };
     }
     const tokens = normalizeName(officerName)
       .split(" ")
       .filter((token) => token.length >= 2);
-    if (tokens.length === 0) return undefined;
+    if (tokens.length === 0) return { results: [] };
 
     const likeClauses = tokens
       .map(
@@ -3854,9 +3854,9 @@ export class DataContext {
       )
       .join(" or ");
     const result = await this.databaseClient().query(
-      `select ao.id as agency_officer_id, o.id as officer_id,
-              o.first_name, o.middle_name, o.last_name,
-              a.id as agency_id, a.name as agency_name
+      `select row_to_json(o.*) as officer,
+              row_to_json(a.*) as agency,
+              row_to_json(ao.*) as agency_officer
        from agency_officers ao
        join officers o on o.id = ao.officer_id
        join agency a on a.id = ao.agency_id
@@ -3864,30 +3864,35 @@ export class DataContext {
       [state, ...tokens.map((token) => `%${token}%`)],
     );
 
-    let best: AgencyOfficerMatch | undefined;
-    for (const row of searchRows(result)) {
-      const candidate = [row.first_name, row.middle_name, row.last_name]
-        .filter((part) => typeof part === "string" && part.trim() !== "")
-        .join(" ");
-      const officerConfidence = nameSimilarity(officerName, candidate);
-      const agencyConfidence = nameSimilarity(
-        agencyName,
-        String(row.agency_name ?? ""),
-      );
-      const confidence = officerConfidence * 0.6 + agencyConfidence * 0.4;
-      if (confidence < input.confidenceLevel) continue;
-      if (best === undefined || confidence > best.confidence) {
-        best = {
-          agencyOfficerId: String(row.agency_officer_id),
-          officerId: String(row.officer_id),
-          agencyId: String(row.agency_id),
-          confidence,
+    const scored: AgencyOfficerSearchResult[] = searchRows(result).map(
+      (row) => {
+        const officer = (row.officer ?? {}) as Record<string, unknown>;
+        const agency = (row.agency ?? {}) as Record<string, unknown>;
+        const candidate = [
+          officer.first_name,
+          officer.middle_name,
+          officer.last_name,
+        ]
+          .filter((part) => typeof part === "string" && part.trim() !== "")
+          .join(" ");
+        const officerConfidence = nameSimilarity(officerName, candidate);
+        const agencyConfidence = nameSimilarity(
+          agencyName,
+          String(agency.name ?? ""),
+        );
+        return {
+          confidence: officerConfidence * 0.6 + agencyConfidence * 0.4,
           officerConfidence,
           agencyConfidence,
+          agency,
+          agency_officer: (row.agency_officer ?? {}) as Record<string, unknown>,
+          officer,
         };
-      }
-    }
-    return best;
+      },
+    );
+
+    scored.sort((left, right) => right.confidence - left.confidence);
+    return { results: scored.slice(0, Math.max(0, input.topN)) };
   }
 }
 
@@ -3896,16 +3901,20 @@ export type AgencyOfficerSearch = {
   place?: string;
   agencyName: string;
   officerName: string;
-  confidenceLevel: number;
+  topN: number;
 };
 
-export type AgencyOfficerMatch = {
-  agencyOfficerId: string;
-  officerId: string;
-  agencyId: string;
+export type AgencyOfficerSearchResult = {
   confidence: number;
   officerConfidence: number;
   agencyConfidence: number;
+  agency: Record<string, unknown>;
+  agency_officer: Record<string, unknown>;
+  officer: Record<string, unknown>;
+};
+
+export type AgencyOfficerSearchResults = {
+  results: AgencyOfficerSearchResult[];
 };
 
 function searchRows(result: unknown): Record<string, unknown>[] {
