@@ -192,8 +192,9 @@ export const registerCliCommand: RegisterCliCommand = (
         "us-census-gazetteer matches it runs first (ADR 0015); the rest run in name order.",
     )
     .argument(
-      "<glob>",
-      "glob matching source folder name(s) under sources/ — quote it, e.g. '*' or 'gov.*'",
+      "[glob]",
+      "glob matching source folder name(s) under sources/ — quote it, e.g. 'gov.*'; defaults to all sources",
+      "*",
     )
     .option(
       "--dry-run",

@@ -108,8 +108,9 @@ export const registerCliCommand: RegisterCliCommand = (
         "Only sources that export an acquire function are supported.",
     )
     .argument(
-      "<glob>",
-      "glob matching source folder name(s) under sources/ — quote it, e.g. '*' or 'mn-post'",
+      "[glob]",
+      "glob matching source folder name(s) under sources/ — quote it, e.g. 'mn-post'; defaults to all sources",
+      "*",
     )
     .addHelpText(
       "after",
