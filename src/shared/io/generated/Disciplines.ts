@@ -16,6 +16,7 @@ import {
 import { DisciplineSpec } from "./entity-specs.js";
 export { DisciplineSpec } from "./entity-specs.js";
 
+
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -51,25 +52,19 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (
-    options.relativeTo === undefined ||
-    options.relativeTo.trim().length === 0
-  ) {
-    throw new Error(
-      `Relative ${ref.kind ?? "Disciplines"} ref requires relativeTo.`,
-    );
+  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
+    throw new Error(`Relative ${ref.kind ?? "Disciplines"} ref requires relativeTo.`);
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(
-      `${ref.kind ?? "Disciplines"} ref.path escapes its directory: ${ref.path}`,
-    );
+    throw new Error(`${ref.kind ?? "Disciplines"} ref.path escapes its directory: ${ref.path}`);
   }
   return { ...ref, filePath: resolvedPath };
 }
+
 
 const metadataSchema = z
   .object({
@@ -83,7 +78,9 @@ const metadataSchema = z
   })
   .strict();
 
-const recordItemSchema = z.object({ spec: DisciplineSpec }).strict();
+const recordItemSchema = z
+  .object({ spec: DisciplineSpec })
+  .strict();
 
 export const schema = z
   .object({
@@ -143,6 +140,8 @@ function validateRecord(
   return result.data;
 }
 
+
+
 async function readDisciplines(
   filePath: string,
   options: EnvelopeReadOptions & {
@@ -167,24 +166,13 @@ async function readDisciplines(
     raw?: boolean;
   } = {},
 ): Promise<DisciplinesEnvelope | DisciplinesResolvedEnvelope> {
-  const { contents, document } = await readYamlDocumentFile(
-    filePath,
-    "Disciplines",
-  );
-  if (
-    options.expectedSha256 !== undefined &&
-    yamlDigest(contents) !== options.expectedSha256
-  ) {
+  const { contents, document } = await readYamlDocumentFile(filePath, "Disciplines");
+  if (options.expectedSha256 !== undefined && yamlDigest(contents) !== options.expectedSha256) {
     throw new Error(`Disciplines sha256 mismatch: ${filePath}`);
   }
   const artifact = parseDisciplines(document);
-  if (
-    options.expectedKind !== undefined &&
-    artifact.kind !== options.expectedKind
-  ) {
-    throw new Error(
-      `Disciplines kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`,
-    );
+  if (options.expectedKind !== undefined && artifact.kind !== options.expectedKind) {
+    throw new Error(`Disciplines kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`);
   }
   if (
     options.expectedNamespace !== undefined &&
@@ -221,9 +209,7 @@ async function writeDisciplines(
   const artifactPath = yamlResourcePath(directory, artifact);
 
   if (options.externalizeRecords === true) {
-    throw new Error(
-      "Disciplines does not support externalized singular record envelopes.",
-    );
+    throw new Error("Disciplines does not support externalized singular record envelopes.");
   }
 
   const contents = await writeYamlDocumentFile(artifactPath, artifact);
@@ -237,6 +223,8 @@ export const Disciplines = {
   read: readDisciplines,
   write: writeDisciplines,
 };
+
+
 
 export const read = readDisciplines;
 export const write = writeDisciplines;

@@ -13,6 +13,7 @@ import {
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
 
+
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -48,22 +49,15 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (
-    options.relativeTo === undefined ||
-    options.relativeTo.trim().length === 0
-  ) {
-    throw new Error(
-      `Relative ${ref.kind ?? "DisciplineAgencyOfficerDelete"} ref requires relativeTo.`,
-    );
+  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
+    throw new Error(`Relative ${ref.kind ?? "DisciplineAgencyOfficerDelete"} ref requires relativeTo.`);
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(
-      `${ref.kind ?? "DisciplineAgencyOfficerDelete"} ref.path escapes its directory: ${ref.path}`,
-    );
+    throw new Error(`${ref.kind ?? "DisciplineAgencyOfficerDelete"} ref.path escapes its directory: ${ref.path}`);
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -77,6 +71,8 @@ const metadataSchema = z
   })
   .strict();
 
+
+
 export const specSchema = z.object({}).strict();
 
 export const schema = z
@@ -89,14 +85,9 @@ export const schema = z
   .strict();
 
 export type DisciplineAgencyOfficerDeleteEnvelope = z.infer<typeof schema>;
-export type DisciplineAgencyOfficerDeleteInput = Omit<
-  DisciplineAgencyOfficerDeleteEnvelope,
-  "apiVersion" | "kind"
->;
+export type DisciplineAgencyOfficerDeleteInput = Omit<DisciplineAgencyOfficerDeleteEnvelope, "apiVersion" | "kind">;
 
-function parseDisciplineAgencyOfficerDelete(
-  value: unknown,
-): DisciplineAgencyOfficerDeleteEnvelope {
+function parseDisciplineAgencyOfficerDelete(value: unknown): DisciplineAgencyOfficerDeleteEnvelope {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new Error(formatError(result.error));
@@ -104,9 +95,7 @@ function parseDisciplineAgencyOfficerDelete(
   return result.data;
 }
 
-function newDisciplineAgencyOfficerDelete(
-  input: DisciplineAgencyOfficerDeleteInput,
-): DisciplineAgencyOfficerDeleteEnvelope {
+function newDisciplineAgencyOfficerDelete(input: DisciplineAgencyOfficerDeleteInput): DisciplineAgencyOfficerDeleteEnvelope {
   return parseDisciplineAgencyOfficerDelete({
     apiVersion: INTAKE_API_VERSION,
     kind: "DisciplineAgencyOfficerDelete",
@@ -120,18 +109,11 @@ async function readDisciplineAgencyOfficerDelete(
 ): Promise<DisciplineAgencyOfficerDeleteEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "DisciplineAgencyOfficerDelete") {
-    throw new Error(
-      `DisciplineAgencyOfficerDelete ref.kind ${ref.kind} does not match expected kind DisciplineAgencyOfficerDelete: ${ref.filePath}`,
-    );
+    throw new Error(`DisciplineAgencyOfficerDelete ref.kind ${ref.kind} does not match expected kind DisciplineAgencyOfficerDelete: ${ref.filePath}`);
   }
-  const { contents, document } = await readYamlDocumentFile(
-    ref.filePath,
-    "DisciplineAgencyOfficerDelete",
-  );
+  const { contents, document } = await readYamlDocumentFile(ref.filePath, "DisciplineAgencyOfficerDelete");
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
-    throw new Error(
-      `DisciplineAgencyOfficerDelete sha256 mismatch: ${ref.filePath}`,
-    );
+    throw new Error(`DisciplineAgencyOfficerDelete sha256 mismatch: ${ref.filePath}`);
   }
   const envelope = parseDisciplineAgencyOfficerDelete(document);
   if (

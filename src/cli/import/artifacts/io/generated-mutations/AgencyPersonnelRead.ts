@@ -13,6 +13,7 @@ import {
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
 
+
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -48,22 +49,15 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (
-    options.relativeTo === undefined ||
-    options.relativeTo.trim().length === 0
-  ) {
-    throw new Error(
-      `Relative ${ref.kind ?? "AgencyPersonnelRead"} ref requires relativeTo.`,
-    );
+  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
+    throw new Error(`Relative ${ref.kind ?? "AgencyPersonnelRead"} ref requires relativeTo.`);
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(
-      `${ref.kind ?? "AgencyPersonnelRead"} ref.path escapes its directory: ${ref.path}`,
-    );
+    throw new Error(`${ref.kind ?? "AgencyPersonnelRead"} ref.path escapes its directory: ${ref.path}`);
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -77,6 +71,8 @@ const metadataSchema = z
   })
   .strict();
 
+
+
 export const specSchema = z.object({}).strict();
 
 export const schema = z
@@ -89,10 +85,7 @@ export const schema = z
   .strict();
 
 export type AgencyPersonnelReadEnvelope = z.infer<typeof schema>;
-export type AgencyPersonnelReadInput = Omit<
-  AgencyPersonnelReadEnvelope,
-  "apiVersion" | "kind"
->;
+export type AgencyPersonnelReadInput = Omit<AgencyPersonnelReadEnvelope, "apiVersion" | "kind">;
 
 function parseAgencyPersonnelRead(value: unknown): AgencyPersonnelReadEnvelope {
   const result = schema.safeParse(value);
@@ -102,9 +95,7 @@ function parseAgencyPersonnelRead(value: unknown): AgencyPersonnelReadEnvelope {
   return result.data;
 }
 
-function newAgencyPersonnelRead(
-  input: AgencyPersonnelReadInput,
-): AgencyPersonnelReadEnvelope {
+function newAgencyPersonnelRead(input: AgencyPersonnelReadInput): AgencyPersonnelReadEnvelope {
   return parseAgencyPersonnelRead({
     apiVersion: INTAKE_API_VERSION,
     kind: "AgencyPersonnelRead",
@@ -118,14 +109,9 @@ async function readAgencyPersonnelRead(
 ): Promise<AgencyPersonnelReadEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "AgencyPersonnelRead") {
-    throw new Error(
-      `AgencyPersonnelRead ref.kind ${ref.kind} does not match expected kind AgencyPersonnelRead: ${ref.filePath}`,
-    );
+    throw new Error(`AgencyPersonnelRead ref.kind ${ref.kind} does not match expected kind AgencyPersonnelRead: ${ref.filePath}`);
   }
-  const { contents, document } = await readYamlDocumentFile(
-    ref.filePath,
-    "AgencyPersonnelRead",
-  );
+  const { contents, document } = await readYamlDocumentFile(ref.filePath, "AgencyPersonnelRead");
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
     throw new Error(`AgencyPersonnelRead sha256 mismatch: ${ref.filePath}`);
   }

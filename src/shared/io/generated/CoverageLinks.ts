@@ -16,6 +16,7 @@ import {
 import { CoverageLinkSpec } from "./entity-specs.js";
 export { CoverageLinkSpec } from "./entity-specs.js";
 
+
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -51,25 +52,19 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (
-    options.relativeTo === undefined ||
-    options.relativeTo.trim().length === 0
-  ) {
-    throw new Error(
-      `Relative ${ref.kind ?? "CoverageLinks"} ref requires relativeTo.`,
-    );
+  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
+    throw new Error(`Relative ${ref.kind ?? "CoverageLinks"} ref requires relativeTo.`);
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(
-      `${ref.kind ?? "CoverageLinks"} ref.path escapes its directory: ${ref.path}`,
-    );
+    throw new Error(`${ref.kind ?? "CoverageLinks"} ref.path escapes its directory: ${ref.path}`);
   }
   return { ...ref, filePath: resolvedPath };
 }
+
 
 const metadataSchema = z
   .object({
@@ -83,7 +78,9 @@ const metadataSchema = z
   })
   .strict();
 
-const recordItemSchema = z.object({ spec: CoverageLinkSpec }).strict();
+const recordItemSchema = z
+  .object({ spec: CoverageLinkSpec })
+  .strict();
 
 export const schema = z
   .object({
@@ -101,14 +98,8 @@ export const schema = z
   .strict();
 
 export type CoverageLinksEnvelope = z.infer<typeof schema>;
-export type CoverageLinksInput = Omit<
-  CoverageLinksEnvelope,
-  "apiVersion" | "kind"
->;
-export type CoverageLinksResolvedEnvelope = Omit<
-  CoverageLinksEnvelope,
-  "spec"
-> & {
+export type CoverageLinksInput = Omit<CoverageLinksEnvelope, "apiVersion" | "kind">;
+export type CoverageLinksResolvedEnvelope = Omit<CoverageLinksEnvelope, "spec"> & {
   spec: Omit<CoverageLinksEnvelope["spec"], "records"> & {
     records: Record<string, z.infer<typeof CoverageLinkSpec>>;
   };
@@ -149,6 +140,8 @@ function validateRecord(
   return result.data;
 }
 
+
+
 async function readCoverageLinks(
   filePath: string,
   options: EnvelopeReadOptions & {
@@ -173,24 +166,13 @@ async function readCoverageLinks(
     raw?: boolean;
   } = {},
 ): Promise<CoverageLinksEnvelope | CoverageLinksResolvedEnvelope> {
-  const { contents, document } = await readYamlDocumentFile(
-    filePath,
-    "CoverageLinks",
-  );
-  if (
-    options.expectedSha256 !== undefined &&
-    yamlDigest(contents) !== options.expectedSha256
-  ) {
+  const { contents, document } = await readYamlDocumentFile(filePath, "CoverageLinks");
+  if (options.expectedSha256 !== undefined && yamlDigest(contents) !== options.expectedSha256) {
     throw new Error(`CoverageLinks sha256 mismatch: ${filePath}`);
   }
   const artifact = parseCoverageLinks(document);
-  if (
-    options.expectedKind !== undefined &&
-    artifact.kind !== options.expectedKind
-  ) {
-    throw new Error(
-      `CoverageLinks kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`,
-    );
+  if (options.expectedKind !== undefined && artifact.kind !== options.expectedKind) {
+    throw new Error(`CoverageLinks kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`);
   }
   if (
     options.expectedNamespace !== undefined &&
@@ -227,9 +209,7 @@ async function writeCoverageLinks(
   const artifactPath = yamlResourcePath(directory, artifact);
 
   if (options.externalizeRecords === true) {
-    throw new Error(
-      "CoverageLinks does not support externalized singular record envelopes.",
-    );
+    throw new Error("CoverageLinks does not support externalized singular record envelopes.");
   }
 
   const contents = await writeYamlDocumentFile(artifactPath, artifact);
@@ -243,6 +223,8 @@ export const CoverageLinks = {
   read: readCoverageLinks,
   write: writeCoverageLinks,
 };
+
+
 
 export const read = readCoverageLinks;
 export const write = writeCoverageLinks;

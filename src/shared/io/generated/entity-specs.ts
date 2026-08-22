@@ -5,45 +5,13 @@ import { z } from "zod";
 // Fingerprint of the applied database migrations these specs were generated
 // against. The importer refuses to run when the live database's migrations
 // differ (see assertGeneratedSchemaCurrent).
-export const GENERATED_MIGRATION_VERSIONS = [
-  "20250303232529",
-  "20260520000000",
-  "20260526162500",
-  "20260526173000",
-  "20260608172000",
-  "20260619142000",
-  "20260626000000",
-  "20260627000000",
-  "20260627000100",
-  "20260701000000",
-  "20260702000000",
-  "20260703000000",
-  "20260822000000",
-] as const;
-export const GENERATED_MIGRATION_FINGERPRINT =
-  "623cb2254106f382d3d331f1c0df055bf337c6965301b2133e42a37a5ab25c12";
+export const GENERATED_MIGRATION_VERSIONS = ["20250303232529","20260520000000","20260526162500","20260526173000","20260608172000","20260619142000","20260626000000","20260627000000","20260627000100","20260701000000","20260702000000","20260703000000","20260822000000"] as const;
+export const GENERATED_MIGRATION_FINGERPRINT = "623cb2254106f382d3d331f1c0df055bf337c6965301b2133e42a37a5ab25c12";
 
 // Entity record kinds in database-dependency order (topological sort of the
 // foreign-key graph): a referenced entity precedes its referrer, so mutations
 // emitted/applied in this order never violate a foreign key.
-export const RECORD_KINDS_IN_DEPENDENCY_ORDER = [
-  "LocationPath",
-  "LocationPathGeometry",
-  "LocationPathAlias",
-  "Agency",
-  "Personnel",
-  "LicensingAuthority",
-  "License",
-  "AgencyPersonnel",
-  "LicenseAction",
-  "Discipline",
-  "DisciplineAgencyOfficer",
-  "CoverageLink",
-  "CoverageLinkAgencyOfficer",
-  "AgencyPhoneNumber",
-  "FederalAgency",
-  "FederalAgencyBranch",
-] as const;
+export const RECORD_KINDS_IN_DEPENDENCY_ORDER = ["LocationPath","LocationPathGeometry","LocationPathAlias","Agency","Personnel","LicensingAuthority","License","AgencyPersonnel","LicenseAction","Discipline","DisciplineAgencyOfficer","CoverageLink","CoverageLinkAgencyOfficer","AgencyPhoneNumber","FederalAgency","FederalAgencyBranch"] as const;
 
 // Each record kind's foreign keys to other entity kinds (field → target kind),
 // from the database's own FKs. Drives the exclusion cascade: a record whose FK
@@ -51,74 +19,14 @@ export const RECORD_KINDS_IN_DEPENDENCY_ORDER = [
 export const FK_REFERENCES: Record<
   string,
   ReadonlyArray<{ field: string; targetKind: string }>
-> = {
-  LocationPathGeometry: [
-    { field: "location_path_id", targetKind: "LocationPath" },
-  ],
-  LocationPathAlias: [
-    { field: "location_path_id", targetKind: "LocationPath" },
-  ],
-  Agency: [{ field: "location_path_id", targetKind: "LocationPath" }],
-  AgencyPersonnel: [
-    { field: "agency_id", targetKind: "Agency" },
-    { field: "license_id", targetKind: "License" },
-    { field: "officer_id", targetKind: "Personnel" },
-  ],
-  LicensingAuthority: [
-    { field: "location_path_id", targetKind: "LocationPath" },
-  ],
-  License: [
-    { field: "issued_by_authority_id", targetKind: "LicensingAuthority" },
-    { field: "officer_id", targetKind: "Personnel" },
-  ],
-  LicenseAction: [{ field: "license_id", targetKind: "License" }],
-  DisciplineAgencyOfficer: [
-    { field: "agency_officer_id", targetKind: "AgencyPersonnel" },
-    { field: "discipline_id", targetKind: "Discipline" },
-  ],
-  CoverageLinkAgencyOfficer: [
-    { field: "agency_officer_id", targetKind: "AgencyPersonnel" },
-    { field: "coverage_link_id", targetKind: "CoverageLink" },
-  ],
-  AgencyPhoneNumber: [{ field: "agency_id", targetKind: "Agency" }],
-  FederalAgencyBranch: [
-    { field: "agency_id", targetKind: "Agency" },
-    { field: "federal_agency_id", targetKind: "FederalAgency" },
-  ],
-};
+> = {"LocationPathGeometry":[{"field":"location_path_id","targetKind":"LocationPath"}],"LocationPathAlias":[{"field":"location_path_id","targetKind":"LocationPath"}],"Agency":[{"field":"location_path_id","targetKind":"LocationPath"}],"AgencyPersonnel":[{"field":"agency_id","targetKind":"Agency"},{"field":"license_id","targetKind":"License"},{"field":"officer_id","targetKind":"Personnel"}],"LicensingAuthority":[{"field":"location_path_id","targetKind":"LocationPath"}],"License":[{"field":"issued_by_authority_id","targetKind":"LicensingAuthority"},{"field":"officer_id","targetKind":"Personnel"}],"LicenseAction":[{"field":"license_id","targetKind":"License"}],"DisciplineAgencyOfficer":[{"field":"agency_officer_id","targetKind":"AgencyPersonnel"},{"field":"discipline_id","targetKind":"Discipline"}],"CoverageLinkAgencyOfficer":[{"field":"agency_officer_id","targetKind":"AgencyPersonnel"},{"field":"coverage_link_id","targetKind":"CoverageLink"}],"AgencyPhoneNumber":[{"field":"agency_id","targetKind":"Agency"}],"FederalAgencyBranch":[{"field":"agency_id","targetKind":"Agency"},{"field":"federal_agency_id","targetKind":"FederalAgency"}]};
 
 // Each record kind's properties resolved during import rather than supplied by
 // the source (`createRequired`): optional in the base spec, required in the
 // *Create mutation. The facade caches every one of these except `id` (which the
 // ledger mints) through the property cache — so a resolved field becomes
 // cache-backed and seedable automatically, with no per-resolver wiring.
-export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = {
-  LocationPath: [],
-  LocationPathGeometry: [],
-  LocationPathAlias: [],
-  Agency: [
-    "id",
-    "slug",
-    "address",
-    "city",
-    "zip_code",
-    "location_path_id",
-    "latitude",
-    "longitude",
-  ],
-  Personnel: ["id", "slug"],
-  AgencyPersonnel: ["id"],
-  LicensingAuthority: ["id"],
-  License: ["id"],
-  LicenseAction: ["id"],
-  Discipline: ["id"],
-  DisciplineAgencyOfficer: ["id"],
-  CoverageLink: ["id"],
-  CoverageLinkAgencyOfficer: ["id"],
-  AgencyPhoneNumber: ["id"],
-  FederalAgency: ["id", "slug"],
-  FederalAgencyBranch: ["federal_agency_id", "agency_id"],
-};
+export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = {"LocationPath":[],"LocationPathGeometry":[],"LocationPathAlias":[],"Agency":["id","slug","address","city","zip_code","location_path_id","latitude","longitude"],"Personnel":["id","slug"],"AgencyPersonnel":["id"],"LicensingAuthority":["id"],"License":["id"],"LicenseAction":["id"],"Discipline":["id"],"DisciplineAgencyOfficer":["id"],"CoverageLink":["id"],"CoverageLinkAgencyOfficer":["id"],"AgencyPhoneNumber":["id"],"FederalAgency":["id"],"FederalAgencyBranch":["id"]};
 
 const nonEmptyString = z.string().trim().min(1);
 const nullableNonEmptyString = nonEmptyString.nullable();
@@ -175,8 +83,7 @@ export const LocationPathSpec = z
     centroid: LocationPathCentroidSpec.nullable().optional(),
     bbox: LocationPathBboxSpec.nullable().optional(),
   })
-  .strict()
-  .superRefine((row, context) => {
+  .strict().superRefine((row, context) => {
     if (row.level === "state") {
       for (const fieldName of [
         "administrative_area_slug",
@@ -393,10 +300,9 @@ export const DisciplineAgencyOfficerSpec = z
   })
   .strict();
 
-export const DisciplineAgencyOfficerCreateSpec =
-  DisciplineAgencyOfficerSpec.extend({
-    id: z.string(),
-  });
+export const DisciplineAgencyOfficerCreateSpec = DisciplineAgencyOfficerSpec.extend({
+  id: z.string(),
+});
 
 export const CoverageLinkSpec = z
   .object({
@@ -424,10 +330,9 @@ export const CoverageLinkAgencyOfficerSpec = z
   })
   .strict();
 
-export const CoverageLinkAgencyOfficerCreateSpec =
-  CoverageLinkAgencyOfficerSpec.extend({
-    id: z.string(),
-  });
+export const CoverageLinkAgencyOfficerCreateSpec = CoverageLinkAgencyOfficerSpec.extend({
+  id: z.string(),
+});
 
 export const AgencyPhoneNumberSpec = z
   .object({
@@ -446,24 +351,22 @@ export const FederalAgencySpec = z
   .object({
     id: z.string().optional(),
     name: z.string(),
-    slug: z.string().optional(),
+    slug: z.string(),
   })
   .strict();
 
 export const FederalAgencyCreateSpec = FederalAgencySpec.extend({
   id: z.string(),
-  slug: z.string(),
 });
 
 export const FederalAgencyBranchSpec = z
   .object({
-    federal_agency_id: z.string().optional(),
-    agency_id: z.string().optional(),
-    id: z.string(),
+    federal_agency_id: z.string(),
+    agency_id: z.string(),
+    id: z.string().optional(),
   })
   .strict();
 
 export const FederalAgencyBranchCreateSpec = FederalAgencyBranchSpec.extend({
-  federal_agency_id: z.string(),
-  agency_id: z.string(),
+  id: z.string(),
 });

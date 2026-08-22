@@ -205,12 +205,12 @@ const DESCRIPTORS: EntityDescriptor[] = [
   {
     recordKind: "FederalAgency",
     table: "federal_agency",
-    createRequired: ["id", "slug"],
+    createRequired: ["id"],
   },
   {
     recordKind: "FederalAgencyBranch",
     table: "federal_agency_branch",
-    createRequired: ["federal_agency_id", "agency_id"],
+    createRequired: ["id"],
   },
 ];
 

@@ -16,6 +16,7 @@ import {
 import { PersonnelSpec } from "./entity-specs.js";
 export { PersonnelSpec } from "./entity-specs.js";
 
+
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -51,25 +52,19 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (
-    options.relativeTo === undefined ||
-    options.relativeTo.trim().length === 0
-  ) {
-    throw new Error(
-      `Relative ${ref.kind ?? "Personnel"} ref requires relativeTo.`,
-    );
+  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
+    throw new Error(`Relative ${ref.kind ?? "Personnel"} ref requires relativeTo.`);
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(
-      `${ref.kind ?? "Personnel"} ref.path escapes its directory: ${ref.path}`,
-    );
+    throw new Error(`${ref.kind ?? "Personnel"} ref.path escapes its directory: ${ref.path}`);
   }
   return { ...ref, filePath: resolvedPath };
 }
+
 
 const metadataSchema = z
   .object({
@@ -89,19 +84,15 @@ const recordReferenceSchema = z
       .object({
         path: z.string().trim().min(1),
         kind: z.literal("PersonnelRecord"),
-        sha256: z
-          .string()
-          .regex(/^[a-f0-9]{64}$/)
-          .optional(),
+        sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
       })
       .strict(),
   })
   .strict();
-const inlineRecordItemSchema = z.object({ spec: PersonnelSpec }).strict();
-const recordItemSchema = z.union([
-  recordReferenceSchema,
-  inlineRecordItemSchema,
-]);
+const inlineRecordItemSchema = z
+  .object({ spec: PersonnelSpec })
+  .strict();
+const recordItemSchema = z.union([recordReferenceSchema, inlineRecordItemSchema]);
 
 export const schema = z
   .object({
@@ -161,6 +152,7 @@ function validateRecord(
   return result.data;
 }
 
+
 export const recordSchema = z
   .object({
     apiVersion: z.literal(INTAKE_API_VERSION),
@@ -178,24 +170,17 @@ export const recordSchema = z
   .strict();
 
 export type PersonnelRecordEnvelope = z.infer<typeof recordSchema>;
-export type PersonnelRecordInput = Omit<
-  PersonnelRecordEnvelope,
-  "apiVersion" | "kind"
->;
+export type PersonnelRecordInput = Omit<PersonnelRecordEnvelope, "apiVersion" | "kind">;
 
 function parsePersonnelRecord(value: unknown): PersonnelRecordEnvelope {
   const result = recordSchema.safeParse(value);
   if (!result.success) {
-    throw new Error(
-      `PersonnelRecord is malformed at ${firstIssuePath(result.error)}.`,
-    );
+    throw new Error(`PersonnelRecord is malformed at ${firstIssuePath(result.error)}.`);
   }
   return result.data;
 }
 
-function newPersonnelRecord(
-  input: PersonnelRecordInput,
-): PersonnelRecordEnvelope {
+function newPersonnelRecord(input: PersonnelRecordInput): PersonnelRecordEnvelope {
   return parsePersonnelRecord({
     apiVersion: INTAKE_API_VERSION,
     kind: "PersonnelRecord",
@@ -209,14 +194,9 @@ async function readPersonnelRecord(
 ): Promise<PersonnelRecordEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "PersonnelRecord") {
-    throw new Error(
-      `PersonnelRecord ref.kind ${ref.kind} does not match expected kind PersonnelRecord: ${ref.filePath}`,
-    );
+    throw new Error(`PersonnelRecord ref.kind ${ref.kind} does not match expected kind PersonnelRecord: ${ref.filePath}`);
   }
-  const { contents, document } = await readYamlDocumentFile(
-    ref.filePath,
-    "PersonnelRecord",
-  );
+  const { contents, document } = await readYamlDocumentFile(ref.filePath, "PersonnelRecord");
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
     throw new Error(`PersonnelRecord sha256 mismatch: ${ref.filePath}`);
   }
@@ -242,6 +222,7 @@ async function writePersonnelRecord(
   return { path: filePath, sha256: yamlDigest(contents) };
 }
 
+
 async function readPersonnel(
   filePath: string,
   options: EnvelopeReadOptions & {
@@ -266,24 +247,13 @@ async function readPersonnel(
     raw?: boolean;
   } = {},
 ): Promise<PersonnelEnvelope | PersonnelResolvedEnvelope> {
-  const { contents, document } = await readYamlDocumentFile(
-    filePath,
-    "Personnel",
-  );
-  if (
-    options.expectedSha256 !== undefined &&
-    yamlDigest(contents) !== options.expectedSha256
-  ) {
+  const { contents, document } = await readYamlDocumentFile(filePath, "Personnel");
+  if (options.expectedSha256 !== undefined && yamlDigest(contents) !== options.expectedSha256) {
     throw new Error(`Personnel sha256 mismatch: ${filePath}`);
   }
   const artifact = parsePersonnel(document);
-  if (
-    options.expectedKind !== undefined &&
-    artifact.kind !== options.expectedKind
-  ) {
-    throw new Error(
-      `Personnel kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`,
-    );
+  if (options.expectedKind !== undefined && artifact.kind !== options.expectedKind) {
+    throw new Error(`Personnel kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`);
   }
   if (
     options.expectedNamespace !== undefined &&
@@ -336,14 +306,9 @@ async function writePersonnel(
     const recordsDirectory =
       options.recordsDirectory ??
       `${path.basename(artifactPath, path.extname(artifactPath))}.records`;
-    const records: Record<
-      string,
-      { ref: { path: string; kind: "PersonnelRecord"; sha256?: string } }
-    > = {};
+    const records: Record<string, { ref: { path: string; kind: "PersonnelRecord"; sha256?: string } }> = {};
 
-    for (const [recordKey, recordItem] of Object.entries(
-      artifact.spec.records,
-    )) {
+    for (const [recordKey, recordItem] of Object.entries(artifact.spec.records)) {
       if ("ref" in recordItem) {
         records[recordKey] = recordItem;
         continue;
@@ -391,6 +356,7 @@ export const Personnel = {
   write: writePersonnel,
 };
 
+
 export const PersonnelRecord = {
   kind: "PersonnelRecord",
   schema: recordSchema,
@@ -398,6 +364,7 @@ export const PersonnelRecord = {
   read: readPersonnelRecord,
   write: writePersonnelRecord,
 };
+
 
 export const read = readPersonnel;
 export const write = writePersonnel;
