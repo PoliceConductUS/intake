@@ -36,17 +36,24 @@ export function createAcquireDataContext(
   client: DatabaseClient,
 ): AcquireDataContext {
   return {
-    async agencies({ states, cursor, limit }): Promise<AcquireAgencyPage> {
+    async agencies({
+      states,
+      minOfficers,
+      cursor,
+      limit,
+    }): Promise<AcquireAgencyPage> {
       const pageSize = Math.max(1, limit ?? DEFAULT_LIMIT);
       const params: unknown[] = [
         states !== undefined && states.length > 0 ? states : null,
+        minOfficers ?? 0,
       ];
-      let having = "";
+      const havingParts = ["count(ao.id) >= $2"];
       if (cursor !== undefined && cursor !== "") {
         const { officerCount, id } = decodeCursor(cursor);
         params.push(officerCount, id);
-        having = "having (count(ao.id), a.id) < ($2::int, $3::text)";
+        havingParts.push("(count(ao.id), a.id) < ($3::int, $4::text)");
       }
+      const having = `having ${havingParts.join(" and ")}`;
       params.push(pageSize + 1);
       const limitParam = `$${params.length}`;
 

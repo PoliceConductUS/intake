@@ -42,6 +42,7 @@ export type AcquireAgencyPage = {
 export type AcquireDataContext = {
   agencies(query: {
     states?: string[];
+    minOfficers?: number;
     cursor?: string;
     limit?: number;
   }): Promise<AcquireAgencyPage>;

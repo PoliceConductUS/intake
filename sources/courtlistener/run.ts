@@ -21,7 +21,7 @@ type Docket = {
   date_terminated?: string | null;
   cause?: string;
   absolute_url?: string;
-  parties?: string[];
+  defendants?: string[];
 };
 
 type AgencyDockets = {
@@ -91,8 +91,8 @@ export const run: SourceRun = async ({ paths, logger }: RunDeps) => {
           },
         };
       }
-      for (const party of docket.parties ?? []) {
-        const officerName = text(party);
+      for (const defendant of docket.defendants ?? []) {
+        const officerName = text(defendant);
         if (!isPersonDefendant(officerName)) continue;
         officers[`${caseKey}|${slugify(officerName)}`] = {
           spec: {

@@ -23,7 +23,7 @@ type Docket = {
   date_terminated: string | null;
   cause: string;
   absolute_url: string;
-  parties: string[];
+  defendants: string[];
 };
 
 async function fileExists(filePath: string): Promise<boolean> {
@@ -43,10 +43,19 @@ function str(value: unknown): string {
   return typeof value === "string" ? value : value == null ? "" : String(value);
 }
 
-function stringArray(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.map((v) => str(v).trim()).filter((v) => v !== "")
-    : [];
+async function fetchDefendants(
+  docketId: string,
+  fetchJson: (url: string) => Promise<Record<string, unknown>>,
+): Promise<string[]> {
+  const body = await fetchJson(`${API}/parties/?docket=${docketId}`);
+  return asArray(body.results)
+    .filter((party) =>
+      asArray(party.party_types).some(
+        (type) => str(type.name).toLowerCase() === "defendant",
+      ),
+    )
+    .map((party) => str(party.name).trim())
+    .filter((name) => name !== "");
 }
 
 function searchUrl(
@@ -86,7 +95,7 @@ async function searchAgencyDockets(
         date_terminated: str(hit.dateTerminated ?? hit.date_terminated) || null,
         cause: str(hit.cause),
         absolute_url: str(hit.docket_absolute_url ?? hit.absolute_url),
-        parties: stringArray(hit.party),
+        defendants: await fetchDefendants(id, fetchJson),
       });
     }
     url = str(body.next);
@@ -125,6 +134,7 @@ export const acquire: SourceAcquire = async ({
   do {
     const page = await data.agencies({
       states: Object.keys(STATE_COURTS),
+      minOfficers: 1,
       cursor,
       limit: 50,
     });

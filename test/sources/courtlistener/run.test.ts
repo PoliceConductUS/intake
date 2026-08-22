@@ -22,7 +22,7 @@ const envelope = {
       absolute_url: "/docket/123/doe-v-city-of-irving/",
       cause: "28:1983 Civil Rights",
       date_terminated: "2023-11-20",
-      parties: ["City of Irving", "John Smith"],
+      defendants: ["City of Irving", "John Smith"],
     },
     // no filing date -> skipped
     {
