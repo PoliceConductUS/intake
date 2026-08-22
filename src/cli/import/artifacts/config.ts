@@ -660,12 +660,31 @@ async function addCivilCaseSourceFacades(
       topN: 5,
     });
     const best = match.results[0];
-    if (
-      best === undefined ||
-      best.confidence < CIVIL_CASE_OFFICER_CONFIDENCE_FLOOR
-    ) {
-      continue;
-    }
+    const accepted =
+      best !== undefined &&
+      best.confidence >= CIVIL_CASE_OFFICER_CONFIDENCE_FLOOR;
+    logger?.info(
+      {
+        civilCase: String(officer.spec.civil_case_id),
+        officerName: String(officer.spec.officer_name ?? ""),
+        agencyName: String(officer.spec.agency_name ?? ""),
+        state: String(officer.spec.state ?? ""),
+        accepted,
+        confidence: best?.confidence ?? null,
+        officerConfidence: best?.officer.confidence ?? null,
+        agencyConfidence: best?.agency.confidence ?? null,
+        matchedOfficer:
+          best === undefined
+            ? null
+            : `${String(best.officer.record.first_name ?? "")} ${String(best.officer.record.last_name ?? "")}`.trim(),
+        matchedAgency: best?.agency.record.name ?? null,
+        candidates: match.results.length,
+      },
+      `Civil-case officer ${accepted ? "resolved" : "unresolved"}: ${String(
+        officer.spec.officer_name ?? "",
+      )} @ ${String(officer.spec.agency_name ?? "")}`,
+    );
+    if (!accepted) continue;
     resolvedOfficerId.set(
       officer.sourceName,
       String(best.agencyOfficer.record.id),

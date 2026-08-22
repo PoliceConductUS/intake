@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type {
   AcquireDeps,
@@ -103,20 +103,32 @@ export const acquire: SourceAcquire = async ({
       "courtlistener: COURT_LISTENER_API_TOKEN is required to search CourtListener.",
     );
   }
+  await mkdir(sourceDir, { recursive: true });
+  const apiLogPath = path.join(sourceDir, ".api-calls.jsonl");
   const fetchJson = async (url: string): Promise<Record<string, unknown>> => {
     const response = await fetch(url, {
       headers: { Authorization: `Token ${token}` },
     });
+    const text = await response.text();
+    let body: unknown;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      body = text;
+    }
+    await appendFile(
+      apiLogPath,
+      `${JSON.stringify({ at: new Date().toISOString(), url, status: response.status, body })}\n`,
+    );
     if (!response.ok) {
       throw new Error(`courtlistener: ${response.status} for ${url}`);
     }
-    return (await response.json()) as Record<string, unknown>;
+    return body as Record<string, unknown>;
   };
   const minYear = Number(env.COURTLISTENER_MIN_YEAR ?? DEFAULT_MIN_YEAR);
   const filedAfter = `${minYear}-01-01`;
   const onlyWithCases = env.COURTLISTENER_ONLY_WITH_CASES === "true";
   const agenciesFile = env.COURTLISTENER_AGENCIES_FILE;
-  await mkdir(sourceDir, { recursive: true });
 
   const cache = await loadDocketCache(state);
   const nowMs = Date.now();
