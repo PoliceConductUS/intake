@@ -3868,6 +3868,10 @@ export class DataContext {
       (row) => {
         const officer = (row.officer ?? {}) as Record<string, unknown>;
         const agency = (row.agency ?? {}) as Record<string, unknown>;
+        const agencyOfficerRow = (row.agency_officer ?? {}) as Record<
+          string,
+          unknown
+        >;
         const candidate = [
           officer.first_name,
           officer.middle_name,
@@ -3884,9 +3888,7 @@ export class DataContext {
           confidence: officerConfidence * 0.6 + agencyConfidence * 0.4,
           officerConfidence,
           agencyConfidence,
-          agency,
-          agency_officer: (row.agency_officer ?? {}) as Record<string, unknown>,
-          officer,
+          agencyOfficer: { ...agencyOfficerRow, agency, officer },
         };
       },
     );
@@ -3904,13 +3906,16 @@ export type AgencyOfficerSearch = {
   topN: number;
 };
 
+export type ResolvedAgencyOfficer = Record<string, unknown> & {
+  agency: Record<string, unknown>;
+  officer: Record<string, unknown>;
+};
+
 export type AgencyOfficerSearchResult = {
   confidence: number;
   officerConfidence: number;
   agencyConfidence: number;
-  agency: Record<string, unknown>;
-  agency_officer: Record<string, unknown>;
-  officer: Record<string, unknown>;
+  agencyOfficer: ResolvedAgencyOfficer;
 };
 
 export type AgencyOfficerSearchResults = {
