@@ -135,8 +135,10 @@ export async function collectSources({
       `mn-post: ${position} ${agencyName} — ${roster.length} officers`,
     );
 
+    let processed = 0;
     let detailsFetched = 0;
     for (const officer of roster) {
+      processed += 1;
       const licenseId = asNonEmptyString(officer.licenseId);
       if (licenseId === null) {
         skippedOfficers.push({
@@ -144,20 +146,22 @@ export async function collectSources({
           officer: describeOfficer(officer),
           reason: "roster row is missing a licenseId",
         });
-        continue;
-      }
-      const detailPath = path.join(
-        officersDir,
-        `${artifactStem(licenseId)}.detail.json`,
-      );
-      if ((await readTextIfExists(detailPath)) === null) {
-        await writeJson(detailPath, await client.fetchOfficerDetail(officer));
-        detailsFetched += 1;
-        if (detailsFetched % 50 === 0) {
-          logger.info(
-            `mn-post: ${position} ${agencyName} — ${detailsFetched}/${roster.length} officer details`,
-          );
+      } else {
+        const detailPath = path.join(
+          officersDir,
+          `${artifactStem(licenseId)}.detail.json`,
+        );
+        if ((await readTextIfExists(detailPath)) === null) {
+          await writeJson(detailPath, await client.fetchOfficerDetail(officer));
+          detailsFetched += 1;
         }
+      }
+      // Heartbeat only while actively fetching, so a resumed (cached) agency
+      // stays quiet.
+      if (processed % 50 === 0 && detailsFetched > 0) {
+        logger.info(
+          `mn-post: ${position} ${agencyName} — ${processed}/${roster.length} officers`,
+        );
       }
     }
   }
