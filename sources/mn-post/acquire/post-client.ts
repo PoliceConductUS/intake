@@ -40,15 +40,25 @@ export async function createPostLicenseSearchClient({
       new URLSearchParams(postData).get("aura.context") ?? auraContext;
   });
 
+  // Lightning/Experience sites keep connections open, so "networkidle" often
+  // never fires — load the DOM, then poll for the Aura context the app emits.
+  logger.info("mn-post: opening POST license search…");
   await page.goto(LICENSE_SEARCH_URL, {
-    waitUntil: "networkidle",
+    waitUntil: "domcontentloaded",
     timeout: 60_000,
   });
-  if (!auraContext) await page.waitForTimeout(1_000);
+  logger.info(
+    "mn-post: waiting for the POST license search app to initialize (solve any CAPTCHA in the window)…",
+  );
+  const deadline = Date.now() + 60_000;
+  while (!auraContext && Date.now() < deadline) {
+    await page.waitForTimeout(500);
+  }
   if (!auraContext) {
     await page.close();
     throw new Error("POST license search did not expose an Aura context");
   }
+  logger.info("mn-post: connected to POST license search");
 
   async function executeApexAction({
     classname,
