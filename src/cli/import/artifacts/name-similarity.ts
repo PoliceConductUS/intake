@@ -10,6 +10,30 @@ export function normalizeName(value: string): string {
     .trim();
 }
 
+export function officerNameVariations(
+  officer: Record<string, unknown>,
+): string[] {
+  const part = (key: string): string => {
+    const value = officer[key];
+    return typeof value === "string" ? value.trim() : "";
+  };
+  const first = part("first_name");
+  const middle = part("middle_name");
+  const last = part("last_name");
+  const suffix = part("suffix");
+  const combos = [
+    [first, last],
+    [first, middle, last],
+    [first, last, suffix],
+    [first, middle, last, suffix],
+    [last, first],
+  ];
+  const variations = combos
+    .map((parts) => parts.filter((p) => p !== "").join(" "))
+    .filter((v) => v !== "");
+  return [...new Set(variations)];
+}
+
 function bigrams(value: string): Map<string, number> {
   const counts = new Map<string, number>();
   const compact = value.replace(/ /g, "");

@@ -93,7 +93,11 @@ import {
   type ResolvedProperties,
 } from "./transform.js";
 import { readDatabaseRecordsByColumn } from "../../database/entities.js";
-import { nameSimilarity, normalizeName } from "./name-similarity.js";
+import {
+  nameSimilarity,
+  normalizeName,
+  officerNameVariations,
+} from "./name-similarity.js";
 import type { SupportedTableName } from "../../database/schema.js";
 
 /** Tables whose slug uniqueness the DataContext enforces (generate-unique). */
@@ -3870,14 +3874,11 @@ export class DataContext {
       (row) => {
         const officer = (row.officer ?? {}) as Record<string, unknown>;
         const agency = (row.agency ?? {}) as Record<string, unknown>;
-        const candidate = [
-          officer.first_name,
-          officer.middle_name,
-          officer.last_name,
-        ]
-          .filter((part) => typeof part === "string" && part.trim() !== "")
-          .join(" ");
-        const officerConfidence = nameSimilarity(officerName, candidate);
+        const officerConfidence = officerNameVariations(officer).reduce(
+          (best, variation) =>
+            Math.max(best, nameSimilarity(officerName, variation)),
+          0,
+        );
         const agencyConfidence = nameSimilarity(
           agencyName,
           String(agency.name ?? ""),

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   nameSimilarity,
   normalizeName,
+  officerNameVariations,
 } from "../../src/cli/import/artifacts/name-similarity.js";
 
 describe("normalizeName", () => {
@@ -26,5 +27,31 @@ describe("nameSimilarity", () => {
     const better = nameSimilarity("Angel Moreno", "Angel Moreno Jr");
     const worse = nameSimilarity("Angel Moreno", "Andre Martin");
     expect(better).toBeGreaterThan(worse);
+  });
+});
+
+describe("officerNameVariations", () => {
+  it("produces first-last, first-middle-last, and suffix forms so a middle initial does not hurt matching", () => {
+    const variations = officerNameVariations({
+      first_name: "Scott",
+      middle_name: "D",
+      last_name: "Garner",
+      suffix: "Jr",
+    });
+    expect(variations).toContain("Scott Garner");
+    expect(variations).toContain("Scott D Garner");
+    expect(variations).toContain("Scott D Garner Jr");
+    // a first-last variation matches a query without the middle initial exactly
+    const best = variations.reduce(
+      (max, v) => Math.max(max, nameSimilarity("Scott Garner", v)),
+      0,
+    );
+    expect(best).toBe(1);
+  });
+
+  it("omits missing parts without empty tokens", () => {
+    expect(
+      officerNameVariations({ first_name: "Robert", last_name: "Luna" }),
+    ).toEqual(["Robert Luna", "Luna Robert"]);
   });
 });
