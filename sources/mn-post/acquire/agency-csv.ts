@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import type { AgencyCsv, CollectLogger } from "./collect.js";
 
 const STATISTICS_URL =
@@ -65,7 +64,13 @@ export async function fetchPostAgencyCsv({
 
     const csvUrl = findAgencyCsvUrl(await page.content());
     logger.info(`mn-post: downloading agency CSV from ${csvUrl}`);
-    const body = await clickAndReadCsv(page, csvUrl);
+    // Fetch through the page's request context so the request carries the solved
+    // session cookies (the CSV asset sits behind the same bot protection).
+    const response = await page.request.get(csvUrl);
+    if (!response.ok()) {
+      throw new Error(`Failed to fetch POST agency CSV: ${response.status()}`);
+    }
+    const body = await response.text();
     assertNotBotChallenge(body, "POST agency CSV");
 
     return {
@@ -80,69 +85,6 @@ export async function fetchPostAgencyCsv({
   } finally {
     await context.close();
   }
-}
-
-/** Click the labelled CSV link and read its body, whether it downloads or renders. */
-async function clickAndReadCsv(
-  page: import("playwright").Page,
-  csvUrl: string,
-): Promise<string> {
-  const link = await findAgencyCsvLinkHandle(page, csvUrl);
-  if (!link) {
-    throw new Error(
-      `POST statistics page did not contain the "${CSV_LINK_LABEL}" link`,
-    );
-  }
-  const responsePromise = page
-    .waitForResponse((candidate) => candidate.url() === csvUrl, {
-      timeout: 60_000,
-    })
-    .then((response) => ({ kind: "response" as const, response }));
-  const downloadPromise = page
-    .waitForEvent("download", { timeout: 60_000 })
-    .then((download) => ({ kind: "download" as const, download }));
-
-  await link.click();
-  const result = await Promise.race([responsePromise, downloadPromise]);
-  if (result.kind === "download") {
-    const downloadPath = await result.download.path();
-    return readFile(downloadPath, "utf8");
-  }
-  if (!result.response.ok()) {
-    throw new Error(
-      `Failed to fetch POST agency CSV: ${result.response.status()}`,
-    );
-  }
-  return result.response.text();
-}
-
-async function findAgencyCsvLinkHandle(
-  page: import("playwright").Page,
-  csvUrl: string,
-): Promise<import("playwright").ElementHandle<Element> | null> {
-  const handle = await page.evaluateHandle(
-    ({ csvUrl, statisticsUrl, label }) => {
-      const normalize = (text: string) =>
-        text
-          .replace(/[\u200b-\u200d\uFEFF]/g, "")
-          .replace(/\s+/g, " ")
-          .trim();
-      return (
-        Array.from(document.querySelectorAll("a")).find((anchor) => {
-          const href = anchor.getAttribute("href");
-          if (!href) return false;
-          return (
-            new URL(href, statisticsUrl).toString() === csvUrl &&
-            normalize(anchor.textContent ?? "").includes(label)
-          );
-        }) ?? null
-      );
-    },
-    { csvUrl, statisticsUrl: STATISTICS_URL, label: CSV_LINK_LABEL },
-  );
-  return handle.asElement() as
-    | import("playwright").ElementHandle<Element>
-    | null;
 }
 
 async function waitForManualCaptchaResolution(
