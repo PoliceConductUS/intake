@@ -212,6 +212,32 @@ const DESCRIPTORS: EntityDescriptor[] = [
     table: "federal_agency_branch",
     createRequired: ["id"],
   },
+  {
+    recordKind: "CivilCase",
+    table: "civil_cases",
+    createRequired: ["id", "slug", "location_path_id"],
+    // The source supplies a namespace-local state value in location_path_id
+    // (resolved-or-fail to the canonical state path at import, ADR 0006/0015).
+    override: { location_path_id: "nonEmptyString.optional()" },
+  },
+  {
+    recordKind: "CivilCaseOfficer",
+    table: "civil_case_officers",
+    // agency_officer_id is fuzzy-resolved at import against existing
+    // agency_officers from the defendant name fields below; the source never
+    // supplies it directly.
+    createRequired: ["id", "agency_officer_id"],
+    extras: {
+      state: "nonEmptyString",
+      agency_name: "nonEmptyString",
+      officer_name: "nonEmptyString",
+    },
+  },
+  {
+    recordKind: "CivilCaseLink",
+    table: "civil_case_links",
+    createRequired: ["id"],
+  },
 ];
 
 /**

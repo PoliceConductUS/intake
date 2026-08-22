@@ -46,6 +46,12 @@ export {
   FederalAgencySpec,
   FederalAgencyBranches,
   FederalAgencyBranchSpec,
+  CivilCases,
+  CivilCaseSpec,
+  CivilCaseOfficers,
+  CivilCaseOfficerSpec,
+  CivilCaseLinks,
+  CivilCaseLinkSpec,
 } from "./generated/index.js";
 export type {
   AgenciesEnvelope,

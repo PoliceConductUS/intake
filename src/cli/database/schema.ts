@@ -16,7 +16,10 @@ export type SupportedTableName =
   | "public.coverage_link_agency_officers"
   | "public.agency_phone_numbers"
   | "public.federal_agency"
-  | "public.federal_agency_branch";
+  | "public.federal_agency_branch"
+  | "public.civil_cases"
+  | "public.civil_case_officers"
+  | "public.civil_case_links";
 
 export type ImportDatabaseSchema = {
   appliedMigrations: {

@@ -15,6 +15,9 @@ export const IMPORT_ARTIFACT_KINDS = [
   "AgencyPhoneNumbers",
   "FederalAgencies",
   "FederalAgencyBranches",
+  "CivilCases",
+  "CivilCaseOfficers",
+  "CivilCaseLinks",
 ] as const;
 
 export type ImportArtifactKind = (typeof IMPORT_ARTIFACT_KINDS)[number];
@@ -53,7 +56,10 @@ export type ImportEntityName =
   | "coverageLinkAgencyOfficers"
   | "agencyPhoneNumbers"
   | "federalAgencies"
-  | "federalAgencyBranches";
+  | "federalAgencyBranches"
+  | "civilCases"
+  | "civilCaseOfficers"
+  | "civilCaseLinks";
 
 export type ImportTypeMetadata = {
   kind: ImportArtifactKind;
@@ -175,5 +181,26 @@ export const importTypeMetadata = {
     entityName: "federalAgencyBranches",
     targetTable: "public.federal_agency_branch",
     dependsOn: ["FederalAgencies", "Agencies"],
+  },
+  CivilCases: {
+    kind: "CivilCases",
+    recordKind: "CivilCase",
+    entityName: "civilCases",
+    targetTable: "public.civil_cases",
+    dependsOn: ["LocationPaths"],
+  },
+  CivilCaseOfficers: {
+    kind: "CivilCaseOfficers",
+    recordKind: "CivilCaseOfficer",
+    entityName: "civilCaseOfficers",
+    targetTable: "public.civil_case_officers",
+    dependsOn: ["CivilCases", "AgencyPersonnel"],
+  },
+  CivilCaseLinks: {
+    kind: "CivilCaseLinks",
+    recordKind: "CivilCaseLink",
+    entityName: "civilCaseLinks",
+    targetTable: "public.civil_case_links",
+    dependsOn: ["CivilCases"],
   },
 } satisfies Record<ImportArtifactKind, ImportTypeMetadata>;

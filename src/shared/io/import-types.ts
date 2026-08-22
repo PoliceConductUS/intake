@@ -13,6 +13,9 @@ import {
   AgencyPersonnelSpec,
   AgencyPhoneNumberSpec,
   AgencySpec,
+  CivilCaseSpec,
+  CivilCaseOfficerSpec,
+  CivilCaseLinkSpec,
   CoverageLinkAgencyOfficerSpec,
   CoverageLinkSpec,
   DisciplineAgencyOfficerSpec,
@@ -57,6 +60,9 @@ const recordSchemas = {
   AgencyPhoneNumbers: AgencyPhoneNumberSpec,
   FederalAgencies: FederalAgencySpec,
   FederalAgencyBranches: FederalAgencyBranchSpec,
+  CivilCases: CivilCaseSpec,
+  CivilCaseOfficers: CivilCaseOfficerSpec,
+  CivilCaseLinks: CivilCaseLinkSpec,
 } satisfies Record<ImportArtifactKind, z.ZodType<Record<string, unknown>>>;
 
 export const importTypeRegistry = {
@@ -123,6 +129,18 @@ export const importTypeRegistry = {
   FederalAgencyBranches: {
     ...importTypeMetadata.FederalAgencyBranches,
     recordSchema: recordSchemas.FederalAgencyBranches,
+  },
+  CivilCases: {
+    ...importTypeMetadata.CivilCases,
+    recordSchema: recordSchemas.CivilCases,
+  },
+  CivilCaseOfficers: {
+    ...importTypeMetadata.CivilCaseOfficers,
+    recordSchema: recordSchemas.CivilCaseOfficers,
+  },
+  CivilCaseLinks: {
+    ...importTypeMetadata.CivilCaseLinks,
+    recordSchema: recordSchemas.CivilCaseLinks,
   },
 } satisfies Record<ImportArtifactKind, ImportTypeDefinition>;
 

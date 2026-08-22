@@ -99,6 +99,24 @@ import {
   write as writeFederalAgencyBranches,
 } from "./generated/FederalAgencyBranches.js";
 import {
+  CivilCases,
+  CivilCaseSpec,
+  read as readCivilCases,
+  write as writeCivilCases,
+} from "./generated/CivilCases.js";
+import {
+  CivilCaseOfficers,
+  CivilCaseOfficerSpec,
+  read as readCivilCaseOfficers,
+  write as writeCivilCaseOfficers,
+} from "./generated/CivilCaseOfficers.js";
+import {
+  CivilCaseLinks,
+  CivilCaseLinkSpec,
+  read as readCivilCaseLinks,
+  write as writeCivilCaseLinks,
+} from "./generated/CivilCaseLinks.js";
+import {
   compareImportArtifactKinds,
   type ImportArtifactKind,
 } from "./import-types.js";
@@ -250,6 +268,18 @@ const artifactReaders: Record<ImportArtifactKind, ArtifactReader> = {
       ...options,
       expectedKind: "FederalAgencyBranches",
     }),
+  CivilCases: (filePath, options) =>
+    readCivilCases(filePath, { ...options, expectedKind: "CivilCases" }),
+  CivilCaseOfficers: (filePath, options) =>
+    readCivilCaseOfficers(filePath, {
+      ...options,
+      expectedKind: "CivilCaseOfficers",
+    }),
+  CivilCaseLinks: (filePath, options) =>
+    readCivilCaseLinks(filePath, {
+      ...options,
+      expectedKind: "CivilCaseLinks",
+    }),
 };
 
 const artifactEnvelopeTypes: Record<ImportArtifactKind, ArtifactEnvelopeType> =
@@ -291,6 +321,12 @@ const artifactEnvelopeTypes: Record<ImportArtifactKind, ArtifactEnvelopeType> =
       ...FederalAgencyBranches,
       write: writeFederalAgencyBranches,
     },
+    CivilCases: { ...CivilCases, write: writeCivilCases },
+    CivilCaseOfficers: {
+      ...CivilCaseOfficers,
+      write: writeCivilCaseOfficers,
+    },
+    CivilCaseLinks: { ...CivilCaseLinks, write: writeCivilCaseLinks },
   };
 
 const artifactRecordSpecs: Record<ImportArtifactKind, ArtifactRecordSpec> = {
@@ -310,6 +346,9 @@ const artifactRecordSpecs: Record<ImportArtifactKind, ArtifactRecordSpec> = {
   AgencyPhoneNumbers: AgencyPhoneNumberSpec,
   FederalAgencies: FederalAgencySpec,
   FederalAgencyBranches: FederalAgencyBranchSpec,
+  CivilCases: CivilCaseSpec,
+  CivilCaseOfficers: CivilCaseOfficerSpec,
+  CivilCaseLinks: CivilCaseLinkSpec,
 };
 
 function sortedArtifactReferences(

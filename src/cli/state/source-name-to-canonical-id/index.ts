@@ -68,6 +68,9 @@ const sourceNameKinds = {
   agencyPhoneNumber: "AgencyPhoneNumber",
   federalAgency: "FederalAgency",
   federalAgencyBranch: "FederalAgencyBranch",
+  civilCase: "CivilCase",
+  civilCaseOfficer: "CivilCaseOfficer",
+  civilCaseLink: "CivilCaseLink",
 } as const;
 
 /**

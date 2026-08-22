@@ -80,6 +80,21 @@ import { FederalAgencyBranchRead } from "./FederalAgencyBranchRead.js";
 import { FederalAgencyBranchUpdate } from "./FederalAgencyBranchUpdate.js";
 import { FederalAgencyBranchDelete } from "./FederalAgencyBranchDelete.js";
 import { FederalAgencyBranchList } from "./FederalAgencyBranchList.js";
+import { CivilCaseCreate } from "./CivilCaseCreate.js";
+import { CivilCaseRead } from "./CivilCaseRead.js";
+import { CivilCaseUpdate } from "./CivilCaseUpdate.js";
+import { CivilCaseDelete } from "./CivilCaseDelete.js";
+import { CivilCaseList } from "./CivilCaseList.js";
+import { CivilCaseOfficerCreate } from "./CivilCaseOfficerCreate.js";
+import { CivilCaseOfficerRead } from "./CivilCaseOfficerRead.js";
+import { CivilCaseOfficerUpdate } from "./CivilCaseOfficerUpdate.js";
+import { CivilCaseOfficerDelete } from "./CivilCaseOfficerDelete.js";
+import { CivilCaseOfficerList } from "./CivilCaseOfficerList.js";
+import { CivilCaseLinkCreate } from "./CivilCaseLinkCreate.js";
+import { CivilCaseLinkRead } from "./CivilCaseLinkRead.js";
+import { CivilCaseLinkUpdate } from "./CivilCaseLinkUpdate.js";
+import { CivilCaseLinkDelete } from "./CivilCaseLinkDelete.js";
+import { CivilCaseLinkList } from "./CivilCaseLinkList.js";
 
 export const importMutationEnvelopeTypes = {
   LocationPathCreate,
@@ -162,4 +177,19 @@ export const importMutationEnvelopeTypes = {
   FederalAgencyBranchUpdate,
   FederalAgencyBranchDelete,
   FederalAgencyBranchList,
+  CivilCaseCreate,
+  CivilCaseRead,
+  CivilCaseUpdate,
+  CivilCaseDelete,
+  CivilCaseList,
+  CivilCaseOfficerCreate,
+  CivilCaseOfficerRead,
+  CivilCaseOfficerUpdate,
+  CivilCaseOfficerDelete,
+  CivilCaseOfficerList,
+  CivilCaseLinkCreate,
+  CivilCaseLinkRead,
+  CivilCaseLinkUpdate,
+  CivilCaseLinkDelete,
+  CivilCaseLinkList,
 };

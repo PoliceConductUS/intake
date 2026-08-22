@@ -28,6 +28,9 @@ import { CoverageLinkAgencyOfficers } from "./CoverageLinkAgencyOfficers.js";
 import { AgencyPhoneNumbers } from "./AgencyPhoneNumbers.js";
 import { FederalAgencies } from "./FederalAgencies.js";
 import { FederalAgencyBranches } from "./FederalAgencyBranches.js";
+import { CivilCases } from "./CivilCases.js";
+import { CivilCaseOfficers } from "./CivilCaseOfficers.js";
+import { CivilCaseLinks } from "./CivilCaseLinks.js";
 
 
 type EnvelopeReadRef =
@@ -108,6 +111,9 @@ const artifactSpecSchemas: Record<string, z.ZodType> = {
   AgencyPhoneNumbers: AgencyPhoneNumbers.schema.shape.spec,
   FederalAgencies: FederalAgencies.schema.shape.spec,
   FederalAgencyBranches: FederalAgencyBranches.schema.shape.spec,
+  CivilCases: CivilCases.schema.shape.spec,
+  CivilCaseOfficers: CivilCaseOfficers.schema.shape.spec,
+  CivilCaseLinks: CivilCaseLinks.schema.shape.spec,
 };
 const artifactReferenceSchema = z
   .object({
