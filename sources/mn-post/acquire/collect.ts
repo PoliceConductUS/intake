@@ -127,12 +127,13 @@ export async function collectSources({
       officersDir,
       `${artifactStem(agencyName)}.roster.json`,
     );
+    if (lookup.kind === "empty") {
+      logger.info(`mn-post: ${position} ${agencyName} — 0 officers (empty)`);
+      continue;
+    }
     let roster = await readJsonIfExists<OfficerRow[]>(rosterPath);
     if (roster === null) {
-      roster =
-        lookup.kind === "empty"
-          ? []
-          : await client.fetchOfficerList(lookup.agencyId);
+      roster = await client.fetchOfficerList(lookup.agencyId);
       await writeJson(rosterPath, roster);
     }
     logger.info(

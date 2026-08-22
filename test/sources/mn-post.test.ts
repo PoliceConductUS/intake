@@ -334,3 +334,55 @@ describe("mn-post run", () => {
     }
   });
 });
+
+describe("mn-post run — unmapped agencies", () => {
+  async function runWith(
+    files: Record<string, string>,
+  ): Promise<SourceManifest> {
+    const dir = await mkdtemp(path.join(tmpdir(), "mn-post-unmapped-"));
+    for (const [name, content] of Object.entries(files)) {
+      await writeFile(path.join(dir, name), content);
+    }
+    const paths = Object.keys(files).map((f) => path.join(dir, f));
+    try {
+      return await run({
+        paths,
+        readXlsx: async () => [],
+        state: "/unused",
+        emit: async () => {},
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+
+  const idMap = "Alpha Police Dept.:\n  id: a2jALPHA\n";
+
+  it("skips an empty roster whose agency is absent from agency-ids.yaml", async () => {
+    const manifest = await runWith({
+      "agency-ids.yaml": idMap,
+      "howard-lake-police-dept-000000000001.roster.json": "[]",
+    });
+    const agencies = manifest.artifacts.find(
+      (a) => a.kind === "Agencies",
+    )!.records;
+    expect(Object.keys(agencies)).toEqual([]);
+  });
+
+  it("throws when a non-empty roster's agency is absent from agency-ids.yaml", async () => {
+    await expect(
+      runWith({
+        "agency-ids.yaml": idMap,
+        "ghost-police-dept-000000000002.roster.json": JSON.stringify([
+          {
+            contactId: "0001",
+            licenseId: "lic1",
+            name: "Doe, Jane",
+            licenseType: "Peace Officer",
+            originalLicenseIssueDate: "2020-01-01",
+          },
+        ]),
+      }),
+    ).rejects.toThrow(/has no agency in agency-ids.yaml/);
+  });
+});

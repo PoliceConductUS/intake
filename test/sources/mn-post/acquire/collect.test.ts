@@ -150,7 +150,7 @@ describe("collectSources", () => {
     ]);
   });
 
-  it("writes an empty roster without fetching when the cache resolves to empty", async () => {
+  it("writes no roster and fetches nothing when the cache resolves to empty", async () => {
     const sourceDir = await makeSourceDir();
     const client = fakeClient();
     await collectSources({
@@ -161,14 +161,9 @@ describe("collectSources", () => {
       client,
     });
     expect(client.fetchOfficerList).not.toHaveBeenCalled();
-    const rosters = await filesEndingWith(
-      path.join(sourceDir, "officers"),
-      ".roster.json",
-    );
+    expect(client.fetchOfficerDetails).not.toHaveBeenCalled();
     expect(
-      JSON.parse(
-        await readFile(path.join(sourceDir, "officers", rosters[0]), "utf8"),
-      ),
+      await filesEndingWith(path.join(sourceDir, "officers"), ".roster.json"),
     ).toEqual([]);
   });
 

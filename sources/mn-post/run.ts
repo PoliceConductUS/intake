@@ -88,8 +88,16 @@ export const run: SourceRun = async ({ paths }) => {
     const fileSlug = path
       .basename(rosterPath, ".roster.json")
       .replace(/-[0-9a-f]{12}$/, "");
+    const parsed = JSON.parse(await readFile(rosterPath, "utf8"));
+    const roster: unknown[] = Array.isArray(parsed) ? parsed : [];
     const agency = agencyBySlug.get(fileSlug);
     if (agency === undefined) {
+      // An allow-empty agency has no officers and no id, so it is absent from
+      // agency-ids.yaml and produces nothing. An unmapped roster with officers
+      // is a real error.
+      if (roster.length === 0) {
+        continue;
+      }
       throw new Error(
         `mn-post roster ${path.basename(rosterPath)} has no agency in agency-ids.yaml (slug ${fileSlug}).`,
       );
@@ -122,10 +130,6 @@ export const run: SourceRun = async ({ paths }) => {
       };
     }
 
-    const roster = JSON.parse(await readFile(rosterPath, "utf8"));
-    if (!Array.isArray(roster)) {
-      continue;
-    }
     for (const rawRow of roster) {
       const row = (rawRow ?? {}) as Record<string, unknown>;
       // Every officer on the roster is imported, disciplined or not — an
