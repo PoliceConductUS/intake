@@ -1,3 +1,4 @@
+import { parse as parseCsv } from "csv-parse/sync";
 import {
   deterministicTotalAreaOverlapRecordSchema,
   type DeterministicTotalAreaOverlapRecord,
@@ -24,18 +25,19 @@ export function parseHierarchyRelationshipFile(
   text: string,
   selectedYear: string | number,
 ): DeterministicTotalAreaOverlapRecord[] {
-  const lines = text.trimEnd().split(/\r?\n/).filter(Boolean);
-  if (lines.length === 0) {
+  if (text.trim() === "") {
     throw new Error("Hierarchy relationship file is empty");
   }
 
-  const headers = lines[0]!.split("|");
+  const rows = parseCsv(text, {
+    delimiter: "|",
+    columns: true,
+    quote: false,
+    relax_column_count: true,
+    skip_empty_lines: true,
+  }) as Array<Record<string, string>>;
   const records: DeterministicTotalAreaOverlapRecord[] = [];
-  for (const [index, line] of lines.slice(1).entries()) {
-    const values = line.split("|");
-    const row: Record<string, string> = Object.fromEntries(
-      headers.map((header, valueIndex) => [header, values[valueIndex] ?? ""]),
-    );
+  for (const [index, row] of rows.entries()) {
     const stateGeoid = firstPresent(row, ["stateGeoid", "STATEFP", "STATE"]);
     const administrativeAreaGeoid = firstPresent(row, [
       "administrativeAreaGeoid",

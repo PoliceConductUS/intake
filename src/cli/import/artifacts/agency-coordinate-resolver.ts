@@ -1,3 +1,4 @@
+import { parse as parseCsv } from "csv-parse/sync";
 import type {
   AgencyCoordinateRequest,
   AgencyCoordinateResolution,
@@ -109,30 +110,6 @@ type CensusCoordinateResolverOptions = {
 
 function csvEscape(value: unknown): string {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
-}
-
-function parseCsvLine(line: string): string[] {
-  const cells: string[] = [];
-  let current = "";
-  let quoted = false;
-
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    if (char === '"' && quoted && line[index + 1] === '"') {
-      current += '"';
-      index += 1;
-    } else if (char === '"') {
-      quoted = !quoted;
-    } else if (char === "," && !quoted) {
-      cells.push(current);
-      current = "";
-    } else {
-      current += char;
-    }
-  }
-
-  cells.push(current);
-  return cells;
 }
 
 function zip5(value: string): string {
@@ -323,26 +300,26 @@ async function resolveBatch(
     );
   }
 
-  return (await response.text())
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map(parseCsvLine)
-    .flatMap((row): AgencyCoordinateResolution[] => {
-      const [rowId, , matchStatus, , , coordinates] = row;
-      if (rowId === undefined || matchStatus !== "Match" || !coordinates) {
-        return [];
-      }
+  const rows = parseCsv(await response.text(), {
+    relax_column_count: true,
+    skip_empty_lines: true,
+    trim: true,
+  }) as string[][];
+  return rows.flatMap((row): AgencyCoordinateResolution[] => {
+    const [rowId, , matchStatus, , , coordinates] = row;
+    if (rowId === undefined || matchStatus !== "Match" || !coordinates) {
+      return [];
+    }
 
-      const [longitudeText, latitudeText] = coordinates.split(",");
-      const latitude = Number(latitudeText);
-      const longitude = Number(longitudeText);
-      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-        return [];
-      }
+    const [longitudeText, latitudeText] = coordinates.split(",");
+    const latitude = Number(latitudeText);
+    const longitude = Number(longitudeText);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return [];
+    }
 
-      return [{ rowId, latitude, longitude }];
-    });
+    return [{ rowId, latitude, longitude }];
+  });
 }
 
 async function resolveSingleAddress(
