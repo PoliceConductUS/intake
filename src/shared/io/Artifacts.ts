@@ -81,6 +81,12 @@ import {
   write as writeCoverageLinkAgencyOfficers,
 } from "./generated/CoverageLinkAgencyOfficers.js";
 import {
+  AgencyPhoneNumbers,
+  AgencyPhoneNumberSpec,
+  read as readAgencyPhoneNumbers,
+  write as writeAgencyPhoneNumbers,
+} from "./generated/AgencyPhoneNumbers.js";
+import {
   compareImportArtifactKinds,
   type ImportArtifactKind,
 } from "./import-types.js";
@@ -217,6 +223,11 @@ const artifactReaders: Record<ImportArtifactKind, ArtifactReader> = {
       ...options,
       expectedKind: "CoverageLinkAgencyOfficers",
     }),
+  AgencyPhoneNumbers: (filePath, options) =>
+    readAgencyPhoneNumbers(filePath, {
+      ...options,
+      expectedKind: "AgencyPhoneNumbers",
+    }),
 };
 
 const artifactEnvelopeTypes: Record<ImportArtifactKind, ArtifactEnvelopeType> =
@@ -249,6 +260,10 @@ const artifactEnvelopeTypes: Record<ImportArtifactKind, ArtifactEnvelopeType> =
       ...CoverageLinkAgencyOfficers,
       write: writeCoverageLinkAgencyOfficers,
     },
+    AgencyPhoneNumbers: {
+      ...AgencyPhoneNumbers,
+      write: writeAgencyPhoneNumbers,
+    },
   };
 
 const artifactRecordSpecs: Record<ImportArtifactKind, ArtifactRecordSpec> = {
@@ -265,6 +280,7 @@ const artifactRecordSpecs: Record<ImportArtifactKind, ArtifactRecordSpec> = {
   DisciplineAgencyOfficers: DisciplineAgencyOfficerSpec,
   CoverageLinks: CoverageLinkSpec,
   CoverageLinkAgencyOfficers: CoverageLinkAgencyOfficerSpec,
+  AgencyPhoneNumbers: AgencyPhoneNumberSpec,
 };
 
 function sortedArtifactReferences(

@@ -11,6 +11,7 @@ import {
 } from "./import-type-metadata.js";
 import {
   AgencyPersonnelSpec,
+  AgencyPhoneNumberSpec,
   AgencySpec,
   CoverageLinkAgencyOfficerSpec,
   CoverageLinkSpec,
@@ -51,6 +52,7 @@ const recordSchemas = {
   DisciplineAgencyOfficers: DisciplineAgencyOfficerSpec,
   CoverageLinks: CoverageLinkSpec,
   CoverageLinkAgencyOfficers: CoverageLinkAgencyOfficerSpec,
+  AgencyPhoneNumbers: AgencyPhoneNumberSpec,
 } satisfies Record<ImportArtifactKind, z.ZodType<Record<string, unknown>>>;
 
 export const importTypeRegistry = {
@@ -105,6 +107,10 @@ export const importTypeRegistry = {
   CoverageLinkAgencyOfficers: {
     ...importTypeMetadata.CoverageLinkAgencyOfficers,
     recordSchema: recordSchemas.CoverageLinkAgencyOfficers,
+  },
+  AgencyPhoneNumbers: {
+    ...importTypeMetadata.AgencyPhoneNumbers,
+    recordSchema: recordSchemas.AgencyPhoneNumbers,
   },
 } satisfies Record<ImportArtifactKind, ImportTypeDefinition>;
 

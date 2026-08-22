@@ -51,6 +51,11 @@ import {
   type CoverageLinkAgencyOfficerEnvelope,
 } from "./facades/coverage-link-agency-officer.js";
 import {
+  createAgencyPhoneNumberFacade,
+  type AgencyPhoneNumberRow,
+  type AgencyPhoneNumberEnvelope,
+} from "./facades/agency-phone-number.js";
+import {
   LocationPathSpec,
   RECORD_KINDS_IN_DEPENDENCY_ORDER,
   RESOLVED_PROPERTIES,
@@ -1500,7 +1505,9 @@ export class AgencyFacade extends ResolvingFacade<
     // uncased (a code, not prose); `state` is always source-provided.
     city: titleCaseResolver<AgencyRowShape, AgencyResolverBackend>("city"),
     state: passthroughResolver<AgencyRowShape, AgencyResolverBackend>("state"),
-    address: titleCaseResolver<AgencyRowShape, AgencyResolverBackend>("address"),
+    address: titleCaseResolver<AgencyRowShape, AgencyResolverBackend>(
+      "address",
+    ),
     zip_code: passthroughResolver<AgencyRowShape, AgencyResolverBackend>(
       "zip_code",
     ),
@@ -1995,7 +2002,8 @@ export class LocationPathFacade implements PropertyResolutionFacade<LocationPath
       }
     }
 
-    const current = this.current ?? (await this.backend.getCurrentById(locationPathId));
+    const current =
+      this.current ?? (await this.backend.getCurrentById(locationPathId));
     if (current !== undefined) {
       // Read (never update): the census row already exists.
       return LocationPathRead.new({
@@ -2131,7 +2139,8 @@ export class LocationPathAliasFacade implements PropertyResolutionFacade<Locatio
     const aliasPath = await this.value("alias_path");
     const locationPathId = await this.value("location_path_id");
 
-    const current = this.current ?? (await this.backend.getCurrentById(aliasPath));
+    const current =
+      this.current ?? (await this.backend.getCurrentById(aliasPath));
     if (current !== undefined) {
       return LocationPathAliasRead.new({
         metadata: { namespace: this.source.namespace, name: aliasPath },
@@ -2561,6 +2570,10 @@ export class DataContext {
       CoverageLinkAgencyOfficerEnvelope
     >
   >();
+  private readonly agencyPhoneNumberFacades = new Map<
+    string,
+    EntityFacade<AgencyPhoneNumberRow, AgencyPhoneNumberEnvelope>
+  >();
   // First-import snapshots for the discipline/coverage kinds are empty (blank
   // tables); re-import snapshot loading is a later addition.
   private readonly disciplineById = new Map<string, Record<string, unknown>>();
@@ -2573,6 +2586,10 @@ export class DataContext {
     Record<string, unknown>
   >();
   private readonly coverageLinkAgencyOfficerById = new Map<
+    string,
+    Record<string, unknown>
+  >();
+  private readonly agencyPhoneNumberById = new Map<
     string,
     Record<string, unknown>
   >();
@@ -2868,7 +2885,6 @@ export class DataContext {
       },
     };
   }
-
 
   private slugClaimsFor(table: SlugTableName): Map<string, string> {
     let claims = this.slugClaimsByTable.get(table);
@@ -3426,6 +3442,31 @@ export class DataContext {
     return facade;
   }
 
+  agencyPhoneNumberFromSource(
+    input: SourceRecordContext,
+  ): EntityFacade<AgencyPhoneNumberRow, AgencyPhoneNumberEnvelope> {
+    validateSourceRecordContext(input);
+    const key = [
+      input.apiVersion,
+      input.namespace,
+      "AgencyPhoneNumber",
+      input.name,
+    ].join(":");
+    const existing = this.agencyPhoneNumberFacades.get(key);
+    if (existing !== undefined) {
+      if (input.spec !== undefined) existing.merge(input.spec);
+      return existing;
+    }
+    const facade = createAgencyPhoneNumberFacade({
+      current: input.current,
+      source: this.entityFacadeSource(input),
+      backend: this.entityFacadeBackend(this.agencyPhoneNumberById),
+    });
+    if (input.spec !== undefined) facade.merge(input.spec);
+    this.agencyPhoneNumberFacades.set(key, facade);
+    return facade;
+  }
+
   /**
    * Same-source foreign-key FIND (ADR 0016 #4/#9): return an already-emitted
    * target facade as an id-resolvable reference, or undefined when none exists.
@@ -3478,7 +3519,6 @@ export class DataContext {
     return undefined;
   }
 
-
   async toMutations(): Promise<
     (
       | LocationPathCreateEnvelope
@@ -3501,6 +3541,7 @@ export class DataContext {
       | DisciplineAgencyOfficerEnvelope
       | CoverageLinkEnvelope
       | CoverageLinkAgencyOfficerEnvelope
+      | AgencyPhoneNumberEnvelope
     )[]
   > {
     // Drain in FK-dependency order (ADR 0016 #4/#9): paths before aliases — a
@@ -3567,6 +3608,12 @@ export class DataContext {
         facade.toMutation(),
       ),
     );
+    // AgencyPhoneNumbers depend only on Agencies (already drained above).
+    const agencyPhoneNumbers = await Promise.all(
+      [...this.agencyPhoneNumberFacades.values()].map((facade) =>
+        facade.toMutation(),
+      ),
+    );
     return [
       // Paths + aliases first: FK targets for the entities below, dependents of none.
       ...locationPaths,
@@ -3584,6 +3631,7 @@ export class DataContext {
       ...coverageLinks,
       ...disciplineAgencyOfficers,
       ...coverageLinkAgencyOfficers,
+      ...agencyPhoneNumbers,
     ];
   }
 

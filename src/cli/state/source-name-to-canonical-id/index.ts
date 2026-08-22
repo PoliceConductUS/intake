@@ -65,6 +65,7 @@ const sourceNameKinds = {
   disciplineAgencyOfficer: "DisciplineAgencyOfficer",
   coverageLink: "CoverageLink",
   coverageLinkAgencyOfficer: "CoverageLinkAgencyOfficer",
+  agencyPhoneNumber: "AgencyPhoneNumber",
 } as const;
 
 /**

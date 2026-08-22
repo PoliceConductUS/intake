@@ -28,3 +28,5 @@ export { CoverageLinks, CoverageLinkSpec } from "./CoverageLinks.js";
 export type { CoverageLinksEnvelope, CoverageLinksInput } from "./CoverageLinks.js";
 export { CoverageLinkAgencyOfficers, CoverageLinkAgencyOfficerSpec } from "./CoverageLinkAgencyOfficers.js";
 export type { CoverageLinkAgencyOfficersEnvelope, CoverageLinkAgencyOfficersInput } from "./CoverageLinkAgencyOfficers.js";
+export { AgencyPhoneNumbers, AgencyPhoneNumberSpec } from "./AgencyPhoneNumbers.js";
+export type { AgencyPhoneNumbersEnvelope, AgencyPhoneNumbersInput } from "./AgencyPhoneNumbers.js";

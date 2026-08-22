@@ -13,7 +13,8 @@ export type SupportedTableName =
   | "public.discipline"
   | "public.discipline_agency_officers"
   | "public.coverage_links"
-  | "public.coverage_link_agency_officers";
+  | "public.coverage_link_agency_officers"
+  | "public.agency_phone_numbers";
 
 export type ImportDatabaseSchema = {
   appliedMigrations: {

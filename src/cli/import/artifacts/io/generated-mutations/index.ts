@@ -65,6 +65,11 @@ import { CoverageLinkAgencyOfficerRead } from "./CoverageLinkAgencyOfficerRead.j
 import { CoverageLinkAgencyOfficerUpdate } from "./CoverageLinkAgencyOfficerUpdate.js";
 import { CoverageLinkAgencyOfficerDelete } from "./CoverageLinkAgencyOfficerDelete.js";
 import { CoverageLinkAgencyOfficerList } from "./CoverageLinkAgencyOfficerList.js";
+import { AgencyPhoneNumberCreate } from "./AgencyPhoneNumberCreate.js";
+import { AgencyPhoneNumberRead } from "./AgencyPhoneNumberRead.js";
+import { AgencyPhoneNumberUpdate } from "./AgencyPhoneNumberUpdate.js";
+import { AgencyPhoneNumberDelete } from "./AgencyPhoneNumberDelete.js";
+import { AgencyPhoneNumberList } from "./AgencyPhoneNumberList.js";
 
 export const importMutationEnvelopeTypes = {
   LocationPathCreate,
@@ -132,4 +137,9 @@ export const importMutationEnvelopeTypes = {
   CoverageLinkAgencyOfficerUpdate,
   CoverageLinkAgencyOfficerDelete,
   CoverageLinkAgencyOfficerList,
+  AgencyPhoneNumberCreate,
+  AgencyPhoneNumberRead,
+  AgencyPhoneNumberUpdate,
+  AgencyPhoneNumberDelete,
+  AgencyPhoneNumberList,
 };

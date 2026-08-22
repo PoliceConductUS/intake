@@ -11,7 +11,7 @@ export const GENERATED_MIGRATION_FINGERPRINT = "e117ca40e7d45aa1a4522f77181bf501
 // Entity record kinds in database-dependency order (topological sort of the
 // foreign-key graph): a referenced entity precedes its referrer, so mutations
 // emitted/applied in this order never violate a foreign key.
-export const RECORD_KINDS_IN_DEPENDENCY_ORDER = ["LocationPath","LocationPathGeometry","LocationPathAlias","Agency","Personnel","LicensingAuthority","License","AgencyPersonnel","LicenseAction","Discipline","DisciplineAgencyOfficer","CoverageLink","CoverageLinkAgencyOfficer"] as const;
+export const RECORD_KINDS_IN_DEPENDENCY_ORDER = ["LocationPath","LocationPathGeometry","LocationPathAlias","Agency","Personnel","LicensingAuthority","License","AgencyPersonnel","LicenseAction","Discipline","DisciplineAgencyOfficer","CoverageLink","CoverageLinkAgencyOfficer","AgencyPhoneNumber"] as const;
 
 // Each record kind's foreign keys to other entity kinds (field → target kind),
 // from the database's own FKs. Drives the exclusion cascade: a record whose FK
@@ -19,14 +19,14 @@ export const RECORD_KINDS_IN_DEPENDENCY_ORDER = ["LocationPath","LocationPathGeo
 export const FK_REFERENCES: Record<
   string,
   ReadonlyArray<{ field: string; targetKind: string }>
-> = {"LocationPathGeometry":[{"field":"location_path_id","targetKind":"LocationPath"}],"LocationPathAlias":[{"field":"location_path_id","targetKind":"LocationPath"}],"Agency":[{"field":"location_path_id","targetKind":"LocationPath"}],"AgencyPersonnel":[{"field":"agency_id","targetKind":"Agency"},{"field":"license_id","targetKind":"License"},{"field":"officer_id","targetKind":"Personnel"}],"LicensingAuthority":[{"field":"location_path_id","targetKind":"LocationPath"}],"License":[{"field":"issued_by_authority_id","targetKind":"LicensingAuthority"},{"field":"officer_id","targetKind":"Personnel"}],"LicenseAction":[{"field":"license_id","targetKind":"License"}],"DisciplineAgencyOfficer":[{"field":"agency_officer_id","targetKind":"AgencyPersonnel"},{"field":"discipline_id","targetKind":"Discipline"}],"CoverageLinkAgencyOfficer":[{"field":"agency_officer_id","targetKind":"AgencyPersonnel"},{"field":"coverage_link_id","targetKind":"CoverageLink"}]};
+> = {"LocationPathGeometry":[{"field":"location_path_id","targetKind":"LocationPath"}],"LocationPathAlias":[{"field":"location_path_id","targetKind":"LocationPath"}],"Agency":[{"field":"location_path_id","targetKind":"LocationPath"}],"AgencyPersonnel":[{"field":"agency_id","targetKind":"Agency"},{"field":"license_id","targetKind":"License"},{"field":"officer_id","targetKind":"Personnel"}],"LicensingAuthority":[{"field":"location_path_id","targetKind":"LocationPath"}],"License":[{"field":"issued_by_authority_id","targetKind":"LicensingAuthority"},{"field":"officer_id","targetKind":"Personnel"}],"LicenseAction":[{"field":"license_id","targetKind":"License"}],"DisciplineAgencyOfficer":[{"field":"agency_officer_id","targetKind":"AgencyPersonnel"},{"field":"discipline_id","targetKind":"Discipline"}],"CoverageLinkAgencyOfficer":[{"field":"agency_officer_id","targetKind":"AgencyPersonnel"},{"field":"coverage_link_id","targetKind":"CoverageLink"}],"AgencyPhoneNumber":[{"field":"agency_id","targetKind":"Agency"}]};
 
 // Each record kind's properties resolved during import rather than supplied by
 // the source (`createRequired`): optional in the base spec, required in the
 // *Create mutation. The facade caches every one of these except `id` (which the
 // ledger mints) through the property cache — so a resolved field becomes
 // cache-backed and seedable automatically, with no per-resolver wiring.
-export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = {"LocationPath":[],"LocationPathGeometry":[],"LocationPathAlias":[],"Agency":["id","slug","address","city","zip_code","location_path_id","latitude","longitude"],"Personnel":["id","slug"],"AgencyPersonnel":["id"],"LicensingAuthority":["id"],"License":["id"],"LicenseAction":["id"],"Discipline":["id"],"DisciplineAgencyOfficer":["id"],"CoverageLink":["id"],"CoverageLinkAgencyOfficer":["id"]};
+export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = {"LocationPath":[],"LocationPathGeometry":[],"LocationPathAlias":[],"Agency":["id","slug","address","city","zip_code","location_path_id","latitude","longitude"],"Personnel":["id","slug"],"AgencyPersonnel":["id"],"LicensingAuthority":["id"],"License":["id"],"LicenseAction":["id"],"Discipline":["id"],"DisciplineAgencyOfficer":["id"],"CoverageLink":["id"],"CoverageLinkAgencyOfficer":["id"],"AgencyPhoneNumber":["id"]};
 
 const nonEmptyString = z.string().trim().min(1);
 const nullableNonEmptyString = nonEmptyString.nullable();
@@ -331,5 +331,18 @@ export const CoverageLinkAgencyOfficerSpec = z
   .strict();
 
 export const CoverageLinkAgencyOfficerCreateSpec = CoverageLinkAgencyOfficerSpec.extend({
+  id: z.string(),
+});
+
+export const AgencyPhoneNumberSpec = z
+  .object({
+    id: z.string().optional(),
+    agency_id: z.string().nullable().optional(),
+    phone_number: z.string(),
+    description: z.string().nullable().optional(),
+  })
+  .strict();
+
+export const AgencyPhoneNumberCreateSpec = AgencyPhoneNumberSpec.extend({
   id: z.string(),
 });

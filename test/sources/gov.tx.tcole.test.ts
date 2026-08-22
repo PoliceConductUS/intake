@@ -7,6 +7,7 @@ import {
   LicensingAuthoritySpec,
   LicenseSpec,
   LicenseActionSpec,
+  AgencyPhoneNumberSpec,
 } from "../../src/shared/io/index.js";
 
 const sheets: Record<string, Array<Record<string, string>>> = {
@@ -55,7 +56,7 @@ const sheets: Record<string, Array<Record<string, string>>> = {
       HEAD_NAME: "Robert Carroll",
       E_MAIL: "chief@example.tx",
       PHONE: "(512) 772-2442",
-      FAX: "",
+      FAX: "(512) 999-0000",
     },
     {
       DEPARTMENT_NUMBER: "201217",
@@ -176,7 +177,30 @@ describe("gov.tx.tcole run", () => {
       "Licenses",
       "LicenseActions",
       "AgencyPersonnel",
+      "AgencyPhoneNumbers",
     ]);
+  });
+
+  it("emits one AgencyPhoneNumber per non-blank PHONE/FAX on an active agency", async () => {
+    const { records } = (await run(deps)).artifacts.find(
+      (a) => a.kind === "AgencyPhoneNumbers",
+    )!;
+    // 471100 (ACTIVE) has both PHONE and FAX -> two records; 201217 (ACTIVE)
+    // has a blank PHONE and no FAX -> none; 555555 is INACTIVE -> none.
+    expect(Object.keys(records).sort()).toEqual(["471100|Fax", "471100|Phone"]);
+    expect(records["471100|Phone"].spec).toEqual({
+      agency_id: "471100",
+      phone_number: "(512) 772-2442",
+      description: "Phone",
+    });
+    expect(records["471100|Fax"].spec).toEqual({
+      agency_id: "471100",
+      phone_number: "(512) 999-0000",
+      description: "Fax",
+    });
+    for (const [, record] of Object.entries(records)) {
+      expect(AgencyPhoneNumberSpec.parse(record.spec)).toBeTruthy();
+    }
   });
 
   it("maps Officers to valid Personnel keyed by PUBLIC_GUID, skipping nameless rows", async () => {

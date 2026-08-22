@@ -50,8 +50,10 @@ export const run: SourceRun = async ({ paths, readXlsx, logger }) => {
   // Agencies: STATUS = ACTIVE only (the original seed omitted the 953 inactive
   // departments). Everything else cascades from that decision.
   log.info("tcole: reading Departments sheet");
-  const agencies = buildAgencies(await readXlsx(workbook, "Departments"));
+  const departmentRows = await readXlsx(workbook, "Departments");
+  const agencies = buildAgencies(departmentRows);
   log.info(`tcole: ${Object.keys(agencies).length} active agencies`);
+  const agencyPhoneNumbers = buildAgencyPhoneNumbers(departmentRows, agencies);
 
   // Only officers attached to an active agency are imported: an officer is kept
   // iff some Services row links them to an emitted (active) agency. Officers with
@@ -97,7 +99,8 @@ export const run: SourceRun = async ({ paths, readXlsx, logger }) => {
   log.info(
     `tcole: ${Object.keys(licenses).length} licenses, ` +
       `${Object.keys(licenseActions).length} license actions, ` +
-      `${Object.keys(agencyPersonnel).length} assignments`,
+      `${Object.keys(agencyPersonnel).length} assignments, ` +
+      `${Object.keys(agencyPhoneNumbers).length} phone numbers`,
   );
 
   return {
@@ -108,9 +111,42 @@ export const run: SourceRun = async ({ paths, readXlsx, logger }) => {
       { kind: "Licenses", records: licenses },
       { kind: "LicenseActions", records: licenseActions },
       { kind: "AgencyPersonnel", records: agencyPersonnel },
+      { kind: "AgencyPhoneNumbers", records: agencyPhoneNumbers },
     ],
   };
 };
+
+/**
+ * One AgencyPhoneNumber per non-blank PHONE/FAX on an active department, keyed
+ * `DEPARTMENT_NUMBER|Phone` / `DEPARTMENT_NUMBER|Fax` so the id is stable and a
+ * department's phone and fax are distinct records. `agency_id` carries the
+ * DEPARTMENT_NUMBER source key the import resolves to the canonical agency.
+ */
+function buildAgencyPhoneNumbers(
+  rows: Array<Record<string, string>>,
+  agencies: EmittedRecords,
+): EmittedRecords {
+  const records: EmittedRecords = {};
+  for (const row of rows) {
+    const departmentNumber = (row["DEPARTMENT_NUMBER"] ?? "").trim();
+    if (agencies[departmentNumber] === undefined) continue;
+    for (const [column, description] of [
+      ["PHONE", "Phone"],
+      ["FAX", "Fax"],
+    ] as const) {
+      const phoneNumber = (row[column] ?? "").trim();
+      if (phoneNumber === "") continue;
+      records[`${departmentNumber}|${description}`] = {
+        spec: {
+          agency_id: departmentNumber,
+          phone_number: phoneNumber,
+          description,
+        },
+      };
+    }
+  }
+  return records;
+}
 
 /** Trims to `YYYY-MM-DD`; `readXlsx` coerces date cells to ISO strings. */
 function toDate(value: string | undefined): string {

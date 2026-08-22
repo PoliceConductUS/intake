@@ -197,6 +197,11 @@ const DESCRIPTORS: EntityDescriptor[] = [
     table: "coverage_link_agency_officers",
     createRequired: ["id"],
   },
+  {
+    recordKind: "AgencyPhoneNumber",
+    table: "agency_phone_numbers",
+    createRequired: ["id"],
+  },
 ];
 
 /**

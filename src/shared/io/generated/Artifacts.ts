@@ -25,6 +25,7 @@ import { Disciplines } from "./Disciplines.js";
 import { DisciplineAgencyOfficers } from "./DisciplineAgencyOfficers.js";
 import { CoverageLinks } from "./CoverageLinks.js";
 import { CoverageLinkAgencyOfficers } from "./CoverageLinkAgencyOfficers.js";
+import { AgencyPhoneNumbers } from "./AgencyPhoneNumbers.js";
 
 
 type EnvelopeReadRef =
@@ -102,6 +103,7 @@ const artifactSpecSchemas: Record<string, z.ZodType> = {
   DisciplineAgencyOfficers: DisciplineAgencyOfficers.schema.shape.spec,
   CoverageLinks: CoverageLinks.schema.shape.spec,
   CoverageLinkAgencyOfficers: CoverageLinkAgencyOfficers.schema.shape.spec,
+  AgencyPhoneNumbers: AgencyPhoneNumbers.schema.shape.spec,
 };
 const artifactReferenceSchema = z
   .object({

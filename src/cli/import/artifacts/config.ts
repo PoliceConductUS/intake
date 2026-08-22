@@ -546,6 +546,25 @@ function addCoverageLinkAgencyOfficerSourceFacades(
   }
 }
 
+function addAgencyPhoneNumberSourceFacades(
+  dataContext: DataContext,
+  artifacts: ArtifactsEnvelope,
+): void {
+  for (const artifact of artifacts.spec.artifacts.filter(
+    (item) => item.kind === "AgencyPhoneNumbers",
+  )) {
+    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
+      dataContext.agencyPhoneNumberFromSource({
+        apiVersion: INTAKE_API_VERSION,
+        namespace: artifacts.metadata.namespace,
+        name: sourceNameForImportRecord(recordName, record),
+        spec: valueAsRecord(record),
+        sourceFile: artifact.recordSources?.[recordName],
+      });
+    }
+  }
+}
+
 type ImportArtifactsPipelineContext = {
   commandInput: ImportArtifactsCommandInput;
   artifactsPath: string;
@@ -1167,7 +1186,11 @@ async function writeDatabaseMutationsStage(
       );
       await writeFailedDatabaseMutationsDebugEnvelope(
         context,
-        new DatabaseMutationPlanningError(rows, preparationErrors, importSchema),
+        new DatabaseMutationPlanningError(
+          rows,
+          preparationErrors,
+          importSchema,
+        ),
       );
     }
 
@@ -1188,6 +1211,7 @@ async function writeDatabaseMutationsStage(
     addDisciplineAgencyOfficerSourceFacades(dataContext, artifacts);
     addCoverageLinkSourceFacades(dataContext, artifacts);
     addCoverageLinkAgencyOfficerSourceFacades(dataContext, artifacts);
+    addAgencyPhoneNumberSourceFacades(dataContext, artifacts);
     databaseMutations = await dataContext.toDatabaseMutations({
       namespace: artifacts.metadata.namespace,
       name: context.commandName,
@@ -1259,7 +1283,10 @@ export async function importArtifacts(
     commandInput.commandName === undefined ||
     commandInput.commandName.trim().length === 0
   ) {
-    return { ok: false, error: "Command name is required to import artifacts." };
+    return {
+      ok: false,
+      error: "Command name is required to import artifacts.",
+    };
   }
 
   const workspaceRoot = workspaceRootFromEnv(commandInput.env);

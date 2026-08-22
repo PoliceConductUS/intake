@@ -40,6 +40,8 @@ export {
   CoverageLinkSpec,
   CoverageLinkAgencyOfficers,
   CoverageLinkAgencyOfficerSpec,
+  AgencyPhoneNumbers,
+  AgencyPhoneNumberSpec,
 } from "./generated/index.js";
 export type {
   AgenciesEnvelope,

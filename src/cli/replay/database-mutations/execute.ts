@@ -89,6 +89,10 @@ const databaseMutationMetadataByRecordKind: Record<
     tableName: "public.coverage_link_agency_officers",
     keyColumnName: "id",
   },
+  AgencyPhoneNumber: {
+    tableName: "public.agency_phone_numbers",
+    keyColumnName: "id",
+  },
 } satisfies Record<string, DatabaseMutationMetadata>;
 
 function databaseMutationMetadata(
@@ -171,7 +175,10 @@ function databaseFieldValue(
   return value;
 }
 
-type PendingCreate = { mutationName: string; databaseSpec: Record<string, unknown> };
+type PendingCreate = {
+  mutationName: string;
+  databaseSpec: Record<string, unknown>;
+};
 
 // Postgres caps a statement at 65535 bind parameters; keep a margin.
 const MAX_INSERT_PARAMETERS = 60000;
@@ -356,7 +363,10 @@ export async function executeDatabaseMutations(
       const databaseSpec = databaseSpecForMutation(recordKind, mutation.spec);
       const columns = definedColumns(databaseSpec);
       const signature = `${recordKind}(${columns.join(",")})`;
-      const rowCap = Math.max(1, Math.floor(MAX_INSERT_PARAMETERS / columns.length));
+      const rowCap = Math.max(
+        1,
+        Math.floor(MAX_INSERT_PARAMETERS / columns.length),
+      );
       if (
         pending !== undefined &&
         (pending.signature !== signature || pending.creates.length >= rowCap)
@@ -366,7 +376,10 @@ export async function executeDatabaseMutations(
       if (pending === undefined) {
         pending = { recordKind, signature, creates: [] };
       }
-      pending.creates.push({ mutationName: mutation.metadata.name, databaseSpec });
+      pending.creates.push({
+        mutationName: mutation.metadata.name,
+        databaseSpec,
+      });
     } else {
       await flushPending();
       if (operation === "update") {
