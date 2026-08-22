@@ -12,6 +12,13 @@ const LICENSE_SEARCH_URL =
 
 const silentLogger: CollectLogger = { info() {} };
 
+type ApexActionSpec = {
+  classname: string;
+  method: string;
+  params: Record<string, unknown>;
+  cacheable?: boolean;
+};
+
 export type PostClientHandle = PostClient & { close(): Promise<void> };
 
 /**
@@ -60,41 +67,40 @@ export async function createPostLicenseSearchClient({
   }
   logger.info("mn-post: connected to POST license search");
 
-  async function executeApexAction({
-    classname,
-    method,
-    params,
-    cacheable = false,
-  }: {
-    classname: string;
-    method: string;
-    params: Record<string, unknown>;
-    cacheable?: boolean;
-  }): Promise<unknown> {
-    const action = {
-      id: `${actionCounter};a`,
-      descriptor: "aura://ApexActionController/ACTION$execute",
-      callingDescriptor: "UNKNOWN",
-      params: {
-        namespace: "",
-        classname,
-        method,
-        params,
-        cacheable,
-        isContinuation: false,
-      },
-    };
-    actionCounter += 1;
+  // Aura batches actions: one request carries many actions and returns their
+  // results together. Sending an officer's four detail actions as one batch is a
+  // single round-trip instead of four.
+  async function executeApexActions(
+    specs: ApexActionSpec[],
+  ): Promise<unknown[]> {
+    const actions = specs.map((spec) => {
+      const action = {
+        id: `${actionCounter};a`,
+        descriptor: "aura://ApexActionController/ACTION$execute",
+        callingDescriptor: "UNKNOWN",
+        params: {
+          namespace: "",
+          classname: spec.classname,
+          method: spec.method,
+          params: spec.params,
+          cacheable: spec.cacheable ?? false,
+          isContinuation: false,
+        },
+      };
+      actionCounter += 1;
+      return action;
+    });
     const body = new URLSearchParams({
-      message: JSON.stringify({ actions: [action] }),
+      message: JSON.stringify({ actions }),
       "aura.context": auraContext ?? "",
       "aura.pageURI": "/POSTLicenseSearch/s/",
       "aura.token": "null",
     }).toString();
     const requestId = requestCounter;
     requestCounter += 1;
+    const label = specs.map((spec) => spec.method).join(",");
     const response = await retryTransientAuraAction({
-      method,
+      method: label,
       logger,
       operation: () =>
         page.evaluate(
@@ -121,10 +127,19 @@ export async function createPostLicenseSearchClient({
     });
     if (!response.ok) {
       throw new Error(
-        `POST license search Aura action ${method} failed: ${response.status}`,
+        `POST license search Aura request [${label}] failed: ${response.status}`,
       );
     }
-    return parseApexReturnValue(response.text, method);
+    return parseApexActions(
+      response.text,
+      actions.map((action) => action.id),
+      specs,
+    );
+  }
+
+  async function executeApexAction(spec: ApexActionSpec): Promise<unknown> {
+    const [value] = await executeApexActions([spec]);
+    return value;
   }
 
   return {
@@ -167,31 +182,31 @@ export async function createPostLicenseSearchClient({
     },
     async fetchOfficerDetail(officer: OfficerRow): Promise<OfficerDetail> {
       const [education, disciplinaryActions, activeEmployment, licenses] =
-        await Promise.all([
-          executeApexAction({
+        await executeApexActions([
+          {
             classname: "POSTSearchEducation",
             method: "getOfficerEducation",
             params: { contactId: officer.contactId },
             cacheable: true,
-          }),
-          executeApexAction({
+          },
+          {
             classname: "POSTSearch",
             method: "getOfficerDisciplinaryActions",
             params: { contactId: officer.contactId },
             cacheable: true,
-          }),
-          executeApexAction({
+          },
+          {
             classname: "POSTSearch",
             method: "getOfficerActiveEmployment",
             params: { licensePOId: officer.licenseId },
             cacheable: true,
-          }),
-          executeApexAction({
+          },
+          {
             classname: "POSTSearch",
             method: "getOfficerLicenses",
             params: { contactId: officer.contactId },
             cacheable: true,
-          }),
+          },
         ]);
       return { education, disciplinaryActions, activeEmployment, licenses };
     },
@@ -201,29 +216,36 @@ export async function createPostLicenseSearchClient({
   };
 }
 
-export function parseApexReturnValue(
+export function parseApexActions(
   responseText: string,
-  method: string,
-): unknown {
+  actionIds: string[],
+  specs: ApexActionSpec[],
+): unknown[] {
   const response = JSON.parse(responseText) as {
     actions?: Array<{
+      id?: string;
       state?: string;
       returnValue?: { returnValue?: unknown };
     }>;
   };
-  const action = response.actions?.[0];
-  if (!action || action.state !== "SUCCESS") {
-    throw new Error(
-      `POST license search Aura action ${method} did not succeed`,
-    );
-  }
-  const value = action.returnValue?.returnValue;
-  if (typeof value !== "string") return value;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return value;
-  }
+  const returnedById = new Map(
+    (response.actions ?? []).map((action) => [action.id, action]),
+  );
+  return actionIds.map((id, index) => {
+    const action = returnedById.get(id);
+    if (!action || action.state !== "SUCCESS") {
+      throw new Error(
+        `POST license search Aura action ${specs[index].method} did not succeed`,
+      );
+    }
+    const value = action.returnValue?.returnValue;
+    if (typeof value !== "string") return value;
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  });
 }
 
 export function selectExactAgencyMatches(
