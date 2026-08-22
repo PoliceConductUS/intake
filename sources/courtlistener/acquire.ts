@@ -114,6 +114,10 @@ export const acquire: SourceAcquire = async ({
   };
   const minYear = Number(env.COURTLISTENER_MIN_YEAR ?? DEFAULT_MIN_YEAR);
   const filedAfter = `${minYear}-01-01`;
+  const maxAgencies =
+    env.COURTLISTENER_MAX_AGENCIES !== undefined
+      ? Number(env.COURTLISTENER_MAX_AGENCIES)
+      : Infinity;
   await mkdir(sourceDir, { recursive: true });
 
   const cache = await loadDocketCache(state);
@@ -123,6 +127,7 @@ export const acquire: SourceAcquire = async ({
   let cursor: string | undefined;
   let searched = 0;
   let cached = 0;
+  let stop = false;
   do {
     const page = await data.agencies({
       states: Object.keys(STATE_COURTS),
@@ -131,6 +136,7 @@ export const acquire: SourceAcquire = async ({
       limit: 50,
     });
     for (const record of page.items) {
+      if (stop) break;
       const agencyName = str(record.agency.name).trim();
       const courts = STATE_COURTS[record.state] ?? [];
       if (agencyName === "" || courts.length === 0) continue;
@@ -150,6 +156,7 @@ export const acquire: SourceAcquire = async ({
         log.info(
           `courtlistener: ${agencyName} — ${dockets.length} docket(s) [searched ${searched}]`,
         );
+        if (searched >= maxAgencies) stop = true;
       } else {
         dockets = cache.agencies[slug].dockets;
         cached += 1;
@@ -172,7 +179,7 @@ export const acquire: SourceAcquire = async ({
       );
     }
     cursor = page.nextCursor;
-  } while (cursor !== undefined);
+  } while (cursor !== undefined && !stop);
 
   log.info(
     `courtlistener: ${searched} agencies searched, ${cached} served from cache (< ${REFRESH_DAYS} days).`,
