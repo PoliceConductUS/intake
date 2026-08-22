@@ -24,11 +24,18 @@ export type SourceRun = (deps: RunDeps) => Promise<SourceManifest>;
 // `sourceDir` (preserving the original format — html/csv/json, no transforms),
 // so the deterministic `run` (produce) phase can then read them. Network and
 // non-determinism live here, never in `run`.
+export type AcquireCivilCase = {
+  id: string;
+  cause_number: string;
+  primary_source_url: string | null;
+};
+
 export type AcquireAgencyRecord = {
   state: string;
   county: string | null;
   place: string | null;
   agency: Record<string, unknown>;
+  civilCases?: AcquireCivilCase[];
 };
 
 export type AcquireAgencyPage = {
@@ -43,6 +50,7 @@ export type AcquireDataContext = {
   agencies(query: {
     states?: string[];
     minOfficers?: number;
+    hasCivilCase?: boolean;
     cursor?: string;
     limit?: number;
   }): Promise<AcquireAgencyPage>;

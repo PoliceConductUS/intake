@@ -1,6 +1,7 @@
 import type { DatabaseClient } from "../database/index.js";
 import type {
   AcquireAgencyPage,
+  AcquireCivilCase,
   AcquireDataContext,
 } from "../run/source-run.js";
 
@@ -39,6 +40,7 @@ export function createAcquireDataContext(
     async agencies({
       states,
       minOfficers,
+      hasCivilCase,
       cursor,
       limit,
     }): Promise<AcquireAgencyPage> {
@@ -57,15 +59,28 @@ export function createAcquireDataContext(
       params.push(pageSize + 1);
       const limitParam = `$${params.length}`;
 
+      const attachedCases = `
+        from civil_case_officers cco
+        join agency_officers cao on cao.id = cco.agency_officer_id
+        join civil_cases cc on cc.id = cco.civil_case_id
+        where cao.agency_id = a.id`;
+      const civilCasesSelect = `, (select coalesce(json_agg(distinct jsonb_build_object(
+               'id', cc.id, 'cause_number', cc.cause_number,
+               'primary_source_url', cc.primary_source_url)), '[]'::json)
+             ${attachedCases}) as civil_cases`;
+      const hasCivilCaseFilter = hasCivilCase
+        ? `and exists (select 1 ${attachedCases})`
+        : "";
+
       const rows = resultRows(
         await client.query(
           `select a.id as id, row_to_json(a.*) as agency, a.state as state,
                   lp.administrative_area_slug as county, lp.place_slug as place,
-                  count(ao.id)::int as officer_count
+                  count(ao.id)::int as officer_count${civilCasesSelect}
            from agency a
            left join location_path lp on lp.location_path_id = a.location_path_id
            left join agency_officers ao on ao.agency_id = a.id
-           where ($1::text[] is null or a.state = any($1))
+           where ($1::text[] is null or a.state = any($1)) ${hasCivilCaseFilter}
            group by a.id, lp.administrative_area_slug, lp.place_slug
            ${having}
            order by officer_count desc, a.id desc
@@ -83,6 +98,9 @@ export function createAcquireDataContext(
           county: (row.county as string | null) ?? null,
           place: (row.place as string | null) ?? null,
           agency: (row.agency ?? {}) as Record<string, unknown>,
+          civilCases: Array.isArray(row.civil_cases)
+            ? (row.civil_cases as AcquireCivilCase[])
+            : [],
         })),
         nextCursor:
           hasMore && last !== undefined
