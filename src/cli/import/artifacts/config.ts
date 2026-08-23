@@ -733,10 +733,19 @@ async function addCivilCaseSourceFacades(
     });
   }
   let linkedOfficers = 0;
+  // A case can name the same officer under two spellings, or be discovered via
+  // several agencies, so more than one source officer record can resolve to the
+  // same (civil_case, agency_officer). The table is unique on that pair — keep
+  // the first, drop the rest.
+  const registeredCaseOfficer = new Set<string>();
   for (const officer of officers) {
     const agencyOfficerId = resolvedOfficerId.get(officer.sourceName);
     if (agencyOfficerId === undefined) continue;
-    if (!casesWithOfficer.has(String(officer.spec.civil_case_id))) continue;
+    const civilCaseId = String(officer.spec.civil_case_id);
+    if (!casesWithOfficer.has(civilCaseId)) continue;
+    const pair = `${civilCaseId}|${agencyOfficerId}`;
+    if (registeredCaseOfficer.has(pair)) continue;
+    registeredCaseOfficer.add(pair);
     dataContext.civilCaseOfficerFromSource({
       apiVersion: INTAKE_API_VERSION,
       namespace,
