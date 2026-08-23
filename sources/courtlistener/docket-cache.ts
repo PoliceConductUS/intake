@@ -13,7 +13,7 @@ export type Docket = {
   date_terminated: string | null;
   cause: string;
   absolute_url: string;
-  defendants: string[];
+  parties: string[];
 };
 
 export type AgencyCacheEntry = {

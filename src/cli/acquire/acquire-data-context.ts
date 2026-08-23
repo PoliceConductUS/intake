@@ -75,13 +75,13 @@ export function createAcquireDataContext(
       const rows = resultRows(
         await client.query(
           `select a.id as id, row_to_json(a.*) as agency, a.state as state,
-                  lp.administrative_area_slug as county, lp.place_slug as place,
+                  lp.administrative_area_name as county, lp.place_name as place,
                   count(ao.id)::int as officer_count${civilCasesSelect}
            from agency a
            left join location_path lp on lp.location_path_id = a.location_path_id
            left join agency_officers ao on ao.agency_id = a.id
            where ($1::text[] is null or a.state = any($1)) ${hasCivilCaseFilter}
-           group by a.id, lp.administrative_area_slug, lp.place_slug
+           group by a.id, lp.administrative_area_name, lp.place_name
            ${having}
            order by officer_count desc, a.id desc
            limit ${limitParam}`,

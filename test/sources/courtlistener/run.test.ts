@@ -22,7 +22,7 @@ const envelope = {
       absolute_url: "/docket/123/doe-v-city-of-irving/",
       cause: "28:1983 Civil Rights",
       date_terminated: "2023-11-20",
-      defendants: ["City of Irving", "John Smith"],
+      parties: ["City of Irving", "John Smith"],
     },
     // no filing date -> skipped
     {
@@ -32,7 +32,7 @@ const envelope = {
       court: "txnd",
       date_filed: null,
       absolute_url: "/docket/124/",
-      defendants: ["Jane Roe"],
+      parties: ["Jane Roe"],
     },
   ],
 };
@@ -52,7 +52,7 @@ async function runWith() {
 }
 
 describe("courtlistener run", () => {
-  it("emits a docket as a civil case with its officer defendant and link", async () => {
+  it("emits a docket as a civil case with its person party as a candidate officer and link", async () => {
     const manifest = await runWith();
     const byKind = Object.fromEntries(
       manifest.artifacts.map((a) => [a.kind, a.records]),
@@ -78,6 +78,7 @@ describe("courtlistener run", () => {
     expect(byKind.CivilCaseOfficers["cl-123|john-smith"].spec).toEqual({
       civil_case_id: "cl-123",
       state: "TX",
+      agency_id: "a1",
       agency_name: "Irving Police Department",
       officer_name: "John Smith",
     });

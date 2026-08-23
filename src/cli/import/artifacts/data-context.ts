@@ -112,7 +112,7 @@ import { readDatabaseRecordsByColumn } from "../../database/entities.js";
 import {
   nameSimilarity,
   normalizeName,
-  officerNameVariations,
+  officerNameConfidence,
 } from "./name-similarity.js";
 import type { SupportedTableName } from "../../database/schema.js";
 
@@ -3962,12 +3962,20 @@ export class DataContext {
       .filter((token) => token.length >= 2);
     if (tokens.length === 0) return { results: [] };
 
+    const agencyId = valueAsString(input.agencyId);
     const likeClauses = tokens
       .map(
         (_, index) =>
           `(o.first_name ilike $${index + 2} or o.last_name ilike $${index + 2})`,
       )
       .join(" or ");
+    const params: unknown[] = [state, ...tokens.map((token) => `%${token}%`)];
+    // With an exact agency id, scope the roster to that one agency (never by
+    // name); otherwise fall back to the state-wide fuzzy-by-name search.
+    const agencyFilter =
+      agencyId === undefined
+        ? "a.state = $1"
+        : `a.state = $1 and ao.agency_id = $${params.push(agencyId)}`;
     const result = await this.databaseClient().query(
       `select row_to_json(o.*) as officer,
               row_to_json(a.*) as agency,
@@ -3977,23 +3985,25 @@ export class DataContext {
        join officers o on o.id = ao.officer_id
        join agency a on a.id = ao.agency_id
        left join location_path lp on lp.location_path_id = a.location_path_id
-       where a.state = $1 and (${likeClauses})`,
-      [state, ...tokens.map((token) => `%${token}%`)],
+       where ${agencyFilter} and (${likeClauses})`,
+      params,
     );
 
     const scored: AgencyOfficerSearchResult[] = searchRows(result).map(
       (row) => {
         const officer = (row.officer ?? {}) as Record<string, unknown>;
         const agency = (row.agency ?? {}) as Record<string, unknown>;
-        const officerConfidence = officerNameVariations(officer).reduce(
-          (best, variation) =>
-            Math.max(best, nameSimilarity(officerName, variation)),
-          0,
-        );
-        const agencyConfidence = nameSimilarity(
-          agencyName,
-          String(agency.name ?? ""),
-        );
+        // First and last name scored separately (min of the two) so a strong
+        // last name can't carry a wrong first name; a middle initial on the
+        // party side is ignored and raises `uncertainty`.
+        const { confidence: officerConfidence, uncertainty: officerUncertainty } =
+          officerNameConfidence(officerName, officer);
+        // Exact agency id → the agency is certain (confidence 1) and the
+        // combined score is the officer name alone; fuzzy name match otherwise.
+        const agencyConfidence =
+          agencyId === undefined
+            ? nameSimilarity(agencyName, String(agency.name ?? ""))
+            : 1;
         const locationPath = row.location_path as
           | Record<string, unknown>
           | null
@@ -4001,7 +4011,11 @@ export class DataContext {
         return {
           confidence: officerConfidence * 0.6 + agencyConfidence * 0.4,
           agency: { confidence: agencyConfidence, record: agency },
-          officer: { confidence: officerConfidence, record: officer },
+          officer: {
+            confidence: officerConfidence,
+            uncertainty: officerUncertainty,
+            record: officer,
+          },
           agencyOfficer: {
             record: (row.agency_officer ?? {}) as Record<string, unknown>,
           },
@@ -4013,7 +4027,13 @@ export class DataContext {
       },
     );
 
-    scored.sort((left, right) => right.confidence - left.confidence);
+    // Rank by confidence, then by the lowest officer-name uncertainty (fullest
+    // matching form) so a fuller-name match outranks a reduced-variant tie.
+    scored.sort(
+      (left, right) =>
+        right.confidence - left.confidence ||
+        left.officer.uncertainty - right.officer.uncertainty,
+    );
     return { results: scored.slice(0, Math.max(0, input.topN)) };
   }
 }
@@ -4024,11 +4044,29 @@ export type AgencyOfficerSearch = {
   agencyName: string;
   officerName: string;
   topN: number;
+  /**
+   * The exact `agency` id this officer must belong to, when the caller already
+   * knows it (e.g. a CourtListener docket discovered by searching one specific
+   * agency). When present, the agency is matched by id — never by name — and the
+   * result's `agency.confidence` is 1; the officer name is the only fuzzy
+   * dimension. Absent (clearinghouse, which only has an agency name), the agency
+   * is matched fuzzily by name as before.
+   */
+  agencyId?: string;
 };
 
 export type ScoredRecord = {
   confidence: number;
   record: Record<string, unknown>;
+};
+
+/**
+ * An officer match, scored like {@link ScoredRecord} but also carrying the
+ * `uncertainty` of the name variant that achieved the confidence (0 = matched
+ * the name exactly as listed; higher = matched only after dropping name parts).
+ */
+export type OfficerScoredRecord = ScoredRecord & {
+  uncertainty: number;
 };
 
 export type SearchRecord = {
@@ -4038,7 +4076,7 @@ export type SearchRecord = {
 export type AgencyOfficerSearchResult = {
   confidence: number;
   agency: ScoredRecord;
-  officer: ScoredRecord;
+  officer: OfficerScoredRecord;
   agencyOfficer: SearchRecord;
   locationPath: SearchRecord | null;
 };

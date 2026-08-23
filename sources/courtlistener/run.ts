@@ -5,10 +5,10 @@ import type {
   RunDeps,
   SourceRun,
 } from "../../src/cli/run/source-run.js";
-import { isPersonDefendant, slugify } from "../lib/civil-defendants.js";
+import { isPersonName, slugify } from "../lib/civil-defendants.js";
 
 export const description =
-  "CourtListener — federal §1983 dockets naming TX/MN agencies, linked to the officer defendants via the fuzzy agency_personnel resolver.";
+  "CourtListener — federal dockets naming TX/MN agencies, linked to any officer named as a party (plaintiff or defendant) via the fuzzy agency_personnel resolver.";
 
 const COURTLISTENER = "https://www.courtlistener.com";
 
@@ -21,7 +21,7 @@ type Docket = {
   date_terminated?: string | null;
   cause?: string;
   absolute_url?: string;
-  defendants?: string[];
+  parties?: string[];
 };
 
 type AgencyDockets = {
@@ -54,6 +54,7 @@ export const run: SourceRun = async ({ paths, logger }: RunDeps) => {
   for (const file of files) {
     const envelope = JSON.parse(await readFile(file, "utf8")) as AgencyDockets;
     const agencyName = text(envelope.agency.name);
+    const agencyId = text(envelope.agency.id);
     const state = text(envelope.agency.state).toUpperCase();
     if (agencyName === "" || state === "") continue;
 
@@ -90,13 +91,14 @@ export const run: SourceRun = async ({ paths, logger }: RunDeps) => {
           },
         };
       }
-      for (const defendant of docket.defendants ?? []) {
-        const officerName = text(defendant);
-        if (!isPersonDefendant(officerName)) continue;
+      for (const party of docket.parties ?? []) {
+        const officerName = text(party);
+        if (!isPersonName(officerName)) continue;
         officers[`${caseKey}|${slugify(officerName)}`] = {
           spec: {
             civil_case_id: caseKey,
             state,
+            agency_id: agencyId,
             agency_name: agencyName,
             officer_name: officerName,
           },
@@ -107,7 +109,7 @@ export const run: SourceRun = async ({ paths, logger }: RunDeps) => {
 
   log.info(
     `courtlistener: ${Object.keys(civilCases).length} dockets, ` +
-      `${Object.keys(officers).length} officer defendants, ${Object.keys(links).length} links (linking resolved at import)`,
+      `${Object.keys(officers).length} candidate officer parties, ${Object.keys(links).length} links (linking resolved at import)`,
   );
 
   return {

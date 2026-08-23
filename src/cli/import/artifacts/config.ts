@@ -603,9 +603,18 @@ function addFederalAgencyBranchSourceFacades(
   }
 }
 
-// The caller's acceptance bar for a fuzzy civil-case → agency_personnel match.
-// search() applies no threshold; this is where the import decides.
+// The caller's acceptance bars for a civil-case → agency_personnel match.
+// search() applies no threshold; this is where the import decides. When the
+// agency is known exactly (an agency_id from the acquire facade), the officer
+// name is the only fuzzy dimension, so gate on the officer confidence with a
+// tighter bar. Without an agency id (clearinghouse), fall back to the combined
+// officer+agency score.
 const CIVIL_CASE_OFFICER_CONFIDENCE_FLOOR = 0.6;
+const CIVIL_CASE_OFFICER_NAME_FLOOR = 0.85;
+// Two same-agency officers whose name confidences sit within this band — and
+// whom the fuller-name variant (lower uncertainty) cannot separate — are an
+// unresolvable tie: attach to neither rather than guess wrong.
+const CIVIL_CASE_OFFICER_AMBIGUITY_BAND = 0.03;
 
 type CivilCaseRecordRef = {
   sourceName: string;
@@ -653,25 +662,46 @@ async function addCivilCaseSourceFacades(
   const resolvedOfficerId = new Map<string, string>();
   const casesWithOfficer = new Set<string>();
   for (const officer of officers) {
+    const agencyId = String(officer.spec.agency_id ?? "");
     const match = await dataContext.search({
       state: String(officer.spec.state ?? ""),
       agencyName: String(officer.spec.agency_name ?? ""),
       officerName: String(officer.spec.officer_name ?? ""),
+      agencyId: agencyId !== "" ? agencyId : undefined,
       topN: 5,
     });
     const best = match.results[0];
+    const second = match.results[1];
+    // Two same-agency officers the name can't separate (near-equal confidence
+    // and the fuller-name variant does not favour the top one) → ambiguous.
+    const ambiguous =
+      agencyId !== "" &&
+      best !== undefined &&
+      second !== undefined &&
+      second.officer.confidence >= CIVIL_CASE_OFFICER_NAME_FLOOR &&
+      best.officer.confidence - second.officer.confidence <
+        CIVIL_CASE_OFFICER_AMBIGUITY_BAND &&
+      best.officer.uncertainty >= second.officer.uncertainty;
+    // Known agency → gate on the officer name alone (the agency is certain);
+    // unknown agency → gate on the combined officer+agency score.
     const accepted =
       best !== undefined &&
-      best.confidence >= CIVIL_CASE_OFFICER_CONFIDENCE_FLOOR;
+      !ambiguous &&
+      (agencyId !== ""
+        ? best.officer.confidence >= CIVIL_CASE_OFFICER_NAME_FLOOR
+        : best.confidence >= CIVIL_CASE_OFFICER_CONFIDENCE_FLOOR);
     logger?.info(
       {
         civilCase: String(officer.spec.civil_case_id),
         officerName: String(officer.spec.officer_name ?? ""),
         agencyName: String(officer.spec.agency_name ?? ""),
+        agencyId: agencyId !== "" ? agencyId : null,
         state: String(officer.spec.state ?? ""),
         accepted,
+        ambiguous,
         confidence: best?.confidence ?? null,
         officerConfidence: best?.officer.confidence ?? null,
+        officerUncertainty: best?.officer.uncertainty ?? null,
         agencyConfidence: best?.agency.confidence ?? null,
         matchedOfficer:
           best === undefined

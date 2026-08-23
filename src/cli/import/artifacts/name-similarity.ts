@@ -10,28 +10,60 @@ export function normalizeName(value: string): string {
     .trim();
 }
 
-export function officerNameVariations(
+export type NameMatch = {
+  /** Similarity in [0, 1] requiring BOTH the first and last name to match. */
+  confidence: number;
+  /**
+   * How far the match strayed from the name exactly as listed: the number of
+   * middle name-parts on the party side that had to be ignored to line up first
+   * and last (0 = used the whole name as listed). The caller ranks by confidence
+   * and breaks ties by preferring the lowest uncertainty (the fullest form).
+   */
+  uncertainty: number;
+};
+
+function nameTokens(value: string): string[] {
+  return normalizeName(value)
+    .split(" ")
+    .filter((token) => token !== "");
+}
+
+function officerPart(officer: Record<string, unknown>, key: string): string {
+  const value = officer[key];
+  return normalizeName(typeof value === "string" ? value : "");
+}
+
+/**
+ * Confidence that a listed party name is a given officer, scoring the first and
+ * last name SEPARATELY and taking the lower of the two — a strong last name can
+ * never carry a wrong first name (e.g. "Ana Ramirez" ≠ "Juan Ramirez"). Both
+ * name orderings are tried so a "Last First" caption still matches. Middle parts
+ * on the party side are ignored (that is what a middle initial in a docket
+ * needs) and counted as `uncertainty`; suffixes are already dropped by
+ * {@link normalizeName}.
+ */
+export function officerNameConfidence(
+  partyName: string,
   officer: Record<string, unknown>,
-): string[] {
-  const part = (key: string): string => {
-    const value = officer[key];
-    return typeof value === "string" ? value.trim() : "";
+): NameMatch {
+  const party = nameTokens(partyName);
+  if (party.length === 0) return { confidence: 0, uncertainty: 0 };
+  const rosterFirst = officerPart(officer, "first_name");
+  const rosterLast = officerPart(officer, "last_name");
+  const partyFirst = party[0];
+  const partyLast = party[party.length - 1];
+  const forward = Math.min(
+    nameSimilarity(partyFirst, rosterFirst),
+    nameSimilarity(partyLast, rosterLast),
+  );
+  const reversed = Math.min(
+    nameSimilarity(partyLast, rosterFirst),
+    nameSimilarity(partyFirst, rosterLast),
+  );
+  return {
+    confidence: Math.max(forward, reversed),
+    uncertainty: Math.max(0, party.length - 2),
   };
-  const first = part("first_name");
-  const middle = part("middle_name");
-  const last = part("last_name");
-  const suffix = part("suffix");
-  const combos = [
-    [first, last],
-    [first, middle, last],
-    [first, last, suffix],
-    [first, middle, last, suffix],
-    [last, first],
-  ];
-  const variations = combos
-    .map((parts) => parts.filter((p) => p !== "").join(" "))
-    .filter((v) => v !== "");
-  return [...new Set(variations)];
 }
 
 function bigrams(value: string): Map<string, number> {

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   nameSimilarity,
   normalizeName,
-  officerNameVariations,
+  officerNameConfidence,
 } from "../../src/cli/import/artifacts/name-similarity.js";
 
 describe("normalizeName", () => {
@@ -30,28 +30,43 @@ describe("nameSimilarity", () => {
   });
 });
 
-describe("officerNameVariations", () => {
-  it("produces first-last, first-middle-last, and suffix forms so a middle initial does not hurt matching", () => {
-    const variations = officerNameVariations({
-      first_name: "Scott",
-      middle_name: "D",
-      last_name: "Garner",
-      suffix: "Jr",
-    });
-    expect(variations).toContain("Scott Garner");
-    expect(variations).toContain("Scott D Garner");
-    expect(variations).toContain("Scott D Garner Jr");
-    // a first-last variation matches a query without the middle initial exactly
-    const best = variations.reduce(
-      (max, v) => Math.max(max, nameSimilarity("Scott Garner", v)),
-      0,
-    );
-    expect(best).toBe(1);
+describe("officerNameConfidence", () => {
+  const officer = (
+    first: string,
+    last: string,
+  ): Record<string, unknown> => ({ first_name: first, last_name: last });
+
+  it("is 1 for an exact first+last match, uncertainty 0", () => {
+    expect(
+      officerNameConfidence("Steven Nix", officer("Steven", "Nix")),
+    ).toEqual({ confidence: 1, uncertainty: 0 });
   });
 
-  it("omits missing parts without empty tokens", () => {
-    expect(
-      officerNameVariations({ first_name: "Robert", last_name: "Luna" }),
-    ).toEqual(["Robert Luna", "Luna Robert"]);
+  it("ignores a middle initial and records it as uncertainty", () => {
+    const match = officerNameConfidence("Steven M Nix", officer("Steven", "Nix"));
+    expect(match.confidence).toBe(1);
+    expect(match.uncertainty).toBe(1);
+  });
+
+  it("rejects a wrong first name even when the last name matches exactly", () => {
+    // "Ana Ramirez" must not resolve to "Juan Ramirez": first names differ.
+    const match = officerNameConfidence(
+      "Ana Ramirez",
+      officer("Juan", "Ramirez"),
+    );
+    expect(match.confidence).toBeLessThan(0.85);
+  });
+
+  it("rejects a wrong last name even when the first name matches exactly", () => {
+    const match = officerNameConfidence(
+      "Steven Nix",
+      officer("Steven", "Nixon"),
+    );
+    expect(match.confidence).toBeLessThan(1);
+  });
+
+  it("matches a reversed 'last first' caption", () => {
+    const match = officerNameConfidence("Nix Steven", officer("Steven", "Nix"));
+    expect(match.confidence).toBe(1);
   });
 });

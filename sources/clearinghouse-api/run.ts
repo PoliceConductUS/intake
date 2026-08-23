@@ -6,7 +6,7 @@ import type {
   SourceRun,
 } from "../../src/cli/run/source-run.js";
 import {
-  isPersonDefendant,
+  isPersonName,
   primaryAgencyName,
   slugify,
 } from "../lib/civil-defendants.js";
@@ -113,7 +113,7 @@ export const run: SourceRun = async ({ paths, env, logger }: RunDeps) => {
     );
     for (const defendant of defendants) {
       const officerName = text(defendant.name);
-      if (!isPersonDefendant(officerName) || agencyName === undefined) continue;
+      if (!isPersonName(officerName) || agencyName === undefined) continue;
       officers[`${caseKey}|${slugify(officerName)}`] = {
         spec: {
           civil_case_id: caseKey,
