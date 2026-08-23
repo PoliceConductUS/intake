@@ -19,6 +19,8 @@ const STATE_COURTS: Record<string, string[]> = {
   MN: ["mnd", "ca8"],
 };
 const DEFAULT_MIN_YEAR = 2022;
+const MAX_RETRIES = 5;
+const MAX_BACKOFF_MS = 60_000;
 
 function asArray(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
@@ -116,24 +118,39 @@ export const acquire: SourceAcquire = async ({
   await mkdir(sourceDir, { recursive: true });
   const apiLogPath = path.join(sourceDir, ".api-calls.jsonl");
   const fetchJson = async (url: string): Promise<Record<string, unknown>> => {
-    const response = await fetch(url, {
-      headers: { Authorization: `Token ${token}` },
-    });
-    const text = await response.text();
-    let body: unknown;
-    try {
-      body = JSON.parse(text);
-    } catch {
-      body = text;
+    // Retry throttling (429) and transient server errors (5xx) with backoff so a
+    // multi-thousand-agency run rides out CourtListener's rate limit unattended;
+    // honor the Retry-After header when present, else exponential (capped).
+    for (let attempt = 0; ; attempt += 1) {
+      const response = await fetch(url, {
+        headers: { Authorization: `Token ${token}` },
+      });
+      const text = await response.text();
+      let body: unknown;
+      try {
+        body = JSON.parse(text);
+      } catch {
+        body = text;
+      }
+      await appendFile(
+        apiLogPath,
+        `${JSON.stringify({ at: new Date().toISOString(), url, status: response.status, body })}\n`,
+      );
+      if (response.ok) return body as Record<string, unknown>;
+      const retryable = response.status === 429 || response.status >= 500;
+      if (!retryable || attempt >= MAX_RETRIES) {
+        throw new Error(`courtlistener: ${response.status} for ${url}`);
+      }
+      const retryAfter = Number(response.headers.get("retry-after"));
+      const waitMs =
+        Number.isFinite(retryAfter) && retryAfter > 0
+          ? retryAfter * 1000
+          : Math.min(MAX_BACKOFF_MS, 1000 * 2 ** attempt);
+      log.info(
+        `courtlistener: ${response.status} throttled; retrying in ${Math.round(waitMs / 1000)}s (attempt ${attempt + 1}/${MAX_RETRIES}).`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
     }
-    await appendFile(
-      apiLogPath,
-      `${JSON.stringify({ at: new Date().toISOString(), url, status: response.status, body })}\n`,
-    );
-    if (!response.ok) {
-      throw new Error(`courtlistener: ${response.status} for ${url}`);
-    }
-    return body as Record<string, unknown>;
   };
   const minYear = Number(env.COURTLISTENER_MIN_YEAR ?? DEFAULT_MIN_YEAR);
   const filedAfter = `${minYear}-01-01`;
