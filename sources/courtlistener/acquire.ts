@@ -35,6 +35,15 @@ function str(value: unknown): string {
 // caption parties). The person parties it returns — plaintiffs and defendants
 // alike — are matched to the agency roster at import; any officer named in the
 // case attaches it (role-agnostic). These are the party names to search for.
+// CourtListener's search 500s on some punctuation in party_name (a slash, e.g.
+// "Cold Spring/Richmond Police Dept."), so normalize separators to spaces.
+function sanitizePartyName(name: string): string {
+  return name
+    .replace(/[/\\]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function partyNames(agencyName: string, place: string, county: string): string[] {
   const names = [agencyName];
   const isCountyAgency = /\b(county|sheriff|parish)\b/i.test(agencyName);
@@ -45,7 +54,11 @@ function partyNames(agencyName: string, place: string, county: string): string[]
   } else if (county.trim() !== "") {
     names.push(county.trim());
   }
-  return [...new Set(names.filter((name) => name.trim() !== ""))];
+  return [
+    ...new Set(
+      names.map(sanitizePartyName).filter((name) => name !== ""),
+    ),
+  ];
 }
 
 function searchUrl(
@@ -162,6 +175,7 @@ export const acquire: SourceAcquire = async ({
   const nowIso = new Date(nowMs).toISOString();
   let searched = 0;
   let cached = 0;
+  let failed = 0;
 
   const processAgency = async (
     agencyId: string,
@@ -176,14 +190,25 @@ export const acquire: SourceAcquire = async ({
 
     let dockets: Docket[];
     if (agencyNeedsSearch(cache.agencies[slug], nowMs)) {
-      dockets = await searchAgencyDockets(
-        agencyName,
-        place,
-        county,
-        courts,
-        filedAfter,
-        fetchJson,
-      );
+      try {
+        dockets = await searchAgencyDockets(
+          agencyName,
+          place,
+          county,
+          courts,
+          filedAfter,
+          fetchJson,
+        );
+      } catch (error) {
+        // One agency's search failing (e.g. a persistent CL 500 on an odd party
+        // name) must not abort the whole multi-thousand-agency run — log and skip
+        // it, leaving it uncached so a later run retries it.
+        failed += 1;
+        log.info(
+          `courtlistener: ${agencyName} — search failed, skipped (${error instanceof Error ? error.message : String(error)}).`,
+        );
+        return;
+      }
       cache.agencies[slug] = { lastSearchedAt: nowIso, dockets };
       await saveDocketCache(state, cache);
       searched += 1;
@@ -249,6 +274,6 @@ export const acquire: SourceAcquire = async ({
   }
 
   log.info(
-    `courtlistener: ${searched} agencies searched, ${cached} served from cache (< ${REFRESH_DAYS} days).`,
+    `courtlistener: ${searched} agencies searched, ${cached} served from cache (< ${REFRESH_DAYS} days), ${failed} skipped after errors.`,
   );
 };
