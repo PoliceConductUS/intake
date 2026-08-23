@@ -399,12 +399,13 @@ export const CivilCaseOfficerSpec = z
     civil_case_id: z.string(),
     agency_officer_id: z.string().optional(),
     state: nonEmptyString,
+    agency_id: nonEmptyString.optional(),
     agency_name: nonEmptyString,
     officer_name: nonEmptyString,
   })
   .strict();
 
-export const CivilCaseOfficerCreateSpec = CivilCaseOfficerSpec.extend({
+export const CivilCaseOfficerCreateSpec = CivilCaseOfficerSpec.omit({ state: true, agency_id: true, agency_name: true, officer_name: true }).extend({
   id: z.string(),
   agency_officer_id: z.string(),
 });

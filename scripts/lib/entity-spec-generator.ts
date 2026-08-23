@@ -30,6 +30,13 @@ type EntityDescriptor = {
   override?: Record<string, string>;
   /** Envelope-only spec fields (not columns) → literal zod expression. */
   extras?: Record<string, string>;
+  /**
+   * `extras` that are import-resolution inputs only (never written to the
+   * database mutation), so they are dropped from the *Create spec while staying
+   * on the record spec. Extras not listed here remain on *Create (some, like a
+   * geometry's source key, are carried into the mutation).
+   */
+  createOmit?: string[];
   /** Code appended after `.strict()` (e.g. a cross-field superRefine). */
   superRefine?: string;
   /**
@@ -227,11 +234,18 @@ const DESCRIPTORS: EntityDescriptor[] = [
     // agency_officers from the defendant name fields below; the source never
     // supplies it directly.
     createRequired: ["id", "agency_officer_id"],
+    // These fuzzy-resolve agency_officer_id at import and are never written as
+    // columns, so they stay on the record spec but are dropped from *Create.
     extras: {
       state: "nonEmptyString",
+      // The exact agency id, when the source knows it (CourtListener discovers a
+      // docket by searching one agency), so import scopes the roster by id
+      // instead of fuzzy-matching the agency name. Clearinghouse omits it.
+      agency_id: "nonEmptyString.optional()",
       agency_name: "nonEmptyString",
       officer_name: "nonEmptyString",
     },
+    createOmit: ["state", "agency_id", "agency_name", "officer_name"],
   },
   {
     recordKind: "CivilCaseLink",
@@ -427,10 +441,25 @@ ${baseFields.join("\n")}
   })
   .strict()${descriptor.superRefine ?? ""};`;
 
-  // *Create spec: re-require the resolved/minted fields.
+  // *Create spec: the mutation carries only database columns, so drop the
+  // source-record/envelope-only `extras` (resolution inputs like the defendant's
+  // agency/officer name, never written as columns), then re-require the
+  // resolved/minted fields.
   const createName = `${descriptor.recordKind}CreateSpec`;
+  const omitKeys = descriptor.createOmit ?? [];
+  for (const key of omitKeys) {
+    if (extras[key] === undefined) {
+      throw new Error(
+        `${descriptor.recordKind}: createOmit '${key}' is not one of its extras.`,
+      );
+    }
+  }
+  const omitClause =
+    omitKeys.length === 0
+      ? ""
+      : `.omit({ ${omitKeys.map((name) => `${name}: true`).join(", ")} })`;
   if (createRequired.size === 0) {
-    return `${base}\n\nexport const ${createName} = ${specName};`;
+    return `${base}\n\nexport const ${createName} = ${specName}${omitClause};`;
   }
   const createExtends = [...createRequired]
     .map((fieldName) => {
@@ -445,7 +474,7 @@ ${baseFields.join("\n")}
     .join("\n");
   return `${base}
 
-export const ${createName} = ${specName}.extend({
+export const ${createName} = ${specName}${omitClause}.extend({
 ${createExtends}
 });`;
 }

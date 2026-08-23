@@ -2493,6 +2493,13 @@ export class DataContext {
   >();
   private readonly pendingRowReads = new Map<string, RowReadBatch>();
   private rowReadFlushScheduled = false;
+  // Per-agency officer roster, loaded once and reused across every civil-case
+  // search scoped to that agency id — turns thousands of per-party ILIKE queries
+  // into one roster load per agency, matched in memory.
+  private readonly agencyRosterCache = new Map<
+    string,
+    Promise<Record<string, unknown>[]>
+  >();
   readonly logger?: DataContextLogger;
   private readonly addressResolutionCache = new Map<
     string,
@@ -3944,6 +3951,28 @@ export class DataContext {
     return this.client;
   }
 
+  /** All agency_officers for one agency, loaded once per run and cached. */
+  private agencyRoster(agencyId: string): Promise<Record<string, unknown>[]> {
+    const cached = this.agencyRosterCache.get(agencyId);
+    if (cached !== undefined) return cached;
+    const loaded = this.databaseClient()
+      .query(
+        `select row_to_json(o.*) as officer,
+                row_to_json(a.*) as agency,
+                row_to_json(ao.*) as agency_officer,
+                row_to_json(lp.*) as location_path
+         from agency_officers ao
+         join officers o on o.id = ao.officer_id
+         join agency a on a.id = ao.agency_id
+         left join location_path lp on lp.location_path_id = a.location_path_id
+         where ao.agency_id = $1`,
+        [agencyId],
+      )
+      .then((result) => searchRows(result));
+    this.agencyRosterCache.set(agencyId, loaded);
+    return loaded;
+  }
+
   async search(
     input: AgencyOfficerSearch,
   ): Promise<AgencyOfficerSearchResults> {
@@ -3963,69 +3992,77 @@ export class DataContext {
     if (tokens.length === 0) return { results: [] };
 
     const agencyId = valueAsString(input.agencyId);
-    const likeClauses = tokens
-      .map(
-        (_, index) =>
-          `(o.first_name ilike $${index + 2} or o.last_name ilike $${index + 2})`,
-      )
-      .join(" or ");
-    const params: unknown[] = [state, ...tokens.map((token) => `%${token}%`)];
-    // With an exact agency id, scope the roster to that one agency (never by
-    // name); otherwise fall back to the state-wide fuzzy-by-name search.
-    const agencyFilter =
-      agencyId === undefined
-        ? "a.state = $1"
-        : `a.state = $1 and ao.agency_id = $${params.push(agencyId)}`;
-    const result = await this.databaseClient().query(
-      `select row_to_json(o.*) as officer,
-              row_to_json(a.*) as agency,
-              row_to_json(ao.*) as agency_officer,
-              row_to_json(lp.*) as location_path
-       from agency_officers ao
-       join officers o on o.id = ao.officer_id
-       join agency a on a.id = ao.agency_id
-       left join location_path lp on lp.location_path_id = a.location_path_id
-       where ${agencyFilter} and (${likeClauses})`,
-      params,
-    );
-
-    const scored: AgencyOfficerSearchResult[] = searchRows(result).map(
-      (row) => {
+    // Exact agency id → match against the cached roster in memory (no per-party
+    // query). Otherwise fall back to the state-wide fuzzy-by-name ILIKE search.
+    let rows: Record<string, unknown>[];
+    if (agencyId === undefined) {
+      const likeClauses = tokens
+        .map(
+          (_, index) =>
+            `(o.first_name ilike $${index + 2} or o.last_name ilike $${index + 2})`,
+        )
+        .join(" or ");
+      rows = searchRows(
+        await this.databaseClient().query(
+          `select row_to_json(o.*) as officer,
+                  row_to_json(a.*) as agency,
+                  row_to_json(ao.*) as agency_officer,
+                  row_to_json(lp.*) as location_path
+           from agency_officers ao
+           join officers o on o.id = ao.officer_id
+           join agency a on a.id = ao.agency_id
+           left join location_path lp on lp.location_path_id = a.location_path_id
+           where a.state = $1 and (${likeClauses})`,
+          [state, ...tokens.map((token) => `%${token}%`)],
+        ),
+      );
+    } else {
+      // Same name-token pre-filter the ILIKE path applies in SQL, but in memory
+      // against the cached full roster: only officers sharing a party name token
+      // are worth scoring (a big agency's roster is thousands of rows).
+      const roster = await this.agencyRoster(agencyId);
+      rows = roster.filter((row) => {
         const officer = (row.officer ?? {}) as Record<string, unknown>;
-        const agency = (row.agency ?? {}) as Record<string, unknown>;
-        // First and last name scored separately (min of the two) so a strong
-        // last name can't carry a wrong first name; a middle initial on the
-        // party side is ignored and raises `uncertainty`.
-        const { confidence: officerConfidence, uncertainty: officerUncertainty } =
-          officerNameConfidence(officerName, officer);
-        // Exact agency id → the agency is certain (confidence 1) and the
-        // combined score is the officer name alone; fuzzy name match otherwise.
-        const agencyConfidence =
-          agencyId === undefined
-            ? nameSimilarity(agencyName, String(agency.name ?? ""))
-            : 1;
-        const locationPath = row.location_path as
-          | Record<string, unknown>
-          | null
-          | undefined;
-        return {
-          confidence: officerConfidence * 0.6 + agencyConfidence * 0.4,
-          agency: { confidence: agencyConfidence, record: agency },
-          officer: {
-            confidence: officerConfidence,
-            uncertainty: officerUncertainty,
-            record: officer,
-          },
-          agencyOfficer: {
-            record: (row.agency_officer ?? {}) as Record<string, unknown>,
-          },
-          locationPath:
-            locationPath === null || locationPath === undefined
-              ? null
-              : { record: locationPath },
-        };
-      },
-    );
+        const haystack = `${normalizeName(String(officer.first_name ?? ""))} ${normalizeName(String(officer.last_name ?? ""))}`;
+        return tokens.some((token) => haystack.includes(token));
+      });
+    }
+
+    const scored: AgencyOfficerSearchResult[] = rows.map((row) => {
+      const officer = (row.officer ?? {}) as Record<string, unknown>;
+      const agency = (row.agency ?? {}) as Record<string, unknown>;
+      // First and last name scored separately (min of the two) so a strong
+      // last name can't carry a wrong first name; a middle initial on the
+      // party side is ignored and raises `uncertainty`.
+      const { confidence: officerConfidence, uncertainty: officerUncertainty } =
+        officerNameConfidence(officerName, officer);
+      // Exact agency id → the agency is certain (confidence 1) and the
+      // combined score is the officer name alone; fuzzy name match otherwise.
+      const agencyConfidence =
+        agencyId === undefined
+          ? nameSimilarity(agencyName, String(agency.name ?? ""))
+          : 1;
+      const locationPath = row.location_path as
+        | Record<string, unknown>
+        | null
+        | undefined;
+      return {
+        confidence: officerConfidence * 0.6 + agencyConfidence * 0.4,
+        agency: { confidence: agencyConfidence, record: agency },
+        officer: {
+          confidence: officerConfidence,
+          uncertainty: officerUncertainty,
+          record: officer,
+        },
+        agencyOfficer: {
+          record: (row.agency_officer ?? {}) as Record<string, unknown>,
+        },
+        locationPath:
+          locationPath === null || locationPath === undefined
+            ? null
+            : { record: locationPath },
+      };
+    });
 
     // Rank by confidence, then by the lowest officer-name uncertainty (fullest
     // matching form) so a fuller-name match outranks a reduced-variant tie.
