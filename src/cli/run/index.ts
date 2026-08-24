@@ -167,10 +167,8 @@ export async function runSource(
     );
     const digest = await deps.digest(paths);
     const refItems = await sink.flush();
-    // Fail loud if the source emitted a kind it did not declare in `produces`
-    // — via the manifest or the streaming emit sink. `produces` is the input to
-    // run ordering (ADR 0021), so silent drift would silently mis-order this
-    // source and its consumers.
+    // Emitted kinds (manifest + sink) must be declared: produces drives run
+    // ordering (ADR 0021), so undeclared drift would mis-order consumers.
     const declared = new Set<string>(deps.produces);
     const emitted = new Set<string>([
       ...manifest.artifacts.map((artifact) => artifact.kind),
@@ -237,9 +235,8 @@ export const registerCliCommand: RegisterCliCommand = (
             return;
           }
 
-          // Derive a dependency-correct run order from each matched source's
-          // declared `produces` (ADR 0021). Missing/invalid declarations and
-          // dependency cycles fail loud here, before any source runs.
+          // Dependency-correct order from declared produces (ADR 0021);
+          // missing produces or a cycle fails loud before any source runs.
           const sources = await Promise.all(
             matchedIds.map(async (id) => ({
               id,

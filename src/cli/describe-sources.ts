@@ -1,6 +1,8 @@
 import { access, constants, readdir } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { consumesOf } from "./run/source-order.js";
+import type { ImportArtifactKind } from "../shared/io/index.js";
 
 export type SourcePhase = "acquire" | "run";
 
@@ -8,6 +10,7 @@ export type SourceDescription = {
   id: string;
   description?: string;
   phases: SourcePhase[];
+  produces?: readonly ImportArtifactKind[];
 };
 
 async function fileExists(filePath: string): Promise<boolean> {
@@ -27,6 +30,19 @@ async function readPhaseDescription(
   };
   return typeof module.description === "string"
     ? module.description
+    : undefined;
+}
+
+// Lenient read for the catalog; the run path is where invalid produces fails loud.
+async function readPhaseProduces(
+  modulePath: string,
+): Promise<readonly ImportArtifactKind[] | undefined> {
+  const module = (await import(pathToFileURL(modulePath).href)) as {
+    produces?: unknown;
+  };
+  return Array.isArray(module.produces) &&
+    module.produces.every((kind) => typeof kind === "string")
+    ? (module.produces as ImportArtifactKind[])
     : undefined;
 }
 
@@ -58,6 +74,7 @@ export async function describeSources(
           ? await readPhaseDescription(acquirePath)
           : undefined),
       phases,
+      produces: await readPhaseProduces(runPath),
     });
   }
   sources.sort((left, right) => left.id.localeCompare(right.id));
@@ -68,10 +85,17 @@ export function renderSourceCatalog(sources: SourceDescription[]): string {
   if (sources.length === 0) return "No sources found under sources/.\n";
   return `${sources
     .map((source) => {
-      const header = `${source.id}  [${source.phases.join(", ")}]`;
-      return source.description === undefined
-        ? header
-        : `${header}\n    ${source.description}`;
+      const lines = [`${source.id}  [${source.phases.join(", ")}]`];
+      if (source.description !== undefined)
+        lines.push(`    ${source.description}`);
+      if (source.produces !== undefined && source.produces.length > 0) {
+        lines.push(`    produces: ${source.produces.join(", ")}`);
+        const consumes = consumesOf(source.produces);
+        if (consumes.length > 0) {
+          lines.push(`    consumes: ${consumes.join(", ")}`);
+        }
+      }
+      return lines.join("\n");
     })
     .join("\n")}\n`;
 }

@@ -18,19 +18,12 @@ export type SourceOrderPlan = {
   edges: OrderEdge[];
 };
 
-// FK_REFERENCES is keyed by singular record kind (e.g. "CivilCaseOfficer");
-// sources declare plural ImportArtifactKind (e.g. "CivilCaseOfficers"). The
-// registry carries both names per kind, so map through it.
-const KIND_BY_RECORD_KIND = new Map<string, ImportArtifactKind>(
+const kindByRecordKind = new Map<string, ImportArtifactKind>(
   Object.values(importTypeMetadata).map((meta) => [meta.recordKind, meta.kind]),
 );
 
-/**
- * The kinds a source consumes: the foreign-key targets (per the generated,
- * DB-introspected `FK_REFERENCES`) of its produced kinds that it does not itself
- * produce. These are a source's *direct* FK targets — transitivity is the sort's
- * job, not this set's (ADR 0021).
- */
+// A source's direct FK targets (from generated FK_REFERENCES) that it does not
+// itself produce. Transitivity is the sort's job, not this set's (ADR 0021).
 export function consumesOf(
   produces: readonly ImportArtifactKind[],
 ): ImportArtifactKind[] {
@@ -39,7 +32,7 @@ export function consumesOf(
   for (const kind of produces) {
     const recordKind = importTypeMetadata[kind].recordKind;
     for (const reference of FK_REFERENCES[recordKind] ?? []) {
-      const targetKind = KIND_BY_RECORD_KIND.get(reference.targetKind);
+      const targetKind = kindByRecordKind.get(reference.targetKind);
       if (targetKind !== undefined && !produced.has(targetKind)) {
         consumed.add(targetKind);
       }
@@ -48,12 +41,8 @@ export function consumesOf(
   return [...consumed];
 }
 
-/**
- * Kahn topological sort over `nodes` with labelled `edges` (before → after).
- * Ties among ready nodes break by descending out-degree (a node more others
- * depend on comes first), then ascending id — fully deterministic. A cycle
- * throws, naming the nodes still in the cycle and the labels on their edges.
- */
+// Kahn topological sort; ready nodes drain by descending out-degree, then id.
+// Throws on a cycle, naming the stuck nodes and the labels on their edges.
 export function topologicalOrder(
   nodes: readonly string[],
   edges: ReadonlyArray<{ before: string; after: string; label?: string }>,
@@ -109,13 +98,7 @@ export function topologicalOrder(
   return order;
 }
 
-/**
- * Deterministic run order for a set of sources: a topological sort where source
- * A precedes source B when B's derived consumed set intersects A's `produces`
- * (ADR 0021). Sources with no ordering constraint between them break ties by
- * descending out-degree, then by source id. A dependency cycle throws, naming
- * the cycle and the kinds on it.
- */
+// Run order: A precedes B when B consumes a kind A produces (ADR 0021).
 export function planSourceOrder(
   sources: readonly SourceProduces[],
 ): SourceOrderPlan {

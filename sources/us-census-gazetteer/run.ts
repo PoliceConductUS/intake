@@ -1,8 +1,6 @@
 import { readFile } from "node:fs/promises";
 import type { ImportArtifactKind } from "../../src/shared/io/index.js";
 
-// LocationPathGeometries is emitted via the streaming emit sink, not the
-// manifest — it is still produced, so it is declared here.
 export const produces: readonly ImportArtifactKind[] = [
   "LocationPaths",
   "LocationPathAliases",

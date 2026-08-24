@@ -65,10 +65,10 @@ Given the selected source ids `S` (from the run glob), each source's declared
 4. A remaining cycle → abort, naming the cycle's sources and the kind on each
    edge.
 
-This reuses the pattern already proven at the kind level in
-`src/shared/io/import-types.ts:154-193` (`visitImportKind`, cycle detection).
-Factor a small generic `topoSort(nodes, edgesFrom, tiebreak)` and have both the
-kind graph and the source graph call it, or mirror it — decided in the plan.
+This mirrors the pattern already proven at the kind level in
+`src/shared/io/import-types.ts` (`visitImportKind`, cycle detection).
+Implemented as a generic `topologicalOrder(nodes, edges)` in `source-order.ts`;
+`planSourceOrder` builds the source edges and calls it.
 
 ### Transitivity is the sort's job, not the declaration's
 

@@ -84,4 +84,20 @@ describe("renderSourceCatalog", () => {
       ]),
     ).toBe("with-desc  [run]\n    Does a thing.\nno-desc  [acquire, run]\n");
   });
+
+  it("renders produces and the derived consumes when produces is present", () => {
+    expect(
+      renderSourceCatalog([
+        {
+          id: "civil",
+          phases: ["run"],
+          produces: ["CivilCases", "CivilCaseOfficers", "CivilCaseLinks"],
+        },
+      ]),
+    ).toBe(
+      "civil  [run]\n" +
+        "    produces: CivilCases, CivilCaseOfficers, CivilCaseLinks\n" +
+        "    consumes: LocationPaths, AgencyPersonnel\n",
+    );
+  });
 });

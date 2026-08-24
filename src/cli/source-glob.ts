@@ -24,13 +24,8 @@ export function globToRegExp(glob: string): RegExp {
   return new RegExp(`^${pattern}$`);
 }
 
-/**
- * Source folder names under `sources/` matching the glob, sorted by id — only
- * folders that are actually sources (a `run.ts` defines a source), so a shared
- * helper dir like `sources/lib/` is never treated as a source. Callers that
- * need a dependency-correct run order sort the matched set through
- * `planSourceOrder` (ADR 0021); this only resolves the glob.
- */
+// Glob-matched source folders (those with run.ts, so sources/lib/ is not one),
+// sorted by id. Run order is applied separately via planSourceOrder (ADR 0021).
 export async function matchSourceIds(
   sourcesRoot: string,
   glob: string,

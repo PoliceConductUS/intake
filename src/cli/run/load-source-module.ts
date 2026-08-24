@@ -55,13 +55,8 @@ export async function loadSourceModule(
   return module.run as SourceRun;
 }
 
-/**
- * Load and validate a source's `produces` declaration — the kinds it emits,
- * the input to run ordering (ADR 0021). Fails loud before any run when the
- * export is missing, not an array, empty, or names a kind that is not an
- * `ImportArtifactKind`. The consumed set is derived from `produces`, never
- * declared, so `produces` is the only ordering declaration a source carries.
- */
+// A source's declared produces (ADR 0021), validated fail-loud. The consumed
+// set is derived from it (see consumesOf), never declared.
 export async function loadSourceProduces(
   sourceId: string,
   sourcesRoot: string,

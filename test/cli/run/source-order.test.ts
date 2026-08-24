@@ -56,7 +56,6 @@ describe("planSourceOrder", () => {
       { id: "roster", produces: ["Agencies"] },
       { id: "census", produces: ["LocationPaths"] },
     ]);
-    // roster (Agencies) consumes LocationPaths → census must precede it.
     expect(order).toEqual(["census", "roster"]);
   });
 
@@ -150,7 +149,6 @@ describe("planSourceOrder", () => {
   });
 
   it("runs a single consumer alone with no producer in the set", () => {
-    // courtlistener consumes AgencyPersonnel/LocationPaths, neither produced here.
     const { order } = planSourceOrder([
       {
         id: "courtlistener",
