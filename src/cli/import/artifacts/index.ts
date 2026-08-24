@@ -4,6 +4,7 @@ import path from "node:path";
 import { Command } from "commander";
 import { importArtifacts, type ImportArtifactsResult } from "./config.js";
 import { formatDatabaseMutationCountLines } from "./io/DatabaseMutationCounts.js";
+import { formatSuppressedSkipLines } from "./suppressed-skips.js";
 import { createIntakeLog } from "../../../logging.js";
 import { createCommandDirectory } from "../../command-directory.js";
 import type {
@@ -144,6 +145,7 @@ export async function runImportArtifactsCommand(
       artifactsPath: artifactsRef,
       databaseMutations: result.counts.mutations,
       recordsByEntityType: result.counts.recordsByEntityType,
+      suppressedSkipCount: result.suppressedSkips.length,
     },
     "Artifacts import succeeded.",
   );
@@ -155,6 +157,10 @@ export async function runImportArtifactsCommand(
         ? "Created DatabaseMutations envelope. Database apply skipped."
         : "Imported artifact database records.",
       ...formatDatabaseMutationCountLines(result.counts),
+      // Printed with the counts, not buried in the log file: an operator
+      // reading "Imported artifact database records" needs to see in the same
+      // breath which records were deliberately left alone.
+      ...formatSuppressedSkipLines(result.suppressedSkips),
       "",
     ].join("\n"),
   };

@@ -61,6 +61,8 @@ import {
   writeResolvedProperty,
 } from "../../state/resolved-property/index.js";
 import { replayDatabaseMutations } from "../../replay/database-mutations/config.js";
+import type { SuppressedSkip } from "./operations.js";
+import { suppressedSkipLogFields } from "./suppressed-skips.js";
 import type { ImportRows, ResolvedProperties } from "./transform.js";
 import { transformArtifacts } from "./transform.js";
 import {
@@ -78,7 +80,16 @@ type ImportLogger = {
 };
 
 export type ImportArtifactsResult =
-  | { ok: true; counts: DatabaseMutationCounts }
+  | {
+      ok: true;
+      counts: DatabaseMutationCounts;
+      /**
+       * Records this run declined to write because a subject is suppressed.
+       * Required on the success shape so a caller that reports the run cannot
+       * report it as fully applied without seeing what was withheld.
+       */
+      suppressedSkips: readonly SuppressedSkip[];
+    }
   | { ok: false; error: string };
 
 export type ImportArtifactsCommandInput = {
@@ -1136,6 +1147,7 @@ async function writeDatabaseMutationsStage(
     context.rows,
     context.resolvedMappings,
   );
+  const suppressedSkips = context.databaseResult.operations.suppressedSkips;
   const databaseMutations = dataContext.toDatabaseMutations({
     namespace: context.artifacts.metadata.namespace,
     name: context.commandName,
@@ -1146,6 +1158,9 @@ async function writeDatabaseMutationsStage(
     ...(context.artifactMutation.applied
       ? { artifactMutation: context.artifactMutation.reference }
       : {}),
+    // Omitted rather than written empty so a clean import produces the same
+    // envelope it always did, and the field's presence means something.
+    ...(suppressedSkips.length > 0 ? { suppressedSkips } : {}),
   });
   await mkdir(context.commandInput.commandDirectory, { recursive: true });
   databaseMutations.spec.mutations =
@@ -1164,6 +1179,12 @@ async function writeDatabaseMutationsStage(
     { databaseMutationsPath: databaseMutationsEnvelope.path },
     "DatabaseMutations envelope written.",
   );
+  if (suppressedSkips.length > 0) {
+    context.commandInput.logger?.info(
+      suppressedSkipLogFields(suppressedSkips),
+      "Records skipped because a subject is suppressed.",
+    );
+  }
   context.commandInput.logger?.info(
     context.commandInput.dryImport === true
       ? "Dry run enabled; database create/read/update skipped."
@@ -1228,7 +1249,11 @@ export async function importArtifacts(
         "DatabaseMutations pipeline finished without mutation counts.",
       );
     }
-    return { ok: true, counts: context.databaseMutationCounts };
+    return {
+      ok: true,
+      counts: context.databaseMutationCounts,
+      suppressedSkips: context.databaseResult?.operations.suppressedSkips ?? [],
+    };
   } catch (error) {
     return { ok: false, error: errorMessage(error) };
   }

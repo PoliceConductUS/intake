@@ -11,6 +11,7 @@ import {
 } from "../../../src/cli/import/artifacts/plan-database-mutations.js";
 import { AgencyCreate } from "../../../src/cli/import/artifacts/io/generated-mutations/AgencyCreate.js";
 import { type ImportOperations } from "../../../src/cli/import/artifacts/operations.js";
+import { formatSuppressedSkipLines } from "../../../src/cli/import/artifacts/suppressed-skips.js";
 import type {
   ImportRows,
   LocationPathGeometryRow,
@@ -97,6 +98,29 @@ const rows: ImportRows = {
     },
   },
 };
+
+/** Every canonical row in `rows` already present in the database. */
+const existingCanonicalRecordResponses = [
+  {
+    pattern: /select \* from public\.agency\b/i,
+    rows: [{ ...rows.agencies[0], name: "Old Agency Name" }],
+  },
+  {
+    pattern: /select \* from public\.officers\b/i,
+    rows: [rows.officers[0]],
+  },
+  {
+    pattern: /select \* from public\.agency_officers\b/i,
+    rows: [rows.agencyOfficers[0]],
+  },
+];
+
+function suppressionResponse(subjectIds: readonly string[]) {
+  return {
+    pattern: /from public\.subject_suppression\b/i,
+    rows: subjectIds.map((subject_id) => ({ subject_id })),
+  };
+}
 
 const createOperations: ImportOperations = {
   locationPaths: {},
@@ -901,6 +925,149 @@ describe("planDatabaseMutations", () => {
     expect(client.queries.map(({ text }) => text.toLowerCase())).toContain(
       "rollback",
     );
+  });
+
+  test("an import with no suppressions reports no suppressed skips", async () => {
+    const client = new RecordingClient(undefined, undefined, [
+      ...existingCanonicalRecordResponses,
+    ]);
+
+    const result = await planDatabaseMutations(rows, {
+      env: { DATABASE_URL: "postgres://example/intake" },
+      clientFactory: () => client,
+    });
+
+    expect(result.operations.suppressedSkips).toEqual([]);
+    expect(
+      formatSuppressedSkipLines(result.operations.suppressedSkips),
+    ).toEqual([]);
+  });
+
+  test("a suppressed personnel record is skipped and named in the change diff", async () => {
+    const client = new RecordingClient(undefined, undefined, [
+      ...existingCanonicalRecordResponses,
+      suppressionResponse(["personnel-canonical-id"]),
+    ]);
+
+    const result = await planDatabaseMutations(rows, {
+      env: { DATABASE_URL: "postgres://example/intake" },
+      clientFactory: () => client,
+    });
+
+    // The agency is untouched by the suppression and still updates. Only the
+    // suppressed subject and the link that carries it are demoted.
+    expect(result.operations.agencies["agency-canonical-id"]).toBe("update");
+    expect(result.operations.officers["personnel-canonical-id"]).toBe("read");
+    expect(
+      result.operations.agencyOfficers["agency-personnel-canonical-id"],
+    ).toBe("read");
+
+    expect(result.operations.suppressedSkips).toEqual([
+      {
+        entity: "personnel",
+        recordId: "personnel-canonical-id",
+        suppressedSubjectIds: ["personnel-canonical-id"],
+        withheldColumns: [
+          "first_name",
+          "last_name",
+          "middle_name",
+          "prefix",
+          "suffix",
+          "slug",
+        ],
+      },
+      {
+        entity: "agencyPersonnel",
+        recordId: "agency-personnel-canonical-id",
+        // The link itself is not suppressed; the person it points at is. That
+        // distinction is the "why" the change diff has to carry.
+        suppressedSubjectIds: ["personnel-canonical-id"],
+        withheldColumns: [
+          "agency_id",
+          "personnel_id",
+          "badge_number",
+          "start_date",
+          "end_date",
+          "license_type",
+        ],
+      },
+    ]);
+
+    expect(
+      formatSuppressedSkipLines(result.operations.suppressedSkips),
+    ).toEqual([
+      "Records skipped because a subject is suppressed: 2",
+      "  Personnel personnel-canonical-id (suppressed); withheld: first_name, last_name, middle_name, prefix, suffix, slug",
+      "  AgencyPersonnel agency-personnel-canonical-id (suppressed via personnel-canonical-id); withheld: agency_id, personnel_id, badge_number, start_date, end_date, license_type",
+    ]);
+
+    expect(
+      client.queries.some(({ text }) => /update\s+public\./i.test(text)),
+    ).toBe(false);
+  });
+
+  test("a record with nothing to write is not counted as a suppressed skip", async () => {
+    // A suppressed record this import owns no columns on was always going to
+    // land on "read". Reporting it as a skipped takedown would overstate what
+    // suppression actually cost, which is the opposite of a truthful diff.
+    const unownedRows: ImportRows = {
+      ...rows,
+      ownedColumns: {
+        ...rows.ownedColumns,
+        officers: { "personnel-canonical-id": [] },
+        agencyOfficers: { "agency-personnel-canonical-id": [] },
+      },
+    };
+    const client = new RecordingClient(undefined, undefined, [
+      ...existingCanonicalRecordResponses,
+      suppressionResponse(["personnel-canonical-id"]),
+    ]);
+
+    const result = await planDatabaseMutations(unownedRows, {
+      env: { DATABASE_URL: "postgres://example/intake" },
+      clientFactory: () => client,
+    });
+
+    expect(result.operations.officers["personnel-canonical-id"]).toBe("read");
+    expect(result.operations.suppressedSkips).toEqual([]);
+  });
+
+  test("a suppressed agency also skips the links that hang off it", async () => {
+    const client = new RecordingClient(undefined, undefined, [
+      ...existingCanonicalRecordResponses,
+      suppressionResponse(["agency-canonical-id"]),
+    ]);
+
+    const result = await planDatabaseMutations(rows, {
+      env: { DATABASE_URL: "postgres://example/intake" },
+      clientFactory: () => client,
+    });
+
+    expect(result.operations.agencies["agency-canonical-id"]).toBe("read");
+    expect(result.operations.officers["personnel-canonical-id"]).toBe("update");
+    expect(
+      result.operations.agencyOfficers["agency-personnel-canonical-id"],
+    ).toBe("read");
+    expect(
+      result.operations.suppressedSkips.map(
+        ({ entity, recordId, suppressedSubjectIds }) => ({
+          entity,
+          recordId,
+          suppressedSubjectIds,
+        }),
+      ),
+    ).toEqual([
+      {
+        entity: "agency",
+        recordId: "agency-canonical-id",
+        suppressedSubjectIds: ["agency-canonical-id"],
+      },
+      {
+        entity: "agencyPersonnel",
+        recordId: "agency-personnel-canonical-id",
+        suppressedSubjectIds: ["agency-canonical-id"],
+      },
+    ]);
   });
 
   test("columns absent from artifacts ownership are left untouched", async () => {

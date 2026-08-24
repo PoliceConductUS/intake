@@ -79,7 +79,14 @@
       blocked in the database for the legacy corpus that renders the 132,109
       live personnel pages. Needs source record keys threaded through
       `ImportRows`.
-- [ ] Surface suppressed-record skips in the load's change diff.
+- [x] Surface suppressed-record skips in the load's change diff. Done in
+      INS-37: `DatabaseRowOperations.suppressedSkips` carries entity, canonical
+      ID, the suppressed subject IDs that caused the skip, and the withheld
+      columns; the CLI prints count and identity, the run log carries the
+      structured form, and the DatabaseMutations envelope metadata persists it.
+      Not covered there: a suppressed subject whose row does not exist is still
+      planned as `create`, because `enforce_entity_not_suppressed` fires on
+      UPDATE and DELETE only. Filed separately.
 - [ ] Public `/corrections/` page on policeconduct.org, reading
       `render.corrections_log`. Blocked until this migration is applied to the
       real database; a page querying a view that does not exist yet would fail

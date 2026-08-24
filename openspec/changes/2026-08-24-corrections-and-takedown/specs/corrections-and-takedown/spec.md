@@ -129,6 +129,38 @@ removed.
 - **WHEN** a later migration grants the ingestion role UPDATE on `subject_suppression`
 - **THEN** `assert_suppression_invariant()` returns `intake_can_modify_suppression`
 
+### Requirement: An Import Reports The Records It Skipped As Suppressed
+
+An import run MUST report the count and the identity of every record it
+declined to write because a subject is under an active suppression. A skipped
+record MUST be distinguishable from a record that simply had nothing to update:
+both are planned as `read`, and a change diff that cannot tell them apart
+cannot explain what the load did.
+
+A record the import owns no columns on MUST NOT be reported as a suppressed
+skip. Nothing was going to be written for it, and counting it would overstate
+what the suppression cost.
+
+#### Scenario: A suppressed record is named in the run output
+
+- **WHEN** an import would have updated a record whose subject is suppressed
+- **THEN** the run reports the count of skipped records, and for each one its entity type, canonical ID, the suppressed subject IDs that caused the skip, and the columns it withheld
+
+#### Scenario: A link is skipped for the subject it points at
+
+- **WHEN** an agency-personnel link is skipped because the person it points at is suppressed, not the link itself
+- **THEN** the report names the suppressed person as the cause, not the link
+
+#### Scenario: A record with nothing to write is not a skip
+
+- **WHEN** a suppressed record exists but this import owns no columns on it
+- **THEN** the run reports no suppressed skip for it
+
+#### Scenario: The skip survives the run
+
+- **WHEN** an import writes its DatabaseMutations envelope after skipping a suppressed record
+- **THEN** the envelope metadata carries the skip, so the next run's diff can see it
+
 ### Requirement: Suppression Actions Are Logged And Cannot Be Erased
 
 Applying and lifting a suppression MUST write an append-only audit event naming
