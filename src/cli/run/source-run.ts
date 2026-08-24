@@ -10,12 +10,26 @@ export type EmittedRecords = Record<string, { spec: unknown }>;
 export type SourceManifest = {
   artifacts: Array<{ kind: ImportArtifactKind; records: EmittedRecords }>;
 };
+export type ResolvedOfficer = { agencyOfficerId: string };
+
+// An intake-owned resolver injected into a source's run phase (ADR 0023). The
+// source calls it with source ids only; match, gate, and mint happen inside, and
+// it returns a namespace-local officer source id or null — a canonical id never
+// crosses the boundary.
+export type RunDataContext = {
+  resolveOfficer(input: {
+    agencyId: string;
+    officerName: string;
+  }): Promise<ResolvedOfficer | null>;
+};
+
 export type RunDeps = {
   paths: string[];
   readXlsx: typeof readXlsx;
   state: string;
   emit: (kind: string, key: string, spec: unknown) => Promise<void>;
   env?: Record<string, string | undefined>;
+  data?: RunDataContext;
   logger?: { info: (message: string) => void };
 };
 export type SourceRun = (deps: RunDeps) => Promise<SourceManifest>;
@@ -24,18 +38,16 @@ export type SourceRun = (deps: RunDeps) => Promise<SourceManifest>;
 // `sourceDir` (preserving the original format — html/csv/json, no transforms),
 // so the deterministic `run` (produce) phase can then read them. Network and
 // non-determinism live here, never in `run`.
-export type AcquireCivilCase = {
-  id: string;
-  cause_number: string;
-  primary_source_url: string | null;
-};
-
+// The acquire context returns only the smallest set of fields a source needs
+// today, and never a canonical id or foreign key (ADR 0023/0015): a source id
+// stands in for the agency's identity, name and location context drive the
+// source's own queries.
 export type AcquireAgencyRecord = {
+  agencyId: string;
+  name: string;
   state: string;
   county: string | null;
   place: string | null;
-  agency: Record<string, unknown>;
-  civilCases?: AcquireCivilCase[];
 };
 
 export type AcquireAgencyPage = {
@@ -50,7 +62,6 @@ export type AcquireDataContext = {
   agencies(query: {
     states?: string[];
     minOfficers?: number;
-    hasCivilCase?: boolean;
     cursor?: string;
     limit?: number;
   }): Promise<AcquireAgencyPage>;

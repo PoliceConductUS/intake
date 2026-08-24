@@ -109,7 +109,6 @@ import {
   type ResolvedProperties,
 } from "./transform.js";
 import { readDatabaseRecordsByColumn } from "../../database/entities.js";
-import { normalizeName, officerNameConfidence } from "./name-similarity.js";
 import type { SupportedTableName } from "../../database/schema.js";
 
 /** Tables whose slug uniqueness the DataContext enforces (generate-unique). */
@@ -2489,13 +2488,6 @@ export class DataContext {
   >();
   private readonly pendingRowReads = new Map<string, RowReadBatch>();
   private rowReadFlushScheduled = false;
-  // Per-agency officer roster, loaded once and reused across every civil-case
-  // search scoped to that agency id — turns thousands of per-party ILIKE queries
-  // into one roster load per agency, matched in memory.
-  private readonly agencyRosterCache = new Map<
-    string,
-    Promise<Record<string, unknown>[]>
-  >();
   readonly logger?: DataContextLogger;
   private readonly addressResolutionCache = new Map<
     string,
@@ -3995,142 +3987,7 @@ export class DataContext {
     return this.client;
   }
 
-  /** All agency_officers for one agency, loaded once per run and cached. */
-  private agencyRoster(agencyId: string): Promise<Record<string, unknown>[]> {
-    const cached = this.agencyRosterCache.get(agencyId);
-    if (cached !== undefined) return cached;
-    const loaded = this.databaseClient()
-      .query(
-        `select row_to_json(o.*) as officer,
-                row_to_json(a.*) as agency,
-                row_to_json(ao.*) as agency_officer,
-                row_to_json(lp.*) as location_path
-         from agency_officers ao
-         join officers o on o.id = ao.officer_id
-         join agency a on a.id = ao.agency_id
-         left join location_path lp on lp.location_path_id = a.location_path_id
-         where ao.agency_id = $1`,
-        [agencyId],
-      )
-      .then((result) => searchRows(result));
-    this.agencyRosterCache.set(agencyId, loaded);
-    return loaded;
-  }
-
-  async search(
-    input: AgencyOfficerSearch,
-  ): Promise<AgencyOfficerSearchResults> {
-    const officerName = valueAsString(input.officerName);
-    const agencyId = valueAsString(input.agencyId);
-    // The agency is identity, not a guess: the caller (an agency-driven acquire)
-    // knows the exact canonical agency this officer must belong to. Resolution
-    // is scoped to that agency's roster and nothing is ever matched by agency
-    // name, place, or state — there is no cross-agency fallback (ADR 0022).
-    if (agencyId === undefined) {
-      throw new Error(
-        "agency officer search requires an agencyId — officers resolve only within a known agency.",
-      );
-    }
-    if (officerName === undefined) return { results: [] };
-    const tokens = normalizeName(officerName)
-      .split(" ")
-      .filter((token) => token.length >= 2);
-    if (tokens.length === 0) return { results: [] };
-
-    // Pre-filter the agency's cached roster to officers sharing a party name
-    // token (a big agency's roster is thousands of rows), then score by name.
-    const roster = await this.agencyRoster(agencyId);
-    const rows = roster.filter((row) => {
-      const officer = (row.officer ?? {}) as Record<string, unknown>;
-      const haystack = `${normalizeName(String(officer.first_name ?? ""))} ${normalizeName(String(officer.last_name ?? ""))}`;
-      return tokens.some((token) => haystack.includes(token));
-    });
-
-    const scored: AgencyOfficerSearchResult[] = rows.map((row) => {
-      const officer = (row.officer ?? {}) as Record<string, unknown>;
-      const agency = (row.agency ?? {}) as Record<string, unknown>;
-      // First and last name scored separately (min of the two) so a strong
-      // last name can't carry a wrong first name; a middle initial on the
-      // party side is ignored and raises `uncertainty`.
-      const { confidence: officerConfidence, uncertainty: officerUncertainty } =
-        officerNameConfidence(officerName, officer);
-      // The agency is certain (matched by id), so the officer name is the only
-      // scored dimension.
-      const locationPath = row.location_path as
-        | Record<string, unknown>
-        | null
-        | undefined;
-      return {
-        confidence: officerConfidence,
-        agency: { confidence: 1, record: agency },
-        officer: {
-          confidence: officerConfidence,
-          uncertainty: officerUncertainty,
-          record: officer,
-        },
-        agencyOfficer: {
-          record: (row.agency_officer ?? {}) as Record<string, unknown>,
-        },
-        locationPath:
-          locationPath === null || locationPath === undefined
-            ? null
-            : { record: locationPath },
-      };
-    });
-
-    // Rank by confidence, then by the lowest officer-name uncertainty (fullest
-    // matching form) so a fuller-name match outranks a reduced-variant tie.
-    scored.sort(
-      (left, right) =>
-        right.confidence - left.confidence ||
-        left.officer.uncertainty - right.officer.uncertainty,
-    );
-    return { results: scored.slice(0, Math.max(0, input.topN)) };
-  }
 }
-
-export type AgencyOfficerSearch = {
-  // The exact canonical agency this officer must belong to; resolution is scoped
-  // to its roster and the agency is never matched by name (ADR 0022). Required.
-  agencyId: string;
-  officerName: string;
-  topN: number;
-  // Provenance for diagnostics only — never used to match. What the source
-  // recorded for the agency it queried.
-  agencyName?: string;
-  state?: string;
-  place?: string;
-};
-
-export type ScoredRecord = {
-  confidence: number;
-  record: Record<string, unknown>;
-};
-
-/**
- * An officer match, scored like {@link ScoredRecord} but also carrying the
- * `uncertainty` of the name variant that achieved the confidence (0 = matched
- * the name exactly as listed; higher = matched only after dropping name parts).
- */
-export type OfficerScoredRecord = ScoredRecord & {
-  uncertainty: number;
-};
-
-export type SearchRecord = {
-  record: Record<string, unknown>;
-};
-
-export type AgencyOfficerSearchResult = {
-  confidence: number;
-  agency: ScoredRecord;
-  officer: OfficerScoredRecord;
-  agencyOfficer: SearchRecord;
-  locationPath: SearchRecord | null;
-};
-
-export type AgencyOfficerSearchResults = {
-  results: AgencyOfficerSearchResult[];
-};
 
 function searchRows(result: unknown): Record<string, unknown>[] {
   return typeof result === "object" &&

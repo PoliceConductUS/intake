@@ -16,6 +16,7 @@ import {
 import { CivilCaseLinkSpec } from "./entity-specs.js";
 export { CivilCaseLinkSpec } from "./entity-specs.js";
 
+
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -51,25 +52,19 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (
-    options.relativeTo === undefined ||
-    options.relativeTo.trim().length === 0
-  ) {
-    throw new Error(
-      `Relative ${ref.kind ?? "CivilCaseLinks"} ref requires relativeTo.`,
-    );
+  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
+    throw new Error(`Relative ${ref.kind ?? "CivilCaseLinks"} ref requires relativeTo.`);
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(
-      `${ref.kind ?? "CivilCaseLinks"} ref.path escapes its directory: ${ref.path}`,
-    );
+    throw new Error(`${ref.kind ?? "CivilCaseLinks"} ref.path escapes its directory: ${ref.path}`);
   }
   return { ...ref, filePath: resolvedPath };
 }
+
 
 const metadataSchema = z
   .object({
@@ -83,7 +78,9 @@ const metadataSchema = z
   })
   .strict();
 
-const recordItemSchema = z.object({ spec: CivilCaseLinkSpec }).strict();
+const recordItemSchema = z
+  .object({ spec: CivilCaseLinkSpec })
+  .strict();
 
 export const schema = z
   .object({
@@ -101,14 +98,8 @@ export const schema = z
   .strict();
 
 export type CivilCaseLinksEnvelope = z.infer<typeof schema>;
-export type CivilCaseLinksInput = Omit<
-  CivilCaseLinksEnvelope,
-  "apiVersion" | "kind"
->;
-export type CivilCaseLinksResolvedEnvelope = Omit<
-  CivilCaseLinksEnvelope,
-  "spec"
-> & {
+export type CivilCaseLinksInput = Omit<CivilCaseLinksEnvelope, "apiVersion" | "kind">;
+export type CivilCaseLinksResolvedEnvelope = Omit<CivilCaseLinksEnvelope, "spec"> & {
   spec: Omit<CivilCaseLinksEnvelope["spec"], "records"> & {
     records: Record<string, z.infer<typeof CivilCaseLinkSpec>>;
   };
@@ -149,6 +140,8 @@ function validateRecord(
   return result.data;
 }
 
+
+
 async function readCivilCaseLinks(
   filePath: string,
   options: EnvelopeReadOptions & {
@@ -173,24 +166,13 @@ async function readCivilCaseLinks(
     raw?: boolean;
   } = {},
 ): Promise<CivilCaseLinksEnvelope | CivilCaseLinksResolvedEnvelope> {
-  const { contents, document } = await readYamlDocumentFile(
-    filePath,
-    "CivilCaseLinks",
-  );
-  if (
-    options.expectedSha256 !== undefined &&
-    yamlDigest(contents) !== options.expectedSha256
-  ) {
+  const { contents, document } = await readYamlDocumentFile(filePath, "CivilCaseLinks");
+  if (options.expectedSha256 !== undefined && yamlDigest(contents) !== options.expectedSha256) {
     throw new Error(`CivilCaseLinks sha256 mismatch: ${filePath}`);
   }
   const artifact = parseCivilCaseLinks(document);
-  if (
-    options.expectedKind !== undefined &&
-    artifact.kind !== options.expectedKind
-  ) {
-    throw new Error(
-      `CivilCaseLinks kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`,
-    );
+  if (options.expectedKind !== undefined && artifact.kind !== options.expectedKind) {
+    throw new Error(`CivilCaseLinks kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`);
   }
   if (
     options.expectedNamespace !== undefined &&
@@ -227,9 +209,7 @@ async function writeCivilCaseLinks(
   const artifactPath = yamlResourcePath(directory, artifact);
 
   if (options.externalizeRecords === true) {
-    throw new Error(
-      "CivilCaseLinks does not support externalized singular record envelopes.",
-    );
+    throw new Error("CivilCaseLinks does not support externalized singular record envelopes.");
   }
 
   const contents = await writeYamlDocumentFile(artifactPath, artifact);
@@ -243,6 +223,8 @@ export const CivilCaseLinks = {
   read: readCivilCaseLinks,
   write: writeCivilCaseLinks,
 };
+
+
 
 export const read = readCivilCaseLinks;
 export const write = writeCivilCaseLinks;

@@ -42,10 +42,11 @@ constructs a database client, and it never issues SQL.
   download — today `agencies(query)`, returning agencies with their location
   context (state, county, place) and attached civil-case summaries, ordered by
   officer count and keyset-paginated on `(officer_count desc, id desc)`
-- returning intake **canonical** entities (an agency's canonical `id`, name, and
-  address row) so an acquire can stamp that id onto the raw records it writes —
-  the acquire's output carries an exact id, resolved deterministically at the
-  source, not a name to be re-resolved at import
+- returning entities with a **namespace-local source id, never a canonical id**
+  (ADR 0023): an acquire stamps that source id onto the raw records it writes,
+  and the import resolves it to canonical through the ordinary resolver path — an
+  exact, ledger-backed id, not a name to be re-resolved at import, and not a
+  canonical id leaked into a source's output (ADR 0015)
 - reading only **committed** database rows (acquire precedes import in a run;
   there is no in-progress mutation state to merge, and none is exposed)
 
@@ -61,8 +62,9 @@ download nothing.
 - expose a database client, connection string, or raw query interface to a
   source
 - allow any write, DDL, or mutation
-- read or resolve another source's namespace-local names or ids (ADR 0015) —
-  it returns intake-root canonical entities only
+- read or resolve another source's namespace-local names or ids (ADR 0015), or
+  return a canonical id to a source — it returns the calling namespace's own
+  source ids (ADR 0023)
 - expose in-progress or uncommitted planning state (that belongs to the import
   `DataContext`, ADR 0011)
 - silently return empty on a misconfiguration (missing `DATABASE_URL`); it fails
@@ -77,10 +79,12 @@ runner or a service locator (mirroring ADR 0011's stance for the import context)
 - An acquire decides what to download from intake-owned canonical data without
   touching the database or knowing the schema; tests inject a fake
   `AcquireDataContext` with no database.
-- Because the facade returns canonical ids, an agency-driven acquire
-  (`courtlistener`, `clearinghouse-api`) stamps the exact `agency_id` onto each
-  raw record it writes, so the later import links by id with **no name-based
-  agency resolution** — the acquire, not the import, fixes agency identity.
+- Because the facade returns a namespace-local source id (ADR 0023), an
+  agency-driven acquire (`courtlistener`, `clearinghouse-api`) stamps that exact
+  `agency_id` onto each raw record it writes, so the later import links by
+  resolving that source id with **no name-based agency resolution** — the
+  acquire fixes agency identity, and no canonical id ever enters a source's
+  output.
 - Cross-source coupling stays out: an acquire reads canonical agencies, not
   another source's namespace (ADR 0015). Sources remain isolated and runnable in
   dependency order (ADR 0021).
@@ -96,8 +100,13 @@ runner or a service locator (mirroring ADR 0011's stance for the import context)
   isolation boundary.
 - Resolve agencies by name at import instead of stamping ids at acquire:
   rejected — name resolution is lossy and non-deterministic; the acquire already
-  knows exactly which canonical agency it is querying for, so it fixes the id
-  there (see the "no fallbacks / resolve by id only" rule this enables).
+  knows exactly which agency it is querying for, so it fixes identity there via a
+  namespace-local source id (ADR 0023), enabling the "no fallbacks / resolve by
+  id only" rule.
+- Return the agency's canonical id for the acquire to stamp (this ADR's original
+  decision): rejected — it leaks canonical identity into a source's output,
+  breaking ADR 0015; the acquire returns a namespace-local source id instead
+  (ADR 0023).
 - Reuse the import `DataContext` (ADR 0011) for acquire: rejected — that context
   owns canonical-id _assignment_, in-progress mutation state, and resolver
   caches for planning; acquire needs none of it and must not create or mutate.

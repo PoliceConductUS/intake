@@ -177,3 +177,62 @@ describe("SourceNameToCanonicalId records", () => {
     );
   });
 });
+
+describe("CanonicalIdToSourceName reverse lookup (ADR 0023)", () => {
+  test("sourceIdFor mints a stable source id that persists and resolves forward to the canonical", async () => {
+    const rootDir = await createTempRoot();
+    const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
+
+    const canonicalId = "agency-canonical-42";
+    const sourceId = await ledger.sourceIdFor("courtlistener", "Agency", canonicalId);
+    expect(sourceId).toMatch(/^[a-z][a-z0-9]+$/);
+
+    // a fresh accessor over the same root returns the same source id...
+    const reopened = createSourceNameToCanonicalIdLedger({ rootDir });
+    await expect(
+      reopened.sourceIdFor("courtlistener", "Agency", canonicalId),
+    ).resolves.toBe(sourceId);
+    // ...and the minted source id resolves forward to the canonical it came from
+    await expect(
+      reopened.read("courtlistener", "Agency", sourceId),
+    ).resolves.toBe(canonicalId);
+  });
+
+  test("round-trips a created entity: sourceIdFor returns the id findOrCreate was given", async () => {
+    const rootDir = await createTempRoot();
+    const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
+
+    const canonicalId = await ledger.findOrCreate("mn-post", "Agency", "agency-1");
+
+    // the reverse of a mapping created forward hands back the source's own id,
+    // not a fresh mint — across a reopened ledger (no in-memory cache to lean on)
+    const reopened = createSourceNameToCanonicalIdLedger({ rootDir });
+    await expect(
+      reopened.sourceIdFor("mn-post", "Agency", canonicalId),
+    ).resolves.toBe("agency-1");
+  });
+
+  test("keys the reverse by namespace and kind", async () => {
+    const rootDir = await createTempRoot();
+    const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
+
+    const canonicalId = "shared-canonical";
+    const courtlistenerId = await ledger.sourceIdFor(
+      "courtlistener",
+      "Agency",
+      canonicalId,
+    );
+    const clearinghouseId = await ledger.sourceIdFor(
+      "clearinghouse-api",
+      "Agency",
+      canonicalId,
+    );
+    const personnelId = await ledger.sourceIdFor(
+      "courtlistener",
+      "AgencyPersonnel",
+      canonicalId,
+    );
+
+    expect(new Set([courtlistenerId, clearinghouseId, personnelId]).size).toBe(3);
+  });
+});

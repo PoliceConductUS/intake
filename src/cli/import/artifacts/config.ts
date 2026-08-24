@@ -603,16 +603,6 @@ function addFederalAgencyBranchSourceFacades(
   }
 }
 
-// The caller's acceptance bars for a civil-case → agency_personnel match.
-// search() applies no threshold; this is where the import decides. The agency is
-// always known exactly (an agency_id stamped at acquire, ADR 0022), so the
-// officer name is the only dimension and it is gated on the name confidence.
-const CIVIL_CASE_OFFICER_NAME_FLOOR = 0.85;
-// Two same-agency officers whose name confidences sit within this band — and
-// whom the fuller-name variant (lower uncertainty) cannot separate — are an
-// unresolvable tie: attach to neither rather than guess wrong.
-const CIVIL_CASE_OFFICER_AMBIGUITY_BAND = 0.03;
-
 type CivilCaseRecordRef = {
   sourceName: string;
   spec: Record<string, unknown>;
@@ -638,90 +628,20 @@ function collectCivilCaseRecords(
   return records;
 }
 
-/**
- * Resolve each civil-case officer defendant against existing agency_personnel
- * (fuzzy, DataContext.search) and register only the cases that resolve at least
- * one officer — dropping cases (and their links) that resolve none, per the
- * "everything points to an officer" rule. Runs at import because search needs
- * the database.
- */
-async function addCivilCaseSourceFacades(
+// Cases before their officers and links so a same-source FK find hits an
+// already-added target.
+function addCivilCaseRecords(
   dataContext: DataContext,
   artifacts: ArtifactsEnvelope,
   logger?: ImportLogger,
-): Promise<void> {
+): void {
   const namespace = artifacts.metadata.namespace;
   const cases = collectCivilCaseRecords(artifacts, "CivilCases");
   const officers = collectCivilCaseRecords(artifacts, "CivilCaseOfficers");
   const links = collectCivilCaseRecords(artifacts, "CivilCaseLinks");
   if (cases.length === 0) return;
 
-  const resolvedOfficerId = new Map<string, string>();
-  const casesWithOfficer = new Set<string>();
-  for (const officer of officers) {
-    const agencyId = String(officer.spec.agency_id ?? "");
-    // Every civil-case officer carries the exact agency id its source stamped at
-    // acquire (ADR 0022). A missing one is a broken source contract, not a data
-    // case — fail loud rather than silently dropping the record.
-    if (agencyId === "") {
-      throw new Error(
-        `CivilCaseOfficer ${officer.sourceName} has no agency_id — an agency-driven source must stamp the canonical agency id (ADR 0022).`,
-      );
-    }
-    const match = await dataContext.search({
-      agencyId,
-      officerName: String(officer.spec.officer_name ?? ""),
-      agencyName: String(officer.spec.agency_name ?? ""),
-      state: String(officer.spec.state ?? ""),
-      topN: 5,
-    });
-    const best = match.results[0];
-    const second = match.results[1];
-    // Two officers in the agency the name can't separate (near-equal confidence
-    // and the fuller-name variant does not favour the top one) → ambiguous.
-    const ambiguous =
-      best !== undefined &&
-      second !== undefined &&
-      second.officer.confidence >= CIVIL_CASE_OFFICER_NAME_FLOOR &&
-      best.officer.confidence - second.officer.confidence <
-        CIVIL_CASE_OFFICER_AMBIGUITY_BAND &&
-      best.officer.uncertainty >= second.officer.uncertainty;
-    // The agency is certain (matched by id), so the gate is the officer name.
-    const accepted =
-      best !== undefined &&
-      !ambiguous &&
-      best.officer.confidence >= CIVIL_CASE_OFFICER_NAME_FLOOR;
-    logger?.info(
-      {
-        civilCase: String(officer.spec.civil_case_id),
-        officerName: String(officer.spec.officer_name ?? ""),
-        agencyName: String(officer.spec.agency_name ?? ""),
-        agencyId,
-        state: String(officer.spec.state ?? ""),
-        accepted,
-        ambiguous,
-        officerConfidence: best?.officer.confidence ?? null,
-        officerUncertainty: best?.officer.uncertainty ?? null,
-        matchedOfficer:
-          best === undefined
-            ? null
-            : `${String(best.officer.record.first_name ?? "")} ${String(best.officer.record.last_name ?? "")}`.trim(),
-        candidates: match.results.length,
-      },
-      `Civil-case officer ${accepted ? "resolved" : "unresolved"}: ${String(
-        officer.spec.officer_name ?? "",
-      )} @ ${String(officer.spec.agency_name ?? "")}`,
-    );
-    if (!accepted) continue;
-    resolvedOfficerId.set(
-      officer.sourceName,
-      String(best.agencyOfficer.record.id),
-    );
-    casesWithOfficer.add(String(officer.spec.civil_case_id));
-  }
-
   for (const civilCase of cases) {
-    if (!casesWithOfficer.has(civilCase.sourceName)) continue;
     dataContext.civilCaseFromSource({
       apiVersion: INTAKE_API_VERSION,
       namespace,
@@ -730,32 +650,16 @@ async function addCivilCaseSourceFacades(
       sourceFile: civilCase.sourceFile,
     });
   }
-  let linkedOfficers = 0;
-  // A case can name the same officer under two spellings, or be discovered via
-  // several agencies, so more than one source officer record can resolve to the
-  // same (civil_case, agency_officer). The table is unique on that pair — keep
-  // the first, drop the rest.
-  const registeredCaseOfficer = new Set<string>();
   for (const officer of officers) {
-    const agencyOfficerId = resolvedOfficerId.get(officer.sourceName);
-    if (agencyOfficerId === undefined) continue;
-    const civilCaseId = String(officer.spec.civil_case_id);
-    if (!casesWithOfficer.has(civilCaseId)) continue;
-    const pair = `${civilCaseId}|${agencyOfficerId}`;
-    if (registeredCaseOfficer.has(pair)) continue;
-    registeredCaseOfficer.add(pair);
     dataContext.civilCaseOfficerFromSource({
       apiVersion: INTAKE_API_VERSION,
       namespace,
       name: officer.sourceName,
-      spec: { ...officer.spec, agency_officer_id: agencyOfficerId },
+      spec: officer.spec,
       sourceFile: officer.sourceFile,
     });
-    linkedOfficers += 1;
   }
-  let linkedLinks = 0;
   for (const link of links) {
-    if (!casesWithOfficer.has(String(link.spec.civil_case_id))) continue;
     dataContext.civilCaseLinkFromSource({
       apiVersion: INTAKE_API_VERSION,
       namespace,
@@ -763,17 +667,11 @@ async function addCivilCaseSourceFacades(
       spec: link.spec,
       sourceFile: link.sourceFile,
     });
-    linkedLinks += 1;
   }
 
   logger?.info(
-    {
-      cases: casesWithOfficer.size,
-      officers: linkedOfficers,
-      links: linkedLinks,
-      skippedCases: cases.length - casesWithOfficer.size,
-    },
-    `Civil cases: linked ${casesWithOfficer.size} to ${linkedOfficers} officer(s); skipped ${cases.length - casesWithOfficer.size} with no resolved officer.`,
+    { cases: cases.length, officers: officers.length, links: links.length },
+    `Civil cases: registered ${cases.length} case(s), ${officers.length} officer link(s), ${links.length} source link(s).`,
   );
 }
 
@@ -1426,7 +1324,7 @@ async function writeDatabaseMutationsStage(
     addAgencyPhoneNumberSourceFacades(dataContext, artifacts);
     addFederalAgencySourceFacades(dataContext, artifacts);
     addFederalAgencyBranchSourceFacades(dataContext, artifacts);
-    await addCivilCaseSourceFacades(dataContext, artifacts, logger);
+    addCivilCaseRecords(dataContext, artifacts, logger);
     databaseMutations = await dataContext.toDatabaseMutations({
       namespace: artifacts.metadata.namespace,
       name: context.commandName,

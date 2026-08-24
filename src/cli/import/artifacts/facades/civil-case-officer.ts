@@ -1,6 +1,7 @@
 import {
   facadeCanonicalIdResolver,
   facadeForeignKeyResolver,
+  facadeLedgerForeignKeyResolver,
   type FacadeSource,
 } from "../resolver-kit.js";
 import {
@@ -43,6 +44,13 @@ export function createCivilCaseOfficerFacade(options: {
       KIND,
       "civil_case_id",
       "CivilCase",
+    ),
+    // Cross-source: the agency_personnel was created by a roster source, so its
+    // source id resolves through the ledger, not a same-run facade (ADR 0023).
+    agency_officer_id: facadeLedgerForeignKeyResolver<CivilCaseOfficerRow>(
+      KIND,
+      "agency_officer_id",
+      "AgencyPersonnel",
     ),
   };
   return new EntityFacade<CivilCaseOfficerRow, CivilCaseOfficerEnvelope>(

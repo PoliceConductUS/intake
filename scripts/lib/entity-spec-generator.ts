@@ -230,22 +230,11 @@ const DESCRIPTORS: EntityDescriptor[] = [
   {
     recordKind: "CivilCaseOfficer",
     table: "civil_case_officers",
-    // agency_officer_id is fuzzy-resolved at import against existing
-    // agency_officers from the defendant name fields below; the source never
-    // supplies it directly.
-    createRequired: ["id", "agency_officer_id"],
-    // These fuzzy-resolve agency_officer_id at import and are never written as
-    // columns, so they stay on the record spec but are dropped from *Create.
-    extras: {
-      state: "nonEmptyString",
-      // The exact agency id, when the source knows it (CourtListener discovers a
-      // docket by searching one agency), so import scopes the roster by id
-      // instead of fuzzy-matching the agency name. Clearinghouse omits it.
-      agency_id: "nonEmptyString.optional()",
-      agency_name: "nonEmptyString",
-      officer_name: "nonEmptyString",
-    },
-    createOmit: ["state", "agency_id", "agency_name", "officer_name"],
+    // Matches the table exactly: civil_case_id + agency_officer_id, both source
+    // ids the courtlistener run already stamped (ADR 0023) — agency_officer_id
+    // resolves cross-source via the ledger, civil_case_id same-source. No
+    // resolution inputs: the officer is matched in run, not at import.
+    createRequired: ["id"],
   },
   {
     recordKind: "CivilCaseLink",

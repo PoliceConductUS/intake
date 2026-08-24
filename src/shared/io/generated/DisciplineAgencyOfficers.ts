@@ -16,6 +16,7 @@ import {
 import { DisciplineAgencyOfficerSpec } from "./entity-specs.js";
 export { DisciplineAgencyOfficerSpec } from "./entity-specs.js";
 
+
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -51,25 +52,19 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (
-    options.relativeTo === undefined ||
-    options.relativeTo.trim().length === 0
-  ) {
-    throw new Error(
-      `Relative ${ref.kind ?? "DisciplineAgencyOfficers"} ref requires relativeTo.`,
-    );
+  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
+    throw new Error(`Relative ${ref.kind ?? "DisciplineAgencyOfficers"} ref requires relativeTo.`);
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(
-      `${ref.kind ?? "DisciplineAgencyOfficers"} ref.path escapes its directory: ${ref.path}`,
-    );
+    throw new Error(`${ref.kind ?? "DisciplineAgencyOfficers"} ref.path escapes its directory: ${ref.path}`);
   }
   return { ...ref, filePath: resolvedPath };
 }
+
 
 const metadataSchema = z
   .object({
@@ -103,14 +98,8 @@ export const schema = z
   .strict();
 
 export type DisciplineAgencyOfficersEnvelope = z.infer<typeof schema>;
-export type DisciplineAgencyOfficersInput = Omit<
-  DisciplineAgencyOfficersEnvelope,
-  "apiVersion" | "kind"
->;
-export type DisciplineAgencyOfficersResolvedEnvelope = Omit<
-  DisciplineAgencyOfficersEnvelope,
-  "spec"
-> & {
+export type DisciplineAgencyOfficersInput = Omit<DisciplineAgencyOfficersEnvelope, "apiVersion" | "kind">;
+export type DisciplineAgencyOfficersResolvedEnvelope = Omit<DisciplineAgencyOfficersEnvelope, "spec"> & {
   spec: Omit<DisciplineAgencyOfficersEnvelope["spec"], "records"> & {
     records: Record<string, z.infer<typeof DisciplineAgencyOfficerSpec>>;
   };
@@ -121,9 +110,7 @@ export type ImportArtifactWriteOptions = {
   recordsDirectory?: string;
 };
 
-function parseDisciplineAgencyOfficers(
-  value: unknown,
-): DisciplineAgencyOfficersEnvelope {
+function parseDisciplineAgencyOfficers(value: unknown): DisciplineAgencyOfficersEnvelope {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new Error(formatError(result.error));
@@ -131,9 +118,7 @@ function parseDisciplineAgencyOfficers(
   return result.data;
 }
 
-function newDisciplineAgencyOfficers(
-  input: DisciplineAgencyOfficersInput,
-): DisciplineAgencyOfficersEnvelope {
+function newDisciplineAgencyOfficers(input: DisciplineAgencyOfficersInput): DisciplineAgencyOfficersEnvelope {
   return parseDisciplineAgencyOfficers({
     apiVersion: INTAKE_API_VERSION,
     kind: "DisciplineAgencyOfficers",
@@ -154,6 +139,8 @@ function validateRecord(
   }
   return result.data;
 }
+
+
 
 async function readDisciplineAgencyOfficers(
   filePath: string,
@@ -178,27 +165,14 @@ async function readDisciplineAgencyOfficers(
     expectedSha256?: string;
     raw?: boolean;
   } = {},
-): Promise<
-  DisciplineAgencyOfficersEnvelope | DisciplineAgencyOfficersResolvedEnvelope
-> {
-  const { contents, document } = await readYamlDocumentFile(
-    filePath,
-    "DisciplineAgencyOfficers",
-  );
-  if (
-    options.expectedSha256 !== undefined &&
-    yamlDigest(contents) !== options.expectedSha256
-  ) {
+): Promise<DisciplineAgencyOfficersEnvelope | DisciplineAgencyOfficersResolvedEnvelope> {
+  const { contents, document } = await readYamlDocumentFile(filePath, "DisciplineAgencyOfficers");
+  if (options.expectedSha256 !== undefined && yamlDigest(contents) !== options.expectedSha256) {
     throw new Error(`DisciplineAgencyOfficers sha256 mismatch: ${filePath}`);
   }
   const artifact = parseDisciplineAgencyOfficers(document);
-  if (
-    options.expectedKind !== undefined &&
-    artifact.kind !== options.expectedKind
-  ) {
-    throw new Error(
-      `DisciplineAgencyOfficers kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`,
-    );
+  if (options.expectedKind !== undefined && artifact.kind !== options.expectedKind) {
+    throw new Error(`DisciplineAgencyOfficers kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`);
   }
   if (
     options.expectedNamespace !== undefined &&
@@ -212,10 +186,7 @@ async function readDisciplineAgencyOfficers(
     return artifact;
   }
 
-  const records: Record<
-    string,
-    z.infer<typeof DisciplineAgencyOfficerSpec>
-  > = {};
+  const records: Record<string, z.infer<typeof DisciplineAgencyOfficerSpec>> = {};
   for (const [recordKey, recordItem] of Object.entries(artifact.spec.records)) {
     records[recordKey] = validateRecord(filePath, recordKey, recordItem.spec);
   }
@@ -238,9 +209,7 @@ async function writeDisciplineAgencyOfficers(
   const artifactPath = yamlResourcePath(directory, artifact);
 
   if (options.externalizeRecords === true) {
-    throw new Error(
-      "DisciplineAgencyOfficers does not support externalized singular record envelopes.",
-    );
+    throw new Error("DisciplineAgencyOfficers does not support externalized singular record envelopes.");
   }
 
   const contents = await writeYamlDocumentFile(artifactPath, artifact);
@@ -254,6 +223,8 @@ export const DisciplineAgencyOfficers = {
   read: readDisciplineAgencyOfficers,
   write: writeDisciplineAgencyOfficers,
 };
+
+
 
 export const read = readDisciplineAgencyOfficers;
 export const write = writeDisciplineAgencyOfficers;

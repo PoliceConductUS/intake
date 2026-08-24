@@ -14,9 +14,65 @@ import {
 } from "./docket-cache.js";
 
 const API = "https://www.courtlistener.com/api/rest/v4";
-const STATE_COURTS: Record<string, string[]> = {
-  TX: ["txnd", "txsd", "txed", "txwd", "ca5"],
+// Every state/territory → its active federal district courts plus its circuit
+// (CourtListener court ids; circuit membership per 28 U.S.C. § 41). Any agency
+// with at least one officer is searched against the courts that would hear a
+// federal case naming it, so coverage is nationwide, not a debug subset.
+export const STATE_COURTS: Record<string, string[]> = {
+  AK: ["akd", "ca9"],
+  AL: ["almd", "alnd", "alsd", "ca11"],
+  AR: ["ared", "arwd", "ca8"],
+  AZ: ["azd", "ca9"],
+  CA: ["cacd", "caed", "cand", "casd", "ca9"],
+  CO: ["cod", "ca10"],
+  CT: ["ctd", "ca2"],
+  DC: ["dcd", "cadc"],
+  DE: ["ded", "ca3"],
+  FL: ["flmd", "flnd", "flsd", "ca11"],
+  GA: ["gamd", "gand", "gasd", "ca11"],
+  GU: ["gud", "ca9"],
+  HI: ["hid", "ca9"],
+  IA: ["iand", "iasd", "ca8"],
+  ID: ["idd", "ca9"],
+  IL: ["ilcd", "ilnd", "ilsd", "ca7"],
+  IN: ["innd", "insd", "ca7"],
+  KS: ["ksd", "ca10"],
+  KY: ["kyed", "kywd", "ca6"],
+  LA: ["laed", "lamd", "lawd", "ca5"],
+  MA: ["mad", "ca1"],
+  MD: ["mdd", "ca4"],
+  ME: ["med", "ca1"],
+  MI: ["mied", "miwd", "ca6"],
   MN: ["mnd", "ca8"],
+  MO: ["moed", "mowd", "ca8"],
+  MS: ["msnd", "mssd", "ca5"],
+  MT: ["mtd", "ca9"],
+  NC: ["nced", "ncmd", "ncwd", "ca4"],
+  ND: ["ndd", "ca8"],
+  NE: ["ned", "ca8"],
+  NH: ["nhd", "ca1"],
+  NJ: ["njd", "ca3"],
+  NM: ["nmd", "ca10"],
+  NV: ["nvd", "ca9"],
+  NY: ["nyed", "nynd", "nysd", "nywd", "ca2"],
+  OH: ["ohnd", "ohsd", "ca6"],
+  OK: ["oked", "oknd", "okwd", "ca10"],
+  OR: ["ord", "ca9"],
+  PA: ["paed", "pamd", "pawd", "ca3"],
+  PR: ["prd", "ca1"],
+  RI: ["rid", "ca1"],
+  SC: ["scd", "ca4"],
+  SD: ["sdd", "ca8"],
+  TN: ["tned", "tnmd", "tnwd", "ca6"],
+  TX: ["txed", "txnd", "txsd", "txwd", "ca5"],
+  UT: ["utd", "ca10"],
+  VA: ["vaed", "vawd", "ca4"],
+  VI: ["vid", "ca3"],
+  VT: ["vtd", "ca2"],
+  WA: ["waed", "wawd", "ca9"],
+  WI: ["wied", "wiwd", "ca7"],
+  WV: ["wvnd", "wvsd", "ca4"],
+  WY: ["wyd", "ca10"],
 };
 const DEFAULT_MIN_YEAR = 2022;
 const MAX_RETRIES = 5;
@@ -170,7 +226,6 @@ export const acquire: SourceAcquire = async ({
   };
   const minYear = Number(env.COURTLISTENER_MIN_YEAR ?? DEFAULT_MIN_YEAR);
   const filedAfter = `${minYear}-01-01`;
-  const onlyWithCases = env.COURTLISTENER_ONLY_WITH_CASES === "true";
 
   const cache = await loadDocketCache(state);
   const nowMs = Date.now();
@@ -226,7 +281,13 @@ export const acquire: SourceAcquire = async ({
       path.join(sourceDir, `${slug}.dockets.json`),
       JSON.stringify(
         {
-          agency: { id: agencyId, name: agencyName, state: agencyState },
+          agency: {
+            id: agencyId,
+            name: agencyName,
+            state: agencyState,
+            county,
+            place,
+          },
           dockets,
         },
         null,
@@ -240,14 +301,13 @@ export const acquire: SourceAcquire = async ({
     const page = await data.agencies({
       states: Object.keys(STATE_COURTS),
       minOfficers: 1,
-      hasCivilCase: onlyWithCases,
       cursor,
       limit: 50,
     });
     for (const record of page.items) {
       await processAgency(
-        str(record.agency.id),
-        str(record.agency.name).trim(),
+        record.agencyId,
+        record.name.trim(),
         record.state,
         record.place ?? "",
         record.county ?? "",

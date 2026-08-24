@@ -390,6 +390,33 @@ export function facadeForeignKeyResolver<Row>(
 }
 
 /**
+ * Cross-source foreign-key resolver (ADR 0023): the referenced entity was created
+ * by another source and is not a same-run facade, so the source id is resolved
+ * straight through the ledger. The source minted the mapping (via `sourceIdFor`)
+ * before emitting the record, so this reads an existing mapping — it never mints
+ * a phantom canonical.
+ */
+export function facadeLedgerForeignKeyResolver<Row>(
+  entityKind: string,
+  property: keyof Row & string,
+  targetKind: string,
+): Resolver<string, ResolverContext<Row, CanonicalIdBackend>> {
+  return new Resolver(async ({ facade, source, backend }) => {
+    const sourceId = valueAsString(facade.raw(property));
+    if (sourceId === undefined) {
+      throw new Error(
+        `Cannot resolve ${entityKind}.${property} for ${source.namespace}/${source.name}; source ${property} is missing.`,
+      );
+    }
+    return backend.findOrCreateCanonicalId({
+      namespace: source.namespace,
+      kind: targetKind,
+      sourceId,
+    });
+  });
+}
+
+/**
  * Nullable same-source foreign-key FIND resolver (ADR 0016 #4/#9). Like
  * `facadeForeignKeyResolver`, but an absent/null source reference resolves to
  * `null` (the FK is optional per the source spec) rather than failing; a present

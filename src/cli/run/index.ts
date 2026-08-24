@@ -18,6 +18,9 @@ import { buildArtifactsEnvelope } from "./source-run.js";
 import type { SourceManifest } from "./source-run.js";
 import { loadSourceModule, loadSourceProduces } from "./load-source-module.js";
 import { planSourceOrder } from "./source-order.js";
+import { defaultDatabaseClientFactory } from "../database/index.js";
+import { createSourceNameToCanonicalIdLedger } from "../state/source-name-to-canonical-id/index.js";
+import { createRunDataContext } from "./officer-resolver.js";
 import type { ImportArtifactKind } from "../../shared/io/index.js";
 import { readXlsx } from "./read-xlsx.js";
 import { sourceStateDir } from "./state.js";
@@ -150,14 +153,36 @@ export async function runSource(
     }
     const workspace = await deps.makeWorkspace(deps.env);
     const sink = deps.createEmitSink(workspace, sourceId);
-    const manifest = await run({
-      paths,
-      readXlsx: deps.readXlsx,
-      state: deps.state,
-      emit: sink.emit,
-      env: deps.env,
-      logger: deps.logger,
-    });
+    const databaseUrl = deps.env.DATABASE_URL;
+    const dbClient =
+      databaseUrl !== undefined && databaseUrl.trim().length > 0
+        ? defaultDatabaseClientFactory(databaseUrl)
+        : undefined;
+    if (dbClient !== undefined) await dbClient.connect();
+    let manifest;
+    try {
+      const data =
+        dbClient !== undefined
+          ? createRunDataContext(
+              dbClient,
+              createSourceNameToCanonicalIdLedger(
+                workspaceRoot !== undefined ? { rootDir: workspaceRoot } : {},
+              ),
+              sourceId,
+            )
+          : undefined;
+      manifest = await run({
+        paths,
+        readXlsx: deps.readXlsx,
+        state: deps.state,
+        emit: sink.emit,
+        env: deps.env,
+        data,
+        logger: deps.logger,
+      });
+    } finally {
+      if (dbClient !== undefined) await dbClient.end();
+    }
     // Apply excluded.yaml at Artifacts generation (with FK cascade) so an
     // excluded record never enters the Artifacts — the import then sees a clean
     // envelope and needs no exclusion of its own.

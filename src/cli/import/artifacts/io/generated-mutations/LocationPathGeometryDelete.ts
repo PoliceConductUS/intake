@@ -13,6 +13,7 @@ import {
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
 
+
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -48,22 +49,15 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (
-    options.relativeTo === undefined ||
-    options.relativeTo.trim().length === 0
-  ) {
-    throw new Error(
-      `Relative ${ref.kind ?? "LocationPathGeometryDelete"} ref requires relativeTo.`,
-    );
+  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
+    throw new Error(`Relative ${ref.kind ?? "LocationPathGeometryDelete"} ref requires relativeTo.`);
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(
-      `${ref.kind ?? "LocationPathGeometryDelete"} ref.path escapes its directory: ${ref.path}`,
-    );
+    throw new Error(`${ref.kind ?? "LocationPathGeometryDelete"} ref.path escapes its directory: ${ref.path}`);
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -77,6 +71,8 @@ const metadataSchema = z
   })
   .strict();
 
+
+
 export const specSchema = z.object({}).strict();
 
 export const schema = z
@@ -89,14 +85,9 @@ export const schema = z
   .strict();
 
 export type LocationPathGeometryDeleteEnvelope = z.infer<typeof schema>;
-export type LocationPathGeometryDeleteInput = Omit<
-  LocationPathGeometryDeleteEnvelope,
-  "apiVersion" | "kind"
->;
+export type LocationPathGeometryDeleteInput = Omit<LocationPathGeometryDeleteEnvelope, "apiVersion" | "kind">;
 
-function parseLocationPathGeometryDelete(
-  value: unknown,
-): LocationPathGeometryDeleteEnvelope {
+function parseLocationPathGeometryDelete(value: unknown): LocationPathGeometryDeleteEnvelope {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new Error(formatError(result.error));
@@ -104,9 +95,7 @@ function parseLocationPathGeometryDelete(
   return result.data;
 }
 
-function newLocationPathGeometryDelete(
-  input: LocationPathGeometryDeleteInput,
-): LocationPathGeometryDeleteEnvelope {
+function newLocationPathGeometryDelete(input: LocationPathGeometryDeleteInput): LocationPathGeometryDeleteEnvelope {
   return parseLocationPathGeometryDelete({
     apiVersion: INTAKE_API_VERSION,
     kind: "LocationPathGeometryDelete",
@@ -120,18 +109,11 @@ async function readLocationPathGeometryDelete(
 ): Promise<LocationPathGeometryDeleteEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "LocationPathGeometryDelete") {
-    throw new Error(
-      `LocationPathGeometryDelete ref.kind ${ref.kind} does not match expected kind LocationPathGeometryDelete: ${ref.filePath}`,
-    );
+    throw new Error(`LocationPathGeometryDelete ref.kind ${ref.kind} does not match expected kind LocationPathGeometryDelete: ${ref.filePath}`);
   }
-  const { contents, document } = await readYamlDocumentFile(
-    ref.filePath,
-    "LocationPathGeometryDelete",
-  );
+  const { contents, document } = await readYamlDocumentFile(ref.filePath, "LocationPathGeometryDelete");
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
-    throw new Error(
-      `LocationPathGeometryDelete sha256 mismatch: ${ref.filePath}`,
-    );
+    throw new Error(`LocationPathGeometryDelete sha256 mismatch: ${ref.filePath}`);
   }
   const envelope = parseLocationPathGeometryDelete(document);
   if (

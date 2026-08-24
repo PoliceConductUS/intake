@@ -15,7 +15,7 @@ import type {
 import { isPersonName, slugify } from "../lib/civil-defendants.js";
 
 export const description =
-  "CourtListener — federal dockets naming TX/MN agencies, linked to any officer named as a party (plaintiff or defendant) via the fuzzy agency_personnel resolver.";
+  "CourtListener — federal dockets naming any U.S. agency with at least one officer (active or not), linked to any officer named as a party (plaintiff or defendant) via the fuzzy agency_personnel resolver.";
 
 const COURTLISTENER = "https://www.courtlistener.com";
 
@@ -32,7 +32,13 @@ type Docket = {
 };
 
 type AgencyDockets = {
-  agency: { id?: string; name?: string; state?: string };
+  // `id` is the namespace-local agency source id the acquire stamped (ADR 0023);
+  // the import resolves it back to the canonical agency.
+  agency: {
+    id?: string;
+    name?: string;
+    state?: string;
+  };
   dockets?: Docket[];
 };
 
@@ -46,8 +52,13 @@ function docketUrl(docket: Docket): string {
   return url.startsWith("http") ? url : `${COURTLISTENER}${url}`;
 }
 
-export const run: SourceRun = async ({ paths, logger }: RunDeps) => {
+export const run: SourceRun = async ({ paths, data, logger }: RunDeps) => {
   const log = logger ?? { info() {} };
+  if (data === undefined) {
+    throw new Error(
+      "courtlistener: run requires a data context (DATABASE_URL) to resolve officers (ADR 0023).",
+    );
+  }
   const envelopePaths = paths.filter((p) => p.endsWith(".dockets.json"));
   const files =
     envelopePaths.length > 0
@@ -60,18 +71,27 @@ export const run: SourceRun = async ({ paths, logger }: RunDeps) => {
 
   for (const file of files) {
     const envelope = JSON.parse(await readFile(file, "utf8")) as AgencyDockets;
-    const agencyName = text(envelope.agency.name);
     const agencyId = text(envelope.agency.id);
+    const agencyName = text(envelope.agency.name);
     const state = text(envelope.agency.state).toUpperCase();
-    if (agencyName === "" || state === "") continue;
+    if (agencyId === "" || agencyName === "" || state === "") continue;
 
     for (const docket of envelope.dockets ?? []) {
       const title = text(docket.case_name);
       const filed = text(docket.date_filed);
       if (title === "" || !/^\d{4}-\d{2}-\d{2}/.test(filed)) continue;
       const caseKey = `cl-${docket.id}`;
-      const url = docketUrl(docket);
 
+      const resolvedOfficerIds = new Set<string>();
+      for (const party of docket.parties ?? []) {
+        const officerName = text(party);
+        if (!isPersonName(officerName)) continue;
+        const match = await data.resolveOfficer({ agencyId, officerName });
+        if (match !== null) resolvedOfficerIds.add(match.agencyOfficerId);
+      }
+      if (resolvedOfficerIds.size === 0) continue;
+
+      const url = docketUrl(docket);
       const terminated = text(docket.date_terminated);
       civilCases[caseKey] = {
         spec: {
@@ -98,16 +118,11 @@ export const run: SourceRun = async ({ paths, logger }: RunDeps) => {
           },
         };
       }
-      for (const party of docket.parties ?? []) {
-        const officerName = text(party);
-        if (!isPersonName(officerName)) continue;
-        officers[`${caseKey}|${slugify(officerName)}`] = {
+      for (const agencyOfficerId of resolvedOfficerIds) {
+        officers[`${caseKey}|${agencyOfficerId}`] = {
           spec: {
             civil_case_id: caseKey,
-            state,
-            agency_id: agencyId,
-            agency_name: agencyName,
-            officer_name: officerName,
+            agency_officer_id: agencyOfficerId,
           },
         };
       }
@@ -115,8 +130,8 @@ export const run: SourceRun = async ({ paths, logger }: RunDeps) => {
   }
 
   log.info(
-    `courtlistener: ${Object.keys(civilCases).length} dockets, ` +
-      `${Object.keys(officers).length} candidate officer parties, ${Object.keys(links).length} links (linking resolved at import)`,
+    `courtlistener: ${Object.keys(civilCases).length} cases with a resolved officer, ` +
+      `${Object.keys(officers).length} case-officer links, ${Object.keys(links).length} source links`,
   );
 
   return {

@@ -13,6 +13,7 @@ import {
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
 
+
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -48,22 +49,15 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (
-    options.relativeTo === undefined ||
-    options.relativeTo.trim().length === 0
-  ) {
-    throw new Error(
-      `Relative ${ref.kind ?? "CoverageLinkDelete"} ref requires relativeTo.`,
-    );
+  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
+    throw new Error(`Relative ${ref.kind ?? "CoverageLinkDelete"} ref requires relativeTo.`);
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(
-      `${ref.kind ?? "CoverageLinkDelete"} ref.path escapes its directory: ${ref.path}`,
-    );
+    throw new Error(`${ref.kind ?? "CoverageLinkDelete"} ref.path escapes its directory: ${ref.path}`);
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -77,6 +71,8 @@ const metadataSchema = z
   })
   .strict();
 
+
+
 export const specSchema = z.object({}).strict();
 
 export const schema = z
@@ -89,10 +85,7 @@ export const schema = z
   .strict();
 
 export type CoverageLinkDeleteEnvelope = z.infer<typeof schema>;
-export type CoverageLinkDeleteInput = Omit<
-  CoverageLinkDeleteEnvelope,
-  "apiVersion" | "kind"
->;
+export type CoverageLinkDeleteInput = Omit<CoverageLinkDeleteEnvelope, "apiVersion" | "kind">;
 
 function parseCoverageLinkDelete(value: unknown): CoverageLinkDeleteEnvelope {
   const result = schema.safeParse(value);
@@ -102,9 +95,7 @@ function parseCoverageLinkDelete(value: unknown): CoverageLinkDeleteEnvelope {
   return result.data;
 }
 
-function newCoverageLinkDelete(
-  input: CoverageLinkDeleteInput,
-): CoverageLinkDeleteEnvelope {
+function newCoverageLinkDelete(input: CoverageLinkDeleteInput): CoverageLinkDeleteEnvelope {
   return parseCoverageLinkDelete({
     apiVersion: INTAKE_API_VERSION,
     kind: "CoverageLinkDelete",
@@ -118,14 +109,9 @@ async function readCoverageLinkDelete(
 ): Promise<CoverageLinkDeleteEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "CoverageLinkDelete") {
-    throw new Error(
-      `CoverageLinkDelete ref.kind ${ref.kind} does not match expected kind CoverageLinkDelete: ${ref.filePath}`,
-    );
+    throw new Error(`CoverageLinkDelete ref.kind ${ref.kind} does not match expected kind CoverageLinkDelete: ${ref.filePath}`);
   }
-  const { contents, document } = await readYamlDocumentFile(
-    ref.filePath,
-    "CoverageLinkDelete",
-  );
+  const { contents, document } = await readYamlDocumentFile(ref.filePath, "CoverageLinkDelete");
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
     throw new Error(`CoverageLinkDelete sha256 mismatch: ${ref.filePath}`);
   }

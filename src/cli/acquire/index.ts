@@ -17,6 +17,7 @@ import type {
 } from "../run/source-run.js";
 import { defaultDatabaseClientFactory } from "../database/index.js";
 import { createAcquireDataContext } from "./acquire-data-context.js";
+import { createSourceNameToCanonicalIdLedger } from "../state/source-name-to-canonical-id/index.js";
 import { loadSourceAcquire } from "../run/load-source-module.js";
 import { sourceStateDir } from "../run/state.js";
 import { matchSourceIds } from "../source-glob.js";
@@ -147,18 +148,24 @@ export const registerCliCommand: RegisterCliCommand = (
             ? defaultDatabaseClientFactory(databaseUrl)
             : undefined;
         if (client !== undefined) await client.connect();
-        const data: AcquireDataContext =
-          client !== undefined
-            ? createAcquireDataContext(client)
-            : {
-                agencies: () => {
-                  throw new Error(
-                    "DATABASE_URL is required for acquire data access (agencies).",
-                  );
-                },
-              };
+        const ledger = createSourceNameToCanonicalIdLedger({
+          rootDir: workspace,
+        });
+        const noDatabase: AcquireDataContext = {
+          agencies: () => {
+            throw new Error(
+              "DATABASE_URL is required for acquire data access (agencies).",
+            );
+          },
+        };
         try {
           for (const sourceId of sourceIds) {
+            // The data context is bound to the calling source's namespace so the
+            // agency source ids it hands back are that namespace's own (ADR 0023).
+            const data: AcquireDataContext =
+              client !== undefined
+                ? createAcquireDataContext(client, ledger, sourceId)
+                : noDatabase;
             const result = await acquireSource(sourceId, {
               sourcesRoot,
               env,
