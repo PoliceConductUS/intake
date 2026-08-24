@@ -16,6 +16,7 @@
     "setup": "bash scripts/bootstrap-dev.sh",
     "doctor": "bash scripts/bootstrap-dev.sh --check",
     "assert:provenance": "tsx scripts/assert-provenance-invariant.ts",
+    "assert:suppression": "tsx scripts/assert-suppression-invariant.ts",
     "cli": "tsx src/cli/index.ts",
     "link-seed": "bash scripts/link-seed.sh",
     "format": "prettier --write \"**/*.{json,md,ts,yml,yaml}\"",
@@ -35,6 +36,7 @@
     "pretypecheck": "npm run generate:envelope-types",
     "test": "vitest run",
     "test:vitest": "vitest run",
+    "test:schema": "vitest run --no-file-parallelism test/schema",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "validate": "npm run format:check && npm run lint && npm run test:vitest && npm run build && npm run openspec:validate"
   },
