@@ -3343,9 +3343,49 @@ export class DataContext {
 
   private async flushRowReads(): Promise<void> {
     this.rowReadFlushScheduled = false;
-    const batches = [...this.pendingRowReads.values()];
+    const batches = [...this.pendingRowReads.values()].filter(
+      (batch) => batch.requests.size > 0,
+    );
     this.pendingRowReads.clear();
-    await Promise.all(batches.map((batch) => this.runRowReadBatch(batch)));
+    if (batches.length === 0) return;
+    if (batches.length === 1) {
+      await this.runRowReadBatch(batches[0]);
+      return;
+    }
+    // Fold the pending per-table batches into one UNION ALL round-trip rather
+    // than a concurrent query each (which overlaps on the single read client).
+    const selects = batches.map(
+      (batch, index) =>
+        `select ${index} as __batch, row_to_json(t.*) as __row ` +
+        `from ${batch.tableName} t where ${batch.identityColumn} = any($${index + 1})`,
+    );
+    const params = batches.map((batch) => [...new Set(batch.requests.keys())]);
+    try {
+      const result = await this.databaseClient().query(
+        selects.join(" union all "),
+        params,
+      );
+      const rowsByBatch = batches.map(
+        () => new Map<string, Record<string, unknown>>(),
+      );
+      for (const item of searchRows(result)) {
+        const index = Number(item.__batch);
+        const row = (item.__row ?? {}) as Record<string, unknown>;
+        const id = row[batches[index].identityColumn];
+        if (id !== undefined && id !== null) {
+          rowsByBatch[index].set(String(id), row);
+        }
+      }
+      batches.forEach((batch, index) => {
+        for (const [id, request] of batch.requests) {
+          request.resolve(rowsByBatch[index].get(id));
+        }
+      });
+    } catch (error) {
+      for (const batch of batches) {
+        for (const request of batch.requests.values()) request.reject(error);
+      }
+    }
   }
 
   private async runRowReadBatch(batch: RowReadBatch): Promise<void> {
