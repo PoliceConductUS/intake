@@ -163,7 +163,13 @@ function assertNotBotChallenge(html: string, label: string): void {
 }
 
 function stripTags(value: string): string {
-  return value.replace(/<[^>]*>/g, "");
+  let current = value;
+  let previous: string;
+  do {
+    previous = current;
+    current = current.replace(/<[^>]*>/g, "");
+  } while (current !== previous);
+  return current;
 }
 
 function normalizeText(text: string): string {

@@ -1,4 +1,4 @@
-import { access, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import type { ImportArtifactKind } from "../../src/shared/io/index.js";
 
 export const produces: readonly ImportArtifactKind[] = [
@@ -30,15 +30,14 @@ async function loadYamlList<T>(
   key: string,
 ): Promise<T[]> {
   const filePath = path.join(stateDir, file);
+  let contents: string;
   try {
-    await access(filePath);
-  } catch {
-    return [];
+    contents = await readFile(filePath, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
   }
-  const parsed = parseYaml(await readFile(filePath, "utf8")) as Record<
-    string,
-    T[] | undefined
-  >;
+  const parsed = parseYaml(contents) as Record<string, T[] | undefined>;
   return parsed[key] ?? [];
 }
 
