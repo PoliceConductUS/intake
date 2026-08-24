@@ -1,0 +1,68 @@
+# Guards the provenance invariant against later migrations.
+#
+# The point of this workflow is the `assert:provenance` step. The invariant is
+# enforced by the migration that created it, and a schema invariant checked
+# only by its own migration decays the moment someone writes the next one --
+# a later migration that grants `page_renderer` a base table, or that opens the
+# personnel publication gate, would silently reopen the hole. This runs the
+# assertion against a real, fully migrated database on every change so that
+# fails the build instead.
+#
+# Deliberately narrow: it does not run `npm run validate`. `format:check` and
+# `lint:sql` are currently failing on main for pre-existing reasons unrelated
+# to provenance, and a gate that is red on arrival gets ignored. Widening this
+# to the full validate script should follow cleaning those up.
+
+name: provenance invariant
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  schema:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_TELEMETRY_DISABLED: "1"
+      # `supabase start` publishes Postgres on this port; both steps below
+      # talk to the same fully migrated database.
+      DB_URL: postgres://postgres:postgres@127.0.0.1:54322/postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - run: npm ci
+
+      # Uses the pinned `supabase` devDependency rather than a separately
+      # versioned CLI action, so CI and local runs apply migrations with the
+      # same tool.
+      - name: Start Supabase
+        run: npm run supabase:start
+
+      # Applies the full migration set, including the provenance migration,
+      # on top of the real upstream schema.
+      - name: Apply migrations
+        run: npm run supabase:reset
+
+      # Real-schema mode: the suite detects the migrated database and asserts
+      # against the real agency/officers definitions rather than the fixture.
+      - name: Schema tests
+        run: npx vitest run test/schema
+        env:
+          TEST_DATABASE_URL: ${{ env.DB_URL }}
+
+      # The regression gate. Must run after migrations, against the database
+      # they produced.
+      - name: Assert provenance invariant
+        run: npm run assert:provenance
+        env:
+          DATABASE_URL: ${{ env.DB_URL }}
+
+      - name: Stop Supabase
+        if: always()
+        run: npm run supabase:stop
