@@ -24,11 +24,14 @@ describe("source run order over the real sources", () => {
 
     // Independent oracle: hand-derived from each source's declared produces and
     // the FK graph (see the derive-source-run-order design doc).
+    // `com.youtube.donutoperator` produces only CoverageLinks, whose FK targets
+    // are empty, so it is unconstrained and lands by the id tiebreak.
     expect(order).toEqual([
       "us-census-gazetteer",
       "gov.tx.tcole",
       "mn-post",
       "clearinghouse-api",
+      "com.youtube.donutoperator",
       "courtlistener",
       "gov.azpost.roster",
       "gov.us.federal-le",
