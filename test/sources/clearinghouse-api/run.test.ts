@@ -10,12 +10,12 @@ afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map((d) => rm(d, { recursive: true })));
 });
 
-const data = {
+const envelope = {
+  agency: { id: "a1", name: "Austin Police Department", state: "TX" },
   cases: [
     {
       id: 100,
       name: "Doe v. Austin PD",
-      state: "Texas",
       court: "W.D. Tex.",
       filing_date: "2023-05-01",
       filing_year: 2023,
@@ -27,64 +27,112 @@ const data = {
         { name: "John Smith" },
       ],
     },
-    // California -> filtered out (no roster)
-    { id: 200, name: "Roe v. LAPD", state: "California", filing_year: 2023 },
-    // Texas but before the year cutoff -> filtered out
-    { id: 300, name: "Old v. TX", state: "Texas", filing_year: 2019 },
-    // Minnesota but no filing date -> skipped
-    { id: 400, name: "NoDate v. MN", state: "Minnesota", filing_year: null },
+    // pre-cutoff year -> filtered
+    {
+      id: 300,
+      name: "Old v. Austin",
+      filing_year: 2019,
+      case_defendants: [{ institution: "Austin Police Department" }],
+    },
+    // full-text noise: no defendant names this agency -> guard skips
+    {
+      id: 500,
+      name: "Unrelated v. Dallas",
+      filing_date: "2023-06-01",
+      filing_year: 2023,
+      case_defendants: [
+        { institution: "Dallas Police Department" },
+        { name: "John Smith" },
+      ],
+    },
+    // names the agency, but the person defendant resolves to no officer -> skipped
+    {
+      id: 600,
+      name: "NoOfficer v. Austin",
+      filing_date: "2023-07-01",
+      filing_year: 2023,
+      case_defendants: [
+        { institution: "Austin Police Department" },
+        { name: "Mary Jones" },
+      ],
+    },
   ],
 };
 
-async function runWith(env?: Record<string, string>) {
+function fakeData(resolved: Record<string, string> = { "John Smith": "ao-1" }) {
+  const calls: Array<{ agencyId: string; officerName: string }> = [];
+  return {
+    calls,
+    resolveOfficer: async ({
+      agencyId,
+      officerName,
+    }: {
+      agencyId: string;
+      officerName: string;
+    }) => {
+      calls.push({ agencyId, officerName });
+      const id = resolved[officerName];
+      return id === undefined ? null : { agencyOfficerId: id };
+    },
+  };
+}
+
+async function runWith(
+  data = fakeData(),
+  env: Record<string, string> = {},
+) {
   const dir = await mkdtemp(path.join(tmpdir(), "clearinghouse-"));
   tempDirs.push(dir);
-  const jsonPath = path.join(dir, "clearinghouse-cases.json");
-  await writeFile(jsonPath, JSON.stringify(data));
+  const file = path.join(dir, "austin-police-department.cases.json");
+  await writeFile(file, JSON.stringify(envelope));
   return run({
-    paths: [jsonPath],
+    paths: [file],
     readXlsx,
     state: dir,
     emit: async () => {},
+    data,
     logger: { info: () => {} },
-    env: env ?? {},
+    env,
   });
 }
 
 describe("clearinghouse-api run", () => {
-  it("emits TX/MN cases since the cutoff with the officer defendant and link", async () => {
-    const manifest = await runWith();
+  it("keeps only cases that name the agency and resolve an officer", async () => {
+    const data = fakeData();
+    const manifest = await runWith(data);
     const byKind = Object.fromEntries(
       manifest.artifacts.map((a) => [a.kind, a.records]),
     );
 
-    // Only case 100 survives (TX, 2023, has a filing date).
-    expect(Object.keys(byKind.CivilCases)).toEqual(["100"]);
-    expect(byKind.CivilCases["100"].spec).toMatchObject({
+    // 300 (year), 500 (guard), 600 (no officer) all drop; only 100 survives.
+    expect(Object.keys(byKind.CivilCases)).toEqual(["ch-100"]);
+    expect(byKind.CivilCases["ch-100"].spec).toMatchObject({
       title: "Doe v. Austin PD",
-      cause_number: "1:23-cv-001",
       filed_date: "2023-05-01",
-      claims_summary: "Excessive force claim.",
       location_path_id: "tx",
       primary_source_url: "https://clearinghouse.net/case/100",
     });
 
-    // "John Smith" is the only person defendant; "City of Austin" is the agency.
-    expect(Object.keys(byKind.CivilCaseOfficers)).toEqual(["100|john-smith"]);
-    expect(byKind.CivilCaseOfficers["100|john-smith"].spec).toEqual({
-      civil_case_id: "100",
-      state: "TX",
-      agency_name: "Austin Police Department",
-      officer_name: "John Smith",
+    expect(Object.keys(byKind.CivilCaseOfficers)).toEqual(["ch-100|ao-1"]);
+    expect(byKind.CivilCaseOfficers["ch-100|ao-1"].spec).toEqual({
+      civil_case_id: "ch-100",
+      agency_officer_id: "ao-1",
     });
+    expect(Object.keys(byKind.CivilCaseLinks)).toEqual(["ch-100|clearinghouse"]);
 
-    expect(Object.keys(byKind.CivilCaseLinks)).toEqual(["100|clearinghouse"]);
+    // The guard runs before resolution: case 500 (Dallas) is never resolved, so
+    // "John Smith" is only asked for cases 100 and 600 (both name Austin).
+    expect(data.calls).toEqual([
+      { agencyId: "a1", officerName: "John Smith" },
+      { agencyId: "a1", officerName: "Mary Jones" },
+    ]);
   });
 
   it("honors the CLEARINGHOUSE_MIN_YEAR override", async () => {
-    const manifest = await runWith({ CLEARINGHOUSE_MIN_YEAR: "2024" });
+    const manifest = await runWith(fakeData(), {
+      CLEARINGHOUSE_MIN_YEAR: "2024",
+    });
     const cases = manifest.artifacts.find((a) => a.kind === "CivilCases")!;
-    // 2023 case now falls below the cutoff.
     expect(Object.keys(cases.records)).toEqual([]);
   });
 });

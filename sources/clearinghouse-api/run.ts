@@ -1,34 +1,41 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
+import path from "node:path";
 import type { ImportArtifactKind } from "../../src/shared/io/index.js";
+import type {
+  EmittedRecords,
+  RunDeps,
+  SourceRun,
+} from "../../src/cli/run/source-run.js";
+import { isPersonName, slugify } from "../lib/civil-defendants.js";
 
 export const produces: readonly ImportArtifactKind[] = [
   "CivilCases",
   "CivilCaseOfficers",
   "CivilCaseLinks",
 ];
-import path from "node:path";
-import type {
-  EmittedRecords,
-  RunDeps,
-  SourceRun,
-} from "../../src/cli/run/source-run.js";
-import {
-  isPersonName,
-  primaryAgencyName,
-  slugify,
-} from "../lib/civil-defendants.js";
 
 export const description =
-  "Civil Rights Litigation Clearinghouse — policing civil cases (TX + MN), linked to the officers named as defendants via the fuzzy agency_personnel resolver.";
+  "Civil Rights Litigation Clearinghouse — policing civil cases naming any agency with at least one officer, linked to the officers named as defendants via the run-phase agency_personnel resolver.";
 
-const SOURCE_FILE = "clearinghouse-cases.json";
-// Clearinghouse reports the full state name; map the states we can resolve
-// against (have rosters + location paths for) to their 2-letter code.
-const STATE_CODE: Record<string, string> = {
-  Texas: "TX",
-  Minnesota: "MN",
-};
 const DEFAULT_MIN_YEAR = 2022;
+const AGENCY_STOPWORDS = new Set([
+  "police",
+  "department",
+  "dept",
+  "sheriff",
+  "office",
+  "county",
+  "city",
+  "of",
+  "the",
+  "and",
+  "town",
+  "village",
+  "state",
+  "patrol",
+  "public",
+  "safety",
+]);
 
 type Defendant = {
   name?: string;
@@ -40,7 +47,6 @@ type Defendant = {
 type Case = {
   id: number | string;
   name?: string;
-  state?: string;
   court?: string;
   filing_date?: string | null;
   filing_year?: number | null;
@@ -53,8 +59,48 @@ type Case = {
   case_defendants?: Defendant[];
 };
 
+type AgencyCases = {
+  agency: { id?: string; name?: string; state?: string };
+  cases?: Case[];
+};
+
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function normalize(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+// Distinctive place tokens of an agency name (drop the generic agency words), so
+// a full-text hit is only kept when a defendant institution actually names the
+// same agency, not merely mentions it.
+function distinctiveTokens(agencyName: string): Set<string> {
+  return new Set(
+    normalize(agencyName)
+      .split(" ")
+      .filter((token) => token.length >= 3 && !AGENCY_STOPWORDS.has(token)),
+  );
+}
+
+function namesAgency(
+  caseDefendants: Defendant[],
+  tokens: Set<string>,
+): boolean {
+  if (tokens.size === 0) return false;
+  for (const defendant of caseDefendants) {
+    const haystack = normalize(
+      `${text(defendant.institution)} ${text(defendant.name)}`,
+    );
+    if (haystack === "") continue;
+    for (const token of tokens) {
+      if (haystack.includes(token)) return true;
+    }
+  }
+  return false;
 }
 
 function filedDate(civilCase: Case): string | undefined {
@@ -66,86 +112,103 @@ function filedDate(civilCase: Case): string | undefined {
   return undefined;
 }
 
-export const run: SourceRun = async ({ paths, env, logger }: RunDeps) => {
+function caseUrl(civilCase: Case): string {
+  const link = text(civilCase.clearinghouse_link);
+  if (link === "") return "";
+  return link.startsWith("http") ? link : `https://${link}`;
+}
+
+export const run: SourceRun = async ({
+  paths,
+  data,
+  env,
+  logger,
+}: RunDeps) => {
   const log = logger ?? { info() {} };
-  const jsonPath = paths.find((p) => path.basename(p) === SOURCE_FILE);
-  if (jsonPath === undefined) {
-    throw new Error(`clearinghouse-api expects the acquired ${SOURCE_FILE}.`);
+  if (data === undefined) {
+    throw new Error(
+      "clearinghouse-api: run requires a data context (DATABASE_URL) to resolve officers.",
+    );
   }
   const minYear = Number(env?.CLEARINGHOUSE_MIN_YEAR ?? DEFAULT_MIN_YEAR);
-
-  const parsed = JSON.parse(await readFile(jsonPath, "utf8")) as {
-    cases?: Case[];
-  };
-  const cases = parsed.cases ?? [];
+  const files =
+    paths.filter((p) => p.endsWith(".cases.json")).length > 0
+      ? paths.filter((p) => p.endsWith(".cases.json"))
+      : await collectEnvelopePaths(paths);
 
   const civilCases: EmittedRecords = {};
   const officers: EmittedRecords = {};
   const links: EmittedRecords = {};
-  let considered = 0;
 
-  for (const civilCase of cases) {
-    const stateCode = STATE_CODE[text(civilCase.state)];
-    if (stateCode === undefined) continue;
-    const year =
-      typeof civilCase.filing_year === "number"
-        ? civilCase.filing_year
-        : Number(text(civilCase.filing_date).slice(0, 4));
-    if (!Number.isFinite(year) || year < minYear) continue;
-    const filed = filedDate(civilCase);
-    const title = text(civilCase.name);
-    if (filed === undefined || title === "") continue;
+  for (const file of files) {
+    const envelope = JSON.parse(await readFile(file, "utf8")) as AgencyCases;
+    const agencyId = text(envelope.agency.id);
+    const agencyName = text(envelope.agency.name);
+    const state = text(envelope.agency.state).toUpperCase();
+    if (agencyId === "" || agencyName === "" || state === "") continue;
+    const tokens = distinctiveTokens(agencyName);
 
-    considered += 1;
-    const caseKey = String(civilCase.id);
-    const summary = text(civilCase.summary) || text(civilCase.summary_short);
-    civilCases[caseKey] = {
-      spec: {
-        title,
-        cause_number: text(civilCase.non_docket_case_number) || `CH-${caseKey}`,
-        court: text(civilCase.court) || null,
-        filed_date: filed,
-        claims_summary: summary || title,
-        slug: `${slugify(title)}-${caseKey}`,
-        outcome: text(civilCase.prevailing_party) || null,
-        primary_source_url: text(civilCase.clearinghouse_link) || null,
-        date_terminated: text(civilCase.terminating_date) || null,
-        location_path_id: stateCode.toLowerCase(),
-      },
-    };
+    for (const civilCase of envelope.cases ?? []) {
+      const title = text(civilCase.name);
+      const filed = filedDate(civilCase);
+      if (title === "" || filed === undefined || filed < `${minYear}-01-01`) {
+        continue;
+      }
+      const defendants = civilCase.case_defendants ?? [];
+      if (!namesAgency(defendants, tokens)) continue;
 
-    const defendants = civilCase.case_defendants ?? [];
-    const agencyName = primaryAgencyName(
-      defendants.map((d) => text(d.institution) || text(d.name)),
-    );
-    for (const defendant of defendants) {
-      const officerName = text(defendant.name);
-      if (!isPersonName(officerName) || agencyName === undefined) continue;
-      officers[`${caseKey}|${slugify(officerName)}`] = {
+      const caseKey = `ch-${civilCase.id}`;
+      const resolvedOfficerIds = new Set<string>();
+      for (const defendant of defendants) {
+        const officerName = text(defendant.name);
+        if (!isPersonName(officerName)) continue;
+        const match = await data.resolveOfficer({ agencyId, officerName });
+        if (match !== null) resolvedOfficerIds.add(match.agencyOfficerId);
+      }
+      if (resolvedOfficerIds.size === 0) continue;
+
+      const url = caseUrl(civilCase);
+      const terminated = text(civilCase.terminating_date);
+      civilCases[caseKey] = {
         spec: {
-          civil_case_id: caseKey,
-          state: stateCode,
-          agency_name: agencyName,
-          officer_name: officerName,
+          title,
+          cause_number: text(civilCase.non_docket_case_number) || caseKey,
+          court: text(civilCase.court) || null,
+          filed_date: filed,
+          claims_summary:
+            text(civilCase.summary) || text(civilCase.summary_short) || title,
+          slug: `${slugify(title)}-${caseKey}`,
+          outcome: text(civilCase.prevailing_party) || null,
+          primary_source_url: url || null,
+          date_terminated: /^\d{4}-\d{2}-\d{2}/.test(terminated)
+            ? terminated.slice(0, 10)
+            : null,
+          location_path_id: state.toLowerCase(),
         },
       };
-    }
-
-    const url = text(civilCase.clearinghouse_link);
-    if (url !== "") {
-      links[`${caseKey}|clearinghouse`] = {
-        spec: {
-          civil_case_id: caseKey,
-          url,
-          title: "Civil Rights Litigation Clearinghouse",
-        },
-      };
+      if (url !== "") {
+        links[`${caseKey}|clearinghouse`] = {
+          spec: {
+            civil_case_id: caseKey,
+            url,
+            title: "Civil Rights Litigation Clearinghouse",
+          },
+        };
+      }
+      for (const agencyOfficerId of resolvedOfficerIds) {
+        officers[`${caseKey}|${agencyOfficerId}`] = {
+          spec: {
+            civil_case_id: caseKey,
+            agency_officer_id: agencyOfficerId,
+          },
+        };
+      }
     }
   }
 
   log.info(
-    `clearinghouse: ${considered} TX/MN cases since ${minYear}; ` +
-      `${Object.keys(officers).length} officer defendants, ${Object.keys(links).length} links (linking resolved at import)`,
+    `clearinghouse: ${Object.keys(civilCases).length} cases with a resolved officer, ` +
+      `${Object.keys(officers).length} case-officer links, ${Object.keys(links).length} source links`,
   );
 
   return {
@@ -156,3 +219,22 @@ export const run: SourceRun = async ({ paths, env, logger }: RunDeps) => {
     ],
   };
 };
+
+async function collectEnvelopePaths(paths: string[]): Promise<string[]> {
+  const files: string[] = [];
+  for (const p of paths) {
+    if (p.endsWith(".cases.json")) {
+      files.push(p);
+      continue;
+    }
+    try {
+      const entries = await readdir(p);
+      for (const entry of entries) {
+        if (entry.endsWith(".cases.json")) files.push(path.join(p, entry));
+      }
+    } catch {
+      // not a directory — ignore
+    }
+  }
+  return files;
+}
