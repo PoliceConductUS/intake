@@ -5,6 +5,7 @@ import {
 } from "../../database/entities.js";
 import { readLocationPathAliasByPath } from "../../database/location-paths.js";
 import type { SupportedTableName } from "../../database/schema.js";
+import { readActiveSuppressedIds } from "../../database/suppression.js";
 import type { DatabaseRowOperations } from "./operations.js";
 import type { ImportRows, LocationPathRow } from "./transform.js";
 
@@ -22,6 +23,11 @@ export async function classifyDatabaseOperations(
   databaseLocationPaths: readonly LocationPathRow[] = [],
   preparedOperations?: DatabaseRowOperations,
 ): Promise<DatabaseRowOperations> {
+  // Read suppression state here rather than accepting it as a parameter: a
+  // caller that forgets to pass it would plan writes against suppressed
+  // records, and the resulting import would abort on the database guard
+  // instead of skipping the record. There is no way to opt out of this read.
+  const suppressedIds = await readActiveSuppressedIds(client);
   const operations: DatabaseRowOperations = preparedOperations ?? {
     locationPaths: {},
     locationPathGeometries: {},
@@ -104,7 +110,8 @@ export async function classifyDatabaseOperations(
     }
     const exists = await rowExists(client, "public.agency", agency.id);
     operations.agencies[agency.id] = exists
-      ? (rows.ownedColumns.agencies[agency.id] ?? []).length > 0
+      ? (rows.ownedColumns.agencies[agency.id] ?? []).length > 0 &&
+        !suppressedIds.has(agency.id)
         ? "update"
         : "read"
       : "create";
@@ -113,7 +120,8 @@ export async function classifyDatabaseOperations(
   for (const officer of rows.officers) {
     const exists = await rowExists(client, "public.officers", officer.id);
     operations.officers[officer.id] = exists
-      ? (rows.ownedColumns.officers[officer.id] ?? []).length > 0
+      ? (rows.ownedColumns.officers[officer.id] ?? []).length > 0 &&
+        !suppressedIds.has(officer.id)
         ? "update"
         : "read"
       : "create";
@@ -126,7 +134,10 @@ export async function classifyDatabaseOperations(
       agencyOfficer.id,
     );
     operations.agencyOfficers[agencyOfficer.id] = exists
-      ? (rows.ownedColumns.agencyOfficers[agencyOfficer.id] ?? []).length > 0
+      ? (rows.ownedColumns.agencyOfficers[agencyOfficer.id] ?? []).length > 0 &&
+        !suppressedIds.has(agencyOfficer.id) &&
+        !suppressedIds.has(agencyOfficer.personnel_id) &&
+        !suppressedIds.has(agencyOfficer.agency_id)
         ? "update"
         : "read"
       : "create";
