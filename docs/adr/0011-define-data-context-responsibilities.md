@@ -18,6 +18,10 @@ Proposed
 > Framed by [ADR 0017](0017-intake-persistence-is-a-bespoke-orm.md): `DataContext`
 > is the ORM's Unit of Work + Identity Map (the mutation-_builder_); the
 > transaction/IO/aggregate-reporting live in a thin flush script, not here.
+>
+> Peer of [ADR 0022](0022-define-acquire-data-context-responsibilities.md): this
+> ADR defines the import-planning `DataContext`; ADR 0022 defines the read-only
+> acquire-phase `AcquireDataContext`. Distinct contexts for distinct phases.
 
 ## Context
 
