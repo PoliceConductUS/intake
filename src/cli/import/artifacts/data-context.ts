@@ -2634,15 +2634,6 @@ export class DataContext {
     string,
     Record<string, unknown>
   >();
-  private readonly civilCaseById = new Map<string, Record<string, unknown>>();
-  private readonly civilCaseOfficerById = new Map<
-    string,
-    Record<string, unknown>
-  >();
-  private readonly civilCaseLinkById = new Map<
-    string,
-    Record<string, unknown>
-  >();
 
   constructor(options: DataContextOptions) {
     this.client = options.client;
@@ -3421,56 +3412,18 @@ export class DataContext {
     };
   }
 
-  private readonly entityTableLoads = new Map<string, Promise<void>>();
-
   /**
-   * Load an entity's existing database rows into its `current`-by-id map once, so
-   * a re-import of a facade-owned entity (civil cases and friends, which are not
-   * preloaded like agencies) resolves `getCurrentById` and emits an update rather
-   * than a duplicate create. The load PROMISE is memoized so concurrent callers
-   * (toMutations drains facades with Promise.all) all await the same populated
-   * map rather than racing past a set-too-early flag. `table` is a trusted
-   * internal literal.
-   */
-  private ensureEntityTableLoaded(
-    table: string,
-    databaseCurrentById: Map<string, Record<string, unknown>>,
-  ): Promise<void> {
-    let load = this.entityTableLoads.get(table);
-    if (load === undefined) {
-      const client = this.client;
-      load =
-        client === undefined
-          ? Promise.resolve()
-          : client
-              .query(`select row_to_json(t.*) as row from ${table} t`)
-              .then((result) => {
-                for (const item of searchRows(result)) {
-                  const row = (item.row ?? {}) as Record<string, unknown>;
-                  const id = row.id;
-                  if (typeof id === "string") databaseCurrentById.set(id, row);
-                }
-              });
-      this.entityTableLoads.set(table, load);
-    }
-    return load;
-  }
-
-  /**
-   * Like {@link entityFacadeBackend} but backs `getCurrentById` with a lazy,
-   * once-per-run load of the whole `table` — for facade-owned entities that have
-   * no preload path, so re-import updates instead of failing on a duplicate id.
+   * Like {@link entityFacadeBackend} but for facade-owned entities with no
+   * preload path (civil cases and friends): `getCurrentById` reads the one row
+   * lazily via {@link currentRow}, coalesced into a batched `where id = any($1)`
+   * (ADR 0019), so a re-import updates instead of failing on a duplicate id.
    */
   private entityFacadeBackendForTable(
-    databaseCurrentById: Map<string, Record<string, unknown>>,
-    table: string,
+    table: SupportedTableName,
   ): EntityFacadeBackend {
     return {
       findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
-      getCurrentById: async (id) => {
-        await this.ensureEntityTableLoaded(table, databaseCurrentById);
-        return databaseCurrentById.get(id);
-      },
+      getCurrentById: (id) => this.currentRow(table, undefined, id),
       findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
       getLocationPathByPath: (path) => this.locationPaths.getByPath(path),
     };
@@ -3681,10 +3634,7 @@ export class DataContext {
     const facade = createCivilCaseFacade({
       current: input.current,
       source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackendForTable(
-        this.civilCaseById,
-        "civil_cases",
-      ),
+      backend: this.entityFacadeBackendForTable("public.civil_cases"),
     });
     if (input.spec !== undefined) facade.merge(input.spec);
     this.civilCaseFacades.set(key, facade);
@@ -3709,10 +3659,7 @@ export class DataContext {
     const facade = createCivilCaseOfficerFacade({
       current: input.current,
       source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackendForTable(
-        this.civilCaseOfficerById,
-        "civil_case_officers",
-      ),
+      backend: this.entityFacadeBackendForTable("public.civil_case_officers"),
     });
     if (input.spec !== undefined) facade.merge(input.spec);
     this.civilCaseOfficerFacades.set(key, facade);
@@ -3737,10 +3684,7 @@ export class DataContext {
     const facade = createCivilCaseLinkFacade({
       current: input.current,
       source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackendForTable(
-        this.civilCaseLinkById,
-        "civil_case_links",
-      ),
+      backend: this.entityFacadeBackendForTable("public.civil_case_links"),
     });
     if (input.spec !== undefined) facade.merge(input.spec);
     this.civilCaseLinkFacades.set(key, facade);
