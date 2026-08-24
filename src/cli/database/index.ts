@@ -20,5 +20,29 @@ export type DatabaseClientFactory = (databaseUrl: string) => DatabaseClient;
 export function defaultDatabaseClientFactory(
   databaseUrl: string,
 ): DatabaseClient {
-  return new pg.Client({ connectionString: databaseUrl });
+  return serializeQueries(new pg.Client({ connectionString: databaseUrl }));
+}
+
+// A single pg.Client cannot run overlapping queries; facades drain concurrently
+// (Promise.all), so chain each query after the previous one settles. pg queued
+// them internally already, but doing it here drops the deprecation warning and
+// is safe for pg@9.
+function serializeQueries(client: pg.Client): DatabaseClient {
+  let tail: Promise<unknown> = Promise.resolve();
+  return {
+    connect: () => client.connect(),
+    end: () => client.end(),
+    query: (text, values) => {
+      const result = tail.then(() =>
+        values === undefined
+          ? client.query(text)
+          : client.query(text, values as unknown[]),
+      );
+      tail = result.then(
+        () => undefined,
+        () => undefined,
+      );
+      return result;
+    },
+  };
 }
