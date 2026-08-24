@@ -17,7 +17,11 @@ the optional `description`:
 import type { ImportArtifactKind } from "../../src/shared/io/import-type-metadata";
 
 // Kinds this source emits in its manifest. The ONLY declaration a source adds.
-export const produces: readonly ImportArtifactKind[] = ["Agencies", "Personnel", "AgencyPersonnel", /* … */];
+export const produces: readonly ImportArtifactKind[] = [
+  "Agencies",
+  "Personnel",
+  "AgencyPersonnel" /* … */,
+];
 ```
 
 A source declares only `produces`. Its **consumed set is derived**, not
@@ -38,10 +42,10 @@ Why derive rather than hand-declare `consumes`: the consumed set is a pure
 function of `produces` and `FK_REFERENCES`, so hand-declaring it is redundant and
 adds a drift surface. `FK_REFERENCES` is generated from the database's real
 foreign keys, and every cross-entity reference in this system is a foreign key,
-so the derivation is a *complete* account of a source's dependencies — there is
+so the derivation is a _complete_ account of a source's dependencies — there is
 no non-FK ("soft") dependency to declare. (Resolution-by-name-match — e.g.
 matching a civil-case officer to an existing `AgencyPersonnel` — is how an FK is
-*resolved*, not a dependency without one; the FK to `AgencyPersonnel` already
+_resolved_, not a dependency without one; the FK to `AgencyPersonnel` already
 captures it.) `produces` must still be declared (order must be known **before**
 `run()` executes, and the manifest — the only runtime witness of what a source
 emits — is the return value of `run()`); the emitted-kind drift check keeps it
@@ -77,7 +81,7 @@ graph shows direct edges suffice:
   `agency_officer_id → AgencyPersonnel`. So `AgencyPersonnel ∈ consumes`, but
   `Agency`/`Personnel` are **not** (the civil source has no direct FK to them).
 - The producer of `AgencyPersonnel` (tx/mn) cannot create an `AgencyPersonnel`
-  row without satisfying *its* NOT-NULL FKs to `Agency` and `Personnel` — so it
+  row without satisfying _its_ NOT-NULL FKs to `Agency` and `Personnel` — so it
   either produces them in the same manifest or consumes them (gaining its own
   edge to their producer).
 - The civil source sorts after the `AgencyPersonnel` producer, which sorts after
@@ -104,15 +108,15 @@ independent sources.
 implementation from each `run.ts` manifest). `consumes` is **derived** from
 `FK_REFERENCES` as `FK_targets(produces) − produces`:
 
-| Source | produces (abbrev.) | consumes (derived) |
-|---|---|---|
-| `us-census-gazetteer` | LocationPaths, LocationPathGeometries, LocationPathAliases | — |
-| `gov.azpost.roster` | Personnel | — |
-| `gov.tx.tcole` | Agencies, Personnel, AgencyPersonnel, Licenses, … | LocationPaths |
-| `mn-post` | Agencies, Personnel, AgencyPersonnel, Disciplines, … | LocationPaths |
-| `gov.us.federal-le` | FederalAgencies, Agencies, FederalAgencyBranches | LocationPaths |
-| `clearinghouse-api` | CivilCases, CivilCaseOfficers, CivilCaseLinks | LocationPaths, AgencyPersonnel |
-| `courtlistener` | CivilCases, CivilCaseOfficers, CivilCaseLinks | LocationPaths, AgencyPersonnel |
+| Source                | produces (abbrev.)                                         | consumes (derived)             |
+| --------------------- | ---------------------------------------------------------- | ------------------------------ |
+| `us-census-gazetteer` | LocationPaths, LocationPathGeometries, LocationPathAliases | —                              |
+| `gov.azpost.roster`   | Personnel                                                  | —                              |
+| `gov.tx.tcole`        | Agencies, Personnel, AgencyPersonnel, Licenses, …          | LocationPaths                  |
+| `mn-post`             | Agencies, Personnel, AgencyPersonnel, Disciplines, …       | LocationPaths                  |
+| `gov.us.federal-le`   | FederalAgencies, Agencies, FederalAgencyBranches           | LocationPaths                  |
+| `clearinghouse-api`   | CivilCases, CivilCaseOfficers, CivilCaseLinks              | LocationPaths, AgencyPersonnel |
+| `courtlistener`       | CivilCases, CivilCaseOfficers, CivilCaseLinks              | LocationPaths, AgencyPersonnel |
 
 Worth noting how the derivation lands: the civil sources consume
 `AgencyPersonnel` (via `CivilCaseOfficer.agency_officer_id`) and `LocationPaths`
@@ -129,17 +133,17 @@ federal, clearinghouse, courtlistener 0.
 
 Derived order (Kahn + out-degree-then-id tiebreak):
 
-1. `us-census-gazetteer`  *(out-degree 5 — leads)*
-2. `gov.tx.tcole`  *(out-degree 2; ties mn on out-degree, wins on id)*
+1. `us-census-gazetteer` _(out-degree 5 — leads)_
+2. `gov.tx.tcole` _(out-degree 2; ties mn on out-degree, wins on id)_
 3. `mn-post`
-4. `clearinghouse-api`  *(all remaining are out-degree 0 → by id)*
+4. `clearinghouse-api` _(all remaining are out-degree 0 → by id)_
 5. `courtlistener`
 6. `gov.azpost.roster`
 7. `gov.us.federal-le`
 
 Every producer precedes its consumers: census before every LocationPaths
 consumer; tx and mn before both civil-case sources. The old alphabetical rule
-got this wrong — `clearinghouse-api`/`courtlistener` sorted *before* the rosters,
+got this wrong — `clearinghouse-api`/`courtlistener` sorted _before_ the rosters,
 losing officer resolution in a from-scratch run.
 
 Note `gov.azpost.roster` (Personnel-only) and `gov.us.federal-le` land last as
@@ -156,13 +160,12 @@ Ordering sorts only the selected set and never expands it:
 - `intake run courtlistener` alone: the graph has one node, no edges. It runs.
   `AgencyPersonnel` is not produced in this run; it is expected to already be in
   intake state / the database from a prior roster run (the 3-step resolver, ADR
-  0015). A truly-absent officer still fails resolve-or-fail at runtime (ADR
-  0006) — unchanged behavior.
+  0015). A truly-absent officer still fails resolve-or-fail at runtime (ADR 0006) — unchanged behavior.
 - A consumed kind with no producer in the selected set is **not** an ordering
   error and does **not** pull the producer in.
 
-This is the key reconciliation with ADR 0015: the graph orders *relative
-position within one run*; the persisted-state guarantee handles *across runs*.
+This is the key reconciliation with ADR 0015: the graph orders _relative
+position within one run_; the persisted-state guarantee handles _across runs_.
 
 ## Fail-loud validation
 
@@ -171,12 +174,12 @@ position within one run*; the persisted-state guarantee handles *across runs*.
 - **Emitted-kind drift**: after a source's `run()` returns, assert
   `emittedKinds ⊆ produces`. A kind emitted but not declared aborts the run
   (the declaration is stale/wrong). This keeps `produces` honest — it is the
-  input to ordering, and since `consumes` is *derived* from `produces`, a wrong
+  input to ordering, and since `consumes` is _derived_ from `produces`, a wrong
   `produces` would silently mis-order both endpoints.
 - **Bad declarations**: a non-`ImportArtifactKind` entry in `produces`, or a
   missing `produces` export, fails at source load.
 
-Not enforced: that everything in the derived `consumes` is produced by *some*
+Not enforced: that everything in the derived `consumes` is produced by _some_
 source (selected or not) — by design, since the producer may live only in a past
 run's persisted state.
 

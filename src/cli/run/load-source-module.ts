@@ -1,7 +1,15 @@
 import { access, constants } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import {
+  IMPORT_ARTIFACT_KINDS,
+  type ImportArtifactKind,
+} from "../../shared/io/import-type-metadata.js";
 import type { SourceRun, SourceAcquire } from "./source-run.js";
+
+const IMPORT_ARTIFACT_KIND_SET: ReadonlySet<string> = new Set(
+  IMPORT_ARTIFACT_KINDS,
+);
 
 function assertValidSourceId(sourceId: string): void {
   if (!/^[a-z0-9][a-z0-9.\-]*$/i.test(sourceId)) {
@@ -45,6 +53,41 @@ export async function loadSourceModule(
     throw new Error(`Source ${sourceId} run.ts must export a run function`);
   }
   return module.run as SourceRun;
+}
+
+/**
+ * Load and validate a source's `produces` declaration — the kinds it emits,
+ * the input to run ordering (ADR 0021). Fails loud before any run when the
+ * export is missing, not an array, empty, or names a kind that is not an
+ * `ImportArtifactKind`. The consumed set is derived from `produces`, never
+ * declared, so `produces` is the only ordering declaration a source carries.
+ */
+export async function loadSourceProduces(
+  sourceId: string,
+  sourcesRoot: string,
+): Promise<ImportArtifactKind[]> {
+  assertValidSourceId(sourceId);
+  const modulePath = sourcePhasePath(sourceId, sourcesRoot, "run");
+  if (!(await fileExists(modulePath))) {
+    throw new Error(`Unknown source id: no run module at ${modulePath}`);
+  }
+  const module = (await import(pathToFileURL(modulePath).href)) as {
+    produces?: unknown;
+  };
+  const produces = module.produces;
+  if (!Array.isArray(produces) || produces.length === 0) {
+    throw new Error(
+      `Source ${sourceId} run.ts must export a non-empty produces array`,
+    );
+  }
+  for (const kind of produces) {
+    if (typeof kind !== "string" || !IMPORT_ARTIFACT_KIND_SET.has(kind)) {
+      throw new Error(
+        `Source ${sourceId} produces an unknown kind: ${String(kind)}`,
+      );
+    }
+  }
+  return produces as ImportArtifactKind[];
 }
 
 // Load a source's optional acquire (download/scrape) phase. A source with no

@@ -1,4 +1,11 @@
 import { readFile } from "node:fs/promises";
+import type { ImportArtifactKind } from "../../src/shared/io/index.js";
+
+export const produces: readonly ImportArtifactKind[] = [
+  "CivilCases",
+  "CivilCaseOfficers",
+  "CivilCaseLinks",
+];
 import path from "node:path";
 import type {
   EmittedRecords,

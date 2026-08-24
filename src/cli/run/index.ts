@@ -16,7 +16,9 @@ import type {
 } from "../../shared/cli/types.js";
 import { buildArtifactsEnvelope } from "./source-run.js";
 import type { SourceManifest } from "./source-run.js";
-import { loadSourceModule } from "./load-source-module.js";
+import { loadSourceModule, loadSourceProduces } from "./load-source-module.js";
+import { planSourceOrder } from "./source-order.js";
+import type { ImportArtifactKind } from "../../shared/io/index.js";
 import { readXlsx } from "./read-xlsx.js";
 import { sourceStateDir } from "./state.js";
 import { seedResolvedPropertyCache } from "../state/resolved-property/index.js";
@@ -29,6 +31,7 @@ import { readCommandPointer } from "../state/command-pointer.js";
 type RunSourceDeps = {
   sourcesRoot: string;
   env: Record<string, string | undefined>;
+  produces: readonly ImportArtifactKind[];
   loadSourceModule: typeof loadSourceModule;
   readXlsx: typeof readXlsx;
   state: string;
@@ -164,6 +167,22 @@ export async function runSource(
     );
     const digest = await deps.digest(paths);
     const refItems = await sink.flush();
+    // Fail loud if the source emitted a kind it did not declare in `produces`
+    // — via the manifest or the streaming emit sink. `produces` is the input to
+    // run ordering (ADR 0021), so silent drift would silently mis-order this
+    // source and its consumers.
+    const declared = new Set<string>(deps.produces);
+    const emitted = new Set<string>([
+      ...manifest.artifacts.map((artifact) => artifact.kind),
+      ...refItems.map((item) => item.ref.kind),
+    ]);
+    const undeclared = [...emitted].filter((kind) => !declared.has(kind));
+    if (undeclared.length > 0) {
+      return {
+        exitCode: 1,
+        stderr: `Source ${sourceId} emitted undeclared kind(s): ${undeclared.join(", ")}\n`,
+      };
+    }
     const { path: artifactsPath } = await deps.writeEnvelope(
       workspace,
       sourceId,
@@ -189,8 +208,9 @@ export const registerCliCommand: RegisterCliCommand = (
       "Run the run.ts (produce) phase of every source folder matching <glob> " +
         "and import the records it returns. Inputs come from the source's latest " +
         "successful acquire (via $INTAKE_WORKSPACE/state/<source-id>/acquire.yaml), " +
-        "falling back to $INTAKE_WORKSPACE/<source-id>/source/. When " +
-        "us-census-gazetteer matches it runs first (ADR 0015); the rest run in name order.",
+        "falling back to $INTAKE_WORKSPACE/<source-id>/source/. Matched sources run " +
+        "in a dependency-correct order derived from the kinds each declares it " +
+        "produces (ADR 0021): a producer runs before every source that consumes it.",
     )
     .argument(
       "[glob]",
@@ -208,8 +228,8 @@ export const registerCliCommand: RegisterCliCommand = (
         const sourcesRoot = path.join(process.cwd(), "sources");
         try {
           const workspace = intakeWorkspace(env);
-          const sourceIds = await matchSourceIds(sourcesRoot, glob);
-          if (sourceIds.length === 0) {
+          const matchedIds = await matchSourceIds(sourcesRoot, glob);
+          if (matchedIds.length === 0) {
             dependencies.setResult({
               exitCode: 1,
               stderr: `No source folder under sources/ matches "${glob}".\n`,
@@ -217,11 +237,33 @@ export const registerCliCommand: RegisterCliCommand = (
             return;
           }
 
+          // Derive a dependency-correct run order from each matched source's
+          // declared `produces` (ADR 0021). Missing/invalid declarations and
+          // dependency cycles fail loud here, before any source runs.
+          const sources = await Promise.all(
+            matchedIds.map(async (id) => ({
+              id,
+              produces: await loadSourceProduces(id, sourcesRoot),
+            })),
+          );
+          const { order, edges } = planSourceOrder(sources);
+          const producesById = new Map(
+            sources.map((source) => [source.id, source.produces]),
+          );
+
           const logger = {
             info: (message: string) => process.stderr.write(`${message}\n`),
           };
+          if (order.length > 1) {
+            logger.info(`run order: ${order.join(" → ")}`);
+            for (const edge of edges) {
+              logger.info(
+                `  ${edge.after} after ${edge.before} (${edge.kind})`,
+              );
+            }
+          }
           const stdout: string[] = [];
-          for (const sourceId of sourceIds) {
+          for (const sourceId of order) {
             const inputDir = await sourceInputDir(workspace, sourceId);
             const paths = await sourceInputPaths(inputDir);
             if (paths.length === 0) {
@@ -235,6 +277,7 @@ export const registerCliCommand: RegisterCliCommand = (
             const deps: RunSourceDeps = {
               sourcesRoot,
               env,
+              produces: producesById.get(sourceId) ?? [],
               loadSourceModule,
               readXlsx,
               state: await sourceStateDir(env, sourceId),

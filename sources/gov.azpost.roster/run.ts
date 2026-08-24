@@ -2,6 +2,9 @@ import type {
   SourceRun,
   EmittedRecords,
 } from "../../src/cli/run/source-run.js";
+import type { ImportArtifactKind } from "../../src/shared/io/index.js";
+
+export const produces: readonly ImportArtifactKind[] = ["Personnel"];
 
 /**
  * AZ POST officer roster: reads AGENCY, POST ID, LAST, FIRST, MIDDLE,

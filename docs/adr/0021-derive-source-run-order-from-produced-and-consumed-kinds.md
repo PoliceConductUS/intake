@@ -31,7 +31,7 @@ It does not generalize:
   constraint means adding a second magic string.
 
 The dependency is not source-to-source. It is source→**entity kind**: a source
-*produces* some kinds and *consumes* (references but does not produce) others.
+_produces_ some kinds and _consumes_ (references but does not produce) others.
 The entity-kind dependency graph is already modeled and topologically sorted
 (`src/shared/io/import-types.ts`, over `dependsOn` in
 `import-type-metadata.ts`). We can derive a deterministic source order from the
@@ -48,7 +48,7 @@ it emits. Its consumed set is **computed**, not declared:
 transitive dependencies are handled by the sort, not by expanding this set (see
 decision 3). `FK_REFERENCES` is generated from the database's actual foreign
 keys, and every cross-entity reference in this system is a foreign key, so it is
-a *complete* account of a source's dependencies — no separate hand-declared
+a _complete_ account of a source's dependencies — no separate hand-declared
 consumed set is needed. `produces` names entity kinds (types), never other
 sources or namespaces, so ADR 0015 isolation is preserved: a source remains
 mutually ignorant of every other source.

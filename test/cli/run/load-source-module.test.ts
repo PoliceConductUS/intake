@@ -1,7 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect } from "vitest";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import {
   loadSourceModule,
   loadSourceAcquire,
+  loadSourceProduces,
 } from "../../../src/cli/run/load-source-module.js";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -10,6 +13,21 @@ const sourcesRoot = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   "../../fixtures/sources",
 );
+
+const tempRoots: string[] = [];
+afterEach(async () => {
+  await Promise.all(
+    tempRoots.splice(0).map((dir) => rm(dir, { recursive: true })),
+  );
+});
+
+async function writeRunSource(id: string, runBody: string): Promise<string> {
+  const root = await mkdtemp(path.join(tmpdir(), "produces-"));
+  tempRoots.push(root);
+  await mkdir(path.join(root, id), { recursive: true });
+  await writeFile(path.join(root, id, "run.ts"), runBody);
+  return root;
+}
 
 describe("loadSourceModule", () => {
   it("loads a module exporting run", async () => {
@@ -51,6 +69,42 @@ describe("loadSourceAcquire", () => {
   it("fails clearly for an unknown source id", async () => {
     await expect(loadSourceAcquire("missing", sourcesRoot)).rejects.toThrow(
       /missing/,
+    );
+  });
+});
+
+describe("loadSourceProduces", () => {
+  it("returns the declared produces kinds", async () => {
+    const root = await writeRunSource(
+      "s",
+      `export const run = () => {};\nexport const produces = ["Agencies", "Personnel"];\n`,
+    );
+    await expect(loadSourceProduces("s", root)).resolves.toEqual([
+      "Agencies",
+      "Personnel",
+    ]);
+  });
+
+  it("fails when produces is missing", async () => {
+    const root = await writeRunSource("s", `export const run = () => {};\n`);
+    await expect(loadSourceProduces("s", root)).rejects.toThrow(/produces/);
+  });
+
+  it("fails when produces is empty", async () => {
+    const root = await writeRunSource(
+      "s",
+      `export const run = () => {};\nexport const produces = [];\n`,
+    );
+    await expect(loadSourceProduces("s", root)).rejects.toThrow(/produces/);
+  });
+
+  it("fails when produces names an unknown kind", async () => {
+    const root = await writeRunSource(
+      "s",
+      `export const run = () => {};\nexport const produces = ["Agencies", "Nonsense"];\n`,
+    );
+    await expect(loadSourceProduces("s", root)).rejects.toThrow(
+      /unknown kind: Nonsense/,
     );
   });
 });

@@ -2,6 +2,17 @@ import type {
   SourceRun,
   EmittedRecords,
 } from "../../src/cli/run/source-run.js";
+import type { ImportArtifactKind } from "../../src/shared/io/index.js";
+
+export const produces: readonly ImportArtifactKind[] = [
+  "LicensingAuthorities",
+  "Agencies",
+  "Personnel",
+  "Licenses",
+  "LicenseActions",
+  "AgencyPersonnel",
+  "AgencyPhoneNumbers",
+];
 
 /**
  * TX POST (TCOLE) — reconstructs the Texas rows of the database from a single

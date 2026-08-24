@@ -83,6 +83,7 @@ describe("emit sink integration (via runSource)", () => {
       {
         sourcesRoot: "/unused",
         env: {},
+        produces: ["LocationPaths", "LocationPathGeometries"],
         loadSourceModule: async () => fakeRun,
         readXlsx: async () => [],
         state: "/unused/state",

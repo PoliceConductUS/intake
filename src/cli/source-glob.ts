@@ -1,6 +1,14 @@
-import { readdir } from "node:fs/promises";
+import { access, constants, readdir } from "node:fs/promises";
+import path from "node:path";
 
-const CENSUS_SOURCE_ID = "us-census-gazetteer";
+async function isSourceDir(dir: string): Promise<boolean> {
+  try {
+    await access(path.join(dir, "run.ts"), constants.R_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** Translates a shell-style glob (`*`, `?`) into an anchored RegExp. */
 export function globToRegExp(glob: string): RegExp {
@@ -17,9 +25,11 @@ export function globToRegExp(glob: string): RegExp {
 }
 
 /**
- * Source folder names under `sources/` matching the glob, sorted, with
- * `us-census-gazetteer` first when present — it produces the shared `location_path`
- * concept every other source resolves against, so it must run first (ADR 0015).
+ * Source folder names under `sources/` matching the glob, sorted by id — only
+ * folders that are actually sources (a `run.ts` defines a source), so a shared
+ * helper dir like `sources/lib/` is never treated as a source. Callers that
+ * need a dependency-correct run order sort the matched set through
+ * `planSourceOrder` (ADR 0021); this only resolves the glob.
  */
 export async function matchSourceIds(
   sourcesRoot: string,
@@ -27,12 +37,12 @@ export async function matchSourceIds(
 ): Promise<string[]> {
   const entries = await readdir(sourcesRoot, { withFileTypes: true });
   const matcher = globToRegExp(glob);
-  const matched = entries
+  const candidates = entries
     .filter((entry) => entry.isDirectory() && matcher.test(entry.name))
     .map((entry) => entry.name)
     .sort();
-  matched.sort((a, b) =>
-    a === CENSUS_SOURCE_ID ? -1 : b === CENSUS_SOURCE_ID ? 1 : 0,
+  const sourceFlags = await Promise.all(
+    candidates.map((id) => isSourceDir(path.join(sourcesRoot, id))),
   );
-  return matched;
+  return candidates.filter((_, index) => sourceFlags[index]);
 }

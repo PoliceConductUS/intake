@@ -1,4 +1,17 @@
 import { readFile } from "node:fs/promises";
+import type { ImportArtifactKind } from "../../src/shared/io/index.js";
+
+export const produces: readonly ImportArtifactKind[] = [
+  "LicensingAuthorities",
+  "Agencies",
+  "Personnel",
+  "Licenses",
+  "AgencyPersonnel",
+  "Disciplines",
+  "DisciplineAgencyOfficers",
+  "CoverageLinks",
+  "CoverageLinkAgencyOfficers",
+];
 import path from "node:path";
 import { parse as parseCsvSync } from "csv-parse/sync";
 import { parse as parseYaml } from "yaml";

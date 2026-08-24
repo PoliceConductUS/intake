@@ -17,7 +17,7 @@ gets this wrong (`clearinghouse-api` and `courtlistener` sort before
 `gov.*`/`mn-post`).
 
 The real dependency is source→**entity kind**, not source→source: each source
-*produces* some kinds and *consumes* (references but does not produce) others,
+_produces_ some kinds and _consumes_ (references but does not produce) others,
 and the consumed kinds are exactly the FK targets of the produced kinds — already
 modeled in `FK_REFERENCES`, and topologically sorted at the kind level in
 `src/shared/io/import-types.ts`. This change derives a deterministic source
@@ -32,14 +32,14 @@ special case — without any source ever naming another source.
   produces is only known at runtime from the manifest `run` returns; what it
   consumes is nowhere declared.
 - To: a source additionally exports `produces: ImportArtifactKind[]` (the kinds
-  it emits) — the *only* new declaration. Its consumed set is **computed**, not
+  it emits) — the _only_ new declaration. Its consumed set is **computed**, not
   declared: `consumes = FK_targets(produces) − produces`, using the FK graph
-  already in `FK_REFERENCES` (`entity-specs.ts`) — a source's *direct* FK targets.
+  already in `FK_REFERENCES` (`entity-specs.ts`) — a source's _direct_ FK targets.
   Transitive dependencies are handled by the sort, not by expanding this set.
 - Reason: ordering must be computable **before** running; deriving `consumes`
   from `produces` removes a redundant hand-declared surface and its drift risk;
   `FK_REFERENCES` is generated from the DB's real foreign keys and every
-  cross-entity reference is an FK, so it is the *complete* dependency set — no
+  cross-entity reference is an FK, so it is the _complete_ dependency set — no
   separate consumed declaration is needed. Declarations reference kinds (not
   sources), keeping ADR 0015 isolation intact.
 - Impact: additive to the source-module contract. Every existing source gains a
@@ -47,7 +47,7 @@ special case — without any source ever naming another source.
 
 **Direct FK targets suffice; the sort handles transitivity**
 
-- A source's consumed set holds only *direct* FK targets. Ordering on direct
+- A source's consumed set holds only _direct_ FK targets. Ordering on direct
   edges still guarantees full transitive integrity: a producer of `AgencyPersonnel`
   necessarily makes its own FK targets (`Agency`, `Personnel`) resolvable, so a
   consumer of `AgencyPersonnel` need not list them — sorting after the producer
@@ -57,7 +57,7 @@ special case — without any source ever naming another source.
 
 **Derived, deterministic run order replaces the census special case**
 
-- Order = topological sort over the *selected* sources: A precedes B when
+- Order = topological sort over the _selected_ sources: A precedes B when
   B's consumed set intersects `A.produces`. Ties break by descending out-degree,
   then source id (deterministic). `us-census-gazetteer`-first becomes emergent
   (it is the sole `LocationPaths` producer), not hardcoded.

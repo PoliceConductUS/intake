@@ -17,6 +17,9 @@ const testRefItems = [
 function makeOkDeps() {
   return {
     sourcesRoot: "/sources",
+    // The manifest emits Personnel; the emit sink (flush) emits
+    // LocationPathGeometries via testRefItems — both must be declared.
+    produces: ["Personnel", "LocationPathGeometries"] as const,
     loadSourceModule: vi.fn(async () => async () => ({
       artifacts: [
         {
@@ -95,5 +98,23 @@ describe("runSource", () => {
     const result = await runSource("nope", ["file.xlsx"], {}, deps);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/Unknown source id/);
+  });
+
+  it("fails loud when the source emits a kind it did not declare", async () => {
+    // Module emits Personnel, but the source declares only
+    // LocationPathGeometries (the sink kind): the manifest's Personnel is drift.
+    const deps = {
+      ...makeOkDeps(),
+      produces: ["LocationPathGeometries"] as const,
+    };
+    const result = await runSource(
+      "gov.azpost.roster",
+      ["file.xlsx"],
+      {},
+      deps,
+    );
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/undeclared kind\(s\): Personnel/);
+    expect(deps.runImport).not.toHaveBeenCalled();
   });
 });

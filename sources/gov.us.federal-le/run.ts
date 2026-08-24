@@ -1,4 +1,11 @@
 import { access, readFile } from "node:fs/promises";
+import type { ImportArtifactKind } from "../../src/shared/io/index.js";
+
+export const produces: readonly ImportArtifactKind[] = [
+  "FederalAgencies",
+  "Agencies",
+  "FederalAgencyBranches",
+];
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import type {
