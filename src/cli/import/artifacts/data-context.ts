@@ -109,11 +109,7 @@ import {
   type ResolvedProperties,
 } from "./transform.js";
 import { readDatabaseRecordsByColumn } from "../../database/entities.js";
-import {
-  nameSimilarity,
-  normalizeName,
-  officerNameConfidence,
-} from "./name-similarity.js";
+import { normalizeName, officerNameConfidence } from "./name-similarity.js";
 import type { SupportedTableName } from "../../database/schema.js";
 
 /** Tables whose slug uniqueness the DataContext enforces (generate-unique). */
@@ -4025,56 +4021,30 @@ export class DataContext {
     input: AgencyOfficerSearch,
   ): Promise<AgencyOfficerSearchResults> {
     const officerName = valueAsString(input.officerName);
-    const agencyName = valueAsString(input.agencyName);
-    const state = valueAsString(input.state);
-    if (
-      officerName === undefined ||
-      agencyName === undefined ||
-      state === undefined
-    ) {
-      return { results: [] };
+    const agencyId = valueAsString(input.agencyId);
+    // The agency is identity, not a guess: the caller (an agency-driven acquire)
+    // knows the exact canonical agency this officer must belong to. Resolution
+    // is scoped to that agency's roster and nothing is ever matched by agency
+    // name, place, or state — there is no cross-agency fallback (ADR 0022).
+    if (agencyId === undefined) {
+      throw new Error(
+        "agency officer search requires an agencyId — officers resolve only within a known agency.",
+      );
     }
+    if (officerName === undefined) return { results: [] };
     const tokens = normalizeName(officerName)
       .split(" ")
       .filter((token) => token.length >= 2);
     if (tokens.length === 0) return { results: [] };
 
-    const agencyId = valueAsString(input.agencyId);
-    // Exact agency id → match against the cached roster in memory (no per-party
-    // query). Otherwise fall back to the state-wide fuzzy-by-name ILIKE search.
-    let rows: Record<string, unknown>[];
-    if (agencyId === undefined) {
-      const likeClauses = tokens
-        .map(
-          (_, index) =>
-            `(o.first_name ilike $${index + 2} or o.last_name ilike $${index + 2})`,
-        )
-        .join(" or ");
-      rows = searchRows(
-        await this.databaseClient().query(
-          `select row_to_json(o.*) as officer,
-                  row_to_json(a.*) as agency,
-                  row_to_json(ao.*) as agency_officer,
-                  row_to_json(lp.*) as location_path
-           from agency_officers ao
-           join officers o on o.id = ao.officer_id
-           join agency a on a.id = ao.agency_id
-           left join location_path lp on lp.location_path_id = a.location_path_id
-           where a.state = $1 and (${likeClauses})`,
-          [state, ...tokens.map((token) => `%${token}%`)],
-        ),
-      );
-    } else {
-      // Same name-token pre-filter the ILIKE path applies in SQL, but in memory
-      // against the cached full roster: only officers sharing a party name token
-      // are worth scoring (a big agency's roster is thousands of rows).
-      const roster = await this.agencyRoster(agencyId);
-      rows = roster.filter((row) => {
-        const officer = (row.officer ?? {}) as Record<string, unknown>;
-        const haystack = `${normalizeName(String(officer.first_name ?? ""))} ${normalizeName(String(officer.last_name ?? ""))}`;
-        return tokens.some((token) => haystack.includes(token));
-      });
-    }
+    // Pre-filter the agency's cached roster to officers sharing a party name
+    // token (a big agency's roster is thousands of rows), then score by name.
+    const roster = await this.agencyRoster(agencyId);
+    const rows = roster.filter((row) => {
+      const officer = (row.officer ?? {}) as Record<string, unknown>;
+      const haystack = `${normalizeName(String(officer.first_name ?? ""))} ${normalizeName(String(officer.last_name ?? ""))}`;
+      return tokens.some((token) => haystack.includes(token));
+    });
 
     const scored: AgencyOfficerSearchResult[] = rows.map((row) => {
       const officer = (row.officer ?? {}) as Record<string, unknown>;
@@ -4084,19 +4054,15 @@ export class DataContext {
       // party side is ignored and raises `uncertainty`.
       const { confidence: officerConfidence, uncertainty: officerUncertainty } =
         officerNameConfidence(officerName, officer);
-      // Exact agency id → the agency is certain (confidence 1) and the
-      // combined score is the officer name alone; fuzzy name match otherwise.
-      const agencyConfidence =
-        agencyId === undefined
-          ? nameSimilarity(agencyName, String(agency.name ?? ""))
-          : 1;
+      // The agency is certain (matched by id), so the officer name is the only
+      // scored dimension.
       const locationPath = row.location_path as
         | Record<string, unknown>
         | null
         | undefined;
       return {
-        confidence: officerConfidence * 0.6 + agencyConfidence * 0.4,
-        agency: { confidence: agencyConfidence, record: agency },
+        confidence: officerConfidence,
+        agency: { confidence: 1, record: agency },
         officer: {
           confidence: officerConfidence,
           uncertainty: officerUncertainty,
@@ -4124,20 +4090,16 @@ export class DataContext {
 }
 
 export type AgencyOfficerSearch = {
-  state: string;
-  place?: string;
-  agencyName: string;
+  // The exact canonical agency this officer must belong to; resolution is scoped
+  // to its roster and the agency is never matched by name (ADR 0022). Required.
+  agencyId: string;
   officerName: string;
   topN: number;
-  /**
-   * The exact `agency` id this officer must belong to, when the caller already
-   * knows it (e.g. a CourtListener docket discovered by searching one specific
-   * agency). When present, the agency is matched by id — never by name — and the
-   * result's `agency.confidence` is 1; the officer name is the only fuzzy
-   * dimension. Absent (clearinghouse, which only has an agency name), the agency
-   * is matched fuzzily by name as before.
-   */
-  agencyId?: string;
+  // Provenance for diagnostics only — never used to match. What the source
+  // recorded for the agency it queried.
+  agencyName?: string;
+  state?: string;
+  place?: string;
 };
 
 export type ScoredRecord = {
