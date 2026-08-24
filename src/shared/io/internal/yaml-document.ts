@@ -1,4 +1,4 @@
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { parseDocument, stringify } from "yaml";
 import { yamlDigest } from "../resource.js";
@@ -31,21 +31,13 @@ export async function readYamlDocumentFile(
   filePath: string,
   label: string,
 ): Promise<{ contents: string; document: unknown }> {
-  let documentStat;
-  try {
-    documentStat = await stat(filePath);
-  } catch {
-    throw new Error(`${label} is not readable: ${filePath}`);
-  }
-
-  if (!documentStat.isFile()) {
-    throw new Error(`${label} is not a file: ${filePath}`);
-  }
-
   let contents;
   try {
     contents = await readFile(filePath, "utf8");
-  } catch {
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EISDIR") {
+      throw new Error(`${label} is not a file: ${filePath}`);
+    }
     throw new Error(`${label} is not readable: ${filePath}`);
   }
 
