@@ -1,4 +1,4 @@
-import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type {
   AcquireDeps,
@@ -171,7 +171,6 @@ export const acquire: SourceAcquire = async ({
   const minYear = Number(env.COURTLISTENER_MIN_YEAR ?? DEFAULT_MIN_YEAR);
   const filedAfter = `${minYear}-01-01`;
   const onlyWithCases = env.COURTLISTENER_ONLY_WITH_CASES === "true";
-  const agenciesFile = env.COURTLISTENER_AGENCIES_FILE;
 
   const cache = await loadDocketCache(state);
   const nowMs = Date.now();
@@ -236,45 +235,26 @@ export const acquire: SourceAcquire = async ({
     );
   };
 
-  if (agenciesFile !== undefined && agenciesFile.trim() !== "") {
-    const list = JSON.parse(await readFile(agenciesFile, "utf8")) as {
-      id?: string;
-      name?: string;
-      state?: string;
-      place?: string;
-      county?: string;
-    }[];
-    for (const entry of list) {
+  let cursor: string | undefined;
+  do {
+    const page = await data.agencies({
+      states: Object.keys(STATE_COURTS),
+      minOfficers: 1,
+      hasCivilCase: onlyWithCases,
+      cursor,
+      limit: 50,
+    });
+    for (const record of page.items) {
       await processAgency(
-        str(entry.id),
-        str(entry.name).trim(),
-        str(entry.state).trim().toUpperCase(),
-        str(entry.place),
-        str(entry.county),
+        str(record.agency.id),
+        str(record.agency.name).trim(),
+        record.state,
+        record.place ?? "",
+        record.county ?? "",
       );
     }
-  } else {
-    let cursor: string | undefined;
-    do {
-      const page = await data.agencies({
-        states: Object.keys(STATE_COURTS),
-        minOfficers: 1,
-        hasCivilCase: onlyWithCases,
-        cursor,
-        limit: 50,
-      });
-      for (const record of page.items) {
-        await processAgency(
-          str(record.agency.id),
-          str(record.agency.name).trim(),
-          record.state,
-          record.place ?? "",
-          record.county ?? "",
-        );
-      }
-      cursor = page.nextCursor;
-    } while (cursor !== undefined);
-  }
+    cursor = page.nextCursor;
+  } while (cursor !== undefined);
 
   log.info(
     `courtlistener: ${searched} agencies searched, ${cached} served from cache (< ${REFRESH_DAYS} days), ${failed} skipped after errors.`,
