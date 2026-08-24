@@ -10,9 +10,27 @@
  * TEST_DATABASE_URL must be a fully-qualified URL with a host, because the
  * render-role tests rewrite its credentials.
  *
- *   createdb intake_schema_test
- *   TEST_DATABASE_URL=postgres://localhost:5432/intake_schema_test \
- *     npm run test:vitest -- test/schema
+ * Two modes, chosen by whether the target database has the real upstream
+ * schema (detected via `agency.location_path_id`):
+ *
+ *   Real-schema mode (a `supabase db reset` database). The migration set is
+ *   already applied, so the suite runs against it as it stands -- against the
+ *   real `agency`/`officers` definitions, with Supabase's own roles and
+ *   default privileges present. It rebuilds nothing, clears only the rows it
+ *   created, and refuses to run if the database holds data it did not create.
+ *   This is the mode that proves the migration composes with the real schema.
+ *
+ *     npm run supabase:start && npm run supabase:reset
+ *     TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54322/postgres \
+ *       npx vitest run test/schema
+ *
+ *   Fixture mode (a bare Postgres with no upstream schema, e.g. a host with no
+ *   PostGIS). `upstream-fixture.sql` stands in for the three upstream objects
+ *   the migration references and the schema is rebuilt in place.
+ *
+ *     createdb intake_schema_test
+ *     TEST_DATABASE_URL=postgres://localhost:5432/intake_schema_test \
+ *       npm run test:vitest -- test/schema
  */
 
 import { readFileSync } from "node:fs";
@@ -32,12 +50,43 @@ const FIXTURE_PATH = fileURLToPath(
   new URL("./upstream-fixture.sql", import.meta.url),
 );
 
+/**
+ * Every table the provenance migration creates, for the real-schema-mode
+ * reset. Truncating these is what makes the suite re-runnable there; it is
+ * guarded by the emptiness check in `beforeAll`, so it can only ever remove
+ * this suite's own leftovers.
+ */
+const PROVENANCE_TABLES = [
+  "person_identity_link",
+  "employment_period",
+  "person_name_variant",
+  "person",
+  "agency_registry_presence",
+  "ori_conflict",
+  "agency_ori",
+  "agency_entity_member",
+  "agency_entity",
+  "publication_event",
+  "subject_suppression",
+  "claim",
+  "claim_predicate",
+  "source_retrieval",
+  "source",
+];
+
 const RETRIEVAL = "ret_test_0001";
 const SOURCE = "src_test_0001";
 const AGENCY_A = "agency_test_a";
 const AGENCY_B = "agency_test_b";
+const LOCATION_PATH = "locpath_test_tx";
 
 let admin: Client;
+
+/** Connection string actually under test. */
+let testUrl: string;
+
+/** True when running against a real migrated (`supabase db reset`) database. */
+let realSchema = false;
 
 /** Run SQL and return the error message, or null if it unexpectedly succeeded. */
 async function rejects(sql: string, params: unknown[] = []): Promise<string> {
@@ -51,24 +100,81 @@ async function rejects(sql: string, params: unknown[] = []): Promise<string> {
 
 describe.skipIf(!DATABASE_URL)("provenance structural invariant", () => {
   beforeAll(async () => {
-    admin = new Client({ connectionString: DATABASE_URL });
-    await admin.connect();
+    // Decide the mode BEFORE touching anything. This check has to precede the
+    // schema drops below: dropping `public` first would guarantee `agency` is
+    // absent, so the fixture would always win and the suite would never
+    // exercise the real schema it claims to.
+    //
+    // The marker is `agency.location_path_id`, not the existence of `agency`.
+    // The fixture creates an `agency` too, so keying off the table would make
+    // the second fixture-mode run mistake its own leftovers for the real
+    // schema. Only the real migration set adds this column.
+    const bootstrap = new Client({ connectionString: DATABASE_URL });
+    await bootstrap.connect();
+    realSchema = (
+      await bootstrap.query(
+        `select exists (
+           select 1 from information_schema.columns
+           where table_schema = 'public'
+             and table_name = 'agency'
+             and column_name = 'location_path_id'
+         ) as present`,
+      )
+    ).rows[0].present as boolean;
 
-    // Start from a known-empty state so the suite is re-runnable.
-    await admin.query(`drop schema if exists render cascade`);
-    await admin.query(`drop schema if exists public cascade`);
-    await admin.query(`create schema public`);
-    await admin.query(`drop owned by page_renderer`).catch(() => {});
-    await admin.query(`drop role if exists page_renderer`).catch(() => {});
+    if (realSchema) {
+      // Real-schema mode: the target already has the full migration set
+      // applied by `supabase db reset`, including this migration. Use it as
+      // it stands -- that artifact, with Supabase's own roles and default
+      // privileges present, is exactly what we need to test. Do not rebuild
+      // the schema: replaying migrations into a blank database does not work
+      // (they reference Supabase bootstrap schemas such as `graphql` that
+      // `create database` does not provide), and dropping `public` here would
+      // destroy the developer's stack.
+      testUrl = DATABASE_URL!;
+      admin = bootstrap;
 
-    const agencyExists = await admin.query(
-      `select to_regclass('public.agency') is not null as present`,
-    );
-    if (!agencyExists.rows[0].present) {
+      // Refuse to touch a database with real data in it. A freshly reset
+      // database has no agencies; anything else is not a test database.
+      const strays = await admin.query(
+        `select count(*)::int as n from public.agency where id <> all($1::text[])`,
+        [[AGENCY_A, AGENCY_B]],
+      );
+      if (strays.rows[0].n > 0) {
+        throw new Error(
+          `refusing to run: public.agency holds ${strays.rows[0].n} row(s) this suite did not create. ` +
+            `Point TEST_DATABASE_URL at a freshly reset database (npm run supabase:reset).`,
+        );
+      }
+
+      // Re-runnable: clear this suite's leftovers from a previous run.
+      await admin.query(
+        `truncate table ${PROVENANCE_TABLES.map((t) => `public.${t}`).join(", ")} cascade`,
+      );
+      await admin.query(
+        `delete from public.agency where id = any($1::text[])`,
+        [[AGENCY_A, AGENCY_B]],
+      );
+      await admin.query(
+        `delete from public.location_path where location_path_id = $1`,
+        [LOCATION_PATH],
+      );
+    } else {
+      // Fixture mode: a bare Postgres with no upstream schema. Rebuild in
+      // place and stand in for the three objects the migration references.
+      testUrl = DATABASE_URL!;
+      admin = bootstrap;
+
+      // Start from a known-empty state so the suite is re-runnable.
+      await admin.query(`drop schema if exists render cascade`);
+      await admin.query(`drop schema if exists public cascade`);
+      await admin.query(`create schema public`);
+      await admin.query(`drop owned by page_renderer`).catch(() => {});
+      await admin.query(`drop role if exists page_renderer`).catch(() => {});
+
       await admin.query(readFileSync(FIXTURE_PATH, "utf8"));
+      await admin.query(readFileSync(MIGRATION_PATH, "utf8"));
     }
-
-    await admin.query(readFileSync(MIGRATION_PATH, "utf8"));
 
     // A cleared source and one retrieval, used by most tests below.
     await admin.query(
@@ -95,12 +201,32 @@ describe.skipIf(!DATABASE_URL)("provenance structural invariant", () => {
          ('agency.agency_type_name', 'agency', 'text',
           'Source classification; inconsistent across states, internal only', false)`,
     );
-    await admin.query(
-      `insert into public.agency (id, name, state) values
-         ($1, 'Test Police Department', 'TX'),
-         ($2, 'Other Police Department', 'TX')`,
-      [AGENCY_A, AGENCY_B],
-    );
+    if (realSchema) {
+      // The real `agency` carries two NOT NULL columns the fixture does not:
+      // `slug` and a restricted FK to `location_path`. Seeding them here is
+      // the difference between testing the real table and testing a stand-in.
+      await admin.query(
+        `insert into public.location_path
+           (location_path_id, path, level, state_or_territory_slug,
+            state_or_territory_name)
+         values ($1, '/tx', 'state', 'tx', 'Texas')
+         on conflict (location_path_id) do nothing`,
+        [LOCATION_PATH],
+      );
+      await admin.query(
+        `insert into public.agency (id, name, state, slug, location_path_id)
+         values ($1, 'Test Police Department', 'TX', 'test-police-department', $3),
+                ($2, 'Other Police Department', 'TX', 'other-police-department', $3)`,
+        [AGENCY_A, AGENCY_B, LOCATION_PATH],
+      );
+    } else {
+      await admin.query(
+        `insert into public.agency (id, name, state) values
+           ($1, 'Test Police Department', 'TX'),
+           ($2, 'Other Police Department', 'TX')`,
+        [AGENCY_A, AGENCY_B],
+      );
+    }
   });
 
   afterAll(async () => {
@@ -223,7 +349,7 @@ describe.skipIf(!DATABASE_URL)("provenance structural invariant", () => {
       // also supplied, so the credentials must be embedded in the URL. Getting
       // this wrong silently connects as the superuser and turns every
       // permission assertion below into a false pass.
-      const url = new URL(DATABASE_URL!);
+      const url = new URL(testUrl);
       url.username = "page_renderer";
       url.password = "test-only";
       renderer = new Client({ connectionString: url.toString() });
