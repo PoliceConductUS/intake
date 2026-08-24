@@ -768,6 +768,42 @@ describe("importArtifacts", () => {
     expect(agencyMutation).not.toHaveProperty("ownedColumns");
     expect(agencyMutation).not.toHaveProperty("target");
     expect(agencyMutation?.kind).toBe("AgencyCreate");
+    // A clean import writes no suppressedSkips key at all, so the field's
+    // presence in an envelope always means something was withheld.
+    expect(parsedImportArtifacts.metadata).not.toHaveProperty(
+      "suppressedSkips",
+    );
+  });
+
+  test("DatabaseMutations envelope carries suppressed skips through a write and read", async () => {
+    const rootDir = await mkdtemp(path.join(tmpdir(), "intake-run-"));
+    const runId = "suppressed-skip-envelope";
+    const commandDirectory = path.join(rootDir, "intake", "commands", runId);
+    const suppressedSkips = [
+      {
+        entity: "personnel" as const,
+        recordId: "personnel-canonical-id",
+        suppressedSubjectIds: ["personnel-canonical-id"],
+        withheldColumns: ["last_name", "slug"],
+      },
+    ];
+
+    const written = await DatabaseMutations.write(
+      commandDirectory,
+      new DataContext({
+        rows,
+        operations: createOperations,
+      }).toDatabaseMutations({
+        namespace: "mn-post",
+        name: runId,
+        suppressedSkips,
+      }),
+    );
+
+    // Read back from disk, not from the in-memory object: the envelope is the
+    // artifact the next run diffs against, so the skip has to survive YAML.
+    const parsed = await DatabaseMutations.read(written.path);
+    expect(parsed.metadata.suppressedSkips).toEqual(suppressedSkips);
   });
 
   test("persists and reuses resolved agency and personnel slugs", async () => {
@@ -1119,6 +1155,7 @@ describe("importArtifacts", () => {
           Personnel: 1,
         },
       },
+      suppressedSkips: [],
     });
     const databaseMutations = await DatabaseMutations.read(
       path.join(
@@ -1286,6 +1323,7 @@ describe("importArtifacts", () => {
           LocationPathGeometry: 1,
         },
       },
+      suppressedSkips: [],
     });
     const databaseMutations = await DatabaseMutations.read(
       path.join(
@@ -1826,6 +1864,7 @@ describe("importArtifacts", () => {
             Personnel: 2,
           },
         },
+        suppressedSkips: [],
       }),
     });
 
@@ -1918,6 +1957,7 @@ describe("importArtifacts", () => {
               Personnel: 2,
             },
           },
+          suppressedSkips: [],
         };
       },
     });
@@ -1933,6 +1973,94 @@ describe("importArtifacts", () => {
     expect(result.stdout).toContain("Database mutations: 15");
     expect(result.stdout).toContain("LocationPath: 4");
     expect(result.stdout).toContain("LocationPathAlias: 5");
+  });
+
+  test("CLI reports the count and identity of records skipped because they are suppressed", async () => {
+    const rootDir = await mkdtemp(path.join(tmpdir(), "intake-suppressed-"));
+    const workspace = path.join(rootDir, "workspace");
+    const artifactsPath = path.join(
+      workspace,
+      "mn-post",
+      "commands",
+      "test-run",
+      "artifacts.yaml",
+    );
+
+    const result = await runImportArtifactsCommand(artifactsPath, {
+      env: { INTAKE_WORKSPACE: workspace },
+      now: new Date("2026-06-10T00:00:00.000Z"),
+      createCommandName: () => "tz4a98xxat96iws9zmbrgj3a",
+      terminal: { write: () => {} },
+      importArtifacts: async () => ({
+        ok: true,
+        counts: { mutations: 1, recordsByEntityType: { Agency: 1 } },
+        suppressedSkips: [
+          {
+            entity: "personnel",
+            recordId: "personnel-canonical-id",
+            suppressedSubjectIds: ["personnel-canonical-id"],
+            withheldColumns: ["last_name", "slug"],
+          },
+          {
+            entity: "agencyPersonnel",
+            recordId: "agency-personnel-canonical-id",
+            suppressedSubjectIds: ["personnel-canonical-id"],
+            withheldColumns: ["badge_number"],
+          },
+        ],
+      }),
+    });
+
+    const logPath = path.join(
+      workspace,
+      "intake",
+      "commands",
+      "2026-06-10T00-00-00-000Z-tz4a98xxat96iws9zmbrgj3a",
+      "tz4a98xxat96iws9zmbrgj3a.log",
+    );
+    const logLines = (await readFile(logPath, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+
+    expect(result.exitCode).toBe(0);
+    // The count, so an operator knows the scale.
+    expect(result.stdout).toContain(
+      "Records skipped because a subject is suppressed: 2",
+    );
+    // The identity, so they know which record to look up if it is disputed.
+    expect(result.stdout).toContain(
+      "  Personnel personnel-canonical-id (suppressed); withheld: last_name, slug",
+    );
+    expect(result.stdout).toContain(
+      "  AgencyPersonnel agency-personnel-canonical-id (suppressed via personnel-canonical-id); withheld: badge_number",
+    );
+    expect(logLines).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          msg: "Artifacts import succeeded.",
+          suppressedSkipCount: 2,
+        }),
+      ]),
+    );
+  });
+
+  test("CLI reports no suppressed-skip line when nothing was suppressed", async () => {
+    const rootDir = await mkdtemp(path.join(tmpdir(), "intake-suppressed-"));
+    const workspace = path.join(rootDir, "workspace");
+
+    const result = await runImportArtifactsCommand("artifacts.yaml", {
+      env: { INTAKE_WORKSPACE: workspace },
+      terminal: { write: () => {} },
+      importArtifacts: async () => ({
+        ok: true,
+        counts: { mutations: 1, recordsByEntityType: { Agency: 1 } },
+        suppressedSkips: [],
+      }),
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).not.toContain("skipped because a subject is");
   });
 
   test("CLI honors LOG_LEVEL for observable debug logging", async () => {
@@ -1957,6 +2085,7 @@ describe("importArtifacts", () => {
         return {
           ok: true,
           counts: { mutations: 0, recordsByEntityType: {} },
+          suppressedSkips: [],
         };
       },
     });

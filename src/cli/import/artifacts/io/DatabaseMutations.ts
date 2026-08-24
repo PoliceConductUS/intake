@@ -91,9 +91,32 @@ const metadataSchema = z
       .strict()
       .optional(),
     databaseSchema: z.record(z.string(), z.unknown()).optional(),
+    // Records this import declined to update because a subject is under an
+    // active suppression. Carried on the envelope, not only in the run log,
+    // because the envelope is the artifact that outlives the run and gets
+    // diffed against the next one. Optional so envelopes written before this
+    // field existed still parse; absent and empty both mean "nothing skipped".
+    suppressedSkips: z
+      .array(
+        z
+          .object({
+            entity: z.enum(["agency", "personnel", "agencyPersonnel"]),
+            recordId: z.string().trim().min(1),
+            suppressedSubjectIds: z
+              .array(z.string().trim().min(1))
+              .min(1)
+              .readonly(),
+            withheldColumns: z
+              .array(z.string().trim().min(1))
+              .min(1)
+              .readonly(),
+          })
+          .strict(),
+      )
+      .readonly()
+      .optional(),
   })
   .strict();
-
 
 export const databaseMutationReferenceSchema = z
   .object({

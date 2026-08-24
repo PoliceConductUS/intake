@@ -6,7 +6,11 @@ import {
 import { readLocationPathAliasByPath } from "../../database/location-paths.js";
 import type { SupportedTableName } from "../../database/schema.js";
 import { readActiveSuppressedIds } from "../../database/suppression.js";
-import type { DatabaseRowOperations } from "./operations.js";
+import type {
+  DatabaseRowOperations,
+  SuppressedSkip,
+  SuppressedSkipEntity,
+} from "./operations.js";
 import type { ImportRows, LocationPathRow } from "./transform.js";
 
 async function rowExists(
@@ -15,6 +19,45 @@ async function rowExists(
   rowId: string,
 ): Promise<boolean> {
   return (await readDatabaseRecordById(client, tableName, rowId)) !== undefined;
+}
+
+/**
+ * Classify an existing row, recording the skip when suppression is what
+ * demoted it.
+ *
+ * The order of the checks is the point. A record with no owned columns is not
+ * a skip -- this import had nothing to write for it, suppressed or not, and
+ * reporting it as a skipped takedown would inflate the number that matters.
+ * Only a write we were actually going to make and then withheld counts.
+ */
+function classifyExistingRow(
+  skips: Map<string, SuppressedSkip>,
+  suppressedIds: ReadonlySet<string>,
+  entity: SuppressedSkipEntity,
+  recordId: string,
+  ownedColumns: readonly string[],
+  subjectIds: readonly string[],
+): "read" | "update" {
+  if (ownedColumns.length === 0) {
+    return "read";
+  }
+  const suppressedSubjectIds = [...new Set(subjectIds)].filter((subjectId) =>
+    suppressedIds.has(subjectId),
+  );
+  if (suppressedSubjectIds.length === 0) {
+    return "update";
+  }
+  // Keyed rather than appended: rows.officers is classified without the
+  // already-seen guard the agency loop has, so the same record can be visited
+  // twice. A change diff that double-counts an honoured takedown is its own
+  // small lie.
+  skips.set(`${entity}:${recordId}`, {
+    entity,
+    recordId,
+    suppressedSubjectIds,
+    withheldColumns: [...ownedColumns],
+  });
+  return "read";
 }
 
 export async function classifyDatabaseOperations(
@@ -35,7 +78,13 @@ export async function classifyDatabaseOperations(
     agencies: {},
     officers: {},
     agencyOfficers: {},
+    suppressedSkips: [],
   };
+  // Owned by classification, and rebuilt on every call. `preparedOperations`
+  // reaches us through a cast from ImportOperations, which has no such field,
+  // so it can arrive undefined; and a re-run must not accumulate skips from
+  // the previous pass.
+  const suppressedSkips = new Map<string, SuppressedSkip>();
   const databaseLocationPathIds = new Set(
     databaseLocationPaths.map((locationPath) => locationPath.location_path_id),
   );
@@ -110,20 +159,28 @@ export async function classifyDatabaseOperations(
     }
     const exists = await rowExists(client, "public.agency", agency.id);
     operations.agencies[agency.id] = exists
-      ? (rows.ownedColumns.agencies[agency.id] ?? []).length > 0 &&
-        !suppressedIds.has(agency.id)
-        ? "update"
-        : "read"
+      ? classifyExistingRow(
+          suppressedSkips,
+          suppressedIds,
+          "agency",
+          agency.id,
+          rows.ownedColumns.agencies[agency.id] ?? [],
+          [agency.id],
+        )
       : "create";
   }
 
   for (const officer of rows.officers) {
     const exists = await rowExists(client, "public.officers", officer.id);
     operations.officers[officer.id] = exists
-      ? (rows.ownedColumns.officers[officer.id] ?? []).length > 0 &&
-        !suppressedIds.has(officer.id)
-        ? "update"
-        : "read"
+      ? classifyExistingRow(
+          suppressedSkips,
+          suppressedIds,
+          "personnel",
+          officer.id,
+          rows.ownedColumns.officers[officer.id] ?? [],
+          [officer.id],
+        )
       : "create";
   }
 
@@ -134,14 +191,22 @@ export async function classifyDatabaseOperations(
       agencyOfficer.id,
     );
     operations.agencyOfficers[agencyOfficer.id] = exists
-      ? (rows.ownedColumns.agencyOfficers[agencyOfficer.id] ?? []).length > 0 &&
-        !suppressedIds.has(agencyOfficer.id) &&
-        !suppressedIds.has(agencyOfficer.personnel_id) &&
-        !suppressedIds.has(agencyOfficer.agency_id)
-        ? "update"
-        : "read"
+      ? classifyExistingRow(
+          suppressedSkips,
+          suppressedIds,
+          "agencyPersonnel",
+          agencyOfficer.id,
+          rows.ownedColumns.agencyOfficers[agencyOfficer.id] ?? [],
+          [
+            agencyOfficer.id,
+            agencyOfficer.personnel_id,
+            agencyOfficer.agency_id,
+          ],
+        )
       : "create";
   }
+
+  operations.suppressedSkips = [...suppressedSkips.values()];
 
   return operations;
 }

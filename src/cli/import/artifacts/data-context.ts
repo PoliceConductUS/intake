@@ -11,7 +11,11 @@ import {
   readLocationPathByPath,
   readPlaceLocationPathsContainingPoint,
 } from "../../database/location-paths.js";
-import type { ImportOperation, ImportOperations } from "./operations.js";
+import type {
+  ImportOperation,
+  ImportOperations,
+  SuppressedSkip,
+} from "./operations.js";
 import {
   type AgencyOfficerRow,
   type AgencyRow,
@@ -135,6 +139,7 @@ export type DatabaseMutationsMetadataInput = {
   sourceArtifactsDigest?: string;
   artifactMutation?: { path: string; digest: string };
   databaseSchema?: Record<string, unknown>;
+  suppressedSkips?: readonly SuppressedSkip[];
 };
 
 type OwnedColumnsMetadata = {
