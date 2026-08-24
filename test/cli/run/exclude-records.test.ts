@@ -35,8 +35,9 @@ describe("excludeManifestRecords", () => {
       excluded,
     );
 
-    const agencies = filtered.artifacts.find((a) => a.kind === "Agencies")!
-      .records;
+    const agencies = filtered.artifacts.find(
+      (a) => a.kind === "Agencies",
+    )!.records;
     const assignments = filtered.artifacts.find(
       (a) => a.kind === "AgencyPersonnel",
     )!.records;

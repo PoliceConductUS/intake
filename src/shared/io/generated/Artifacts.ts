@@ -3,11 +3,7 @@
 import path from "node:path";
 import { z } from "zod";
 import { INTAKE_API_VERSION, IMPORT_ARTIFACT_KINDS } from "../import-types.js";
-import {
-  firstIssuePath,
-  yamlDigest,
-  yamlResourcePath,
-} from "../resource.js";
+import { firstIssuePath, yamlDigest, yamlResourcePath } from "../resource.js";
 import {
   readYamlDocumentFile,
   writeYamlDocumentFile,
@@ -31,7 +27,6 @@ import { FederalAgencyBranches } from "./FederalAgencyBranches.js";
 import { CivilCases } from "./CivilCases.js";
 import { CivilCaseOfficers } from "./CivilCaseOfficers.js";
 import { CivilCaseLinks } from "./CivilCaseLinks.js";
-
 
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
@@ -68,19 +63,25 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "Artifacts"} ref requires relativeTo.`);
+  if (
+    options.relativeTo === undefined ||
+    options.relativeTo.trim().length === 0
+  ) {
+    throw new Error(
+      `Relative ${ref.kind ?? "Artifacts"} ref requires relativeTo.`,
+    );
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "Artifacts"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(
+      `${ref.kind ?? "Artifacts"} ref.path escapes its directory: ${ref.path}`,
+    );
   }
   return { ...ref, filePath: resolvedPath };
 }
-
 
 const metadataSchema = z
   .object({
@@ -121,7 +122,10 @@ const artifactReferenceSchema = z
       .object({
         path: z.string().trim().min(1),
         kind: artifactKindSchema,
-        sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+        sha256: z
+          .string()
+          .regex(/^[a-f0-9]{64}$/)
+          .optional(),
       })
       .strict(),
   })
@@ -149,17 +153,19 @@ export const schema = z
     metadata: metadataSchema,
     spec: z
       .object({
-        artifacts: z
-          .array(
-            z.union([artifactReferenceSchema, inlineArtifactSchema]),
-          ),
+        artifacts: z.array(
+          z.union([artifactReferenceSchema, inlineArtifactSchema]),
+        ),
       })
       .strict(),
   })
   .strict();
 
 export type ArtifactsEnvelope = z.infer<typeof schema>;
-export type ArtifactsInput = Omit<z.infer<typeof schema>, "apiVersion" | "kind">;
+export type ArtifactsInput = Omit<
+  z.infer<typeof schema>,
+  "apiVersion" | "kind"
+>;
 
 function parseArtifacts(value: unknown): ArtifactsEnvelope {
   const result = schema.safeParse(value);
@@ -183,9 +189,14 @@ async function readArtifacts(
 ): Promise<ArtifactsEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "Artifacts") {
-    throw new Error(`Artifacts ref.kind ${ref.kind} does not match expected kind Artifacts: ${ref.filePath}`);
+    throw new Error(
+      `Artifacts ref.kind ${ref.kind} does not match expected kind Artifacts: ${ref.filePath}`,
+    );
   }
-  const { contents, document } = await readYamlDocumentFile(ref.filePath, "Artifacts");
+  const { contents, document } = await readYamlDocumentFile(
+    ref.filePath,
+    "Artifacts",
+  );
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
     throw new Error(`Artifacts sha256 mismatch: ${ref.filePath}`);
   }

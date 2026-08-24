@@ -43,9 +43,9 @@ describe("loadSourceAcquire", () => {
   });
 
   it("fails when the source does not export acquire", async () => {
-    await expect(
-      loadSourceAcquire("ok-source", sourcesRoot),
-    ).rejects.toThrow(/does not support acquire/);
+    await expect(loadSourceAcquire("ok-source", sourcesRoot)).rejects.toThrow(
+      /does not support acquire/,
+    );
   });
 
   it("fails clearly for an unknown source id", async () => {

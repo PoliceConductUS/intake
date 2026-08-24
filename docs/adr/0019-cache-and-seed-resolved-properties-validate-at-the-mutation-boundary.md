@@ -25,7 +25,7 @@ Two needs were left handled by bespoke, coordinate-only code
    value a resolver cannot produce.
 2. **A partial model that is still guaranteed complete before the database.**
    A source record legitimately omits resolver-filled fields, so the artifact is
-   a *partial* model. But a database mutation must be complete and valid. Where
+   a _partial_ model. But a database mutation must be complete and valid. Where
    does "valid" get enforced?
 
 This ADR generalizes both, entity-agnostically, and defines exactly where a
@@ -95,7 +95,7 @@ a column null.** A source with no value for a field **omits it** (leaves it
 `undefined`) — that is the temporarily-absent partial state a resolver/seed then
 fills. Emitting `null` is a deliberate instruction to set the column to `null`,
 so a resolver-filled/required field must **never** be emitted `null`. (This is
-why the artifact spec for these fields accepts *omitted* but rejects `null`.)
+why the artifact spec for these fields accepts _omitted_ but rejects `null`.)
 
 ## Mandated pattern — and disallowed alternatives
 
@@ -138,7 +138,7 @@ signal the kit is missing a capability, to be added generically — never bypass
 ## Alternatives Considered
 
 - **Make the columns `NOT NULL` / required in the base artifact spec** (the first
-  attempt): rejected — it validates the raw record at read, *before* resolvers or
+  attempt): rejected — it validates the raw record at read, _before_ resolvers or
   seeds run, so a partial artifact is rejected before it can be completed. It
   conflates "the artifact is incomplete" with "the agency is invalid."
 - **Keep caching per entity (bespoke coordinate cache):** rejected — it does not

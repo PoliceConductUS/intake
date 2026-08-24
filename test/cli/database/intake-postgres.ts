@@ -50,7 +50,9 @@ export type IntakeDatabase = {
 // the replay/apply path is exercised against genuine Postgres (multi-row inserts,
 // ON CONFLICT, FK and NOT NULL constraints, PostGIS geometry) instead of a mock.
 export async function startIntakeDatabase(): Promise<IntakeDatabase> {
-  const container = await new PostgreSqlContainer("postgis/postgis:15-3.4").start();
+  const container = await new PostgreSqlContainer(
+    "postgis/postgis:15-3.4",
+  ).start();
   const connectionString = container.getConnectionUri();
   const admin = new pg.Client({ connectionString });
   await admin.connect();

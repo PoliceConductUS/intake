@@ -44,7 +44,11 @@ function sanitizePartyName(name: string): string {
     .trim();
 }
 
-function partyNames(agencyName: string, place: string, county: string): string[] {
+function partyNames(
+  agencyName: string,
+  place: string,
+  county: string,
+): string[] {
   const names = [agencyName];
   const isCountyAgency = /\b(county|sheriff|parish)\b/i.test(agencyName);
   if (isCountyAgency && county.trim() !== "") {
@@ -55,9 +59,7 @@ function partyNames(agencyName: string, place: string, county: string): string[]
     names.push(county.trim());
   }
   return [
-    ...new Set(
-      names.map(sanitizePartyName).filter((name) => name !== ""),
-    ),
+    ...new Set(names.map(sanitizePartyName).filter((name) => name !== "")),
   ];
 }
 
@@ -100,7 +102,8 @@ async function searchAgencyDockets(
           docket_number: str(hit.docketNumber ?? hit.docket_number),
           court: str(hit.court_id ?? hit.court),
           date_filed: str(hit.dateFiled ?? hit.date_filed) || null,
-          date_terminated: str(hit.dateTerminated ?? hit.date_terminated) || null,
+          date_terminated:
+            str(hit.dateTerminated ?? hit.date_terminated) || null,
           cause: str(hit.cause),
           absolute_url: str(hit.docket_absolute_url ?? hit.absolute_url),
           parties: (Array.isArray(hit.party) ? hit.party : [])

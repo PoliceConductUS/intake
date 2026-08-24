@@ -16,7 +16,6 @@ import {
 import { CivilCaseSpec } from "./entity-specs.js";
 export { CivilCaseSpec } from "./entity-specs.js";
 
-
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -52,19 +51,25 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "CivilCases"} ref requires relativeTo.`);
+  if (
+    options.relativeTo === undefined ||
+    options.relativeTo.trim().length === 0
+  ) {
+    throw new Error(
+      `Relative ${ref.kind ?? "CivilCases"} ref requires relativeTo.`,
+    );
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "CivilCases"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(
+      `${ref.kind ?? "CivilCases"} ref.path escapes its directory: ${ref.path}`,
+    );
   }
   return { ...ref, filePath: resolvedPath };
 }
-
 
 const metadataSchema = z
   .object({
@@ -78,9 +83,7 @@ const metadataSchema = z
   })
   .strict();
 
-const recordItemSchema = z
-  .object({ spec: CivilCaseSpec })
-  .strict();
+const recordItemSchema = z.object({ spec: CivilCaseSpec }).strict();
 
 export const schema = z
   .object({
@@ -140,8 +143,6 @@ function validateRecord(
   return result.data;
 }
 
-
-
 async function readCivilCases(
   filePath: string,
   options: EnvelopeReadOptions & {
@@ -166,13 +167,24 @@ async function readCivilCases(
     raw?: boolean;
   } = {},
 ): Promise<CivilCasesEnvelope | CivilCasesResolvedEnvelope> {
-  const { contents, document } = await readYamlDocumentFile(filePath, "CivilCases");
-  if (options.expectedSha256 !== undefined && yamlDigest(contents) !== options.expectedSha256) {
+  const { contents, document } = await readYamlDocumentFile(
+    filePath,
+    "CivilCases",
+  );
+  if (
+    options.expectedSha256 !== undefined &&
+    yamlDigest(contents) !== options.expectedSha256
+  ) {
     throw new Error(`CivilCases sha256 mismatch: ${filePath}`);
   }
   const artifact = parseCivilCases(document);
-  if (options.expectedKind !== undefined && artifact.kind !== options.expectedKind) {
-    throw new Error(`CivilCases kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`);
+  if (
+    options.expectedKind !== undefined &&
+    artifact.kind !== options.expectedKind
+  ) {
+    throw new Error(
+      `CivilCases kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`,
+    );
   }
   if (
     options.expectedNamespace !== undefined &&
@@ -209,7 +221,9 @@ async function writeCivilCases(
   const artifactPath = yamlResourcePath(directory, artifact);
 
   if (options.externalizeRecords === true) {
-    throw new Error("CivilCases does not support externalized singular record envelopes.");
+    throw new Error(
+      "CivilCases does not support externalized singular record envelopes.",
+    );
   }
 
   const contents = await writeYamlDocumentFile(artifactPath, artifact);
@@ -223,8 +237,6 @@ export const CivilCases = {
   read: readCivilCases,
   write: writeCivilCases,
 };
-
-
 
 export const read = readCivilCases;
 export const write = writeCivilCases;

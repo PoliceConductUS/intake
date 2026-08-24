@@ -36,14 +36,14 @@ This is FK-safe:
 
 - **A create's FK targets already exist.** Creates keep dependency order, so a
   create references only earlier creates or rows already in the database. A
-  create never references a row that is merely *updated* this import — that row
+  create never references a row that is merely _updated_ this import — that row
   pre-existed.
 - **An update's FK targets already exist.** Any row an update references was
   either already in the database or created in the (earlier) creates phase.
 - **An update never gates a create.** Moving all updates after all creates
   cannot strand a create, because no create depends on an update having run.
 - **No slug/unique collision is introduced.** Emission checks slug uniqueness
-  against the *current* database row, so a create is never assigned a value that
+  against the _current_ database row, so a create is never assigned a value that
   an update is concurrently freeing; running the create before that update is
   therefore safe.
 

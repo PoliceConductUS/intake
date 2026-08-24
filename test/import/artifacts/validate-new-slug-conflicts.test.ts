@@ -1,6 +1,9 @@
 import { describe, expect, test } from "vitest";
 import { validatePreparedNewSlugConflicts } from "../../../src/cli/import/artifacts/validate-new-slug-conflicts.js";
-import type { AgencyRow, ImportRows } from "../../../src/cli/import/artifacts/transform.js";
+import type {
+  AgencyRow,
+  ImportRows,
+} from "../../../src/cli/import/artifacts/transform.js";
 import type { DatabaseClient } from "../../../src/cli/database/index.js";
 
 function newAgency(id: string, slug: string): AgencyRow {

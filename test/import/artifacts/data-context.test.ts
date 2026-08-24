@@ -462,12 +462,10 @@ describe("DataContext", () => {
         path: existingLocationPath.path,
         level: existingLocationPath.level,
         state_or_territory_slug: existingLocationPath.state_or_territory_slug,
-        administrative_area_slug:
-          existingLocationPath.administrative_area_slug,
+        administrative_area_slug: existingLocationPath.administrative_area_slug,
         place_slug: existingLocationPath.place_slug,
         state_or_territory_name: existingLocationPath.state_or_territory_name,
-        administrative_area_name:
-          existingLocationPath.administrative_area_name,
+        administrative_area_name: existingLocationPath.administrative_area_name,
         place_name: existingLocationPath.place_name,
         parent_location_path_id: existingLocationPath.parent_location_path_id,
       },

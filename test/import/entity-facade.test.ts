@@ -16,7 +16,9 @@ function backend(current?: Record<string, Record<string, unknown>>): {
       findForeignKeyTarget: ({ kind, sourceId }) => ({
         value: async () => `fk:${kind}:${sourceId}`,
       }),
-      getLocationPathByPath: async (path) => ({ location_path_id: `lp:${path}` }),
+      getLocationPathByPath: async (path) => ({
+        location_path_id: `lp:${path}`,
+      }),
     },
   };
 }

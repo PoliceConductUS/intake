@@ -1,7 +1,14 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+} from "vitest";
 import { DatabaseMutations } from "../../src/cli/import/artifacts/io/DatabaseMutations.js";
 import { LocationPathCreate } from "../../src/cli/import/artifacts/io/generated-mutations/LocationPathCreate.js";
 import { LocationPathGeometryCreate } from "../../src/cli/import/artifacts/io/generated-mutations/LocationPathGeometryCreate.js";
@@ -125,7 +132,11 @@ describeWithDocker("replay against a real Postgres", () => {
     );
     const rootDir = await mkdtemp(path.join(tmpdir(), "intake-replay-"));
     const envelopePath = await writeEnvelope(rootDir, [
-      { kind: "AgencyCreate", name: "agency-1", spec: agencySpec("agency-1", "a1") },
+      {
+        kind: "AgencyCreate",
+        name: "agency-1",
+        spec: agencySpec("agency-1", "a1"),
+      },
     ]);
 
     const result = await replayDatabaseMutations({
@@ -390,7 +401,10 @@ describeWithDocker("replay against a real Postgres", () => {
           },
         },
         agencies: {
-          "agency-source-id": { kind: "Agency", canonicalId: "agency-canonical-id" },
+          "agency-source-id": {
+            kind: "Agency",
+            canonicalId: "agency-canonical-id",
+          },
         },
         personnel: {
           "personnel-source-id": {
@@ -416,7 +430,10 @@ describeWithDocker("replay against a real Postgres", () => {
     );
     const result = await importArtifacts({
       artifactsPath: writtenArtifacts.path,
-      env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE_TEST: rootDir },
+      env: {
+        DATABASE_URL: db.connectionString,
+        INTAKE_WORKSPACE_TEST: rootDir,
+      },
       logger: { info: () => {}, debug: () => {} },
       commandName: runId,
       commandDirectory,
@@ -436,9 +453,9 @@ describeWithDocker("replay against a real Postgres", () => {
     });
 
     // The rows landed in the real database with their resolved canonical ids.
-    expect((await db.query("select id, slug from public.agency")).rows).toEqual([
-      { id: "agency-canonical-id", slug: "minnesota-state-patrol" },
-    ]);
+    expect((await db.query("select id, slug from public.agency")).rows).toEqual(
+      [{ id: "agency-canonical-id", slug: "minnesota-state-patrol" }],
+    );
     expect(
       (await db.query("select id, first_name from public.officers")).rows,
     ).toEqual([{ id: "personnel-canonical-id", first_name: "Spenser" }]);
@@ -449,7 +466,10 @@ describeWithDocker("replay against a real Postgres", () => {
         )
       ).rows,
     ).toEqual([
-      { agency_id: "agency-canonical-id", officer_id: "personnel-canonical-id" },
+      {
+        agency_id: "agency-canonical-id",
+        officer_id: "personnel-canonical-id",
+      },
     ]);
     expect(
       (

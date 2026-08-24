@@ -31,10 +31,10 @@ describe("nameSimilarity", () => {
 });
 
 describe("officerNameConfidence", () => {
-  const officer = (
-    first: string,
-    last: string,
-  ): Record<string, unknown> => ({ first_name: first, last_name: last });
+  const officer = (first: string, last: string): Record<string, unknown> => ({
+    first_name: first,
+    last_name: last,
+  });
 
   it("is 1 for an exact first+last match, uncertainty 0", () => {
     expect(
@@ -43,7 +43,10 @@ describe("officerNameConfidence", () => {
   });
 
   it("ignores a middle initial and records it as uncertainty", () => {
-    const match = officerNameConfidence("Steven M Nix", officer("Steven", "Nix"));
+    const match = officerNameConfidence(
+      "Steven M Nix",
+      officer("Steven", "Nix"),
+    );
     expect(match.confidence).toBe(1);
     expect(match.uncertainty).toBe(1);
   });

@@ -16,7 +16,6 @@ import {
 import { AgencyPersonnelSpec } from "./entity-specs.js";
 export { AgencyPersonnelSpec } from "./entity-specs.js";
 
-
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -52,19 +51,25 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "AgencyPersonnel"} ref requires relativeTo.`);
+  if (
+    options.relativeTo === undefined ||
+    options.relativeTo.trim().length === 0
+  ) {
+    throw new Error(
+      `Relative ${ref.kind ?? "AgencyPersonnel"} ref requires relativeTo.`,
+    );
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "AgencyPersonnel"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(
+      `${ref.kind ?? "AgencyPersonnel"} ref.path escapes its directory: ${ref.path}`,
+    );
   }
   return { ...ref, filePath: resolvedPath };
 }
-
 
 const metadataSchema = z
   .object({
@@ -84,15 +89,19 @@ const recordReferenceSchema = z
       .object({
         path: z.string().trim().min(1),
         kind: z.literal("AgencyPersonnelRecord"),
-        sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+        sha256: z
+          .string()
+          .regex(/^[a-f0-9]{64}$/)
+          .optional(),
       })
       .strict(),
   })
   .strict();
-const inlineRecordItemSchema = z
-  .object({ spec: AgencyPersonnelSpec })
-  .strict();
-const recordItemSchema = z.union([recordReferenceSchema, inlineRecordItemSchema]);
+const inlineRecordItemSchema = z.object({ spec: AgencyPersonnelSpec }).strict();
+const recordItemSchema = z.union([
+  recordReferenceSchema,
+  inlineRecordItemSchema,
+]);
 
 export const schema = z
   .object({
@@ -110,8 +119,14 @@ export const schema = z
   .strict();
 
 export type AgencyPersonnelEnvelope = z.infer<typeof schema>;
-export type AgencyPersonnelInput = Omit<AgencyPersonnelEnvelope, "apiVersion" | "kind">;
-export type AgencyPersonnelResolvedEnvelope = Omit<AgencyPersonnelEnvelope, "spec"> & {
+export type AgencyPersonnelInput = Omit<
+  AgencyPersonnelEnvelope,
+  "apiVersion" | "kind"
+>;
+export type AgencyPersonnelResolvedEnvelope = Omit<
+  AgencyPersonnelEnvelope,
+  "spec"
+> & {
   spec: Omit<AgencyPersonnelEnvelope["spec"], "records"> & {
     records: Record<string, z.infer<typeof AgencyPersonnelSpec>>;
   };
@@ -130,7 +145,9 @@ function parseAgencyPersonnel(value: unknown): AgencyPersonnelEnvelope {
   return result.data;
 }
 
-function newAgencyPersonnel(input: AgencyPersonnelInput): AgencyPersonnelEnvelope {
+function newAgencyPersonnel(
+  input: AgencyPersonnelInput,
+): AgencyPersonnelEnvelope {
   return parseAgencyPersonnel({
     apiVersion: INTAKE_API_VERSION,
     kind: "AgencyPersonnel",
@@ -152,7 +169,6 @@ function validateRecord(
   return result.data;
 }
 
-
 export const recordSchema = z
   .object({
     apiVersion: z.literal(INTAKE_API_VERSION),
@@ -170,17 +186,26 @@ export const recordSchema = z
   .strict();
 
 export type AgencyPersonnelRecordEnvelope = z.infer<typeof recordSchema>;
-export type AgencyPersonnelRecordInput = Omit<AgencyPersonnelRecordEnvelope, "apiVersion" | "kind">;
+export type AgencyPersonnelRecordInput = Omit<
+  AgencyPersonnelRecordEnvelope,
+  "apiVersion" | "kind"
+>;
 
-function parseAgencyPersonnelRecord(value: unknown): AgencyPersonnelRecordEnvelope {
+function parseAgencyPersonnelRecord(
+  value: unknown,
+): AgencyPersonnelRecordEnvelope {
   const result = recordSchema.safeParse(value);
   if (!result.success) {
-    throw new Error(`AgencyPersonnelRecord is malformed at ${firstIssuePath(result.error)}.`);
+    throw new Error(
+      `AgencyPersonnelRecord is malformed at ${firstIssuePath(result.error)}.`,
+    );
   }
   return result.data;
 }
 
-function newAgencyPersonnelRecord(input: AgencyPersonnelRecordInput): AgencyPersonnelRecordEnvelope {
+function newAgencyPersonnelRecord(
+  input: AgencyPersonnelRecordInput,
+): AgencyPersonnelRecordEnvelope {
   return parseAgencyPersonnelRecord({
     apiVersion: INTAKE_API_VERSION,
     kind: "AgencyPersonnelRecord",
@@ -194,9 +219,14 @@ async function readAgencyPersonnelRecord(
 ): Promise<AgencyPersonnelRecordEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "AgencyPersonnelRecord") {
-    throw new Error(`AgencyPersonnelRecord ref.kind ${ref.kind} does not match expected kind AgencyPersonnelRecord: ${ref.filePath}`);
+    throw new Error(
+      `AgencyPersonnelRecord ref.kind ${ref.kind} does not match expected kind AgencyPersonnelRecord: ${ref.filePath}`,
+    );
   }
-  const { contents, document } = await readYamlDocumentFile(ref.filePath, "AgencyPersonnelRecord");
+  const { contents, document } = await readYamlDocumentFile(
+    ref.filePath,
+    "AgencyPersonnelRecord",
+  );
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
     throw new Error(`AgencyPersonnelRecord sha256 mismatch: ${ref.filePath}`);
   }
@@ -222,7 +252,6 @@ async function writeAgencyPersonnelRecord(
   return { path: filePath, sha256: yamlDigest(contents) };
 }
 
-
 async function readAgencyPersonnel(
   filePath: string,
   options: EnvelopeReadOptions & {
@@ -247,13 +276,24 @@ async function readAgencyPersonnel(
     raw?: boolean;
   } = {},
 ): Promise<AgencyPersonnelEnvelope | AgencyPersonnelResolvedEnvelope> {
-  const { contents, document } = await readYamlDocumentFile(filePath, "AgencyPersonnel");
-  if (options.expectedSha256 !== undefined && yamlDigest(contents) !== options.expectedSha256) {
+  const { contents, document } = await readYamlDocumentFile(
+    filePath,
+    "AgencyPersonnel",
+  );
+  if (
+    options.expectedSha256 !== undefined &&
+    yamlDigest(contents) !== options.expectedSha256
+  ) {
     throw new Error(`AgencyPersonnel sha256 mismatch: ${filePath}`);
   }
   const artifact = parseAgencyPersonnel(document);
-  if (options.expectedKind !== undefined && artifact.kind !== options.expectedKind) {
-    throw new Error(`AgencyPersonnel kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`);
+  if (
+    options.expectedKind !== undefined &&
+    artifact.kind !== options.expectedKind
+  ) {
+    throw new Error(
+      `AgencyPersonnel kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`,
+    );
   }
   if (
     options.expectedNamespace !== undefined &&
@@ -306,9 +346,14 @@ async function writeAgencyPersonnel(
     const recordsDirectory =
       options.recordsDirectory ??
       `${path.basename(artifactPath, path.extname(artifactPath))}.records`;
-    const records: Record<string, { ref: { path: string; kind: "AgencyPersonnelRecord"; sha256?: string } }> = {};
+    const records: Record<
+      string,
+      { ref: { path: string; kind: "AgencyPersonnelRecord"; sha256?: string } }
+    > = {};
 
-    for (const [recordKey, recordItem] of Object.entries(artifact.spec.records)) {
+    for (const [recordKey, recordItem] of Object.entries(
+      artifact.spec.records,
+    )) {
       if ("ref" in recordItem) {
         records[recordKey] = recordItem;
         continue;
@@ -356,7 +401,6 @@ export const AgencyPersonnel = {
   write: writeAgencyPersonnel,
 };
 
-
 export const AgencyPersonnelRecord = {
   kind: "AgencyPersonnelRecord",
   schema: recordSchema,
@@ -364,7 +408,6 @@ export const AgencyPersonnelRecord = {
   read: readAgencyPersonnelRecord,
   write: writeAgencyPersonnelRecord,
 };
-
 
 export const read = readAgencyPersonnel;
 export const write = writeAgencyPersonnel;

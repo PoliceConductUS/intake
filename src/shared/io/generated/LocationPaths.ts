@@ -16,7 +16,6 @@ import {
 import { LocationPathSpec } from "./entity-specs.js";
 export { LocationPathSpec } from "./entity-specs.js";
 
-
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -52,19 +51,25 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "LocationPaths"} ref requires relativeTo.`);
+  if (
+    options.relativeTo === undefined ||
+    options.relativeTo.trim().length === 0
+  ) {
+    throw new Error(
+      `Relative ${ref.kind ?? "LocationPaths"} ref requires relativeTo.`,
+    );
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "LocationPaths"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(
+      `${ref.kind ?? "LocationPaths"} ref.path escapes its directory: ${ref.path}`,
+    );
   }
   return { ...ref, filePath: resolvedPath };
 }
-
 
 const metadataSchema = z
   .object({
@@ -84,15 +89,19 @@ const recordReferenceSchema = z
       .object({
         path: z.string().trim().min(1),
         kind: z.literal("LocationPath"),
-        sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+        sha256: z
+          .string()
+          .regex(/^[a-f0-9]{64}$/)
+          .optional(),
       })
       .strict(),
   })
   .strict();
-const inlineRecordItemSchema = z
-  .object({ spec: LocationPathSpec })
-  .strict();
-const recordItemSchema = z.union([recordReferenceSchema, inlineRecordItemSchema]);
+const inlineRecordItemSchema = z.object({ spec: LocationPathSpec }).strict();
+const recordItemSchema = z.union([
+  recordReferenceSchema,
+  inlineRecordItemSchema,
+]);
 
 export const schema = z
   .object({
@@ -110,8 +119,14 @@ export const schema = z
   .strict();
 
 export type LocationPathsEnvelope = z.infer<typeof schema>;
-export type LocationPathsInput = Omit<LocationPathsEnvelope, "apiVersion" | "kind">;
-export type LocationPathsResolvedEnvelope = Omit<LocationPathsEnvelope, "spec"> & {
+export type LocationPathsInput = Omit<
+  LocationPathsEnvelope,
+  "apiVersion" | "kind"
+>;
+export type LocationPathsResolvedEnvelope = Omit<
+  LocationPathsEnvelope,
+  "spec"
+> & {
   spec: Omit<LocationPathsEnvelope["spec"], "records"> & {
     records: Record<string, z.infer<typeof LocationPathSpec>>;
   };
@@ -152,7 +167,6 @@ function validateRecord(
   return result.data;
 }
 
-
 export const recordSchema = z
   .object({
     apiVersion: z.literal(INTAKE_API_VERSION),
@@ -170,12 +184,17 @@ export const recordSchema = z
   .strict();
 
 export type LocationPathEnvelope = z.infer<typeof recordSchema>;
-export type LocationPathInput = Omit<LocationPathEnvelope, "apiVersion" | "kind">;
+export type LocationPathInput = Omit<
+  LocationPathEnvelope,
+  "apiVersion" | "kind"
+>;
 
 function parseLocationPath(value: unknown): LocationPathEnvelope {
   const result = recordSchema.safeParse(value);
   if (!result.success) {
-    throw new Error(`LocationPath is malformed at ${firstIssuePath(result.error)}.`);
+    throw new Error(
+      `LocationPath is malformed at ${firstIssuePath(result.error)}.`,
+    );
   }
   return result.data;
 }
@@ -194,9 +213,14 @@ async function readLocationPath(
 ): Promise<LocationPathEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "LocationPath") {
-    throw new Error(`LocationPath ref.kind ${ref.kind} does not match expected kind LocationPath: ${ref.filePath}`);
+    throw new Error(
+      `LocationPath ref.kind ${ref.kind} does not match expected kind LocationPath: ${ref.filePath}`,
+    );
   }
-  const { contents, document } = await readYamlDocumentFile(ref.filePath, "LocationPath");
+  const { contents, document } = await readYamlDocumentFile(
+    ref.filePath,
+    "LocationPath",
+  );
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
     throw new Error(`LocationPath sha256 mismatch: ${ref.filePath}`);
   }
@@ -222,7 +246,6 @@ async function writeLocationPath(
   return { path: filePath, sha256: yamlDigest(contents) };
 }
 
-
 async function readLocationPaths(
   filePath: string,
   options: EnvelopeReadOptions & {
@@ -247,13 +270,24 @@ async function readLocationPaths(
     raw?: boolean;
   } = {},
 ): Promise<LocationPathsEnvelope | LocationPathsResolvedEnvelope> {
-  const { contents, document } = await readYamlDocumentFile(filePath, "LocationPaths");
-  if (options.expectedSha256 !== undefined && yamlDigest(contents) !== options.expectedSha256) {
+  const { contents, document } = await readYamlDocumentFile(
+    filePath,
+    "LocationPaths",
+  );
+  if (
+    options.expectedSha256 !== undefined &&
+    yamlDigest(contents) !== options.expectedSha256
+  ) {
     throw new Error(`LocationPaths sha256 mismatch: ${filePath}`);
   }
   const artifact = parseLocationPaths(document);
-  if (options.expectedKind !== undefined && artifact.kind !== options.expectedKind) {
-    throw new Error(`LocationPaths kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`);
+  if (
+    options.expectedKind !== undefined &&
+    artifact.kind !== options.expectedKind
+  ) {
+    throw new Error(
+      `LocationPaths kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`,
+    );
   }
   if (
     options.expectedNamespace !== undefined &&
@@ -306,9 +340,14 @@ async function writeLocationPaths(
     const recordsDirectory =
       options.recordsDirectory ??
       `${path.basename(artifactPath, path.extname(artifactPath))}.records`;
-    const records: Record<string, { ref: { path: string; kind: "LocationPath"; sha256?: string } }> = {};
+    const records: Record<
+      string,
+      { ref: { path: string; kind: "LocationPath"; sha256?: string } }
+    > = {};
 
-    for (const [recordKey, recordItem] of Object.entries(artifact.spec.records)) {
+    for (const [recordKey, recordItem] of Object.entries(
+      artifact.spec.records,
+    )) {
       if ("ref" in recordItem) {
         records[recordKey] = recordItem;
         continue;
@@ -356,7 +395,6 @@ export const LocationPaths = {
   write: writeLocationPaths,
 };
 
-
 export const LocationPath = {
   kind: "LocationPath",
   schema: recordSchema,
@@ -364,7 +402,6 @@ export const LocationPath = {
   read: readLocationPath,
   write: writeLocationPath,
 };
-
 
 export const read = readLocationPaths;
 export const write = writeLocationPaths;

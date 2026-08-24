@@ -45,14 +45,16 @@ class TestFacade extends ResolvingFacade<Row, Backend> {
   liveCoordCalls = 0;
 
   protected readonly resolvers = {
-    id: new Resolver<string, ResolverContext<Row, Backend>>(async () => "ent-1"),
-    coord: new Resolver<number, ResolverContext<Row, Backend>>(async ({
-      facade,
-    }) => {
-      this.liveCoordCalls += 1;
-      // Resolves off `address`, so dependency ordering is exercised too.
-      return (await facade.value("address")).length;
-    }),
+    id: new Resolver<string, ResolverContext<Row, Backend>>(
+      async () => "ent-1",
+    ),
+    coord: new Resolver<number, ResolverContext<Row, Backend>>(
+      async ({ facade }) => {
+        this.liveCoordCalls += 1;
+        // Resolves off `address`, so dependency ordering is exercised too.
+        return (await facade.value("address")).length;
+      },
+    ),
     address: new Resolver<string, ResolverContext<Row, Backend>>(
       async ({ facade }) => (facade.raw("address") as string) ?? "geocoded-st",
     ),
@@ -103,7 +105,10 @@ describe("ResolvingFacade property cache", () => {
     expect(await facade.value("coord")).toBe(11);
     expect(facade.liveCoordCalls).toBe(1);
     expect(cache.writes).toContainEqual(["Widget:ent-1:coord", 11]);
-    expect(cache.writes).toContainEqual(["Widget:ent-1:address", "geocoded-st"]);
+    expect(cache.writes).toContainEqual([
+      "Widget:ent-1:address",
+      "geocoded-st",
+    ]);
   });
 
   test("a live resolution of null is not written to the cache", async () => {
