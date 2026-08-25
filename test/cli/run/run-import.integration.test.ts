@@ -44,7 +44,7 @@ describe("intake run gov.azpost.roster (dry-run)", () => {
     await rm(workspace, { recursive: true, force: true });
   });
 
-  it("writes an Artifacts envelope with Personnel records keyed by POST ID", async () => {
+  it("runs the disabled source to an empty Artifacts envelope", async () => {
     let capturedArtifactsPath: string | undefined;
     let capturedOptions:
       | { dryImport?: boolean; excludedRecords?: unknown }
@@ -83,27 +83,9 @@ describe("intake run gov.azpost.roster (dry-run)", () => {
       /^gov\.azpost\.roster-[0-9a-f]{16}$/,
     );
 
-    expect(envelope.spec.artifacts).toHaveLength(1);
-    const personnel = envelope.spec.artifacts[0];
-    expect(personnel?.kind).toBe("Personnel");
-
-    // Fixture rows: 1001 once, 1002 duplicated (dedup to one record), and a
-    // blank POST ID row that must be skipped for lack of a stable id.
-    expect(Object.keys(personnel?.spec.records ?? {}).sort()).toEqual([
-      "1001",
-      "1002",
-    ]);
-    expect(personnel?.spec.records["1001"]).toMatchObject({
-      id: "1001",
-      first_name: "Skip",
-      last_name: "Woodward",
-      middle_name: "L",
-    });
-    expect(personnel?.spec.records["1002"]).toMatchObject({
-      id: "1002",
-      first_name: "Marc",
-      last_name: "Denney",
-      middle_name: "E",
-    });
+    // gov.azpost.roster is disabled (produces is empty): it runs and writes an
+    // envelope, but emits no records. Re-enable it (and this assertion) once it
+    // produces Agency + AgencyPersonnel — see gov.azpost.roster/run.ts.
+    expect(envelope.spec.artifacts).toEqual([]);
   });
 });

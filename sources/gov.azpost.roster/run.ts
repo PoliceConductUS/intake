@@ -1,38 +1,16 @@
-import type {
-  SourceRun,
-  EmittedRecords,
-} from "../../src/cli/run/source-run.js";
+import type { SourceRun } from "../../src/cli/run/source-run.js";
 import type { ImportArtifactKind } from "../../src/shared/io/index.js";
 
-export const produces: readonly ImportArtifactKind[] = ["Personnel"];
+// DISABLED for now — no-op. The AZ POST roster only yields bare Personnel with no
+// agency link, which resolves to nothing useful (everything must resolve to an
+// officer@agency). The workbook DOES carry what's needed to fix this — an AGENCY
+// column plus APPOINTED ON / TERMINATED ON dates, one row per person-per-agency —
+// so re-enable this source by emitting AgencyPersonnel (personnel_id ← POST ID,
+// agency_id ← AGENCY, start_date ← APPOINTED ON, end_date ← TERMINATED ON) and the
+// Agency records those reference, alongside Personnel.
+export const produces: readonly ImportArtifactKind[] = [];
 
-/**
- * AZ POST officer roster: reads AGENCY, POST ID, LAST, FIRST, MIDDLE,
- * APPOINTED ON, TERMINATED ON, TERM DESC, CERTIFICATION, CERT TYPE columns
- * and maps only POST ID, FIRST, LAST, MIDDLE to a Personnel record keyed by
- * POST ID. Rows with a blank POST ID are skipped (no stable id to key on).
- * An officer can appear in multiple agency rows; later rows win on dedup.
- * Deterministic: no network/clock/randomness.
- */
 export const description =
-  "Arizona POST officer roster — Personnel records (name, POST ID) from the AZ POST roster workbook.";
+  "Arizona POST roster — disabled (produces no agency-linked personnel yet).";
 
-export const run: SourceRun = async ({ paths, readXlsx }) => {
-  const records: EmittedRecords = {};
-  for (const path of paths) {
-    for (const row of await readXlsx(path)) {
-      const postId = (row["POST ID"] ?? "").trim();
-      if (!postId) continue; // filter: no stable id
-      const middle = (row["MIDDLE"] ?? "").trim();
-      records[postId] = {
-        spec: {
-          id: postId,
-          first_name: (row["FIRST"] ?? "").trim(),
-          last_name: (row["LAST"] ?? "").trim(),
-          middle_name: middle === "" ? null : middle,
-        },
-      };
-    }
-  }
-  return { artifacts: [{ kind: "Personnel", records }] };
-};
+export const run: SourceRun = async () => ({ artifacts: [] });

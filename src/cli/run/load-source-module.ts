@@ -70,10 +70,10 @@ export async function loadSourceProduces(
     produces?: unknown;
   };
   const produces = module.produces;
-  if (!Array.isArray(produces) || produces.length === 0) {
-    throw new Error(
-      `Source ${sourceId} run.ts must export a non-empty produces array`,
-    );
+  // An empty array is allowed: a disabled/no-op source produces nothing (it runs
+  // and emits no artifacts). A missing or non-array `produces` is still an error.
+  if (!Array.isArray(produces)) {
+    throw new Error(`Source ${sourceId} run.ts must export a produces array`);
   }
   for (const kind of produces) {
     if (typeof kind !== "string" || !IMPORT_ARTIFACT_KIND_SET.has(kind)) {

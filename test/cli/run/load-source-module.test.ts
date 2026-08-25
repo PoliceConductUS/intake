@@ -90,12 +90,12 @@ describe("loadSourceProduces", () => {
     await expect(loadSourceProduces("s", root)).rejects.toThrow(/produces/);
   });
 
-  it("fails when produces is empty", async () => {
+  it("allows an empty produces (a disabled/no-op source)", async () => {
     const root = await writeRunSource(
       "s",
       `export const run = () => {};\nexport const produces = [];\n`,
     );
-    await expect(loadSourceProduces("s", root)).rejects.toThrow(/produces/);
+    await expect(loadSourceProduces("s", root)).resolves.toEqual([]);
   });
 
   it("fails when produces names an unknown kind", async () => {
