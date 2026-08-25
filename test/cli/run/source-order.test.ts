@@ -158,6 +158,19 @@ describe("planSourceOrder", () => {
     expect(order).toEqual(["courtlistener"]);
   });
 
+  it("drops a source that produces nothing and returns it as skipped", () => {
+    const { order, skipped } = planSourceOrder([
+      { id: "census", produces: ["LocationPaths"] },
+      { id: "disabled", produces: [] },
+      {
+        id: "civil",
+        produces: ["CivilCases", "CivilCasePersonnel", "CivilCaseLinks"],
+      },
+    ]);
+    expect(order).toEqual(["census", "civil"]);
+    expect(skipped).toEqual(["disabled"]);
+  });
+
   it("exposes the edge that forced each precedence", () => {
     const { edges } = planSourceOrder([
       { id: "census", produces: ["LocationPaths"] },

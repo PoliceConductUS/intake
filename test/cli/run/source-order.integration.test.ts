@@ -20,19 +20,20 @@ describe("source run order over the real sources", () => {
       })),
     );
 
-    const { order } = planSourceOrder(sources);
+    const { order, skipped } = planSourceOrder(sources);
 
     // Independent oracle: hand-derived from each source's declared produces and
-    // the FK graph (see the derive-source-run-order design doc).
+    // the FK graph (see the derive-source-run-order design doc). gov.azpost.roster
+    // produces nothing (disabled), so it is skipped, not ordered.
     expect(order).toEqual([
       "us-census-gazetteer",
       "gov.tx.tcole",
       "mn-post",
       "clearinghouse-api",
       "courtlistener",
-      "gov.azpost.roster",
       "gov.us.federal-le",
     ]);
+    expect(skipped).toEqual(["gov.azpost.roster"]);
 
     // The shared helper dir is not a source.
     expect(ids).not.toContain("lib");

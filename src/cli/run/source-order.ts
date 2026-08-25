@@ -16,6 +16,7 @@ export type OrderEdge = {
 export type SourceOrderPlan = {
   order: string[];
   edges: OrderEdge[];
+  skipped: string[];
 };
 
 const kindByRecordKind = new Map<string, ImportArtifactKind>(
@@ -98,12 +99,20 @@ export function topologicalOrder(
   return order;
 }
 
-// Run order: A precedes B when B consumes a kind A produces (ADR 0021).
+// Run order: A precedes B when B consumes a kind A produces (ADR 0021). A source
+// that produces nothing (disabled/no-op) can neither contribute nor be depended
+// on, so it is dropped from the order and returned as `skipped` (id-sorted).
 export function planSourceOrder(
   sources: readonly SourceProduces[],
 ): SourceOrderPlan {
+  const active = sources.filter((source) => source.produces.length > 0);
+  const skipped = sources
+    .filter((source) => source.produces.length === 0)
+    .map((source) => source.id)
+    .sort((left, right) => left.localeCompare(right));
+
   const producersOf = new Map<ImportArtifactKind, string[]>();
-  for (const source of sources) {
+  for (const source of active) {
     for (const kind of source.produces) {
       const producers = producersOf.get(kind);
       if (producers) producers.push(source.id);
@@ -112,7 +121,7 @@ export function planSourceOrder(
   }
 
   const edges: OrderEdge[] = [];
-  for (const consumer of sources) {
+  for (const consumer of active) {
     for (const kind of consumesOf(consumer.produces)) {
       for (const producerId of producersOf.get(kind) ?? []) {
         if (producerId === consumer.id) continue;
@@ -122,8 +131,8 @@ export function planSourceOrder(
   }
 
   const order = topologicalOrder(
-    sources.map((source) => source.id),
+    active.map((source) => source.id),
     edges.map((edge) => ({ ...edge, label: edge.kind })),
   );
-  return { order, edges };
+  return { order, edges, skipped };
 }

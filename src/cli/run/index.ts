@@ -268,7 +268,7 @@ export const registerCliCommand: RegisterCliCommand = (
               produces: await loadSourceProduces(id, sourcesRoot),
             })),
           );
-          const { order, edges } = planSourceOrder(sources);
+          const { order, edges, skipped } = planSourceOrder(sources);
           const producesById = new Map(
             sources.map((source) => [source.id, source.produces]),
           );
@@ -283,6 +283,9 @@ export const registerCliCommand: RegisterCliCommand = (
                 `  ${edge.after} after ${edge.before} (${edge.kind})`,
               );
             }
+          }
+          if (skipped.length > 0) {
+            logger.info(`skipped: ${skipped.join(", ")} (produces nothing)`);
           }
           const stdout: string[] = [];
           for (const sourceId of order) {
