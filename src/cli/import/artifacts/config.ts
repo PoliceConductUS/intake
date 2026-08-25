@@ -370,39 +370,18 @@ function addPersonnelSourceFacades(
   }
 }
 
-async function addAgencyPersonnelSourceFacades(
+function addAgencyPersonnelRecords(
   dataContext: DataContext,
   artifacts: ArtifactsEnvelope,
-  rows: ImportRows,
-  ledger: SourceNameToCanonicalIdLedger,
-): Promise<void> {
-  // Skip assignments whose agency was excluded (cascaded out of rows.agencyOfficers
-  // upstream): their Agency FK find would otherwise fail loud on the absent facade.
-  const survivingAgencyPersonnelIds = new Set(
-    rows.agencyOfficers.map((agencyPersonnel) => agencyPersonnel.id),
-  );
-
+): void {
   for (const artifact of artifacts.spec.artifacts.filter(
     (item) => item.kind === "AgencyPersonnel",
   )) {
     for (const [recordName, record] of Object.entries(artifact.spec.records)) {
-      const sourceName = sourceNameForImportRecord(recordName, record);
-      const canonicalId = await ledger.read(
-        artifacts.metadata.namespace,
-        "AgencyPersonnel",
-        sourceName,
-      );
-      if (
-        canonicalId === undefined ||
-        !survivingAgencyPersonnelIds.has(canonicalId)
-      ) {
-        continue;
-      }
-
       dataContext.agencyPersonnelFromSource({
         apiVersion: INTAKE_API_VERSION,
         namespace: artifacts.metadata.namespace,
-        name: sourceName,
+        name: sourceNameForImportRecord(recordName, record),
         spec: valueAsRecord(record),
         sourceFile: artifact.recordSources?.[recordName],
       });
@@ -1270,24 +1249,9 @@ async function writeDatabaseMutationsStage(
       resolveAdministrativeArea: deps.resolveLocationAdministrativeArea,
     });
 
-    // mergeAgencyArtifacts (below) skips agencies dropped here, so exclude first.
-    const agencyPreparationResult = await prepareAgencyRows(
-      rows,
-      dataContext,
-      logger,
-      context.commandInput.excludedRecords,
-    );
-    dropExcludedAgencyAndDependentRows(
-      rows,
-      agencyPreparationResult.excluded,
-      logger,
-    );
-
     const preparationErrors = [
-      ...agencyPreparationResult.errors,
       ...dataContext.validatePreparedRows(),
       ...dataContext.validateLocationPathIdStability(),
-      ...(await validatePreparedNewSlugConflicts(client, rows)),
     ];
     if (preparationErrors.length > 0) {
       logger?.info?.(
@@ -1304,8 +1268,6 @@ async function writeDatabaseMutationsStage(
       );
     }
 
-    await persistResolvedSlugs(context);
-
     dataContext.addAgencyRecords(artifacts);
     // Register in FK-dependency order so each same-source find targets an
     // already-registered facade (ADR 0016 #4/#9): paths before aliases, all
@@ -1316,7 +1278,7 @@ async function writeDatabaseMutationsStage(
     addPersonnelSourceFacades(dataContext, artifacts);
     addLicenseSourceFacades(dataContext, artifacts);
     addLicenseActionSourceFacades(dataContext, artifacts);
-    await addAgencyPersonnelSourceFacades(dataContext, artifacts, rows, ledger);
+    addAgencyPersonnelRecords(dataContext, artifacts);
     addDisciplineSourceFacades(dataContext, artifacts);
     addDisciplineAgencyOfficerSourceFacades(dataContext, artifacts);
     addCoverageLinkSourceFacades(dataContext, artifacts);
