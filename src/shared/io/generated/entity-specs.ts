@@ -5,8 +5,8 @@ import { z } from "zod";
 // Fingerprint of the applied database migrations these specs were generated
 // against. The importer refuses to run when the live database's migrations
 // differ (see assertGeneratedSchemaCurrent).
-export const GENERATED_MIGRATION_VERSIONS = ["20250303232529","20260520000000","20260526162500","20260526173000","20260608172000","20260619142000","20260626000000","20260627000000","20260627000100","20260701000000","20260702000000","20260703000000","20260822000000","20260824000000"] as const;
-export const GENERATED_MIGRATION_FINGERPRINT = "f4722aa6ee7d3ec05ccc4f630273dcef3a86f8439c8f53de81ea0f65553a2a1d";
+export const GENERATED_MIGRATION_VERSIONS = ["20250303232529","20260520000000","20260526162500","20260526173000","20260608172000","20260619142000","20260626000000","20260627000000","20260627000100","20260701000000","20260702000000","20260703000000","20260822000000","20260824000000","20260825000000"] as const;
+export const GENERATED_MIGRATION_FINGERPRINT = "67874220a2230e2010e6fdcafe6904d3f6d417e1f67b6b477f33fc697d4ce448";
 
 // Entity record kinds in database-dependency order (topological sort of the
 // foreign-key graph): a referenced entity precedes its referrer, so mutations
@@ -424,16 +424,16 @@ export const CivilCaseLinkCreateSpec = CivilCaseLinkSpec.extend({
 export type AgencyRow = {
   id: string;
   name: string;
-  city: string | null;
+  city: string;
   state: string;
-  address: string | null;
-  zip_code: string | null;
+  address: string;
+  zip_code: string;
   contact_name: string | null;
   contact_email: string | null;
   slug: string;
   location_path_id: string;
-  latitude: number | null;
-  longitude: number | null;
+  latitude: number;
+  longitude: number;
 };
 
 export type AgencyLinksRow = {
