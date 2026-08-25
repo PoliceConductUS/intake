@@ -332,7 +332,13 @@ export class DataContext {
   }
 
   async toDatabaseMutationItems(): Promise<DatabaseMutationItem[]> {
-    return planDatabaseMutationItems(await this.toMutations());
+    const mutations = await this.toMutations();
+    // Every facade has been drained into `mutations` (FK values already resolved
+    // to primitives), so the facade graph is dead weight. A large source holds
+    // hundreds of thousands of facades, each with its property caches — release
+    // them before the sort so the plan does not run alongside them.
+    this.facadesByKind.clear();
+    return planDatabaseMutationItems(mutations);
   }
 
   async toDatabaseMutations(

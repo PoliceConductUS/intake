@@ -47,15 +47,18 @@ function sortByDependencyOrder(
       ? (DEPENDENCY_ORDER_INDEX.get(recordKindOfMutation(item.kind)) ??
         Number.MAX_SAFE_INTEGER)
       : Number.MAX_SAFE_INTEGER;
-  return items
-    .map((item, index) => ({ item, index }))
-    .sort(
-      (a, b) =>
-        operationRank(a.item) - operationRank(b.item) ||
-        dependencyIndex(a.item) - dependencyIndex(b.item) ||
-        a.index - b.index,
-    )
-    .map(({ item }) => item);
+  // Compute each item's sort keys once (they involve string parsing), then sort
+  // by the cached numbers. The sort is stable (ES2019+), so within-kind input
+  // order is preserved without an explicit index tiebreak. At hundreds of
+  // thousands of rows, recomputing the keys inside the comparator would parse
+  // strings tens of millions of times.
+  const decorated = items.map((item) => ({
+    item,
+    rank: operationRank(item),
+    dependency: dependencyIndex(item),
+  }));
+  decorated.sort((a, b) => a.rank - b.rank || a.dependency - b.dependency);
+  return decorated.map((entry) => entry.item);
 }
 
 /**
