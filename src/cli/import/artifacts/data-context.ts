@@ -338,7 +338,10 @@ export class DataContext {
   async toDatabaseMutations(
     metadata: DatabaseMutationsMetadataInput,
   ): Promise<DatabaseMutationsEnvelope> {
-    return DatabaseMutations.new({
+    // build (not new): skip validating the whole mutations array — a source can
+    // emit hundreds of thousands of rows, and the write validates every mutation
+    // once, per chunk. See DatabaseMutations.buildDatabaseMutations.
+    return DatabaseMutations.build({
       metadata,
       spec: {
         mutations: await this.toDatabaseMutationItems(),

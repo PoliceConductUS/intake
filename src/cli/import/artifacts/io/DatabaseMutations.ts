@@ -188,6 +188,33 @@ function newDatabaseMutations(
   });
 }
 
+// Build the top-level envelope WITHOUT validating its mutations. Validating the
+// whole array here is redundant and ruinously expensive at scale: a source can
+// emit hundreds of thousands of mutations, and the inline schema re-parses every
+// mutation's spec via superRefine, so a single full pass fires one nested parse
+// per row. writeDatabaseMutations validates every mutation exactly once anyway —
+// per 5000-row chunk, or the whole (small) set for a single-file write — so the
+// mutations are always Zod-checked before they reach disk, just at a bounded
+// peak. Metadata (cheap, not per-row) is still validated by the write.
+function buildDatabaseMutations(
+  input: DatabaseMutationsInput,
+): DatabaseMutationsEnvelope {
+  return {
+    apiVersion: INTAKE_API_VERSION,
+    kind: "DatabaseMutations",
+    ...input,
+  } as DatabaseMutationsEnvelope;
+}
+
+function parseDatabaseMutationsMetadata(value: unknown): void {
+  const result = metadataSchema.safeParse(value);
+  if (!result.success) {
+    throw new Error(
+      `DatabaseMutations metadata is malformed at ${firstIssuePath(result.error)}.`,
+    );
+  }
+}
+
 async function databaseMutationFromRef(
   databaseMutationsPath: string,
   namespace: string | undefined,
@@ -298,31 +325,36 @@ async function writeDatabaseMutations(
   directory: string,
   envelope: DatabaseMutationsEnvelope,
 ): Promise<{ path: string }> {
-  const parsed = parseDatabaseMutations(envelope);
-  const filePath = yamlResourcePath(directory, parsed);
-  const topDirectory = path.dirname(filePath);
-
-  if (parsed.spec.mutations.length <= MUTATIONS_PER_FILE) {
+  // A single-file write (small set) validates the whole envelope once; a chunked
+  // write validates each chunk as it is built (see buildDatabaseMutations). Never
+  // validate the whole mutations array at once — at scale that fires one nested
+  // per-row parse per mutation and exhausts the heap.
+  if (envelope.spec.mutations.length <= MUTATIONS_PER_FILE) {
+    const parsed = parseDatabaseMutations(envelope);
+    const filePath = yamlResourcePath(directory, parsed);
     await writeYamlDocumentFile(filePath, parsed);
     return { path: filePath };
   }
 
+  parseDatabaseMutationsMetadata(envelope.metadata);
+  const filePath = yamlResourcePath(directory, envelope);
+  const topDirectory = path.dirname(filePath);
   const recordsDirectory = `${path.basename(filePath, path.extname(filePath))}.records`;
   const chunkDirectory = path.join(topDirectory, recordsDirectory);
   const chunkCount = Math.ceil(
-    parsed.spec.mutations.length / MUTATIONS_PER_FILE,
+    envelope.spec.mutations.length / MUTATIONS_PER_FILE,
   );
   const chunkReferences: DatabaseMutationItem[] = [];
   for (let index = 0; index < chunkCount; index += 1) {
-    const chunkMutations = parsed.spec.mutations
+    const chunkMutations = envelope.spec.mutations
       .slice(index * MUTATIONS_PER_FILE, (index + 1) * MUTATIONS_PER_FILE)
       // Existing refs (e.g. geometry) were relative to the top-level file; make
       // them relative to the chunk file that now holds them.
       .map((item) => rebaseMutationItem(item, topDirectory, chunkDirectory));
     const chunk = newDatabaseMutations({
       metadata: {
-        name: `${parsed.metadata.name}-${index}`,
-        namespace: parsed.metadata.namespace,
+        name: `${envelope.metadata.name}-${index}`,
+        namespace: envelope.metadata.namespace,
       },
       spec: { mutations: chunkMutations },
     });
@@ -343,7 +375,7 @@ async function writeDatabaseMutations(
   await writeYamlDocumentFile(
     filePath,
     newDatabaseMutations({
-      metadata: parsed.metadata,
+      metadata: envelope.metadata,
       spec: { mutations: chunkReferences },
     }),
   );
@@ -354,6 +386,7 @@ export const DatabaseMutations = {
   kind: "DatabaseMutations",
   schema,
   new: newDatabaseMutations,
+  build: buildDatabaseMutations,
   read: readDatabaseMutations,
   write: writeDatabaseMutations,
 };

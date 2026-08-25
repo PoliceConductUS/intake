@@ -111,6 +111,37 @@ describe("database mutation envelopes", () => {
     });
   });
 
+  test("DatabaseMutations.write fails loud on a malformed mutation in a chunked (build) set", async () => {
+    const directory = await tempDir();
+    // The production path builds the top-level envelope unvalidated (build, not
+    // new) because validating hundreds of thousands of rows at once exhausts the
+    // heap; write validates per chunk. A malformed mutation buried in a >5000-row
+    // set must still be rejected there — validation moved, it did not disappear.
+    const mutations = Array.from({ length: 5001 }, (_, index) =>
+      index === 4999
+        ? {
+            kind: "AgencyCreate" as const,
+            name: "agency-source-name",
+            spec: {
+              id: "agency-canonical-id",
+              name: "Minnesota State Patrol",
+              not_a_column: "bad",
+            },
+          }
+        : { kind: "AgencyRead" as const, name: `agency-${index}`, spec: {} },
+    );
+
+    await expect(
+      DatabaseMutations.write(
+        directory,
+        DatabaseMutations.build({
+          metadata: { name: "command-name", namespace: "gov.tx.tcole" },
+          spec: { mutations },
+        }),
+      ),
+    ).rejects.toThrow("DatabaseMutations is malformed");
+  });
+
   test("DatabaseMutations rejects inline mutations with malformed generated specs", () => {
     expect(() =>
       DatabaseMutations.new({
