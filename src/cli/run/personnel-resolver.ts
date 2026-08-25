@@ -7,10 +7,10 @@ import {
 } from "../import/artifacts/name-similarity.js";
 
 // Acceptance bars for a civil-case → agency_personnel match (ADR 0023). The
-// agency is known exactly (scoped by its source id), so the officer name is the
+// agency is known exactly (scoped by its source id), so the personnel name is the
 // only scored dimension and it is gated on the name confidence.
 const NAME_FLOOR = 0.85;
-// Two officers in the agency whose confidences sit within this band — and whom
+// Two personnel in the agency whose confidences sit within this band — and whom
 // the fuller-name variant (lower uncertainty) cannot separate — are an
 // unresolvable tie: attach to neither rather than guess wrong.
 const AMBIGUITY_BAND = 0.03;
@@ -26,7 +26,7 @@ function resultRows(result: unknown): Record<string, unknown>[] {
 
 /**
  * The intake-owned resolver injected into a source's run phase (ADR 0023). It
- * resolves an officer name to a namespace-local source id — matching, gating, and
+ * resolves a personnel name to a namespace-local source id — matching, gating, and
  * minting happen here, where the canonical id is known; only the source id
  * crosses back to the source.
  */
@@ -43,9 +43,9 @@ export function createRunDataContext(
     if (cached !== undefined) return cached;
     const loaded = client
       .query(
-        `select row_to_json(o.*) as officer, row_to_json(ao.*) as agency_officer
+        `select row_to_json(o.*) as personnel, row_to_json(ao.*) as agency_personnel
          from agency_personnel ao
-         join officers o on o.id = ao.personnel_id
+         join personnel o on o.id = ao.personnel_id
          where ao.agency_id = $1`,
         [canonicalAgencyId],
       )
@@ -55,7 +55,7 @@ export function createRunDataContext(
   };
 
   return {
-    async resolveOfficer({ agencyId, officerName }) {
+    async resolvePersonnel({ agencyId, personnelName }) {
       // agencyId is the agency's namespace-local source id; resolve it to the
       // canonical agency the ordinary way. A source id with no agency is a broken
       // reference — fail loud (ADR 0023).
@@ -65,29 +65,29 @@ export function createRunDataContext(
           `Agency source id ${agencyId} resolves to no canonical agency in ${namespace} (ADR 0023).`,
         );
       }
-      const name = officerName.trim();
+      const name = personnelName.trim();
       const tokens = normalizeName(name)
         .split(" ")
         .filter((token) => token.length >= 2);
       if (tokens.length === 0) return null;
 
-      // Pre-filter the roster to officers sharing a name token, then score.
+      // Pre-filter the roster to personnel sharing a name token, then score.
       const candidates = (await roster(canonicalAgencyId)).filter((row) => {
-        const officer = (row.officer ?? {}) as Record<string, unknown>;
-        const haystack = `${normalizeName(String(officer.first_name ?? ""))} ${normalizeName(String(officer.last_name ?? ""))}`;
+        const personnel = (row.personnel ?? {}) as Record<string, unknown>;
+        const haystack = `${normalizeName(String(personnel.first_name ?? ""))} ${normalizeName(String(personnel.last_name ?? ""))}`;
         return tokens.some((token) => haystack.includes(token));
       });
       const scored = candidates
         .map((row) => {
-          const officer = (row.officer ?? {}) as Record<string, unknown>;
+          const personnel = (row.personnel ?? {}) as Record<string, unknown>;
           const { confidence, uncertainty } = officerNameConfidence(
             name,
-            officer,
+            personnel,
           );
           return {
             confidence,
             uncertainty,
-            agencyOfficer: (row.agency_officer ?? {}) as Record<string, unknown>,
+            agencyPersonnel: (row.agency_personnel ?? {}) as Record<string, unknown>,
           };
         })
         // Rank by confidence, then lowest uncertainty (fullest matching form).
@@ -111,12 +111,12 @@ export function createRunDataContext(
 
       // Mint (or reuse) the source id for the matched person-at-agency and hand
       // back only that — the canonical never crosses the boundary.
-      const agencyOfficerId = await ledger.sourceIdFor(
+      const agencyPersonnelId = await ledger.sourceIdFor(
         namespace,
         "AgencyPersonnel",
-        String(best.agencyOfficer.id),
+        String(best.agencyPersonnel.id),
       );
-      return { agencyOfficerId };
+      return { agencyPersonnelId };
     },
   };
 }

@@ -66,7 +66,7 @@ export const run: SourceRun = async ({ paths, data, logger }: RunDeps) => {
       : await collectEnvelopePaths(paths);
 
   const civilCases: EmittedRecords = {};
-  const officers: EmittedRecords = {};
+  const personnel: EmittedRecords = {};
   const links: EmittedRecords = {};
 
   for (const file of files) {
@@ -82,14 +82,14 @@ export const run: SourceRun = async ({ paths, data, logger }: RunDeps) => {
       if (title === "" || !/^\d{4}-\d{2}-\d{2}/.test(filed)) continue;
       const caseKey = `cl-${docket.id}`;
 
-      const resolvedOfficerIds = new Set<string>();
+      const resolvedPersonnelIds = new Set<string>();
       for (const party of docket.parties ?? []) {
-        const officerName = text(party);
-        if (!isPersonName(officerName)) continue;
-        const match = await data.resolveOfficer({ agencyId, officerName });
-        if (match !== null) resolvedOfficerIds.add(match.agencyOfficerId);
+        const personnelName = text(party);
+        if (!isPersonName(personnelName)) continue;
+        const match = await data.resolvePersonnel({ agencyId, personnelName });
+        if (match !== null) resolvedPersonnelIds.add(match.agencyPersonnelId);
       }
-      if (resolvedOfficerIds.size === 0) continue;
+      if (resolvedPersonnelIds.size === 0) continue;
 
       const url = docketUrl(docket);
       const terminated = text(docket.date_terminated);
@@ -118,11 +118,11 @@ export const run: SourceRun = async ({ paths, data, logger }: RunDeps) => {
           },
         };
       }
-      for (const agencyOfficerId of resolvedOfficerIds) {
-        officers[`${caseKey}|${agencyOfficerId}`] = {
+      for (const agencyPersonnelId of resolvedPersonnelIds) {
+        personnel[`${caseKey}|${agencyPersonnelId}`] = {
           spec: {
             civil_case_id: caseKey,
-            agency_personnel_id: agencyOfficerId,
+            agency_personnel_id: agencyPersonnelId,
           },
         };
       }
@@ -131,13 +131,13 @@ export const run: SourceRun = async ({ paths, data, logger }: RunDeps) => {
 
   log.info(
     `courtlistener: ${Object.keys(civilCases).length} cases with a resolved officer, ` +
-      `${Object.keys(officers).length} case-officer links, ${Object.keys(links).length} source links`,
+      `${Object.keys(personnel).length} case-personnel links, ${Object.keys(links).length} source links`,
   );
 
   return {
     artifacts: [
       { kind: "CivilCases", records: civilCases },
-      { kind: "CivilCasePersonnel", records: officers },
+      { kind: "CivilCasePersonnel", records: personnel },
       { kind: "CivilCaseLinks", records: links },
     ],
   };

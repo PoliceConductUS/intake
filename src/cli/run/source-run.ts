@@ -10,17 +10,17 @@ export type EmittedRecords = Record<string, { spec: unknown }>;
 export type SourceManifest = {
   artifacts: Array<{ kind: ImportArtifactKind; records: EmittedRecords }>;
 };
-export type ResolvedOfficer = { agencyOfficerId: string };
+export type ResolvedPersonnel = { agencyPersonnelId: string };
 
 // An intake-owned resolver injected into a source's run phase (ADR 0023). The
 // source calls it with source ids only; match, gate, and mint happen inside, and
-// it returns a namespace-local officer source id or null — a canonical id never
+// it returns a namespace-local personnel source id or null — a canonical id never
 // crosses the boundary.
 export type RunDataContext = {
-  resolveOfficer(input: {
+  resolvePersonnel(input: {
     agencyId: string;
-    officerName: string;
-  }): Promise<ResolvedOfficer | null>;
+    personnelName: string;
+  }): Promise<ResolvedPersonnel | null>;
 };
 
 export type RunDeps = {

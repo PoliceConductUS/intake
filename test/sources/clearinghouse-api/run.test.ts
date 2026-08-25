@@ -60,19 +60,19 @@ const envelope = {
 };
 
 function fakeData(resolved: Record<string, string> = { "John Smith": "ao-1" }) {
-  const calls: Array<{ agencyId: string; officerName: string }> = [];
+  const calls: Array<{ agencyId: string; personnelName: string }> = [];
   return {
     calls,
-    resolveOfficer: async ({
+    resolvePersonnel: async ({
       agencyId,
-      officerName,
+      personnelName,
     }: {
       agencyId: string;
-      officerName: string;
+      personnelName: string;
     }) => {
-      calls.push({ agencyId, officerName });
-      const id = resolved[officerName];
-      return id === undefined ? null : { agencyOfficerId: id };
+      calls.push({ agencyId, personnelName });
+      const id = resolved[personnelName];
+      return id === undefined ? null : { agencyPersonnelId: id };
     },
   };
 }
@@ -123,8 +123,8 @@ describe("clearinghouse-api run", () => {
     // The guard runs before resolution: case 500 (Dallas) is never resolved, so
     // "John Smith" is only asked for cases 100 and 600 (both name Austin).
     expect(data.calls).toEqual([
-      { agencyId: "a1", officerName: "John Smith" },
-      { agencyId: "a1", officerName: "Mary Jones" },
+      { agencyId: "a1", personnelName: "John Smith" },
+      { agencyId: "a1", personnelName: "Mary Jones" },
     ]);
   });
 

@@ -40,19 +40,19 @@ const envelope = {
 // Fake run-phase resolver: "John Smith" @ agency "a1" resolves to a fixed
 // officer source id; every other name is unresolved (null).
 function fakeData(resolved: Record<string, string> = { "John Smith": "ao-1" }) {
-  const calls: Array<{ agencyId: string; officerName: string }> = [];
+  const calls: Array<{ agencyId: string; personnelName: string }> = [];
   return {
     calls,
-    resolveOfficer: async ({
+    resolvePersonnel: async ({
       agencyId,
-      officerName,
+      personnelName,
     }: {
       agencyId: string;
-      officerName: string;
+      personnelName: string;
     }) => {
-      calls.push({ agencyId, officerName });
-      const id = resolved[officerName];
-      return id === undefined ? null : { agencyOfficerId: id };
+      calls.push({ agencyId, personnelName });
+      const id = resolved[personnelName];
+      return id === undefined ? null : { agencyPersonnelId: id };
     },
   };
 }
@@ -90,7 +90,7 @@ describe("courtlistener run", () => {
 
     // The agency source id from the envelope scopes the resolve; only the person
     // party is resolved, and the returned source id is stamped verbatim.
-    expect(data.calls).toEqual([{ agencyId: "a1", officerName: "John Smith" }]);
+    expect(data.calls).toEqual([{ agencyId: "a1", personnelName: "John Smith" }]);
     expect(Object.keys(byKind.CivilCasePersonnel)).toEqual(["cl-123|ao-1"]);
     expect(byKind.CivilCasePersonnel["cl-123|ao-1"].spec).toEqual({
       civil_case_id: "cl-123",

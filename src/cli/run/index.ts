@@ -20,7 +20,7 @@ import { loadSourceModule, loadSourceProduces } from "./load-source-module.js";
 import { planSourceOrder } from "./source-order.js";
 import { defaultDatabaseClientFactory } from "../database/index.js";
 import { createSourceNameToCanonicalIdLedger } from "../state/source-name-to-canonical-id/index.js";
-import { createRunDataContext } from "./officer-resolver.js";
+import { createRunDataContext } from "./personnel-resolver.js";
 import type { ImportArtifactKind } from "../../shared/io/index.js";
 import { readXlsx } from "./read-xlsx.js";
 import { sourceStateDir } from "./state.js";
