@@ -13,8 +13,8 @@ import {
   readYamlDocumentFile,
   writeYamlDocumentFile,
 } from "../internal/yaml-document.js";
-import { CoverageLinkAgencyOfficerSpec } from "./entity-specs.js";
-export { CoverageLinkAgencyOfficerSpec } from "./entity-specs.js";
+import { CoverageLinkAgencyPersonnelSpec } from "./entity-specs.js";
+export { CoverageLinkAgencyPersonnelSpec } from "./entity-specs.js";
 
 
 type EnvelopeReadRef =
@@ -27,7 +27,7 @@ type EnvelopeReadOptions = {
 };
 
 function formatError(error: z.ZodError): string {
-  return `CoverageLinkAgencyOfficers is malformed at ${firstIssuePath(error)}.`;
+  return `CoverageLinkAgencyPersonnel is malformed at ${firstIssuePath(error)}.`;
 }
 
 function refValue(pathOrRef: string | EnvelopeReadRef): {
@@ -53,14 +53,14 @@ function resolveReadPath(
     return { ...ref, filePath: ref.path };
   }
   if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "CoverageLinkAgencyOfficers"} ref requires relativeTo.`);
+    throw new Error(`Relative ${ref.kind ?? "CoverageLinkAgencyPersonnel"} ref requires relativeTo.`);
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "CoverageLinkAgencyOfficers"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(`${ref.kind ?? "CoverageLinkAgencyPersonnel"} ref.path escapes its directory: ${ref.path}`);
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -79,13 +79,13 @@ const metadataSchema = z
   .strict();
 
 const recordItemSchema = z
-  .object({ spec: CoverageLinkAgencyOfficerSpec })
+  .object({ spec: CoverageLinkAgencyPersonnelSpec })
   .strict();
 
 export const schema = z
   .object({
     apiVersion: z.literal(INTAKE_API_VERSION),
-    kind: z.literal("CoverageLinkAgencyOfficers"),
+    kind: z.literal("CoverageLinkAgencyPersonnel"),
     metadata: metadataSchema,
     spec: z
       .object({
@@ -97,11 +97,11 @@ export const schema = z
   })
   .strict();
 
-export type CoverageLinkAgencyOfficersEnvelope = z.infer<typeof schema>;
-export type CoverageLinkAgencyOfficersInput = Omit<CoverageLinkAgencyOfficersEnvelope, "apiVersion" | "kind">;
-export type CoverageLinkAgencyOfficersResolvedEnvelope = Omit<CoverageLinkAgencyOfficersEnvelope, "spec"> & {
-  spec: Omit<CoverageLinkAgencyOfficersEnvelope["spec"], "records"> & {
-    records: Record<string, z.infer<typeof CoverageLinkAgencyOfficerSpec>>;
+export type CoverageLinkAgencyPersonnelEnvelope = z.infer<typeof schema>;
+export type CoverageLinkAgencyPersonnelInput = Omit<CoverageLinkAgencyPersonnelEnvelope, "apiVersion" | "kind">;
+export type CoverageLinkAgencyPersonnelResolvedEnvelope = Omit<CoverageLinkAgencyPersonnelEnvelope, "spec"> & {
+  spec: Omit<CoverageLinkAgencyPersonnelEnvelope["spec"], "records"> & {
+    records: Record<string, z.infer<typeof CoverageLinkAgencyPersonnelSpec>>;
   };
 };
 
@@ -110,7 +110,7 @@ export type ImportArtifactWriteOptions = {
   recordsDirectory?: string;
 };
 
-function parseCoverageLinkAgencyOfficers(value: unknown): CoverageLinkAgencyOfficersEnvelope {
+function parseCoverageLinkAgencyPersonnel(value: unknown): CoverageLinkAgencyPersonnelEnvelope {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new Error(formatError(result.error));
@@ -118,10 +118,10 @@ function parseCoverageLinkAgencyOfficers(value: unknown): CoverageLinkAgencyOffi
   return result.data;
 }
 
-function newCoverageLinkAgencyOfficers(input: CoverageLinkAgencyOfficersInput): CoverageLinkAgencyOfficersEnvelope {
-  return parseCoverageLinkAgencyOfficers({
+function newCoverageLinkAgencyPersonnel(input: CoverageLinkAgencyPersonnelInput): CoverageLinkAgencyPersonnelEnvelope {
+  return parseCoverageLinkAgencyPersonnel({
     apiVersion: INTAKE_API_VERSION,
-    kind: "CoverageLinkAgencyOfficers",
+    kind: "CoverageLinkAgencyPersonnel",
     ...input,
   });
 }
@@ -130,11 +130,11 @@ function validateRecord(
   artifactPath: string,
   recordKey: string,
   value: unknown,
-): z.infer<typeof CoverageLinkAgencyOfficerSpec> {
-  const result = CoverageLinkAgencyOfficerSpec.safeParse(value);
+): z.infer<typeof CoverageLinkAgencyPersonnelSpec> {
+  const result = CoverageLinkAgencyPersonnelSpec.safeParse(value);
   if (!result.success) {
     throw new Error(
-      `CoverageLinkAgencyOfficers record ${recordKey} is malformed at ${firstIssuePath(result.error)}: ${artifactPath}`,
+      `CoverageLinkAgencyPersonnel record ${recordKey} is malformed at ${firstIssuePath(result.error)}: ${artifactPath}`,
     );
   }
   return result.data;
@@ -142,51 +142,51 @@ function validateRecord(
 
 
 
-async function readCoverageLinkAgencyOfficers(
+async function readCoverageLinkAgencyPersonnel(
   filePath: string,
   options: EnvelopeReadOptions & {
-    expectedKind?: "CoverageLinkAgencyOfficers";
+    expectedKind?: "CoverageLinkAgencyPersonnel";
     expectedSha256?: string;
     raw: true;
   },
-): Promise<CoverageLinkAgencyOfficersEnvelope>;
-async function readCoverageLinkAgencyOfficers(
+): Promise<CoverageLinkAgencyPersonnelEnvelope>;
+async function readCoverageLinkAgencyPersonnel(
   filePath: string,
   options?: EnvelopeReadOptions & {
-    expectedKind?: "CoverageLinkAgencyOfficers";
+    expectedKind?: "CoverageLinkAgencyPersonnel";
     expectedSha256?: string;
     raw?: false;
   },
-): Promise<CoverageLinkAgencyOfficersResolvedEnvelope>;
-async function readCoverageLinkAgencyOfficers(
+): Promise<CoverageLinkAgencyPersonnelResolvedEnvelope>;
+async function readCoverageLinkAgencyPersonnel(
   filePath: string,
   options: EnvelopeReadOptions & {
-    expectedKind?: "CoverageLinkAgencyOfficers";
+    expectedKind?: "CoverageLinkAgencyPersonnel";
     expectedSha256?: string;
     raw?: boolean;
   } = {},
-): Promise<CoverageLinkAgencyOfficersEnvelope | CoverageLinkAgencyOfficersResolvedEnvelope> {
-  const { contents, document } = await readYamlDocumentFile(filePath, "CoverageLinkAgencyOfficers");
+): Promise<CoverageLinkAgencyPersonnelEnvelope | CoverageLinkAgencyPersonnelResolvedEnvelope> {
+  const { contents, document } = await readYamlDocumentFile(filePath, "CoverageLinkAgencyPersonnel");
   if (options.expectedSha256 !== undefined && yamlDigest(contents) !== options.expectedSha256) {
-    throw new Error(`CoverageLinkAgencyOfficers sha256 mismatch: ${filePath}`);
+    throw new Error(`CoverageLinkAgencyPersonnel sha256 mismatch: ${filePath}`);
   }
-  const artifact = parseCoverageLinkAgencyOfficers(document);
+  const artifact = parseCoverageLinkAgencyPersonnel(document);
   if (options.expectedKind !== undefined && artifact.kind !== options.expectedKind) {
-    throw new Error(`CoverageLinkAgencyOfficers kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`);
+    throw new Error(`CoverageLinkAgencyPersonnel kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`);
   }
   if (
     options.expectedNamespace !== undefined &&
     artifact.metadata.namespace !== options.expectedNamespace
   ) {
     throw new Error(
-      `CoverageLinkAgencyOfficers namespace ${artifact.metadata.namespace} does not match expected namespace ${options.expectedNamespace}: ${filePath}`,
+      `CoverageLinkAgencyPersonnel namespace ${artifact.metadata.namespace} does not match expected namespace ${options.expectedNamespace}: ${filePath}`,
     );
   }
   if (options.raw === true) {
     return artifact;
   }
 
-  const records: Record<string, z.infer<typeof CoverageLinkAgencyOfficerSpec>> = {};
+  const records: Record<string, z.infer<typeof CoverageLinkAgencyPersonnelSpec>> = {};
   for (const [recordKey, recordItem] of Object.entries(artifact.spec.records)) {
     records[recordKey] = validateRecord(filePath, recordKey, recordItem.spec);
   }
@@ -200,31 +200,31 @@ async function readCoverageLinkAgencyOfficers(
   };
 }
 
-async function writeCoverageLinkAgencyOfficers(
+async function writeCoverageLinkAgencyPersonnel(
   directory: string,
-  envelope: CoverageLinkAgencyOfficersInput,
+  envelope: CoverageLinkAgencyPersonnelInput,
   options: ImportArtifactWriteOptions = {},
 ): Promise<{ path: string; sha256: string }> {
-  let artifact = newCoverageLinkAgencyOfficers(envelope);
+  let artifact = newCoverageLinkAgencyPersonnel(envelope);
   const artifactPath = yamlResourcePath(directory, artifact);
 
   if (options.externalizeRecords === true) {
-    throw new Error("CoverageLinkAgencyOfficers does not support externalized singular record envelopes.");
+    throw new Error("CoverageLinkAgencyPersonnel does not support externalized singular record envelopes.");
   }
 
   const contents = await writeYamlDocumentFile(artifactPath, artifact);
   return { path: artifactPath, sha256: yamlDigest(contents) };
 }
 
-export const CoverageLinkAgencyOfficers = {
-  kind: "CoverageLinkAgencyOfficers",
+export const CoverageLinkAgencyPersonnel = {
+  kind: "CoverageLinkAgencyPersonnel",
   schema,
-  new: newCoverageLinkAgencyOfficers,
-  read: readCoverageLinkAgencyOfficers,
-  write: writeCoverageLinkAgencyOfficers,
+  new: newCoverageLinkAgencyPersonnel,
+  read: readCoverageLinkAgencyPersonnel,
+  write: writeCoverageLinkAgencyPersonnel,
 };
 
 
 
-export const read = readCoverageLinkAgencyOfficers;
-export const write = writeCoverageLinkAgencyOfficers;
+export const read = readCoverageLinkAgencyPersonnel;
+export const write = writeCoverageLinkAgencyPersonnel;

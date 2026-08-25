@@ -54,11 +54,11 @@ const databaseMutationMetadataByRecordKind: Record<
     keyColumnName: "id",
   },
   Personnel: {
-    tableName: "public.officers",
+    tableName: "public.personnel",
     keyColumnName: "id",
   },
   AgencyPersonnel: {
-    tableName: "public.agency_officers",
+    tableName: "public.agency_personnel",
     keyColumnName: "id",
   },
   LicensingAuthority: {
@@ -77,16 +77,16 @@ const databaseMutationMetadataByRecordKind: Record<
     tableName: "public.discipline",
     keyColumnName: "id",
   },
-  DisciplineAgencyOfficer: {
-    tableName: "public.discipline_agency_officers",
+  DisciplineAgencyPersonnel: {
+    tableName: "public.discipline_agency_personnel",
     keyColumnName: "id",
   },
   CoverageLink: {
     tableName: "public.coverage_links",
     keyColumnName: "id",
   },
-  CoverageLinkAgencyOfficer: {
-    tableName: "public.coverage_link_agency_officers",
+  CoverageLinkAgencyPersonnel: {
+    tableName: "public.coverage_link_agency_personnel",
     keyColumnName: "id",
   },
   AgencyPhoneNumber: {
@@ -105,8 +105,8 @@ const databaseMutationMetadataByRecordKind: Record<
     tableName: "public.civil_cases",
     keyColumnName: "id",
   },
-  CivilCaseOfficer: {
-    tableName: "public.civil_case_officers",
+  CivilCasePersonnel: {
+    tableName: "public.civil_case_personnel",
     keyColumnName: "id",
   },
   CivilCaseLink: {

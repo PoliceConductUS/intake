@@ -1011,7 +1011,7 @@ describe("DataContext", () => {
       namespace: "gov.tx.tcole",
       name: "1000038|Peace Officer License",
       spec: {
-        officer_id: "1000038",
+        personnel_id: "1000038",
         license_type: "Peace Officer License",
         status: null,
         first_awarded: "1994-06-16",
@@ -1043,7 +1043,7 @@ describe("DataContext", () => {
       },
       spec: {
         id: "license-canonical-id",
-        officer_id: "personnel-canonical-id",
+        personnel_id: "personnel-canonical-id",
         license_type: "Peace Officer License",
         status: null,
         first_awarded: "1994-06-16",
@@ -1062,7 +1062,7 @@ describe("DataContext", () => {
       databaseLicenses: [
         {
           id: "license-canonical-id",
-          officer_id: "personnel-canonical-id",
+          personnel_id: "personnel-canonical-id",
           license_type: "Peace Officer License",
           status: null,
           first_awarded: "1990-01-01",
@@ -1087,7 +1087,7 @@ describe("DataContext", () => {
         operations: [
           {
             action: "check",
-            path: "officer_id",
+            path: "personnel_id",
             value: "personnel-canonical-id",
           },
           { action: "check", path: "license_type" },
@@ -1131,7 +1131,7 @@ describe("DataContext", () => {
       namespace: "gov.tx.tcole",
       name: "1000038|Peace Officer License",
       spec: {
-        officer_id: "1000038",
+        personnel_id: "1000038",
         license_type: "Peace Officer License",
         status: null,
         first_awarded: "1994-06-16",
@@ -1154,7 +1154,7 @@ describe("DataContext", () => {
       namespace: "gov.tx.tcole",
       name: "1000038|Peace Officer License",
       spec: {
-        officer_id: "1000038",
+        personnel_id: "1000038",
         license_type: "Peace Officer License",
         issued_by_authority_id: "tcole",
       },
@@ -1261,7 +1261,7 @@ describe("PersonnelFacade", () => {
         (options?.databaseOfficers === undefined
           ? new EmptyDatabaseClient()
           : new CurrentRowClient({
-              "public.officers": options.databaseOfficers,
+              "public.personnel": options.databaseOfficers,
             })),
       commandName: "command-name",
       ledger:
@@ -1328,10 +1328,10 @@ describe("PersonnelFacade", () => {
         text = "",
         values: readonly unknown[] = [],
       ): Promise<{ rows: Record<string, unknown>[] }> {
-        if (/from public\.officers where id = any/i.test(text)) {
+        if (/from public\.personnel where id = any/i.test(text)) {
           officerCurrentRowReads.push(text);
         }
-        if (/from public\.officers where slug = any/i.test(text)) {
+        if (/from public\.personnel where slug = any/i.test(text)) {
           officerSlugReads.push(text);
         }
         return super.query(text, values);
@@ -1506,7 +1506,7 @@ describe("PersonnelFacade", () => {
         text = "",
         values: readonly unknown[] = [],
       ): Promise<{ rows: Record<string, unknown>[] }> {
-        if (/select \* from public\.officers where slug = any/i.test(text)) {
+        if (/select \* from public\.personnel where slug = any/i.test(text)) {
           const slugs = (values[0] as string[] | undefined) ?? [];
           if (slugs.includes("marc-denney-icalid")) {
             return {
@@ -1542,7 +1542,7 @@ describe("AgencyPersonnelFacade", () => {
   }): DataContext {
     return new DataContext({
       client: new CurrentRowClient({
-        "public.agency_officers": options?.databaseAgencyPersonnel ?? [],
+        "public.agency_personnel": options?.databaseAgencyPersonnel ?? [],
       }),
       commandName: "command-name",
       ledger: fakeSourceNameLedger({
@@ -1576,7 +1576,7 @@ describe("AgencyPersonnelFacade", () => {
       namespace: "mn-post",
       name: "license-source",
       spec: {
-        officer_id: "personnel-source",
+        personnel_id: "personnel-source",
         license_type: "Peace Officer License",
         issued_by_authority_id: "tcole",
       },
@@ -1603,7 +1603,7 @@ describe("AgencyPersonnelFacade", () => {
       name: "ap-source",
       spec: {
         agency_id: "agency-source",
-        officer_id: "personnel-source",
+        personnel_id: "personnel-source",
         license_id: "license-source",
         title: "Peace Officer",
         start_date: "2020-01-01",
@@ -1617,7 +1617,7 @@ describe("AgencyPersonnelFacade", () => {
       metadata: { namespace: "mn-post", name: "agency-personnel-canonical-id" },
       spec: {
         agency_id: "agency-canonical-id",
-        officer_id: "personnel-canonical-id",
+        personnel_id: "personnel-canonical-id",
         license_id: "license-canonical-id",
         title: "Peace Officer",
         start_date: "2020-01-01",
@@ -1636,7 +1636,7 @@ describe("AgencyPersonnelFacade", () => {
       name: "ap-source",
       spec: {
         agency_id: "agency-source",
-        officer_id: "personnel-source",
+        personnel_id: "personnel-source",
         // no license_id
         title: "Peace Officer",
         start_date: "2020-01-01",
@@ -1660,7 +1660,7 @@ describe("AgencyPersonnelFacade", () => {
         {
           id: "agency-personnel-canonical-id",
           agency_id: "agency-canonical-id",
-          officer_id: "personnel-canonical-id",
+          personnel_id: "personnel-canonical-id",
           license_id: "license-canonical-id",
           title: "Deputy",
           start_date: "2020-01-01",
@@ -1677,7 +1677,7 @@ describe("AgencyPersonnelFacade", () => {
       canonicalId: "agency-personnel-canonical-id",
       spec: {
         agency_id: "agency-source",
-        officer_id: "personnel-source",
+        personnel_id: "personnel-source",
         license_id: "license-source",
         title: "Peace Officer",
         start_date: "2020-01-01",
@@ -1721,7 +1721,7 @@ describe("AgencyPersonnelFacade", () => {
       name: "ap-source",
       spec: {
         agency_id: "agency-source",
-        officer_id: "personnel-source",
+        personnel_id: "personnel-source",
         title: "Peace Officer",
         start_date: "2020-01-01",
       },
@@ -1955,14 +1955,14 @@ describe("Census substrate facades", () => {
     });
     const context = licensingContext(ledger);
 
-    // Register the assignment so the attribution's agency_officer_id FK resolves.
+    // Register the assignment so the attribution's agency_personnel_id FK resolves.
     context.facadeFromSource("AgencyPersonnel", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "0031|a2jALPHA",
       spec: {
         agency_id: "a2jALPHA",
-        officer_id: "0031",
+        personnel_id: "0031",
         start_date: "2010-05-01",
         title: "Peace Officer",
       },
@@ -1979,13 +1979,13 @@ describe("Census substrate facades", () => {
         case_number: "PB24-1-01",
       },
     });
-    const attribution = context.facadeFromSource("DisciplineAgencyOfficer", {
+    const attribution = context.facadeFromSource("DisciplineAgencyPersonnel", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "0031|PB24-1-01|a2jALPHA",
       spec: {
         discipline_id: "0031|PB24-1-01",
-        agency_officer_id: "0031|a2jALPHA",
+        agency_personnel_id: "0031|a2jALPHA",
       },
     });
 
@@ -2004,10 +2004,10 @@ describe("Census substrate facades", () => {
     // findForeignKeyTarget — to the discipline event's id and the assignment's
     // canonical id.
     expect(await attribution.toMutation()).toMatchObject({
-      kind: "DisciplineAgencyOfficerCreate",
+      kind: "DisciplineAgencyPersonnelCreate",
       spec: {
         discipline_id: disciplineId,
-        agency_officer_id: "ao-canonical-id",
+        agency_personnel_id: "ao-canonical-id",
       },
     });
   });

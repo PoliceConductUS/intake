@@ -83,13 +83,13 @@ describe("EntityFacade via the discipline facades", () => {
   });
 
   it("resolves foreign keys through the backend target", async () => {
-    const facade = buildFacadeForKind("DisciplineAgencyOfficer", {
+    const facade = buildFacadeForKind("DisciplineAgencyPersonnel", {
       source,
       ...backend(),
     });
     facade.merge({
       discipline_id: "0031|PB24-1-01",
-      agency_officer_id: "0031|a2jALPHA",
+      agency_personnel_id: "0031|a2jALPHA",
     });
 
     const mutation = (await facade.toMutation()) as {
@@ -98,7 +98,7 @@ describe("EntityFacade via the discipline facades", () => {
     };
     expect(mutation.spec).toMatchObject({
       discipline_id: "fk:Discipline:0031|PB24-1-01",
-      agency_officer_id: "fk:AgencyPersonnel:0031|a2jALPHA",
+      agency_personnel_id: "fk:AgencyPersonnel:0031|a2jALPHA",
     });
   });
 });

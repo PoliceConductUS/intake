@@ -167,8 +167,8 @@ describe("architecture boundaries", () => {
       if (
         !fileName.startsWith("src/cli/database/") &&
         (contents.includes("from public.agency") ||
-          contents.includes("from public.officers") ||
-          contents.includes("from public.agency_officers") ||
+          contents.includes("from public.personnel") ||
+          contents.includes("from public.agency_personnel") ||
           contents.includes("select * from ${tableName}") ||
           contents.includes("select id, slug from ${tableName}"))
       ) {

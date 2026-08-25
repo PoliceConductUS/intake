@@ -307,7 +307,7 @@ describe("database mutation envelopes", () => {
               spec: {
                 id: "agency-personnel-canonical-id",
                 agency_id: "agency-canonical-id",
-                officer_id: "personnel-canonical-id",
+                personnel_id: "personnel-canonical-id",
                 badge_number: "49112",
                 start_date: "2020-01-01",
                 end_date: null,

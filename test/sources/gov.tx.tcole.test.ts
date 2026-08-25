@@ -282,7 +282,7 @@ describe("gov.tx.tcole run", () => {
         .spec;
     expect(open).toEqual({
       agency_id: "471100",
-      officer_id: "1000033",
+      personnel_id: "1000033",
       start_date: "2024-10-15",
       end_date: null,
       title: "Jailer",
@@ -306,7 +306,7 @@ describe("gov.tx.tcole run", () => {
     expect(unknown).toBeDefined();
     expect(unknown.spec).toEqual({
       agency_id: "471100",
-      officer_id: "1000038",
+      personnel_id: "1000038",
       start_date: "2020-01-01",
       end_date: null,
       title: "Unknown",
@@ -344,7 +344,7 @@ describe("gov.tx.tcole run", () => {
       "1000038|Peace Officer License",
     ]);
     expect(records["1000038|Peace Officer License"].spec).toEqual({
-      officer_id: "1000038",
+      personnel_id: "1000038",
       license_type: "Peace Officer License",
       status: null,
       // earliest OfficersLicensesActions ACTION_DATE for the pair

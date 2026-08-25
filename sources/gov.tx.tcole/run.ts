@@ -31,9 +31,9 @@ export const produces: readonly ImportArtifactKind[] = [
  *
  * `title` carries the `APPOINTMENT` (the role — "Peace Officer", "Chief of
  * Police"), matching how the column is populated today (seed set
- * `agency_officers.title = APPOINTMENT`). A blank APPOINTMENT is recorded as
+ * `agency_personnel.title = APPOINTMENT`). A blank APPOINTMENT is recorded as
  * "Unknown" rather than dropped. The separate license reference
- * (`agency_officers.license_id`) links to the emitted License
+ * (`agency_personnel.license_id`) links to the emitted License
  * (`PUBLIC_GUID|LICENSE`) when the assignment carries a non-blank LICENSE.
  *
  * The licensing model adds three more kinds — `LicensingAuthorities` (just
@@ -288,7 +288,7 @@ function buildAgencyPersonnel(
     records[key] = {
       spec: {
         agency_id: departmentNumber,
-        officer_id: publicGuid,
+        personnel_id: publicGuid,
         start_date: startDate,
         end_date: endDate === "" ? null : endDate,
         // `title` holds the role (APPOINTMENT). Blank roles are recorded as
@@ -361,7 +361,7 @@ function buildLicenses(
 
     records[key] = {
       spec: {
-        officer_id: publicGuid,
+        personnel_id: publicGuid,
         license_type: license,
         status: null,
         first_awarded: earliestActionDate.get(key) ?? null,

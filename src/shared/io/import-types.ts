@@ -14,11 +14,11 @@ import {
   AgencyPhoneNumberSpec,
   AgencySpec,
   CivilCaseSpec,
-  CivilCaseOfficerSpec,
+  CivilCasePersonnelSpec,
   CivilCaseLinkSpec,
-  CoverageLinkAgencyOfficerSpec,
+  CoverageLinkAgencyPersonnelSpec,
   CoverageLinkSpec,
-  DisciplineAgencyOfficerSpec,
+  DisciplineAgencyPersonnelSpec,
   DisciplineSpec,
   FederalAgencyBranchSpec,
   FederalAgencySpec,
@@ -54,14 +54,14 @@ const recordSchemas = {
   Licenses: LicenseSpec,
   LicenseActions: LicenseActionSpec,
   Disciplines: DisciplineSpec,
-  DisciplineAgencyOfficers: DisciplineAgencyOfficerSpec,
+  DisciplineAgencyPersonnel: DisciplineAgencyPersonnelSpec,
   CoverageLinks: CoverageLinkSpec,
-  CoverageLinkAgencyOfficers: CoverageLinkAgencyOfficerSpec,
+  CoverageLinkAgencyPersonnel: CoverageLinkAgencyPersonnelSpec,
   AgencyPhoneNumbers: AgencyPhoneNumberSpec,
   FederalAgencies: FederalAgencySpec,
   FederalAgencyBranches: FederalAgencyBranchSpec,
   CivilCases: CivilCaseSpec,
-  CivilCaseOfficers: CivilCaseOfficerSpec,
+  CivilCasePersonnel: CivilCasePersonnelSpec,
   CivilCaseLinks: CivilCaseLinkSpec,
 } satisfies Record<ImportArtifactKind, z.ZodType<Record<string, unknown>>>;
 
@@ -106,17 +106,17 @@ export const importTypeRegistry = {
     ...importTypeMetadata.Disciplines,
     recordSchema: recordSchemas.Disciplines,
   },
-  DisciplineAgencyOfficers: {
-    ...importTypeMetadata.DisciplineAgencyOfficers,
-    recordSchema: recordSchemas.DisciplineAgencyOfficers,
+  DisciplineAgencyPersonnel: {
+    ...importTypeMetadata.DisciplineAgencyPersonnel,
+    recordSchema: recordSchemas.DisciplineAgencyPersonnel,
   },
   CoverageLinks: {
     ...importTypeMetadata.CoverageLinks,
     recordSchema: recordSchemas.CoverageLinks,
   },
-  CoverageLinkAgencyOfficers: {
-    ...importTypeMetadata.CoverageLinkAgencyOfficers,
-    recordSchema: recordSchemas.CoverageLinkAgencyOfficers,
+  CoverageLinkAgencyPersonnel: {
+    ...importTypeMetadata.CoverageLinkAgencyPersonnel,
+    recordSchema: recordSchemas.CoverageLinkAgencyPersonnel,
   },
   AgencyPhoneNumbers: {
     ...importTypeMetadata.AgencyPhoneNumbers,
@@ -134,9 +134,9 @@ export const importTypeRegistry = {
     ...importTypeMetadata.CivilCases,
     recordSchema: recordSchemas.CivilCases,
   },
-  CivilCaseOfficers: {
-    ...importTypeMetadata.CivilCaseOfficers,
-    recordSchema: recordSchemas.CivilCaseOfficers,
+  CivilCasePersonnel: {
+    ...importTypeMetadata.CivilCasePersonnel,
+    recordSchema: recordSchemas.CivilCasePersonnel,
   },
   CivilCaseLinks: {
     ...importTypeMetadata.CivilCaseLinks,

@@ -12,7 +12,7 @@ import {
   readYamlDocumentFile,
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
-import { DisciplineAgencyOfficerSpec, DisciplineAgencyOfficerCreateSpec } from "../../../../../shared/io/generated/entity-specs.js";
+import { CoverageLinkAgencyPersonnelSpec, CoverageLinkAgencyPersonnelCreateSpec } from "../../../../../shared/io/generated/entity-specs.js";
 
 
 type EnvelopeReadRef =
@@ -25,7 +25,7 @@ type EnvelopeReadOptions = {
 };
 
 function formatError(error: z.ZodError): string {
-  return `DisciplineAgencyOfficerCreate is malformed at ${firstIssuePath(error)}.`;
+  return `CoverageLinkAgencyPersonnelCreate is malformed at ${firstIssuePath(error)}.`;
 }
 
 function refValue(pathOrRef: string | EnvelopeReadRef): {
@@ -51,14 +51,14 @@ function resolveReadPath(
     return { ...ref, filePath: ref.path };
   }
   if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "DisciplineAgencyOfficerCreate"} ref requires relativeTo.`);
+    throw new Error(`Relative ${ref.kind ?? "CoverageLinkAgencyPersonnelCreate"} ref requires relativeTo.`);
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "DisciplineAgencyOfficerCreate"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(`${ref.kind ?? "CoverageLinkAgencyPersonnelCreate"} ref.path escapes its directory: ${ref.path}`);
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -74,21 +74,21 @@ const metadataSchema = z
 
 
 
-export const specSchema = DisciplineAgencyOfficerCreateSpec;
+export const specSchema = CoverageLinkAgencyPersonnelCreateSpec;
 
 export const schema = z
   .object({
     apiVersion: z.literal(INTAKE_API_VERSION),
-    kind: z.literal("DisciplineAgencyOfficerCreate"),
+    kind: z.literal("CoverageLinkAgencyPersonnelCreate"),
     metadata: metadataSchema,
     spec: specSchema,
   })
   .strict();
 
-export type DisciplineAgencyOfficerCreateEnvelope = z.infer<typeof schema>;
-export type DisciplineAgencyOfficerCreateInput = Omit<DisciplineAgencyOfficerCreateEnvelope, "apiVersion" | "kind">;
+export type CoverageLinkAgencyPersonnelCreateEnvelope = z.infer<typeof schema>;
+export type CoverageLinkAgencyPersonnelCreateInput = Omit<CoverageLinkAgencyPersonnelCreateEnvelope, "apiVersion" | "kind">;
 
-function parseDisciplineAgencyOfficerCreate(value: unknown): DisciplineAgencyOfficerCreateEnvelope {
+function parseCoverageLinkAgencyPersonnelCreate(value: unknown): CoverageLinkAgencyPersonnelCreateEnvelope {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new Error(formatError(result.error));
@@ -96,52 +96,52 @@ function parseDisciplineAgencyOfficerCreate(value: unknown): DisciplineAgencyOff
   return result.data;
 }
 
-function newDisciplineAgencyOfficerCreate(input: DisciplineAgencyOfficerCreateInput): DisciplineAgencyOfficerCreateEnvelope {
-  return parseDisciplineAgencyOfficerCreate({
+function newCoverageLinkAgencyPersonnelCreate(input: CoverageLinkAgencyPersonnelCreateInput): CoverageLinkAgencyPersonnelCreateEnvelope {
+  return parseCoverageLinkAgencyPersonnelCreate({
     apiVersion: INTAKE_API_VERSION,
-    kind: "DisciplineAgencyOfficerCreate",
+    kind: "CoverageLinkAgencyPersonnelCreate",
     ...input,
   });
 }
 
-async function readDisciplineAgencyOfficerCreate(
+async function readCoverageLinkAgencyPersonnelCreate(
   pathOrRef: string | EnvelopeReadRef,
   options: EnvelopeReadOptions = {},
-): Promise<DisciplineAgencyOfficerCreateEnvelope> {
+): Promise<CoverageLinkAgencyPersonnelCreateEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
-  if (ref.kind !== undefined && ref.kind !== "DisciplineAgencyOfficerCreate") {
-    throw new Error(`DisciplineAgencyOfficerCreate ref.kind ${ref.kind} does not match expected kind DisciplineAgencyOfficerCreate: ${ref.filePath}`);
+  if (ref.kind !== undefined && ref.kind !== "CoverageLinkAgencyPersonnelCreate") {
+    throw new Error(`CoverageLinkAgencyPersonnelCreate ref.kind ${ref.kind} does not match expected kind CoverageLinkAgencyPersonnelCreate: ${ref.filePath}`);
   }
-  const { contents, document } = await readYamlDocumentFile(ref.filePath, "DisciplineAgencyOfficerCreate");
+  const { contents, document } = await readYamlDocumentFile(ref.filePath, "CoverageLinkAgencyPersonnelCreate");
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
-    throw new Error(`DisciplineAgencyOfficerCreate sha256 mismatch: ${ref.filePath}`);
+    throw new Error(`CoverageLinkAgencyPersonnelCreate sha256 mismatch: ${ref.filePath}`);
   }
-  const envelope = parseDisciplineAgencyOfficerCreate(document);
+  const envelope = parseCoverageLinkAgencyPersonnelCreate(document);
   if (
     options.expectedNamespace !== undefined &&
     envelope.metadata.namespace !== options.expectedNamespace
   ) {
     throw new Error(
-      `DisciplineAgencyOfficerCreate namespace ${envelope.metadata.namespace} does not match expected namespace ${options.expectedNamespace}: ${ref.filePath}`,
+      `CoverageLinkAgencyPersonnelCreate namespace ${envelope.metadata.namespace} does not match expected namespace ${options.expectedNamespace}: ${ref.filePath}`,
     );
   }
   return envelope;
 }
 
-async function writeDisciplineAgencyOfficerCreate(
+async function writeCoverageLinkAgencyPersonnelCreate(
   directory: string,
-  envelope: DisciplineAgencyOfficerCreateEnvelope,
+  envelope: CoverageLinkAgencyPersonnelCreateEnvelope,
 ): Promise<{ path: string }> {
-  const parsed = parseDisciplineAgencyOfficerCreate(envelope);
+  const parsed = parseCoverageLinkAgencyPersonnelCreate(envelope);
   const filePath = yamlResourcePath(directory, parsed);
   await writeYamlDocumentFile(filePath, parsed);
   return { path: filePath };
 }
 
-export const DisciplineAgencyOfficerCreate = {
-  kind: "DisciplineAgencyOfficerCreate",
+export const CoverageLinkAgencyPersonnelCreate = {
+  kind: "CoverageLinkAgencyPersonnelCreate",
   schema,
-  new: newDisciplineAgencyOfficerCreate,
-  read: readDisciplineAgencyOfficerCreate,
-  write: writeDisciplineAgencyOfficerCreate,
+  new: newCoverageLinkAgencyPersonnelCreate,
+  read: readCoverageLinkAgencyPersonnelCreate,
+  write: writeCoverageLinkAgencyPersonnelCreate,
 };

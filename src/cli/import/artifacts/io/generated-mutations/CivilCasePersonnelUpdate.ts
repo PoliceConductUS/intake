@@ -12,7 +12,7 @@ import {
   readYamlDocumentFile,
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
-import { CivilCaseOfficerSpec } from "../../../../../shared/io/generated/entity-specs.js";
+import { CivilCasePersonnelSpec } from "../../../../../shared/io/generated/entity-specs.js";
 
 
 type EnvelopeReadRef =
@@ -25,7 +25,7 @@ type EnvelopeReadOptions = {
 };
 
 function formatError(error: z.ZodError): string {
-  return `CivilCaseOfficerUpdate is malformed at ${firstIssuePath(error)}.`;
+  return `CivilCasePersonnelUpdate is malformed at ${firstIssuePath(error)}.`;
 }
 
 function refValue(pathOrRef: string | EnvelopeReadRef): {
@@ -51,14 +51,14 @@ function resolveReadPath(
     return { ...ref, filePath: ref.path };
   }
   if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "CivilCaseOfficerUpdate"} ref requires relativeTo.`);
+    throw new Error(`Relative ${ref.kind ?? "CivilCasePersonnelUpdate"} ref requires relativeTo.`);
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "CivilCaseOfficerUpdate"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(`${ref.kind ?? "CivilCasePersonnelUpdate"} ref.path escapes its directory: ${ref.path}`);
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -73,7 +73,7 @@ const metadataSchema = z
   .strict();
 
 
-const fieldSchemas = (CivilCaseOfficerSpec as z.ZodObject<z.ZodRawShape>).shape;
+const fieldSchemas = (CivilCasePersonnelSpec as z.ZodObject<z.ZodRawShape>).shape;
 const fieldNames = Object.keys(fieldSchemas);
 const fieldSchemaByName: Record<string, { safeParse(value: unknown): { success: true } | { success: false; error: z.ZodError } }> = fieldSchemas as unknown as Record<string, { safeParse(value: unknown): { success: true } | { success: false; error: z.ZodError } }>;
 
@@ -123,7 +123,7 @@ const operationSchema = z.union([
       context.addIssue({
         code: "custom",
         path: ["path"],
-        message: "must be a CivilCaseOfficer field",
+        message: "must be a CivilCasePersonnel field",
       });
       return;
     }
@@ -170,16 +170,16 @@ export const specSchema = z
 export const schema = z
   .object({
     apiVersion: z.literal(INTAKE_API_VERSION),
-    kind: z.literal("CivilCaseOfficerUpdate"),
+    kind: z.literal("CivilCasePersonnelUpdate"),
     metadata: metadataSchema,
     spec: specSchema,
   })
   .strict();
 
-export type CivilCaseOfficerUpdateEnvelope = z.infer<typeof schema>;
-export type CivilCaseOfficerUpdateInput = Omit<CivilCaseOfficerUpdateEnvelope, "apiVersion" | "kind">;
+export type CivilCasePersonnelUpdateEnvelope = z.infer<typeof schema>;
+export type CivilCasePersonnelUpdateInput = Omit<CivilCasePersonnelUpdateEnvelope, "apiVersion" | "kind">;
 
-function parseCivilCaseOfficerUpdate(value: unknown): CivilCaseOfficerUpdateEnvelope {
+function parseCivilCasePersonnelUpdate(value: unknown): CivilCasePersonnelUpdateEnvelope {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new Error(formatError(result.error));
@@ -187,52 +187,52 @@ function parseCivilCaseOfficerUpdate(value: unknown): CivilCaseOfficerUpdateEnve
   return result.data;
 }
 
-function newCivilCaseOfficerUpdate(input: CivilCaseOfficerUpdateInput): CivilCaseOfficerUpdateEnvelope {
-  return parseCivilCaseOfficerUpdate({
+function newCivilCasePersonnelUpdate(input: CivilCasePersonnelUpdateInput): CivilCasePersonnelUpdateEnvelope {
+  return parseCivilCasePersonnelUpdate({
     apiVersion: INTAKE_API_VERSION,
-    kind: "CivilCaseOfficerUpdate",
+    kind: "CivilCasePersonnelUpdate",
     ...input,
   });
 }
 
-async function readCivilCaseOfficerUpdate(
+async function readCivilCasePersonnelUpdate(
   pathOrRef: string | EnvelopeReadRef,
   options: EnvelopeReadOptions = {},
-): Promise<CivilCaseOfficerUpdateEnvelope> {
+): Promise<CivilCasePersonnelUpdateEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
-  if (ref.kind !== undefined && ref.kind !== "CivilCaseOfficerUpdate") {
-    throw new Error(`CivilCaseOfficerUpdate ref.kind ${ref.kind} does not match expected kind CivilCaseOfficerUpdate: ${ref.filePath}`);
+  if (ref.kind !== undefined && ref.kind !== "CivilCasePersonnelUpdate") {
+    throw new Error(`CivilCasePersonnelUpdate ref.kind ${ref.kind} does not match expected kind CivilCasePersonnelUpdate: ${ref.filePath}`);
   }
-  const { contents, document } = await readYamlDocumentFile(ref.filePath, "CivilCaseOfficerUpdate");
+  const { contents, document } = await readYamlDocumentFile(ref.filePath, "CivilCasePersonnelUpdate");
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
-    throw new Error(`CivilCaseOfficerUpdate sha256 mismatch: ${ref.filePath}`);
+    throw new Error(`CivilCasePersonnelUpdate sha256 mismatch: ${ref.filePath}`);
   }
-  const envelope = parseCivilCaseOfficerUpdate(document);
+  const envelope = parseCivilCasePersonnelUpdate(document);
   if (
     options.expectedNamespace !== undefined &&
     envelope.metadata.namespace !== options.expectedNamespace
   ) {
     throw new Error(
-      `CivilCaseOfficerUpdate namespace ${envelope.metadata.namespace} does not match expected namespace ${options.expectedNamespace}: ${ref.filePath}`,
+      `CivilCasePersonnelUpdate namespace ${envelope.metadata.namespace} does not match expected namespace ${options.expectedNamespace}: ${ref.filePath}`,
     );
   }
   return envelope;
 }
 
-async function writeCivilCaseOfficerUpdate(
+async function writeCivilCasePersonnelUpdate(
   directory: string,
-  envelope: CivilCaseOfficerUpdateEnvelope,
+  envelope: CivilCasePersonnelUpdateEnvelope,
 ): Promise<{ path: string }> {
-  const parsed = parseCivilCaseOfficerUpdate(envelope);
+  const parsed = parseCivilCasePersonnelUpdate(envelope);
   const filePath = yamlResourcePath(directory, parsed);
   await writeYamlDocumentFile(filePath, parsed);
   return { path: filePath };
 }
 
-export const CivilCaseOfficerUpdate = {
-  kind: "CivilCaseOfficerUpdate",
+export const CivilCasePersonnelUpdate = {
+  kind: "CivilCasePersonnelUpdate",
   schema,
-  new: newCivilCaseOfficerUpdate,
-  read: readCivilCaseOfficerUpdate,
-  write: writeCivilCaseOfficerUpdate,
+  new: newCivilCasePersonnelUpdate,
+  read: readCivilCasePersonnelUpdate,
+  write: writeCivilCasePersonnelUpdate,
 };

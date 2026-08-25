@@ -44,8 +44,8 @@ export function createRunDataContext(
     const loaded = client
       .query(
         `select row_to_json(o.*) as officer, row_to_json(ao.*) as agency_officer
-         from agency_officers ao
-         join officers o on o.id = ao.officer_id
+         from agency_personnel ao
+         join officers o on o.id = ao.personnel_id
          where ao.agency_id = $1`,
         [canonicalAgencyId],
       )

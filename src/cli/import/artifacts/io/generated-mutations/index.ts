@@ -30,15 +30,15 @@ import { LicenseActionUpdate } from "./LicenseActionUpdate.js";
 import { DisciplineCreate } from "./DisciplineCreate.js";
 import { DisciplineRead } from "./DisciplineRead.js";
 import { DisciplineUpdate } from "./DisciplineUpdate.js";
-import { DisciplineAgencyOfficerCreate } from "./DisciplineAgencyOfficerCreate.js";
-import { DisciplineAgencyOfficerRead } from "./DisciplineAgencyOfficerRead.js";
-import { DisciplineAgencyOfficerUpdate } from "./DisciplineAgencyOfficerUpdate.js";
+import { DisciplineAgencyPersonnelCreate } from "./DisciplineAgencyPersonnelCreate.js";
+import { DisciplineAgencyPersonnelRead } from "./DisciplineAgencyPersonnelRead.js";
+import { DisciplineAgencyPersonnelUpdate } from "./DisciplineAgencyPersonnelUpdate.js";
 import { CoverageLinkCreate } from "./CoverageLinkCreate.js";
 import { CoverageLinkRead } from "./CoverageLinkRead.js";
 import { CoverageLinkUpdate } from "./CoverageLinkUpdate.js";
-import { CoverageLinkAgencyOfficerCreate } from "./CoverageLinkAgencyOfficerCreate.js";
-import { CoverageLinkAgencyOfficerRead } from "./CoverageLinkAgencyOfficerRead.js";
-import { CoverageLinkAgencyOfficerUpdate } from "./CoverageLinkAgencyOfficerUpdate.js";
+import { CoverageLinkAgencyPersonnelCreate } from "./CoverageLinkAgencyPersonnelCreate.js";
+import { CoverageLinkAgencyPersonnelRead } from "./CoverageLinkAgencyPersonnelRead.js";
+import { CoverageLinkAgencyPersonnelUpdate } from "./CoverageLinkAgencyPersonnelUpdate.js";
 import { AgencyPhoneNumberCreate } from "./AgencyPhoneNumberCreate.js";
 import { AgencyPhoneNumberRead } from "./AgencyPhoneNumberRead.js";
 import { AgencyPhoneNumberUpdate } from "./AgencyPhoneNumberUpdate.js";
@@ -51,9 +51,9 @@ import { FederalAgencyBranchUpdate } from "./FederalAgencyBranchUpdate.js";
 import { CivilCaseCreate } from "./CivilCaseCreate.js";
 import { CivilCaseRead } from "./CivilCaseRead.js";
 import { CivilCaseUpdate } from "./CivilCaseUpdate.js";
-import { CivilCaseOfficerCreate } from "./CivilCaseOfficerCreate.js";
-import { CivilCaseOfficerRead } from "./CivilCaseOfficerRead.js";
-import { CivilCaseOfficerUpdate } from "./CivilCaseOfficerUpdate.js";
+import { CivilCasePersonnelCreate } from "./CivilCasePersonnelCreate.js";
+import { CivilCasePersonnelRead } from "./CivilCasePersonnelRead.js";
+import { CivilCasePersonnelUpdate } from "./CivilCasePersonnelUpdate.js";
 import { CivilCaseLinkCreate } from "./CivilCaseLinkCreate.js";
 import { CivilCaseLinkRead } from "./CivilCaseLinkRead.js";
 import { CivilCaseLinkUpdate } from "./CivilCaseLinkUpdate.js";
@@ -89,15 +89,15 @@ export const importMutationEnvelopeTypes = {
   DisciplineCreate,
   DisciplineRead,
   DisciplineUpdate,
-  DisciplineAgencyOfficerCreate,
-  DisciplineAgencyOfficerRead,
-  DisciplineAgencyOfficerUpdate,
+  DisciplineAgencyPersonnelCreate,
+  DisciplineAgencyPersonnelRead,
+  DisciplineAgencyPersonnelUpdate,
   CoverageLinkCreate,
   CoverageLinkRead,
   CoverageLinkUpdate,
-  CoverageLinkAgencyOfficerCreate,
-  CoverageLinkAgencyOfficerRead,
-  CoverageLinkAgencyOfficerUpdate,
+  CoverageLinkAgencyPersonnelCreate,
+  CoverageLinkAgencyPersonnelRead,
+  CoverageLinkAgencyPersonnelUpdate,
   AgencyPhoneNumberCreate,
   AgencyPhoneNumberRead,
   AgencyPhoneNumberUpdate,
@@ -110,9 +110,9 @@ export const importMutationEnvelopeTypes = {
   CivilCaseCreate,
   CivilCaseRead,
   CivilCaseUpdate,
-  CivilCaseOfficerCreate,
-  CivilCaseOfficerRead,
-  CivilCaseOfficerUpdate,
+  CivilCasePersonnelCreate,
+  CivilCasePersonnelRead,
+  CivilCasePersonnelUpdate,
   CivilCaseLinkCreate,
   CivilCaseLinkRead,
   CivilCaseLinkUpdate,

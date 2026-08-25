@@ -168,7 +168,7 @@ describe("seed display text", () => {
       ...extractInsertedColumnValues("officers", "first_name"),
       ...extractInsertedColumnValues("officers", "last_name"),
       ...extractInsertedColumnValues("officers", "middle_name"),
-      ...extractInsertedColumnValues("agency_officers", "title"),
+      ...extractInsertedColumnValues("agency_personnel", "title"),
     ];
     const shoutingValues = officerDisplayValues.filter((value) => {
       return (

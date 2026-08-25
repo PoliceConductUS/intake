@@ -62,11 +62,11 @@ const DESCRIPTIONS: Record<string, string> = {
   LicenseAction:
     "An event in a license's history — issuance, renewal, suspension, or revocation.",
   Discipline: "A disciplinary action or finding.",
-  DisciplineAgencyOfficer:
+  DisciplineAgencyPersonnel:
     "Ties a disciplinary action to the specific assignment (person at an agency) it concerns.",
   CoverageLink:
     "A news article, report, or record documenting an incident or person.",
-  CoverageLinkAgencyOfficer:
+  CoverageLinkAgencyPersonnel:
     "Ties a piece of coverage to the specific assignment (person at an agency) it concerns.",
   AgencyPhoneNumber: "A phone or fax number for an agency.",
   FederalAgency:
@@ -75,7 +75,7 @@ const DESCRIPTIONS: Record<string, string> = {
     "A federal agency's office or field location, recorded as its own agency and linked to the parent federal agency.",
   CivilCase:
     "A civil lawsuit naming an agency and/or its personnel.",
-  CivilCaseOfficer:
+  CivilCasePersonnel:
     "Ties a civil case to a named assignment (person at an agency) it involves.",
   CivilCaseLink: "A source document or link for a civil case.",
 };
@@ -287,7 +287,7 @@ record:
 - Every record needs **your own id** (the \`id\` field): any string that is unique
   within your export and that you keep the same for the same record in future
   exports.
-- A **reference** field (e.g. \`agency_id\`, \`officer_id\`) is the \`id\` you gave the
+- A **reference** field (e.g. \`agency_id\`, \`personnel_id\`) is the \`id\` you gave the
   linked record elsewhere in the same export — so a record you reference must
   also be included in that export.
 

@@ -17,8 +17,8 @@ describe("excludeManifestRecords", () => {
         {
           kind: "AgencyPersonnel",
           records: {
-            a: { spec: { agency_id: "1", officer_id: "o1" } },
-            b: { spec: { agency_id: "515014", officer_id: "o2" } },
+            a: { spec: { agency_id: "1", personnel_id: "o1" } },
+            b: { spec: { agency_id: "515014", personnel_id: "o2" } },
           },
         },
       ],

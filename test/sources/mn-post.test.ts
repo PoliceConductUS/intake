@@ -11,9 +11,9 @@ import {
   LicensingAuthoritySpec,
   LicenseSpec,
   DisciplineSpec,
-  DisciplineAgencyOfficerSpec,
+  DisciplineAgencyPersonnelSpec,
   CoverageLinkSpec,
-  CoverageLinkAgencyOfficerSpec,
+  CoverageLinkAgencyPersonnelSpec,
 } from "../../src/shared/io/index.js";
 import type { SourceManifest } from "../../src/cli/run/source-run.js";
 
@@ -168,9 +168,9 @@ describe("mn-post run", () => {
       "Licenses",
       "AgencyPersonnel",
       "Disciplines",
-      "DisciplineAgencyOfficers",
+      "DisciplineAgencyPersonnel",
       "CoverageLinks",
-      "CoverageLinkAgencyOfficers",
+      "CoverageLinkAgencyPersonnel",
     ]);
   });
 
@@ -240,7 +240,7 @@ describe("mn-post run", () => {
       "a2jLIC99",
     ]);
     expect(licenses["a2jLIC31"].spec).toEqual({
-      officer_id: "0031",
+      personnel_id: "0031",
       license_type: "Peace Officer",
       status: "Active",
       first_awarded: "2010-05-01",
@@ -263,7 +263,7 @@ describe("mn-post run", () => {
     ]);
     expect(assignments["0031|a2jBETA"].spec).toEqual({
       agency_id: "a2jBETA",
-      officer_id: "0031",
+      personnel_id: "0031",
       start_date: "2010-05-01",
       end_date: null,
       title: "Peace Officer",
@@ -277,9 +277,9 @@ describe("mn-post run", () => {
   it("emits a discipline event per order, with a coverage link and multi-agency attribution", async () => {
     const manifest = await runFixture();
     const discipline = recordsOf(manifest, "Disciplines");
-    const attributions = recordsOf(manifest, "DisciplineAgencyOfficers");
+    const attributions = recordsOf(manifest, "DisciplineAgencyPersonnel");
     const coverage = recordsOf(manifest, "CoverageLinks");
-    const coverageAttr = recordsOf(manifest, "CoverageLinkAgencyOfficers");
+    const coverageAttr = recordsOf(manifest, "CoverageLinkAgencyPersonnel");
 
     // 0031 has one order; 0032's sentinel string yields nothing.
     expect(Object.keys(discipline)).toEqual(["0031|PB24-1-01"]);
@@ -297,7 +297,7 @@ describe("mn-post run", () => {
     ]);
     expect(attributions["0031|PB24-1-01|a2jALPHA"].spec).toEqual({
       discipline_id: "0031|PB24-1-01",
-      agency_officer_id: "0031|a2jALPHA",
+      agency_personnel_id: "0031|a2jALPHA",
     });
 
     expect(coverage["0031|PB24-1-01"].spec).toMatchObject({
@@ -312,7 +312,7 @@ describe("mn-post run", () => {
     ]);
     expect(coverageAttr["0031|PB24-1-01|a2jBETA"].spec).toMatchObject({
       coverage_link_id: "0031|PB24-1-01",
-      agency_officer_id: "0031|a2jBETA",
+      agency_personnel_id: "0031|a2jBETA",
       confidence: "documented",
     });
 
@@ -320,7 +320,7 @@ describe("mn-post run", () => {
       expect(DisciplineSpec.safeParse(record.spec).success).toBe(true);
     }
     for (const record of Object.values(attributions)) {
-      expect(DisciplineAgencyOfficerSpec.safeParse(record.spec).success).toBe(
+      expect(DisciplineAgencyPersonnelSpec.safeParse(record.spec).success).toBe(
         true,
       );
     }
@@ -328,7 +328,7 @@ describe("mn-post run", () => {
       expect(CoverageLinkSpec.safeParse(record.spec).success).toBe(true);
     }
     for (const record of Object.values(coverageAttr)) {
-      expect(CoverageLinkAgencyOfficerSpec.safeParse(record.spec).success).toBe(
+      expect(CoverageLinkAgencyPersonnelSpec.safeParse(record.spec).success).toBe(
         true,
       );
     }

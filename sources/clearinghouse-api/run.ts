@@ -10,7 +10,7 @@ import { isPersonName, slugify } from "../lib/civil-defendants.js";
 
 export const produces: readonly ImportArtifactKind[] = [
   "CivilCases",
-  "CivilCaseOfficers",
+  "CivilCasePersonnel",
   "CivilCaseLinks",
 ];
 
@@ -199,7 +199,7 @@ export const run: SourceRun = async ({
         officers[`${caseKey}|${agencyOfficerId}`] = {
           spec: {
             civil_case_id: caseKey,
-            agency_officer_id: agencyOfficerId,
+            agency_personnel_id: agencyOfficerId,
           },
         };
       }
@@ -214,7 +214,7 @@ export const run: SourceRun = async ({
   return {
     artifacts: [
       { kind: "CivilCases", records: civilCases },
-      { kind: "CivilCaseOfficers", records: officers },
+      { kind: "CivilCasePersonnel", records: officers },
       { kind: "CivilCaseLinks", records: links },
     ],
   };

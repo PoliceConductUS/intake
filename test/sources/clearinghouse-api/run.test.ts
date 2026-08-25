@@ -113,10 +113,10 @@ describe("clearinghouse-api run", () => {
       primary_source_url: "https://clearinghouse.net/case/100",
     });
 
-    expect(Object.keys(byKind.CivilCaseOfficers)).toEqual(["ch-100|ao-1"]);
-    expect(byKind.CivilCaseOfficers["ch-100|ao-1"].spec).toEqual({
+    expect(Object.keys(byKind.CivilCasePersonnel)).toEqual(["ch-100|ao-1"]);
+    expect(byKind.CivilCasePersonnel["ch-100|ao-1"].spec).toEqual({
       civil_case_id: "ch-100",
-      agency_officer_id: "ao-1",
+      agency_personnel_id: "ao-1",
     });
     expect(Object.keys(byKind.CivilCaseLinks)).toEqual(["ch-100|clearinghouse"]);
 

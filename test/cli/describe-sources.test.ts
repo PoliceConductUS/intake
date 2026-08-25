@@ -91,12 +91,12 @@ describe("renderSourceCatalog", () => {
         {
           id: "civil",
           phases: ["run"],
-          produces: ["CivilCases", "CivilCaseOfficers", "CivilCaseLinks"],
+          produces: ["CivilCases", "CivilCasePersonnel", "CivilCaseLinks"],
         },
       ]),
     ).toBe(
       "civil  [run]\n" +
-        "    produces: CivilCases, CivilCaseOfficers, CivilCaseLinks\n" +
+        "    produces: CivilCases, CivilCasePersonnel, CivilCaseLinks\n" +
         "    consumes: LocationPaths, AgencyPersonnel\n",
     );
   });

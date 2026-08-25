@@ -8,9 +8,9 @@ export const produces: readonly ImportArtifactKind[] = [
   "Licenses",
   "AgencyPersonnel",
   "Disciplines",
-  "DisciplineAgencyOfficers",
+  "DisciplineAgencyPersonnel",
   "CoverageLinks",
-  "CoverageLinkAgencyOfficers",
+  "CoverageLinkAgencyPersonnel",
 ];
 import path from "node:path";
 import { parse as parseCsvSync } from "csv-parse/sync";
@@ -179,7 +179,7 @@ export const run: SourceRun = async ({ paths }) => {
       if (licenseId !== null && licenseType !== null) {
         licenses[licenseId] = {
           spec: {
-            officer_id: contactId,
+            personnel_id: contactId,
             license_type: licenseType,
             status: nullIfBlank(asString(row.status)),
             first_awarded: startDate,
@@ -195,7 +195,7 @@ export const run: SourceRun = async ({ paths }) => {
         agencyPersonnel[`${contactId}|${agency.id}`] = {
           spec: {
             agency_id: agency.id,
-            officer_id: contactId,
+            personnel_id: contactId,
             start_date: startDate,
             end_date: null,
             title: licenseType,
@@ -218,9 +218,9 @@ export const run: SourceRun = async ({ paths }) => {
   // action is a POST order — read them for all officers, since the roster's
   // boolean flag can drift from the authoritative list.
   const discipline: EmittedRecords = {};
-  const disciplineAgencyOfficers: EmittedRecords = {};
+  const disciplineAgencyPersonnel: EmittedRecords = {};
   const coverageLinks: EmittedRecords = {};
-  const coverageLinkAgencyOfficers: EmittedRecords = {};
+  const coverageLinkAgencyPersonnel: EmittedRecords = {};
 
   for (const jsonPath of paths.filter((p) =>
     p.toLowerCase().endsWith(".detail.json"),
@@ -282,17 +282,17 @@ export const run: SourceRun = async ({ paths }) => {
       // held — all implicated agencies, per the multi-agency rule.
       for (const agencyId of heldAgencies) {
         const assignmentKey = `${contactId}|${agencyId}`;
-        disciplineAgencyOfficers[`${disciplineKey}|${agencyId}`] = {
+        disciplineAgencyPersonnel[`${disciplineKey}|${agencyId}`] = {
           spec: {
             discipline_id: disciplineKey,
-            agency_officer_id: assignmentKey,
+            agency_personnel_id: assignmentKey,
           },
         };
         if (documentUrl !== null) {
-          coverageLinkAgencyOfficers[`${disciplineKey}|${agencyId}`] = {
+          coverageLinkAgencyPersonnel[`${disciplineKey}|${agencyId}`] = {
             spec: {
               coverage_link_id: disciplineKey,
-              agency_officer_id: assignmentKey,
+              agency_personnel_id: assignmentKey,
               confidence: "documented",
             },
           };
@@ -309,11 +309,11 @@ export const run: SourceRun = async ({ paths }) => {
       { kind: "Licenses", records: licenses },
       { kind: "AgencyPersonnel", records: agencyPersonnel },
       { kind: "Disciplines", records: discipline },
-      { kind: "DisciplineAgencyOfficers", records: disciplineAgencyOfficers },
+      { kind: "DisciplineAgencyPersonnel", records: disciplineAgencyPersonnel },
       { kind: "CoverageLinks", records: coverageLinks },
       {
-        kind: "CoverageLinkAgencyOfficers",
-        records: coverageLinkAgencyOfficers,
+        kind: "CoverageLinkAgencyPersonnel",
+        records: coverageLinkAgencyPersonnel,
       },
     ],
   };

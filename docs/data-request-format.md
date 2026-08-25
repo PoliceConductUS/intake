@@ -37,7 +37,7 @@ record:
 - Every record needs **your own id** (the `id` field): any string that is unique
   within your export and that you keep the same for the same record in future
   exports.
-- A **reference** field (e.g. `agency_id`, `officer_id`) is the `id` you gave the
+- A **reference** field (e.g. `agency_id`, `personnel_id`) is the `id` you gave the
   linked record elsewhere in the same export — so a record you reference must
   also be included in that export.
 
@@ -99,7 +99,7 @@ One row per AgencyPersonnel.
 |---|---|---|---|---|
 | `id` | text | yes | unique within your export; stable across exports; non-empty | A stable id you assign to this record and reuse next time. |
 | `agency_id` | text | yes | non-empty | → **Agency**: your id for the linked Agency, present in the same export. |
-| `officer_id` | text | yes | non-empty | → **Personnel**: your id for the linked Personnel, present in the same export. |
+| `personnel_id` | text | yes | non-empty | → **Personnel**: your id for the linked Personnel, present in the same export. |
 | `badge_number` | text | optional | non-empty | — |
 | `start_date` | date (`YYYY-MM-DD`) | yes | format `YYYY-MM-DD` | — |
 | `end_date` | date (`YYYY-MM-DD`) | optional | format `YYYY-MM-DD` | — |
@@ -128,7 +128,7 @@ One row per License.
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
 | `id` | text | yes | unique within your export; stable across exports; non-empty | A stable id you assign to this record and reuse next time. |
-| `officer_id` | text | yes | non-empty | → **Personnel**: your id for the linked Personnel, present in the same export. |
+| `personnel_id` | text | yes | non-empty | → **Personnel**: your id for the linked Personnel, present in the same export. |
 | `license_type` | text | yes | non-empty | — |
 | `status` | text | optional | non-empty | — |
 | `first_awarded` | date (`YYYY-MM-DD`) | optional | format `YYYY-MM-DD` | — |
@@ -162,17 +162,17 @@ One row per Discipline.
 | `expiration_date` | date (`YYYY-MM-DD`) | optional | format `YYYY-MM-DD` | — |
 | `case_number` | text | optional | non-empty | — |
 
-### DisciplineAgencyOfficer
+### DisciplineAgencyPersonnel
 
 Ties a disciplinary action to the specific assignment (person at an agency) it concerns.
 
-One row per DisciplineAgencyOfficer.
+One row per DisciplineAgencyPersonnel.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
 | `id` | text | yes | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
 | `discipline_id` | text | yes | — | → **Discipline**: your id for the linked Discipline, present in the same export. |
-| `agency_officer_id` | text | yes | — | → **AgencyPersonnel**: your id for the linked AgencyPersonnel, present in the same export. |
+| `agency_personnel_id` | text | yes | — | → **AgencyPersonnel**: your id for the linked AgencyPersonnel, present in the same export. |
 
 ### CoverageLink
 
@@ -190,17 +190,17 @@ One row per CoverageLink.
 | `published_at` | timestamp (ISO 8601) | optional | ISO 8601 | — |
 | `notes` | text | optional | — | — |
 
-### CoverageLinkAgencyOfficer
+### CoverageLinkAgencyPersonnel
 
 Ties a piece of coverage to the specific assignment (person at an agency) it concerns.
 
-One row per CoverageLinkAgencyOfficer.
+One row per CoverageLinkAgencyPersonnel.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
 | `id` | text | yes | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
 | `coverage_link_id` | text | yes | — | → **CoverageLink**: your id for the linked CoverageLink, present in the same export. |
-| `agency_officer_id` | text | yes | — | → **AgencyPersonnel**: your id for the linked AgencyPersonnel, present in the same export. |
+| `agency_personnel_id` | text | yes | — | → **AgencyPersonnel**: your id for the linked AgencyPersonnel, present in the same export. |
 | `confidence` | text | yes | — | — |
 | `notes` | text | optional | — | — |
 
@@ -258,17 +258,17 @@ One row per CivilCase.
 | `primary_source_url` | text | optional | — | — |
 | `date_terminated` | date (`YYYY-MM-DD`) | optional | format `YYYY-MM-DD` | — |
 
-### CivilCaseOfficer
+### CivilCasePersonnel
 
 Ties a civil case to a named assignment (person at an agency) it involves.
 
-One row per CivilCaseOfficer.
+One row per CivilCasePersonnel.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
 | `id` | text | yes | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
 | `civil_case_id` | text | yes | — | → **CivilCase**: your id for the linked CivilCase, present in the same export. |
-| `agency_officer_id` | text | yes | — | → **AgencyPersonnel**: your id for the linked AgencyPersonnel, present in the same export. |
+| `agency_personnel_id` | text | yes | — | → **AgencyPersonnel**: your id for the linked AgencyPersonnel, present in the same export. |
 
 ### CivilCaseLink
 

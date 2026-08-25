@@ -67,7 +67,7 @@ export async function readNewDatabaseRecords(
 
 export async function readDatabaseRecordsBySlugs(
   client: DatabaseClient,
-  tableName: "public.agency" | "public.officers",
+  tableName: "public.agency" | "public.personnel",
   slugs: readonly string[],
 ): Promise<Record<string, unknown>[]> {
   return rowsFromResult(

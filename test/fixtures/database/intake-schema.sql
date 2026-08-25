@@ -74,13 +74,13 @@ COMMENT ON COLUMN public.agency.contact_email IS 'Email address of the primary c
 
 
 --
--- Name: agency_officers; Type: TABLE; Schema: public; Owner: -
+-- Name: agency_personnel; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.agency_officers (
+CREATE TABLE public.agency_personnel (
     id text DEFAULT public.generate_cuid() NOT NULL,
     agency_id text NOT NULL,
-    officer_id text NOT NULL,
+    personnel_id text NOT NULL,
     badge_number text,
     start_date date NOT NULL,
     end_date date,
@@ -88,23 +88,23 @@ CREATE TABLE public.agency_officers (
     updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
     title text NOT NULL,
     license_id text,
-    CONSTRAINT agency_officers_agency_id_not_blank CHECK ((char_length(btrim(agency_id)) > 0)),
-    CONSTRAINT agency_officers_badge_number_not_blank CHECK (((badge_number IS NULL) OR (char_length(btrim(badge_number)) > 0))),
-    CONSTRAINT agency_officers_id_not_blank CHECK ((char_length(btrim(id)) > 0)),
-    CONSTRAINT agency_officers_license_id_not_blank CHECK (((license_id IS NULL) OR (char_length(btrim(license_id)) > 0))),
-    CONSTRAINT agency_officers_officer_id_not_blank CHECK ((char_length(btrim(officer_id)) > 0)),
-    CONSTRAINT agency_officers_title_not_blank CHECK ((char_length(btrim(title)) > 0))
+    CONSTRAINT agency_personnel_agency_id_not_blank CHECK ((char_length(btrim(agency_id)) > 0)),
+    CONSTRAINT agency_personnel_badge_number_not_blank CHECK (((badge_number IS NULL) OR (char_length(btrim(badge_number)) > 0))),
+    CONSTRAINT agency_personnel_id_not_blank CHECK ((char_length(btrim(id)) > 0)),
+    CONSTRAINT agency_personnel_license_id_not_blank CHECK (((license_id IS NULL) OR (char_length(btrim(license_id)) > 0))),
+    CONSTRAINT agency_personnel_personnel_id_not_blank CHECK ((char_length(btrim(personnel_id)) > 0)),
+    CONSTRAINT agency_personnel_title_not_blank CHECK ((char_length(btrim(title)) > 0))
 );
 
 
 --
--- Name: coverage_link_agency_officers; Type: TABLE; Schema: public; Owner: -
+-- Name: coverage_link_agency_personnel; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.coverage_link_agency_officers (
+CREATE TABLE public.coverage_link_agency_personnel (
     id text NOT NULL,
     coverage_link_id text NOT NULL,
-    agency_officer_id text NOT NULL,
+    agency_personnel_id text NOT NULL,
     confidence text DEFAULT 'documented'::text NOT NULL,
     notes text,
     created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
@@ -147,13 +147,13 @@ CREATE TABLE public.discipline (
 
 
 --
--- Name: discipline_agency_officers; Type: TABLE; Schema: public; Owner: -
+-- Name: discipline_agency_personnel; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.discipline_agency_officers (
+CREATE TABLE public.discipline_agency_personnel (
     id text NOT NULL,
     discipline_id text NOT NULL,
-    agency_officer_id text NOT NULL
+    agency_personnel_id text NOT NULL
 );
 
 
@@ -163,7 +163,7 @@ CREATE TABLE public.discipline_agency_officers (
 
 CREATE TABLE public.license (
     id text NOT NULL,
-    officer_id text NOT NULL,
+    personnel_id text NOT NULL,
     license_type text NOT NULL,
     status text,
     first_awarded date,
@@ -173,7 +173,7 @@ CREATE TABLE public.license (
     CONSTRAINT license_id_not_blank CHECK ((char_length(btrim(id)) > 0)),
     CONSTRAINT license_issued_by_authority_id_not_blank CHECK ((char_length(btrim(issued_by_authority_id)) > 0)),
     CONSTRAINT license_license_type_not_blank CHECK ((char_length(btrim(license_type)) > 0)),
-    CONSTRAINT license_officer_id_not_blank CHECK ((char_length(btrim(officer_id)) > 0)),
+    CONSTRAINT license_personnel_id_not_blank CHECK ((char_length(btrim(personnel_id)) > 0)),
     CONSTRAINT license_status_not_blank CHECK (((status IS NULL) OR (char_length(btrim(status)) > 0)))
 );
 
@@ -285,10 +285,10 @@ CREATE TABLE public.location_path_geometry (
 
 
 --
--- Name: officers; Type: TABLE; Schema: public; Owner: -
+-- Name: personnel; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.officers (
+CREATE TABLE public.personnel (
     id text DEFAULT public.generate_cuid() NOT NULL,
     first_name text NOT NULL,
     last_name text,
@@ -301,25 +301,25 @@ CREATE TABLE public.officers (
     deceased_on date,
     deceased_source text,
     deceased_message text,
-    CONSTRAINT officers_deceased_message_not_blank CHECK (((deceased_message IS NULL) OR (char_length(btrim(deceased_message)) > 0))),
-    CONSTRAINT officers_deceased_on_not_future_check CHECK (((deceased_on IS NULL) OR (deceased_on <= CURRENT_DATE))),
-    CONSTRAINT officers_deceased_source_not_blank CHECK (((deceased_source IS NULL) OR (char_length(btrim(deceased_source)) > 0))),
-    CONSTRAINT officers_first_name_not_blank CHECK ((char_length(btrim(first_name)) > 0)),
-    CONSTRAINT officers_id_not_blank CHECK ((char_length(btrim(id)) > 0)),
-    CONSTRAINT officers_last_name_not_blank CHECK (((last_name IS NULL) OR (char_length(btrim(last_name)) > 0))),
-    CONSTRAINT officers_middle_name_not_blank CHECK (((middle_name IS NULL) OR (char_length(btrim(middle_name)) > 0))),
-    CONSTRAINT officers_prefix_not_blank CHECK (((prefix IS NULL) OR (char_length(btrim(prefix)) > 0))),
-    CONSTRAINT officers_slug_not_blank CHECK ((char_length(btrim(slug)) > 0)),
-    CONSTRAINT officers_suffix_not_blank CHECK (((suffix IS NULL) OR (char_length(btrim(suffix)) > 0)))
+    CONSTRAINT personnel_deceased_message_not_blank CHECK (((deceased_message IS NULL) OR (char_length(btrim(deceased_message)) > 0))),
+    CONSTRAINT personnel_deceased_on_not_future_check CHECK (((deceased_on IS NULL) OR (deceased_on <= CURRENT_DATE))),
+    CONSTRAINT personnel_deceased_source_not_blank CHECK (((deceased_source IS NULL) OR (char_length(btrim(deceased_source)) > 0))),
+    CONSTRAINT personnel_first_name_not_blank CHECK ((char_length(btrim(first_name)) > 0)),
+    CONSTRAINT personnel_id_not_blank CHECK ((char_length(btrim(id)) > 0)),
+    CONSTRAINT personnel_last_name_not_blank CHECK (((last_name IS NULL) OR (char_length(btrim(last_name)) > 0))),
+    CONSTRAINT personnel_middle_name_not_blank CHECK (((middle_name IS NULL) OR (char_length(btrim(middle_name)) > 0))),
+    CONSTRAINT personnel_prefix_not_blank CHECK (((prefix IS NULL) OR (char_length(btrim(prefix)) > 0))),
+    CONSTRAINT personnel_slug_not_blank CHECK ((char_length(btrim(slug)) > 0)),
+    CONSTRAINT personnel_suffix_not_blank CHECK (((suffix IS NULL) OR (char_length(btrim(suffix)) > 0)))
 );
 
 
 --
--- Name: agency_officers agency_officers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: agency_personnel agency_personnel_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.agency_officers
-    ADD CONSTRAINT agency_officers_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.agency_personnel
+    ADD CONSTRAINT agency_personnel_pkey PRIMARY KEY (id);
 
 
 --
@@ -331,11 +331,11 @@ ALTER TABLE ONLY public.agency
 
 
 --
--- Name: coverage_link_agency_officers coverage_link_agency_officers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: coverage_link_agency_personnel coverage_link_agency_personnel_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.coverage_link_agency_officers
-    ADD CONSTRAINT coverage_link_agency_officers_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.coverage_link_agency_personnel
+    ADD CONSTRAINT coverage_link_agency_personnel_pkey PRIMARY KEY (id);
 
 
 --
@@ -347,19 +347,19 @@ ALTER TABLE ONLY public.coverage_links
 
 
 --
--- Name: discipline_agency_officers discipline_agency_officers_discipline_id_agency_officer_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: discipline_agency_personnel discipline_agency_personnel_discipline_id_agency_personnel_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.discipline_agency_officers
-    ADD CONSTRAINT discipline_agency_officers_discipline_id_agency_officer_id_key UNIQUE (discipline_id, agency_officer_id);
+ALTER TABLE ONLY public.discipline_agency_personnel
+    ADD CONSTRAINT discipline_agency_personnel_discipline_id_agency_personnel_id_key UNIQUE (discipline_id, agency_personnel_id);
 
 
 --
--- Name: discipline_agency_officers discipline_agency_officers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: discipline_agency_personnel discipline_agency_personnel_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.discipline_agency_officers
-    ADD CONSTRAINT discipline_agency_officers_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.discipline_agency_personnel
+    ADD CONSTRAINT discipline_agency_personnel_pkey PRIMARY KEY (id);
 
 
 --
@@ -379,11 +379,11 @@ ALTER TABLE ONLY public.license_action
 
 
 --
--- Name: license license_officer_id_license_type_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: license license_personnel_id_license_type_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.license
-    ADD CONSTRAINT license_officer_id_license_type_key UNIQUE (officer_id, license_type);
+    ADD CONSTRAINT license_personnel_id_license_type_key UNIQUE (personnel_id, license_type);
 
 
 --
@@ -443,11 +443,11 @@ ALTER TABLE ONLY public.location_path
 
 
 --
--- Name: officers officers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: personnel personnel_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.officers
-    ADD CONSTRAINT officers_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.personnel
+    ADD CONSTRAINT personnel_pkey PRIMARY KEY (id);
 
 
 --
@@ -458,24 +458,24 @@ CREATE UNIQUE INDEX agency_slug_key ON public.agency USING btree (slug);
 
 
 --
--- Name: coverage_link_agency_officers_agency_officer_id_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: coverage_link_agency_personnel_agency_personnel_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX coverage_link_agency_officers_agency_officer_id_idx ON public.coverage_link_agency_officers USING btree (agency_officer_id);
-
-
---
--- Name: coverage_link_agency_officers_coverage_link_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX coverage_link_agency_officers_coverage_link_id_idx ON public.coverage_link_agency_officers USING btree (coverage_link_id);
+CREATE INDEX coverage_link_agency_personnel_agency_personnel_id_idx ON public.coverage_link_agency_personnel USING btree (agency_personnel_id);
 
 
 --
--- Name: coverage_link_agency_officers_unique_relationship; Type: INDEX; Schema: public; Owner: -
+-- Name: coverage_link_agency_personnel_coverage_link_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX coverage_link_agency_officers_unique_relationship ON public.coverage_link_agency_officers USING btree (coverage_link_id, agency_officer_id);
+CREATE INDEX coverage_link_agency_personnel_coverage_link_id_idx ON public.coverage_link_agency_personnel USING btree (coverage_link_id);
+
+
+--
+-- Name: coverage_link_agency_personnel_unique_relationship; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX coverage_link_agency_personnel_unique_relationship ON public.coverage_link_agency_personnel USING btree (coverage_link_id, agency_personnel_id);
 
 
 --
@@ -486,17 +486,17 @@ CREATE UNIQUE INDEX coverage_links_normalized_url_key ON public.coverage_links U
 
 
 --
--- Name: discipline_agency_officers_agency_officer_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: discipline_agency_personnel_agency_personnel_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX discipline_agency_officers_agency_officer_idx ON public.discipline_agency_officers USING btree (agency_officer_id);
+CREATE INDEX discipline_agency_personnel_agency_personnel_idx ON public.discipline_agency_personnel USING btree (agency_personnel_id);
 
 
 --
--- Name: discipline_agency_officers_discipline_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: discipline_agency_personnel_discipline_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX discipline_agency_officers_discipline_idx ON public.discipline_agency_officers USING btree (discipline_id);
+CREATE INDEX discipline_agency_personnel_discipline_idx ON public.discipline_agency_personnel USING btree (discipline_id);
 
 
 --
@@ -514,10 +514,10 @@ CREATE INDEX license_authority_idx ON public.license USING btree (issued_by_auth
 
 
 --
--- Name: license_officer_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: license_personnel_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX license_officer_idx ON public.license USING btree (officer_id);
+CREATE INDEX license_personnel_idx ON public.license USING btree (personnel_id);
 
 
 --
@@ -549,10 +549,10 @@ CREATE INDEX location_path_parent_idx ON public.location_path USING btree (paren
 
 
 --
--- Name: officers_slug_key; Type: INDEX; Schema: public; Owner: -
+-- Name: personnel_slug_key; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX officers_slug_key ON public.officers USING btree (slug);
+CREATE UNIQUE INDEX personnel_slug_key ON public.personnel USING btree (slug);
 
 
 --
@@ -570,59 +570,59 @@ ALTER TABLE ONLY public.agency
 
 
 --
--- Name: agency_officers agency_officers_agency_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: agency_personnel agency_personnel_agency_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.agency_officers
-    ADD CONSTRAINT agency_officers_agency_id_fkey FOREIGN KEY (agency_id) REFERENCES public.agency(id);
-
-
---
--- Name: agency_officers agency_officers_license_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.agency_officers
-    ADD CONSTRAINT agency_officers_license_id_fkey FOREIGN KEY (license_id) REFERENCES public.license(id) ON DELETE SET NULL;
+ALTER TABLE ONLY public.agency_personnel
+    ADD CONSTRAINT agency_personnel_agency_id_fkey FOREIGN KEY (agency_id) REFERENCES public.agency(id);
 
 
 --
--- Name: agency_officers agency_officers_officer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: agency_personnel agency_personnel_license_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.agency_officers
-    ADD CONSTRAINT agency_officers_officer_id_fkey FOREIGN KEY (officer_id) REFERENCES public.officers(id) ON DELETE CASCADE;
-
-
---
--- Name: coverage_link_agency_officers coverage_link_agency_officers_agency_officer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.coverage_link_agency_officers
-    ADD CONSTRAINT coverage_link_agency_officers_agency_officer_id_fkey FOREIGN KEY (agency_officer_id) REFERENCES public.agency_officers(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.agency_personnel
+    ADD CONSTRAINT agency_personnel_license_id_fkey FOREIGN KEY (license_id) REFERENCES public.license(id) ON DELETE SET NULL;
 
 
 --
--- Name: coverage_link_agency_officers coverage_link_agency_officers_coverage_link_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: agency_personnel agency_personnel_personnel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.coverage_link_agency_officers
-    ADD CONSTRAINT coverage_link_agency_officers_coverage_link_id_fkey FOREIGN KEY (coverage_link_id) REFERENCES public.coverage_links(id) ON DELETE CASCADE;
-
-
---
--- Name: discipline_agency_officers discipline_agency_officers_agency_officer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.discipline_agency_officers
-    ADD CONSTRAINT discipline_agency_officers_agency_officer_id_fkey FOREIGN KEY (agency_officer_id) REFERENCES public.agency_officers(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.agency_personnel
+    ADD CONSTRAINT agency_personnel_personnel_id_fkey FOREIGN KEY (personnel_id) REFERENCES public.personnel(id) ON DELETE CASCADE;
 
 
 --
--- Name: discipline_agency_officers discipline_agency_officers_discipline_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: coverage_link_agency_personnel coverage_link_agency_personnel_agency_personnel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.discipline_agency_officers
-    ADD CONSTRAINT discipline_agency_officers_discipline_id_fkey FOREIGN KEY (discipline_id) REFERENCES public.discipline(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.coverage_link_agency_personnel
+    ADD CONSTRAINT coverage_link_agency_personnel_agency_personnel_id_fkey FOREIGN KEY (agency_personnel_id) REFERENCES public.agency_personnel(id) ON DELETE CASCADE;
+
+
+--
+-- Name: coverage_link_agency_personnel coverage_link_agency_personnel_coverage_link_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.coverage_link_agency_personnel
+    ADD CONSTRAINT coverage_link_agency_personnel_coverage_link_id_fkey FOREIGN KEY (coverage_link_id) REFERENCES public.coverage_links(id) ON DELETE CASCADE;
+
+
+--
+-- Name: discipline_agency_personnel discipline_agency_personnel_agency_personnel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.discipline_agency_personnel
+    ADD CONSTRAINT discipline_agency_personnel_agency_personnel_id_fkey FOREIGN KEY (agency_personnel_id) REFERENCES public.agency_personnel(id) ON DELETE CASCADE;
+
+
+--
+-- Name: discipline_agency_personnel discipline_agency_personnel_discipline_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.discipline_agency_personnel
+    ADD CONSTRAINT discipline_agency_personnel_discipline_id_fkey FOREIGN KEY (discipline_id) REFERENCES public.discipline(id) ON DELETE CASCADE;
 
 
 --
@@ -642,11 +642,11 @@ ALTER TABLE ONLY public.license
 
 
 --
--- Name: license license_officer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: license license_personnel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.license
-    ADD CONSTRAINT license_officer_id_fkey FOREIGN KEY (officer_id) REFERENCES public.officers(id) ON DELETE CASCADE;
+    ADD CONSTRAINT license_personnel_id_fkey FOREIGN KEY (personnel_id) REFERENCES public.personnel(id) ON DELETE CASCADE;
 
 
 --

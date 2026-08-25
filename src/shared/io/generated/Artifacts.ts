@@ -22,14 +22,14 @@ import { LicensingAuthorities } from "./LicensingAuthorities.js";
 import { Licenses } from "./Licenses.js";
 import { LicenseActions } from "./LicenseActions.js";
 import { Disciplines } from "./Disciplines.js";
-import { DisciplineAgencyOfficers } from "./DisciplineAgencyOfficers.js";
+import { DisciplineAgencyPersonnel } from "./DisciplineAgencyPersonnel.js";
 import { CoverageLinks } from "./CoverageLinks.js";
-import { CoverageLinkAgencyOfficers } from "./CoverageLinkAgencyOfficers.js";
+import { CoverageLinkAgencyPersonnel } from "./CoverageLinkAgencyPersonnel.js";
 import { AgencyPhoneNumbers } from "./AgencyPhoneNumbers.js";
 import { FederalAgencies } from "./FederalAgencies.js";
 import { FederalAgencyBranches } from "./FederalAgencyBranches.js";
 import { CivilCases } from "./CivilCases.js";
-import { CivilCaseOfficers } from "./CivilCaseOfficers.js";
+import { CivilCasePersonnel } from "./CivilCasePersonnel.js";
 import { CivilCaseLinks } from "./CivilCaseLinks.js";
 
 
@@ -105,14 +105,14 @@ const artifactSpecSchemas: Record<string, z.ZodType> = {
   Licenses: Licenses.schema.shape.spec,
   LicenseActions: LicenseActions.schema.shape.spec,
   Disciplines: Disciplines.schema.shape.spec,
-  DisciplineAgencyOfficers: DisciplineAgencyOfficers.schema.shape.spec,
+  DisciplineAgencyPersonnel: DisciplineAgencyPersonnel.schema.shape.spec,
   CoverageLinks: CoverageLinks.schema.shape.spec,
-  CoverageLinkAgencyOfficers: CoverageLinkAgencyOfficers.schema.shape.spec,
+  CoverageLinkAgencyPersonnel: CoverageLinkAgencyPersonnel.schema.shape.spec,
   AgencyPhoneNumbers: AgencyPhoneNumbers.schema.shape.spec,
   FederalAgencies: FederalAgencies.schema.shape.spec,
   FederalAgencyBranches: FederalAgencyBranches.schema.shape.spec,
   CivilCases: CivilCases.schema.shape.spec,
-  CivilCaseOfficers: CivilCaseOfficers.schema.shape.spec,
+  CivilCasePersonnel: CivilCasePersonnel.schema.shape.spec,
   CivilCaseLinks: CivilCaseLinks.schema.shape.spec,
 };
 const artifactReferenceSchema = z

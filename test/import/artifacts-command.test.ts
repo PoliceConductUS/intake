@@ -463,7 +463,7 @@ describe("importArtifacts", () => {
           ownedColumns: {
             agency: ["name"],
             personnel: ["first_name", "last_name"],
-            agencyPersonnel: ["agency_id", "officer_id"],
+            agencyPersonnel: ["agency_id", "personnel_id"],
           },
           errors: ["missing latitude", "missing longitude"],
         },
@@ -490,7 +490,7 @@ describe("importArtifacts", () => {
       ownedColumns: {
         agency: ["name"],
         personnel: ["first_name", "last_name"],
-        agencyPersonnel: ["agency_id", "officer_id"],
+        agencyPersonnel: ["agency_id", "personnel_id"],
       },
     });
     expect(parsedImportArtifacts.spec).toHaveProperty("mutations");

@@ -9,14 +9,14 @@ export const IMPORT_ARTIFACT_KINDS = [
   "Licenses",
   "LicenseActions",
   "Disciplines",
-  "DisciplineAgencyOfficers",
+  "DisciplineAgencyPersonnel",
   "CoverageLinks",
-  "CoverageLinkAgencyOfficers",
+  "CoverageLinkAgencyPersonnel",
   "AgencyPhoneNumbers",
   "FederalAgencies",
   "FederalAgencyBranches",
   "CivilCases",
-  "CivilCaseOfficers",
+  "CivilCasePersonnel",
   "CivilCaseLinks",
 ] as const;
 
@@ -46,14 +46,14 @@ export type ImportEntityName =
   | "licenses"
   | "licenseActions"
   | "disciplines"
-  | "disciplineAgencyOfficers"
+  | "disciplineAgencyPersonnel"
   | "coverageLinks"
-  | "coverageLinkAgencyOfficers"
+  | "coverageLinkAgencyPersonnel"
   | "agencyPhoneNumbers"
   | "federalAgencies"
   | "federalAgencyBranches"
   | "civilCases"
-  | "civilCaseOfficers"
+  | "civilCasePersonnel"
   | "civilCaseLinks";
 
 export type ImportTypeMetadata = {
@@ -97,14 +97,14 @@ export const importTypeMetadata = {
     kind: "Personnel",
     recordKind: "Personnel",
     entityName: "personnel",
-    targetTable: "public.officers",
+    targetTable: "public.personnel",
     dependsOn: [],
   },
   AgencyPersonnel: {
     kind: "AgencyPersonnel",
     recordKind: "AgencyPersonnel",
     entityName: "agencyPersonnel",
-    targetTable: "public.agency_officers",
+    targetTable: "public.agency_personnel",
     dependsOn: ["Agencies", "Personnel", "Licenses"],
   },
   LicensingAuthorities: {
@@ -135,11 +135,11 @@ export const importTypeMetadata = {
     targetTable: "public.discipline",
     dependsOn: [],
   },
-  DisciplineAgencyOfficers: {
-    kind: "DisciplineAgencyOfficers",
-    recordKind: "DisciplineAgencyOfficer",
-    entityName: "disciplineAgencyOfficers",
-    targetTable: "public.discipline_agency_officers",
+  DisciplineAgencyPersonnel: {
+    kind: "DisciplineAgencyPersonnel",
+    recordKind: "DisciplineAgencyPersonnel",
+    entityName: "disciplineAgencyPersonnel",
+    targetTable: "public.discipline_agency_personnel",
     dependsOn: ["Disciplines", "AgencyPersonnel"],
   },
   CoverageLinks: {
@@ -149,11 +149,11 @@ export const importTypeMetadata = {
     targetTable: "public.coverage_links",
     dependsOn: [],
   },
-  CoverageLinkAgencyOfficers: {
-    kind: "CoverageLinkAgencyOfficers",
-    recordKind: "CoverageLinkAgencyOfficer",
-    entityName: "coverageLinkAgencyOfficers",
-    targetTable: "public.coverage_link_agency_officers",
+  CoverageLinkAgencyPersonnel: {
+    kind: "CoverageLinkAgencyPersonnel",
+    recordKind: "CoverageLinkAgencyPersonnel",
+    entityName: "coverageLinkAgencyPersonnel",
+    targetTable: "public.coverage_link_agency_personnel",
     dependsOn: ["CoverageLinks", "AgencyPersonnel"],
   },
   AgencyPhoneNumbers: {
@@ -184,11 +184,11 @@ export const importTypeMetadata = {
     targetTable: "public.civil_cases",
     dependsOn: ["LocationPaths"],
   },
-  CivilCaseOfficers: {
-    kind: "CivilCaseOfficers",
-    recordKind: "CivilCaseOfficer",
-    entityName: "civilCaseOfficers",
-    targetTable: "public.civil_case_officers",
+  CivilCasePersonnel: {
+    kind: "CivilCasePersonnel",
+    recordKind: "CivilCasePersonnel",
+    entityName: "civilCasePersonnel",
+    targetTable: "public.civil_case_personnel",
     dependsOn: ["CivilCases", "AgencyPersonnel"],
   },
   CivilCaseLinks: {

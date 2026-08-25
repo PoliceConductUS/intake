@@ -12,7 +12,7 @@ import {
   readYamlDocumentFile,
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
-import { CoverageLinkAgencyOfficerSpec } from "../../../../../shared/io/generated/entity-specs.js";
+import { DisciplineAgencyPersonnelSpec } from "../../../../../shared/io/generated/entity-specs.js";
 
 
 type EnvelopeReadRef =
@@ -25,7 +25,7 @@ type EnvelopeReadOptions = {
 };
 
 function formatError(error: z.ZodError): string {
-  return `CoverageLinkAgencyOfficerUpdate is malformed at ${firstIssuePath(error)}.`;
+  return `DisciplineAgencyPersonnelUpdate is malformed at ${firstIssuePath(error)}.`;
 }
 
 function refValue(pathOrRef: string | EnvelopeReadRef): {
@@ -51,14 +51,14 @@ function resolveReadPath(
     return { ...ref, filePath: ref.path };
   }
   if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "CoverageLinkAgencyOfficerUpdate"} ref requires relativeTo.`);
+    throw new Error(`Relative ${ref.kind ?? "DisciplineAgencyPersonnelUpdate"} ref requires relativeTo.`);
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "CoverageLinkAgencyOfficerUpdate"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(`${ref.kind ?? "DisciplineAgencyPersonnelUpdate"} ref.path escapes its directory: ${ref.path}`);
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -73,7 +73,7 @@ const metadataSchema = z
   .strict();
 
 
-const fieldSchemas = (CoverageLinkAgencyOfficerSpec as z.ZodObject<z.ZodRawShape>).shape;
+const fieldSchemas = (DisciplineAgencyPersonnelSpec as z.ZodObject<z.ZodRawShape>).shape;
 const fieldNames = Object.keys(fieldSchemas);
 const fieldSchemaByName: Record<string, { safeParse(value: unknown): { success: true } | { success: false; error: z.ZodError } }> = fieldSchemas as unknown as Record<string, { safeParse(value: unknown): { success: true } | { success: false; error: z.ZodError } }>;
 
@@ -123,7 +123,7 @@ const operationSchema = z.union([
       context.addIssue({
         code: "custom",
         path: ["path"],
-        message: "must be a CoverageLinkAgencyOfficer field",
+        message: "must be a DisciplineAgencyPersonnel field",
       });
       return;
     }
@@ -170,16 +170,16 @@ export const specSchema = z
 export const schema = z
   .object({
     apiVersion: z.literal(INTAKE_API_VERSION),
-    kind: z.literal("CoverageLinkAgencyOfficerUpdate"),
+    kind: z.literal("DisciplineAgencyPersonnelUpdate"),
     metadata: metadataSchema,
     spec: specSchema,
   })
   .strict();
 
-export type CoverageLinkAgencyOfficerUpdateEnvelope = z.infer<typeof schema>;
-export type CoverageLinkAgencyOfficerUpdateInput = Omit<CoverageLinkAgencyOfficerUpdateEnvelope, "apiVersion" | "kind">;
+export type DisciplineAgencyPersonnelUpdateEnvelope = z.infer<typeof schema>;
+export type DisciplineAgencyPersonnelUpdateInput = Omit<DisciplineAgencyPersonnelUpdateEnvelope, "apiVersion" | "kind">;
 
-function parseCoverageLinkAgencyOfficerUpdate(value: unknown): CoverageLinkAgencyOfficerUpdateEnvelope {
+function parseDisciplineAgencyPersonnelUpdate(value: unknown): DisciplineAgencyPersonnelUpdateEnvelope {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new Error(formatError(result.error));
@@ -187,52 +187,52 @@ function parseCoverageLinkAgencyOfficerUpdate(value: unknown): CoverageLinkAgenc
   return result.data;
 }
 
-function newCoverageLinkAgencyOfficerUpdate(input: CoverageLinkAgencyOfficerUpdateInput): CoverageLinkAgencyOfficerUpdateEnvelope {
-  return parseCoverageLinkAgencyOfficerUpdate({
+function newDisciplineAgencyPersonnelUpdate(input: DisciplineAgencyPersonnelUpdateInput): DisciplineAgencyPersonnelUpdateEnvelope {
+  return parseDisciplineAgencyPersonnelUpdate({
     apiVersion: INTAKE_API_VERSION,
-    kind: "CoverageLinkAgencyOfficerUpdate",
+    kind: "DisciplineAgencyPersonnelUpdate",
     ...input,
   });
 }
 
-async function readCoverageLinkAgencyOfficerUpdate(
+async function readDisciplineAgencyPersonnelUpdate(
   pathOrRef: string | EnvelopeReadRef,
   options: EnvelopeReadOptions = {},
-): Promise<CoverageLinkAgencyOfficerUpdateEnvelope> {
+): Promise<DisciplineAgencyPersonnelUpdateEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
-  if (ref.kind !== undefined && ref.kind !== "CoverageLinkAgencyOfficerUpdate") {
-    throw new Error(`CoverageLinkAgencyOfficerUpdate ref.kind ${ref.kind} does not match expected kind CoverageLinkAgencyOfficerUpdate: ${ref.filePath}`);
+  if (ref.kind !== undefined && ref.kind !== "DisciplineAgencyPersonnelUpdate") {
+    throw new Error(`DisciplineAgencyPersonnelUpdate ref.kind ${ref.kind} does not match expected kind DisciplineAgencyPersonnelUpdate: ${ref.filePath}`);
   }
-  const { contents, document } = await readYamlDocumentFile(ref.filePath, "CoverageLinkAgencyOfficerUpdate");
+  const { contents, document } = await readYamlDocumentFile(ref.filePath, "DisciplineAgencyPersonnelUpdate");
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
-    throw new Error(`CoverageLinkAgencyOfficerUpdate sha256 mismatch: ${ref.filePath}`);
+    throw new Error(`DisciplineAgencyPersonnelUpdate sha256 mismatch: ${ref.filePath}`);
   }
-  const envelope = parseCoverageLinkAgencyOfficerUpdate(document);
+  const envelope = parseDisciplineAgencyPersonnelUpdate(document);
   if (
     options.expectedNamespace !== undefined &&
     envelope.metadata.namespace !== options.expectedNamespace
   ) {
     throw new Error(
-      `CoverageLinkAgencyOfficerUpdate namespace ${envelope.metadata.namespace} does not match expected namespace ${options.expectedNamespace}: ${ref.filePath}`,
+      `DisciplineAgencyPersonnelUpdate namespace ${envelope.metadata.namespace} does not match expected namespace ${options.expectedNamespace}: ${ref.filePath}`,
     );
   }
   return envelope;
 }
 
-async function writeCoverageLinkAgencyOfficerUpdate(
+async function writeDisciplineAgencyPersonnelUpdate(
   directory: string,
-  envelope: CoverageLinkAgencyOfficerUpdateEnvelope,
+  envelope: DisciplineAgencyPersonnelUpdateEnvelope,
 ): Promise<{ path: string }> {
-  const parsed = parseCoverageLinkAgencyOfficerUpdate(envelope);
+  const parsed = parseDisciplineAgencyPersonnelUpdate(envelope);
   const filePath = yamlResourcePath(directory, parsed);
   await writeYamlDocumentFile(filePath, parsed);
   return { path: filePath };
 }
 
-export const CoverageLinkAgencyOfficerUpdate = {
-  kind: "CoverageLinkAgencyOfficerUpdate",
+export const DisciplineAgencyPersonnelUpdate = {
+  kind: "DisciplineAgencyPersonnelUpdate",
   schema,
-  new: newCoverageLinkAgencyOfficerUpdate,
-  read: readCoverageLinkAgencyOfficerUpdate,
-  write: writeCoverageLinkAgencyOfficerUpdate,
+  new: newDisciplineAgencyPersonnelUpdate,
+  read: readDisciplineAgencyPersonnelUpdate,
+  write: writeDisciplineAgencyPersonnelUpdate,
 };

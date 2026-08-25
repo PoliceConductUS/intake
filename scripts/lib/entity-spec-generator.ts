@@ -174,12 +174,12 @@ const DESCRIPTORS: EntityDescriptor[] = [
   },
   {
     recordKind: "Personnel",
-    table: "officers",
+    table: "personnel",
     createRequired: ["id", "slug"],
   },
   {
     recordKind: "AgencyPersonnel",
-    table: "agency_officers",
+    table: "agency_personnel",
     createRequired: ["id"],
   },
   {
@@ -195,8 +195,8 @@ const DESCRIPTORS: EntityDescriptor[] = [
   },
   { recordKind: "Discipline", table: "discipline", createRequired: ["id"] },
   {
-    recordKind: "DisciplineAgencyOfficer",
-    table: "discipline_agency_officers",
+    recordKind: "DisciplineAgencyPersonnel",
+    table: "discipline_agency_personnel",
     createRequired: ["id"],
   },
   {
@@ -205,8 +205,8 @@ const DESCRIPTORS: EntityDescriptor[] = [
     createRequired: ["id"],
   },
   {
-    recordKind: "CoverageLinkAgencyOfficer",
-    table: "coverage_link_agency_officers",
+    recordKind: "CoverageLinkAgencyPersonnel",
+    table: "coverage_link_agency_personnel",
     createRequired: ["id"],
   },
   {
@@ -233,12 +233,12 @@ const DESCRIPTORS: EntityDescriptor[] = [
     override: { location_path_id: "nonEmptyString.optional()" },
   },
   {
-    recordKind: "CivilCaseOfficer",
-    table: "civil_case_officers",
-    // Matches the table exactly: civil_case_id + agency_officer_id, both source
-    // ids the courtlistener run already stamped (ADR 0023) — agency_officer_id
+    recordKind: "CivilCasePersonnel",
+    table: "civil_case_personnel",
+    // Matches the table exactly: civil_case_id + agency_personnel_id, both source
+    // ids the courtlistener run already stamped (ADR 0023) — agency_personnel_id
     // resolves cross-source via the ledger, civil_case_id same-source. No
-    // resolution inputs: the officer is matched in run, not at import.
+    // resolution inputs: the personnel is matched in run, not at import.
     createRequired: ["id"],
   },
   {
@@ -413,9 +413,6 @@ function columnTsType(column: Column, table: IntrospectedTable): string {
 // Derived/build tables (stored as base tables) that are NOT a source of truth,
 // so they get no generated ROW type. Convert to a naming convention later.
 const ROW_TYPE_EXCLUDED_TABLES = new Set([
-  "agency_stats",
-  "officers_stats",
-  "agency_officers_stats",
   "agency_zip_index",
   "location_path_closure",
   "build_page_payload",

@@ -13,10 +13,10 @@ describe("consumesOf", () => {
   it("derives a civil-case source's direct FK targets, not the transitive closure", () => {
     const produces: ImportArtifactKind[] = [
       "CivilCases",
-      "CivilCaseOfficers",
+      "CivilCasePersonnel",
       "CivilCaseLinks",
     ];
-    // CivilCaseOfficers → AgencyPersonnel; CivilCases → LocationPaths.
+    // CivilCasePersonnel → AgencyPersonnel; CivilCases → LocationPaths.
     // Agency/Personnel sit one hop below AgencyPersonnel: transitive, excluded.
     expect(new Set(consumesOf(produces))).toEqual(
       new Set(["LocationPaths", "AgencyPersonnel"]),
@@ -63,11 +63,11 @@ describe("planSourceOrder", () => {
     const { order } = planSourceOrder([
       {
         id: "courtlistener",
-        produces: ["CivilCases", "CivilCaseOfficers", "CivilCaseLinks"],
+        produces: ["CivilCases", "CivilCasePersonnel", "CivilCaseLinks"],
       },
       {
         id: "clearinghouse-api",
-        produces: ["CivilCases", "CivilCaseOfficers", "CivilCaseLinks"],
+        produces: ["CivilCases", "CivilCasePersonnel", "CivilCaseLinks"],
       },
       {
         id: "gov.us.federal-le",
@@ -83,9 +83,9 @@ describe("planSourceOrder", () => {
           "Licenses",
           "AgencyPersonnel",
           "Disciplines",
-          "DisciplineAgencyOfficers",
+          "DisciplineAgencyPersonnel",
           "CoverageLinks",
-          "CoverageLinkAgencyOfficers",
+          "CoverageLinkAgencyPersonnel",
         ],
       },
       {
@@ -137,7 +137,7 @@ describe("planSourceOrder", () => {
         id: "civil",
         produces: [
           "CivilCases",
-          "CivilCaseOfficers",
+          "CivilCasePersonnel",
           "CivilCaseLinks",
         ] as ImportArtifactKind[],
       },
@@ -152,7 +152,7 @@ describe("planSourceOrder", () => {
     const { order } = planSourceOrder([
       {
         id: "courtlistener",
-        produces: ["CivilCases", "CivilCaseOfficers", "CivilCaseLinks"],
+        produces: ["CivilCases", "CivilCasePersonnel", "CivilCaseLinks"],
       },
     ]);
     expect(order).toEqual(["courtlistener"]);
@@ -163,7 +163,7 @@ describe("planSourceOrder", () => {
       { id: "census", produces: ["LocationPaths"] },
       {
         id: "civil",
-        produces: ["CivilCases", "CivilCaseOfficers", "CivilCaseLinks"],
+        produces: ["CivilCases", "CivilCasePersonnel", "CivilCaseLinks"],
       },
     ]);
     expect(edges).toContainEqual({

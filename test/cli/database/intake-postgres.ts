@@ -11,14 +11,14 @@ const SCHEMA_PATH = fileURLToPath(
 );
 
 const INTAKE_TABLES = [
-  "public.coverage_link_agency_officers",
-  "public.discipline_agency_officers",
+  "public.coverage_link_agency_personnel",
+  "public.discipline_agency_personnel",
   "public.coverage_links",
   "public.discipline",
-  "public.agency_officers",
+  "public.agency_personnel",
   "public.license_action",
   "public.license",
-  "public.officers",
+  "public.personnel",
   "public.agency",
   "public.licensing_authority",
   "public.location_path_geometry",

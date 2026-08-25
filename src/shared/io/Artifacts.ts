@@ -63,11 +63,11 @@ import {
   write as writeDisciplines,
 } from "./generated/Disciplines.js";
 import {
-  DisciplineAgencyOfficers,
-  DisciplineAgencyOfficerSpec,
-  read as readDisciplineAgencyOfficers,
-  write as writeDisciplineAgencyOfficers,
-} from "./generated/DisciplineAgencyOfficers.js";
+  DisciplineAgencyPersonnel,
+  DisciplineAgencyPersonnelSpec,
+  read as readDisciplineAgencyPersonnel,
+  write as writeDisciplineAgencyPersonnel,
+} from "./generated/DisciplineAgencyPersonnel.js";
 import {
   CoverageLinks,
   CoverageLinkSpec,
@@ -75,11 +75,11 @@ import {
   write as writeCoverageLinks,
 } from "./generated/CoverageLinks.js";
 import {
-  CoverageLinkAgencyOfficers,
-  CoverageLinkAgencyOfficerSpec,
-  read as readCoverageLinkAgencyOfficers,
-  write as writeCoverageLinkAgencyOfficers,
-} from "./generated/CoverageLinkAgencyOfficers.js";
+  CoverageLinkAgencyPersonnel,
+  CoverageLinkAgencyPersonnelSpec,
+  read as readCoverageLinkAgencyPersonnel,
+  write as writeCoverageLinkAgencyPersonnel,
+} from "./generated/CoverageLinkAgencyPersonnel.js";
 import {
   AgencyPhoneNumbers,
   AgencyPhoneNumberSpec,
@@ -105,11 +105,11 @@ import {
   write as writeCivilCases,
 } from "./generated/CivilCases.js";
 import {
-  CivilCaseOfficers,
-  CivilCaseOfficerSpec,
-  read as readCivilCaseOfficers,
-  write as writeCivilCaseOfficers,
-} from "./generated/CivilCaseOfficers.js";
+  CivilCasePersonnel,
+  CivilCasePersonnelSpec,
+  read as readCivilCasePersonnel,
+  write as writeCivilCasePersonnel,
+} from "./generated/CivilCasePersonnel.js";
 import {
   CivilCaseLinks,
   CivilCaseLinkSpec,
@@ -241,17 +241,17 @@ const artifactReaders: Record<ImportArtifactKind, ArtifactReader> = {
     }),
   Disciplines: (filePath, options) =>
     readDisciplines(filePath, { ...options, expectedKind: "Disciplines" }),
-  DisciplineAgencyOfficers: (filePath, options) =>
-    readDisciplineAgencyOfficers(filePath, {
+  DisciplineAgencyPersonnel: (filePath, options) =>
+    readDisciplineAgencyPersonnel(filePath, {
       ...options,
-      expectedKind: "DisciplineAgencyOfficers",
+      expectedKind: "DisciplineAgencyPersonnel",
     }),
   CoverageLinks: (filePath, options) =>
     readCoverageLinks(filePath, { ...options, expectedKind: "CoverageLinks" }),
-  CoverageLinkAgencyOfficers: (filePath, options) =>
-    readCoverageLinkAgencyOfficers(filePath, {
+  CoverageLinkAgencyPersonnel: (filePath, options) =>
+    readCoverageLinkAgencyPersonnel(filePath, {
       ...options,
-      expectedKind: "CoverageLinkAgencyOfficers",
+      expectedKind: "CoverageLinkAgencyPersonnel",
     }),
   AgencyPhoneNumbers: (filePath, options) =>
     readAgencyPhoneNumbers(filePath, {
@@ -270,10 +270,10 @@ const artifactReaders: Record<ImportArtifactKind, ArtifactReader> = {
     }),
   CivilCases: (filePath, options) =>
     readCivilCases(filePath, { ...options, expectedKind: "CivilCases" }),
-  CivilCaseOfficers: (filePath, options) =>
-    readCivilCaseOfficers(filePath, {
+  CivilCasePersonnel: (filePath, options) =>
+    readCivilCasePersonnel(filePath, {
       ...options,
-      expectedKind: "CivilCaseOfficers",
+      expectedKind: "CivilCasePersonnel",
     }),
   CivilCaseLinks: (filePath, options) =>
     readCivilCaseLinks(filePath, {
@@ -303,14 +303,14 @@ const artifactEnvelopeTypes: Record<ImportArtifactKind, ArtifactEnvelopeType> =
     Licenses: { ...Licenses, write: writeLicenses },
     LicenseActions: { ...LicenseActions, write: writeLicenseActions },
     Disciplines: { ...Disciplines, write: writeDisciplines },
-    DisciplineAgencyOfficers: {
-      ...DisciplineAgencyOfficers,
-      write: writeDisciplineAgencyOfficers,
+    DisciplineAgencyPersonnel: {
+      ...DisciplineAgencyPersonnel,
+      write: writeDisciplineAgencyPersonnel,
     },
     CoverageLinks: { ...CoverageLinks, write: writeCoverageLinks },
-    CoverageLinkAgencyOfficers: {
-      ...CoverageLinkAgencyOfficers,
-      write: writeCoverageLinkAgencyOfficers,
+    CoverageLinkAgencyPersonnel: {
+      ...CoverageLinkAgencyPersonnel,
+      write: writeCoverageLinkAgencyPersonnel,
     },
     AgencyPhoneNumbers: {
       ...AgencyPhoneNumbers,
@@ -322,9 +322,9 @@ const artifactEnvelopeTypes: Record<ImportArtifactKind, ArtifactEnvelopeType> =
       write: writeFederalAgencyBranches,
     },
     CivilCases: { ...CivilCases, write: writeCivilCases },
-    CivilCaseOfficers: {
-      ...CivilCaseOfficers,
-      write: writeCivilCaseOfficers,
+    CivilCasePersonnel: {
+      ...CivilCasePersonnel,
+      write: writeCivilCasePersonnel,
     },
     CivilCaseLinks: { ...CivilCaseLinks, write: writeCivilCaseLinks },
   };
@@ -340,14 +340,14 @@ const artifactRecordSpecs: Record<ImportArtifactKind, ArtifactRecordSpec> = {
   Licenses: LicenseSpec,
   LicenseActions: LicenseActionSpec,
   Disciplines: DisciplineSpec,
-  DisciplineAgencyOfficers: DisciplineAgencyOfficerSpec,
+  DisciplineAgencyPersonnel: DisciplineAgencyPersonnelSpec,
   CoverageLinks: CoverageLinkSpec,
-  CoverageLinkAgencyOfficers: CoverageLinkAgencyOfficerSpec,
+  CoverageLinkAgencyPersonnel: CoverageLinkAgencyPersonnelSpec,
   AgencyPhoneNumbers: AgencyPhoneNumberSpec,
   FederalAgencies: FederalAgencySpec,
   FederalAgencyBranches: FederalAgencyBranchSpec,
   CivilCases: CivilCaseSpec,
-  CivilCaseOfficers: CivilCaseOfficerSpec,
+  CivilCasePersonnel: CivilCasePersonnelSpec,
   CivilCaseLinks: CivilCaseLinkSpec,
 };
 

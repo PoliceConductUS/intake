@@ -13,8 +13,8 @@ import {
   readYamlDocumentFile,
   writeYamlDocumentFile,
 } from "../internal/yaml-document.js";
-import { CivilCaseOfficerSpec } from "./entity-specs.js";
-export { CivilCaseOfficerSpec } from "./entity-specs.js";
+import { CivilCasePersonnelSpec } from "./entity-specs.js";
+export { CivilCasePersonnelSpec } from "./entity-specs.js";
 
 
 type EnvelopeReadRef =
@@ -27,7 +27,7 @@ type EnvelopeReadOptions = {
 };
 
 function formatError(error: z.ZodError): string {
-  return `CivilCaseOfficers is malformed at ${firstIssuePath(error)}.`;
+  return `CivilCasePersonnel is malformed at ${firstIssuePath(error)}.`;
 }
 
 function refValue(pathOrRef: string | EnvelopeReadRef): {
@@ -53,14 +53,14 @@ function resolveReadPath(
     return { ...ref, filePath: ref.path };
   }
   if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "CivilCaseOfficers"} ref requires relativeTo.`);
+    throw new Error(`Relative ${ref.kind ?? "CivilCasePersonnel"} ref requires relativeTo.`);
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "CivilCaseOfficers"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(`${ref.kind ?? "CivilCasePersonnel"} ref.path escapes its directory: ${ref.path}`);
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -79,13 +79,13 @@ const metadataSchema = z
   .strict();
 
 const recordItemSchema = z
-  .object({ spec: CivilCaseOfficerSpec })
+  .object({ spec: CivilCasePersonnelSpec })
   .strict();
 
 export const schema = z
   .object({
     apiVersion: z.literal(INTAKE_API_VERSION),
-    kind: z.literal("CivilCaseOfficers"),
+    kind: z.literal("CivilCasePersonnel"),
     metadata: metadataSchema,
     spec: z
       .object({
@@ -97,11 +97,11 @@ export const schema = z
   })
   .strict();
 
-export type CivilCaseOfficersEnvelope = z.infer<typeof schema>;
-export type CivilCaseOfficersInput = Omit<CivilCaseOfficersEnvelope, "apiVersion" | "kind">;
-export type CivilCaseOfficersResolvedEnvelope = Omit<CivilCaseOfficersEnvelope, "spec"> & {
-  spec: Omit<CivilCaseOfficersEnvelope["spec"], "records"> & {
-    records: Record<string, z.infer<typeof CivilCaseOfficerSpec>>;
+export type CivilCasePersonnelEnvelope = z.infer<typeof schema>;
+export type CivilCasePersonnelInput = Omit<CivilCasePersonnelEnvelope, "apiVersion" | "kind">;
+export type CivilCasePersonnelResolvedEnvelope = Omit<CivilCasePersonnelEnvelope, "spec"> & {
+  spec: Omit<CivilCasePersonnelEnvelope["spec"], "records"> & {
+    records: Record<string, z.infer<typeof CivilCasePersonnelSpec>>;
   };
 };
 
@@ -110,7 +110,7 @@ export type ImportArtifactWriteOptions = {
   recordsDirectory?: string;
 };
 
-function parseCivilCaseOfficers(value: unknown): CivilCaseOfficersEnvelope {
+function parseCivilCasePersonnel(value: unknown): CivilCasePersonnelEnvelope {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new Error(formatError(result.error));
@@ -118,10 +118,10 @@ function parseCivilCaseOfficers(value: unknown): CivilCaseOfficersEnvelope {
   return result.data;
 }
 
-function newCivilCaseOfficers(input: CivilCaseOfficersInput): CivilCaseOfficersEnvelope {
-  return parseCivilCaseOfficers({
+function newCivilCasePersonnel(input: CivilCasePersonnelInput): CivilCasePersonnelEnvelope {
+  return parseCivilCasePersonnel({
     apiVersion: INTAKE_API_VERSION,
-    kind: "CivilCaseOfficers",
+    kind: "CivilCasePersonnel",
     ...input,
   });
 }
@@ -130,11 +130,11 @@ function validateRecord(
   artifactPath: string,
   recordKey: string,
   value: unknown,
-): z.infer<typeof CivilCaseOfficerSpec> {
-  const result = CivilCaseOfficerSpec.safeParse(value);
+): z.infer<typeof CivilCasePersonnelSpec> {
+  const result = CivilCasePersonnelSpec.safeParse(value);
   if (!result.success) {
     throw new Error(
-      `CivilCaseOfficers record ${recordKey} is malformed at ${firstIssuePath(result.error)}: ${artifactPath}`,
+      `CivilCasePersonnel record ${recordKey} is malformed at ${firstIssuePath(result.error)}: ${artifactPath}`,
     );
   }
   return result.data;
@@ -142,51 +142,51 @@ function validateRecord(
 
 
 
-async function readCivilCaseOfficers(
+async function readCivilCasePersonnel(
   filePath: string,
   options: EnvelopeReadOptions & {
-    expectedKind?: "CivilCaseOfficers";
+    expectedKind?: "CivilCasePersonnel";
     expectedSha256?: string;
     raw: true;
   },
-): Promise<CivilCaseOfficersEnvelope>;
-async function readCivilCaseOfficers(
+): Promise<CivilCasePersonnelEnvelope>;
+async function readCivilCasePersonnel(
   filePath: string,
   options?: EnvelopeReadOptions & {
-    expectedKind?: "CivilCaseOfficers";
+    expectedKind?: "CivilCasePersonnel";
     expectedSha256?: string;
     raw?: false;
   },
-): Promise<CivilCaseOfficersResolvedEnvelope>;
-async function readCivilCaseOfficers(
+): Promise<CivilCasePersonnelResolvedEnvelope>;
+async function readCivilCasePersonnel(
   filePath: string,
   options: EnvelopeReadOptions & {
-    expectedKind?: "CivilCaseOfficers";
+    expectedKind?: "CivilCasePersonnel";
     expectedSha256?: string;
     raw?: boolean;
   } = {},
-): Promise<CivilCaseOfficersEnvelope | CivilCaseOfficersResolvedEnvelope> {
-  const { contents, document } = await readYamlDocumentFile(filePath, "CivilCaseOfficers");
+): Promise<CivilCasePersonnelEnvelope | CivilCasePersonnelResolvedEnvelope> {
+  const { contents, document } = await readYamlDocumentFile(filePath, "CivilCasePersonnel");
   if (options.expectedSha256 !== undefined && yamlDigest(contents) !== options.expectedSha256) {
-    throw new Error(`CivilCaseOfficers sha256 mismatch: ${filePath}`);
+    throw new Error(`CivilCasePersonnel sha256 mismatch: ${filePath}`);
   }
-  const artifact = parseCivilCaseOfficers(document);
+  const artifact = parseCivilCasePersonnel(document);
   if (options.expectedKind !== undefined && artifact.kind !== options.expectedKind) {
-    throw new Error(`CivilCaseOfficers kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`);
+    throw new Error(`CivilCasePersonnel kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`);
   }
   if (
     options.expectedNamespace !== undefined &&
     artifact.metadata.namespace !== options.expectedNamespace
   ) {
     throw new Error(
-      `CivilCaseOfficers namespace ${artifact.metadata.namespace} does not match expected namespace ${options.expectedNamespace}: ${filePath}`,
+      `CivilCasePersonnel namespace ${artifact.metadata.namespace} does not match expected namespace ${options.expectedNamespace}: ${filePath}`,
     );
   }
   if (options.raw === true) {
     return artifact;
   }
 
-  const records: Record<string, z.infer<typeof CivilCaseOfficerSpec>> = {};
+  const records: Record<string, z.infer<typeof CivilCasePersonnelSpec>> = {};
   for (const [recordKey, recordItem] of Object.entries(artifact.spec.records)) {
     records[recordKey] = validateRecord(filePath, recordKey, recordItem.spec);
   }
@@ -200,31 +200,31 @@ async function readCivilCaseOfficers(
   };
 }
 
-async function writeCivilCaseOfficers(
+async function writeCivilCasePersonnel(
   directory: string,
-  envelope: CivilCaseOfficersInput,
+  envelope: CivilCasePersonnelInput,
   options: ImportArtifactWriteOptions = {},
 ): Promise<{ path: string; sha256: string }> {
-  let artifact = newCivilCaseOfficers(envelope);
+  let artifact = newCivilCasePersonnel(envelope);
   const artifactPath = yamlResourcePath(directory, artifact);
 
   if (options.externalizeRecords === true) {
-    throw new Error("CivilCaseOfficers does not support externalized singular record envelopes.");
+    throw new Error("CivilCasePersonnel does not support externalized singular record envelopes.");
   }
 
   const contents = await writeYamlDocumentFile(artifactPath, artifact);
   return { path: artifactPath, sha256: yamlDigest(contents) };
 }
 
-export const CivilCaseOfficers = {
-  kind: "CivilCaseOfficers",
+export const CivilCasePersonnel = {
+  kind: "CivilCasePersonnel",
   schema,
-  new: newCivilCaseOfficers,
-  read: readCivilCaseOfficers,
-  write: writeCivilCaseOfficers,
+  new: newCivilCasePersonnel,
+  read: readCivilCasePersonnel,
+  write: writeCivilCasePersonnel,
 };
 
 
 
-export const read = readCivilCaseOfficers;
-export const write = writeCivilCaseOfficers;
+export const read = readCivilCasePersonnel;
+export const write = writeCivilCasePersonnel;

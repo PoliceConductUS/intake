@@ -66,7 +66,7 @@ export function createAcquireDataContext(
                   count(ao.id)::int as officer_count
            from agency a
            left join location_path lp on lp.location_path_id = a.location_path_id
-           left join agency_officers ao on ao.agency_id = a.id
+           left join agency_personnel ao on ao.agency_id = a.id
            where ($1::text[] is null or a.state = any($1))
            group by a.id, lp.administrative_area_name, lp.place_name
            ${having}

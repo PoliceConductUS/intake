@@ -28,7 +28,7 @@ const personnel = {
 const roster = {
   id: "a2m-roster-source",
   agency_id: "a2j-agency-source",
-  officer_id: "003-personnel-source",
+  personnel_id: "003-personnel-source",
   badge_number: "49112",
   start_date: "2020-01-01",
   end_date: null,

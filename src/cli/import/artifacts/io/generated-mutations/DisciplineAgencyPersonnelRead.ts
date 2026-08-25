@@ -24,7 +24,7 @@ type EnvelopeReadOptions = {
 };
 
 function formatError(error: z.ZodError): string {
-  return `DisciplineAgencyOfficerRead is malformed at ${firstIssuePath(error)}.`;
+  return `DisciplineAgencyPersonnelRead is malformed at ${firstIssuePath(error)}.`;
 }
 
 function refValue(pathOrRef: string | EnvelopeReadRef): {
@@ -50,14 +50,14 @@ function resolveReadPath(
     return { ...ref, filePath: ref.path };
   }
   if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "DisciplineAgencyOfficerRead"} ref requires relativeTo.`);
+    throw new Error(`Relative ${ref.kind ?? "DisciplineAgencyPersonnelRead"} ref requires relativeTo.`);
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "DisciplineAgencyOfficerRead"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(`${ref.kind ?? "DisciplineAgencyPersonnelRead"} ref.path escapes its directory: ${ref.path}`);
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -78,16 +78,16 @@ export const specSchema = z.object({}).strict();
 export const schema = z
   .object({
     apiVersion: z.literal(INTAKE_API_VERSION),
-    kind: z.literal("DisciplineAgencyOfficerRead"),
+    kind: z.literal("DisciplineAgencyPersonnelRead"),
     metadata: metadataSchema,
     spec: specSchema,
   })
   .strict();
 
-export type DisciplineAgencyOfficerReadEnvelope = z.infer<typeof schema>;
-export type DisciplineAgencyOfficerReadInput = Omit<DisciplineAgencyOfficerReadEnvelope, "apiVersion" | "kind">;
+export type DisciplineAgencyPersonnelReadEnvelope = z.infer<typeof schema>;
+export type DisciplineAgencyPersonnelReadInput = Omit<DisciplineAgencyPersonnelReadEnvelope, "apiVersion" | "kind">;
 
-function parseDisciplineAgencyOfficerRead(value: unknown): DisciplineAgencyOfficerReadEnvelope {
+function parseDisciplineAgencyPersonnelRead(value: unknown): DisciplineAgencyPersonnelReadEnvelope {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new Error(formatError(result.error));
@@ -95,52 +95,52 @@ function parseDisciplineAgencyOfficerRead(value: unknown): DisciplineAgencyOffic
   return result.data;
 }
 
-function newDisciplineAgencyOfficerRead(input: DisciplineAgencyOfficerReadInput): DisciplineAgencyOfficerReadEnvelope {
-  return parseDisciplineAgencyOfficerRead({
+function newDisciplineAgencyPersonnelRead(input: DisciplineAgencyPersonnelReadInput): DisciplineAgencyPersonnelReadEnvelope {
+  return parseDisciplineAgencyPersonnelRead({
     apiVersion: INTAKE_API_VERSION,
-    kind: "DisciplineAgencyOfficerRead",
+    kind: "DisciplineAgencyPersonnelRead",
     ...input,
   });
 }
 
-async function readDisciplineAgencyOfficerRead(
+async function readDisciplineAgencyPersonnelRead(
   pathOrRef: string | EnvelopeReadRef,
   options: EnvelopeReadOptions = {},
-): Promise<DisciplineAgencyOfficerReadEnvelope> {
+): Promise<DisciplineAgencyPersonnelReadEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
-  if (ref.kind !== undefined && ref.kind !== "DisciplineAgencyOfficerRead") {
-    throw new Error(`DisciplineAgencyOfficerRead ref.kind ${ref.kind} does not match expected kind DisciplineAgencyOfficerRead: ${ref.filePath}`);
+  if (ref.kind !== undefined && ref.kind !== "DisciplineAgencyPersonnelRead") {
+    throw new Error(`DisciplineAgencyPersonnelRead ref.kind ${ref.kind} does not match expected kind DisciplineAgencyPersonnelRead: ${ref.filePath}`);
   }
-  const { contents, document } = await readYamlDocumentFile(ref.filePath, "DisciplineAgencyOfficerRead");
+  const { contents, document } = await readYamlDocumentFile(ref.filePath, "DisciplineAgencyPersonnelRead");
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
-    throw new Error(`DisciplineAgencyOfficerRead sha256 mismatch: ${ref.filePath}`);
+    throw new Error(`DisciplineAgencyPersonnelRead sha256 mismatch: ${ref.filePath}`);
   }
-  const envelope = parseDisciplineAgencyOfficerRead(document);
+  const envelope = parseDisciplineAgencyPersonnelRead(document);
   if (
     options.expectedNamespace !== undefined &&
     envelope.metadata.namespace !== options.expectedNamespace
   ) {
     throw new Error(
-      `DisciplineAgencyOfficerRead namespace ${envelope.metadata.namespace} does not match expected namespace ${options.expectedNamespace}: ${ref.filePath}`,
+      `DisciplineAgencyPersonnelRead namespace ${envelope.metadata.namespace} does not match expected namespace ${options.expectedNamespace}: ${ref.filePath}`,
     );
   }
   return envelope;
 }
 
-async function writeDisciplineAgencyOfficerRead(
+async function writeDisciplineAgencyPersonnelRead(
   directory: string,
-  envelope: DisciplineAgencyOfficerReadEnvelope,
+  envelope: DisciplineAgencyPersonnelReadEnvelope,
 ): Promise<{ path: string }> {
-  const parsed = parseDisciplineAgencyOfficerRead(envelope);
+  const parsed = parseDisciplineAgencyPersonnelRead(envelope);
   const filePath = yamlResourcePath(directory, parsed);
   await writeYamlDocumentFile(filePath, parsed);
   return { path: filePath };
 }
 
-export const DisciplineAgencyOfficerRead = {
-  kind: "DisciplineAgencyOfficerRead",
+export const DisciplineAgencyPersonnelRead = {
+  kind: "DisciplineAgencyPersonnelRead",
   schema,
-  new: newDisciplineAgencyOfficerRead,
-  read: readDisciplineAgencyOfficerRead,
-  write: writeDisciplineAgencyOfficerRead,
+  new: newDisciplineAgencyPersonnelRead,
+  read: readDisciplineAgencyPersonnelRead,
+  write: writeDisciplineAgencyPersonnelRead,
 };

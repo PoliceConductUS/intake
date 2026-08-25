@@ -3,7 +3,7 @@ import type { ImportArtifactKind } from "../../src/shared/io/index.js";
 
 export const produces: readonly ImportArtifactKind[] = [
   "CivilCases",
-  "CivilCaseOfficers",
+  "CivilCasePersonnel",
   "CivilCaseLinks",
 ];
 import path from "node:path";
@@ -122,7 +122,7 @@ export const run: SourceRun = async ({ paths, data, logger }: RunDeps) => {
         officers[`${caseKey}|${agencyOfficerId}`] = {
           spec: {
             civil_case_id: caseKey,
-            agency_officer_id: agencyOfficerId,
+            agency_personnel_id: agencyOfficerId,
           },
         };
       }
@@ -137,7 +137,7 @@ export const run: SourceRun = async ({ paths, data, logger }: RunDeps) => {
   return {
     artifacts: [
       { kind: "CivilCases", records: civilCases },
-      { kind: "CivilCaseOfficers", records: officers },
+      { kind: "CivilCasePersonnel", records: officers },
       { kind: "CivilCaseLinks", records: links },
     ],
   };

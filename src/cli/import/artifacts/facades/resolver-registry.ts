@@ -138,13 +138,13 @@ const REGISTRY: Record<string, KindConfig> = {
       ) as AnyResolver,
     },
   },
-  CivilCaseOfficer: {
+  CivilCasePersonnel: {
     // The agency_personnel was created by a roster source, so it resolves through
     // the ledger, not a same-run facade (ADR 0023).
     overrides: {
-      agency_officer_id: facadeLedgerForeignKeyResolver<Row>(
-        "CivilCaseOfficer",
-        "agency_officer_id",
+      agency_personnel_id: facadeLedgerForeignKeyResolver<Row>(
+        "CivilCasePersonnel",
+        "agency_personnel_id",
         "AgencyPersonnel",
       ) as AnyResolver,
     },
@@ -173,14 +173,14 @@ const SUPPORTED_KINDS = new Set<string>([
   "LicenseAction",
   "AgencyPersonnel",
   "Discipline",
-  "DisciplineAgencyOfficer",
+  "DisciplineAgencyPersonnel",
   "CoverageLink",
-  "CoverageLinkAgencyOfficer",
+  "CoverageLinkAgencyPersonnel",
   "AgencyPhoneNumber",
   "FederalAgency",
   "FederalAgencyBranch",
   "CivilCase",
-  "CivilCaseOfficer",
+  "CivilCasePersonnel",
   "CivilCaseLink",
 ]);
 

@@ -12,7 +12,6 @@ import {
   readYamlDocumentFile,
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
-import { CivilCaseOfficerSpec, CivilCaseOfficerCreateSpec } from "../../../../../shared/io/generated/entity-specs.js";
 
 
 type EnvelopeReadRef =
@@ -25,7 +24,7 @@ type EnvelopeReadOptions = {
 };
 
 function formatError(error: z.ZodError): string {
-  return `CivilCaseOfficerCreate is malformed at ${firstIssuePath(error)}.`;
+  return `CoverageLinkAgencyPersonnelRead is malformed at ${firstIssuePath(error)}.`;
 }
 
 function refValue(pathOrRef: string | EnvelopeReadRef): {
@@ -51,14 +50,14 @@ function resolveReadPath(
     return { ...ref, filePath: ref.path };
   }
   if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "CivilCaseOfficerCreate"} ref requires relativeTo.`);
+    throw new Error(`Relative ${ref.kind ?? "CoverageLinkAgencyPersonnelRead"} ref requires relativeTo.`);
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "CivilCaseOfficerCreate"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(`${ref.kind ?? "CoverageLinkAgencyPersonnelRead"} ref.path escapes its directory: ${ref.path}`);
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -74,21 +73,21 @@ const metadataSchema = z
 
 
 
-export const specSchema = CivilCaseOfficerCreateSpec;
+export const specSchema = z.object({}).strict();
 
 export const schema = z
   .object({
     apiVersion: z.literal(INTAKE_API_VERSION),
-    kind: z.literal("CivilCaseOfficerCreate"),
+    kind: z.literal("CoverageLinkAgencyPersonnelRead"),
     metadata: metadataSchema,
     spec: specSchema,
   })
   .strict();
 
-export type CivilCaseOfficerCreateEnvelope = z.infer<typeof schema>;
-export type CivilCaseOfficerCreateInput = Omit<CivilCaseOfficerCreateEnvelope, "apiVersion" | "kind">;
+export type CoverageLinkAgencyPersonnelReadEnvelope = z.infer<typeof schema>;
+export type CoverageLinkAgencyPersonnelReadInput = Omit<CoverageLinkAgencyPersonnelReadEnvelope, "apiVersion" | "kind">;
 
-function parseCivilCaseOfficerCreate(value: unknown): CivilCaseOfficerCreateEnvelope {
+function parseCoverageLinkAgencyPersonnelRead(value: unknown): CoverageLinkAgencyPersonnelReadEnvelope {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new Error(formatError(result.error));
@@ -96,52 +95,52 @@ function parseCivilCaseOfficerCreate(value: unknown): CivilCaseOfficerCreateEnve
   return result.data;
 }
 
-function newCivilCaseOfficerCreate(input: CivilCaseOfficerCreateInput): CivilCaseOfficerCreateEnvelope {
-  return parseCivilCaseOfficerCreate({
+function newCoverageLinkAgencyPersonnelRead(input: CoverageLinkAgencyPersonnelReadInput): CoverageLinkAgencyPersonnelReadEnvelope {
+  return parseCoverageLinkAgencyPersonnelRead({
     apiVersion: INTAKE_API_VERSION,
-    kind: "CivilCaseOfficerCreate",
+    kind: "CoverageLinkAgencyPersonnelRead",
     ...input,
   });
 }
 
-async function readCivilCaseOfficerCreate(
+async function readCoverageLinkAgencyPersonnelRead(
   pathOrRef: string | EnvelopeReadRef,
   options: EnvelopeReadOptions = {},
-): Promise<CivilCaseOfficerCreateEnvelope> {
+): Promise<CoverageLinkAgencyPersonnelReadEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
-  if (ref.kind !== undefined && ref.kind !== "CivilCaseOfficerCreate") {
-    throw new Error(`CivilCaseOfficerCreate ref.kind ${ref.kind} does not match expected kind CivilCaseOfficerCreate: ${ref.filePath}`);
+  if (ref.kind !== undefined && ref.kind !== "CoverageLinkAgencyPersonnelRead") {
+    throw new Error(`CoverageLinkAgencyPersonnelRead ref.kind ${ref.kind} does not match expected kind CoverageLinkAgencyPersonnelRead: ${ref.filePath}`);
   }
-  const { contents, document } = await readYamlDocumentFile(ref.filePath, "CivilCaseOfficerCreate");
+  const { contents, document } = await readYamlDocumentFile(ref.filePath, "CoverageLinkAgencyPersonnelRead");
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
-    throw new Error(`CivilCaseOfficerCreate sha256 mismatch: ${ref.filePath}`);
+    throw new Error(`CoverageLinkAgencyPersonnelRead sha256 mismatch: ${ref.filePath}`);
   }
-  const envelope = parseCivilCaseOfficerCreate(document);
+  const envelope = parseCoverageLinkAgencyPersonnelRead(document);
   if (
     options.expectedNamespace !== undefined &&
     envelope.metadata.namespace !== options.expectedNamespace
   ) {
     throw new Error(
-      `CivilCaseOfficerCreate namespace ${envelope.metadata.namespace} does not match expected namespace ${options.expectedNamespace}: ${ref.filePath}`,
+      `CoverageLinkAgencyPersonnelRead namespace ${envelope.metadata.namespace} does not match expected namespace ${options.expectedNamespace}: ${ref.filePath}`,
     );
   }
   return envelope;
 }
 
-async function writeCivilCaseOfficerCreate(
+async function writeCoverageLinkAgencyPersonnelRead(
   directory: string,
-  envelope: CivilCaseOfficerCreateEnvelope,
+  envelope: CoverageLinkAgencyPersonnelReadEnvelope,
 ): Promise<{ path: string }> {
-  const parsed = parseCivilCaseOfficerCreate(envelope);
+  const parsed = parseCoverageLinkAgencyPersonnelRead(envelope);
   const filePath = yamlResourcePath(directory, parsed);
   await writeYamlDocumentFile(filePath, parsed);
   return { path: filePath };
 }
 
-export const CivilCaseOfficerCreate = {
-  kind: "CivilCaseOfficerCreate",
+export const CoverageLinkAgencyPersonnelRead = {
+  kind: "CoverageLinkAgencyPersonnelRead",
   schema,
-  new: newCivilCaseOfficerCreate,
-  read: readCivilCaseOfficerCreate,
-  write: writeCivilCaseOfficerCreate,
+  new: newCoverageLinkAgencyPersonnelRead,
+  read: readCoverageLinkAgencyPersonnelRead,
+  write: writeCoverageLinkAgencyPersonnelRead,
 };

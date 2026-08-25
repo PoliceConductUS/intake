@@ -22,12 +22,12 @@ export { LicenseActions, LicenseAction, LicenseActionSpec } from "./LicenseActio
 export type { LicenseActionsEnvelope, LicenseActionsInput, LicenseActionEnvelope, LicenseActionInput } from "./LicenseActions.js";
 export { Disciplines, DisciplineSpec } from "./Disciplines.js";
 export type { DisciplinesEnvelope, DisciplinesInput } from "./Disciplines.js";
-export { DisciplineAgencyOfficers, DisciplineAgencyOfficerSpec } from "./DisciplineAgencyOfficers.js";
-export type { DisciplineAgencyOfficersEnvelope, DisciplineAgencyOfficersInput } from "./DisciplineAgencyOfficers.js";
+export { DisciplineAgencyPersonnel, DisciplineAgencyPersonnelSpec } from "./DisciplineAgencyPersonnel.js";
+export type { DisciplineAgencyPersonnelEnvelope, DisciplineAgencyPersonnelInput } from "./DisciplineAgencyPersonnel.js";
 export { CoverageLinks, CoverageLinkSpec } from "./CoverageLinks.js";
 export type { CoverageLinksEnvelope, CoverageLinksInput } from "./CoverageLinks.js";
-export { CoverageLinkAgencyOfficers, CoverageLinkAgencyOfficerSpec } from "./CoverageLinkAgencyOfficers.js";
-export type { CoverageLinkAgencyOfficersEnvelope, CoverageLinkAgencyOfficersInput } from "./CoverageLinkAgencyOfficers.js";
+export { CoverageLinkAgencyPersonnel, CoverageLinkAgencyPersonnelSpec } from "./CoverageLinkAgencyPersonnel.js";
+export type { CoverageLinkAgencyPersonnelEnvelope, CoverageLinkAgencyPersonnelInput } from "./CoverageLinkAgencyPersonnel.js";
 export { AgencyPhoneNumbers, AgencyPhoneNumberSpec } from "./AgencyPhoneNumbers.js";
 export type { AgencyPhoneNumbersEnvelope, AgencyPhoneNumbersInput } from "./AgencyPhoneNumbers.js";
 export { FederalAgencies, FederalAgencySpec } from "./FederalAgencies.js";
@@ -36,7 +36,7 @@ export { FederalAgencyBranches, FederalAgencyBranchSpec } from "./FederalAgencyB
 export type { FederalAgencyBranchesEnvelope, FederalAgencyBranchesInput } from "./FederalAgencyBranches.js";
 export { CivilCases, CivilCaseSpec } from "./CivilCases.js";
 export type { CivilCasesEnvelope, CivilCasesInput } from "./CivilCases.js";
-export { CivilCaseOfficers, CivilCaseOfficerSpec } from "./CivilCaseOfficers.js";
-export type { CivilCaseOfficersEnvelope, CivilCaseOfficersInput } from "./CivilCaseOfficers.js";
+export { CivilCasePersonnel, CivilCasePersonnelSpec } from "./CivilCasePersonnel.js";
+export type { CivilCasePersonnelEnvelope, CivilCasePersonnelInput } from "./CivilCasePersonnel.js";
 export { CivilCaseLinks, CivilCaseLinkSpec } from "./CivilCaseLinks.js";
 export type { CivilCaseLinksEnvelope, CivilCaseLinksInput } from "./CivilCaseLinks.js";

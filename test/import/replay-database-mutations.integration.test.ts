@@ -424,7 +424,7 @@ describeWithDocker("replay against a real Postgres", () => {
                   "agency-personnel-source-id": {
                     spec: {
                       agency_id: "agency-source-id",
-                      officer_id: "personnel-source-id",
+                      personnel_id: "personnel-source-id",
                       badge_number: "49112",
                       start_date: "2020-01-01",
                       end_date: null,
@@ -504,18 +504,18 @@ describeWithDocker("replay against a real Postgres", () => {
       [{ id: "agency-canonical-id", slug: "minnesota-state-patrol" }],
     );
     expect(
-      (await db.query("select id, first_name from public.officers")).rows,
+      (await db.query("select id, first_name from public.personnel")).rows,
     ).toEqual([{ id: "personnel-canonical-id", first_name: "Spenser" }]);
     expect(
       (
         await db.query(
-          "select agency_id, officer_id from public.agency_officers",
+          "select agency_id, personnel_id from public.agency_personnel",
         )
       ).rows,
     ).toEqual([
       {
         agency_id: "agency-canonical-id",
-        officer_id: "personnel-canonical-id",
+        personnel_id: "personnel-canonical-id",
       },
     ]);
     expect(

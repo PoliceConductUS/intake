@@ -24,7 +24,7 @@ type EnvelopeReadOptions = {
 };
 
 function formatError(error: z.ZodError): string {
-  return `CoverageLinkAgencyOfficerRead is malformed at ${firstIssuePath(error)}.`;
+  return `CivilCasePersonnelRead is malformed at ${firstIssuePath(error)}.`;
 }
 
 function refValue(pathOrRef: string | EnvelopeReadRef): {
@@ -50,14 +50,14 @@ function resolveReadPath(
     return { ...ref, filePath: ref.path };
   }
   if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "CoverageLinkAgencyOfficerRead"} ref requires relativeTo.`);
+    throw new Error(`Relative ${ref.kind ?? "CivilCasePersonnelRead"} ref requires relativeTo.`);
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "CoverageLinkAgencyOfficerRead"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(`${ref.kind ?? "CivilCasePersonnelRead"} ref.path escapes its directory: ${ref.path}`);
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -78,16 +78,16 @@ export const specSchema = z.object({}).strict();
 export const schema = z
   .object({
     apiVersion: z.literal(INTAKE_API_VERSION),
-    kind: z.literal("CoverageLinkAgencyOfficerRead"),
+    kind: z.literal("CivilCasePersonnelRead"),
     metadata: metadataSchema,
     spec: specSchema,
   })
   .strict();
 
-export type CoverageLinkAgencyOfficerReadEnvelope = z.infer<typeof schema>;
-export type CoverageLinkAgencyOfficerReadInput = Omit<CoverageLinkAgencyOfficerReadEnvelope, "apiVersion" | "kind">;
+export type CivilCasePersonnelReadEnvelope = z.infer<typeof schema>;
+export type CivilCasePersonnelReadInput = Omit<CivilCasePersonnelReadEnvelope, "apiVersion" | "kind">;
 
-function parseCoverageLinkAgencyOfficerRead(value: unknown): CoverageLinkAgencyOfficerReadEnvelope {
+function parseCivilCasePersonnelRead(value: unknown): CivilCasePersonnelReadEnvelope {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new Error(formatError(result.error));
@@ -95,52 +95,52 @@ function parseCoverageLinkAgencyOfficerRead(value: unknown): CoverageLinkAgencyO
   return result.data;
 }
 
-function newCoverageLinkAgencyOfficerRead(input: CoverageLinkAgencyOfficerReadInput): CoverageLinkAgencyOfficerReadEnvelope {
-  return parseCoverageLinkAgencyOfficerRead({
+function newCivilCasePersonnelRead(input: CivilCasePersonnelReadInput): CivilCasePersonnelReadEnvelope {
+  return parseCivilCasePersonnelRead({
     apiVersion: INTAKE_API_VERSION,
-    kind: "CoverageLinkAgencyOfficerRead",
+    kind: "CivilCasePersonnelRead",
     ...input,
   });
 }
 
-async function readCoverageLinkAgencyOfficerRead(
+async function readCivilCasePersonnelRead(
   pathOrRef: string | EnvelopeReadRef,
   options: EnvelopeReadOptions = {},
-): Promise<CoverageLinkAgencyOfficerReadEnvelope> {
+): Promise<CivilCasePersonnelReadEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
-  if (ref.kind !== undefined && ref.kind !== "CoverageLinkAgencyOfficerRead") {
-    throw new Error(`CoverageLinkAgencyOfficerRead ref.kind ${ref.kind} does not match expected kind CoverageLinkAgencyOfficerRead: ${ref.filePath}`);
+  if (ref.kind !== undefined && ref.kind !== "CivilCasePersonnelRead") {
+    throw new Error(`CivilCasePersonnelRead ref.kind ${ref.kind} does not match expected kind CivilCasePersonnelRead: ${ref.filePath}`);
   }
-  const { contents, document } = await readYamlDocumentFile(ref.filePath, "CoverageLinkAgencyOfficerRead");
+  const { contents, document } = await readYamlDocumentFile(ref.filePath, "CivilCasePersonnelRead");
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
-    throw new Error(`CoverageLinkAgencyOfficerRead sha256 mismatch: ${ref.filePath}`);
+    throw new Error(`CivilCasePersonnelRead sha256 mismatch: ${ref.filePath}`);
   }
-  const envelope = parseCoverageLinkAgencyOfficerRead(document);
+  const envelope = parseCivilCasePersonnelRead(document);
   if (
     options.expectedNamespace !== undefined &&
     envelope.metadata.namespace !== options.expectedNamespace
   ) {
     throw new Error(
-      `CoverageLinkAgencyOfficerRead namespace ${envelope.metadata.namespace} does not match expected namespace ${options.expectedNamespace}: ${ref.filePath}`,
+      `CivilCasePersonnelRead namespace ${envelope.metadata.namespace} does not match expected namespace ${options.expectedNamespace}: ${ref.filePath}`,
     );
   }
   return envelope;
 }
 
-async function writeCoverageLinkAgencyOfficerRead(
+async function writeCivilCasePersonnelRead(
   directory: string,
-  envelope: CoverageLinkAgencyOfficerReadEnvelope,
+  envelope: CivilCasePersonnelReadEnvelope,
 ): Promise<{ path: string }> {
-  const parsed = parseCoverageLinkAgencyOfficerRead(envelope);
+  const parsed = parseCivilCasePersonnelRead(envelope);
   const filePath = yamlResourcePath(directory, parsed);
   await writeYamlDocumentFile(filePath, parsed);
   return { path: filePath };
 }
 
-export const CoverageLinkAgencyOfficerRead = {
-  kind: "CoverageLinkAgencyOfficerRead",
+export const CivilCasePersonnelRead = {
+  kind: "CivilCasePersonnelRead",
   schema,
-  new: newCoverageLinkAgencyOfficerRead,
-  read: readCoverageLinkAgencyOfficerRead,
-  write: writeCoverageLinkAgencyOfficerRead,
+  new: newCivilCasePersonnelRead,
+  read: readCivilCasePersonnelRead,
+  write: writeCivilCasePersonnelRead,
 };

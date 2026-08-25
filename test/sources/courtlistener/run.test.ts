@@ -91,10 +91,10 @@ describe("courtlistener run", () => {
     // The agency source id from the envelope scopes the resolve; only the person
     // party is resolved, and the returned source id is stamped verbatim.
     expect(data.calls).toEqual([{ agencyId: "a1", officerName: "John Smith" }]);
-    expect(Object.keys(byKind.CivilCaseOfficers)).toEqual(["cl-123|ao-1"]);
-    expect(byKind.CivilCaseOfficers["cl-123|ao-1"].spec).toEqual({
+    expect(Object.keys(byKind.CivilCasePersonnel)).toEqual(["cl-123|ao-1"]);
+    expect(byKind.CivilCasePersonnel["cl-123|ao-1"].spec).toEqual({
       civil_case_id: "cl-123",
-      agency_officer_id: "ao-1",
+      agency_personnel_id: "ao-1",
     });
 
     expect(Object.keys(byKind.CivilCaseLinks)).toEqual([
@@ -108,7 +108,7 @@ describe("courtlistener run", () => {
       manifest.artifacts.map((a) => [a.kind, a.records]),
     );
     expect(Object.keys(byKind.CivilCases)).toEqual([]);
-    expect(Object.keys(byKind.CivilCaseOfficers)).toEqual([]);
+    expect(Object.keys(byKind.CivilCasePersonnel)).toEqual([]);
     expect(Object.keys(byKind.CivilCaseLinks)).toEqual([]);
   });
 });
