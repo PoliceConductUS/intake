@@ -5,8 +5,8 @@ import { z } from "zod";
 // Fingerprint of the applied database migrations these specs were generated
 // against. The importer refuses to run when the live database's migrations
 // differ (see assertGeneratedSchemaCurrent).
-export const GENERATED_MIGRATION_VERSIONS = ["20250303232529","20260520000000","20260526162500","20260526173000","20260608172000","20260619142000","20260626000000","20260627000000","20260627000100","20260701000000","20260702000000","20260703000000","20260822000000"] as const;
-export const GENERATED_MIGRATION_FINGERPRINT = "623cb2254106f382d3d331f1c0df055bf337c6965301b2133e42a37a5ab25c12";
+export const GENERATED_MIGRATION_VERSIONS = ["20250303232529","20260520000000","20260526162500","20260526173000","20260608172000","20260619142000","20260626000000","20260627000000","20260627000100","20260701000000","20260702000000","20260703000000","20260822000000","20260824000000"] as const;
+export const GENERATED_MIGRATION_FINGERPRINT = "f4722aa6ee7d3ec05ccc4f630273dcef3a86f8439c8f53de81ea0f65553a2a1d";
 
 // Entity record kinds in database-dependency order (topological sort of the
 // foreign-key graph): a referenced entity precedes its referrer, so mutations
@@ -340,7 +340,7 @@ export const CoverageLinkAgencyOfficerCreateSpec = CoverageLinkAgencyOfficerSpec
 export const AgencyPhoneNumberSpec = z
   .object({
     id: z.string().optional(),
-    agency_id: z.string().nullable().optional(),
+    agency_id: z.string(),
     phone_number: z.string(),
     description: z.string().nullable().optional(),
   })
@@ -457,7 +457,7 @@ export type AgencyOfficersRow = {
 
 export type AgencyPhoneNumbersRow = {
   id: string;
-  agency_id: string | null;
+  agency_id: string;
   phone_number: string;
   description: string | null;
 };
