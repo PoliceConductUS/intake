@@ -136,9 +136,12 @@ const DESCRIPTORS: EntityDescriptor[] = [
   {
     recordKind: "LocationPathAlias",
     table: "location_path_alias",
+    // selectedYear is a resolution-only hint (which census year the alias came
+    // from); it is not a column, so drop it from the write mutation.
     extras: {
       selectedYear: "z.union([z.string(), z.number()]).optional()",
     },
+    createOmit: ["selectedYear"],
   },
   {
     recordKind: "Agency",

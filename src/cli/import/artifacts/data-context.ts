@@ -3,15 +3,11 @@ import type { z } from "zod";
 import {
   Resolver,
   facadeCanonicalIdResolver,
-  facadeForeignKeyResolver,
-  facadeNullableForeignKeyResolver,
   titleCaseResolver,
-  titleCaseResolverNullable,
   nameCaseResolver,
   nameCaseResolverNullable,
   lowerCaseEmailResolverNullable,
   passthroughResolver,
-  facadeStateLocationPathResolver,
   valueAsString,
   ResolvingFacade,
   type PropertyResolutionFacade,
@@ -33,68 +29,16 @@ import type {
   EntityFacadeBackend,
 } from "./facades/entity-facade.js";
 import {
-  createDisciplineFacade,
-  type DisciplineRow,
-  type DisciplineEnvelope,
-} from "./facades/discipline.js";
+  buildFacadeForKind,
+  identityColumnForKind,
+} from "./facades/resolver-registry.js";
 import {
-  createDisciplineAgencyOfficerFacade,
-  type DisciplineAgencyOfficerRow,
-  type DisciplineAgencyOfficerEnvelope,
-} from "./facades/discipline-agency-officer.js";
-import {
-  createCoverageLinkFacade,
-  type CoverageLinkRow,
-  type CoverageLinkEnvelope,
-} from "./facades/coverage-link.js";
-import {
-  createCoverageLinkAgencyOfficerFacade,
-  type CoverageLinkAgencyOfficerRow,
-  type CoverageLinkAgencyOfficerEnvelope,
-} from "./facades/coverage-link-agency-officer.js";
-import {
-  createAgencyPhoneNumberFacade,
-  type AgencyPhoneNumberRow,
-  type AgencyPhoneNumberEnvelope,
-} from "./facades/agency-phone-number.js";
-import {
-  createFederalAgencyFacade,
-  type FederalAgencyRow,
-  type FederalAgencyEnvelope,
-} from "./facades/federal-agency.js";
-import {
-  createFederalAgencyBranchFacade,
-  type FederalAgencyBranchRow,
-  type FederalAgencyBranchEnvelope,
-} from "./facades/federal-agency-branch.js";
-import {
-  createCivilCaseFacade,
-  type CivilCaseRow,
-  type CivilCaseEnvelope,
-} from "./facades/civil-case.js";
-import {
-  createCivilCaseOfficerFacade,
-  type CivilCaseOfficerRow,
-  type CivilCaseOfficerEnvelope,
-} from "./facades/civil-case-officer.js";
-import {
-  createCivilCaseLinkFacade,
-  type CivilCaseLinkRow,
-  type CivilCaseLinkEnvelope,
-} from "./facades/civil-case-link.js";
-import {
-  LocationPathSpec,
   RECORD_KINDS_IN_DEPENDENCY_ORDER,
   RESOLVED_PROPERTIES,
   TABLE_BY_KIND,
   type AgencyRow,
   type OfficersRow,
-  type AgencyOfficersRow,
-  type LicensingAuthorityRow,
-  type LicenseRow,
-  type LicenseActionRow,
   type LocationPathRow,
-  type LocationPathAliasRow,
 } from "../../../shared/io/generated/entity-specs.js";
 import { IMPORT_OPERATION_SUFFIXES } from "../../../shared/io/import-type-metadata.js";
 import type { ArtifactsEnvelope } from "../../../shared/io/Artifacts.js";
@@ -135,14 +79,6 @@ import {
   type AgencyUpdateEnvelope,
 } from "./io/generated-mutations/AgencyUpdate.js";
 import {
-  AgencyPersonnelCreate,
-  type AgencyPersonnelCreateEnvelope,
-} from "./io/generated-mutations/AgencyPersonnelCreate.js";
-import {
-  AgencyPersonnelUpdate,
-  type AgencyPersonnelUpdateEnvelope,
-} from "./io/generated-mutations/AgencyPersonnelUpdate.js";
-import {
   PersonnelCreate,
   type PersonnelCreateEnvelope,
 } from "./io/generated-mutations/PersonnelCreate.js";
@@ -151,58 +87,11 @@ import {
   type PersonnelUpdateEnvelope,
 } from "./io/generated-mutations/PersonnelUpdate.js";
 import {
-  LicensingAuthorityCreate,
-  type LicensingAuthorityCreateEnvelope,
-} from "./io/generated-mutations/LicensingAuthorityCreate.js";
-import {
-  LicensingAuthorityUpdate,
-  type LicensingAuthorityUpdateEnvelope,
-} from "./io/generated-mutations/LicensingAuthorityUpdate.js";
-import {
-  LicenseCreate,
-  type LicenseCreateEnvelope,
-} from "./io/generated-mutations/LicenseCreate.js";
-import {
-  LicenseUpdate,
-  type LicenseUpdateEnvelope,
-} from "./io/generated-mutations/LicenseUpdate.js";
-import {
-  LicenseActionCreate,
-  type LicenseActionCreateEnvelope,
-} from "./io/generated-mutations/LicenseActionCreate.js";
-import {
-  LicenseActionUpdate,
-  type LicenseActionUpdateEnvelope,
-} from "./io/generated-mutations/LicenseActionUpdate.js";
-import {
-  LocationPathCreate,
-  type LocationPathCreateEnvelope,
-} from "./io/generated-mutations/LocationPathCreate.js";
-import {
-  LocationPathRead,
-  type LocationPathReadEnvelope,
-} from "./io/generated-mutations/LocationPathRead.js";
-import {
-  LocationPathAliasCreate,
-  type LocationPathAliasCreateEnvelope,
-} from "./io/generated-mutations/LocationPathAliasCreate.js";
-import {
-  LocationPathAliasRead,
-  type LocationPathAliasReadEnvelope,
-} from "./io/generated-mutations/LocationPathAliasRead.js";
-import {
-  LocationPathGeometryCreate,
-  type LocationPathGeometryCreateEnvelope,
-} from "./io/generated-mutations/LocationPathGeometryCreate.js";
-import {
-  LocationPathGeometryRead,
-  type LocationPathGeometryReadEnvelope,
-} from "./io/generated-mutations/LocationPathGeometryRead.js";
-import {
   DatabaseMutations,
   type DatabaseMutationItem,
   type DatabaseMutationsEnvelope,
 } from "./io/DatabaseMutations.js";
+import type { DatabaseMutationEnvelope } from "./io/DatabaseMutation.js";
 import type {
   LedgerEntityKind,
   SourceNameToCanonicalIdLedger,
@@ -244,11 +133,6 @@ type SourceRecordContext = {
   sourceFile?: string;
 };
 
-type FacadeEntry<TFacade> = {
-  source: FacadeSource;
-  facade: TFacade;
-};
-
 export type DatabaseMutationsMetadataInput = {
   namespace: string;
   name: string;
@@ -273,658 +157,24 @@ function validateSourceRecordContext(input: SourceRecordContext): void {
   }
 }
 
-// AgencyFacade and PersonnelFacade are defined below alongside the other
-// resolver-based facades (License / LicenseAction), after the resolver
+// AgencyFacade and PersonnelFacade keep bespoke facades here (geocoding, slug
+// generation); every other entity is built generically from the registry
+// (facades/resolver-registry.ts). They are defined below, after the resolver
 // infrastructure.
-
-// AgencyPersonnelFacade is defined below alongside the other resolver-based
-// facades (License / LicenseAction), after the resolver infrastructure.
 
 // --- ADR 0016: composable per-property resolvers -----------------------------
 //
 // A property that must be derived before a database write is produced by a
 // `Resolver`. A resolver is entity-agnostic: it is handed the source facade (to
 // `await` sibling properties) plus the injected backend capabilities it needs,
-// and it returns a `Promise<T>` typed to its target column. Only the minimal
-// mechanism required to route `LicensingAuthority` through a facade is built
-// here (ADR 0016 #8 proves the mechanism first); the durable cache collapse and
-// the migration of the other entities are deferred.
-
-/** Backend capabilities the LicensingAuthority resolvers reach through. */
-export type LicensingAuthorityResolverBackend = {
-  /**
-   * Resolve-or-fail location lookup (ADR 0006/0015): a `location_path` is never
-   * minted. Consults current envelope → intake-owned state → database, with
-   * alias handling, via the shared `getByPath`.
-   */
-  getLocationPathByPath(path: string): Promise<LocationPathRow | undefined>;
-  /**
-   * Find-or-create the entity's own canonical id in the durable
-   * `SourceNameToCanonicalId` ledger by `(namespace, kind, source-id)`.
-   */
-  findOrCreateCanonicalId(input: {
-    namespace: string;
-    kind: string;
-    sourceId: string;
-  }): Promise<string>;
-  /**
-   * The existing database row for a resolved canonical id, if any (a lazy
-   * per-id read). Lets the facade decide create-vs-update automatically, so a
-   * re-import emits an update, not a duplicate create.
-   */
-  existingRow(id: string): Promise<Record<string, unknown> | undefined>;
-};
-
-// PropertyResolutionFacade, ForeignKeyIdSource, and the Resolver class now live
-// in ./resolver-kit.ts — imported and re-exported at the top of this file.
-
-type LicensingAuthorityResolvers = Partial<{
-  [K in keyof LicensingAuthorityRow]: Resolver<
-    LicensingAuthorityRow[K],
-    ResolverContext<
-      LicensingAuthorityRow,
-      LicensingAuthorityResolverBackend
-    >
-  >;
-}>;
-
-/** Canonical-id find-or-create resolver (ADR 0016 #4, "id" property). */
-function licensingAuthorityCanonicalIdResolver(): Resolver<
-  string,
-  ResolverContext<LicensingAuthorityRow, LicensingAuthorityResolverBackend>
-> {
-  return new Resolver(async ({ source, backend }) =>
-    // Find in the ledger by (namespace, kind, source-id); mint + persist when
-    // absent. Extension point (ADR 0016 #4): a natural-key match against the
-    // database recovers an existing row's id before minting — deferred while
-    // `licensing_authority` is a new table with no legacy rows.
-    backend.findOrCreateCanonicalId({
-      namespace: source.namespace,
-      kind: "LicensingAuthority",
-      sourceId: source.name,
-    }),
-  );
-}
-
-export class LicensingAuthorityFacade implements PropertyResolutionFacade<LicensingAuthorityRow> {
-  private static readonly kind = "LicensingAuthority";
-  private readonly current?: Record<string, unknown>;
-  private readonly spec: Record<string, unknown> = {};
-  private readonly source: FacadeSource;
-  private readonly backend: LicensingAuthorityResolverBackend;
-  private readonly resolvers: LicensingAuthorityResolvers;
-  private readonly memo = new Map<
-    keyof LicensingAuthorityRow,
-    Promise<unknown>
-  >();
-  private readonly inProgress = new Set<keyof LicensingAuthorityRow>();
-
-  constructor(options: {
-    current?: Record<string, unknown>;
-    source: FacadeSource;
-    backend: LicensingAuthorityResolverBackend;
-  }) {
-    this.current = options.current;
-    this.source = options.source;
-    this.backend = options.backend;
-    this.resolvers = {
-      id: licensingAuthorityCanonicalIdResolver(),
-      location_path_id: facadeStateLocationPathResolver<
-        LicensingAuthorityRow,
-        LicensingAuthorityResolverBackend
-      >("LicensingAuthority"),
-    };
-  }
-
-  merge(spec: Record<string, unknown>): void {
-    Object.assign(this.spec, spec);
-  }
-
-  raw(property: keyof LicensingAuthorityRow): unknown {
-    return this.spec[property as string];
-  }
-
-  /**
-   * Uniform, generic, memoized async accessor. A plain property returns an
-   * already-resolved promise of the merged source value; a resolved property
-   * runs its attached resolver once per facade instance. A per-facade
-   * in-progress guard turns a circular dependency into a loud error.
-   */
-  value<K extends keyof LicensingAuthorityRow>(
-    property: K,
-  ): Promise<LicensingAuthorityRow[K]> {
-    const cached = this.memo.get(property);
-    if (cached !== undefined) {
-      return cached as Promise<LicensingAuthorityRow[K]>;
-    }
-    const pending = this.computeValue(property);
-    this.memo.set(property, pending);
-    return pending;
-  }
-
-  private async computeValue<K extends keyof LicensingAuthorityRow>(
-    property: K,
-  ): Promise<LicensingAuthorityRow[K]> {
-    if (this.inProgress.has(property)) {
-      throw new Error(
-        `Circular property dependency while resolving ${LicensingAuthorityFacade.kind}.${String(
-          property,
-        )} for ${this.source.namespace}/${this.source.name}.`,
-      );
-    }
-    this.inProgress.add(property);
-    try {
-      const resolver = this.resolvers[property];
-      if (resolver === undefined) {
-        return this.plainValue(property);
-      }
-      return await resolver.resolve(
-        { facade: this, source: this.source, backend: this.backend },
-        () => this.unresolvedMessage(property),
-      );
-    } finally {
-      this.inProgress.delete(property);
-    }
-  }
-
-  private plainValue<K extends keyof LicensingAuthorityRow>(
-    property: K,
-  ): LicensingAuthorityRow[K] {
-    // Plain source properties resolve to the merged source value already in the
-    // target column's datatype; a nullable column with no source value is null.
-    const value = this.spec[property as string];
-    return (
-      value === undefined ? null : value
-    ) as LicensingAuthorityRow[K];
-  }
-
-  private unresolvedMessage(
-    property: keyof LicensingAuthorityRow,
-  ): string {
-    return `Cannot resolve ${LicensingAuthorityFacade.kind}.${String(
-      property,
-    )} for source ${this.source.namespace}/${this.source.name}; offending value ${JSON.stringify(
-      this.spec[property as string],
-    )}.`;
-  }
-
-  async toMutation(): Promise<
-    LicensingAuthorityCreateEnvelope | LicensingAuthorityUpdateEnvelope
-  > {
-    // Await every column this facade writes — resolution runs here, on demand,
-    // and TypeScript enforces that a promise cannot land in a column un-awaited.
-    const id = await this.value("id");
-    const name = await this.value("name");
-    const abbreviation = await this.value("abbreviation");
-    const website = await this.value("website");
-    const locationPathId = await this.value("location_path_id");
-
-    // Auto-load the existing database row for this canonical id (like agencies),
-    // so a re-import emits an update/no-op instead of a duplicate create. This is
-    // automatic in the facade path — no per-record special-casing at the caller.
-    const current = this.current ?? (await this.backend.existingRow(id));
-
-    if (current === undefined) {
-      return LicensingAuthorityCreate.new({
-        metadata: {
-          namespace: this.source.namespace,
-          name: this.source.name,
-        },
-        spec: {
-          id,
-          name,
-          abbreviation,
-          website,
-          location_path_id: locationPathId,
-        } as Parameters<typeof LicensingAuthorityCreate.new>[0]["spec"],
-      });
-    }
-
-    const commandName = valueAsString(this.source.commandName);
-    if (commandName === undefined) {
-      throw new Error(
-        `Cannot create licensing authority update for ${this.source.namespace}/${this.source.name} without command name.`,
-      );
-    }
-
-    const source = {
-      namespace: this.source.namespace,
-      command: { name: commandName },
-      kind: LicensingAuthorityFacade.kind,
-      name: this.source.name,
-    };
-    const desired: Record<string, unknown> = {
-      name,
-      abbreviation,
-      website,
-      location_path_id: locationPathId,
-    };
-    const operations = Object.entries(desired).map(([path, to]) => {
-      const from = current[path];
-      if (Object.is(from, to)) {
-        return {
-          action: "check" as const,
-          path,
-          value: to,
-          reason: `Expected existing ${LicensingAuthorityFacade.kind} ${path}.`,
-          source,
-        };
-      }
-
-      return {
-        action: "set" as const,
-        path,
-        from,
-        to,
-        reason: `Set ${LicensingAuthorityFacade.kind} ${path}.`,
-        source,
-      };
-    });
-
-    return LicensingAuthorityUpdate.new({
-      metadata: {
-        namespace: this.source.namespace,
-        name: this.source.name,
-      },
-      spec: { operations },
-    });
-  }
-}
-
-// --- License / LicenseAction facades (ADR 0016) ------------------------------
-//
-// License and LicenseAction mirror LicensingAuthority: each property is produced
-// by a resolver. The `id` is a canonical-id find-or-create (self-contained mint
-// + persist). Their foreign keys are same-source FINDS (ADR 0016 #4/#9): because
-// the source emits referenced entities first, the target facade already exists;
-// the resolver locates it and awaits its `id`, failing fast and loud when the
-// target is absent (a forward-reference violation) rather than minting a stub.
-
-/**
- * Backend capabilities the License / LicenseAction resolvers reach through:
- * the entity's own canonical-id find-or-create, the existing DB row for
- * create-vs-update, and the same-source foreign-key find.
- */
-export type LicenseResolverBackend = {
-  findOrCreateCanonicalId(input: {
-    namespace: string;
-    kind: string;
-    sourceId: string;
-  }): Promise<string>;
-  existingRow(id: string): Promise<Record<string, unknown> | undefined>;
-  /**
-   * Locate an already-emitted target facade by `(kind, namespace, source-id)`
-   * so a FK resolver can await its `id`. Returns undefined when no such facade
-   * exists — the resolver turns that into a loud forward-reference failure.
-   */
-  findForeignKeyTarget(input: {
-    kind: string;
-    namespace: string;
-    sourceId: string;
-  }): ForeignKeyIdSource | undefined;
-};
-
-type LicenseResolvers = Partial<{
-  [K in keyof LicenseRow]: Resolver<
-    LicenseRow[K],
-    ResolverContext<LicenseRow, LicenseResolverBackend>
-  >;
-}>;
-
-type LicenseActionResolvers = Partial<{
-  [K in keyof LicenseActionRow]: Resolver<
-    LicenseActionRow[K],
-    ResolverContext<LicenseActionRow, LicenseResolverBackend>
-  >;
-}>;
-
-export class LicenseFacade implements PropertyResolutionFacade<LicenseRow> {
-  private static readonly kind = "License";
-  private readonly current?: Record<string, unknown>;
-  private readonly spec: Record<string, unknown> = {};
-  private readonly source: FacadeSource;
-  private readonly backend: LicenseResolverBackend;
-  private readonly resolvers: LicenseResolvers;
-  private readonly memo = new Map<keyof LicenseRow, Promise<unknown>>();
-  private readonly inProgress = new Set<keyof LicenseRow>();
-
-  constructor(options: {
-    current?: Record<string, unknown>;
-    source: FacadeSource;
-    backend: LicenseResolverBackend;
-  }) {
-    this.current = options.current;
-    this.source = options.source;
-    this.backend = options.backend;
-    this.resolvers = {
-      id: facadeCanonicalIdResolver<LicenseRow>(LicenseFacade.kind),
-      officer_id: facadeForeignKeyResolver<LicenseRow>(
-        LicenseFacade.kind,
-        "officer_id",
-        "Personnel",
-      ),
-      issued_by_authority_id: facadeForeignKeyResolver<LicenseRow>(
-        LicenseFacade.kind,
-        "issued_by_authority_id",
-        "LicensingAuthority",
-      ),
-    };
-  }
-
-  merge(spec: Record<string, unknown>): void {
-    Object.assign(this.spec, spec);
-  }
-
-  raw(property: keyof LicenseRow): unknown {
-    return this.spec[property as string];
-  }
-
-  value<K extends keyof LicenseRow>(
-    property: K,
-  ): Promise<LicenseRow[K]> {
-    const cached = this.memo.get(property);
-    if (cached !== undefined) {
-      return cached as Promise<LicenseRow[K]>;
-    }
-    const pending = this.computeValue(property);
-    this.memo.set(property, pending);
-    return pending;
-  }
-
-  private async computeValue<K extends keyof LicenseRow>(
-    property: K,
-  ): Promise<LicenseRow[K]> {
-    if (this.inProgress.has(property)) {
-      throw new Error(
-        `Circular property dependency while resolving ${LicenseFacade.kind}.${String(
-          property,
-        )} for ${this.source.namespace}/${this.source.name}.`,
-      );
-    }
-    this.inProgress.add(property);
-    try {
-      const resolver = this.resolvers[property];
-      if (resolver === undefined) {
-        return this.plainValue(property);
-      }
-      return await resolver.resolve(
-        { facade: this, source: this.source, backend: this.backend },
-        () => this.unresolvedMessage(property),
-      );
-    } finally {
-      this.inProgress.delete(property);
-    }
-  }
-
-  private plainValue<K extends keyof LicenseRow>(
-    property: K,
-  ): LicenseRow[K] {
-    const value = this.spec[property as string];
-    return (value === undefined ? null : value) as LicenseRow[K];
-  }
-
-  private unresolvedMessage(property: keyof LicenseRow): string {
-    return `Cannot resolve ${LicenseFacade.kind}.${String(
-      property,
-    )} for source ${this.source.namespace}/${this.source.name}; offending value ${JSON.stringify(
-      this.spec[property as string],
-    )}.`;
-  }
-
-  async toMutation(): Promise<LicenseCreateEnvelope | LicenseUpdateEnvelope> {
-    const id = await this.value("id");
-    const officerId = await this.value("officer_id");
-    const licenseType = await this.value("license_type");
-    const status = await this.value("status");
-    const firstAwarded = await this.value("first_awarded");
-    const issuedByAuthorityId = await this.value("issued_by_authority_id");
-
-    const current = this.current ?? (await this.backend.existingRow(id));
-
-    if (current === undefined) {
-      return LicenseCreate.new({
-        metadata: {
-          namespace: this.source.namespace,
-          name: this.source.name,
-        },
-        spec: {
-          id,
-          officer_id: officerId,
-          license_type: licenseType,
-          status,
-          first_awarded: firstAwarded,
-          issued_by_authority_id: issuedByAuthorityId,
-        } as Parameters<typeof LicenseCreate.new>[0]["spec"],
-      });
-    }
-
-    const commandName = valueAsString(this.source.commandName);
-    if (commandName === undefined) {
-      throw new Error(
-        `Cannot create license update for ${this.source.namespace}/${this.source.name} without command name.`,
-      );
-    }
-
-    const source = {
-      namespace: this.source.namespace,
-      command: { name: commandName },
-      kind: LicenseFacade.kind,
-      name: this.source.name,
-    };
-    const desired: Record<string, unknown> = {
-      officer_id: officerId,
-      license_type: licenseType,
-      status,
-      first_awarded: firstAwarded,
-      issued_by_authority_id: issuedByAuthorityId,
-    };
-    const operations = Object.entries(desired).map(([path, to]) => {
-      const from = current[path];
-      if (Object.is(from, to)) {
-        return {
-          action: "check" as const,
-          path,
-          value: to,
-          reason: `Expected existing ${LicenseFacade.kind} ${path}.`,
-          source,
-        };
-      }
-
-      return {
-        action: "set" as const,
-        path,
-        from,
-        to,
-        reason: `Set ${LicenseFacade.kind} ${path}.`,
-        source,
-      };
-    });
-
-    return LicenseUpdate.new({
-      metadata: {
-        namespace: this.source.namespace,
-        name: this.source.name,
-      },
-      spec: { operations },
-    });
-  }
-}
-
-export class LicenseActionFacade implements PropertyResolutionFacade<LicenseActionRow> {
-  private static readonly kind = "LicenseAction";
-  private readonly current?: Record<string, unknown>;
-  private readonly spec: Record<string, unknown> = {};
-  private readonly source: FacadeSource;
-  private readonly backend: LicenseResolverBackend;
-  private readonly resolvers: LicenseActionResolvers;
-  private readonly memo = new Map<
-    keyof LicenseActionRow,
-    Promise<unknown>
-  >();
-  private readonly inProgress = new Set<keyof LicenseActionRow>();
-
-  constructor(options: {
-    current?: Record<string, unknown>;
-    source: FacadeSource;
-    backend: LicenseResolverBackend;
-  }) {
-    this.current = options.current;
-    this.source = options.source;
-    this.backend = options.backend;
-    this.resolvers = {
-      id: facadeCanonicalIdResolver<LicenseActionRow>(
-        LicenseActionFacade.kind,
-      ),
-      license_id: facadeForeignKeyResolver<LicenseActionRow>(
-        LicenseActionFacade.kind,
-        "license_id",
-        "License",
-      ),
-    };
-  }
-
-  merge(spec: Record<string, unknown>): void {
-    Object.assign(this.spec, spec);
-  }
-
-  raw(property: keyof LicenseActionRow): unknown {
-    return this.spec[property as string];
-  }
-
-  value<K extends keyof LicenseActionRow>(
-    property: K,
-  ): Promise<LicenseActionRow[K]> {
-    const cached = this.memo.get(property);
-    if (cached !== undefined) {
-      return cached as Promise<LicenseActionRow[K]>;
-    }
-    const pending = this.computeValue(property);
-    this.memo.set(property, pending);
-    return pending;
-  }
-
-  private async computeValue<K extends keyof LicenseActionRow>(
-    property: K,
-  ): Promise<LicenseActionRow[K]> {
-    if (this.inProgress.has(property)) {
-      throw new Error(
-        `Circular property dependency while resolving ${LicenseActionFacade.kind}.${String(
-          property,
-        )} for ${this.source.namespace}/${this.source.name}.`,
-      );
-    }
-    this.inProgress.add(property);
-    try {
-      const resolver = this.resolvers[property];
-      if (resolver === undefined) {
-        return this.plainValue(property);
-      }
-      return await resolver.resolve(
-        { facade: this, source: this.source, backend: this.backend },
-        () => this.unresolvedMessage(property),
-      );
-    } finally {
-      this.inProgress.delete(property);
-    }
-  }
-
-  private plainValue<K extends keyof LicenseActionRow>(
-    property: K,
-  ): LicenseActionRow[K] {
-    const value = this.spec[property as string];
-    return (value === undefined ? null : value) as LicenseActionRow[K];
-  }
-
-  private unresolvedMessage(property: keyof LicenseActionRow): string {
-    return `Cannot resolve ${LicenseActionFacade.kind}.${String(
-      property,
-    )} for source ${this.source.namespace}/${this.source.name}; offending value ${JSON.stringify(
-      this.spec[property as string],
-    )}.`;
-  }
-
-  async toMutation(): Promise<
-    LicenseActionCreateEnvelope | LicenseActionUpdateEnvelope
-  > {
-    const id = await this.value("id");
-    const licenseId = await this.value("license_id");
-    const action = await this.value("action");
-    const actionDate = await this.value("action_date");
-    const status = await this.value("status");
-
-    const current = this.current ?? (await this.backend.existingRow(id));
-
-    if (current === undefined) {
-      return LicenseActionCreate.new({
-        metadata: {
-          namespace: this.source.namespace,
-          name: this.source.name,
-        },
-        spec: {
-          id,
-          license_id: licenseId,
-          action,
-          action_date: actionDate,
-          status,
-        } as Parameters<typeof LicenseActionCreate.new>[0]["spec"],
-      });
-    }
-
-    const commandName = valueAsString(this.source.commandName);
-    if (commandName === undefined) {
-      throw new Error(
-        `Cannot create license action update for ${this.source.namespace}/${this.source.name} without command name.`,
-      );
-    }
-
-    const source = {
-      namespace: this.source.namespace,
-      command: { name: commandName },
-      kind: LicenseActionFacade.kind,
-      name: this.source.name,
-    };
-    const desired: Record<string, unknown> = {
-      license_id: licenseId,
-      action,
-      action_date: actionDate,
-      status,
-    };
-    const operations = Object.entries(desired).map(([path, to]) => {
-      const from = current[path];
-      if (Object.is(from, to)) {
-        return {
-          action: "check" as const,
-          path,
-          value: to,
-          reason: `Expected existing ${LicenseActionFacade.kind} ${path}.`,
-          source,
-        };
-      }
-
-      return {
-        action: "set" as const,
-        path,
-        from,
-        to,
-        reason: `Set ${LicenseActionFacade.kind} ${path}.`,
-        source,
-      };
-    });
-
-    return LicenseActionUpdate.new({
-      metadata: {
-        namespace: this.source.namespace,
-        name: this.source.name,
-      },
-      spec: { operations },
-    });
-  }
-}
+// and it returns a `Promise<T>` typed to its target column. Agency and Personnel
+// keep hand-written facades for their geocode/slug resolution; the rest compose
+// from the shared kit through the generic registry builder.
 
 // --- Personnel facade (ADR 0016) ---------------------------------------------
 //
-// Personnel mirrors the License family: `id` is a canonical-id find-or-create
-// (self-contained mint + persist), name fields are plain, and `slug` is a
+// `id` is a canonical-id find-or-create (self-contained mint + persist), name
+// fields are plain, and `slug` is a
 // generate-unique resolver — resolve if the source supplied one, else reuse the
 // existing DB row's slug (stability across a name change), else derive a base
 // slug and disambiguate so it is unique across the three resolution levels
@@ -1514,518 +764,6 @@ export class AgencyFacade extends ResolvingFacade<
   }
 }
 
-// --- AgencyPersonnel facade (ADR 0016) ---------------------------------------
-//
-// AgencyPersonnel (agency_officers) is a pure foreign-key entity: `id` is a
-// canonical-id find-or-create; `agency_id` / `personnel_id` find the Agency /
-// Personnel facades; `license_id` finds the License facade but is nullable (a
-// null source reference stays null). Each FK is a same-source FIND that awaits
-// the target facade's id and fails loud on a forward reference (ADR 0016 #4/#9).
-// The remaining columns are plain.
-
-type AgencyPersonnelResolvers = Partial<{
-  [K in keyof AgencyOfficersRow]: Resolver<
-    AgencyOfficersRow[K],
-    ResolverContext<AgencyOfficersRow, LicenseResolverBackend>
-  >;
-}>;
-
-export class AgencyPersonnelFacade implements PropertyResolutionFacade<AgencyOfficersRow> {
-  private static readonly kind = "AgencyPersonnel";
-  private readonly current?: Record<string, unknown>;
-  private readonly spec: Record<string, unknown> = {};
-  private readonly source: FacadeSource;
-  private readonly backend: LicenseResolverBackend;
-  private readonly resolvers: AgencyPersonnelResolvers;
-  private readonly memo = new Map<
-    keyof AgencyOfficersRow,
-    Promise<unknown>
-  >();
-  private readonly inProgress = new Set<keyof AgencyOfficersRow>();
-
-  constructor(options: {
-    current?: Record<string, unknown>;
-    source: FacadeSource;
-    backend: LicenseResolverBackend;
-  }) {
-    this.current = options.current;
-    this.source = options.source;
-    this.backend = options.backend;
-    this.resolvers = {
-      id: facadeCanonicalIdResolver<AgencyOfficersRow>(
-        AgencyPersonnelFacade.kind,
-      ),
-      agency_id: facadeForeignKeyResolver<AgencyOfficersRow>(
-        AgencyPersonnelFacade.kind,
-        "agency_id",
-        "Agency",
-      ),
-      // officer_id is the agency_officers column; the FK still targets Personnel.
-      officer_id: facadeForeignKeyResolver<AgencyOfficersRow>(
-        AgencyPersonnelFacade.kind,
-        "officer_id",
-        "Personnel",
-      ),
-      license_id: facadeNullableForeignKeyResolver<AgencyOfficersRow>(
-        AgencyPersonnelFacade.kind,
-        "license_id",
-        "License",
-      ),
-    };
-  }
-
-  merge(spec: Record<string, unknown>): void {
-    Object.assign(this.spec, spec);
-  }
-
-  raw(property: keyof AgencyOfficersRow): unknown {
-    return this.spec[property as string];
-  }
-
-  value<K extends keyof AgencyOfficersRow>(
-    property: K,
-  ): Promise<AgencyOfficersRow[K]> {
-    const cached = this.memo.get(property);
-    if (cached !== undefined) {
-      return cached as Promise<AgencyOfficersRow[K]>;
-    }
-    const pending = this.computeValue(property);
-    this.memo.set(property, pending);
-    return pending;
-  }
-
-  private async computeValue<K extends keyof AgencyOfficersRow>(
-    property: K,
-  ): Promise<AgencyOfficersRow[K]> {
-    if (this.inProgress.has(property)) {
-      throw new Error(
-        `Circular property dependency while resolving ${AgencyPersonnelFacade.kind}.${String(
-          property,
-        )} for ${this.source.namespace}/${this.source.name}.`,
-      );
-    }
-    this.inProgress.add(property);
-    try {
-      const resolver = this.resolvers[property];
-      if (resolver === undefined) {
-        return this.plainValue(property);
-      }
-      return await resolver.resolve(
-        { facade: this, source: this.source, backend: this.backend },
-        () => this.unresolvedMessage(property),
-      );
-    } finally {
-      this.inProgress.delete(property);
-    }
-  }
-
-  private plainValue<K extends keyof AgencyOfficersRow>(
-    property: K,
-  ): AgencyOfficersRow[K] {
-    const value = this.spec[property as string];
-    return (value === undefined ? null : value) as AgencyOfficersRow[K];
-  }
-
-  private unresolvedMessage(property: keyof AgencyOfficersRow): string {
-    return `Cannot resolve ${AgencyPersonnelFacade.kind}.${String(
-      property,
-    )} for source ${this.source.namespace}/${this.source.name}; offending value ${JSON.stringify(
-      this.spec[property as string],
-    )}.`;
-  }
-
-  async toMutation(): Promise<
-    AgencyPersonnelCreateEnvelope | AgencyPersonnelUpdateEnvelope
-  > {
-    const id = await this.value("id");
-    const agencyId = await this.value("agency_id");
-    const officerId = await this.value("officer_id");
-    const badgeNumber = await this.value("badge_number");
-    const startDate = await this.value("start_date");
-    const endDate = await this.value("end_date");
-    const title = await this.value("title");
-    const licenseId = await this.value("license_id");
-
-    const current = this.current ?? (await this.backend.existingRow(id));
-
-    if (current === undefined) {
-      return AgencyPersonnelCreate.new({
-        metadata: {
-          namespace: this.source.namespace,
-          name: this.source.name,
-        },
-        spec: {
-          id,
-          agency_id: agencyId,
-          officer_id: officerId,
-          badge_number: badgeNumber,
-          start_date: startDate,
-          end_date: endDate,
-          title,
-          license_id: licenseId,
-        } as Parameters<typeof AgencyPersonnelCreate.new>[0]["spec"],
-      });
-    }
-
-    const commandName = valueAsString(this.source.commandName);
-    if (commandName === undefined) {
-      throw new Error(
-        `Cannot create agency-personnel update for ${this.source.namespace}/${this.source.name} without command name.`,
-      );
-    }
-
-    const source = {
-      namespace: this.source.namespace,
-      command: { name: commandName },
-      kind: AgencyPersonnelFacade.kind,
-      name: this.source.name,
-    };
-    const desired: Record<string, unknown> = {
-      agency_id: agencyId,
-      officer_id: officerId,
-      badge_number: badgeNumber,
-      start_date: startDate,
-      end_date: endDate,
-      title,
-      license_id: licenseId,
-    };
-    const operations = Object.entries(desired).map(([path, to]) => {
-      const from = current[path];
-      if (Object.is(from, to)) {
-        return {
-          action: "check" as const,
-          path,
-          value: to,
-          reason: `Expected existing ${AgencyPersonnelFacade.kind} ${path}.`,
-          source,
-        };
-      }
-
-      return {
-        action: "set" as const,
-        path,
-        from,
-        to,
-        reason: `Set ${AgencyPersonnelFacade.kind} ${path}.`,
-        source,
-      };
-    });
-
-    return AgencyPersonnelUpdate.new({
-      metadata: {
-        namespace: this.source.namespace,
-        name: this.source.name,
-      },
-      spec: { operations },
-    });
-  }
-}
-
-// --- Census substrate facades (ADR 0016) -------------------------------------
-//
-// LocationPath / LocationPathGeometry / LocationPathAlias are resolver-based
-// facades. LocationPath's `location_path_id` is a canonical-id find-or-create
-// (ID stability anchors everything) and `parent_location_path_id` is a nullable
-// self-FK find of the parent LocationPath facade (null at the state root).
-// Alias finds its target LocationPath facade. All emit Create/Read (never
-// update) via `existingRow`.
-//
-// Registered in the write pass; the `LocationPathRow` transform rows survive only
-// as location-resolver / id-stability-validation substrate. Geometries stream
-// separately (`appendStreamingLocationPathGeometryMutations`).
-
-/** Canonical-id find-or-create resolver bound to a non-`id` identity column. */
-function facadeIdentityColumnResolver<Row>(
-  kind: string,
-): Resolver<string, ResolverContext<Row, LicenseResolverBackend>> {
-  return new Resolver(async ({ source, backend }) =>
-    backend.findOrCreateCanonicalId({
-      namespace: source.namespace,
-      kind,
-      sourceId: source.name,
-    }),
-  );
-}
-
-const LOCATION_PATH_COLUMNS = [
-  "path",
-  "level",
-  "state_or_territory_slug",
-  "administrative_area_slug",
-  "place_slug",
-  "state_or_territory_name",
-  "administrative_area_name",
-  "place_name",
-  "parent_location_path_id",
-  "centroid",
-  "bbox",
-] as const satisfies readonly (keyof LocationPathRow)[];
-
-type LocationPathResolvers = Partial<{
-  [K in keyof LocationPathRow]: Resolver<
-    LocationPathRow[K],
-    ResolverContext<LocationPathRow, LicenseResolverBackend>
-  >;
-}>;
-
-export class LocationPathFacade implements PropertyResolutionFacade<LocationPathRow> {
-  private static readonly kind = "LocationPath";
-  private readonly current?: Record<string, unknown>;
-  private readonly spec: Record<string, unknown> = {};
-  private readonly source: FacadeSource;
-  private readonly backend: LicenseResolverBackend;
-  private readonly resolvers: LocationPathResolvers;
-  private readonly memo = new Map<
-    keyof LocationPathRow,
-    Promise<unknown>
-  >();
-  private readonly inProgress = new Set<keyof LocationPathRow>();
-
-  constructor(options: {
-    current?: Record<string, unknown>;
-    source: FacadeSource;
-    backend: LicenseResolverBackend;
-  }) {
-    this.current = options.current;
-    this.source = options.source;
-    this.backend = options.backend;
-    this.resolvers = {
-      location_path_id: facadeIdentityColumnResolver<LocationPathRow>(
-        LocationPathFacade.kind,
-      ),
-      parent_location_path_id:
-        facadeNullableForeignKeyResolver<LocationPathRow>(
-          LocationPathFacade.kind,
-          "parent_location_path_id",
-          "LocationPath",
-        ),
-    };
-  }
-
-  merge(spec: Record<string, unknown>): void {
-    Object.assign(this.spec, spec);
-  }
-
-  raw(property: keyof LocationPathRow): unknown {
-    return this.spec[property as string];
-  }
-
-  value<K extends keyof LocationPathRow>(
-    property: K,
-  ): Promise<LocationPathRow[K]> {
-    const cached = this.memo.get(property);
-    if (cached !== undefined) {
-      return cached as Promise<LocationPathRow[K]>;
-    }
-    const pending = this.computeValue(property);
-    this.memo.set(property, pending);
-    return pending;
-  }
-
-  private async computeValue<K extends keyof LocationPathRow>(
-    property: K,
-  ): Promise<LocationPathRow[K]> {
-    if (this.inProgress.has(property)) {
-      throw new Error(
-        `Circular property dependency while resolving ${LocationPathFacade.kind}.${String(
-          property,
-        )} for ${this.source.namespace}/${this.source.name}.`,
-      );
-    }
-    this.inProgress.add(property);
-    try {
-      const resolver = this.resolvers[property];
-      if (resolver === undefined) {
-        return this.plainValue(property);
-      }
-      return await resolver.resolve(
-        { facade: this, source: this.source, backend: this.backend },
-        () => this.unresolvedMessage(property),
-      );
-    } finally {
-      this.inProgress.delete(property);
-    }
-  }
-
-  private plainValue<K extends keyof LocationPathRow>(
-    property: K,
-  ): LocationPathRow[K] {
-    const value = this.spec[property as string];
-    return (value === undefined ? null : value) as LocationPathRow[K];
-  }
-
-  private unresolvedMessage(property: keyof LocationPathRow): string {
-    return `Cannot resolve ${LocationPathFacade.kind}.${String(
-      property,
-    )} for source ${this.source.namespace}/${this.source.name}; offending value ${JSON.stringify(
-      this.spec[property as string],
-    )}.`;
-  }
-
-  async toMutation(): Promise<
-    LocationPathCreateEnvelope | LocationPathReadEnvelope
-  > {
-    const locationPathId = await this.value("location_path_id");
-    const columns: Record<string, unknown> = {};
-    for (const column of LOCATION_PATH_COLUMNS) {
-      const value = await this.value(column);
-      if (value !== undefined && value !== null) {
-        columns[column] = value;
-      } else if (column !== "centroid" && column !== "bbox") {
-        columns[column] = value;
-      }
-    }
-
-    const current =
-      this.current ?? (await this.backend.existingRow(locationPathId));
-    if (current !== undefined) {
-      // Read (never update): the census row already exists.
-      return LocationPathRead.new({
-        metadata: {
-          namespace: this.source.namespace,
-          name: locationPathId,
-        },
-        spec: {},
-      });
-    }
-
-    return LocationPathCreate.new({
-      metadata: {
-        namespace: this.source.namespace,
-        name: locationPathId,
-      },
-      spec: {
-        location_path_id: locationPathId,
-        ...columns,
-      } as Parameters<typeof LocationPathCreate.new>[0]["spec"],
-    });
-  }
-}
-
-type LocationPathAliasResolvers = Partial<{
-  [K in keyof LocationPathAliasRow]: Resolver<
-    LocationPathAliasRow[K],
-    ResolverContext<LocationPathAliasRow, LicenseResolverBackend>
-  >;
-}>;
-
-export class LocationPathAliasFacade implements PropertyResolutionFacade<LocationPathAliasRow> {
-  private static readonly kind = "LocationPathAlias";
-  private readonly current?: Record<string, unknown>;
-  private readonly spec: Record<string, unknown> = {};
-  private readonly source: FacadeSource;
-  private readonly backend: LicenseResolverBackend;
-  private readonly resolvers: LocationPathAliasResolvers;
-  private readonly memo = new Map<
-    keyof LocationPathAliasRow,
-    Promise<unknown>
-  >();
-  private readonly inProgress = new Set<keyof LocationPathAliasRow>();
-
-  constructor(options: {
-    current?: Record<string, unknown>;
-    source: FacadeSource;
-    backend: LicenseResolverBackend;
-  }) {
-    this.current = options.current;
-    this.source = options.source;
-    this.backend = options.backend;
-    this.resolvers = {
-      // The alias's identity is its natural key `alias_path` (plain); only the
-      // FK to the target LocationPath is resolved.
-      location_path_id: facadeForeignKeyResolver<LocationPathAliasRow>(
-        LocationPathAliasFacade.kind,
-        "location_path_id",
-        "LocationPath",
-      ),
-    };
-  }
-
-  merge(spec: Record<string, unknown>): void {
-    Object.assign(this.spec, spec);
-  }
-
-  raw(property: keyof LocationPathAliasRow): unknown {
-    return this.spec[property as string];
-  }
-
-  value<K extends keyof LocationPathAliasRow>(
-    property: K,
-  ): Promise<LocationPathAliasRow[K]> {
-    const cached = this.memo.get(property);
-    if (cached !== undefined) {
-      return cached as Promise<LocationPathAliasRow[K]>;
-    }
-    const pending = this.computeValue(property);
-    this.memo.set(property, pending);
-    return pending;
-  }
-
-  private async computeValue<K extends keyof LocationPathAliasRow>(
-    property: K,
-  ): Promise<LocationPathAliasRow[K]> {
-    if (this.inProgress.has(property)) {
-      throw new Error(
-        `Circular property dependency while resolving ${LocationPathAliasFacade.kind}.${String(
-          property,
-        )} for ${this.source.namespace}/${this.source.name}.`,
-      );
-    }
-    this.inProgress.add(property);
-    try {
-      const resolver = this.resolvers[property];
-      if (resolver === undefined) {
-        return this.plainValue(property);
-      }
-      return await resolver.resolve(
-        { facade: this, source: this.source, backend: this.backend },
-        () => this.unresolvedMessage(property),
-      );
-    } finally {
-      this.inProgress.delete(property);
-    }
-  }
-
-  private plainValue<K extends keyof LocationPathAliasRow>(
-    property: K,
-  ): LocationPathAliasRow[K] {
-    const value = this.spec[property as string];
-    return (value === undefined ? null : value) as LocationPathAliasRow[K];
-  }
-
-  private unresolvedMessage(property: keyof LocationPathAliasRow): string {
-    return `Cannot resolve ${LocationPathAliasFacade.kind}.${String(
-      property,
-    )} for source ${this.source.namespace}/${this.source.name}; offending value ${JSON.stringify(
-      this.spec[property as string],
-    )}.`;
-  }
-
-  async toMutation(): Promise<
-    LocationPathAliasCreateEnvelope | LocationPathAliasReadEnvelope
-  > {
-    const aliasPath = await this.value("alias_path");
-    const locationPathId = await this.value("location_path_id");
-
-    const current =
-      this.current ?? (await this.backend.existingRow(aliasPath));
-    if (current !== undefined) {
-      return LocationPathAliasRead.new({
-        metadata: { namespace: this.source.namespace, name: aliasPath },
-        spec: {},
-      });
-    }
-
-    return LocationPathAliasCreate.new({
-      metadata: { namespace: this.source.namespace, name: aliasPath },
-      spec: {
-        alias_path: aliasPath,
-        location_path_id: locationPathId,
-      } as Parameters<typeof LocationPathAliasCreate.new>[0]["spec"],
-    });
-  }
-}
-
 export type LocationAdministrativeAreaRequest = {
   address?: string;
   state: string;
@@ -2175,19 +913,6 @@ function isMissingContainingPlaceError(error: unknown): boolean {
   );
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function firstZodIssuePath(
-  result: ReturnType<typeof LocationPathSpec.safeParse>,
-): string {
-  return result.success
-    ? "record"
-    : result.error.issues[0]?.path.join(".") || "record";
-}
-
-
 
 /**
  * True when an item is an update whose operations are *all* `check` — it asserts
@@ -2287,6 +1012,12 @@ type RowReadBatch = {
   >;
 };
 
+/** A facade the generic registry builder produces (its row shape is erased). */
+type RegistryFacade = EntityFacade<
+  Record<string, unknown>,
+  DatabaseMutationEnvelope
+>;
+
 export class DataContext {
   readonly locations: LocationDataContext;
   readonly locationPaths: LocationPathDataContext;
@@ -2319,67 +1050,34 @@ export class DataContext {
   >();
   private readonly agencyFacades = new Map<string, AgencyFacade>();
   private readonly personnelFacades = new Map<string, PersonnelFacade>();
-  private readonly agencyPersonnelFacades = new Map<
-    string,
-    AgencyPersonnelFacade
-  >();
+  private readonly agencyPersonnelFacades = new Map<string, RegistryFacade>();
   private readonly licensingAuthorityFacades = new Map<
     string,
-    LicensingAuthorityFacade
+    RegistryFacade
   >();
-  private readonly licenseFacades = new Map<string, LicenseFacade>();
-  private readonly licenseActionFacades = new Map<
-    string,
-    LicenseActionFacade
-  >();
-  private readonly locationPathFacades = new Map<string, LocationPathFacade>();
-  private readonly locationPathAliasFacades = new Map<
-    string,
-    LocationPathAliasFacade
-  >();
-  private readonly disciplineFacades = new Map<
-    string,
-    EntityFacade<DisciplineRow, DisciplineEnvelope>
-  >();
+  private readonly licenseFacades = new Map<string, RegistryFacade>();
+  private readonly licenseActionFacades = new Map<string, RegistryFacade>();
+  private readonly locationPathFacades = new Map<string, RegistryFacade>();
+  private readonly locationPathAliasFacades = new Map<string, RegistryFacade>();
+  private readonly disciplineFacades = new Map<string, RegistryFacade>();
   private readonly disciplineAgencyOfficerFacades = new Map<
     string,
-    EntityFacade<DisciplineAgencyOfficerRow, DisciplineAgencyOfficerEnvelope>
+    RegistryFacade
   >();
-  private readonly coverageLinkFacades = new Map<
-    string,
-    EntityFacade<CoverageLinkRow, CoverageLinkEnvelope>
-  >();
+  private readonly coverageLinkFacades = new Map<string, RegistryFacade>();
   private readonly coverageLinkAgencyOfficerFacades = new Map<
     string,
-    EntityFacade<
-      CoverageLinkAgencyOfficerRow,
-      CoverageLinkAgencyOfficerEnvelope
-    >
+    RegistryFacade
   >();
-  private readonly agencyPhoneNumberFacades = new Map<
-    string,
-    EntityFacade<AgencyPhoneNumberRow, AgencyPhoneNumberEnvelope>
-  >();
-  private readonly federalAgencyFacades = new Map<
-    string,
-    EntityFacade<FederalAgencyRow, FederalAgencyEnvelope>
-  >();
+  private readonly agencyPhoneNumberFacades = new Map<string, RegistryFacade>();
+  private readonly federalAgencyFacades = new Map<string, RegistryFacade>();
   private readonly federalAgencyBranchFacades = new Map<
     string,
-    EntityFacade<FederalAgencyBranchRow, FederalAgencyBranchEnvelope>
+    RegistryFacade
   >();
-  private readonly civilCaseFacades = new Map<
-    string,
-    EntityFacade<CivilCaseRow, CivilCaseEnvelope>
-  >();
-  private readonly civilCaseOfficerFacades = new Map<
-    string,
-    EntityFacade<CivilCaseOfficerRow, CivilCaseOfficerEnvelope>
-  >();
-  private readonly civilCaseLinkFacades = new Map<
-    string,
-    EntityFacade<CivilCaseLinkRow, CivilCaseLinkEnvelope>
-  >();
+  private readonly civilCaseFacades = new Map<string, RegistryFacade>();
+  private readonly civilCaseOfficerFacades = new Map<string, RegistryFacade>();
+  private readonly civilCaseLinkFacades = new Map<string, RegistryFacade>();
 
   constructor(options: DataContextOptions) {
     this.client = options.client;
@@ -2599,123 +1297,79 @@ export class DataContext {
     return owner;
   }
 
-  agencyPersonnelFromSource(input: SourceRecordContext): AgencyPersonnelFacade {
-    validateSourceRecordContext(input);
-    const key = [
-      input.apiVersion,
-      input.namespace,
+  agencyPersonnelFromSource(input: SourceRecordContext): RegistryFacade {
+    return this.registryFacadeFromSource(
       "AgencyPersonnel",
-      input.name,
-    ].join(":");
-    const existing = this.agencyPersonnelFacades.get(key);
-    if (existing !== undefined) {
-      if (input.spec !== undefined) {
-        existing.merge(input.spec);
-      }
-      return existing;
-    }
-    const facade = new AgencyPersonnelFacade({
-      current: input.current,
-      source: {
-        namespace: input.namespace,
-        sourceFile: input.sourceFile,
-        name: input.name,
-        commandName: input.commandName ?? this.commandName,
-      },
-      backend: this.agencyPersonnelResolverBackend(),
-    });
-    if (input.spec !== undefined) {
-      facade.merge(input.spec);
-    }
-    this.agencyPersonnelFacades.set(key, facade);
-    return facade;
+      this.agencyPersonnelFacades,
+      input,
+    );
   }
 
-  private agencyPersonnelResolverBackend(): LicenseResolverBackend {
-    return {
-      findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
-      existingRow: (id) => this.getById("AgencyPersonnel", id),
-      findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
-    };
-  }
-
-  locationPathFromSource(input: SourceRecordContext): LocationPathFacade {
-    validateSourceRecordContext(input);
-    const key = [
-      input.apiVersion,
-      input.namespace,
+  locationPathFromSource(input: SourceRecordContext): RegistryFacade {
+    return this.registryFacadeFromSource(
       "LocationPath",
-      input.name,
-    ].join(":");
-    const existing = this.locationPathFacades.get(key);
-    if (existing !== undefined) {
-      if (input.spec !== undefined) {
-        existing.merge(input.spec);
-      }
-      return existing;
-    }
-    const facade = new LocationPathFacade({
-      current: input.current,
-      source: {
-        namespace: input.namespace,
-        sourceFile: input.sourceFile,
-        name: input.name,
-        commandName: input.commandName ?? this.commandName,
-      },
-      backend: this.resolverBackend("LocationPath", "location_path_id"),
-    });
-    if (input.spec !== undefined) {
-      facade.merge(input.spec);
-    }
-    this.locationPathFacades.set(key, facade);
-    return facade;
+      this.locationPathFacades,
+      input,
+    );
   }
 
-  locationPathAliasFromSource(
-    input: SourceRecordContext,
-  ): LocationPathAliasFacade {
-    validateSourceRecordContext(input);
-    const key = [
-      input.apiVersion,
-      input.namespace,
+  locationPathAliasFromSource(input: SourceRecordContext): RegistryFacade {
+    return this.registryFacadeFromSource(
       "LocationPathAlias",
-      input.name,
-    ].join(":");
-    const existing = this.locationPathAliasFacades.get(key);
-    if (existing !== undefined) {
-      if (input.spec !== undefined) {
-        existing.merge(input.spec);
-      }
-      return existing;
-    }
-    const facade = new LocationPathAliasFacade({
-      current: input.current,
-      source: {
-        namespace: input.namespace,
-        sourceFile: input.sourceFile,
-        name: input.name,
-        commandName: input.commandName ?? this.commandName,
-      },
-      backend: this.resolverBackend("LocationPathAlias", "alias_path"),
-    });
-    if (input.spec !== undefined) {
-      facade.merge(input.spec);
-    }
-    this.locationPathAliasFacades.set(key, facade);
-    return facade;
+      this.locationPathAliasFacades,
+      input,
+    );
   }
 
-  // Generic backend (ADR 0016/0019): canonical-id find-or-create, lazy current-row
-  // read by identityColumn, same-source FK finds. Richer facades compose their own.
+  // The full backend every registry-built facade reaches through (ADR 0016/0019):
+  // canonical-id find-or-create, lazy current-row read by identityColumn, same-
+  // source FK finds, and location-path resolve-by-path. A kind uses only the
+  // capabilities its resolvers need; the others are inert.
   private resolverBackend(
     kind: string,
     identityColumn?: string,
-  ): LicenseResolverBackend {
+  ): EntityFacadeBackend {
     return {
       findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
       existingRow: (id) => this.getById(kind, id, identityColumn),
       findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
+      getLocationPathByPath: (path) => this.locationPaths.getByPath(path),
     };
+  }
+
+  // The one construction path every registry-owned kind shares (ADR 0016/0019):
+  // memoize by (apiVersion, namespace, kind, name), merging the source spec into
+  // an existing facade or building a new one from the registry. The per-kind
+  // resolution nuance lives entirely in the registry, not here.
+  private registryFacadeFromSource(
+    kind: string,
+    facades: Map<string, RegistryFacade>,
+    input: SourceRecordContext,
+  ): RegistryFacade {
+    validateSourceRecordContext(input);
+    const key = [input.apiVersion, input.namespace, kind, input.name].join(":");
+    const existing = facades.get(key);
+    if (existing !== undefined) {
+      if (input.spec !== undefined) {
+        existing.merge(input.spec);
+      }
+      return existing;
+    }
+    const facade = buildFacadeForKind(kind, {
+      current: input.current,
+      source: {
+        namespace: input.namespace,
+        sourceFile: input.sourceFile,
+        name: input.name,
+        commandName: input.commandName ?? this.commandName,
+      },
+      backend: this.resolverBackend(kind, identityColumnForKind(kind)),
+    }) as RegistryFacade;
+    if (input.spec !== undefined) {
+      facade.merge(input.spec);
+    }
+    facades.set(key, facade);
+    return facade;
   }
 
   // Find a seeded/existing id before minting, so ids stay stable (ADR 0016 #4).
@@ -2734,119 +1388,28 @@ export class DataContext {
     );
   }
 
-  licensingAuthorityFromSource(
-    input: SourceRecordContext,
-  ): LicensingAuthorityFacade {
-    validateSourceRecordContext(input);
-    const key = [
-      input.apiVersion,
-      input.namespace,
+  licensingAuthorityFromSource(input: SourceRecordContext): RegistryFacade {
+    return this.registryFacadeFromSource(
       "LicensingAuthority",
-      input.name,
-    ].join(":");
-    const existing = this.licensingAuthorityFacades.get(key);
-    if (existing !== undefined) {
-      if (input.spec !== undefined) {
-        existing.merge(input.spec);
-      }
-      return existing;
-    }
-    const facade = new LicensingAuthorityFacade({
-      // Current-row loading (create-vs-update against an existing DB row) is
-      // deferred: `licensing_authority` is a new table with no legacy rows
-      // (ADR 0016 #8). The canonical id is still stable via the ledger resolver.
-      current: input.current,
-      source: {
-        namespace: input.namespace,
-        sourceFile: input.sourceFile,
-        name: input.name,
-        commandName: input.commandName ?? this.commandName,
-      },
-      backend: this.licensingAuthorityResolverBackend(),
-    });
-    if (input.spec !== undefined) {
-      facade.merge(input.spec);
-    }
-    this.licensingAuthorityFacades.set(key, facade);
-    return facade;
-  }
-
-  private licensingAuthorityResolverBackend(): LicensingAuthorityResolverBackend {
-    return {
-      getLocationPathByPath: (path) => this.locationPaths.getByPath(path),
-      findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
-      existingRow: (id) =>
-        this.getById("LicensingAuthority", id),
-    };
-  }
-
-  licenseFromSource(input: SourceRecordContext): LicenseFacade {
-    validateSourceRecordContext(input);
-    const key = [input.apiVersion, input.namespace, "License", input.name].join(
-      ":",
+      this.licensingAuthorityFacades,
+      input,
     );
-    const existing = this.licenseFacades.get(key);
-    if (existing !== undefined) {
-      if (input.spec !== undefined) {
-        existing.merge(input.spec);
-      }
-      return existing;
-    }
-    const facade = new LicenseFacade({
-      current: input.current,
-      source: {
-        namespace: input.namespace,
-        sourceFile: input.sourceFile,
-        name: input.name,
-        commandName: input.commandName ?? this.commandName,
-      },
-      backend: this.licenseResolverBackend("License"),
-    });
-    if (input.spec !== undefined) {
-      facade.merge(input.spec);
-    }
-    this.licenseFacades.set(key, facade);
-    return facade;
   }
 
-  licenseActionFromSource(input: SourceRecordContext): LicenseActionFacade {
-    validateSourceRecordContext(input);
-    const key = [
-      input.apiVersion,
-      input.namespace,
+  licenseFromSource(input: SourceRecordContext): RegistryFacade {
+    return this.registryFacadeFromSource(
+      "License",
+      this.licenseFacades,
+      input,
+    );
+  }
+
+  licenseActionFromSource(input: SourceRecordContext): RegistryFacade {
+    return this.registryFacadeFromSource(
       "LicenseAction",
-      input.name,
-    ].join(":");
-    const existing = this.licenseActionFacades.get(key);
-    if (existing !== undefined) {
-      if (input.spec !== undefined) {
-        existing.merge(input.spec);
-      }
-      return existing;
-    }
-    const facade = new LicenseActionFacade({
-      current: input.current,
-      source: {
-        namespace: input.namespace,
-        sourceFile: input.sourceFile,
-        name: input.name,
-        commandName: input.commandName ?? this.commandName,
-      },
-      backend: this.licenseResolverBackend("LicenseAction"),
-    });
-    if (input.spec !== undefined) {
-      facade.merge(input.spec);
-    }
-    this.licenseActionFacades.set(key, facade);
-    return facade;
-  }
-
-  private licenseResolverBackend(kind: string): LicenseResolverBackend {
-    return {
-      findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
-      existingRow: (id) => this.getById(kind, id),
-      findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
-    };
+      this.licenseActionFacades,
+      input,
+    );
   }
 
   /**
@@ -2978,281 +1541,88 @@ export class DataContext {
   }
 
 
-  /**
-   * Like {@link entityFacadeBackend} but for facade-owned entities with no
-   * preload path (civil cases and friends): `existingRow` reads the one row
-   * lazily via {@link rowByColumn}, coalesced into a batched `where id = any($1)`
-   * (ADR 0019), so a re-import updates instead of failing on a duplicate id.
-   */
-  private entityFacadeBackendForKind(kind: string): EntityFacadeBackend {
-    return {
-      findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
-      existingRow: (id) => this.getById(kind, id),
-      findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
-      getLocationPathByPath: (path) => this.locationPaths.getByPath(path),
-    };
-  }
-
-  private entityFacadeSource(input: SourceRecordContext): FacadeSource {
-    return {
-      namespace: input.namespace,
-      sourceFile: input.sourceFile,
-      name: input.name,
-      commandName: input.commandName ?? this.commandName,
-    };
-  }
-
-  disciplineFromSource(
-    input: SourceRecordContext,
-  ): EntityFacade<DisciplineRow, DisciplineEnvelope> {
-    validateSourceRecordContext(input);
-    const key = [
-      input.apiVersion,
-      input.namespace,
+  disciplineFromSource(input: SourceRecordContext): RegistryFacade {
+    return this.registryFacadeFromSource(
       "Discipline",
-      input.name,
-    ].join(":");
-    const existing = this.disciplineFacades.get(key);
-    if (existing !== undefined) {
-      if (input.spec !== undefined) existing.merge(input.spec);
-      return existing;
-    }
-    const facade = createDisciplineFacade({
-      current: input.current,
-      source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackendForKind("Discipline"),
-    });
-    if (input.spec !== undefined) facade.merge(input.spec);
-    this.disciplineFacades.set(key, facade);
-    return facade;
+      this.disciplineFacades,
+      input,
+    );
   }
 
   disciplineAgencyOfficerFromSource(
     input: SourceRecordContext,
-  ): EntityFacade<DisciplineAgencyOfficerRow, DisciplineAgencyOfficerEnvelope> {
-    validateSourceRecordContext(input);
-    const key = [
-      input.apiVersion,
-      input.namespace,
+  ): RegistryFacade {
+    return this.registryFacadeFromSource(
       "DisciplineAgencyOfficer",
-      input.name,
-    ].join(":");
-    const existing = this.disciplineAgencyOfficerFacades.get(key);
-    if (existing !== undefined) {
-      if (input.spec !== undefined) existing.merge(input.spec);
-      return existing;
-    }
-    const facade = createDisciplineAgencyOfficerFacade({
-      current: input.current,
-      source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackendForKind("DisciplineAgencyOfficer"),
-    });
-    if (input.spec !== undefined) facade.merge(input.spec);
-    this.disciplineAgencyOfficerFacades.set(key, facade);
-    return facade;
+      this.disciplineAgencyOfficerFacades,
+      input,
+    );
   }
 
-  coverageLinkFromSource(
-    input: SourceRecordContext,
-  ): EntityFacade<CoverageLinkRow, CoverageLinkEnvelope> {
-    validateSourceRecordContext(input);
-    const key = [
-      input.apiVersion,
-      input.namespace,
+  coverageLinkFromSource(input: SourceRecordContext): RegistryFacade {
+    return this.registryFacadeFromSource(
       "CoverageLink",
-      input.name,
-    ].join(":");
-    const existing = this.coverageLinkFacades.get(key);
-    if (existing !== undefined) {
-      if (input.spec !== undefined) existing.merge(input.spec);
-      return existing;
-    }
-    const facade = createCoverageLinkFacade({
-      current: input.current,
-      source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackendForKind("CoverageLink"),
-    });
-    if (input.spec !== undefined) facade.merge(input.spec);
-    this.coverageLinkFacades.set(key, facade);
-    return facade;
+      this.coverageLinkFacades,
+      input,
+    );
   }
 
   coverageLinkAgencyOfficerFromSource(
     input: SourceRecordContext,
-  ): EntityFacade<
-    CoverageLinkAgencyOfficerRow,
-    CoverageLinkAgencyOfficerEnvelope
-  > {
-    validateSourceRecordContext(input);
-    const key = [
-      input.apiVersion,
-      input.namespace,
+  ): RegistryFacade {
+    return this.registryFacadeFromSource(
       "CoverageLinkAgencyOfficer",
-      input.name,
-    ].join(":");
-    const existing = this.coverageLinkAgencyOfficerFacades.get(key);
-    if (existing !== undefined) {
-      if (input.spec !== undefined) existing.merge(input.spec);
-      return existing;
-    }
-    const facade = createCoverageLinkAgencyOfficerFacade({
-      current: input.current,
-      source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackendForKind("CoverageLinkAgencyOfficer"),
-    });
-    if (input.spec !== undefined) facade.merge(input.spec);
-    this.coverageLinkAgencyOfficerFacades.set(key, facade);
-    return facade;
+      this.coverageLinkAgencyOfficerFacades,
+      input,
+    );
   }
 
-  agencyPhoneNumberFromSource(
-    input: SourceRecordContext,
-  ): EntityFacade<AgencyPhoneNumberRow, AgencyPhoneNumberEnvelope> {
-    validateSourceRecordContext(input);
-    const key = [
-      input.apiVersion,
-      input.namespace,
+  agencyPhoneNumberFromSource(input: SourceRecordContext): RegistryFacade {
+    return this.registryFacadeFromSource(
       "AgencyPhoneNumber",
-      input.name,
-    ].join(":");
-    const existing = this.agencyPhoneNumberFacades.get(key);
-    if (existing !== undefined) {
-      if (input.spec !== undefined) existing.merge(input.spec);
-      return existing;
-    }
-    const facade = createAgencyPhoneNumberFacade({
-      current: input.current,
-      source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackendForKind("AgencyPhoneNumber"),
-    });
-    if (input.spec !== undefined) facade.merge(input.spec);
-    this.agencyPhoneNumberFacades.set(key, facade);
-    return facade;
+      this.agencyPhoneNumberFacades,
+      input,
+    );
   }
 
-  federalAgencyFromSource(
-    input: SourceRecordContext,
-  ): EntityFacade<FederalAgencyRow, FederalAgencyEnvelope> {
-    validateSourceRecordContext(input);
-    const key = [
-      input.apiVersion,
-      input.namespace,
+  federalAgencyFromSource(input: SourceRecordContext): RegistryFacade {
+    return this.registryFacadeFromSource(
       "FederalAgency",
-      input.name,
-    ].join(":");
-    const existing = this.federalAgencyFacades.get(key);
-    if (existing !== undefined) {
-      if (input.spec !== undefined) existing.merge(input.spec);
-      return existing;
-    }
-    const facade = createFederalAgencyFacade({
-      current: input.current,
-      source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackendForKind("FederalAgency"),
-    });
-    if (input.spec !== undefined) facade.merge(input.spec);
-    this.federalAgencyFacades.set(key, facade);
-    return facade;
+      this.federalAgencyFacades,
+      input,
+    );
   }
 
-  federalAgencyBranchFromSource(
-    input: SourceRecordContext,
-  ): EntityFacade<FederalAgencyBranchRow, FederalAgencyBranchEnvelope> {
-    validateSourceRecordContext(input);
-    const key = [
-      input.apiVersion,
-      input.namespace,
+  federalAgencyBranchFromSource(input: SourceRecordContext): RegistryFacade {
+    return this.registryFacadeFromSource(
       "FederalAgencyBranch",
-      input.name,
-    ].join(":");
-    const existing = this.federalAgencyBranchFacades.get(key);
-    if (existing !== undefined) {
-      if (input.spec !== undefined) existing.merge(input.spec);
-      return existing;
-    }
-    const facade = createFederalAgencyBranchFacade({
-      current: input.current,
-      source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackendForKind("FederalAgencyBranch"),
-    });
-    if (input.spec !== undefined) facade.merge(input.spec);
-    this.federalAgencyBranchFacades.set(key, facade);
-    return facade;
+      this.federalAgencyBranchFacades,
+      input,
+    );
   }
 
-  civilCaseFromSource(
-    input: SourceRecordContext,
-  ): EntityFacade<CivilCaseRow, CivilCaseEnvelope> {
-    validateSourceRecordContext(input);
-    const key = [
-      input.apiVersion,
-      input.namespace,
+  civilCaseFromSource(input: SourceRecordContext): RegistryFacade {
+    return this.registryFacadeFromSource(
       "CivilCase",
-      input.name,
-    ].join(":");
-    const existing = this.civilCaseFacades.get(key);
-    if (existing !== undefined) {
-      if (input.spec !== undefined) existing.merge(input.spec);
-      return existing;
-    }
-    const facade = createCivilCaseFacade({
-      current: input.current,
-      source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackendForKind("CivilCase"),
-    });
-    if (input.spec !== undefined) facade.merge(input.spec);
-    this.civilCaseFacades.set(key, facade);
-    return facade;
+      this.civilCaseFacades,
+      input,
+    );
   }
 
-  civilCaseOfficerFromSource(
-    input: SourceRecordContext,
-  ): EntityFacade<CivilCaseOfficerRow, CivilCaseOfficerEnvelope> {
-    validateSourceRecordContext(input);
-    const key = [
-      input.apiVersion,
-      input.namespace,
+  civilCaseOfficerFromSource(input: SourceRecordContext): RegistryFacade {
+    return this.registryFacadeFromSource(
       "CivilCaseOfficer",
-      input.name,
-    ].join(":");
-    const existing = this.civilCaseOfficerFacades.get(key);
-    if (existing !== undefined) {
-      if (input.spec !== undefined) existing.merge(input.spec);
-      return existing;
-    }
-    const facade = createCivilCaseOfficerFacade({
-      current: input.current,
-      source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackendForKind("CivilCaseOfficer"),
-    });
-    if (input.spec !== undefined) facade.merge(input.spec);
-    this.civilCaseOfficerFacades.set(key, facade);
-    return facade;
+      this.civilCaseOfficerFacades,
+      input,
+    );
   }
 
-  civilCaseLinkFromSource(
-    input: SourceRecordContext,
-  ): EntityFacade<CivilCaseLinkRow, CivilCaseLinkEnvelope> {
-    validateSourceRecordContext(input);
-    const key = [
-      input.apiVersion,
-      input.namespace,
+  civilCaseLinkFromSource(input: SourceRecordContext): RegistryFacade {
+    return this.registryFacadeFromSource(
       "CivilCaseLink",
-      input.name,
-    ].join(":");
-    const existing = this.civilCaseLinkFacades.get(key);
-    if (existing !== undefined) {
-      if (input.spec !== undefined) existing.merge(input.spec);
-      return existing;
-    }
-    const facade = createCivilCaseLinkFacade({
-      current: input.current,
-      source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackendForKind("CivilCaseLink"),
-    });
-    if (input.spec !== undefined) facade.merge(input.spec);
-    this.civilCaseLinkFacades.set(key, facade);
-    return facade;
+      this.civilCaseLinkFacades,
+      input,
+    );
   }
 
   /**
@@ -3272,77 +1642,42 @@ export class DataContext {
       input.kind,
       input.sourceId,
     ].join(":");
-    if (input.kind === "LocationPath") {
-      // A LocationPath's identity column is `location_path_id`, not `id`, so
-      // bridge the FK's `value("id")` to the facade's identity column.
-      const facade = this.locationPathFacades.get(key);
-      return facade === undefined
-        ? undefined
-        : { value: () => facade.value("location_path_id") };
-    }
+    // Agency/Personnel keep bespoke facades whose `value("id")` is already
+    // typed as the id; return them directly.
     if (input.kind === "Agency") {
-      // Await the Agency facade's own id resolver (find-or-create).
       return this.agencyFacades.get(key);
     }
     if (input.kind === "Personnel") {
-      // Await the Personnel facade's own id resolver (find-or-create), so the
-      // referrer resolves against the same canonical id the facade emits.
       return this.personnelFacades.get(key);
     }
-    if (input.kind === "LicensingAuthority") {
-      return this.licensingAuthorityFacades.get(key);
+    // Registry facades resolve toward an erased row, so bridge `value("id")` to
+    // the target's identity column (LocationPath keys on `location_path_id`).
+    const registryFacadeByKind: Record<
+      string,
+      Map<string, RegistryFacade> | undefined
+    > = {
+      LocationPath: this.locationPathFacades,
+      LicensingAuthority: this.licensingAuthorityFacades,
+      License: this.licenseFacades,
+      AgencyPersonnel: this.agencyPersonnelFacades,
+      Discipline: this.disciplineFacades,
+      CoverageLink: this.coverageLinkFacades,
+      FederalAgency: this.federalAgencyFacades,
+      CivilCase: this.civilCaseFacades,
+    };
+    const facades = registryFacadeByKind[input.kind];
+    if (facades === undefined) {
+      return undefined;
     }
-    if (input.kind === "License") {
-      return this.licenseFacades.get(key);
+    const facade = facades.get(key);
+    if (facade === undefined) {
+      return undefined;
     }
-    if (input.kind === "AgencyPersonnel") {
-      return this.agencyPersonnelFacades.get(key);
-    }
-    if (input.kind === "Discipline") {
-      return this.disciplineFacades.get(key);
-    }
-    if (input.kind === "CoverageLink") {
-      return this.coverageLinkFacades.get(key);
-    }
-    if (input.kind === "FederalAgency") {
-      return this.federalAgencyFacades.get(key);
-    }
-    if (input.kind === "CivilCase") {
-      return this.civilCaseFacades.get(key);
-    }
-    return undefined;
+    const identityColumn = identityColumnForKind(input.kind);
+    return { value: () => facade.value(identityColumn) as Promise<string> };
   }
 
-  async toMutations(): Promise<
-    (
-      | LocationPathCreateEnvelope
-      | LocationPathReadEnvelope
-      | LocationPathAliasCreateEnvelope
-      | LocationPathAliasReadEnvelope
-      | AgencyCreateEnvelope
-      | AgencyUpdateEnvelope
-      | PersonnelCreateEnvelope
-      | PersonnelUpdateEnvelope
-      | AgencyPersonnelCreateEnvelope
-      | AgencyPersonnelUpdateEnvelope
-      | LicensingAuthorityCreateEnvelope
-      | LicensingAuthorityUpdateEnvelope
-      | LicenseCreateEnvelope
-      | LicenseUpdateEnvelope
-      | LicenseActionCreateEnvelope
-      | LicenseActionUpdateEnvelope
-      | DisciplineEnvelope
-      | DisciplineAgencyOfficerEnvelope
-      | CoverageLinkEnvelope
-      | CoverageLinkAgencyOfficerEnvelope
-      | AgencyPhoneNumberEnvelope
-      | FederalAgencyEnvelope
-      | FederalAgencyBranchEnvelope
-      | CivilCaseEnvelope
-      | CivilCaseOfficerEnvelope
-      | CivilCaseLinkEnvelope
-    )[]
-  > {
+  async toMutations(): Promise<DatabaseMutationEnvelope[]> {
     // Drain in FK-dependency order (ADR 0016 #4/#9): paths before aliases — a
     // path's parent self-FK and an alias's target both find an already-drained path.
     const locationPaths = await Promise.all(

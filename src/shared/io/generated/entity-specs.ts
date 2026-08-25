@@ -170,7 +170,7 @@ export const LocationPathAliasSpec = z
   })
   .strict();
 
-export const LocationPathAliasCreateSpec = LocationPathAliasSpec;
+export const LocationPathAliasCreateSpec = LocationPathAliasSpec.omit({ selectedYear: true });
 
 export const AgencySpec = z
   .object({

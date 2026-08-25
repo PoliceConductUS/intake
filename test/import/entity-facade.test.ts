@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createDisciplineFacade } from "../../src/cli/import/artifacts/facades/discipline.js";
-import { createDisciplineAgencyOfficerFacade } from "../../src/cli/import/artifacts/facades/discipline-agency-officer.js";
+import { buildFacadeForKind } from "../../src/cli/import/artifacts/facades/resolver-registry.js";
 import type { EntityFacadeBackend } from "../../src/cli/import/artifacts/facades/entity-facade.js";
 
 // A backend whose canonical id is derived from the source id so assertions are
@@ -27,7 +26,7 @@ const source = { namespace: "mn-post", name: "0031|PB24-1-01" };
 
 describe("EntityFacade via the discipline facades", () => {
   it("emits a create envelope with resolved id and passthrough columns", async () => {
-    const facade = createDisciplineFacade({ source, ...backend() });
+    const facade = buildFacadeForKind("Discipline", { source, ...backend() });
     facade.merge({
       action: "SACO",
       effective_date: "2024-03-01",
@@ -35,7 +34,10 @@ describe("EntityFacade via the discipline facades", () => {
       case_number: "PB24-1-01",
     });
 
-    const mutation = await facade.toMutation();
+    const mutation = (await facade.toMutation()) as {
+      kind: string;
+      spec: Record<string, unknown>;
+    };
     expect(mutation.kind).toBe("DisciplineCreate");
     expect(mutation.spec).toMatchObject({
       id: "canon:0031|PB24-1-01",
@@ -47,7 +49,7 @@ describe("EntityFacade via the discipline facades", () => {
   });
 
   it("emits an update with check/set operations against the current row", async () => {
-    const facade = createDisciplineFacade({
+    const facade = buildFacadeForKind("Discipline", {
       source: { ...source, commandName: "cmd-1" },
       ...backend({
         "canon:0031|PB24-1-01": {
@@ -65,7 +67,10 @@ describe("EntityFacade via the discipline facades", () => {
       case_number: "PB24-1-01",
     });
 
-    const mutation = await facade.toMutation();
+    const mutation = (await facade.toMutation()) as {
+      kind: string;
+      spec: Record<string, unknown>;
+    };
     expect(mutation.kind).toBe("DisciplineUpdate");
     const ops = (
       mutation.spec as { operations: { action: string; path: string }[] }
@@ -78,7 +83,7 @@ describe("EntityFacade via the discipline facades", () => {
   });
 
   it("resolves foreign keys through the backend target", async () => {
-    const facade = createDisciplineAgencyOfficerFacade({
+    const facade = buildFacadeForKind("DisciplineAgencyOfficer", {
       source,
       ...backend(),
     });
@@ -87,7 +92,10 @@ describe("EntityFacade via the discipline facades", () => {
       agency_officer_id: "0031|a2jALPHA",
     });
 
-    const mutation = await facade.toMutation();
+    const mutation = (await facade.toMutation()) as {
+      kind: string;
+      spec: Record<string, unknown>;
+    };
     expect(mutation.spec).toMatchObject({
       discipline_id: "fk:Discipline:0031|PB24-1-01",
       agency_officer_id: "fk:AgencyPersonnel:0031|a2jALPHA",
