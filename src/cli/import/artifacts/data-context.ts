@@ -2833,37 +2833,17 @@ export class DataContext {
     };
   }
 
-  mergeAgencyArtifacts(artifacts: ArtifactsEnvelope): void {
-    const preparedAgencyBySourceName = new Map(
-      this.importRows.agencies.map((agency) => [
-        agency.sourceName ?? agency.id,
-        agency,
-      ]),
-    );
-
+  addAgencyRecords(artifacts: ArtifactsEnvelope): void {
     for (const artifact of artifacts.spec.artifacts.filter(
       (item) => item.kind === "Agencies",
     )) {
       for (const [recordName, record] of Object.entries(
         artifact.spec.records,
       )) {
-        const sourceName = sourceNameForImportRecord(recordName, record);
-        const agency = preparedAgencyBySourceName.get(sourceName);
-        if (agency === undefined) {
-          // The agency was skipped upstream (unresolvable coordinates or
-          // location_path) and already reported via a per-agency warning, so
-          // there is no prepared row to merge into the DatabaseMutations
-          // envelope. Skip it rather than failing the whole import.
-          continue;
-        }
-
-        // Feed the raw source record only — the facade resolves slug /
-        // location_path / coordinates itself (source > cache > geocode) and holds
-        // them in its memo. No pre-resolved values are merged in.
         this.fromSource({
           apiVersion: INTAKE_API_VERSION,
           namespace: artifacts.metadata.namespace,
-          name: sourceName,
+          name: sourceNameForImportRecord(recordName, record),
           spec: valueAsRecord(record),
         });
       }

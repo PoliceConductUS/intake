@@ -1306,7 +1306,7 @@ async function writeDatabaseMutationsStage(
 
     await persistResolvedSlugs(context);
 
-    dataContext.mergeAgencyArtifacts(artifacts);
+    dataContext.addAgencyRecords(artifacts);
     // Register in FK-dependency order so each same-source find targets an
     // already-registered facade (ADR 0016 #4/#9): paths before aliases, all
     // before licenses/actions, agencyPersonnel last.
