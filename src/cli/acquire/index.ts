@@ -25,6 +25,7 @@ import {
   readCommandPointer,
   writeCommandPointer,
 } from "../state/command-pointer.js";
+import { acquireFromLocal } from "./acquire-from-local.js";
 
 type AcquireSourceDeps = {
   sourcesRoot: string;
@@ -121,78 +122,111 @@ export const registerCliCommand: RegisterCliCommand = (
       "glob matching source folder name(s) under sources/ — quote it, e.g. 'mn-post'; defaults to all sources",
       "*",
     )
+    .option(
+      "--from-local <path...>",
+      "acquire a single source from local file(s), folder(s), or glob(s) instead " +
+        "of running its acquire module — copies them into the source's command " +
+        "output so `intake run` consumes them like any acquired input",
+    )
     .addHelpText(
       "after",
       "\nRun `intake sources` to list which sources support acquire.",
     )
-    .action(async (glob: string): Promise<void> => {
-      const env = process.env;
-      const sourcesRoot = path.join(process.cwd(), "sources");
-      try {
-        const workspace = intakeWorkspace(env);
-        const sourceIds = await matchSourceIds(sourcesRoot, glob);
-        if (sourceIds.length === 0) {
-          dependencies.setResult({
-            exitCode: 1,
-            stderr: `No source folder under sources/ matches "${glob}".\n`,
-          });
-          return;
-        }
-
-        const logger = {
-          info: (message: string) => process.stderr.write(`${message}\n`),
-        };
-        const databaseUrl = env.DATABASE_URL;
-        const client =
-          databaseUrl !== undefined && databaseUrl.trim().length > 0
-            ? defaultDatabaseClientFactory(databaseUrl)
-            : undefined;
-        if (client !== undefined) await client.connect();
-        const ledger = createSourceNameToCanonicalIdLedger({
-          rootDir: workspace,
-        });
-        const noDatabase: AcquireDataContext = {
-          agencies: () => {
-            throw new Error(
-              "DATABASE_URL is required for acquire data access (agencies).",
-            );
-          },
-        };
+    .action(
+      async (
+        glob: string,
+        options: { fromLocal?: string[] },
+      ): Promise<void> => {
+        const env = process.env;
+        const sourcesRoot = path.join(process.cwd(), "sources");
         try {
-          for (const sourceId of sourceIds) {
-            // The data context is bound to the calling source's namespace so the
-            // agency source ids it hands back are that namespace's own (ADR 0023).
-            const data: AcquireDataContext =
-              client !== undefined
-                ? createAcquireDataContext(client, ledger, sourceId)
-                : noDatabase;
-            const result = await acquireSource(sourceId, {
-              sourcesRoot,
-              env,
-              workspace,
-              state: await sourceStateDir(env, sourceId),
-              loadSourceAcquire,
-              createCommandDirectory,
-              data,
-              logger,
+          const workspace = intakeWorkspace(env);
+          const sourceIds = await matchSourceIds(sourcesRoot, glob);
+          if (sourceIds.length === 0) {
+            dependencies.setResult({
+              exitCode: 1,
+              stderr: `No source folder under sources/ matches "${glob}".\n`,
             });
-            if (result.exitCode !== 0) {
+            return;
+          }
+
+          const logger = {
+            info: (message: string) => process.stderr.write(`${message}\n`),
+          };
+
+          if (options.fromLocal !== undefined) {
+            if (sourceIds.length !== 1) {
               dependencies.setResult({
-                exitCode: result.exitCode,
-                stderr: `${result.stderr ?? ""}intake acquire failed on source ${sourceId}\n`,
+                exitCode: 1,
+                stderr: `--from-local stages one source; "${glob}" matched ${sourceIds.length} (${sourceIds.join(", ")}).\n`,
               });
               return;
             }
+            const sourceId = sourceIds[0];
+            await acquireFromLocal(sourceId, options.fromLocal, {
+              env,
+              workspace,
+              state: await sourceStateDir(env, sourceId),
+              cwd: process.cwd(),
+              createCommandDirectory,
+              writeCommandPointer,
+              logger,
+            });
+            dependencies.setResult({ exitCode: 0 });
+            return;
           }
-          dependencies.setResult({ exitCode: 0 });
-        } finally {
-          if (client !== undefined) await client.end();
+          const databaseUrl = env.DATABASE_URL;
+          const client =
+            databaseUrl !== undefined && databaseUrl.trim().length > 0
+              ? defaultDatabaseClientFactory(databaseUrl)
+              : undefined;
+          if (client !== undefined) await client.connect();
+          const ledger = createSourceNameToCanonicalIdLedger({
+            rootDir: workspace,
+          });
+          const noDatabase: AcquireDataContext = {
+            agencies: () => {
+              throw new Error(
+                "DATABASE_URL is required for acquire data access (agencies).",
+              );
+            },
+          };
+          try {
+            for (const sourceId of sourceIds) {
+              // The data context is bound to the calling source's namespace so the
+              // agency source ids it hands back are that namespace's own (ADR 0023).
+              const data: AcquireDataContext =
+                client !== undefined
+                  ? createAcquireDataContext(client, ledger, sourceId)
+                  : noDatabase;
+              const result = await acquireSource(sourceId, {
+                sourcesRoot,
+                env,
+                workspace,
+                state: await sourceStateDir(env, sourceId),
+                loadSourceAcquire,
+                createCommandDirectory,
+                data,
+                logger,
+              });
+              if (result.exitCode !== 0) {
+                dependencies.setResult({
+                  exitCode: result.exitCode,
+                  stderr: `${result.stderr ?? ""}intake acquire failed on source ${sourceId}\n`,
+                });
+                return;
+              }
+            }
+            dependencies.setResult({ exitCode: 0 });
+          } finally {
+            if (client !== undefined) await client.end();
+          }
+        } catch (error) {
+          dependencies.setResult({
+            exitCode: 1,
+            stderr: `${errorMessage(error)}\n`,
+          });
         }
-      } catch (error) {
-        dependencies.setResult({
-          exitCode: 1,
-          stderr: `${errorMessage(error)}\n`,
-        });
-      }
-    });
+      },
+    );
 };
