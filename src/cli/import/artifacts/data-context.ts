@@ -45,9 +45,7 @@ import {
 } from "../../database/location-paths.js";
 import { readDatabaseRecordsByColumn } from "../../database/entities.js";
 import type { SupportedTableName } from "../../database/schema.js";
-
-/** Tables whose slug uniqueness the DataContext enforces (generate-unique). */
-type SlugKind = "Personnel" | "Agency";
+import { SlugAllocator } from "./slug.js";
 import type { ResolvedPropertyCacheInput } from "../../state/resolved-property/index.js";
 
 /**
@@ -404,16 +402,7 @@ export class DataContext {
   private readonly resolvedPropertyStore?: ResolvedPropertyStore;
   private readonly commandName?: string;
   private readonly ledger?: SourceNameToCanonicalIdLedger;
-  /** per-table current-command slug → owning canonical id (uniqueness level 1). */
-  private readonly slugClaimsByKind = new Map<
-    SlugKind,
-    Map<string, string>
-  >();
-  /** per-table memoized DB slug → owning id (null = unused), queried once. */
-  private readonly slugDatabaseOwnerByKind = new Map<
-    SlugKind,
-    Map<string, string | null>
-  >();
+  private readonly slugs: SlugAllocator;
   private readonly agencyFacades = new Map<string, RegistryFacade>();
   private readonly personnelFacades = new Map<string, RegistryFacade>();
   private readonly agencyPersonnelFacades = new Map<string, RegistryFacade>();
@@ -452,6 +441,10 @@ export class DataContext {
     this.resolvedPropertyStore = options.resolvedPropertyStore;
     this.commandName = options.commandName;
     this.ledger = options.ledger;
+    this.slugs = new SlugAllocator(async (kind, slug) => {
+      const row = await this.getById(kind, slug, "slug");
+      return row === undefined ? undefined : valueAsString(row.id);
+    });
     this.locations = new LocationDataContext(this);
     this.locationPaths = new LocationPathDataContext(this);
   }
@@ -511,79 +504,6 @@ export class DataContext {
     );
   }
 
-  private slugClaimsFor(kind: SlugKind): Map<string, string> {
-    let claims = this.slugClaimsByKind.get(kind);
-    if (claims === undefined) {
-      claims = new Map();
-      this.slugClaimsByKind.set(kind, claims);
-    }
-    return claims;
-  }
-
-  private slugDatabaseOwnerFor(
-    kind: SlugKind,
-  ): Map<string, string | null> {
-    let owners = this.slugDatabaseOwnerByKind.get(kind);
-    if (owners === undefined) {
-      owners = new Map();
-      this.slugDatabaseOwnerByKind.set(kind, owners);
-    }
-    return owners;
-  }
-
-  /** Register a resolved slug so a later generated slug disambiguates from it. */
-  private registerSlug(
-    kind: SlugKind,
-    slug: string,
-    canonicalId: string,
-  ): void {
-    this.slugClaimsFor(kind).set(slug, canonicalId);
-  }
-
-  /**
-   * Generate a slug unique across the three resolution levels for `table`: the
-   * current command (in-memory claims), intake-owned state, and the database —
-   * appending a numeric suffix until free, then registering the claim. Because a
-   * durably-resolved slug is persisted to the database on import, the database
-   * read is the durable authority for the state level.
-   */
-  private async ensureUniqueSlug(
-    kind: SlugKind,
-    input: { base: string; canonicalId: string },
-  ): Promise<string> {
-    const claims = this.slugClaimsFor(kind);
-    for (let attempt = 1; ; attempt += 1) {
-      const candidate = attempt === 1 ? input.base : `${input.base}-${attempt}`;
-      const claimant = claims.get(candidate);
-      if (claimant !== undefined) {
-        if (claimant === input.canonicalId) {
-          return candidate;
-        }
-        continue;
-      }
-      const databaseOwner = await this.slugDatabaseOwnerId(kind, candidate);
-      if (databaseOwner !== undefined && databaseOwner !== input.canonicalId) {
-        continue;
-      }
-      claims.set(candidate, input.canonicalId);
-      return candidate;
-    }
-  }
-
-  private async slugDatabaseOwnerId(
-    kind: SlugKind,
-    slug: string,
-  ): Promise<string | undefined> {
-    const owners = this.slugDatabaseOwnerFor(kind);
-    const cached = owners.get(slug);
-    if (cached !== undefined) {
-      return cached ?? undefined;
-    }
-    const row = await this.getById(kind, slug, "slug");
-    const owner = row === undefined ? undefined : valueAsString(row.id);
-    owners.set(slug, owner ?? null);
-    return owner;
-  }
 
   agencyPersonnelFromSource(input: SourceRecordContext): RegistryFacade {
     return this.registryFacadeFromSource(
@@ -624,12 +544,12 @@ export class DataContext {
       findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
       getLocationPathByPath: (path) => this.locationPaths.getByPath(path),
       ensureUniqueSlug: (input) =>
-        this.ensureUniqueSlug(input.kind as SlugKind, {
+        this.slugs.ensureUnique(input.kind, {
           base: input.base,
           canonicalId: input.canonicalId,
         }),
       registerSlug: (input) =>
-        this.registerSlug(input.kind as SlugKind, input.slug, input.canonicalId),
+        this.slugs.register(input.kind, input.slug, input.canonicalId),
       resolveAgencyLocation: (input) => this.locations.resolveAddress(input),
     };
   }
