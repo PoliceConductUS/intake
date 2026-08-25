@@ -22,13 +22,10 @@ export const IMPORT_ARTIFACT_KINDS = [
 
 export type ImportArtifactKind = (typeof IMPORT_ARTIFACT_KINDS)[number];
 
-export const IMPORT_OPERATIONS = [
-  "create",
-  "read",
-  "update",
-  "delete",
-  "list",
-] as const;
+// The import emits only these three: Create for new rows, Update for a diffed
+// existing row, Read for an idempotent natural-key row that already exists.
+// Delete/List were generated but never produced or consumed.
+export const IMPORT_OPERATIONS = ["create", "read", "update"] as const;
 
 export type ImportOperation = (typeof IMPORT_OPERATIONS)[number];
 
@@ -36,8 +33,6 @@ export const IMPORT_OPERATION_SUFFIXES = {
   create: "Create",
   read: "Read",
   update: "Update",
-  delete: "Delete",
-  list: "List",
 } satisfies Record<ImportOperation, string>;
 
 export type ImportEntityName =

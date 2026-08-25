@@ -3,193 +3,117 @@
 import { LocationPathCreate } from "./LocationPathCreate.js";
 import { LocationPathRead } from "./LocationPathRead.js";
 import { LocationPathUpdate } from "./LocationPathUpdate.js";
-import { LocationPathDelete } from "./LocationPathDelete.js";
-import { LocationPathList } from "./LocationPathList.js";
 import { LocationPathGeometryCreate } from "./LocationPathGeometryCreate.js";
 import { LocationPathGeometryRead } from "./LocationPathGeometryRead.js";
 import { LocationPathGeometryUpdate } from "./LocationPathGeometryUpdate.js";
-import { LocationPathGeometryDelete } from "./LocationPathGeometryDelete.js";
-import { LocationPathGeometryList } from "./LocationPathGeometryList.js";
 import { LocationPathAliasCreate } from "./LocationPathAliasCreate.js";
 import { LocationPathAliasRead } from "./LocationPathAliasRead.js";
 import { LocationPathAliasUpdate } from "./LocationPathAliasUpdate.js";
-import { LocationPathAliasDelete } from "./LocationPathAliasDelete.js";
-import { LocationPathAliasList } from "./LocationPathAliasList.js";
 import { AgencyCreate } from "./AgencyCreate.js";
 import { AgencyRead } from "./AgencyRead.js";
 import { AgencyUpdate } from "./AgencyUpdate.js";
-import { AgencyDelete } from "./AgencyDelete.js";
-import { AgencyList } from "./AgencyList.js";
 import { PersonnelCreate } from "./PersonnelCreate.js";
 import { PersonnelRead } from "./PersonnelRead.js";
 import { PersonnelUpdate } from "./PersonnelUpdate.js";
-import { PersonnelDelete } from "./PersonnelDelete.js";
-import { PersonnelList } from "./PersonnelList.js";
 import { AgencyPersonnelCreate } from "./AgencyPersonnelCreate.js";
 import { AgencyPersonnelRead } from "./AgencyPersonnelRead.js";
 import { AgencyPersonnelUpdate } from "./AgencyPersonnelUpdate.js";
-import { AgencyPersonnelDelete } from "./AgencyPersonnelDelete.js";
-import { AgencyPersonnelList } from "./AgencyPersonnelList.js";
 import { LicensingAuthorityCreate } from "./LicensingAuthorityCreate.js";
 import { LicensingAuthorityRead } from "./LicensingAuthorityRead.js";
 import { LicensingAuthorityUpdate } from "./LicensingAuthorityUpdate.js";
-import { LicensingAuthorityDelete } from "./LicensingAuthorityDelete.js";
-import { LicensingAuthorityList } from "./LicensingAuthorityList.js";
 import { LicenseCreate } from "./LicenseCreate.js";
 import { LicenseRead } from "./LicenseRead.js";
 import { LicenseUpdate } from "./LicenseUpdate.js";
-import { LicenseDelete } from "./LicenseDelete.js";
-import { LicenseList } from "./LicenseList.js";
 import { LicenseActionCreate } from "./LicenseActionCreate.js";
 import { LicenseActionRead } from "./LicenseActionRead.js";
 import { LicenseActionUpdate } from "./LicenseActionUpdate.js";
-import { LicenseActionDelete } from "./LicenseActionDelete.js";
-import { LicenseActionList } from "./LicenseActionList.js";
 import { DisciplineCreate } from "./DisciplineCreate.js";
 import { DisciplineRead } from "./DisciplineRead.js";
 import { DisciplineUpdate } from "./DisciplineUpdate.js";
-import { DisciplineDelete } from "./DisciplineDelete.js";
-import { DisciplineList } from "./DisciplineList.js";
 import { DisciplineAgencyOfficerCreate } from "./DisciplineAgencyOfficerCreate.js";
 import { DisciplineAgencyOfficerRead } from "./DisciplineAgencyOfficerRead.js";
 import { DisciplineAgencyOfficerUpdate } from "./DisciplineAgencyOfficerUpdate.js";
-import { DisciplineAgencyOfficerDelete } from "./DisciplineAgencyOfficerDelete.js";
-import { DisciplineAgencyOfficerList } from "./DisciplineAgencyOfficerList.js";
 import { CoverageLinkCreate } from "./CoverageLinkCreate.js";
 import { CoverageLinkRead } from "./CoverageLinkRead.js";
 import { CoverageLinkUpdate } from "./CoverageLinkUpdate.js";
-import { CoverageLinkDelete } from "./CoverageLinkDelete.js";
-import { CoverageLinkList } from "./CoverageLinkList.js";
 import { CoverageLinkAgencyOfficerCreate } from "./CoverageLinkAgencyOfficerCreate.js";
 import { CoverageLinkAgencyOfficerRead } from "./CoverageLinkAgencyOfficerRead.js";
 import { CoverageLinkAgencyOfficerUpdate } from "./CoverageLinkAgencyOfficerUpdate.js";
-import { CoverageLinkAgencyOfficerDelete } from "./CoverageLinkAgencyOfficerDelete.js";
-import { CoverageLinkAgencyOfficerList } from "./CoverageLinkAgencyOfficerList.js";
 import { AgencyPhoneNumberCreate } from "./AgencyPhoneNumberCreate.js";
 import { AgencyPhoneNumberRead } from "./AgencyPhoneNumberRead.js";
 import { AgencyPhoneNumberUpdate } from "./AgencyPhoneNumberUpdate.js";
-import { AgencyPhoneNumberDelete } from "./AgencyPhoneNumberDelete.js";
-import { AgencyPhoneNumberList } from "./AgencyPhoneNumberList.js";
 import { FederalAgencyCreate } from "./FederalAgencyCreate.js";
 import { FederalAgencyRead } from "./FederalAgencyRead.js";
 import { FederalAgencyUpdate } from "./FederalAgencyUpdate.js";
-import { FederalAgencyDelete } from "./FederalAgencyDelete.js";
-import { FederalAgencyList } from "./FederalAgencyList.js";
 import { FederalAgencyBranchCreate } from "./FederalAgencyBranchCreate.js";
 import { FederalAgencyBranchRead } from "./FederalAgencyBranchRead.js";
 import { FederalAgencyBranchUpdate } from "./FederalAgencyBranchUpdate.js";
-import { FederalAgencyBranchDelete } from "./FederalAgencyBranchDelete.js";
-import { FederalAgencyBranchList } from "./FederalAgencyBranchList.js";
 import { CivilCaseCreate } from "./CivilCaseCreate.js";
 import { CivilCaseRead } from "./CivilCaseRead.js";
 import { CivilCaseUpdate } from "./CivilCaseUpdate.js";
-import { CivilCaseDelete } from "./CivilCaseDelete.js";
-import { CivilCaseList } from "./CivilCaseList.js";
 import { CivilCaseOfficerCreate } from "./CivilCaseOfficerCreate.js";
 import { CivilCaseOfficerRead } from "./CivilCaseOfficerRead.js";
 import { CivilCaseOfficerUpdate } from "./CivilCaseOfficerUpdate.js";
-import { CivilCaseOfficerDelete } from "./CivilCaseOfficerDelete.js";
-import { CivilCaseOfficerList } from "./CivilCaseOfficerList.js";
 import { CivilCaseLinkCreate } from "./CivilCaseLinkCreate.js";
 import { CivilCaseLinkRead } from "./CivilCaseLinkRead.js";
 import { CivilCaseLinkUpdate } from "./CivilCaseLinkUpdate.js";
-import { CivilCaseLinkDelete } from "./CivilCaseLinkDelete.js";
-import { CivilCaseLinkList } from "./CivilCaseLinkList.js";
 
 export const importMutationEnvelopeTypes = {
   LocationPathCreate,
   LocationPathRead,
   LocationPathUpdate,
-  LocationPathDelete,
-  LocationPathList,
   LocationPathGeometryCreate,
   LocationPathGeometryRead,
   LocationPathGeometryUpdate,
-  LocationPathGeometryDelete,
-  LocationPathGeometryList,
   LocationPathAliasCreate,
   LocationPathAliasRead,
   LocationPathAliasUpdate,
-  LocationPathAliasDelete,
-  LocationPathAliasList,
   AgencyCreate,
   AgencyRead,
   AgencyUpdate,
-  AgencyDelete,
-  AgencyList,
   PersonnelCreate,
   PersonnelRead,
   PersonnelUpdate,
-  PersonnelDelete,
-  PersonnelList,
   AgencyPersonnelCreate,
   AgencyPersonnelRead,
   AgencyPersonnelUpdate,
-  AgencyPersonnelDelete,
-  AgencyPersonnelList,
   LicensingAuthorityCreate,
   LicensingAuthorityRead,
   LicensingAuthorityUpdate,
-  LicensingAuthorityDelete,
-  LicensingAuthorityList,
   LicenseCreate,
   LicenseRead,
   LicenseUpdate,
-  LicenseDelete,
-  LicenseList,
   LicenseActionCreate,
   LicenseActionRead,
   LicenseActionUpdate,
-  LicenseActionDelete,
-  LicenseActionList,
   DisciplineCreate,
   DisciplineRead,
   DisciplineUpdate,
-  DisciplineDelete,
-  DisciplineList,
   DisciplineAgencyOfficerCreate,
   DisciplineAgencyOfficerRead,
   DisciplineAgencyOfficerUpdate,
-  DisciplineAgencyOfficerDelete,
-  DisciplineAgencyOfficerList,
   CoverageLinkCreate,
   CoverageLinkRead,
   CoverageLinkUpdate,
-  CoverageLinkDelete,
-  CoverageLinkList,
   CoverageLinkAgencyOfficerCreate,
   CoverageLinkAgencyOfficerRead,
   CoverageLinkAgencyOfficerUpdate,
-  CoverageLinkAgencyOfficerDelete,
-  CoverageLinkAgencyOfficerList,
   AgencyPhoneNumberCreate,
   AgencyPhoneNumberRead,
   AgencyPhoneNumberUpdate,
-  AgencyPhoneNumberDelete,
-  AgencyPhoneNumberList,
   FederalAgencyCreate,
   FederalAgencyRead,
   FederalAgencyUpdate,
-  FederalAgencyDelete,
-  FederalAgencyList,
   FederalAgencyBranchCreate,
   FederalAgencyBranchRead,
   FederalAgencyBranchUpdate,
-  FederalAgencyBranchDelete,
-  FederalAgencyBranchList,
   CivilCaseCreate,
   CivilCaseRead,
   CivilCaseUpdate,
-  CivilCaseDelete,
-  CivilCaseList,
   CivilCaseOfficerCreate,
   CivilCaseOfficerRead,
   CivilCaseOfficerUpdate,
-  CivilCaseOfficerDelete,
-  CivilCaseOfficerList,
   CivilCaseLinkCreate,
   CivilCaseLinkRead,
   CivilCaseLinkUpdate,
-  CivilCaseLinkDelete,
-  CivilCaseLinkList,
 };
