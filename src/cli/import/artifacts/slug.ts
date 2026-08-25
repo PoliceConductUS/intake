@@ -41,11 +41,20 @@ export class SlugAllocator {
         }
         continue;
       }
+      // Claim synchronously BEFORE the async database check, so another entity
+      // resolving the same base concurrently (facades resolve via Promise.all)
+      // sees the claim and moves to the next candidate — closing the
+      // check-then-claim race that would otherwise hand two rows one slug.
+      claims.set(candidate, input.canonicalId);
       const databaseOwner = await this.databaseOwnerId(kind, candidate);
       if (databaseOwner !== undefined && databaseOwner !== input.canonicalId) {
+        // The database already owns this slug for a different entity; release
+        // the optimistic claim and try the next candidate.
+        if (claims.get(candidate) === input.canonicalId) {
+          claims.delete(candidate);
+        }
         continue;
       }
-      claims.set(candidate, input.canonicalId);
       return candidate;
     }
   }
