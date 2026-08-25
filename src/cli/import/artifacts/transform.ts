@@ -12,24 +12,6 @@ import type { z } from "zod";
 import { LocationPathSpec } from "../../../shared/io/generated/entity-specs.js";
 import type { SourceNameToCanonicalIdLedger } from "../../state/source-name-to-canonical-id/index.js";
 
-export type AgencyRow = {
-  sourceName?: string;
-  id: string;
-  name: string;
-  city: string | null;
-  state: string;
-  address: string | null;
-  zip_code: string | null;
-  contact_name: string | null;
-  contact_email: string | null;
-  slug: string | undefined;
-  location_path_id: string | undefined;
-  latitude: number | undefined;
-  longitude: number | undefined;
-  // Envelope-only geocoding hint (administrative-area name/slug); not a column.
-  location?: Record<string, unknown>;
-};
-
 export type LocationPathRow = {
   location_path_id: string;
   path: string;
@@ -56,25 +38,9 @@ export type LocationPathGeometryRow = {
   geometry: unknown;
 };
 
-export type ResolvedAgencyState = {
-  slug?: string;
-  locationPathId?: string;
-  latitude?: number;
-  longitude?: number;
-};
-
-export type ResolvedPersonState = {
-  slug?: string;
-};
-
-export type ResolvedProperties = {
-  agencies: Record<string, ResolvedAgencyState>;
-  personnel: Record<string, ResolvedPersonState>;
-};
-
 export type PreparationMutation = {
   action: "set";
-  entityType: "agency" | "officer" | "agencyOfficer" | "locationPath";
+  entityType: "locationPath";
   rowId: string;
   sourceName?: string;
   path: string;
@@ -82,76 +48,16 @@ export type PreparationMutation = {
   reason: string;
 };
 
-export type AgencyColumn = Exclude<keyof AgencyRow, "id">;
-
-// Personnel is facade-based (ADR 0016): the PersonnelFacade owns its columns,
-// canonical-id find-or-create, unique-slug generation, and mutation emission.
-// It produces no transform row here.
-
-export type AgencyOfficerRow = {
-  id: string;
-  agency_id: string;
-  officer_id: string;
-  badge_number: string | null;
-  start_date: string;
-  end_date: string | null;
-  title: string;
-  license_id: string | null;
-};
-
-export type AgencyOfficerColumn = Exclude<keyof AgencyOfficerRow, "id">;
-
-// License and LicenseAction are facade-based (ADR 0016): the LicenseFacade /
-// LicenseActionFacade own their columns, foreign-key finds, and mutations. They
-// produce no transform rows here.
-
 export type ImportRows = {
   locationPaths: LocationPathRow[];
   locationPathGeometries?: LocationPathGeometryRow[];
   locationPathAliases: LocationPathAliasRow[];
-  agencies: AgencyRow[];
-  agencyOfficers: AgencyOfficerRow[];
   preparationMutations: PreparationMutation[];
-  ownedColumns: {
-    agencies: Record<string, AgencyColumn[]>;
-    agencyOfficers: Record<string, AgencyOfficerColumn[]>;
-  };
 };
-
-const agencySourceColumns: AgencyColumn[] = [
-  "name",
-  "city",
-  "state",
-  "address",
-  "zip_code",
-  "contact_name",
-  "contact_email",
-  "latitude",
-  "longitude",
-];
-
-const agencyOfficerSourceColumns: AgencyOfficerColumn[] = [
-  "agency_id",
-  "officer_id",
-  "badge_number",
-  "start_date",
-  "end_date",
-  "title",
-  "license_id",
-];
 
 function entityMap(
   artifacts: ArtifactsEnvelope,
-  entityName:
-    | "locationPaths"
-    | "locationPathGeometries"
-    | "locationPathAliases"
-    | "agencies"
-    | "personnel"
-    | "agencyPersonnel"
-    | "licensingAuthorities"
-    | "licenses"
-    | "licenseActions",
+  entityName: "locationPaths" | "locationPathAliases",
 ): Record<string, unknown> {
   const kind = importKindByEntityName[entityName];
   return Object.assign(
@@ -160,22 +66,6 @@ function entityMap(
       .filter((artifact) => artifact.kind === kind)
       .map((artifact) => artifact.spec.records),
   ) as Record<string, unknown>;
-}
-
-// Merge the per-record source-file paths across all artifacts of one kind (the
-// absolute path each record was read from, attached by Artifacts.read), keyed by
-// record key — so a transform error can cite the file that holds the bad data.
-function recordSourcesFor(
-  artifacts: ArtifactsEnvelope,
-  entityName: Parameters<typeof entityMap>[1],
-): Record<string, string> {
-  const kind = importKindByEntityName[entityName];
-  return Object.assign(
-    {},
-    ...artifacts.spec.artifacts
-      .filter((artifact) => artifact.kind === kind)
-      .map((artifact) => artifact.recordSources ?? {}),
-  ) as Record<string, string>;
 }
 
 function locationPathSourceKeysByPath(
@@ -228,20 +118,6 @@ function valueAsStringOrNull(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
-function valueAsNumberOrUndefined(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value)
-    ? value
-    : undefined;
-}
-
-function valueAsObjectOrUndefined(
-  value: unknown,
-): Record<string, unknown> | undefined {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
 function requiredString(
   sourceName: string,
   fieldName: string,
@@ -265,13 +141,6 @@ function valueAsRecord(
   }
 
   throw new Error(`Artifacts entity ${sourceName} must be an object.`);
-}
-
-function hasOwnField(
-  source: Record<string, unknown>,
-  fieldName: string,
-): boolean {
-  return Object.prototype.hasOwnProperty.call(source, fieldName);
 }
 
 async function locationPathRow(
@@ -348,15 +217,9 @@ async function locationPathAliasRow(
 export async function transformArtifacts(
   artifacts: ArtifactsEnvelope,
   ledger: SourceNameToCanonicalIdLedger,
-  resolvedProperties: ResolvedProperties = { agencies: {}, personnel: {} },
 ): Promise<ImportRows> {
   validateImportRecords(artifacts);
   const namespace = artifacts.metadata.namespace;
-  const agencyPersonnelSources = recordSourcesFor(artifacts, "agencyPersonnel");
-  const ownedColumns: ImportRows["ownedColumns"] = {
-    agencies: {},
-    agencyOfficers: {},
-  };
 
   // Location paths are materialized first (find-or-create writes their ledger
   // files) so aliases — awaited afterwards — find those ids.
@@ -380,149 +243,10 @@ export async function transformArtifacts(
         ),
     ),
   );
-  const agencies = await Promise.all(
-    Object.entries(entityMap(artifacts, "agencies")).map(
-      async ([recordKey, sourceValue]): Promise<AgencyRow> => {
-        const sourceName = sourceNameForImportRecord(recordKey, sourceValue);
-        const source = valueAsRecord(sourceName, sourceValue);
-        const canonicalId = await ledger.findOrCreate(
-          namespace,
-          "Agency",
-          sourceName,
-        );
-        const resolvedAgency = resolvedProperties.agencies[canonicalId] ?? {};
-        const sourceOwnedColumns = agencySourceColumns.filter((columnName) =>
-          hasOwnField(source, columnName),
-        );
-        const mappingOwnedColumns: AgencyColumn[] = [];
-        if (resolvedAgency.slug !== undefined) {
-          mappingOwnedColumns.push("slug");
-        }
-        if (resolvedAgency.locationPathId !== undefined) {
-          mappingOwnedColumns.push("location_path_id");
-        }
-        if (resolvedAgency.latitude !== undefined) {
-          mappingOwnedColumns.push("latitude");
-        }
-        if (resolvedAgency.longitude !== undefined) {
-          mappingOwnedColumns.push("longitude");
-        }
-        ownedColumns.agencies[canonicalId] = [
-          ...sourceOwnedColumns,
-          ...mappingOwnedColumns,
-        ];
-
-        return {
-          sourceName,
-          id: canonicalId,
-          name: requiredString(sourceName, "name", source.name),
-          city: valueAsStringOrNull(source.city),
-          state: requiredString(sourceName, "state", source.state),
-          address: valueAsStringOrNull(source.address),
-          zip_code: valueAsStringOrNull(source.zip_code),
-          contact_name: valueAsStringOrNull(source.contact_name),
-          contact_email: valueAsStringOrNull(source.contact_email),
-          slug: resolvedAgency.slug,
-          location_path_id: resolvedAgency.locationPathId,
-          latitude:
-            valueAsNumberOrUndefined(source.latitude) ??
-            resolvedAgency.latitude,
-          longitude:
-            valueAsNumberOrUndefined(source.longitude) ??
-            resolvedAgency.longitude,
-          ...(valueAsObjectOrUndefined(source.location) === undefined
-            ? {}
-            : { location: valueAsObjectOrUndefined(source.location) }),
-        };
-      },
-    ),
-  );
-
-  // Personnel rows are no longer built here; they are produced by the
-  // PersonnelFacade (ADR 0016), which resolves its own canonical id, generates a
-  // unique slug, and emits its own mutations.
-
-  const agencyOfficers = await Promise.all(
-    Object.entries(entityMap(artifacts, "agencyPersonnel")).map(
-      async ([recordKey, sourceValue]): Promise<AgencyOfficerRow> => {
-        const sourceName = sourceNameForImportRecord(recordKey, sourceValue);
-        const source = valueAsRecord(sourceName, sourceValue);
-        const canonicalId = await ledger.findOrCreate(
-          namespace,
-          "AgencyPersonnel",
-          sourceName,
-        );
-        const sourceAgencyId = valueAsStringOrNull(source.agency_id);
-        const sourceOfficerId = valueAsStringOrNull(source.officer_id);
-        if (sourceAgencyId === null) {
-          throw new Error(
-            `Agency-personnel source record ${sourceName} is missing required field agency_id.`,
-          );
-        }
-        if (sourceOfficerId === null) {
-          throw new Error(
-            `Agency-personnel source record ${sourceName} is missing required field officer_id.`,
-          );
-        }
-
-        // agency_id is the one foreign key consumed downstream (the
-        // excluded-agency cascade), so it is resolved to the agency's canonical
-        // id. Agencies are materialized before agency officers, so a
-        // same-namespace reference is found; a reference to an agency that does
-        // not exist in this namespace is an error (no forward references).
-        const agencyCanonicalId = await ledger.read(
-          namespace,
-          "Agency",
-          sourceAgencyId,
-        );
-        if (agencyCanonicalId === undefined) {
-          const sourceFile = agencyPersonnelSources[recordKey];
-          throw new Error(
-            [
-              `Agency-personnel source record ${sourceName} references agency "${sourceAgencyId}", which does not exist in namespace ${namespace}.`,
-              sourceFile && `Source: ${sourceFile}.`,
-            ]
-              .filter(Boolean)
-              .join(" "),
-          );
-        }
-
-        ownedColumns.agencyOfficers[canonicalId] =
-          agencyOfficerSourceColumns.filter((columnName) =>
-            hasOwnField(source, columnName),
-          );
-
-        // officer_id / license_id carry the raw source reference; they are not
-        // consumed downstream. The AgencyPersonnel record's own foreign-key
-        // resolution finds and enforces these when it emits the mutation.
-        return {
-          id: canonicalId,
-          agency_id: agencyCanonicalId,
-          officer_id: sourceOfficerId,
-          badge_number: valueAsStringOrNull(source.badge_number),
-          start_date: requiredString(
-            sourceName,
-            "start_date",
-            source.start_date,
-          ),
-          end_date: valueAsStringOrNull(source.end_date),
-          title: requiredString(sourceName, "title", source.title),
-          license_id: valueAsStringOrNull(source.license_id),
-        };
-      },
-    ),
-  );
-
-  // License and LicenseAction rows are no longer built here; they are produced
-  // by LicenseFacade / LicenseActionFacade (ADR 0016), which resolve their own
-  // canonical ids and same-source foreign keys and emit their own mutations.
 
   return {
     locationPaths,
     locationPathAliases,
-    agencies,
-    agencyOfficers,
     preparationMutations: [],
-    ownedColumns,
   };
 }

@@ -32,62 +32,22 @@ import type {
 const rows: ImportRows = {
   locationPaths: [],
   locationPathAliases: [],
-  agencies: [
-    {
-      id: "agency-canonical-id",
-      name: "Minnesota State Patrol",
-      city: "Saint Paul",
-      state: "MN",
-      address: "444 Cedar Street",
-      zip_code: "55101",
-      contact_name: null,
-      contact_email: null,
-      slug: "minnesota-state-patrol",
-      location_path_id: "mn/saint-paul/minnesota-state-patrol",
-      latitude: 44.955097,
-      longitude: -93.102211,
-    },
-  ],
-  agencyOfficers: [
-    {
-      id: "agency-personnel-canonical-id",
-      agency_id: "agency-canonical-id",
-      officer_id: "personnel-canonical-id",
-      badge_number: "49112",
-      start_date: "2020-01-01",
-      end_date: null,
-      title: "Peace Officer",
-      license_id: null,
-    },
-  ],
   preparationMutations: [],
-  ownedColumns: {
-    agencies: {
-      "agency-canonical-id": [
-        "name",
-        "city",
-        "state",
-        "address",
-        "zip_code",
-        "contact_name",
-        "contact_email",
-        "slug",
-        "location_path_id",
-        "latitude",
-        "longitude",
-      ],
-    },
-    agencyOfficers: {
-      "agency-personnel-canonical-id": [
-        "agency_id",
-        "officer_id",
-        "badge_number",
-        "start_date",
-        "end_date",
-        "title",
-      ],
-    },
-  },
+};
+
+const agencyRecord = {
+  id: "agency-canonical-id",
+  name: "Minnesota State Patrol",
+  city: "Saint Paul",
+  state: "MN",
+  address: "444 Cedar Street",
+  zip_code: "55101",
+  contact_name: null,
+  contact_email: null,
+  slug: "minnesota-state-patrol",
+  location_path_id: "mn/saint-paul/minnesota-state-patrol",
+  latitude: 44.955097,
+  longitude: -93.102211,
 };
 
 async function writeSourceArtifactsFile(rootDir: string): Promise<string> {
@@ -361,7 +321,7 @@ describe("importArtifacts", () => {
     });
     // Agencies are facade-based (ADR 0016): register the (already-resolved) agency
     // through its facade so it emits.
-    const { id: _agencyId, ...agencySpec } = rows.agencies[0]!;
+    const { id: _agencyId, ...agencySpec } = agencyRecord;
     runContext
       .fromSource({
         apiVersion: INTAKE_API_VERSION,

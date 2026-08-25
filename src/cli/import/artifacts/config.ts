@@ -6,13 +6,10 @@ import {
 } from "./agency-coordinate-resolver.js";
 import { resolveImportAddress } from "./agency-address-resolution.js";
 import { DatabaseMutationPlanningError } from "./mutation-planning-error.js";
-import {
-  type AgencyCoordinateRequest,
-  type AgencyCoordinateResolution,
-  type ExcludedAgency,
-  prepareAgencyRows,
-} from "./agency-preparation.js";
-import { validatePreparedNewSlugConflicts } from "./validate-new-slug-conflicts.js";
+import type {
+  AgencyCoordinateRequest,
+  AgencyCoordinateResolution,
+} from "./agency-coordinate-types.js";
 import { assertGeneratedSchemaCurrent } from "./assert-schema-current.js";
 import {
   readLocationPaths,
@@ -62,11 +59,10 @@ import {
 import {
   readResolvedProperty,
   type ResolvedPropertyCacheInput,
-  typedInputFingerprint,
   writeResolvedProperty,
 } from "../../state/resolved-property/index.js";
 import { replayDatabaseMutations } from "../../replay/database-mutations/config.js";
-import type { ImportRows, ResolvedProperties } from "./transform.js";
+import type { ImportRows } from "./transform.js";
 import { transformArtifacts } from "./transform.js";
 import {
   IMPORT_ARTIFACT_KINDS,
@@ -135,180 +131,6 @@ function valueAsFiniteNumber(value: unknown): number | undefined {
     : undefined;
 }
 
-function slugSourceInput(
-  kind: "Agency" | "Personnel",
-  record: unknown,
-): Record<string, unknown> {
-  const spec = valueAsRecord(record);
-  if (kind === "Agency") {
-    return {
-      name: valueAsString(spec.name) ?? null,
-    };
-  }
-
-  return {
-    firstName: valueAsString(spec.first_name) ?? null,
-    middleName: valueAsString(spec.middle_name) ?? null,
-    lastName: valueAsString(spec.last_name) ?? null,
-    prefix: valueAsString(spec.prefix) ?? null,
-    suffix: valueAsString(spec.suffix) ?? null,
-  };
-}
-
-function slugCacheInput(input: {
-  namespace: string;
-  kind: "Agency" | "Personnel";
-  sourceName: string;
-  canonicalId: string;
-  sourceInput: Record<string, unknown>;
-}): ResolvedPropertyCacheInput {
-  return {
-    subject: {
-      apiVersion: INTAKE_API_VERSION,
-      kind: input.kind,
-      name: input.canonicalId,
-    },
-    targetProperty: "slug",
-    source: {
-      namespace: input.namespace,
-      kind: input.kind,
-      name: input.sourceName,
-      inputFingerprint: typedInputFingerprint(input.sourceInput),
-    },
-  };
-}
-
-async function hydrateResolvedSlug(
-  context: ImportArtifactsPipelineContext,
-  input: {
-    resolvedProperties: ResolvedProperties;
-    collection: "agencies" | "personnel";
-    kind: "Agency" | "Personnel";
-    sourceName: string;
-    canonicalId: string;
-    sourceInput: Record<string, unknown>;
-  },
-): Promise<void> {
-  if (context.artifacts === undefined) {
-    throw new Error("Artifacts must be read before hydrating resolved slugs.");
-  }
-
-  const slug = await readResolvedProperty({
-    ...slugCacheInput({
-      namespace: context.artifacts.metadata.namespace,
-      kind: input.kind,
-      sourceName: input.sourceName,
-      canonicalId: input.canonicalId,
-      sourceInput: input.sourceInput,
-    }),
-    rootDir: context.workspaceRoot,
-  });
-  if (typeof slug !== "string" || slug.trim().length === 0) {
-    return;
-  }
-
-  input.resolvedProperties[input.collection][input.canonicalId] ??= {};
-  input.resolvedProperties[input.collection][input.canonicalId]!.slug = slug;
-}
-
-async function hydrateResolvedSlugs(
-  context: ImportArtifactsPipelineContext,
-): Promise<ResolvedProperties> {
-  if (context.artifacts === undefined) {
-    throw new Error(
-      "Artifacts must be loaded before hydrating resolved slugs.",
-    );
-  }
-
-  const namespace = context.artifacts.metadata.namespace;
-  const resolvedProperties: ResolvedProperties = {
-    agencies: {},
-    personnel: {},
-  };
-  // Personnel slugs are owned by the PersonnelFacade's generate-unique resolver
-  // (ADR 0016) and reused from the database for stability, so only agency slugs
-  // are hydrated from the durable cache here. The agency id is find-or-created
-  // (its stable Identity Map id), keyed on the slug cache.
-  for (const artifact of context.artifacts.spec.artifacts) {
-    if (artifact.kind !== "Agencies") {
-      continue;
-    }
-    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
-      const sourceName = sourceNameForImportRecord(recordName, record);
-      const canonicalId = await context.ledger.findOrCreate(
-        namespace,
-        "Agency",
-        sourceName,
-      );
-      await hydrateResolvedSlug(context, {
-        resolvedProperties,
-        collection: "agencies",
-        kind: "Agency",
-        sourceName,
-        canonicalId,
-        sourceInput: slugSourceInput("Agency", record),
-      });
-    }
-  }
-
-  return resolvedProperties;
-}
-
-async function persistResolvedSlugs(
-  context: ImportArtifactsPipelineContext,
-): Promise<void> {
-  if (context.artifacts === undefined || context.rows === undefined) {
-    throw new Error(
-      "Artifacts and rows must be available before persisting resolved slugs.",
-    );
-  }
-
-  const namespace = context.artifacts.metadata.namespace;
-  // Personnel slugs are owned by the PersonnelFacade's generate-unique resolver
-  // (ADR 0016), which reuses an existing DB slug for stability; they are no
-  // longer cached here. Only agency slugs remain row-based.
-  const agencyById = new Map(
-    context.rows.agencies.map((agency) => [agency.id, agency]),
-  );
-  let cachedSlugs = 0;
-  for (const artifact of context.artifacts.spec.artifacts) {
-    if (artifact.kind !== "Agencies") {
-      continue;
-    }
-    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
-      const sourceName = sourceNameForImportRecord(recordName, record);
-      const canonicalId = await context.ledger.findOrCreate(
-        namespace,
-        "Agency",
-        sourceName,
-      );
-      const slug = agencyById.get(canonicalId)?.slug;
-      if (typeof slug !== "string" || slug.trim().length === 0) {
-        continue;
-      }
-
-      await writeResolvedProperty({
-        ...slugCacheInput({
-          namespace: context.artifacts.metadata.namespace,
-          kind: "Agency",
-          sourceName,
-          canonicalId,
-          sourceInput: slugSourceInput("Agency", record),
-        }),
-        rootDir: context.workspaceRoot,
-        value: slug,
-      });
-      cachedSlugs += 1;
-    }
-  }
-
-  if (cachedSlugs > 0) {
-    context.commandInput.logger?.info(
-      { cachedSlugs },
-      `Cached ${cachedSlugs} agency/personnel slug ${cachedSlugs === 1 ? "resolution" : "resolutions"}.`,
-    );
-  }
-}
 
 function addLocationPathSourceFacades(
   dataContext: DataContext,
@@ -662,7 +484,6 @@ type ImportArtifactsPipelineContext = {
   artifacts?: ArtifactsEnvelope;
   artifactMutation?: ApplyArtifactMutationResult;
   ledger: SourceNameToCanonicalIdLedger;
-  resolvedProperties?: ResolvedProperties;
   rows?: ImportRows;
   databaseMutationCounts?: DatabaseMutationCounts;
 };
@@ -774,20 +595,12 @@ async function transformArtifactsStage(
   }
 
   context.commandInput.logger?.info("Transforming artifact records.");
-  const resolvedProperties = await hydrateResolvedSlugs(context);
-  const rows = await transformArtifacts(
-    context.artifacts,
-    context.ledger,
-    resolvedProperties,
-  );
+  const rows = await transformArtifacts(context.artifacts, context.ledger);
   context.commandInput.logger?.debug(
-    {
-      agencies: rows.agencies.length,
-      agencyOfficers: rows.agencyOfficers.length,
-    },
+    { locationPaths: rows.locationPaths.length },
     "Artifacts transformed.",
   );
-  return { ...context, resolvedProperties, rows };
+  return { ...context, rows };
 }
 
 /**
@@ -844,39 +657,6 @@ async function closeClient(client: DatabaseClient): Promise<void> {
   }
 }
 
-function dropExcludedAgencyAndDependentRows(
-  rows: ImportRows,
-  excluded: readonly ExcludedAgency[],
-  logger?: { warn?(object: Record<string, unknown>, message: string): void },
-): void {
-  if (excluded.length === 0) {
-    return;
-  }
-
-  const excludedAgencyIds = new Set(excluded.map((agency) => agency.rowId));
-  rows.agencies = rows.agencies.filter(
-    (agency) => !excludedAgencyIds.has(agency.id),
-  );
-
-  const agencyOfficersBeforeCascade = rows.agencyOfficers.length;
-  rows.agencyOfficers = rows.agencyOfficers.filter(
-    (agencyOfficer) => !excludedAgencyIds.has(agencyOfficer.agency_id),
-  );
-  const droppedAgencyOfficerCount =
-    agencyOfficersBeforeCascade - rows.agencyOfficers.length;
-
-  if (droppedAgencyOfficerCount > 0) {
-    logger?.warn?.(
-      {
-        entityType: "agencyOfficer",
-        droppedCount: droppedAgencyOfficerCount,
-        excludedAgencyIds: [...excludedAgencyIds].sort(),
-      },
-      `Dropped ${droppedAgencyOfficerCount} ${droppedAgencyOfficerCount === 1 ? "agency-officer row" : "agency-officer rows"} referencing excluded agencies.`,
-    );
-  }
-}
-
 async function writeFailedDatabaseMutationsDebugEnvelope(
   context: ImportArtifactsPipelineContext,
   error: DatabaseMutationPlanningError,
@@ -913,10 +693,6 @@ async function writeFailedDatabaseMutationsDebugEnvelope(
         locationPaths: error.rows.locationPaths.length,
         locationPathGeometries: error.rows.locationPathGeometries?.length ?? 0,
         locationPathAliases: error.rows.locationPathAliases.length,
-        agencies: error.rows.agencies.length,
-        // Personnel is facade-based (ADR 0016) and counted from the emitted
-        // envelope, not from transform rows.
-        agencyPersonnel: error.rows.agencyOfficers.length,
       },
       errors: [...error.errors],
       preparationMutations: [...error.rows.preparationMutations],

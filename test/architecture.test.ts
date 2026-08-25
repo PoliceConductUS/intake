@@ -352,23 +352,6 @@ describe("architecture boundaries", () => {
     expect(violations).toEqual([]);
   });
 
-  test("keeps agency artifact processing unaware of database mutation planning", async () => {
-    const filePath = path.join(
-      sourceRoot,
-      "cli",
-      "import",
-      "artifacts",
-      "agency-preparation.ts",
-    );
-    const contents = await readFile(filePath, "utf8");
-
-    expect(contents).not.toContain("readDatabaseRecordById");
-    expect(contents).not.toContain("setOperation");
-    expect(contents).not.toContain("resolveCachedAgencyLocationPath");
-    expect(contents).not.toContain("resolveAgencyMissingFields");
-    expect(contents).not.toContain("locationPaths.");
-    expect(contents).not.toContain("locations.");
-  });
 
   test("keeps source artifact facade construction on DataContext", async () => {
     const filePath = path.join(

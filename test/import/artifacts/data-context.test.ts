@@ -21,6 +21,32 @@ import {
 import { fakeSourceNameLedger } from "../../cli/state/fake-source-name-ledger.js";
 import { EmptyDatabaseClient } from "../../cli/database/empty-database-client.js";
 
+// Returns injected current rows through the lazy current-row read
+// (`select * from <table> where id = any($1)`), so a facade sees an existing
+// database row and emits an update.
+class CurrentRowClient extends EmptyDatabaseClient {
+  constructor(
+    private readonly rowsByTable: Record<string, Record<string, unknown>[]>,
+  ) {
+    super();
+  }
+  async query(
+    text = "",
+    values: readonly unknown[] = [],
+  ): Promise<{ rows: Record<string, unknown>[] }> {
+    const match = /select \* from (\S+) where \S+ = any\(\$(\d+)\)/.exec(text);
+    if (match === null) {
+      return { rows: [] };
+    }
+    const ids = (values[Number(match[2]) - 1] as string[] | undefined) ?? [];
+    return {
+      rows: (this.rowsByTable[match[1]] ?? []).filter((row) =>
+        ids.includes(String(row.id)),
+      ),
+    };
+  }
+}
+
 class BoundaryClient extends EmptyDatabaseClient {
   async query(text: string): Promise<{ rows: Record<string, unknown>[] }> {
     if (/join public\.location_path_geometry\b/i.test(text)) {
@@ -38,13 +64,7 @@ class BoundaryClient extends EmptyDatabaseClient {
 const rows: ImportRows = {
   locationPaths: [],
   locationPathAliases: [],
-  agencies: [],
-  agencyOfficers: [],
   preparationMutations: [],
-  ownedColumns: {
-    agencies: {},
-    agencyOfficers: {},
-  },
 };
 
 const locationPaths: LocationPathRow[] = [
@@ -133,7 +153,11 @@ describe("DataContext", () => {
     rows?: ImportRows;
   }): DataContext {
     return new DataContext({
-      client: options?.client ?? new EmptyDatabaseClient(),
+      client:
+        options?.client ??
+        (options?.databaseAgencies === undefined
+          ? new EmptyDatabaseClient()
+          : new CurrentRowClient({ "public.agency": options.databaseAgencies })),
       rows: options?.rows ?? rows,
       commandName: "command-name",
       ledger: fakeSourceNameLedger({
@@ -144,9 +168,6 @@ describe("DataContext", () => {
         agencyPersonnel: {},
         locationPaths: {},
       }),
-      ...(options?.databaseAgencies === undefined
-        ? {}
-        : { databaseAgencies: options.databaseAgencies }),
       ...(options?.databaseLocationPaths === undefined
         ? {}
         : {
@@ -1361,7 +1382,13 @@ describe("PersonnelFacade", () => {
     ledger?: SourceNameToCanonicalIdLedger;
   }): DataContext {
     return new DataContext({
-      client: options?.client ?? new EmptyDatabaseClient(),
+      client:
+        options?.client ??
+        (options?.databaseOfficers === undefined
+          ? new EmptyDatabaseClient()
+          : new CurrentRowClient({
+              "public.officers": options.databaseOfficers,
+            })),
       rows,
       commandName: "command-name",
       ledger:
@@ -1370,9 +1397,6 @@ describe("PersonnelFacade", () => {
           ...emptyPersonnel(),
           personnel: options?.personnel ?? {},
         }),
-      ...(options?.databaseOfficers === undefined
-        ? {}
-        : { databaseOfficers: options.databaseOfficers }),
     });
   }
 

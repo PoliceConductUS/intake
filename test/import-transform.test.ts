@@ -1,5 +1,4 @@
 import { describe, expect, test } from "vitest";
-import type { ResolvedProperties } from "../src/cli/import/artifacts/transform.js";
 import type {
   ImportArtifactKind,
   ArtifactsEnvelope,
@@ -75,44 +74,17 @@ function artifactsWithEntities(entities: EntityMaps): ArtifactsEnvelope {
 
 const mappings = {
   locationPaths: {},
-  agencies: {
-    [agency.id]: {
-      canonicalId: "agency-canonical-id",
-    },
-  },
-  personnel: {
-    [personnel.id]: {
-      canonicalId: "personnel-canonical-id",
-    },
-  },
+  agencies: { [agency.id]: { canonicalId: "agency-canonical-id" } },
+  personnel: { [personnel.id]: { canonicalId: "personnel-canonical-id" } },
   agencyPersonnel: {
-    [roster.id]: {
-      canonicalId: "agency-personnel-canonical-id",
-    },
+    [roster.id]: { canonicalId: "agency-personnel-canonical-id" },
   },
 } satisfies SourceNameToCanonicalIds;
-
-const resolvedProperties: ResolvedProperties = {
-  agencies: {
-    "agency-canonical-id": {
-      slug: "minnesota-state-patrol",
-      locationPathId: "mn/saint-paul/minnesota-state-patrol",
-      latitude: 44.955097,
-      longitude: -93.102211,
-    },
-  },
-  personnel: {
-    "personnel-canonical-id": {
-      slug: "spenser-stockwell",
-    },
-  },
-};
 
 type EntityName = "agencies" | "personnel" | "agencyPersonnel";
 
 function artifactsWithInvalidRequiredField(
   entityName: EntityName,
-  sourceName: string,
   fieldName: string,
   value: unknown,
 ): ArtifactsEnvelope {
@@ -157,10 +129,7 @@ describe("transformArtifacts", () => {
           administrative_area_name: "Ramsey County",
           place_name: "Saint Paul",
           parent_location_path_id: "/mn/ramsey-county/",
-          centroid: {
-            type: "Point",
-            coordinates: [-93.09, 44.9537],
-          },
+          centroid: { type: "Point", coordinates: [-93.09, 44.9537] },
           bbox: {
             type: "Polygon",
             coordinates: [
@@ -194,9 +163,6 @@ describe("transformArtifacts", () => {
             canonicalId: "ramsey-county-location-path",
           },
         },
-        agencies: {},
-        personnel: {},
-        agencyPersonnel: {},
       }),
     );
 
@@ -212,10 +178,7 @@ describe("transformArtifacts", () => {
         administrative_area_name: "Ramsey County",
         place_name: "Saint Paul",
         parent_location_path_id: "ramsey-county-location-path",
-        centroid: {
-          type: "Point",
-          coordinates: [-93.09, 44.9537],
-        },
+        centroid: { type: "Point", coordinates: [-93.09, 44.9537] },
         bbox: {
           type: "Polygon",
           coordinates: [
@@ -260,16 +223,11 @@ describe("transformArtifacts", () => {
       artifacts,
       fakeSourceNameLedger({
         locationPaths: {
-          "place:GEOID:2758000": {
-            canonicalId: "canonical-location-path-id",
-          },
+          "place:GEOID:2758000": { canonicalId: "canonical-location-path-id" },
           "administrative_area:GEOID:27123": {
             canonicalId: "ramsey-county-location-path",
           },
         },
-        agencies: {},
-        personnel: {},
-        agencyPersonnel: {},
       }),
     );
 
@@ -280,229 +238,21 @@ describe("transformArtifacts", () => {
     });
   });
 
-  test("transforms artifacts entities into database rows with canonical mappings", async () => {
-    const artifacts = artifactsWithEntities({
-      agencies: {
-        [agency.id]: agency,
-      },
-      personnel: {
-        [personnel.id]: personnel,
-      },
-      agencyPersonnel: {
-        [roster.id]: roster,
-      },
-    });
-
-    const rows = await transformArtifacts(
-      artifacts,
-      fakeSourceNameLedger(mappings),
-      resolvedProperties,
-    );
-
-    expect(rows).toEqual({
-      locationPaths: [],
-      locationPathAliases: [],
-      agencies: [
-        {
-          sourceName: "a2j-agency-source",
-          id: "agency-canonical-id",
-          name: "Minnesota State Patrol",
-          city: "Saint Paul",
-          state: "MN",
-          address: "444 Cedar Street",
-          zip_code: "55101",
-          contact_name: null,
-          contact_email: null,
-          slug: "minnesota-state-patrol",
-          location_path_id: "mn/saint-paul/minnesota-state-patrol",
-          latitude: 44.955097,
-          longitude: -93.102211,
-        },
-      ],
-      agencyOfficers: [
-        {
-          id: "agency-personnel-canonical-id",
-          agency_id: "agency-canonical-id",
-          // officer_id / license_id carry the raw source reference (vestigial);
-          // the AgencyPersonnel mapper resolves them at emit time.
-          officer_id: "003-personnel-source",
-          badge_number: "49112",
-          start_date: "2020-01-01",
-          end_date: null,
-          title: "Peace Officer",
-          license_id: null,
-        },
-      ],
-      preparationMutations: [],
-      ownedColumns: {
-        agencies: {
-          "agency-canonical-id": [
-            "name",
-            "city",
-            "state",
-            "address",
-            "zip_code",
-            "contact_name",
-            "contact_email",
-            "slug",
-            "location_path_id",
-            "latitude",
-            "longitude",
-          ],
-        },
-        agencyOfficers: {
-          "agency-personnel-canonical-id": [
-            "agency_id",
-            "officer_id",
-            "badge_number",
-            "start_date",
-            "end_date",
-            "title",
-          ],
-        },
-      },
-    });
-  });
-
-  // Personnel is facade-based (ADR 0016): the canonical-id find-or-create and
-  // unique-slug generation are exercised in data-context.test.ts, not here — the
-  // transform no longer produces personnel rows.
+  // Agency, Personnel, and AgencyPersonnel mutation building moved from the
+  // transform to their facades (ADR 0016/0019); the transform only validates
+  // their source records against the schema and builds location-path rows.
 
   test("rejects unknown source record fields", async () => {
     const artifacts = artifactsWithEntities({
-      agencies: {
-        [agency.id]: { ...agency, unsupported: "rejected" },
-      },
+      agencies: { [agency.id]: { ...agency, unsupported: "rejected" } },
     });
 
     await expect(
-      transformArtifacts(
-        artifacts,
-        fakeSourceNameLedger(mappings),
-        resolvedProperties,
-      ),
+      transformArtifacts(artifacts, fakeSourceNameLedger(mappings)),
     ).rejects.toThrow(
       "Artifacts Agencies record a2j-agency-source is malformed at unsupported.",
     );
   });
-
-  test("owns only supported source fields present in the artifacts plus intake mapping fields", async () => {
-    const artifacts = artifactsWithEntities({
-      agencies: {
-        [agency.id]: {
-          id: agency.id,
-          name: agency.name,
-          state: agency.state,
-        },
-      },
-    });
-
-    const rows = await transformArtifacts(
-      artifacts,
-      fakeSourceNameLedger(mappings),
-      resolvedProperties,
-    );
-
-    expect(rows.ownedColumns.agencies["agency-canonical-id"]).toEqual([
-      "name",
-      "state",
-      "slug",
-      "location_path_id",
-      "latitude",
-      "longitude",
-    ]);
-  });
-
-  test("allows source agency fields to be absent until database create needs them", async () => {
-    const artifacts = artifactsWithEntities({
-      agencies: {
-        [agency.id]: {
-          id: agency.id,
-          name: agency.name,
-          state: agency.state,
-        },
-      },
-    });
-    const partialMappings: SourceNameToCanonicalIds = {
-      locationPaths: {},
-      agencies: {
-        [agency.id]: {
-          canonicalId: "agency-canonical-id",
-        },
-      },
-      personnel: {},
-      agencyPersonnel: {},
-    };
-    const partialResolvedProperties: ResolvedProperties = {
-      agencies: {
-        "agency-canonical-id": {},
-      },
-      personnel: {},
-    };
-
-    const rows = await transformArtifacts(
-      artifacts,
-      fakeSourceNameLedger(partialMappings),
-      partialResolvedProperties,
-    );
-
-    expect(rows.agencies).toEqual([
-      {
-        sourceName: "a2j-agency-source",
-        id: "agency-canonical-id",
-        name: "Minnesota State Patrol",
-        city: null,
-        state: "MN",
-        address: null,
-        zip_code: null,
-        contact_name: null,
-        contact_email: null,
-        slug: undefined,
-        location_path_id: undefined,
-        latitude: undefined,
-        longitude: undefined,
-      },
-    ]);
-    expect(rows.ownedColumns.agencies["agency-canonical-id"]).toEqual([
-      "name",
-      "state",
-    ]);
-  });
-
-  // agency_id is resolved to the agency's canonical id (it is consumed by the
-  // excluded-agency cascade). officer_id / license_id are carried through as
-  // the raw source reference — they are not consumed downstream; the
-  // AgencyPersonnel mapper resolves and enforces those foreign keys when it emits
-  // the mutation (a reference to an entity absent from the namespace fails loud
-  // there, covered by the DataContext foreign-key tests).
-
-  test("carries the agency-personnel officer_id / license_id source references through unresolved", async () => {
-    const artifacts = artifactsWithEntities({
-      agencies: { [agency.id]: agency },
-      personnel: { [personnel.id]: personnel },
-      agencyPersonnel: {
-        [roster.id]: {
-          ...roster,
-          license_id: "003-personnel-source|Peace Officer License",
-        },
-      },
-    });
-
-    const rows = await transformArtifacts(
-      artifacts,
-      fakeSourceNameLedger(mappings),
-      resolvedProperties,
-    );
-
-    expect(rows.agencyOfficers[0]?.officer_id).toBe(personnel.id);
-    expect(rows.agencyOfficers[0]?.license_id).toBe(
-      "003-personnel-source|Peace Officer License",
-    );
-  });
-
-  // LicensingAuthority location resolve-or-fail and License authority/officer FK
-  // resolution moved from the transform to their facades' resolvers (ADR 0016);
-  // covered by the DataContext facade tests.
 
   test.each([
     ["agencies", agency.id, "name"],
@@ -515,17 +265,12 @@ describe("transformArtifacts", () => {
       for (const value of [undefined, null, 49112]) {
         const artifacts = artifactsWithInvalidRequiredField(
           entityName,
-          sourceName,
           fieldName,
           value,
         );
 
         await expect(
-          transformArtifacts(
-            artifacts,
-            fakeSourceNameLedger(mappings),
-            resolvedProperties,
-          ),
+          transformArtifacts(artifacts, fakeSourceNameLedger(mappings)),
         ).rejects.toThrow(
           `Artifacts ${entityName === "agencyPersonnel" ? "AgencyPersonnel" : entityName === "personnel" ? "Personnel" : "Agencies"} record ${sourceName} is malformed at ${fieldName}.`,
         );
@@ -541,11 +286,7 @@ describe("transformArtifacts", () => {
     });
 
     await expect(
-      transformArtifacts(
-        artifacts,
-        fakeSourceNameLedger(mappings),
-        resolvedProperties,
-      ),
+      transformArtifacts(artifacts, fakeSourceNameLedger(mappings)),
     ).resolves.toBeDefined();
   });
 });

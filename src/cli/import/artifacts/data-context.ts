@@ -101,12 +101,9 @@ import {
   readLocationPathsContainingPoint,
 } from "../../database/location-paths.js";
 import {
-  type AgencyOfficerRow,
-  type AgencyRow,
   type ImportRows,
   type LocationPathAliasRow,
   type LocationPathRow,
-  type ResolvedProperties,
 } from "./transform.js";
 import { readDatabaseRecordsByColumn } from "../../database/entities.js";
 import type { SupportedTableName } from "../../database/schema.js";
@@ -210,26 +207,12 @@ type DataContextLogger = {
   debug?(object: Record<string, unknown>, message: string): void;
 };
 
-export type ImportEntityType = "agency" | "agencyOfficer";
-
-export type ImportEntityRow = {
-  agency: AgencyRow;
-  agencyOfficer: AgencyOfficerRow;
-};
-
-export type ImportEntityResolver<
-  EntityType extends ImportEntityType = ImportEntityType,
-> = (row: ImportEntityRow[EntityType], context: DataContext) => Promise<void>;
-
 export type DataContextOptions = {
   client?: DatabaseClient;
   rows: ImportRows;
   logger?: DataContextLogger;
   databaseLocationPaths?: LocationPathRow[];
   databaseLocationPathAliases?: LocationPathAliasRow[];
-  entityResolvers?: Partial<{
-    [EntityType in ImportEntityType]: ImportEntityResolver<EntityType>;
-  }>;
   loadLocationPathById?: (
     locationPathId: string,
   ) => Promise<LocationPathRow | undefined>;
@@ -243,7 +226,6 @@ export type DataContextOptions = {
     input: LocationAdministrativeAreaRequest,
   ) => Promise<LocationAdministrativeAreaResolution | undefined>;
   resolvedPropertyStore?: ResolvedPropertyStore;
-  resolvedProperties?: ResolvedProperties;
   commandName?: string;
   /**
    * Durable Identity Map accessor over the SourceNameToCanonicalId ledger.
@@ -252,8 +234,6 @@ export type DataContextOptions = {
    * ledger load, no whole-map re-persist.
    */
   ledger?: SourceNameToCanonicalIdLedger;
-  databaseAgencies?: Record<string, unknown>[];
-  databaseOfficers?: Record<string, unknown>[];
   databaseAgencyPersonnel?: Record<string, unknown>[];
   databaseLicensingAuthorities?: Record<string, unknown>[];
   databaseLicenses?: Record<string, unknown>[];
@@ -285,11 +265,6 @@ export type DatabaseMutationsMetadataInput = {
   sourceArtifactsDigest?: string;
   artifactMutation?: { path: string; digest: string };
   databaseSchema?: Record<string, unknown>;
-};
-
-type OwnedColumnsMetadata = {
-  agency?: ImportRows["ownedColumns"]["agencies"][string];
-  agencyPersonnel?: ImportRows["ownedColumns"]["agencyOfficers"][string];
 };
 
 function validateSourceRecordContext(input: SourceRecordContext): void {
@@ -355,10 +330,9 @@ export type LicensingAuthorityResolverBackend = {
     sourceId: string;
   }): Promise<string>;
   /**
-   * The existing database row for a resolved canonical id, if any. Lets the
-   * facade decide create-vs-update automatically — mirroring how agencies load
-   * `current` from `databaseAgencies` — so a re-import emits an update, not a
-   * duplicate create.
+   * The existing database row for a resolved canonical id, if any (a lazy
+   * per-id read). Lets the facade decide create-vs-update automatically, so a
+   * re-import emits an update, not a duplicate create.
    */
   getCurrentById(id: string): Promise<Record<string, unknown> | undefined>;
 };
@@ -1310,10 +1284,6 @@ export class PersonnelFacade implements PropertyResolutionFacade<PersonnelRowSha
 // (reusing the durable ResolvedProperty coordinate cache) then point-in-polygon
 // containment, resolve-or-fail (ADR 0006/0015), never minted. `latitude` /
 // `longitude` fall out of the same geocode.
-//
-// `mergeAgencyArtifacts` feeds the raw source record, so these resolvers run in
-// production; `AgencyRow` transform rows survive only as exclusion/validation
-// substrate, not an emission input.
 
 /** The database row shape an `AgencyFacade` resolves toward (public.agency). */
 export type AgencyRowShape = {
@@ -2327,51 +2297,6 @@ function malformedLocationPathMessage(locationPath: LocationPathRow): string {
     : `Cannot prepare public.location_path ${locationPath.location_path_id}; location path is malformed at ${firstZodIssuePath(result)}.`;
 }
 
-function arraysEqual(
-  left: readonly string[],
-  right: readonly string[],
-): boolean {
-  return (
-    left.length === right.length &&
-    left.every((value, index) => value === right[index])
-  );
-}
-
-function mostCommonColumns<TColumn extends string>(
-  columnsByRecordName: Record<string, readonly TColumn[]>,
-): TColumn[] | undefined {
-  const counts = new Map<string, { columns: TColumn[]; count: number }>();
-
-  for (const columns of Object.values(columnsByRecordName)) {
-    const key = JSON.stringify(columns);
-    const current = counts.get(key);
-    if (current === undefined) {
-      counts.set(key, { columns: [...columns], count: 1 });
-    } else {
-      current.count += 1;
-    }
-  }
-
-  return [...counts.values()].sort((left, right) => right.count - left.count)[0]
-    ?.columns;
-}
-
-function ownedColumnsMetadata(records: ImportRows): OwnedColumnsMetadata {
-  return {
-    agency: mostCommonColumns(records.ownedColumns.agencies),
-    agencyPersonnel: mostCommonColumns(records.ownedColumns.agencyOfficers),
-  };
-}
-
-function recordOwnedColumns<T extends readonly string[]>(
-  ownedColumns: T,
-  defaultOwnedColumns: readonly string[] | undefined,
-): T | undefined {
-  return defaultOwnedColumns !== undefined &&
-    arraysEqual(ownedColumns, defaultOwnedColumns)
-    ? undefined
-    : ownedColumns;
-}
 
 /**
  * True when an item is an update whose operations are *all* `check` — it asserts
@@ -2459,13 +2384,6 @@ function valueAsRecord(value: unknown): Record<string, unknown> {
   throw new Error("Artifacts agency record must be an object.");
 }
 
-function preparedAgencySpec(agency: AgencyRow): Record<string, unknown> {
-  const { id: _id, sourceName: _sourceName, ...spec } = agency;
-  return Object.fromEntries(
-    Object.entries(spec).filter(([, value]) => value !== undefined),
-  );
-}
-
 type RowReadBatch = {
   tableName: SupportedTableName;
   identityColumn: string;
@@ -2497,18 +2415,14 @@ export class DataContext {
   private readonly databaseLocationPathById?: Map<string, LocationPathRow>;
   private readonly databaseLocationPathByPath?: Map<string, LocationPathRow>;
   private readonly databaseLocationPathIdByAliasPath?: Map<string, string>;
-  private readonly entityResolvers?: DataContextOptions["entityResolvers"];
   private readonly importRows: ImportRows;
   private readonly loadLocationPathById?: DataContextOptions["loadLocationPathById"];
   private readonly loadLocationPathByPath?: DataContextOptions["loadLocationPathByPath"];
   private readonly resolveAddressFn?: DataContextOptions["resolveAddress"];
   private readonly resolveAdministrativeArea?: DataContextOptions["resolveAdministrativeArea"];
   private readonly resolvedPropertyStore?: ResolvedPropertyStore;
-  private readonly resolvedProperties?: ResolvedProperties;
   private readonly commandName?: string;
   private readonly ledger?: SourceNameToCanonicalIdLedger;
-  private readonly databaseAgencyById: Map<string, Record<string, unknown>>;
-  private readonly databaseOfficerById: Map<string, Record<string, unknown>>;
   private readonly databaseLicensingAuthorityById: Map<
     string,
     Record<string, unknown>
@@ -2656,31 +2570,13 @@ export class DataContext {
               locationPathAlias.location_path_id,
             ]),
           );
-    this.entityResolvers = options.entityResolvers;
     this.loadLocationPathById = options.loadLocationPathById;
     this.loadLocationPathByPath = options.loadLocationPathByPath;
     this.resolveAddressFn = options.resolveAddress;
     this.resolveAdministrativeArea = options.resolveAdministrativeArea;
     this.resolvedPropertyStore = options.resolvedPropertyStore;
-    this.resolvedProperties = options.resolvedProperties;
     this.commandName = options.commandName;
     this.ledger = options.ledger;
-    this.databaseAgencyById = new Map(
-      (options.databaseAgencies ?? [])
-        .map((agency) => [valueAsString(agency.id), agency] as const)
-        .filter(
-          (entry): entry is readonly [string, Record<string, unknown>] =>
-            entry[0] !== undefined,
-        ),
-    );
-    this.databaseOfficerById = new Map(
-      (options.databaseOfficers ?? [])
-        .map((officer) => [valueAsString(officer.id), officer] as const)
-        .filter(
-          (entry): entry is readonly [string, Record<string, unknown>] =>
-            entry[0] !== undefined,
-        ),
-    );
     this.databaseLicensingAuthorityById = new Map(
       (options.databaseLicensingAuthorities ?? [])
         .map((authority) => [valueAsString(authority.id), authority] as const)
@@ -2749,20 +2645,6 @@ export class DataContext {
     return errors;
   }
 
-  async add<EntityType extends ImportEntityType>(
-    entityType: EntityType,
-    row: ImportEntityRow[EntityType],
-  ): Promise<void> {
-    const resolver = this.entityResolvers?.[entityType] as
-      | ImportEntityResolver<EntityType>
-      | undefined;
-    if (resolver === undefined) {
-      throw new Error(`Unsupported import entity type ${entityType}.`);
-    }
-
-    await resolver(row, this);
-  }
-
   fromSource(input: SourceRecordContext): AgencyFacade {
     validateSourceRecordContext(input);
     const key = [input.apiVersion, input.namespace, "Agency", input.name].join(
@@ -2823,7 +2705,7 @@ export class DataContext {
     return {
       findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
       getCurrentById: (id) =>
-        this.currentRow("public.agency", this.databaseAgencyById, id),
+        this.currentRow("public.agency", undefined, id),
       ensureUniqueAgencySlug: (input) =>
         this.ensureUniqueSlug("public.agency", input),
       registerAgencySlug: (input) => {
@@ -2886,7 +2768,7 @@ export class DataContext {
     return {
       findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
       getCurrentById: (id) =>
-        this.currentRow("public.officers", this.databaseOfficerById, id),
+        this.currentRow("public.officers", undefined, id),
       ensureUniquePersonnelSlug: (input) =>
         this.ensureUniqueSlug("public.officers", input),
       registerPersonnelSlug: (input) => {

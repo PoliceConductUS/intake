@@ -2,7 +2,7 @@ import { parse as parseCsv } from "csv-parse/sync";
 import type {
   AgencyCoordinateRequest,
   AgencyCoordinateResolution,
-} from "./agency-preparation.js";
+} from "./agency-coordinate-types.js";
 import type {
   LocationAdministrativeAreaRequest,
   LocationAdministrativeAreaResolution,
