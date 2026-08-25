@@ -20,6 +20,21 @@ function asArray(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
 }
 
+function bodyText(body: unknown): string {
+  return typeof body === "string" ? body : JSON.stringify(body);
+}
+
+// The Clearinghouse API answers a zero-match search with HTTP 400 and a body of
+// `["No results for {...}"]` rather than 200 with an empty result set. That is a
+// normal "this agency has no cases", not a failure.
+export function isNoResults(status: number, body: unknown): boolean {
+  return (
+    status === 400 &&
+    Array.isArray(body) &&
+    String(body[0] ?? "").startsWith("No results")
+  );
+}
+
 export const acquire: SourceAcquire = async ({
   sourceDir,
   env,
@@ -50,12 +65,26 @@ export const acquire: SourceAcquire = async ({
       }
       await appendFile(
         apiLogPath,
-        `${JSON.stringify({ at: new Date().toISOString(), url, status: response.status })}\n`,
+        `${JSON.stringify({
+          at: new Date().toISOString(),
+          url,
+          status: response.status,
+          // Log the body on any non-2xx so a failure is diagnosable from the log
+          // alone, without re-running the request to see why.
+          ...(response.ok ? {} : { body }),
+        })}\n`,
       );
       if (response.ok) return body as Record<string, unknown>;
+      // A zero-match search is a 400 here (see isNoResults) — return an empty
+      // page instead of throwing, so an agency with no cases is not a failure.
+      if (isNoResults(response.status, body)) {
+        return { results: [], next: "" };
+      }
       const retryable = response.status === 429 || response.status >= 500;
       if (!retryable || attempt >= MAX_RETRIES) {
-        throw new Error(`clearinghouse: ${response.status} for ${url}`);
+        throw new Error(
+          `clearinghouse: ${response.status} for ${url}: ${bodyText(body)}`,
+        );
       }
       const retryAfter = Number(response.headers.get("retry-after"));
       const waitMs =
