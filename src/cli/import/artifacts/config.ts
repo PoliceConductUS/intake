@@ -1,9 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import {
-  createCensusAgencyCoordinateResolver,
-  createCensusLocationAdministrativeAreaResolver,
-} from "./agency-coordinate-resolver.js";
+import { createCensusAgencyCoordinateResolver } from "./agency-coordinate-resolver.js";
 import { resolveImportAddress } from "./agency-address-resolution.js";
 import type {
   AgencyCoordinateRequest,
@@ -18,10 +15,6 @@ import {
   type DatabaseClientFactory,
 } from "../../database/index.js";
 import { readDatabaseRecordByColumn } from "../../database/entities.js";
-import type {
-  LocationAdministrativeAreaRequest,
-  LocationAdministrativeAreaResolution,
-} from "./location-resolution.js";
 import { DataContext } from "./data-context.js";
 import { isRegistryKind } from "./facades/resolver-registry.js";
 import type { ApplyArtifactMutationResult } from "./artifact-mutation.js";
@@ -83,9 +76,6 @@ export type ImportArtifactsCommandInput = {
   resolveAgencyCoordinates?: (
     requests: AgencyCoordinateRequest[],
   ) => Promise<AgencyCoordinateResolution[]>;
-  resolveLocationAdministrativeArea?: (
-    request: LocationAdministrativeAreaRequest,
-  ) => Promise<LocationAdministrativeAreaResolution | undefined>;
   excludedRecords?: ExcludedRecords;
   commandDirectory?: string;
   commandName?: string;
@@ -305,9 +295,6 @@ function agencyResolutionDeps(context: ImportArtifactsPipelineContext) {
           );
         },
       }),
-    resolveLocationAdministrativeArea:
-      context.commandInput.resolveLocationAdministrativeArea ??
-      createCensusLocationAdministrativeAreaResolver(),
     resolvedPropertyCache: {
       read: (input: ResolvedPropertyCacheInput) =>
         readResolvedProperty({ ...input, rootDir: context.workspaceRoot }),

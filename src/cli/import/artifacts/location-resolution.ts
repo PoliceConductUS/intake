@@ -10,19 +10,6 @@ import type { LocationPathRow } from "../../../shared/io/generated/entity-specs.
 // which imports these classes and types as values/types.
 import type { DataContext } from "./data-context.js";
 
-export type LocationAdministrativeAreaRequest = {
-  address?: string;
-  state: string;
-  placeName: string;
-  placeSlug: string;
-  zipCode?: string;
-};
-
-export type LocationAdministrativeAreaResolution = {
-  administrativeAreaName: string;
-  administrativeAreaSlug?: string;
-};
-
 export type AddressResolutionRequest = {
   entityType: string;
   entityId: string;

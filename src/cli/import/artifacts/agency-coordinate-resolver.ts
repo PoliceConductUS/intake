@@ -3,10 +3,6 @@ import type {
   AgencyCoordinateRequest,
   AgencyCoordinateResolution,
 } from "./agency-coordinate-types.js";
-import type {
-  LocationAdministrativeAreaRequest,
-  LocationAdministrativeAreaResolution,
-} from "./location-resolution.js";
 
 const CENSUS_BATCH_URL =
   "https://geocoding.geo.census.gov/geocoder/locations/addressbatch";
@@ -141,63 +137,6 @@ function asRecords(value: unknown): Record<string, unknown>[] {
           typeof item === "object" && item !== null,
       )
     : [];
-}
-
-function geographyRecords(
-  geographies: Record<string, unknown>,
-  key: string,
-): Record<string, unknown>[] {
-  return asRecords(geographies[key]);
-}
-
-function administrativeAreaNameFromCounty(
-  county: Record<string, unknown>,
-): string | undefined {
-  const name = valueAsString(county.NAME) ?? valueAsString(county.BASENAME);
-  if (name === undefined) {
-    return undefined;
-  }
-
-  return /\b(county|parish|borough|municipality|census area|city and borough)\b/i.test(
-    name,
-  )
-    ? name
-    : `${name} County`;
-}
-
-function administrativeAreaFromCensusPayload(
-  payload: unknown,
-): LocationAdministrativeAreaResolution | undefined {
-  if (typeof payload !== "object" || payload === null) {
-    return undefined;
-  }
-
-  const result = (payload as { result?: unknown }).result;
-  if (typeof result !== "object" || result === null) {
-    return undefined;
-  }
-
-  for (const match of asRecords(
-    (result as { addressMatches?: unknown }).addressMatches,
-  )) {
-    const geographies = match.geographies;
-    if (typeof geographies !== "object" || geographies === null) {
-      continue;
-    }
-
-    const counties = [
-      ...geographyRecords(geographies as Record<string, unknown>, "Counties"),
-      ...geographyRecords(geographies as Record<string, unknown>, "County"),
-    ];
-    for (const county of counties) {
-      const administrativeAreaName = administrativeAreaNameFromCounty(county);
-      if (administrativeAreaName !== undefined) {
-        return { administrativeAreaName };
-      }
-    }
-  }
-
-  return undefined;
 }
 
 async function fetchWithTimeout(
@@ -523,60 +462,5 @@ export function createCensusAgencyCoordinateResolver(
       }
     }
     return canonical;
-  };
-}
-
-export function createCensusLocationAdministrativeAreaResolver(
-  fetchFn: FetchLike = fetch,
-): (
-  request: LocationAdministrativeAreaRequest,
-) => Promise<LocationAdministrativeAreaResolution | undefined> {
-  const cache = new Map<
-    string,
-    LocationAdministrativeAreaResolution | undefined
-  >();
-
-  return async (request) => {
-    const cacheKey = [
-      valueAsString(request.address) ?? "",
-      request.placeSlug,
-      request.state.trim().toUpperCase(),
-      valueAsString(request.zipCode) ?? "",
-    ].join("|");
-    if (cache.has(cacheKey)) {
-      return cache.get(cacheKey);
-    }
-
-    const parameters = new URLSearchParams({
-      city: request.placeName,
-      state: request.state,
-      benchmark: "Public_AR_Current",
-      vintage: "Current_Current",
-      layers: "82",
-      format: "json",
-    });
-    const address = valueAsString(request.address);
-    if (address !== undefined) {
-      parameters.set("street", normalizeGeocodingStreetAddress(address));
-    }
-    const zipCode = valueAsString(request.zipCode);
-    if (zipCode !== undefined) {
-      parameters.set("zip", zip5(zipCode));
-    }
-
-    const response = await fetchFn(
-      `${CENSUS_GEOGRAPHIES_ADDRESS_URL}?${parameters.toString()}`,
-    );
-    if (!response.ok) {
-      throw new Error(
-        `Census geography resolver failed: ${response.status} ${response.statusText}`,
-      );
-    }
-
-    const resolution = administrativeAreaFromCensusPayload(
-      await response.json(),
-    );
-    cache.set(cacheKey, resolution);
-    return resolution;
   };
 }

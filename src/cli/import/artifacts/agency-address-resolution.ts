@@ -1,8 +1,6 @@
 import {
   type AddressResolution,
   type AddressResolutionRequest,
-  type LocationAdministrativeAreaRequest,
-  type LocationAdministrativeAreaResolution,
   type LocationResolution,
 } from "./location-resolution.js";
 import type {
@@ -14,9 +12,6 @@ export type AgencyAddressResolutionOptions = {
   resolveAgencyCoordinates?: (
     requests: AgencyCoordinateRequest[],
   ) => Promise<AgencyCoordinateResolution[]>;
-  resolveLocationAdministrativeArea?: (
-    request: LocationAdministrativeAreaRequest,
-  ) => Promise<LocationAdministrativeAreaResolution | undefined>;
 };
 
 export type ResolveAgencyAddressLocationPath = (input: {
