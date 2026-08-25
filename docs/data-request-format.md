@@ -9,7 +9,7 @@ preparing a data export or when requesting one from an agency or records office.
 ## File naming and layout
 
 - **One file per record type.** Name each file `<request-id>.<Kind>.csv`, where
-  `<request-id>` identifies this export (any short slug you choose, e.g.
+  `<request-id>` identifies this export (any short label you choose, e.g.
   `az-post-2026-06`) and `<Kind>` is the record type from the sections below,
   spelled exactly (e.g. `az-post-2026-06.Agency.csv`,
   `az-post-2026-06.AgencyPersonnel.csv`, `az-post-2026-06.Personnel.csv`).
@@ -31,11 +31,6 @@ record:
 - **`optional`** — include it when you have it; omit it otherwise.
 - **Constraints** — an allowed value set, a non-empty requirement, or a date/time
   format the field must follow.
-
-Fields we compute ourselves (the URL slug, and our internal id for a place in the
-census geography) are not listed — there is nothing for you to send. Coordinates
-*are* listed: send them if you have them, and we geocode from the address if you
-don't.
 - **Relationship** — when a field points at another record (a foreign key), it
   names the record type it links to.
 
