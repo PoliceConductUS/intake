@@ -34,4 +34,15 @@ describe("readXlsx", () => {
   it("is deterministic across repeat reads", async () => {
     expect(await readXlsx(fixture)).toEqual(await readXlsx(fixture));
   });
+
+  it("passes when every required column is present", async () => {
+    const rows = await readXlsx(fixture, undefined, ["POST ID", "FIRST"]);
+    expect(rows).toHaveLength(4);
+  });
+
+  it("fails loud when a required column is missing, naming it", async () => {
+    await expect(
+      readXlsx(fixture, undefined, ["POST ID", "NOPE_NOT_A_COLUMN"]),
+    ).rejects.toThrow(/missing required column\(s\): NOPE_NOT_A_COLUMN/);
+  });
 });

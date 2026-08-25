@@ -39,10 +39,17 @@ function cellToString(value: ExcelJS.CellValue): string {
  * omitting it reads the first worksheet (the historical behavior). A named
  * sheet that does not exist throws so a mis-typed sheet name fails loudly
  * rather than silently returning no rows.
+ *
+ * `requiredColumns`, when given, must all appear in the header row — a missing
+ * one throws (listing what is missing and what is available). Without it, a
+ * renamed or mis-typed column reads as "" on every row and the source silently
+ * drops all of them; declaring the columns a source reads turns that into a
+ * loud failure at the read boundary.
  */
 export async function readXlsx(
   filePath: string,
   sheet?: string,
+  requiredColumns?: readonly string[],
 ): Promise<Array<Record<string, string>>> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.readFile(filePath);
@@ -60,6 +67,18 @@ export async function readXlsx(
   worksheet.getRow(1).eachCell({ includeEmpty: true }, (cell, col) => {
     headers[col] = cellToString(cell.value);
   });
+
+  if (requiredColumns !== undefined && requiredColumns.length > 0) {
+    const present = new Set(headers.filter((header) => header !== ""));
+    const missing = requiredColumns.filter((column) => !present.has(column));
+    if (missing.length > 0) {
+      const sheetName = worksheet.name;
+      throw new Error(
+        `Worksheet "${sheetName}" in ${filePath} is missing required column(s): ` +
+          `${missing.join(", ")} (available: ${[...present].join(", ")}).`,
+      );
+    }
+  }
 
   const rows: Array<Record<string, string>> = [];
   for (let r = 2; r <= worksheet.rowCount; r++) {

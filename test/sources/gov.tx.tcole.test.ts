@@ -121,43 +121,79 @@ const sheets: Record<string, Array<Record<string, string>>> = {
       END_DATE: "",
     },
   ],
+  // Real column names: LICENSE_ACTION (the action), LICENSE_STATUS (ACTIVE/
+  // INACTIVE after that action), DATE_AWARDED (the license's award date, constant
+  // per license). DATE_AWARDED is deliberately set earlier than the earliest
+  // ACTION_DATE so `first_awarded` (DATE_AWARDED) is distinguishable from the old
+  // earliest-ACTION_DATE behavior, and status changes over time so "latest action
+  // wins" is actually exercised.
   OfficersLicensesActions: [
-    // two actions for 1000038's Peace Officer License -> earliest is first_awarded
+    // 1000038's Peace Officer License: two actions, both ACTIVE.
     {
       PUBLIC_GUID: "1000038",
       LICENSE: "Peace Officer License",
-      ACTION: "Issued",
+      DATE_AWARDED: "1994-06-16T00:00:00.000Z",
       ACTION_DATE: "1994-06-16T00:00:00.000Z",
-      STATUS: "Active",
+      LICENSE_ACTION: "Granted",
+      LICENSE_STATUS: "ACTIVE",
     },
     {
       PUBLIC_GUID: "1000038",
       LICENSE: "Peace Officer License",
-      ACTION: "Renewed",
+      DATE_AWARDED: "1994-06-16T00:00:00.000Z",
       ACTION_DATE: "2000-01-01T00:00:00.000Z",
-      STATUS: "Active",
+      LICENSE_ACTION: "Renewed",
+      LICENSE_STATUS: "ACTIVE",
     },
-    // 1000033's Temporary Jailer License
+    // 1000033's Temporary Jailer License: awarded 2019-12-01 (before the earliest
+    // action 2020-01-01), then suspended -> current status INACTIVE.
     {
       PUBLIC_GUID: "1000033",
       LICENSE: "Temporary Jailer License",
-      ACTION: "Issued",
+      DATE_AWARDED: "2019-12-01T00:00:00.000Z",
+      ACTION_DATE: "2020-01-01T00:00:00.000Z",
+      LICENSE_ACTION: "Granted",
+      LICENSE_STATUS: "ACTIVE",
+    },
+    {
+      PUBLIC_GUID: "1000033",
+      LICENSE: "Temporary Jailer License",
+      DATE_AWARDED: "2019-12-01T00:00:00.000Z",
       ACTION_DATE: "2024-10-15T00:00:00.000Z",
-      STATUS: "Active",
+      LICENSE_ACTION: "Suspended",
+      LICENSE_STATUS: "INACTIVE",
     },
     // action for the dropped (inactive-only) officer 2000001 -> not emitted
     {
       PUBLIC_GUID: "2000001",
       LICENSE: "Jailer License",
-      ACTION: "Issued",
+      DATE_AWARDED: "2010-01-01T00:00:00.000Z",
       ACTION_DATE: "2010-01-01T00:00:00.000Z",
-      STATUS: "Active",
+      LICENSE_ACTION: "Granted",
+      LICENSE_STATUS: "ACTIVE",
     },
   ],
 };
 
-const fakeReadXlsx = async (_path: string, sheet?: string) =>
-  sheets[sheet ?? ""] ?? [];
+// Mirror the real readXlsx guard: a declared-but-missing column fails loud, so a
+// fixture that drops a column the source reads breaks the test instead of
+// silently emptying it.
+const fakeReadXlsx = async (
+  _path: string,
+  sheet?: string,
+  requiredColumns?: readonly string[],
+) => {
+  const rows = sheets[sheet ?? ""] ?? [];
+  if (requiredColumns !== undefined && rows[0] !== undefined) {
+    const missing = requiredColumns.filter((column) => !(column in rows[0]));
+    if (missing.length > 0) {
+      throw new Error(
+        `fixture sheet "${sheet}" missing column(s): ${missing.join(", ")}`,
+      );
+    }
+  }
+  return rows;
+};
 const fakeEmit = async () => {};
 
 const deps = {
@@ -346,9 +382,19 @@ describe("gov.tx.tcole run", () => {
     expect(records["1000038|Peace Officer License"].spec).toEqual({
       personnel_id: "1000038",
       license_type: "Peace Officer License",
-      status: null,
-      // earliest OfficersLicensesActions ACTION_DATE for the pair
+      // current status = LICENSE_STATUS of the latest action (2000-01-01 Renewed)
+      status: "ACTIVE",
+      // authoritative DATE_AWARDED, not the earliest ACTION_DATE
       first_awarded: "1994-06-16",
+      issued_by_authority_id: "tcole",
+    });
+    // 1000033's license was awarded 2019-12-01 (before its earliest action
+    // 2020-01-01) and later Suspended -> current status INACTIVE.
+    expect(records["1000033|Temporary Jailer License"].spec).toEqual({
+      personnel_id: "1000033",
+      license_type: "Temporary Jailer License",
+      status: "INACTIVE",
+      first_awarded: "2019-12-01",
       issued_by_authority_id: "tcole",
     });
     for (const record of Object.values(records)) {
@@ -361,21 +407,31 @@ describe("gov.tx.tcole run", () => {
       (a) => a.kind === "LicenseActions",
     )!;
     expect(Object.keys(records).sort()).toEqual([
-      "1000033|Temporary Jailer License|Issued|2024-10-15",
-      "1000038|Peace Officer License|Issued|1994-06-16",
+      "1000033|Temporary Jailer License|Granted|2020-01-01",
+      "1000033|Temporary Jailer License|Suspended|2024-10-15",
+      "1000038|Peace Officer License|Granted|1994-06-16",
       "1000038|Peace Officer License|Renewed|2000-01-01",
     ]);
     expect(
-      records["1000038|Peace Officer License|Issued|1994-06-16"].spec,
+      records["1000038|Peace Officer License|Granted|1994-06-16"].spec,
     ).toEqual({
       license_id: "1000038|Peace Officer License",
-      action: "Issued",
+      action: "Granted",
       action_date: "1994-06-16",
-      status: "Active",
+      status: "ACTIVE",
+    });
+    // a disciplinary action is preserved verbatim, with its resulting status
+    expect(
+      records["1000033|Temporary Jailer License|Suspended|2024-10-15"].spec,
+    ).toEqual({
+      license_id: "1000033|Temporary Jailer License",
+      action: "Suspended",
+      action_date: "2024-10-15",
+      status: "INACTIVE",
     });
     // the dropped officer 2000001's action is not emitted
     expect(Object.keys(records)).not.toContain(
-      "2000001|Jailer License|Issued|2010-01-01",
+      "2000001|Jailer License|Granted|2010-01-01",
     );
     for (const record of Object.values(records)) {
       expect(LicenseActionSpec.safeParse(record.spec).success).toBe(true);

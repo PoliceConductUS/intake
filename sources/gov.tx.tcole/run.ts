@@ -41,7 +41,7 @@ export const produces: readonly ImportArtifactKind[] = [
  * only its own authorities, with no shared/curated dataset), `Licenses` (distinct
  * `PUBLIC_GUID`×`LICENSE`, keyed `PUBLIC_GUID|LICENSE`), and `LicenseActions`
  * (one per `OfficersLicensesActions` row, keyed
- * `PUBLIC_GUID|LICENSE|ACTION|ACTION_DATE`).
+ * `PUBLIC_GUID|LICENSE|LICENSE_ACTION|ACTION_DATE`).
  *
  * Deterministic: no network, clock, or randomness. Cross-references
  * (`agency_id`, `personnel_id`) carry TCOLE source keys that the import
@@ -50,6 +50,41 @@ export const produces: readonly ImportArtifactKind[] = [
  */
 export const description =
   "Texas TCOLE — agencies, officers, licenses, and assignments reconstructed from the TCOLE public-information workbook.";
+
+// The columns each sheet is read for, asserted present at the read boundary so a
+// renamed/mis-typed column fails loud instead of silently reading "" (and
+// dropping every row). Keep in sync with the buildX functions below.
+const DEPARTMENT_COLUMNS = [
+  "DEPARTMENT_NUMBER",
+  "DEPARTMENT_NAME",
+  "STATE",
+  "STATUS",
+  "ADD_LINE1",
+  "ADD_LINE2",
+  "CITY",
+  "ZIP_CODE",
+  "HEAD_NAME",
+  "E_MAIL",
+  "PHONE",
+  "FAX",
+] as const;
+const SERVICE_COLUMNS = [
+  "PUBLIC_GUID",
+  "DEPARTMENT_NUMBER",
+  "APPOINTMENT",
+  "LICENSE",
+  "ST_DATE",
+  "END_DATE",
+] as const;
+const OFFICER_COLUMNS = ["PUBLIC_GUID", "FNAME", "LNAME", "MNAME", "SFX"] as const;
+const LICENSE_ACTION_COLUMNS = [
+  "PUBLIC_GUID",
+  "LICENSE",
+  "DATE_AWARDED",
+  "ACTION_DATE",
+  "LICENSE_ACTION",
+  "LICENSE_STATUS",
+] as const;
 
 export const run: SourceRun = async ({ paths, readXlsx, logger }) => {
   const log = logger ?? { info() {} };
@@ -61,7 +96,7 @@ export const run: SourceRun = async ({ paths, readXlsx, logger }) => {
   // Agencies: STATUS = ACTIVE only (the original seed omitted the 953 inactive
   // departments). Everything else cascades from that decision.
   log.info("tcole: reading Departments sheet");
-  const departmentRows = await readXlsx(workbook, "Departments");
+  const departmentRows = await readXlsx(workbook, "Departments", DEPARTMENT_COLUMNS);
   const agencies = buildAgencies(departmentRows);
   log.info(`tcole: ${Object.keys(agencies).length} active agencies`);
   const agencyPhoneNumbers = buildAgencyPhoneNumbers(departmentRows, agencies);
@@ -70,7 +105,7 @@ export const run: SourceRun = async ({ paths, readXlsx, logger }) => {
   // iff some Services row links them to an emitted (active) agency. Officers with
   // no services, or only services at inactive agencies, are dropped.
   log.info("tcole: reading Services sheet");
-  const serviceRows = await readXlsx(workbook, "Services");
+  const serviceRows = await readXlsx(workbook, "Services", SERVICE_COLUMNS);
   log.info(`tcole: ${serviceRows.length} service rows`);
   const activeOfficerGuids = new Set<string>();
   for (const row of serviceRows) {
@@ -83,7 +118,7 @@ export const run: SourceRun = async ({ paths, readXlsx, logger }) => {
 
   log.info("tcole: reading Officers sheet");
   const personnel = buildPersonnel(
-    await readXlsx(workbook, "Officers"),
+    await readXlsx(workbook, "Officers", OFFICER_COLUMNS),
     activeOfficerGuids,
   );
   log.info(`tcole: ${Object.keys(personnel).length} active officers`);
@@ -91,7 +126,11 @@ export const run: SourceRun = async ({ paths, readXlsx, logger }) => {
   // Per-license history rows (one per licensing action). Sheet is optional; a
   // workbook without it simply yields no Licenses/LicenseActions.
   log.info("tcole: reading OfficersLicensesActions sheet");
-  const licenseActionRows = await readXlsx(workbook, "OfficersLicensesActions");
+  const licenseActionRows = await readXlsx(
+    workbook,
+    "OfficersLicensesActions",
+    LICENSE_ACTION_COLUMNS,
+  );
 
   log.info("tcole: building records");
   const licensingAuthorities = buildLicensingAuthorities();
@@ -325,26 +364,42 @@ function buildLicensingAuthorities(): EmittedRecords {
 /**
  * Emits one License per distinct PUBLIC_GUID×LICENSE seen in either the
  * OfficersLicensesActions history or the Services roster, for officers that
- * were emitted (active cascade). Keyed by `PUBLIC_GUID|LICENSE`. `first_awarded`
- * is the earliest OfficersLicensesActions ACTION_DATE for that pair when
- * available, else null. All TCOLE licenses are issued by `tcole`.
+ * were emitted (active cascade). Keyed by `PUBLIC_GUID|LICENSE`.
+ *
+ * `first_awarded` is the authoritative `DATE_AWARDED` from the actions history
+ * (constant per license) when available, else null. `status` is the
+ * `LICENSE_STATUS` recorded by the latest action (by ACTION_DATE) — the license's
+ * current standing. Both are null for a license seen only in the Services roster,
+ * which carries no action history. All TCOLE licenses are issued by `tcole`.
  */
 function buildLicenses(
   serviceRows: Array<Record<string, string>>,
   licenseActionRows: Array<Record<string, string>>,
   personnel: EmittedRecords,
 ): EmittedRecords {
-  // Earliest ACTION_DATE per PUBLIC_GUID|LICENSE (cheap single pass).
-  const earliestActionDate = new Map<string, string>();
+  // Per PUBLIC_GUID|LICENSE, in one pass over the action history: the award date
+  // (authoritative DATE_AWARDED) and the current status (LICENSE_STATUS at the
+  // latest ACTION_DATE; a later row at a tied date wins).
+  const awardDate = new Map<string, string>();
+  const latestActionDate = new Map<string, string>();
+  const currentStatus = new Map<string, string>();
   for (const row of licenseActionRows) {
     const publicGuid = (row["PUBLIC_GUID"] ?? "").trim();
     const license = (row["LICENSE"] ?? "").trim();
-    const actionDate = toDate(row["ACTION_DATE"]);
-    if (publicGuid === "" || license === "" || actionDate === "") continue;
+    if (publicGuid === "" || license === "") continue;
     const key = `${publicGuid}|${license}`;
-    const current = earliestActionDate.get(key);
-    if (current === undefined || actionDate < current) {
-      earliestActionDate.set(key, actionDate);
+
+    const dateAwarded = toDate(row["DATE_AWARDED"]);
+    if (dateAwarded !== "" && !awardDate.has(key)) awardDate.set(key, dateAwarded);
+
+    const actionDate = toDate(row["ACTION_DATE"]);
+    const status = (row["LICENSE_STATUS"] ?? "").trim();
+    if (actionDate !== "") {
+      const latest = latestActionDate.get(key);
+      if (latest === undefined || actionDate >= latest) {
+        latestActionDate.set(key, actionDate);
+        if (status !== "") currentStatus.set(key, status);
+      }
     }
   }
 
@@ -363,8 +418,8 @@ function buildLicenses(
       spec: {
         personnel_id: publicGuid,
         license_type: license,
-        status: null,
-        first_awarded: earliestActionDate.get(key) ?? null,
+        status: currentStatus.get(key) ?? null,
+        first_awarded: awardDate.get(key) ?? null,
         issued_by_authority_id: "tcole",
       },
     };
@@ -375,7 +430,7 @@ function buildLicenses(
 /**
  * Emits one LicenseAction per OfficersLicensesActions row whose officer and
  * license were emitted. Keyed by the tuple
- * `PUBLIC_GUID|LICENSE|ACTION|ACTION_DATE`. `license_id` references the emitted
+ * `PUBLIC_GUID|LICENSE|LICENSE_ACTION|ACTION_DATE`. `license_id` references the emitted
  * License by its `PUBLIC_GUID|LICENSE` key; rows referencing an unemitted
  * license are skipped so no reference dangles.
  */
@@ -388,9 +443,9 @@ function buildLicenseActions(
   for (const row of rows) {
     const publicGuid = (row["PUBLIC_GUID"] ?? "").trim();
     const license = (row["LICENSE"] ?? "").trim();
-    const action = (row["ACTION"] ?? "").trim();
+    const action = (row["LICENSE_ACTION"] ?? "").trim();
     const actionDate = toDate(row["ACTION_DATE"]);
-    const status = (row["STATUS"] ?? "").trim();
+    const status = (row["LICENSE_STATUS"] ?? "").trim();
 
     if (publicGuid === "" || license === "" || action === "") continue;
     if (personnel[publicGuid] === undefined) continue;
