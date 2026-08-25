@@ -45,6 +45,41 @@ function bareTable(qualified: string): string {
   return qualified.replace(/^public\./, "");
 }
 
+// One sentence on what each record represents. "Personnel" is deliberately the
+// neutral term: it is anyone a licensing authority licenses, not only sworn
+// officers.
+const DESCRIPTIONS: Record<string, string> = {
+  Agency:
+    "A law-enforcement agency — a department, office, or unit that employs licensed personnel.",
+  Personnel:
+    "A person licensed or certified by a licensing authority — a sworn officer or any other licensed role (a dispatcher, jailer, reserve, etc.).",
+  AgencyPersonnel:
+    "An assignment: one person serving at one agency over a period (their appointment, and when it ended).",
+  LicensingAuthority:
+    "The body that licenses or certifies personnel — typically a state POST (Peace Officer Standards and Training).",
+  License:
+    "A license or certification a person holds, issued by a licensing authority.",
+  LicenseAction:
+    "An event in a license's history — issuance, renewal, suspension, or revocation.",
+  Discipline: "A disciplinary action or finding.",
+  DisciplineAgencyOfficer:
+    "Ties a disciplinary action to the specific assignment (person at an agency) it concerns.",
+  CoverageLink:
+    "A news article, report, or record documenting an incident or person.",
+  CoverageLinkAgencyOfficer:
+    "Ties a piece of coverage to the specific assignment (person at an agency) it concerns.",
+  AgencyPhoneNumber: "A phone or fax number for an agency.",
+  FederalAgency:
+    "A federal law-enforcement agency (e.g. the FBI, DEA), distinct from its individual offices.",
+  FederalAgencyBranch:
+    "A federal agency's office or field location, recorded as its own agency and linked to the parent federal agency.",
+  CivilCase:
+    "A civil lawsuit naming an agency and/or its personnel.",
+  CivilCaseOfficer:
+    "Ties a civil case to a named assignment (person at an agency) it involves.",
+  CivilCaseLink: "A source document or link for a civil case.",
+};
+
 const recordKindByTable = new Map<string, string>(
   Object.values(importTypeMetadata).map((meta) => [
     bareTable(meta.targetTable ?? ""),
@@ -204,9 +239,11 @@ export function generateDataRequestDoc(schema: IntrospectedSchema): string {
     const table = schema.tables.get(bareTable(meta.targetTable));
     if (table === undefined) continue;
     const rows = classifyTable(meta.recordKind, table);
+    const description = DESCRIPTIONS[meta.recordKind] ?? "";
     sections.push(
       `### ${meta.recordKind}\n\n` +
-        `Table \`${meta.targetTable}\`. One row per ${meta.recordKind}.\n\n` +
+        (description === "" ? "" : `${description}\n\n`) +
+        `One row per ${meta.recordKind}.\n\n` +
         renderTable(rows),
     );
   }

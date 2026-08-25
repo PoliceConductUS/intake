@@ -54,7 +54,9 @@ them, and we never guess their meaning.
 
 ### Agency
 
-Table `public.agency`. One row per Agency.
+A law-enforcement agency — a department, office, or unit that employs licensed personnel.
+
+One row per Agency.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
@@ -71,7 +73,9 @@ Table `public.agency`. One row per Agency.
 
 ### Personnel
 
-Table `public.officers`. One row per Personnel.
+A person licensed or certified by a licensing authority — a sworn officer or any other licensed role (a dispatcher, jailer, reserve, etc.).
+
+One row per Personnel.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
@@ -87,7 +91,9 @@ Table `public.officers`. One row per Personnel.
 
 ### AgencyPersonnel
 
-Table `public.agency_officers`. One row per AgencyPersonnel.
+An assignment: one person serving at one agency over a period (their appointment, and when it ended).
+
+One row per AgencyPersonnel.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
@@ -102,7 +108,9 @@ Table `public.agency_officers`. One row per AgencyPersonnel.
 
 ### LicensingAuthority
 
-Table `public.licensing_authority`. One row per LicensingAuthority.
+The body that licenses or certifies personnel — typically a state POST (Peace Officer Standards and Training).
+
+One row per LicensingAuthority.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
@@ -113,7 +121,9 @@ Table `public.licensing_authority`. One row per LicensingAuthority.
 
 ### License
 
-Table `public.license`. One row per License.
+A license or certification a person holds, issued by a licensing authority.
+
+One row per License.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
@@ -126,7 +136,9 @@ Table `public.license`. One row per License.
 
 ### LicenseAction
 
-Table `public.license_action`. One row per LicenseAction.
+An event in a license's history — issuance, renewal, suspension, or revocation.
+
+One row per LicenseAction.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
@@ -138,7 +150,9 @@ Table `public.license_action`. One row per LicenseAction.
 
 ### Discipline
 
-Table `public.discipline`. One row per Discipline.
+A disciplinary action or finding.
+
+One row per Discipline.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
@@ -150,7 +164,9 @@ Table `public.discipline`. One row per Discipline.
 
 ### DisciplineAgencyOfficer
 
-Table `public.discipline_agency_officers`. One row per DisciplineAgencyOfficer.
+Ties a disciplinary action to the specific assignment (person at an agency) it concerns.
+
+One row per DisciplineAgencyOfficer.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
@@ -160,7 +176,9 @@ Table `public.discipline_agency_officers`. One row per DisciplineAgencyOfficer.
 
 ### CoverageLink
 
-Table `public.coverage_links`. One row per CoverageLink.
+A news article, report, or record documenting an incident or person.
+
+One row per CoverageLink.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
@@ -174,7 +192,9 @@ Table `public.coverage_links`. One row per CoverageLink.
 
 ### CoverageLinkAgencyOfficer
 
-Table `public.coverage_link_agency_officers`. One row per CoverageLinkAgencyOfficer.
+Ties a piece of coverage to the specific assignment (person at an agency) it concerns.
+
+One row per CoverageLinkAgencyOfficer.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
@@ -186,7 +206,9 @@ Table `public.coverage_link_agency_officers`. One row per CoverageLinkAgencyOffi
 
 ### AgencyPhoneNumber
 
-Table `public.agency_phone_numbers`. One row per AgencyPhoneNumber.
+A phone or fax number for an agency.
+
+One row per AgencyPhoneNumber.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
@@ -197,7 +219,9 @@ Table `public.agency_phone_numbers`. One row per AgencyPhoneNumber.
 
 ### FederalAgency
 
-Table `public.federal_agency`. One row per FederalAgency.
+A federal law-enforcement agency (e.g. the FBI, DEA), distinct from its individual offices.
+
+One row per FederalAgency.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
@@ -206,7 +230,9 @@ Table `public.federal_agency`. One row per FederalAgency.
 
 ### FederalAgencyBranch
 
-Table `public.federal_agency_branch`. One row per FederalAgencyBranch.
+A federal agency's office or field location, recorded as its own agency and linked to the parent federal agency.
+
+One row per FederalAgencyBranch.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
@@ -216,7 +242,9 @@ Table `public.federal_agency_branch`. One row per FederalAgencyBranch.
 
 ### CivilCase
 
-Table `public.civil_cases`. One row per CivilCase.
+A civil lawsuit naming an agency and/or its personnel.
+
+One row per CivilCase.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
@@ -232,7 +260,9 @@ Table `public.civil_cases`. One row per CivilCase.
 
 ### CivilCaseOfficer
 
-Table `public.civil_case_officers`. One row per CivilCaseOfficer.
+Ties a civil case to a named assignment (person at an agency) it involves.
+
+One row per CivilCaseOfficer.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
@@ -242,7 +272,9 @@ Table `public.civil_case_officers`. One row per CivilCaseOfficer.
 
 ### CivilCaseLink
 
-Table `public.civil_case_links`. One row per CivilCaseLink.
+A source document or link for a civil case.
+
+One row per CivilCaseLink.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
