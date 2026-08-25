@@ -4,6 +4,7 @@ import {
   type PropertyResolutionFacade,
   type ResolverContext,
   type FacadeSource,
+  type PropertyCache,
   type CanonicalIdBackend,
   type ForeignKeyBackend,
 } from "../resolver-kit.js";
@@ -12,6 +13,9 @@ import {
  * The backend a resolver-based entity facade reaches through: its own
  * canonical-id find-or-create, the existing DB row (for create-vs-update), and
  * the same-source foreign-key find. It composes the two minimal kit backends.
+ * Kinds that resolve slugs or geocode (Personnel, Agency) inject a wider backend
+ * that also carries those capabilities; the extra methods are only ever called
+ * by the resolvers configured for those kinds.
  */
 export type EntityFacadeBackend = CanonicalIdBackend &
   ForeignKeyBackend & {
@@ -22,22 +26,23 @@ export type EntityFacadeBackend = CanonicalIdBackend &
   };
 
 /** Per-property resolvers for a facade's row (ADR 0016). */
-export type EntityResolvers<Row> = Partial<{
-  [K in keyof Row]: Resolver<Row[K], ResolverContext<Row, EntityFacadeBackend>>;
+export type EntityResolvers<Row, Backend = EntityFacadeBackend> = Partial<{
+  [K in keyof Row]: Resolver<Row[K], ResolverContext<Row, Backend>>;
 }>;
 
-/** The create/update mutation envelope constructors a facade emits toward. */
+type EnvelopeMetadata = { namespace: string; name: string };
+
+/** The create/update/read mutation envelope constructors a facade emits toward. */
 export type MutationConstructors<Env> = {
   create: { new: (input: { metadata: EnvelopeMetadata; spec: never }) => Env };
-  update: {
+  update?: {
     new: (input: {
       metadata: EnvelopeMetadata;
       spec: { operations: MutationOperation[] };
     }) => Env;
   };
+  read?: { new: (input: { metadata: EnvelopeMetadata; spec: never }) => Env };
 };
-
-type EnvelopeMetadata = { namespace: string; name: string };
 
 type MutationOperation =
   | {
@@ -63,40 +68,81 @@ type MutationSource = {
   name: string;
 };
 
+/** How an existing row's mutation is expressed: a diffed Update, or a Read. */
+type UpsertMode = "update" | "read";
+
+/** Optional shape/identity knobs; every default reproduces a plain `id` entity. */
+export type EntityFacadeOptions<Backend> = {
+  current?: Record<string, unknown>;
+  source: FacadeSource;
+  backend: Backend;
+  /** The identity column; `id` for canonical entities, else e.g. `location_path_id`. */
+  identity?: string;
+  /** The column whose resolved value keys the existing-row lookup (default `identity`). */
+  existingBy?: string;
+  /** Existing row → a diffed Update (default) or a Read (natural-key idempotent rows). */
+  upsert?: UpsertMode;
+  /** Envelope `metadata.name`: the source name (default) or the identity value. */
+  metadataName?: "source" | "identity";
+  /** Columns dropped from the write when their resolved value is null (e.g. geometry). */
+  omitWhenNull?: readonly string[];
+  /** The `source > cache > live-resolve` property cache (ADR 0019). */
+  cache?: PropertyCache;
+  /** Properties resolved through the cache (`RESOLVED_PROPERTIES[kind]`; identity excluded). */
+  cacheableProperties?: readonly string[];
+};
+
 /**
- * A resolver-based facade for a straightforward entity: `id` is a canonical-id
- * find-or-create, foreign keys are FK resolvers, and every other column passes
- * through from the source spec. It owns the memoized property accessor and the
- * create-vs-update mutation planning (the same check/set shape the License
- * family uses). Entities needing bespoke resolution (Agency geocoding, Personnel
- * slugs) keep their own hand-written facades; the simple ones share this.
+ * The single resolver-based facade engine (ADR 0016/0019): per-property
+ * memoization, circular-dependency detection, plain source-or-null pass-through
+ * for columns no resolver manages, the `source > cache > live-resolve` property
+ * cache, and create-vs-(update|read) mutation planning. Everything entity-specific
+ * — the resolver map, identity column, upsert mode, cacheable properties — is
+ * configuration; there is no per-entity subclass.
  */
 export class EntityFacade<
-  Row extends { id: string },
+  Row,
   Env,
-> implements PropertyResolutionFacade<Row> {
+  Backend extends EntityFacadeBackend = EntityFacadeBackend,
+> implements PropertyResolutionFacade<Row>
+{
   private readonly spec: Record<string, unknown> = {};
   private readonly memo = new Map<keyof Row, Promise<unknown>>();
   private readonly inProgress = new Set<keyof Row>();
   private readonly current?: Record<string, unknown>;
   private readonly source: FacadeSource;
-  private readonly backend: EntityFacadeBackend;
+  private readonly backend: Backend;
+  private readonly identity: keyof Row & string;
+  private readonly existingBy: keyof Row & string;
+  private readonly upsert: UpsertMode;
+  private readonly metadataName: "source" | "identity";
+  private readonly omitWhenNull: ReadonlySet<string>;
+  private readonly cache?: PropertyCache;
+  private readonly cacheableProperties: ReadonlySet<string>;
 
   constructor(
     private readonly kind: string,
-    /** The non-id columns to resolve and write, in a stable order. */
+    /** The non-identity columns to resolve and write, in a stable order. */
     private readonly columns: readonly (keyof Row & string)[],
-    private readonly resolvers: EntityResolvers<Row>,
+    private readonly resolvers: EntityResolvers<Row, Backend>,
     private readonly mutations: MutationConstructors<Env>,
-    options: {
-      current?: Record<string, unknown>;
-      source: FacadeSource;
-      backend: EntityFacadeBackend;
-    },
+    options: EntityFacadeOptions<Backend>,
   ) {
     this.current = options.current;
     this.source = options.source;
     this.backend = options.backend;
+    this.identity = (options.identity ?? "id") as keyof Row & string;
+    this.existingBy = (options.existingBy ?? this.identity) as keyof Row &
+      string;
+    this.upsert = options.upsert ?? "update";
+    this.metadataName = options.metadataName ?? "source";
+    this.omitWhenNull = new Set(options.omitWhenNull ?? []);
+    this.cache = options.cache;
+    this.cacheableProperties = new Set(
+      (options.cacheableProperties ?? []).filter(
+        (property) => property !== this.identity,
+      ),
+    );
   }
 
   merge(spec: Record<string, unknown>): void {
@@ -133,13 +179,68 @@ export class EntityFacade<
       if (resolver === undefined) {
         return this.plainValue(property);
       }
-      return await resolver.resolve(
-        { facade: this, source: this.source, backend: this.backend },
-        () => this.unresolvedMessage(property),
+      const context: ResolverContext<Row, Backend> = {
+        facade: this,
+        source: this.source,
+        backend: this.backend,
+      };
+      const locate = () => this.unresolvedMessage(property);
+      if (
+        this.cache === undefined ||
+        !this.cacheableProperties.has(String(property))
+      ) {
+        return await resolver.resolve(context, locate);
+      }
+      return await this.resolveThroughCache(
+        property,
+        resolver,
+        context,
+        locate,
+        this.cache,
       );
     } finally {
       this.inProgress.delete(property);
     }
+  }
+
+  /**
+   * source > cache > live-resolve. A source-provided value wins and is returned
+   * untouched — never cached, because the source is authoritative and re-read
+   * each run. With no source value, a cache hit short-circuits the resolver; a
+   * miss resolves live and writes the result back.
+   */
+  private async resolveThroughCache<K extends keyof Row>(
+    property: K,
+    resolver: Resolver<Row[K], ResolverContext<Row, Backend>>,
+    context: ResolverContext<Row, Backend>,
+    locate: () => string,
+    cache: PropertyCache,
+  ): Promise<Row[K]> {
+    if (this.hasSourceValue(property)) {
+      return resolver.resolve(context, locate);
+    }
+    const key = {
+      kind: this.kind,
+      id: await this.value(this.identity),
+      property: String(property),
+    } as { kind: string; id: string; property: string };
+    const hit = await cache.read(key);
+    if (hit !== undefined) {
+      return hit as Row[K];
+    }
+    const resolved = await resolver.resolve(context, locate);
+    if (resolved !== null && resolved !== undefined) {
+      await cache.write(key, resolved);
+    }
+    return resolved;
+  }
+
+  private hasSourceValue(property: keyof Row): boolean {
+    const raw = this.spec[property as string];
+    if (raw === undefined || raw === null) {
+      return false;
+    }
+    return typeof raw === "string" ? raw.trim() !== "" : true;
   }
 
   private plainValue<K extends keyof Row>(property: K): Row[K] {
@@ -156,26 +257,54 @@ export class EntityFacade<
   }
 
   async toMutation(): Promise<Env> {
-    const id = await this.value("id" as keyof Row & string);
+    const identityValue = await this.value(this.identity);
     const resolved: Record<string, unknown> = {};
     for (const column of this.columns) {
-      resolved[column] = await this.value(column);
+      const value = await this.value(column);
+      if (value === null && this.omitWhenNull.has(column)) {
+        continue;
+      }
+      resolved[column] = value;
     }
 
+    const existingKey =
+      this.existingBy === this.identity
+        ? identityValue
+        : await this.value(this.existingBy);
     const current =
       this.current ??
-      (await this.backend.existingRow(id as unknown as string));
+      (await this.backend.existingRow(existingKey as unknown as string));
+
+    const name =
+      this.metadataName === "identity"
+        ? String(identityValue)
+        : this.source.name;
+    const metadata: EnvelopeMetadata = {
+      namespace: this.source.namespace,
+      name,
+    };
 
     if (current === undefined) {
       return this.mutations.create.new({
-        metadata: {
-          namespace: this.source.namespace,
-          name: this.source.name,
-        },
-        spec: { id, ...resolved } as never,
+        metadata,
+        spec: { [this.identity]: identityValue, ...resolved } as never,
       });
     }
 
+    if (this.upsert === "read") {
+      if (this.mutations.read === undefined) {
+        throw new Error(
+          `Cannot emit a ${this.kind} read for ${this.source.namespace}/${this.source.name}: no read mutation configured.`,
+        );
+      }
+      return this.mutations.read.new({ metadata, spec: {} as never });
+    }
+
+    if (this.mutations.update === undefined) {
+      throw new Error(
+        `Cannot emit a ${this.kind} update for ${this.source.namespace}/${this.source.name}: no update mutation configured.`,
+      );
+    }
     const commandName = valueAsString(this.source.commandName);
     if (commandName === undefined) {
       throw new Error(
@@ -212,10 +341,7 @@ export class EntityFacade<
     );
 
     return this.mutations.update.new({
-      metadata: {
-        namespace: this.source.namespace,
-        name: this.source.name,
-      },
+      metadata,
       spec: { operations },
     });
   }
