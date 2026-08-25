@@ -7,6 +7,7 @@ import type {
   AgencyCoordinateRequest,
   AgencyCoordinateResolution,
 } from "./agency-coordinate-types.js";
+import { valueAsString } from "./resolver-kit.js";
 
 export type AgencyAddressResolutionOptions = {
   resolveAgencyCoordinates?: (
@@ -29,12 +30,6 @@ export type ResolveAgencyAddressLocationPath = (input: {
   sourceName?: string;
   preferredLocationPathId?: string;
 }) => Promise<LocationResolution>;
-
-function valueAsString(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0
-    ? value
-    : undefined;
-}
 
 function valueAsFiniteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value)

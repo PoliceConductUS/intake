@@ -100,12 +100,6 @@ function valueAsRecord(value: unknown): Record<string, unknown> {
   throw new Error("Artifacts agency record must be an object.");
 }
 
-function valueAsString(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0
-    ? value
-    : undefined;
-}
-
 function valueAsFiniteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value)
     ? value

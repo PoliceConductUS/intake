@@ -78,8 +78,6 @@ export type EntityFacadeOptions<Backend> = {
   backend: Backend;
   /** The identity column; `id` for canonical entities, else e.g. `location_path_id`. */
   identity?: string;
-  /** The column whose resolved value keys the existing-row lookup (default `identity`). */
-  existingBy?: string;
   /** Existing row → a diffed Update (default) or a Read (natural-key idempotent rows). */
   upsert?: UpsertMode;
   /** Columns dropped from the write when their resolved value is null (e.g. geometry). */
@@ -111,7 +109,6 @@ export class EntityFacade<
   private readonly source: FacadeSource;
   private readonly backend: Backend;
   private readonly identity: keyof Row & string;
-  private readonly existingBy: keyof Row & string;
   private readonly upsert: UpsertMode;
   private readonly omitWhenNull: ReadonlySet<string>;
   private readonly cache?: PropertyCache;
@@ -129,8 +126,6 @@ export class EntityFacade<
     this.source = options.source;
     this.backend = options.backend;
     this.identity = (options.identity ?? "id") as keyof Row & string;
-    this.existingBy = (options.existingBy ?? this.identity) as keyof Row &
-      string;
     this.upsert = options.upsert ?? "update";
     this.omitWhenNull = new Set(options.omitWhenNull ?? []);
     this.cache = options.cache;
@@ -263,13 +258,9 @@ export class EntityFacade<
       resolved[column] = value;
     }
 
-    const existingKey =
-      this.existingBy === this.identity
-        ? identityValue
-        : await this.value(this.existingBy);
     const current =
       this.current ??
-      (await this.backend.existingRow(existingKey as unknown as string));
+      (await this.backend.existingRow(identityValue as unknown as string));
 
     // The envelope name is the target row's key value (ADR 0027): the pair
     // (kind, name) is (which table/op, which row), and replay locates an

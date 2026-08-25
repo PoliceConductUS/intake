@@ -107,8 +107,6 @@ export interface PropertyCache {
 }
 
 /**
-
-/**
  * The minimal capability a canonical-id resolver reaches through: the durable
  * ledger find-or-create. Backend-generic so any entity's facade can reuse it.
  */
@@ -145,7 +143,7 @@ export function valueAsString(value: unknown): string | undefined {
  * The capability a state→location_path resolver reaches through: resolve an
  * existing location_path by its `/state/` path (resolve-or-fail, never mints).
  */
-export type LocationPathByPathBackend = {
+type LocationPathByPathBackend = {
   getLocationPathByPath(
     path: string,
   ): Promise<{ location_path_id: string } | undefined>;
@@ -320,16 +318,6 @@ export function titleCaseResolver<Row, Backend>(
 ): Resolver<string, ResolverContext<Row, Backend>> {
   return new Resolver<string, ResolverContext<Row, Backend>>(
     casingResolveFn<Row, Backend>(property, titleCase),
-  );
-}
-
-/** Title-case an organization/address string property (NULLABLE column). */
-export function titleCaseResolverNullable<Row, Backend>(
-  property: keyof Row & string,
-): Resolver<string | null, ResolverContext<Row, Backend>> {
-  return new Resolver<string | null, ResolverContext<Row, Backend>>(
-    casingResolveFn<Row, Backend>(property, titleCase),
-    { defaultValue: null },
   );
 }
 

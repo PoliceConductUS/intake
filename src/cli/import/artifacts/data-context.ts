@@ -1,20 +1,9 @@
 import { createId } from "@paralleldrive/cuid2";
 import {
-  Resolver,
   valueAsString,
-  type PropertyResolutionFacade,
   type PropertyCache,
   type ForeignKeyIdSource,
-  type ResolverContext,
 } from "./resolver-kit.js";
-// Re-exported so existing importers of these symbols from ./data-context keep
-// working while the generic kit lives in its own module.
-export {
-  Resolver,
-  type PropertyResolutionFacade,
-  type ForeignKeyIdSource,
-  type ResolverContext,
-};
 import type {
   EntityFacade,
   EntityFacadeBackend,
@@ -23,11 +12,7 @@ import {
   buildFacadeForKind,
   identityColumnForKind,
 } from "./facades/resolver-registry.js";
-import {
-  RECORD_KINDS_IN_DEPENDENCY_ORDER,
-  RESOLVED_PROPERTIES,
-  type LocationPathRow,
-} from "../../../shared/io/generated/entity-specs.js";
+import { RECORD_KINDS_IN_DEPENDENCY_ORDER } from "../../../shared/io/generated/entity-specs.js";
 import { INTAKE_API_VERSION } from "../../../shared/io/import-types.js";
 import type { DatabaseClient } from "../../database/index.js";
 import { SlugAllocator } from "./slug.js";
@@ -295,14 +280,6 @@ export class DataContext {
       input.sourceId,
     );
   }
-
-  /**
-   * The existing database row for a resolved canonical id, read lazily at
-   * mutation time (ADR 0019): the read is enqueued and coalesced with every
-   * other read requested in the same tick into one `where <col> = any($1)`,
-   * then memoized. No bulk current-row read at startup.
-   */
-
 
   /**
    * Same-source foreign-key FIND (ADR 0016 #4/#9): return an already-emitted
