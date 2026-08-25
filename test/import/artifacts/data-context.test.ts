@@ -208,7 +208,7 @@ describe("DataContext", () => {
 
   test("AgencyFacade emits AgencyCreate when no current database row exists", async () => {
     const context = agencyFacadeContext();
-    const agency = context.fromSource({
+    const agency = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "mn-state-patrol",
@@ -235,7 +235,7 @@ describe("DataContext", () => {
     // no seed in the property cache cannot resolve its required columns, so
     // toMutation fails loud (resolve-or-fail, ADR 0006/0015).
     const context = agencyFacadeContext();
-    const agency = context.fromSource({
+    const agency = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "mn-state-patrol",
@@ -249,7 +249,7 @@ describe("DataContext", () => {
 
   test("AgencyCreate rejects a spec missing a required field", async () => {
     const context = agencyFacadeContext();
-    const agency = context.fromSource({
+    const agency = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "mn-state-patrol",
@@ -269,7 +269,7 @@ describe("DataContext", () => {
     const context = agencyFacadeContext({
       databaseAgencies: [{ id: "agency-canonical-id", ...resolvedAgencySpec }],
     });
-    const agency = context.fromSource({
+    const agency = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "mn-state-patrol",
@@ -310,7 +310,7 @@ describe("DataContext", () => {
         },
       ],
     });
-    const agency = context.fromSource({
+    const agency = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "mn-state-patrol",
@@ -337,14 +337,14 @@ describe("DataContext", () => {
       client: new CurrentRowClient({}, { locationPaths }),
     });
 
-    const first = context.fromSource({
+    const first = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "mn-state-patrol",
     });
     first.merge({ name: "Minnesota State Patrol" });
 
-    const second = context.fromSource({
+    const second = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "mn-state-patrol",
@@ -368,7 +368,7 @@ describe("DataContext", () => {
       }),
     });
 
-    const agency = context.fromSource({
+    const agency = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "mn-state-patrol",
@@ -410,7 +410,7 @@ describe("DataContext", () => {
       }),
     });
 
-    const agency = context.fromSource({
+    const agency = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "mn-state-patrol",
@@ -474,7 +474,7 @@ describe("DataContext", () => {
       }),
     });
     // The census row already exists (`current` set), so the facade emits a Read.
-    context.locationPathFromSource({
+    context.facadeFromSource("LocationPath", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: existingLocationPath.path,
@@ -518,7 +518,7 @@ describe("DataContext", () => {
       databaseAgencies: [{ id: "agency-canonical-id", ...resolvedAgencySpec }],
     });
 
-    const agency = context.fromSource({
+    const agency = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "mn-state-patrol",
@@ -554,7 +554,7 @@ describe("DataContext", () => {
       databaseAgencies: [{ id: "agency-canonical-id", ...resolvedAgencySpec }],
     });
 
-    const agency = context.fromSource({
+    const agency = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "mn-state-patrol",
@@ -582,7 +582,7 @@ describe("DataContext", () => {
       databaseAgencies: [{ id: "agency-canonical-id", ...resolvedAgencySpec }],
     });
 
-    const agency = context.fromSource({
+    const agency = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "mn-state-patrol",
@@ -631,7 +631,7 @@ describe("DataContext", () => {
       }),
     });
 
-    const agency = context.fromSource({
+    const agency = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "mn-state-patrol",
@@ -664,14 +664,14 @@ describe("DataContext", () => {
       ledger,
     });
 
-    const seeded = context.fromSource({
+    const seeded = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "seeded",
     });
     await expect(seeded.value("id")).resolves.toBe("seeded-agency-id");
 
-    const minted = context.fromSource({
+    const minted = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "new-agency",
@@ -686,7 +686,7 @@ describe("DataContext", () => {
 
   test("AgencyFacade generates a slug from the name when none is supplied", async () => {
     const context = agencyFacadeContext();
-    const agency = context.fromSource({
+    const agency = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "mn-state-patrol",
@@ -701,7 +701,7 @@ describe("DataContext", () => {
     // The Verndale case: a source record with no city. `city` is a required,
     // non-null column, so the resolver must fail loud rather than emit a bad row.
     const context = agencyFacadeContext();
-    const agency = context.fromSource({
+    const agency = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "mn-state-patrol",
@@ -722,7 +722,7 @@ describe("DataContext", () => {
     const context = licensingContext(ledger);
 
     // Find: an id already in the SourceNameToCanonicalId ledger is reused.
-    const seeded = context.licensingAuthorityFromSource({
+    const seeded = context.facadeFromSource("LicensingAuthority", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
       name: "tcole",
@@ -735,7 +735,7 @@ describe("DataContext", () => {
 
     // Create: an absent source id mints a stable cuid2 and persists it back to
     // the ledger (find-or-create).
-    const minted = context.licensingAuthorityFromSource({
+    const minted = context.facadeFromSource("LicensingAuthority", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
       name: "unseeded-authority",
@@ -760,7 +760,7 @@ describe("DataContext", () => {
       ledger,
     });
 
-    const facade = context.licensingAuthorityFromSource({
+    const facade = context.facadeFromSource("LicensingAuthority", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
       name: "tcole",
@@ -803,7 +803,7 @@ describe("DataContext", () => {
       ),
     });
 
-    const facade = context.licensingAuthorityFromSource({
+    const facade = context.facadeFromSource("LicensingAuthority", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
       name: "tcole",
@@ -847,7 +847,7 @@ describe("DataContext", () => {
         }),
       ),
     );
-    context.licensingAuthorityFromSource({
+    context.facadeFromSource("LicensingAuthority", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
       name: "tcole",
@@ -893,7 +893,7 @@ describe("DataContext", () => {
         }),
       ),
     );
-    const facade = context.licensingAuthorityFromSource({
+    const facade = context.facadeFromSource("LicensingAuthority", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
       name: "tcole",
@@ -943,7 +943,7 @@ describe("DataContext", () => {
         }),
       ),
     );
-    const facade = context.licensingAuthorityFromSource({
+    const facade = context.facadeFromSource("LicensingAuthority", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
       name: "other",
@@ -991,13 +991,13 @@ describe("DataContext", () => {
     // Dependency order (ADR 0016 #9): the referenced Personnel and
     // LicensingAuthority facades are registered before the License that finds
     // them, and the License before the LicenseAction that finds it.
-    context.personnelFromSource({
+    context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
       name: "1000038",
       spec: { first_name: "Marc", last_name: "Denney" },
     });
-    context.licensingAuthorityFromSource({
+    context.facadeFromSource("LicensingAuthority", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
       name: "tcole",
@@ -1006,7 +1006,7 @@ describe("DataContext", () => {
         location_path_id: "tx",
       },
     });
-    context.licenseFromSource({
+    context.facadeFromSource("License", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
       name: "1000038|Peace Officer License",
@@ -1029,7 +1029,7 @@ describe("DataContext", () => {
       },
     });
     registerLicenseCluster(context);
-    const facade = context.licenseFromSource({
+    const facade = context.facadeFromSource("License", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
       name: "1000038|Peace Officer License",
@@ -1071,7 +1071,7 @@ describe("DataContext", () => {
       ],
     });
     registerLicenseCluster(context);
-    const facade = context.licenseFromSource({
+    const facade = context.facadeFromSource("License", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
       name: "1000038|Peace Officer License",
@@ -1117,7 +1117,7 @@ describe("DataContext", () => {
       },
     });
     // Register the authority but NOT the referenced Personnel facade.
-    context.licensingAuthorityFromSource({
+    context.facadeFromSource("LicensingAuthority", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
       name: "tcole",
@@ -1126,7 +1126,7 @@ describe("DataContext", () => {
         location_path_id: "tx",
       },
     });
-    const facade = context.licenseFromSource({
+    const facade = context.facadeFromSource("License", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
       name: "1000038|Peace Officer License",
@@ -1149,7 +1149,7 @@ describe("DataContext", () => {
     const context = licenseClusterContext({
       ledger: createSourceNameToCanonicalIdLedger({ rootDir }),
     });
-    const facade = context.licenseFromSource({
+    const facade = context.facadeFromSource("License", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
       name: "1000038|Peace Officer License",
@@ -1181,7 +1181,7 @@ describe("DataContext", () => {
       },
     });
     registerLicenseCluster(context);
-    const facade = context.licenseActionFromSource({
+    const facade = context.facadeFromSource("LicenseAction", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
       name: "1000038|Peace Officer License|Issued|1994-06-16",
@@ -1218,7 +1218,7 @@ describe("DataContext", () => {
       },
     });
     // The referenced License facade is never registered.
-    const facade = context.licenseActionFromSource({
+    const facade = context.facadeFromSource("LicenseAction", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
       name: "1000038|Peace Officer License|Issued|1994-06-16",
@@ -1277,7 +1277,7 @@ describe("PersonnelFacade", () => {
     const context = personnelContext({
       personnel: { "1000038": { canonicalId: "personnel-canonical-id" } },
     });
-    const facade = context.personnelFromSource({
+    const facade = context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
       name: "1000038",
@@ -1302,7 +1302,7 @@ describe("PersonnelFacade", () => {
   test("mints and durably persists a canonical id when none is seeded (id stability)", async () => {
     const ledger = fakeSourceNameLedger(emptyPersonnel());
     const context = personnelContext({ ledger });
-    const facade = context.personnelFromSource({
+    const facade = context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
       name: "new-officer-source",
@@ -1350,7 +1350,7 @@ describe("PersonnelFacade", () => {
       ["1000002", "Bela"],
       ["1000003", "Cyra"],
     ] as const) {
-      context.personnelFromSource({
+      context.facadeFromSource("Personnel", {
         apiVersion: INTAKE_API_VERSION,
         namespace: "gov.tx.tcole",
         name,
@@ -1388,13 +1388,13 @@ describe("PersonnelFacade", () => {
     });
     // Register the update before the create; the emitted order must still put the
     // create first.
-    context.personnelFromSource({
+    context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
       name: "1000001",
       spec: { first_name: "New", last_name: "Name" },
     });
-    context.personnelFromSource({
+    context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
       name: "1000002",
@@ -1418,7 +1418,7 @@ describe("PersonnelFacade", () => {
     const context = personnelContext({
       personnel: { "1000038": { canonicalId: "personnel-canonical-id" } },
     });
-    const facade = context.personnelFromSource({
+    const facade = context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
       name: "1000038",
@@ -1446,7 +1446,7 @@ describe("PersonnelFacade", () => {
         },
       ],
     });
-    const facade = context.personnelFromSource({
+    const facade = context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
       name: "1000038",
@@ -1483,13 +1483,13 @@ describe("PersonnelFacade", () => {
         p2: { canonicalId: "deputy-aaaaaa" },
       },
     });
-    const first = context.personnelFromSource({
+    const first = context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
       name: "p1",
       spec: { first_name: "John", last_name: "Doe" },
     });
-    const second = context.personnelFromSource({
+    const second = context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
       name: "p2",
@@ -1521,7 +1521,7 @@ describe("PersonnelFacade", () => {
       client: new OfficerSlugClient(),
       personnel: { "1000038": { canonicalId: "personnel-canonical-id" } },
     });
-    const facade = context.personnelFromSource({
+    const facade = context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
       name: "1000038",
@@ -1560,18 +1560,18 @@ describe("AgencyPersonnelFacade", () => {
   // Register the FK targets (Agency / Personnel / License facades) that an
   // AgencyPersonnel record references, so each FK find (ADR 0016 #4/#9) resolves.
   function registerForeignKeyTargets(context: DataContext): void {
-    context.fromSource({
+    context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "agency-source",
     });
-    context.personnelFromSource({
+    context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "personnel-source",
       spec: { first_name: "Marc", last_name: "Denney" },
     });
-    context.licenseFromSource({
+    context.facadeFromSource("License", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "license-source",
@@ -1594,7 +1594,7 @@ describe("AgencyPersonnelFacade", () => {
   test("resolves its agency, personnel, and license foreign keys to canonical ids", async () => {
     const context = agencyPersonnelContext(foreignKeyLedger);
     registerForeignKeyTargets(context);
-    const facade = context.agencyPersonnelFromSource({
+    const facade = context.facadeFromSource("AgencyPersonnel", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "ap-source",
@@ -1627,7 +1627,7 @@ describe("AgencyPersonnelFacade", () => {
   test("keeps a null license_id null (nullable foreign key)", async () => {
     const context = agencyPersonnelContext(foreignKeyLedger);
     registerForeignKeyTargets(context);
-    const facade = context.agencyPersonnelFromSource({
+    const facade = context.facadeFromSource("AgencyPersonnel", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "ap-source",
@@ -1667,7 +1667,7 @@ describe("AgencyPersonnelFacade", () => {
       ],
     });
     registerForeignKeyTargets(context);
-    const facade = context.agencyPersonnelFromSource({
+    const facade = context.facadeFromSource("AgencyPersonnel", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "ap-source",
@@ -1706,13 +1706,13 @@ describe("AgencyPersonnelFacade", () => {
   test("agency foreign-key find fails fast and loud on a forward reference", async () => {
     const context = agencyPersonnelContext(foreignKeyLedger);
     // Register Personnel and License but NOT the referenced Agency facade.
-    context.personnelFromSource({
+    context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "personnel-source",
       spec: { first_name: "Marc", last_name: "Denney" },
     });
-    const facade = context.agencyPersonnelFromSource({
+    const facade = context.facadeFromSource("AgencyPersonnel", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "ap-source",
@@ -1753,7 +1753,7 @@ describe("Census substrate facades", () => {
     const context = substrateContext({
       locationPaths: { mn: { canonicalId: "mn-location-path-id" } },
     });
-    const facade = context.locationPathFromSource({
+    const facade = context.facadeFromSource("LocationPath", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "census",
       name: "mn",
@@ -1791,7 +1791,7 @@ describe("Census substrate facades", () => {
       },
     });
     // Dependency order (ADR 0016 #9): the parent is registered before the child.
-    context.locationPathFromSource({
+    context.facadeFromSource("LocationPath", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "census",
       name: "mn",
@@ -1807,7 +1807,7 @@ describe("Census substrate facades", () => {
         parent_location_path_id: null,
       },
     });
-    const child = context.locationPathFromSource({
+    const child = context.facadeFromSource("LocationPath", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "census",
       name: "ramsey-county",
@@ -1840,7 +1840,7 @@ describe("Census substrate facades", () => {
     const context = substrateContext({
       locationPaths: { mn: { canonicalId: "mn-location-path-id" } },
     });
-    const facade = context.locationPathFromSource({
+    const facade = context.facadeFromSource("LocationPath", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "census",
       name: "mn",
@@ -1869,7 +1869,7 @@ describe("Census substrate facades", () => {
     const context = substrateContext({
       locationPaths: { mn: { canonicalId: "mn-location-path-id" } },
     });
-    context.locationPathFromSource({
+    context.facadeFromSource("LocationPath", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "census",
       name: "mn",
@@ -1885,7 +1885,7 @@ describe("Census substrate facades", () => {
         parent_location_path_id: null,
       },
     });
-    const alias = context.locationPathAliasFromSource({
+    const alias = context.facadeFromSource("LocationPathAlias", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "census",
       name: "/minnesota/",
@@ -1910,7 +1910,7 @@ describe("Census substrate facades", () => {
         "ramsey-county": { canonicalId: "ramsey-county-location-path-id" },
       },
     });
-    const child = context.locationPathFromSource({
+    const child = context.facadeFromSource("LocationPath", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "census",
       name: "ramsey-county",
@@ -1934,7 +1934,7 @@ describe("Census substrate facades", () => {
 
   test("LocationPathAliasFacade fails loud when its target path is not registered", async () => {
     const context = substrateContext();
-    const alias = context.locationPathAliasFromSource({
+    const alias = context.facadeFromSource("LocationPathAlias", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "census",
       name: "/minnesota/",
@@ -1953,7 +1953,7 @@ describe("Census substrate facades", () => {
     const context = licensingContext(ledger);
 
     // Register the assignment so the attribution's agency_officer_id FK resolves.
-    context.agencyPersonnelFromSource({
+    context.facadeFromSource("AgencyPersonnel", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "0031|a2jALPHA",
@@ -1965,7 +1965,7 @@ describe("Census substrate facades", () => {
       },
     });
 
-    const discipline = context.disciplineFromSource({
+    const discipline = context.facadeFromSource("Discipline", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "0031|PB24-1-01",
@@ -1976,7 +1976,7 @@ describe("Census substrate facades", () => {
         case_number: "PB24-1-01",
       },
     });
-    const attribution = context.disciplineAgencyOfficerFromSource({
+    const attribution = context.facadeFromSource("DisciplineAgencyOfficer", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "0031|PB24-1-01|a2jALPHA",

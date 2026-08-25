@@ -23,6 +23,7 @@ import type {
   LocationAdministrativeAreaResolution,
 } from "./data-context.js";
 import { DataContext } from "./data-context.js";
+import { isRegistryKind } from "./facades/resolver-registry.js";
 import type { ApplyArtifactMutationResult } from "./artifact-mutation.js";
 import { applyOptionalArtifactMutation } from "./artifact-mutation.js";
 import {
@@ -122,348 +123,32 @@ function valueAsFiniteNumber(value: unknown): number | undefined {
 }
 
 
-function addLocationPathSourceFacades(
+function addSourceFacades(
   dataContext: DataContext,
   artifacts: ArtifactsEnvelope,
-): void {
-  for (const artifact of artifacts.spec.artifacts.filter(
-    (item) => item.kind === "LocationPaths",
-  )) {
-    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
-      const sourceName = sourceNameForImportRecord(recordName, record);
-      dataContext.locationPathFromSource({
-        apiVersion: INTAKE_API_VERSION,
-        namespace: artifacts.metadata.namespace,
-        name: sourceName,
-        spec: valueAsRecord(record),
-        sourceFile: artifact.recordSources?.[recordName],
-      });
-    }
-  }
-}
-
-function addLocationPathAliasSourceFacades(
-  dataContext: DataContext,
-  artifacts: ArtifactsEnvelope,
-): void {
-  for (const artifact of artifacts.spec.artifacts.filter(
-    (item) => item.kind === "LocationPathAliases",
-  )) {
-    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
-      const sourceName = sourceNameForImportRecord(recordName, record);
-      dataContext.locationPathAliasFromSource({
-        apiVersion: INTAKE_API_VERSION,
-        namespace: artifacts.metadata.namespace,
-        name: sourceName,
-        spec: valueAsRecord(record),
-        sourceFile: artifact.recordSources?.[recordName],
-      });
-    }
-  }
-}
-
-function addPersonnelSourceFacades(
-  dataContext: DataContext,
-  artifacts: ArtifactsEnvelope,
-): void {
-  for (const artifact of artifacts.spec.artifacts.filter(
-    (item) => item.kind === "Personnel",
-  )) {
-    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
-      const sourceName = sourceNameForImportRecord(recordName, record);
-      dataContext.personnelFromSource({
-        apiVersion: INTAKE_API_VERSION,
-        namespace: artifacts.metadata.namespace,
-        name: sourceName,
-        spec: valueAsRecord(record),
-        sourceFile: artifact.recordSources?.[recordName],
-      });
-    }
-  }
-}
-
-function addAgencyPersonnelRecords(
-  dataContext: DataContext,
-  artifacts: ArtifactsEnvelope,
-): void {
-  for (const artifact of artifacts.spec.artifacts.filter(
-    (item) => item.kind === "AgencyPersonnel",
-  )) {
-    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
-      dataContext.agencyPersonnelFromSource({
-        apiVersion: INTAKE_API_VERSION,
-        namespace: artifacts.metadata.namespace,
-        name: sourceNameForImportRecord(recordName, record),
-        spec: valueAsRecord(record),
-        sourceFile: artifact.recordSources?.[recordName],
-      });
-    }
-  }
-}
-
-function addLicensingAuthoritySourceFacades(
-  dataContext: DataContext,
-  artifacts: ArtifactsEnvelope,
-): void {
-  for (const artifact of artifacts.spec.artifacts.filter(
-    (item) => item.kind === "LicensingAuthorities",
-  )) {
-    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
-      const sourceName = sourceNameForImportRecord(recordName, record);
-      dataContext.licensingAuthorityFromSource({
-        apiVersion: INTAKE_API_VERSION,
-        namespace: artifacts.metadata.namespace,
-        name: sourceName,
-        spec: valueAsRecord(record),
-        sourceFile: artifact.recordSources?.[recordName],
-      });
-    }
-  }
-}
-
-function addLicenseSourceFacades(
-  dataContext: DataContext,
-  artifacts: ArtifactsEnvelope,
-): void {
-  for (const artifact of artifacts.spec.artifacts.filter(
-    (item) => item.kind === "Licenses",
-  )) {
-    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
-      const sourceName = sourceNameForImportRecord(recordName, record);
-      dataContext.licenseFromSource({
-        apiVersion: INTAKE_API_VERSION,
-        namespace: artifacts.metadata.namespace,
-        name: sourceName,
-        spec: valueAsRecord(record),
-        sourceFile: artifact.recordSources?.[recordName],
-      });
-    }
-  }
-}
-
-function addLicenseActionSourceFacades(
-  dataContext: DataContext,
-  artifacts: ArtifactsEnvelope,
-): void {
-  for (const artifact of artifacts.spec.artifacts.filter(
-    (item) => item.kind === "LicenseActions",
-  )) {
-    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
-      const sourceName = sourceNameForImportRecord(recordName, record);
-      dataContext.licenseActionFromSource({
-        apiVersion: INTAKE_API_VERSION,
-        namespace: artifacts.metadata.namespace,
-        name: sourceName,
-        spec: valueAsRecord(record),
-        sourceFile: artifact.recordSources?.[recordName],
-      });
-    }
-  }
-}
-
-function addDisciplineSourceFacades(
-  dataContext: DataContext,
-  artifacts: ArtifactsEnvelope,
-): void {
-  for (const artifact of artifacts.spec.artifacts.filter(
-    (item) => item.kind === "Disciplines",
-  )) {
-    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
-      dataContext.disciplineFromSource({
-        apiVersion: INTAKE_API_VERSION,
-        namespace: artifacts.metadata.namespace,
-        name: sourceNameForImportRecord(recordName, record),
-        spec: valueAsRecord(record),
-        sourceFile: artifact.recordSources?.[recordName],
-      });
-    }
-  }
-}
-
-function addDisciplineAgencyOfficerSourceFacades(
-  dataContext: DataContext,
-  artifacts: ArtifactsEnvelope,
-): void {
-  for (const artifact of artifacts.spec.artifacts.filter(
-    (item) => item.kind === "DisciplineAgencyOfficers",
-  )) {
-    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
-      dataContext.disciplineAgencyOfficerFromSource({
-        apiVersion: INTAKE_API_VERSION,
-        namespace: artifacts.metadata.namespace,
-        name: sourceNameForImportRecord(recordName, record),
-        spec: valueAsRecord(record),
-        sourceFile: artifact.recordSources?.[recordName],
-      });
-    }
-  }
-}
-
-function addCoverageLinkSourceFacades(
-  dataContext: DataContext,
-  artifacts: ArtifactsEnvelope,
-): void {
-  for (const artifact of artifacts.spec.artifacts.filter(
-    (item) => item.kind === "CoverageLinks",
-  )) {
-    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
-      dataContext.coverageLinkFromSource({
-        apiVersion: INTAKE_API_VERSION,
-        namespace: artifacts.metadata.namespace,
-        name: sourceNameForImportRecord(recordName, record),
-        spec: valueAsRecord(record),
-        sourceFile: artifact.recordSources?.[recordName],
-      });
-    }
-  }
-}
-
-function addCoverageLinkAgencyOfficerSourceFacades(
-  dataContext: DataContext,
-  artifacts: ArtifactsEnvelope,
-): void {
-  for (const artifact of artifacts.spec.artifacts.filter(
-    (item) => item.kind === "CoverageLinkAgencyOfficers",
-  )) {
-    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
-      dataContext.coverageLinkAgencyOfficerFromSource({
-        apiVersion: INTAKE_API_VERSION,
-        namespace: artifacts.metadata.namespace,
-        name: sourceNameForImportRecord(recordName, record),
-        spec: valueAsRecord(record),
-        sourceFile: artifact.recordSources?.[recordName],
-      });
-    }
-  }
-}
-
-function addAgencyPhoneNumberSourceFacades(
-  dataContext: DataContext,
-  artifacts: ArtifactsEnvelope,
-): void {
-  for (const artifact of artifacts.spec.artifacts.filter(
-    (item) => item.kind === "AgencyPhoneNumbers",
-  )) {
-    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
-      dataContext.agencyPhoneNumberFromSource({
-        apiVersion: INTAKE_API_VERSION,
-        namespace: artifacts.metadata.namespace,
-        name: sourceNameForImportRecord(recordName, record),
-        spec: valueAsRecord(record),
-        sourceFile: artifact.recordSources?.[recordName],
-      });
-    }
-  }
-}
-
-function addFederalAgencySourceFacades(
-  dataContext: DataContext,
-  artifacts: ArtifactsEnvelope,
-): void {
-  for (const artifact of artifacts.spec.artifacts.filter(
-    (item) => item.kind === "FederalAgencies",
-  )) {
-    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
-      dataContext.federalAgencyFromSource({
-        apiVersion: INTAKE_API_VERSION,
-        namespace: artifacts.metadata.namespace,
-        name: sourceNameForImportRecord(recordName, record),
-        spec: valueAsRecord(record),
-        sourceFile: artifact.recordSources?.[recordName],
-      });
-    }
-  }
-}
-
-function addFederalAgencyBranchSourceFacades(
-  dataContext: DataContext,
-  artifacts: ArtifactsEnvelope,
-): void {
-  for (const artifact of artifacts.spec.artifacts.filter(
-    (item) => item.kind === "FederalAgencyBranches",
-  )) {
-    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
-      dataContext.federalAgencyBranchFromSource({
-        apiVersion: INTAKE_API_VERSION,
-        namespace: artifacts.metadata.namespace,
-        name: sourceNameForImportRecord(recordName, record),
-        spec: valueAsRecord(record),
-        sourceFile: artifact.recordSources?.[recordName],
-      });
-    }
-  }
-}
-
-type CivilCaseRecordRef = {
-  sourceName: string;
-  spec: Record<string, unknown>;
-  sourceFile?: string;
-};
-
-function collectCivilCaseRecords(
-  artifacts: ArtifactsEnvelope,
-  kind: "CivilCases" | "CivilCaseOfficers" | "CivilCaseLinks",
-): CivilCaseRecordRef[] {
-  const records: CivilCaseRecordRef[] = [];
-  for (const artifact of artifacts.spec.artifacts.filter(
-    (item) => item.kind === kind,
-  )) {
-    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
-      records.push({
-        sourceName: sourceNameForImportRecord(recordName, record),
-        spec: valueAsRecord(record),
-        sourceFile: artifact.recordSources?.[recordName],
-      });
-    }
-  }
-  return records;
-}
-
-// Cases before their officers and links so a same-source FK find hits an
-// already-added target.
-function addCivilCaseRecords(
-  dataContext: DataContext,
-  artifacts: ArtifactsEnvelope,
-  logger?: ImportLogger,
 ): void {
   const namespace = artifacts.metadata.namespace;
-  const cases = collectCivilCaseRecords(artifacts, "CivilCases");
-  const officers = collectCivilCaseRecords(artifacts, "CivilCaseOfficers");
-  const links = collectCivilCaseRecords(artifacts, "CivilCaseLinks");
-  if (cases.length === 0) return;
-
-  for (const civilCase of cases) {
-    dataContext.civilCaseFromSource({
-      apiVersion: INTAKE_API_VERSION,
-      namespace,
-      name: civilCase.sourceName,
-      spec: civilCase.spec,
-      sourceFile: civilCase.sourceFile,
-    });
+  for (const artifactKind of IMPORT_ARTIFACT_KINDS) {
+    const recordKind = importTypeMetadata[artifactKind].recordKind;
+    // LocationPathGeometry (streamed separately) is the only artifact kind with
+    // no facade; every other kind resolves through the registry.
+    if (!isRegistryKind(recordKind)) {
+      continue;
+    }
+    for (const artifact of artifacts.spec.artifacts.filter(
+      (item) => item.kind === artifactKind,
+    )) {
+      for (const [recordName, record] of Object.entries(artifact.spec.records)) {
+        dataContext.facadeFromSource(recordKind, {
+          apiVersion: INTAKE_API_VERSION,
+          namespace,
+          name: sourceNameForImportRecord(recordName, record),
+          spec: valueAsRecord(record),
+          sourceFile: artifact.recordSources?.[recordName],
+        });
+      }
+    }
   }
-  for (const officer of officers) {
-    dataContext.civilCaseOfficerFromSource({
-      apiVersion: INTAKE_API_VERSION,
-      namespace,
-      name: officer.sourceName,
-      spec: officer.spec,
-      sourceFile: officer.sourceFile,
-    });
-  }
-  for (const link of links) {
-    dataContext.civilCaseLinkFromSource({
-      apiVersion: INTAKE_API_VERSION,
-      namespace,
-      name: link.sourceName,
-      spec: link.spec,
-      sourceFile: link.sourceFile,
-    });
-  }
-
-  logger?.info(
-    { cases: cases.length, officers: officers.length, links: links.length },
-    `Civil cases: registered ${cases.length} case(s), ${officers.length} officer link(s), ${links.length} source link(s).`,
-  );
 }
 
 type ImportArtifactsPipelineContext = {
@@ -944,25 +629,7 @@ async function writeDatabaseMutationsStage(
       resolveAddress: (input) => resolveImportAddress(input, deps),
     });
 
-    dataContext.addAgencyRecords(artifacts);
-    // Register in FK-dependency order so each same-source find targets an
-    // already-registered facade (ADR 0016 #4/#9): paths before aliases, all
-    // before licenses/actions, agencyPersonnel last.
-    addLocationPathSourceFacades(dataContext, artifacts);
-    addLocationPathAliasSourceFacades(dataContext, artifacts);
-    addLicensingAuthoritySourceFacades(dataContext, artifacts);
-    addPersonnelSourceFacades(dataContext, artifacts);
-    addLicenseSourceFacades(dataContext, artifacts);
-    addLicenseActionSourceFacades(dataContext, artifacts);
-    addAgencyPersonnelRecords(dataContext, artifacts);
-    addDisciplineSourceFacades(dataContext, artifacts);
-    addDisciplineAgencyOfficerSourceFacades(dataContext, artifacts);
-    addCoverageLinkSourceFacades(dataContext, artifacts);
-    addCoverageLinkAgencyOfficerSourceFacades(dataContext, artifacts);
-    addAgencyPhoneNumberSourceFacades(dataContext, artifacts);
-    addFederalAgencySourceFacades(dataContext, artifacts);
-    addFederalAgencyBranchSourceFacades(dataContext, artifacts);
-    addCivilCaseRecords(dataContext, artifacts, logger);
+    addSourceFacades(dataContext, artifacts);
     databaseMutations = await dataContext.toDatabaseMutations({
       namespace: artifacts.metadata.namespace,
       name: context.commandName,

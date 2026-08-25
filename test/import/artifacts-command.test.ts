@@ -312,7 +312,7 @@ describe("importArtifacts", () => {
     // through its facade so it emits.
     const { id: _agencyId, ...agencySpec } = agencyRecord;
     runContext
-      .fromSource({
+      .facadeFromSource("Agency", {
         apiVersion: INTAKE_API_VERSION,
         namespace: "mn-post",
         name: "agency-source-id",

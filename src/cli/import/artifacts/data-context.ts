@@ -30,11 +30,9 @@ import {
   type LocationPathRow,
 } from "../../../shared/io/generated/entity-specs.js";
 import { IMPORT_OPERATION_SUFFIXES } from "../../../shared/io/import-type-metadata.js";
-import type { ArtifactsEnvelope } from "../../../shared/io/Artifacts.js";
 import {
   INTAKE_API_VERSION,
   parseMutationKind,
-  sourceNameForImportRecord,
 } from "../../../shared/io/import-types.js";
 import type { DatabaseClient } from "../../database/index.js";
 import {
@@ -340,13 +338,6 @@ function isCheckOnlyUpdateItem(item: DatabaseMutationItem): boolean {
   );
 }
 
-function valueAsRecord(value: unknown): Record<string, unknown> {
-  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-    return value as Record<string, unknown>;
-  }
-
-  throw new Error("Artifacts agency record must be an object.");
-}
 
 type RowReadBatch = {
   tableName: SupportedTableName;
@@ -424,10 +415,6 @@ export class DataContext {
     this.locationPaths = new LocationPathDataContext(this);
   }
 
-  fromSource(input: SourceRecordContext): RegistryFacade {
-    return this.registryFacadeFromSource("Agency", input);
-  }
-
   /**
    * Adapts the workspace `ResolvedProperty` store to the facade `PropertyCache`,
    * keyed by `(kind, canonical id, property)`. The generic resolver cache and the
@@ -452,52 +439,6 @@ export class DataContext {
           value,
         }),
     };
-  }
-
-  addAgencyRecords(artifacts: ArtifactsEnvelope): void {
-    for (const artifact of artifacts.spec.artifacts.filter(
-      (item) => item.kind === "Agencies",
-    )) {
-      for (const [recordName, record] of Object.entries(
-        artifact.spec.records,
-      )) {
-        this.fromSource({
-          apiVersion: INTAKE_API_VERSION,
-          namespace: artifacts.metadata.namespace,
-          name: sourceNameForImportRecord(recordName, record),
-          spec: valueAsRecord(record),
-        });
-      }
-    }
-  }
-
-  personnelFromSource(input: SourceRecordContext): RegistryFacade {
-    return this.registryFacadeFromSource(
-      "Personnel",
-      input,
-    );
-  }
-
-
-  agencyPersonnelFromSource(input: SourceRecordContext): RegistryFacade {
-    return this.registryFacadeFromSource(
-      "AgencyPersonnel",
-      input,
-    );
-  }
-
-  locationPathFromSource(input: SourceRecordContext): RegistryFacade {
-    return this.registryFacadeFromSource(
-      "LocationPath",
-      input,
-    );
-  }
-
-  locationPathAliasFromSource(input: SourceRecordContext): RegistryFacade {
-    return this.registryFacadeFromSource(
-      "LocationPathAlias",
-      input,
-    );
   }
 
   // The full backend every registry-built facade reaches through (ADR 0016/0019):
@@ -538,10 +479,7 @@ export class DataContext {
     return facades;
   }
 
-  private registryFacadeFromSource(
-    kind: string,
-    input: SourceRecordContext,
-  ): RegistryFacade {
+  facadeFromSource(kind: string, input: SourceRecordContext): RegistryFacade {
     validateSourceRecordContext(input);
     const facades = this.facadesFor(kind);
     const key = [input.apiVersion, input.namespace, kind, input.name].join(":");
@@ -585,27 +523,6 @@ export class DataContext {
       input.namespace,
       input.kind as LedgerEntityKind,
       input.sourceId,
-    );
-  }
-
-  licensingAuthorityFromSource(input: SourceRecordContext): RegistryFacade {
-    return this.registryFacadeFromSource(
-      "LicensingAuthority",
-      input,
-    );
-  }
-
-  licenseFromSource(input: SourceRecordContext): RegistryFacade {
-    return this.registryFacadeFromSource(
-      "License",
-      input,
-    );
-  }
-
-  licenseActionFromSource(input: SourceRecordContext): RegistryFacade {
-    return this.registryFacadeFromSource(
-      "LicenseAction",
-      input,
     );
   }
 
@@ -737,80 +654,6 @@ export class DataContext {
     }
   }
 
-
-  disciplineFromSource(input: SourceRecordContext): RegistryFacade {
-    return this.registryFacadeFromSource(
-      "Discipline",
-      input,
-    );
-  }
-
-  disciplineAgencyOfficerFromSource(
-    input: SourceRecordContext,
-  ): RegistryFacade {
-    return this.registryFacadeFromSource(
-      "DisciplineAgencyOfficer",
-      input,
-    );
-  }
-
-  coverageLinkFromSource(input: SourceRecordContext): RegistryFacade {
-    return this.registryFacadeFromSource(
-      "CoverageLink",
-      input,
-    );
-  }
-
-  coverageLinkAgencyOfficerFromSource(
-    input: SourceRecordContext,
-  ): RegistryFacade {
-    return this.registryFacadeFromSource(
-      "CoverageLinkAgencyOfficer",
-      input,
-    );
-  }
-
-  agencyPhoneNumberFromSource(input: SourceRecordContext): RegistryFacade {
-    return this.registryFacadeFromSource(
-      "AgencyPhoneNumber",
-      input,
-    );
-  }
-
-  federalAgencyFromSource(input: SourceRecordContext): RegistryFacade {
-    return this.registryFacadeFromSource(
-      "FederalAgency",
-      input,
-    );
-  }
-
-  federalAgencyBranchFromSource(input: SourceRecordContext): RegistryFacade {
-    return this.registryFacadeFromSource(
-      "FederalAgencyBranch",
-      input,
-    );
-  }
-
-  civilCaseFromSource(input: SourceRecordContext): RegistryFacade {
-    return this.registryFacadeFromSource(
-      "CivilCase",
-      input,
-    );
-  }
-
-  civilCaseOfficerFromSource(input: SourceRecordContext): RegistryFacade {
-    return this.registryFacadeFromSource(
-      "CivilCaseOfficer",
-      input,
-    );
-  }
-
-  civilCaseLinkFromSource(input: SourceRecordContext): RegistryFacade {
-    return this.registryFacadeFromSource(
-      "CivilCaseLink",
-      input,
-    );
-  }
 
   /**
    * Same-source foreign-key FIND (ADR 0016 #4/#9): return an already-emitted
