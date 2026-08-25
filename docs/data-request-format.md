@@ -32,8 +32,10 @@ record:
 - **Constraints** — an allowed value set, a non-empty requirement, or a date/time
   format the field must follow.
 
-Fields we compute ourselves (a canonical id, a URL slug, geocoded coordinates)
-are not listed — there is nothing for you to send.
+Fields we compute ourselves (the URL slug, and our internal id for a place in the
+census geography) are not listed — there is nothing for you to send. Coordinates
+*are* listed: send them if you have them, and we geocode from the address if you
+don't.
 - **Relationship** — when a field points at another record (a foreign key), it
   names the record type it links to.
 
@@ -59,40 +61,6 @@ them, and we never guess their meaning.
 
 ## Record types
 
-### LocationPath
-
-Table `public.location_path`. One row per LocationPath.
-
-| Field | Type | Required | Constraints | Relationship / notes |
-|---|---|---|---|---|
-| `path` | text | yes | non-empty | — |
-| `level` | one of: `state`, `administrative_area`, `place` | yes | one of `state`, `administrative_area`, `place` | — |
-| `state_or_territory_slug` | text | yes | non-empty | — |
-| `administrative_area_slug` | text | optional | non-empty | — |
-| `place_slug` | text | optional | non-empty | — |
-| `state_or_territory_name` | text | yes | non-empty | — |
-| `administrative_area_name` | text | optional | non-empty | — |
-| `place_name` | text | optional | non-empty | — |
-| `parent_location_path_id` | text | optional | non-empty | — |
-| `centroid` | geometry (GeoJSON) | optional | — | — |
-| `bbox` | geometry (GeoJSON) | optional | — | — |
-
-### LocationPathGeometry
-
-Table `public.location_path_geometry`. One row per LocationPathGeometry.
-
-| Field | Type | Required | Constraints | Relationship / notes |
-|---|---|---|---|---|
-| `boundary` | geometry (GeoJSON) | yes | — | — |
-
-### LocationPathAlias
-
-Table `public.location_path_alias`. One row per LocationPathAlias.
-
-| Field | Type | Required | Constraints | Relationship / notes |
-|---|---|---|---|---|
-| `alias_path` | text | yes | unique within your export; stable across exports; non-empty | Your own id for this record; intake maps it to a canonical id. |
-
 ### Agency
 
 Table `public.agency`. One row per Agency.
@@ -107,6 +75,8 @@ Table `public.agency`. One row per Agency.
 | `zip_code` | text | recommended | non-empty | Needed for a complete record; if you omit it we resolve or seed it, but supplying it is better. |
 | `contact_name` | text | optional | non-empty | — |
 | `contact_email` | text | optional | non-empty | — |
+| `latitude` | number | recommended | — | Needed for a complete record; if you omit it we resolve or seed it, but supplying it is better. |
+| `longitude` | number | recommended | — | Needed for a complete record; if you omit it we resolve or seed it, but supplying it is better. |
 
 ### Personnel
 

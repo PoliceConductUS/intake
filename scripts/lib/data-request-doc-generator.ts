@@ -11,15 +11,18 @@ import { RESOLVED_PROPERTIES } from "../../src/shared/io/generated/entity-specs.
 // Columns the database manages; a source never supplies them.
 const DB_MANAGED = new Set(["created_at", "updated_at"]);
 
-// Columns intake always computes during import — a source omits them (any value
-// it sends is ignored/overwritten): the minted canonical row id is keyed off the
-// source's own id, the slug is generated, and the location/coordinates are
-// geocoded from the address.
-const INTAKE_COMPUTED = new Set([
-  "slug",
-  "latitude",
-  "longitude",
-  "location_path_id",
+// Columns intake always computes during import — a source can't supply them: the
+// slug is generated, and location_path_id is our internal id for a place in the
+// census hierarchy, which a source has no way to know. (Coordinates are NOT here:
+// a source that has lat/lng should send them; otherwise we geocode.)
+const INTAKE_COMPUTED = new Set(["slug", "location_path_id"]);
+
+// Census-owned geography kinds a data provider never supplies (we build them from
+// the Census Gazetteer); omit them from a provider-facing request document.
+const OMITTED_KINDS = new Set([
+  "LocationPath",
+  "LocationPathGeometry",
+  "LocationPathAlias",
 ]);
 
 // The identity column per record kind (the source's own stable id for the
@@ -203,6 +206,7 @@ export function generateDataRequestDoc(schema: IntrospectedSchema): string {
   for (const artifactKind of IMPORT_ARTIFACT_KINDS) {
     const meta = importTypeMetadata[artifactKind];
     if (meta.targetTable === undefined) continue;
+    if (OMITTED_KINDS.has(meta.recordKind)) continue;
     const table = schema.tables.get(bareTable(meta.targetTable));
     if (table === undefined) continue;
     const rows = classifyTable(meta.recordKind, table);
@@ -247,8 +251,10 @@ record:
 - **Constraints** — an allowed value set, a non-empty requirement, or a date/time
   format the field must follow.
 
-Fields we compute ourselves (a canonical id, a URL slug, geocoded coordinates)
-are not listed — there is nothing for you to send.
+Fields we compute ourselves (the URL slug, and our internal id for a place in the
+census geography) are not listed — there is nothing for you to send. Coordinates
+*are* listed: send them if you have them, and we geocode from the address if you
+don't.
 - **Relationship** — when a field points at another record (a foreign key), it
   names the record type it links to.
 
