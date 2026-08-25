@@ -6,7 +6,6 @@ import {
   IMPORT_ARTIFACT_KINDS,
   importTypeMetadata,
 } from "../../src/shared/io/import-type-metadata.js";
-import { RESOLVED_PROPERTIES } from "../../src/shared/io/generated/entity-specs.js";
 
 // Columns the database manages; a source never supplies them.
 const DB_MANAGED = new Set(["created_at", "updated_at"]);
@@ -16,6 +15,10 @@ const DB_MANAGED = new Set(["created_at", "updated_at"]);
 // census hierarchy, which a source has no way to know. (Coordinates are NOT here:
 // a source that has lat/lng should send them; otherwise we geocode.)
 const INTAKE_COMPUTED = new Set(["slug", "location_path_id"]);
+
+// Fields a source may supply but is not required to — a valid row has them, but
+// they can be derived from the other fields when a source doesn't have them.
+const PROVIDER_OPTIONAL = new Set(["latitude", "longitude"]);
 
 // Census-owned geography kinds a data provider never supplies (we build them from
 // the Census Gazetteer); omit them from a provider-facing request document.
@@ -109,15 +112,6 @@ function classifyTable(recordKind: string, table: IntrospectedTable): FieldRow[]
   const fkByColumn = new Map(
     table.foreignKeys.map((fk) => [fk.column, fk.targetTable]),
   );
-  // Fields intake resolves during import but that a source CAN still supply
-  // (e.g. an agency's address, which we otherwise seed) — recommended, not
-  // silently required. The purely-computed ones (slug, coordinates, location)
-  // are in INTAKE_COMPUTED and dropped entirely below.
-  const sourceOrSeed = new Set(
-    (RESOLVED_PROPERTIES[recordKind] ?? []).filter(
-      (name) => !INTAKE_COMPUTED.has(name) && name !== identity,
-    ),
-  );
   const rows: FieldRow[] = [];
   for (const column of table.columns) {
     if (DB_MANAGED.has(column.name)) continue;
@@ -160,20 +154,11 @@ function classifyTable(recordKind: string, table: IntrospectedTable): FieldRow[]
       });
       continue;
     }
-    if (sourceOrSeed.has(column.name)) {
-      rows.push({
-        field: column.name,
-        type,
-        required: "recommended",
-        constraints: constraintParts.join("; ") || "—",
-        relationship: "Send it if you have it — the record is more complete when you do.",
-      });
-      continue;
-    }
     rows.push({
       field: column.name,
       type,
-      required: column.nullable ? "optional" : "yes",
+      required:
+        column.nullable || PROVIDER_OPTIONAL.has(column.name) ? "optional" : "yes",
       constraints: constraintParts.join("; ") || "—",
       relationship: "—",
     });
@@ -243,8 +228,6 @@ type, whether it is required, its constraints, and any relationship to another
 record:
 
 - **Required \`yes\`** — your export must include this field for every row.
-- **\`recommended\`** — not strictly required, but the record is more complete and
-  more accurate when you include it, so send it whenever you have it.
 - **\`optional\`** — include it when you have it; omit it otherwise.
 - **Constraints** — an allowed value set, a non-empty requirement, or a date/time
   format the field must follow.

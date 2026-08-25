@@ -26,8 +26,6 @@ type, whether it is required, its constraints, and any relationship to another
 record:
 
 - **Required `yes`** — your export must include this field for every row.
-- **`recommended`** — not strictly required, but the record is more complete and
-  more accurate when you include it, so send it whenever you have it.
 - **`optional`** — include it when you have it; omit it otherwise.
 - **Constraints** — an allowed value set, a non-empty requirement, or a date/time
   format the field must follow.
@@ -62,14 +60,14 @@ Table `public.agency`. One row per Agency.
 |---|---|---|---|---|
 | `id` | text | yes | unique within your export; stable across exports; non-empty | A stable id you assign to this record and reuse next time. |
 | `name` | text | yes | non-empty | — |
-| `city` | text | recommended | non-empty | Send it if you have it — the record is more complete when you do. |
+| `city` | text | yes | non-empty | — |
 | `state` | text | yes | non-empty | — |
-| `address` | text | recommended | non-empty | Send it if you have it — the record is more complete when you do. |
-| `zip_code` | text | recommended | non-empty | Send it if you have it — the record is more complete when you do. |
+| `address` | text | yes | non-empty | — |
+| `zip_code` | text | yes | non-empty | — |
 | `contact_name` | text | optional | non-empty | — |
 | `contact_email` | text | optional | non-empty | — |
-| `latitude` | number | recommended | — | Send it if you have it — the record is more complete when you do. |
-| `longitude` | number | recommended | — | Send it if you have it — the record is more complete when you do. |
+| `latitude` | number | optional | — | — |
+| `longitude` | number | optional | — | — |
 
 ### Personnel
 
