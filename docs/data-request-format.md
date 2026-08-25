@@ -77,7 +77,7 @@ Table `public.officers`. One row per Personnel.
 |---|---|---|---|---|
 | `id` | text | yes | unique within your export; stable across exports; non-empty | A stable id you assign to this record and reuse next time. |
 | `first_name` | text | yes | non-empty | — |
-| `last_name` | text | optional | non-empty | — |
+| `last_name` | text | yes | non-empty | — |
 | `middle_name` | text | optional | non-empty | — |
 | `prefix` | text | optional | non-empty | — |
 | `suffix` | text | optional | non-empty | — |

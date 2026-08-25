@@ -20,6 +20,11 @@ const INTAKE_COMPUTED = new Set(["slug", "location_path_id"]);
 // they can be derived from the other fields when a source doesn't have them.
 const PROVIDER_OPTIONAL = new Set(["latitude", "longitude"]);
 
+// `RecordKind.field` entries the database allows to be null but the data request
+// requires from a provider — a source export should carry them even where intake
+// itself tolerates their absence (e.g. an officer's last name).
+const SPEC_REQUIRED = new Set(["Personnel.last_name"]);
+
 // Census-owned geography kinds a data provider never supplies (we build them from
 // the Census Gazetteer); omit them from a provider-facing request document.
 const OMITTED_KINDS = new Set([
@@ -154,11 +159,17 @@ function classifyTable(recordKind: string, table: IntrospectedTable): FieldRow[]
       });
       continue;
     }
+    const required = PROVIDER_OPTIONAL.has(column.name)
+      ? "optional"
+      : SPEC_REQUIRED.has(`${recordKind}.${column.name}`)
+        ? "yes"
+        : column.nullable
+          ? "optional"
+          : "yes";
     rows.push({
       field: column.name,
       type,
-      required:
-        column.nullable || PROVIDER_OPTIONAL.has(column.name) ? "optional" : "yes",
+      required,
       constraints: constraintParts.join("; ") || "—",
       relationship: "—",
     });
