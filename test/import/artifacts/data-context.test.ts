@@ -41,14 +41,14 @@ class CurrentRowClient extends EmptyDatabaseClient {
     text = "",
     values: readonly unknown[] = [],
   ): Promise<{ rows: Record<string, unknown>[] }> {
-    const currentRow = /select \* from (\S+) where \S+ = any\(\$(\d+)\)/.exec(
+    const rowByColumn = /select \* from (\S+) where \S+ = any\(\$(\d+)\)/.exec(
       text,
     );
-    if (currentRow !== null) {
+    if (rowByColumn !== null) {
       const ids =
-        (values[Number(currentRow[2]) - 1] as string[] | undefined) ?? [];
+        (values[Number(rowByColumn[2]) - 1] as string[] | undefined) ?? [];
       return {
-        rows: (this.rowsByTable[currentRow[1]] ?? []).filter((row) =>
+        rows: (this.rowsByTable[rowByColumn[1]] ?? []).filter((row) =>
           ids.includes(String(row.id)),
         ),
       };

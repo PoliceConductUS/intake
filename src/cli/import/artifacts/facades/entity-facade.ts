@@ -15,7 +15,7 @@ import {
  */
 export type EntityFacadeBackend = CanonicalIdBackend &
   ForeignKeyBackend & {
-    getCurrentById(id: string): Promise<Record<string, unknown> | undefined>;
+    existingRow(id: string): Promise<Record<string, unknown> | undefined>;
     getLocationPathByPath(
       path: string,
     ): Promise<{ location_path_id: string } | undefined>;
@@ -164,7 +164,7 @@ export class EntityFacade<
 
     const current =
       this.current ??
-      (await this.backend.getCurrentById(id as unknown as string));
+      (await this.backend.existingRow(id as unknown as string));
 
     if (current === undefined) {
       return this.mutations.create.new({

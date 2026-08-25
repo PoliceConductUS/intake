@@ -28,6 +28,9 @@ export const FK_REFERENCES: Record<
 // cache-backed and seedable automatically, with no per-resolver wiring.
 export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = {"LocationPath":[],"LocationPathGeometry":[],"LocationPathAlias":[],"Agency":["id","slug","address","city","zip_code","location_path_id","latitude","longitude"],"Personnel":["id","slug"],"AgencyPersonnel":["id"],"LicensingAuthority":["id"],"License":["id"],"LicenseAction":["id"],"Discipline":["id"],"DisciplineAgencyOfficer":["id"],"CoverageLink":["id"],"CoverageLinkAgencyOfficer":["id"],"AgencyPhoneNumber":["id"],"FederalAgency":["id"],"FederalAgencyBranch":["id"],"CivilCase":["id","slug","location_path_id"],"CivilCaseOfficer":["id"],"CivilCaseLink":["id"]};
 
+// Each record kind's schema-qualified database table.
+export const TABLE_BY_KIND: Record<string, string> = {"LocationPath":"public.location_path","LocationPathGeometry":"public.location_path_geometry","LocationPathAlias":"public.location_path_alias","Agency":"public.agency","Personnel":"public.officers","AgencyPersonnel":"public.agency_officers","LicensingAuthority":"public.licensing_authority","License":"public.license","LicenseAction":"public.license_action","Discipline":"public.discipline","DisciplineAgencyOfficer":"public.discipline_agency_officers","CoverageLink":"public.coverage_links","CoverageLinkAgencyOfficer":"public.coverage_link_agency_officers","AgencyPhoneNumber":"public.agency_phone_numbers","FederalAgency":"public.federal_agency","FederalAgencyBranch":"public.federal_agency_branch","CivilCase":"public.civil_cases","CivilCaseOfficer":"public.civil_case_officers","CivilCaseLink":"public.civil_case_links"};
+
 const nonEmptyString = z.string().trim().min(1);
 const nullableNonEmptyString = nonEmptyString.nullable();
 

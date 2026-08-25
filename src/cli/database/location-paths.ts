@@ -1,9 +1,5 @@
 import type { z } from "zod";
 import type { DatabaseClient } from "./index.js";
-import {
-  locationPathBboxGeoJson,
-  locationPathCentroidGeoJson,
-} from "./location-path-spatial.js";
 import { LocationPathSpec } from "../../shared/io/generated/entity-specs.js";
 
 // The location_path row is the generated model, so the read stays in sync with
@@ -110,67 +106,4 @@ export async function readLocationPathsContainingPoint(
       [input.longitude, input.latitude, input.level],
     ),
   ) as unknown as DatabaseLocationPathRow[];
-}
-
-export async function readPlaceLocationPathsContainingPoint(
-  client: DatabaseClient,
-  input: { latitude: number; longitude: number },
-): Promise<DatabaseLocationPathRow[]> {
-  return readLocationPathsContainingPoint(client, {
-    ...input,
-    level: "place",
-  });
-}
-
-export async function createLocationPath(
-  client: DatabaseClient,
-  locationPath: DatabaseLocationPathRow,
-): Promise<void> {
-  await client.query(
-    `insert into public.location_path (
-      location_path_id,
-      path,
-      level,
-      state_or_territory_slug,
-      administrative_area_slug,
-      place_slug,
-      state_or_territory_name,
-      administrative_area_name,
-      place_name,
-      parent_location_path_id,
-      centroid,
-      bbox
-    ) values (
-      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-      ST_SetSRID(ST_GeomFromGeoJSON($11), 4326)::geography,
-      ST_SetSRID(ST_GeomFromGeoJSON($12), 4326)
-    )`,
-    [
-      locationPath.location_path_id,
-      locationPath.path,
-      locationPath.level,
-      locationPath.state_or_territory_slug,
-      locationPath.administrative_area_slug,
-      locationPath.place_slug,
-      locationPath.state_or_territory_name,
-      locationPath.administrative_area_name,
-      locationPath.place_name,
-      locationPath.parent_location_path_id,
-      locationPathCentroidGeoJson(locationPath.centroid),
-      locationPathBboxGeoJson(locationPath.bbox),
-    ],
-  );
-}
-
-export async function createLocationPathAlias(
-  client: DatabaseClient,
-  locationPathAlias: DatabaseLocationPathAliasRow,
-): Promise<void> {
-  await client.query(
-    `insert into public.location_path_alias (
-      alias_path,
-      location_path_id
-    ) values ($1, $2)`,
-    [locationPathAlias.alias_path, locationPathAlias.location_path_id],
-  );
 }

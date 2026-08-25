@@ -86,6 +86,7 @@ import {
   LocationPathSpec,
   RECORD_KINDS_IN_DEPENDENCY_ORDER,
   RESOLVED_PROPERTIES,
+  TABLE_BY_KIND,
 } from "../../../shared/io/generated/entity-specs.js";
 import { IMPORT_OPERATION_SUFFIXES } from "../../../shared/io/import-type-metadata.js";
 import type { ArtifactsEnvelope } from "../../../shared/io/Artifacts.js";
@@ -108,7 +109,7 @@ import type { SupportedTableName } from "../../database/schema.js";
 type LocationPathRow = z.infer<typeof LocationPathSpec>;
 
 /** Tables whose slug uniqueness the DataContext enforces (generate-unique). */
-type SlugTableName = "public.officers" | "public.agency";
+type SlugKind = "Personnel" | "Agency";
 import type { ResolvedPropertyCacheInput } from "../../state/resolved-property/index.js";
 
 /**
@@ -320,7 +321,7 @@ export type LicensingAuthorityResolverBackend = {
    * per-id read). Lets the facade decide create-vs-update automatically, so a
    * re-import emits an update, not a duplicate create.
    */
-  getCurrentById(id: string): Promise<Record<string, unknown> | undefined>;
+  existingRow(id: string): Promise<Record<string, unknown> | undefined>;
 };
 
 // PropertyResolutionFacade, ForeignKeyIdSource, and the Resolver class now live
@@ -470,7 +471,7 @@ export class LicensingAuthorityFacade implements PropertyResolutionFacade<Licens
     // Auto-load the existing database row for this canonical id (like agencies),
     // so a re-import emits an update/no-op instead of a duplicate create. This is
     // automatic in the facade path — no per-record special-casing at the caller.
-    const current = this.current ?? (await this.backend.getCurrentById(id));
+    const current = this.current ?? (await this.backend.existingRow(id));
 
     if (current === undefined) {
       return LicensingAuthorityCreate.new({
@@ -578,7 +579,7 @@ export type LicenseResolverBackend = {
     kind: string;
     sourceId: string;
   }): Promise<string>;
-  getCurrentById(id: string): Promise<Record<string, unknown> | undefined>;
+  existingRow(id: string): Promise<Record<string, unknown> | undefined>;
   /**
    * Locate an already-emitted target facade by `(kind, namespace, source-id)`
    * so a FK resolver can await its `id`. Returns undefined when no such facade
@@ -706,7 +707,7 @@ export class LicenseFacade implements PropertyResolutionFacade<LicenseRowShape> 
     const firstAwarded = await this.value("first_awarded");
     const issuedByAuthorityId = await this.value("issued_by_authority_id");
 
-    const current = this.current ?? (await this.backend.getCurrentById(id));
+    const current = this.current ?? (await this.backend.existingRow(id));
 
     if (current === undefined) {
       return LicenseCreate.new({
@@ -879,7 +880,7 @@ export class LicenseActionFacade implements PropertyResolutionFacade<LicenseActi
     const actionDate = await this.value("action_date");
     const status = await this.value("status");
 
-    const current = this.current ?? (await this.backend.getCurrentById(id));
+    const current = this.current ?? (await this.backend.existingRow(id));
 
     if (current === undefined) {
       return LicenseActionCreate.new({
@@ -981,7 +982,7 @@ export type PersonnelResolverBackend = {
     kind: string;
     sourceId: string;
   }): Promise<string>;
-  getCurrentById(id: string): Promise<Record<string, unknown> | undefined>;
+  existingRow(id: string): Promise<Record<string, unknown> | undefined>;
   /**
    * Given a base slug and the owning canonical id, return a slug guaranteed
    * unique across all three resolution levels — appending a numeric suffix when
@@ -1037,7 +1038,7 @@ function personnelSlugResolver(): Resolver<
     // Stability: reuse the existing DB row's slug so a corrected name does not
     // change an officer's slug.
     const id = explicitId;
-    const current = await backend.getCurrentById(id);
+    const current = await backend.existingRow(id);
     const currentSlug =
       current === undefined ? undefined : valueAsString(current.slug);
     if (currentSlug !== undefined) {
@@ -1188,7 +1189,7 @@ export class PersonnelFacade implements PropertyResolutionFacade<PersonnelRowSha
     const suffix = await this.value("suffix");
     const slug = await this.value("slug");
 
-    const current = this.current ?? (await this.backend.getCurrentById(id));
+    const current = this.current ?? (await this.backend.existingRow(id));
 
     if (current === undefined) {
       return PersonnelCreate.new({
@@ -1296,7 +1297,7 @@ export type AgencyResolverBackend = {
     kind: string;
     sourceId: string;
   }): Promise<string>;
-  getCurrentById(id: string): Promise<Record<string, unknown> | undefined>;
+  existingRow(id: string): Promise<Record<string, unknown> | undefined>;
   ensureUniqueAgencySlug(input: {
     base: string;
     canonicalId: string;
@@ -1361,7 +1362,7 @@ function agencyLocationPathResolver(): Resolver<
     // Stability: an existing agency keeps its current location rather than
     // being re-geocoded on update.
     const id = await facade.value("id");
-    const current = await backend.getCurrentById(id);
+    const current = await backend.existingRow(id);
     const currentValue =
       current === undefined
         ? undefined
@@ -1386,7 +1387,7 @@ function agencyCoordinateResolver(
       return present;
     }
     const id = await facade.value("id");
-    const current = await backend.getCurrentById(id);
+    const current = await backend.existingRow(id);
     const currentValue =
       current === undefined ? undefined : valueAsFiniteNumber(current[column]);
     if (currentValue !== undefined) {
@@ -1411,7 +1412,7 @@ function agencySlugResolver(): Resolver<
       backend.registerAgencySlug({ slug: explicit, canonicalId: id });
       return explicit;
     }
-    const current = await backend.getCurrentById(id);
+    const current = await backend.existingRow(id);
     const currentSlug =
       current === undefined ? undefined : valueAsString(current.slug);
     if (currentSlug !== undefined) {
@@ -1509,7 +1510,7 @@ export class AgencyFacade extends ResolvingFacade<
       desired[column] = await this.value(column);
     }
 
-    const current = this.current ?? (await this.backend.getCurrentById(id));
+    const current = this.current ?? (await this.backend.existingRow(id));
 
     if (current === undefined) {
       return AgencyCreate.new({
@@ -1713,7 +1714,7 @@ export class AgencyPersonnelFacade implements PropertyResolutionFacade<AgencyOff
     const title = await this.value("title");
     const licenseId = await this.value("license_id");
 
-    const current = this.current ?? (await this.backend.getCurrentById(id));
+    const current = this.current ?? (await this.backend.existingRow(id));
 
     if (current === undefined) {
       return AgencyPersonnelCreate.new({
@@ -1795,7 +1796,7 @@ export class AgencyPersonnelFacade implements PropertyResolutionFacade<AgencyOff
 // (ID stability anchors everything) and `parent_location_path_id` is a nullable
 // self-FK find of the parent LocationPath facade (null at the state root).
 // Alias finds its target LocationPath facade. All emit Create/Read (never
-// update) via `getCurrentById`.
+// update) via `existingRow`.
 //
 // Registered in the write pass; the `LocationPathRow` transform rows survive only
 // as location-resolver / id-stability-validation substrate. Geometries stream
@@ -1960,7 +1961,7 @@ export class LocationPathFacade implements PropertyResolutionFacade<LocationPath
     }
 
     const current =
-      this.current ?? (await this.backend.getCurrentById(locationPathId));
+      this.current ?? (await this.backend.existingRow(locationPathId));
     if (current !== undefined) {
       // Read (never update): the census row already exists.
       return LocationPathRead.new({
@@ -2097,7 +2098,7 @@ export class LocationPathAliasFacade implements PropertyResolutionFacade<Locatio
     const locationPathId = await this.value("location_path_id");
 
     const current =
-      this.current ?? (await this.backend.getCurrentById(aliasPath));
+      this.current ?? (await this.backend.existingRow(aliasPath));
     if (current !== undefined) {
       return LocationPathAliasRead.new({
         metadata: { namespace: this.source.namespace, name: aliasPath },
@@ -2397,13 +2398,13 @@ export class DataContext {
   private readonly commandName?: string;
   private readonly ledger?: SourceNameToCanonicalIdLedger;
   /** per-table current-command slug → owning canonical id (uniqueness level 1). */
-  private readonly slugClaimsByTable = new Map<
-    SlugTableName,
+  private readonly slugClaimsByKind = new Map<
+    SlugKind,
     Map<string, string>
   >();
   /** per-table memoized DB slug → owning id (null = unused), queried once. */
-  private readonly slugDatabaseOwnerByTable = new Map<
-    SlugTableName,
+  private readonly slugDatabaseOwnerByKind = new Map<
+    SlugKind,
     Map<string, string | null>
   >();
   private readonly agencyFacades = new Map<string, AgencyFacade>();
@@ -2541,12 +2542,12 @@ export class DataContext {
   private agencyResolverBackend(): AgencyResolverBackend {
     return {
       findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
-      getCurrentById: (id) =>
-        this.currentRow("public.agency", id),
+      existingRow: (id) =>
+        this.getById("Agency", id),
       ensureUniqueAgencySlug: (input) =>
-        this.ensureUniqueSlug("public.agency", input),
+        this.ensureUniqueSlug("Agency", input),
       registerAgencySlug: (input) => {
-        this.registerSlug("public.agency", input.slug, input.canonicalId);
+        this.registerSlug("Agency", input.slug, input.canonicalId);
       },
       resolveAgencyLocation: (input) => this.locations.resolveAddress(input),
     };
@@ -2604,43 +2605,43 @@ export class DataContext {
   private personnelResolverBackend(): PersonnelResolverBackend {
     return {
       findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
-      getCurrentById: (id) =>
-        this.currentRow("public.officers", id),
+      existingRow: (id) =>
+        this.getById("Personnel", id),
       ensureUniquePersonnelSlug: (input) =>
-        this.ensureUniqueSlug("public.officers", input),
+        this.ensureUniqueSlug("Personnel", input),
       registerPersonnelSlug: (input) => {
-        this.registerSlug("public.officers", input.slug, input.canonicalId);
+        this.registerSlug("Personnel", input.slug, input.canonicalId);
       },
     };
   }
 
-  private slugClaimsFor(table: SlugTableName): Map<string, string> {
-    let claims = this.slugClaimsByTable.get(table);
+  private slugClaimsFor(kind: SlugKind): Map<string, string> {
+    let claims = this.slugClaimsByKind.get(kind);
     if (claims === undefined) {
       claims = new Map();
-      this.slugClaimsByTable.set(table, claims);
+      this.slugClaimsByKind.set(kind, claims);
     }
     return claims;
   }
 
   private slugDatabaseOwnerFor(
-    table: SlugTableName,
+    kind: SlugKind,
   ): Map<string, string | null> {
-    let owners = this.slugDatabaseOwnerByTable.get(table);
+    let owners = this.slugDatabaseOwnerByKind.get(kind);
     if (owners === undefined) {
       owners = new Map();
-      this.slugDatabaseOwnerByTable.set(table, owners);
+      this.slugDatabaseOwnerByKind.set(kind, owners);
     }
     return owners;
   }
 
   /** Register a resolved slug so a later generated slug disambiguates from it. */
   private registerSlug(
-    table: SlugTableName,
+    kind: SlugKind,
     slug: string,
     canonicalId: string,
   ): void {
-    this.slugClaimsFor(table).set(slug, canonicalId);
+    this.slugClaimsFor(kind).set(slug, canonicalId);
   }
 
   /**
@@ -2651,10 +2652,10 @@ export class DataContext {
    * read is the durable authority for the state level.
    */
   private async ensureUniqueSlug(
-    table: SlugTableName,
+    kind: SlugKind,
     input: { base: string; canonicalId: string },
   ): Promise<string> {
-    const claims = this.slugClaimsFor(table);
+    const claims = this.slugClaimsFor(kind);
     for (let attempt = 1; ; attempt += 1) {
       const candidate = attempt === 1 ? input.base : `${input.base}-${attempt}`;
       const claimant = claims.get(candidate);
@@ -2664,7 +2665,7 @@ export class DataContext {
         }
         continue;
       }
-      const databaseOwner = await this.slugDatabaseOwnerId(table, candidate);
+      const databaseOwner = await this.slugDatabaseOwnerId(kind, candidate);
       if (databaseOwner !== undefined && databaseOwner !== input.canonicalId) {
         continue;
       }
@@ -2674,15 +2675,15 @@ export class DataContext {
   }
 
   private async slugDatabaseOwnerId(
-    table: SlugTableName,
+    kind: SlugKind,
     slug: string,
   ): Promise<string | undefined> {
-    const owners = this.slugDatabaseOwnerFor(table);
+    const owners = this.slugDatabaseOwnerFor(kind);
     const cached = owners.get(slug);
     if (cached !== undefined) {
       return cached ?? undefined;
     }
-    const row = await this.currentRow(table, slug, "slug");
+    const row = await this.getById(kind, slug, "slug");
     const owner = row === undefined ? undefined : valueAsString(row.id);
     owners.set(slug, owner ?? null);
     return owner;
@@ -2723,7 +2724,7 @@ export class DataContext {
   private agencyPersonnelResolverBackend(): LicenseResolverBackend {
     return {
       findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
-      getCurrentById: (id) => this.currentRow("public.agency_officers", id),
+      existingRow: (id) => this.getById("AgencyPersonnel", id),
       findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
     };
   }
@@ -2751,10 +2752,7 @@ export class DataContext {
         name: input.name,
         commandName: input.commandName ?? this.commandName,
       },
-      backend: this.resolverBackend(
-        "public.location_path",
-        "location_path_id",
-      ),
+      backend: this.resolverBackend("LocationPath", "location_path_id"),
     });
     if (input.spec !== undefined) {
       facade.merge(input.spec);
@@ -2788,10 +2786,7 @@ export class DataContext {
         name: input.name,
         commandName: input.commandName ?? this.commandName,
       },
-      backend: this.resolverBackend(
-        "public.location_path_alias",
-        "alias_path",
-      ),
+      backend: this.resolverBackend("LocationPathAlias", "alias_path"),
     });
     if (input.spec !== undefined) {
       facade.merge(input.spec);
@@ -2803,12 +2798,12 @@ export class DataContext {
   // Generic backend (ADR 0016/0019): canonical-id find-or-create, lazy current-row
   // read by identityColumn, same-source FK finds. Richer facades compose their own.
   private resolverBackend(
-    tableName: SupportedTableName,
+    kind: string,
     identityColumn?: string,
   ): LicenseResolverBackend {
     return {
       findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
-      getCurrentById: (id) => this.currentRow(tableName, id, identityColumn),
+      existingRow: (id) => this.getById(kind, id, identityColumn),
       findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
     };
   }
@@ -2870,8 +2865,8 @@ export class DataContext {
     return {
       getLocationPathByPath: (path) => this.locationPaths.getByPath(path),
       findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
-      getCurrentById: (id) =>
-        this.currentRow("public.licensing_authority", id),
+      existingRow: (id) =>
+        this.getById("LicensingAuthority", id),
     };
   }
 
@@ -2895,7 +2890,7 @@ export class DataContext {
         name: input.name,
         commandName: input.commandName ?? this.commandName,
       },
-      backend: this.licenseResolverBackend("public.license"),
+      backend: this.licenseResolverBackend("License"),
     });
     if (input.spec !== undefined) {
       facade.merge(input.spec);
@@ -2927,7 +2922,7 @@ export class DataContext {
         name: input.name,
         commandName: input.commandName ?? this.commandName,
       },
-      backend: this.licenseResolverBackend("public.license_action"),
+      backend: this.licenseResolverBackend("LicenseAction"),
     });
     if (input.spec !== undefined) {
       facade.merge(input.spec);
@@ -2936,12 +2931,10 @@ export class DataContext {
     return facade;
   }
 
-  private licenseResolverBackend(
-    tableName: SupportedTableName,
-  ): LicenseResolverBackend {
+  private licenseResolverBackend(kind: string): LicenseResolverBackend {
     return {
       findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
-      getCurrentById: (id) => this.currentRow(tableName, id),
+      existingRow: (id) => this.getById(kind, id),
       findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
     };
   }
@@ -2952,11 +2945,25 @@ export class DataContext {
    * other read requested in the same tick into one `where <col> = any($1)`,
    * then memoized. No bulk current-row read at startup.
    */
-  private currentRow(
+  private tableForKind(kind: string): SupportedTableName {
+    const table = TABLE_BY_KIND[kind];
+    if (table === undefined) {
+      throw new Error(`No table is mapped for record kind ${kind}.`);
+    }
+    return table as SupportedTableName;
+  }
+
+  getById(
+    kind: string,
+    id: string,
+    identityColumn = "id",
+  ): Promise<Record<string, unknown> | undefined> {
+    return this.rowByColumn(this.tableForKind(kind), id, identityColumn);
+  }
+
+  private rowByColumn(
     tableName: SupportedTableName,
     id: string,
-    // The row's identity column. Defaults to `id`; location paths and aliases
-    // key on `location_path_id` / `alias_path`, which have no `id` column.
     identityColumn = "id",
   ): Promise<Record<string, unknown> | undefined> {
     const cacheKey = `${tableName}:${identityColumn}:${id}`;
@@ -3063,16 +3070,14 @@ export class DataContext {
 
   /**
    * Like {@link entityFacadeBackend} but for facade-owned entities with no
-   * preload path (civil cases and friends): `getCurrentById` reads the one row
-   * lazily via {@link currentRow}, coalesced into a batched `where id = any($1)`
+   * preload path (civil cases and friends): `existingRow` reads the one row
+   * lazily via {@link rowByColumn}, coalesced into a batched `where id = any($1)`
    * (ADR 0019), so a re-import updates instead of failing on a duplicate id.
    */
-  private entityFacadeBackendForTable(
-    table: SupportedTableName,
-  ): EntityFacadeBackend {
+  private entityFacadeBackendForKind(kind: string): EntityFacadeBackend {
     return {
       findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
-      getCurrentById: (id) => this.currentRow(table, id),
+      existingRow: (id) => this.getById(kind, id),
       findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
       getLocationPathByPath: (path) => this.locationPaths.getByPath(path),
     };
@@ -3105,7 +3110,7 @@ export class DataContext {
     const facade = createDisciplineFacade({
       current: input.current,
       source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackendForTable("public.discipline"),
+      backend: this.entityFacadeBackendForKind("Discipline"),
     });
     if (input.spec !== undefined) facade.merge(input.spec);
     this.disciplineFacades.set(key, facade);
@@ -3130,7 +3135,7 @@ export class DataContext {
     const facade = createDisciplineAgencyOfficerFacade({
       current: input.current,
       source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackendForTable("public.discipline_agency_officers"),
+      backend: this.entityFacadeBackendForKind("DisciplineAgencyOfficer"),
     });
     if (input.spec !== undefined) facade.merge(input.spec);
     this.disciplineAgencyOfficerFacades.set(key, facade);
@@ -3155,7 +3160,7 @@ export class DataContext {
     const facade = createCoverageLinkFacade({
       current: input.current,
       source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackendForTable("public.coverage_links"),
+      backend: this.entityFacadeBackendForKind("CoverageLink"),
     });
     if (input.spec !== undefined) facade.merge(input.spec);
     this.coverageLinkFacades.set(key, facade);
@@ -3183,7 +3188,7 @@ export class DataContext {
     const facade = createCoverageLinkAgencyOfficerFacade({
       current: input.current,
       source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackendForTable("public.coverage_link_agency_officers"),
+      backend: this.entityFacadeBackendForKind("CoverageLinkAgencyOfficer"),
     });
     if (input.spec !== undefined) facade.merge(input.spec);
     this.coverageLinkAgencyOfficerFacades.set(key, facade);
@@ -3208,7 +3213,7 @@ export class DataContext {
     const facade = createAgencyPhoneNumberFacade({
       current: input.current,
       source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackendForTable("public.agency_phone_numbers"),
+      backend: this.entityFacadeBackendForKind("AgencyPhoneNumber"),
     });
     if (input.spec !== undefined) facade.merge(input.spec);
     this.agencyPhoneNumberFacades.set(key, facade);
@@ -3233,7 +3238,7 @@ export class DataContext {
     const facade = createFederalAgencyFacade({
       current: input.current,
       source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackendForTable("public.federal_agency"),
+      backend: this.entityFacadeBackendForKind("FederalAgency"),
     });
     if (input.spec !== undefined) facade.merge(input.spec);
     this.federalAgencyFacades.set(key, facade);
@@ -3258,7 +3263,7 @@ export class DataContext {
     const facade = createFederalAgencyBranchFacade({
       current: input.current,
       source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackendForTable("public.federal_agency_branch"),
+      backend: this.entityFacadeBackendForKind("FederalAgencyBranch"),
     });
     if (input.spec !== undefined) facade.merge(input.spec);
     this.federalAgencyBranchFacades.set(key, facade);
@@ -3283,7 +3288,7 @@ export class DataContext {
     const facade = createCivilCaseFacade({
       current: input.current,
       source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackendForTable("public.civil_cases"),
+      backend: this.entityFacadeBackendForKind("CivilCase"),
     });
     if (input.spec !== undefined) facade.merge(input.spec);
     this.civilCaseFacades.set(key, facade);
@@ -3308,7 +3313,7 @@ export class DataContext {
     const facade = createCivilCaseOfficerFacade({
       current: input.current,
       source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackendForTable("public.civil_case_officers"),
+      backend: this.entityFacadeBackendForKind("CivilCaseOfficer"),
     });
     if (input.spec !== undefined) facade.merge(input.spec);
     this.civilCaseOfficerFacades.set(key, facade);
@@ -3333,7 +3338,7 @@ export class DataContext {
     const facade = createCivilCaseLinkFacade({
       current: input.current,
       source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackendForTable("public.civil_case_links"),
+      backend: this.entityFacadeBackendForKind("CivilCaseLink"),
     });
     if (input.spec !== undefined) facade.merge(input.spec);
     this.civilCaseLinkFacades.set(key, facade);

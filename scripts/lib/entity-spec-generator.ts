@@ -519,6 +519,16 @@ export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = ${JSON.str
     ),
   )};
 
+// Each record kind's schema-qualified database table.
+export const TABLE_BY_KIND: Record<string, string> = ${JSON.stringify(
+    Object.fromEntries(
+      DESCRIPTORS.map((descriptor) => [
+        descriptor.recordKind,
+        `public.${descriptor.table}`,
+      ]),
+    ),
+  )};
+
 const nonEmptyString = z.string().trim().min(1);
 const nullableNonEmptyString = nonEmptyString.nullable();
 
