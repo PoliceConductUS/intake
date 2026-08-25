@@ -80,6 +80,11 @@ function zip5(value: string): string {
   return value.trim().slice(0, 5);
 }
 
+// STOPGAP: a hand-listed fallback for postal-only ZIPs whose geocoded point
+// lands in no place/administrative_area/state boundary. It does not generalize —
+// every new such ZIP must be added here. Replace with a general postal-area →
+// location_path mechanism (e.g. a ZCTA→place crosswalk) rather than growing this
+// table; `postalAreaPlacePaths` is the single point to swap out when that lands.
 const POSTAL_AREA_PLACE_PATHS: readonly {
   state: string;
   zip5: string;
@@ -230,7 +235,7 @@ export class LocationDataContext {
       locationPathId = await this.context.locationPaths.getPlaceContainingPoint({
         latitude: addressResolution.latitude,
         longitude: addressResolution.longitude,
-        rowId: request.entityId,
+        subject: `${request.entityType} ${request.entityId}`,
       });
     } catch (error) {
       if (!isMissingContainingPlaceError(error)) {
@@ -297,7 +302,8 @@ export class LocationPathDataContext {
   async getPlaceContainingPoint(input: {
     latitude: number;
     longitude: number;
-    rowId?: unknown;
+    /** A label for the record being resolved, for error context (e.g. "agency <id>"). */
+    subject: string;
   }): Promise<string> {
     // Prefer the most specific containing boundary: an incorporated place,
     // falling back to the containing county (administrative_area), falling
@@ -322,7 +328,7 @@ export class LocationPathDataContext {
       ];
       if (uniqueMatches.length > 1) {
         throw new Error(
-          `Cannot resolve location_path_id for public.agency ${String(input.rowId)}; multiple ${level} location_path_geometry boundaries contain point ${input.latitude}, ${input.longitude}: ${uniqueMatches
+          `Cannot resolve location_path_id for ${input.subject}; multiple ${level} location_path_geometry boundaries contain point ${input.latitude}, ${input.longitude}: ${uniqueMatches
             .map((locationPath) => locationPath.location_path_id)
             .sort()
             .join(", ")}.`,
@@ -333,7 +339,7 @@ export class LocationPathDataContext {
     }
 
     throw new Error(
-      `Cannot resolve location_path_id for public.agency ${String(input.rowId)}; no place location_path_geometry boundary contains point ${input.latitude}, ${input.longitude}.`,
+      `Cannot resolve location_path_id for ${input.subject}; no place location_path_geometry boundary contains point ${input.latitude}, ${input.longitude}.`,
     );
   }
 }
