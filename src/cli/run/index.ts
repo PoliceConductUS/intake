@@ -90,13 +90,21 @@ async function sourceInputDir(
   workspace: string,
   sourceId: string,
 ): Promise<string> {
+  // A source's inputs are its latest acquire output — there is no fallback. A
+  // source that has never been acquired cannot run; acquire it first, either by
+  // running its module (`intake acquire <source-id>`) or from local files
+  // (`intake acquire <source-id> --from-local <path>`).
   const { latest } = await readCommandPointer(
     path.join(workspace, "state", sourceId),
     "acquire",
   );
-  return latest === undefined
-    ? path.join(workspace, sourceId, "source")
-    : path.join(workspace, latest);
+  if (latest === undefined) {
+    throw new Error(
+      `${sourceId} has no acquired input. Run \`intake acquire ${sourceId}\` ` +
+        `(or \`intake acquire ${sourceId} --from-local <path>\`) before running it.`,
+    );
+  }
+  return path.join(workspace, latest);
 }
 
 async function sourceInputPaths(inputDir: string): Promise<string[]> {
@@ -230,8 +238,8 @@ export const registerCliCommand: RegisterCliCommand = (
     .description(
       "Run the run.ts (produce) phase of every source folder matching <glob> " +
         "and import the records it returns. Inputs come from the source's latest " +
-        "successful acquire (via $INTAKE_WORKSPACE/state/<source-id>/acquire.yaml), " +
-        "falling back to $INTAKE_WORKSPACE/<source-id>/source/. Matched sources run " +
+        "successful acquire (via $INTAKE_WORKSPACE/state/<source-id>/acquire.yaml); " +
+        "a source that has not been acquired cannot run. Matched sources run " +
         "in a dependency-correct order derived from the kinds each declares it " +
         "produces (ADR 0021): a producer runs before every source that consumes it.",
     )

@@ -57,4 +57,23 @@ describe("intake run gov.azpost.roster (disabled)", () => {
       stderr.mockRestore();
     }
   });
+
+  it("fails loud when a source has not been acquired (no acquire, no run)", async () => {
+    // Fresh workspace: gov.tx.tcole has no acquire pointer. There is no
+    // <source-id>/source/ fallback, so the run must refuse rather than silently
+    // find nothing.
+    let importCalled = false;
+    const result = await runIntake(["run", "gov.tx.tcole", "--dry-run"], {
+      runImportArtifactsCommand: async (): Promise<CommandResult> => {
+        importCalled = true;
+        return { exitCode: 0 };
+      },
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(importCalled).toBe(false);
+    expect(result.stderr ?? "").toMatch(
+      /gov\.tx\.tcole has no acquired input.*intake acquire gov\.tx\.tcole/s,
+    );
+  });
 });
