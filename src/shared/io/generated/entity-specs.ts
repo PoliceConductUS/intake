@@ -190,7 +190,7 @@ export const AgencySpec = z
   })
   .strict();
 
-export const AgencyCreateSpec = AgencySpec.extend({
+export const AgencyCreateSpec = AgencySpec.omit({ location: true }).extend({
   id: nonEmptyString,
   slug: nonEmptyString,
   address: nonEmptyString,

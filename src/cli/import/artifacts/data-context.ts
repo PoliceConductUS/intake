@@ -1,20 +1,11 @@
 import { createId } from "@paralleldrive/cuid2";
-import type { z } from "zod";
 import {
   Resolver,
-  facadeCanonicalIdResolver,
-  titleCaseResolver,
-  nameCaseResolver,
-  nameCaseResolverNullable,
-  lowerCaseEmailResolverNullable,
-  passthroughResolver,
   valueAsString,
-  ResolvingFacade,
   type PropertyResolutionFacade,
   type PropertyCache,
   type ForeignKeyIdSource,
   type ResolverContext,
-  type FacadeSource,
 } from "./resolver-kit.js";
 // Re-exported so existing importers of these symbols from ./data-context keep
 // working while the generic kit lives in its own module.
@@ -36,8 +27,6 @@ import {
   RECORD_KINDS_IN_DEPENDENCY_ORDER,
   RESOLVED_PROPERTIES,
   TABLE_BY_KIND,
-  type AgencyRow,
-  type OfficersRow,
   type LocationPathRow,
 } from "../../../shared/io/generated/entity-specs.js";
 import { IMPORT_OPERATION_SUFFIXES } from "../../../shared/io/import-type-metadata.js";
@@ -70,22 +59,6 @@ type ResolvedPropertyStore = {
   read(input: ResolvedPropertyCacheInput): Promise<unknown | undefined>;
   write(input: ResolvedPropertyCacheInput & { value: unknown }): Promise<void>;
 };
-import {
-  AgencyCreate,
-  type AgencyCreateEnvelope,
-} from "./io/generated-mutations/AgencyCreate.js";
-import {
-  AgencyUpdate,
-  type AgencyUpdateEnvelope,
-} from "./io/generated-mutations/AgencyUpdate.js";
-import {
-  PersonnelCreate,
-  type PersonnelCreateEnvelope,
-} from "./io/generated-mutations/PersonnelCreate.js";
-import {
-  PersonnelUpdate,
-  type PersonnelUpdateEnvelope,
-} from "./io/generated-mutations/PersonnelUpdate.js";
 import {
   DatabaseMutations,
   type DatabaseMutationItem,
@@ -157,612 +130,6 @@ function validateSourceRecordContext(input: SourceRecordContext): void {
   }
 }
 
-// AgencyFacade and PersonnelFacade keep bespoke facades here (geocoding, slug
-// generation); every other entity is built generically from the registry
-// (facades/resolver-registry.ts). They are defined below, after the resolver
-// infrastructure.
-
-// --- ADR 0016: composable per-property resolvers -----------------------------
-//
-// A property that must be derived before a database write is produced by a
-// `Resolver`. A resolver is entity-agnostic: it is handed the source facade (to
-// `await` sibling properties) plus the injected backend capabilities it needs,
-// and it returns a `Promise<T>` typed to its target column. Agency and Personnel
-// keep hand-written facades for their geocode/slug resolution; the rest compose
-// from the shared kit through the generic registry builder.
-
-// --- Personnel facade (ADR 0016) ---------------------------------------------
-//
-// `id` is a canonical-id find-or-create (self-contained mint + persist), name
-// fields are plain, and `slug` is a
-// generate-unique resolver — resolve if the source supplied one, else reuse the
-// existing DB row's slug (stability across a name change), else derive a base
-// slug and disambiguate so it is unique across the three resolution levels
-// (entities planned earlier in the current command, intake-owned state, and the
-// database). This folds the former `validate-new-slug-conflicts` officer check
-// into the resolver.
-
-/**
- * Backend capabilities the Personnel resolvers reach through: the entity's own
- * canonical-id find-or-create, the existing DB row for create-vs-update, and the
- * three-level unique-slug generator.
- */
-export type PersonnelResolverBackend = {
-  findOrCreateCanonicalId(input: {
-    namespace: string;
-    kind: string;
-    sourceId: string;
-  }): Promise<string>;
-  existingRow(id: string): Promise<Record<string, unknown> | undefined>;
-  /**
-   * Given a base slug and the owning canonical id, return a slug guaranteed
-   * unique across all three resolution levels — appending a numeric suffix when
-   * the base (or a prior candidate) is already claimed by a different id — and
-   * register the claim for the rest of this command.
-   */
-  ensureUniquePersonnelSlug(input: {
-    base: string;
-    canonicalId: string;
-  }): Promise<string>;
-  /**
-   * Register a slug that was resolved without generation (an explicit source
-   * slug or a reused existing DB slug), so a later generated slug in the same
-   * command disambiguates away from it.
-   */
-  registerPersonnelSlug(input: { slug: string; canonicalId: string }): void;
-};
-
-function slugify(value: string): string {
-  return (
-    value
-      .normalize("NFKD")
-      .replace(/[̀-ͯ]/g, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "record"
-  );
-}
-
-function canonicalSuffix(id: unknown): string {
-  const normalized = String(id)
-    .replace(/[^a-z0-9]/gi, "")
-    .toLowerCase();
-  return normalized.slice(-6) || "record";
-}
-
-/** Generate-unique slug resolver for Personnel (ADR 0016 #4, generated value). */
-function personnelSlugResolver(): Resolver<
-  string,
-  ResolverContext<OfficersRow, PersonnelResolverBackend>
-> {
-  return new Resolver(async ({ facade, source, backend }) => {
-    // Resolve: an explicitly-supplied slug wins.
-    const explicitId = await facade.value("id");
-    const explicit = valueAsString(facade.raw("slug"));
-    if (explicit !== undefined) {
-      backend.registerPersonnelSlug({
-        slug: explicit,
-        canonicalId: explicitId,
-      });
-      return explicit;
-    }
-    // Stability: reuse the existing DB row's slug so a corrected name does not
-    // change an officer's slug.
-    const id = explicitId;
-    const current = await backend.existingRow(id);
-    const currentSlug =
-      current === undefined ? undefined : valueAsString(current.slug);
-    if (currentSlug !== undefined) {
-      backend.registerPersonnelSlug({ slug: currentSlug, canonicalId: id });
-      return currentSlug;
-    }
-    // Generate: derive a base from name + canonical-id suffix, then disambiguate
-    // for uniqueness across all three levels.
-    const firstName = valueAsString(facade.raw("first_name"));
-    if (firstName === undefined) {
-      throw new Error(
-        `Cannot generate slug for Personnel ${source.namespace}/${source.name}; first_name is required.`,
-      );
-    }
-    // last_name is optional (some officers have no last name in the source).
-    const lastName = valueAsString(facade.raw("last_name"));
-    const fullName =
-      lastName === undefined ? firstName : `${firstName} ${lastName}`;
-    const base = `${slugify(fullName)}-${canonicalSuffix(id)}`;
-    return backend.ensureUniquePersonnelSlug({ base, canonicalId: id });
-  });
-}
-
-type PersonnelResolvers = Partial<{
-  [K in keyof OfficersRow]: Resolver<
-    OfficersRow[K],
-    ResolverContext<OfficersRow, PersonnelResolverBackend>
-  >;
-}>;
-
-export class PersonnelFacade implements PropertyResolutionFacade<OfficersRow> {
-  private static readonly kind = "Personnel";
-  private readonly current?: Record<string, unknown>;
-  private readonly spec: Record<string, unknown> = {};
-  private readonly source: FacadeSource;
-  private readonly backend: PersonnelResolverBackend;
-  private readonly resolvers: PersonnelResolvers;
-  private readonly memo = new Map<keyof OfficersRow, Promise<unknown>>();
-  private readonly inProgress = new Set<keyof OfficersRow>();
-
-  constructor(options: {
-    current?: Record<string, unknown>;
-    source: FacadeSource;
-    backend: PersonnelResolverBackend;
-  }) {
-    this.current = options.current;
-    this.source = options.source;
-    this.backend = options.backend;
-    this.resolvers = {
-      id: facadeCanonicalIdResolver<
-        OfficersRow,
-        PersonnelResolverBackend
-      >(PersonnelFacade.kind),
-      slug: personnelSlugResolver(),
-      // Casing normalization for ALL-CAPS source names (applied via resolvers so
-      // slugs, which read `facade.raw`, are unaffected). `first_name` is required;
-      // `last_name`/`middle_name`/`prefix`/`suffix` are nullable columns.
-      first_name: nameCaseResolver<OfficersRow, PersonnelResolverBackend>(
-        "first_name",
-      ),
-      last_name: nameCaseResolverNullable<
-        OfficersRow,
-        PersonnelResolverBackend
-      >("last_name"),
-      middle_name: nameCaseResolverNullable<
-        OfficersRow,
-        PersonnelResolverBackend
-      >("middle_name"),
-      prefix: nameCaseResolverNullable<
-        OfficersRow,
-        PersonnelResolverBackend
-      >("prefix"),
-      suffix: nameCaseResolverNullable<
-        OfficersRow,
-        PersonnelResolverBackend
-      >("suffix"),
-    };
-  }
-
-  merge(spec: Record<string, unknown>): void {
-    Object.assign(this.spec, spec);
-  }
-
-  raw(property: keyof OfficersRow): unknown {
-    return this.spec[property as string];
-  }
-
-  value<K extends keyof OfficersRow>(
-    property: K,
-  ): Promise<OfficersRow[K]> {
-    const cached = this.memo.get(property);
-    if (cached !== undefined) {
-      return cached as Promise<OfficersRow[K]>;
-    }
-    const pending = this.computeValue(property);
-    this.memo.set(property, pending);
-    return pending;
-  }
-
-  private async computeValue<K extends keyof OfficersRow>(
-    property: K,
-  ): Promise<OfficersRow[K]> {
-    if (this.inProgress.has(property)) {
-      throw new Error(
-        `Circular property dependency while resolving ${PersonnelFacade.kind}.${String(
-          property,
-        )} for ${this.source.namespace}/${this.source.name}.`,
-      );
-    }
-    this.inProgress.add(property);
-    try {
-      const resolver = this.resolvers[property];
-      if (resolver === undefined) {
-        return this.plainValue(property);
-      }
-      return await resolver.resolve(
-        { facade: this, source: this.source, backend: this.backend },
-        () => this.unresolvedMessage(property),
-      );
-    } finally {
-      this.inProgress.delete(property);
-    }
-  }
-
-  private plainValue<K extends keyof OfficersRow>(
-    property: K,
-  ): OfficersRow[K] {
-    const value = this.spec[property as string];
-    return (value === undefined ? null : value) as OfficersRow[K];
-  }
-
-  private unresolvedMessage(property: keyof OfficersRow): string {
-    return `Cannot resolve ${PersonnelFacade.kind}.${String(
-      property,
-    )} for source ${this.source.namespace}/${this.source.name}; offending value ${JSON.stringify(
-      this.spec[property as string],
-    )}.`;
-  }
-
-  async toMutation(): Promise<
-    PersonnelCreateEnvelope | PersonnelUpdateEnvelope
-  > {
-    const id = await this.value("id");
-    const firstName = await this.value("first_name");
-    const lastName = await this.value("last_name");
-    const middleName = await this.value("middle_name");
-    const prefix = await this.value("prefix");
-    const suffix = await this.value("suffix");
-    const slug = await this.value("slug");
-
-    const current = this.current ?? (await this.backend.existingRow(id));
-
-    if (current === undefined) {
-      return PersonnelCreate.new({
-        metadata: {
-          namespace: this.source.namespace,
-          name: this.source.name,
-        },
-        spec: {
-          id,
-          first_name: firstName,
-          last_name: lastName,
-          middle_name: middleName,
-          prefix,
-          suffix,
-          slug,
-        } as Parameters<typeof PersonnelCreate.new>[0]["spec"],
-      });
-    }
-
-    const commandName = valueAsString(this.source.commandName);
-    if (commandName === undefined) {
-      throw new Error(
-        `Cannot create personnel update for ${this.source.namespace}/${this.source.name} without command name.`,
-      );
-    }
-
-    const source = {
-      namespace: this.source.namespace,
-      command: { name: commandName },
-      kind: PersonnelFacade.kind,
-      name: this.source.name,
-    };
-    const desired: Record<string, unknown> = {
-      first_name: firstName,
-      last_name: lastName,
-      middle_name: middleName,
-      prefix,
-      suffix,
-      slug,
-    };
-    const operations = Object.entries(desired).map(([path, to]) => {
-      const from = current[path];
-      if (Object.is(from, to)) {
-        return {
-          action: "check" as const,
-          path,
-          value: to,
-          reason: `Expected existing ${PersonnelFacade.kind} ${path}.`,
-          source,
-        };
-      }
-
-      return {
-        action: "set" as const,
-        path,
-        from,
-        to,
-        reason: `Set ${PersonnelFacade.kind} ${path}.`,
-        source,
-      };
-    });
-
-    return PersonnelUpdate.new({
-      metadata: {
-        namespace: this.source.namespace,
-        name: this.source.name,
-      },
-      spec: { operations },
-    });
-  }
-}
-
-// --- Agency facade (ADR 0016) ------------------------------------------------
-//
-// Agency mirrors the other facades: `id` is a canonical-id find-or-create; name
-// and contact fields are plain; `slug` is a generate-unique resolver (reuse an
-// explicit or existing-DB slug, else derive + disambiguate across the three
-// levels); `location_path_id` is a COMPOSITION resolver — geocode the address
-// (reusing the durable ResolvedProperty coordinate cache) then point-in-polygon
-// containment, resolve-or-fail (ADR 0006/0015), never minted. `latitude` /
-// `longitude` fall out of the same geocode.
-
-/** Backend capabilities the Agency resolvers reach through. */
-export type AgencyResolverBackend = {
-  findOrCreateCanonicalId(input: {
-    namespace: string;
-    kind: string;
-    sourceId: string;
-  }): Promise<string>;
-  existingRow(id: string): Promise<Record<string, unknown> | undefined>;
-  ensureUniqueAgencySlug(input: {
-    base: string;
-    canonicalId: string;
-  }): Promise<string>;
-  registerAgencySlug(input: { slug: string; canonicalId: string }): void;
-  /**
-   * Compose an address into a canonical location: geocode (cached coordinates)
-   * then point-in-polygon containment. Throws (resolve-or-fail) when the address
-   * cannot be geocoded or no boundary contains the resolved point.
-   */
-  resolveAgencyLocation(
-    input: ResolveAddressInput,
-  ): Promise<LocationResolution>;
-};
-
-/** The scalar database columns the AgencyFacade resolves and writes, in order. */
-const AGENCY_SCALAR_COLUMNS = [
-  "name",
-  "city",
-  "state",
-  "address",
-  "zip_code",
-  "contact_name",
-  "contact_email",
-  "slug",
-  "location_path_id",
-  "latitude",
-  "longitude",
-] as const satisfies readonly (keyof AgencyRow)[];
-
-function agencyAddressInput(
-  facade: PropertyResolutionFacade<AgencyRow>,
-  source: FacadeSource,
-): ResolveAddressInput {
-  const location =
-    valueAsRecordOrUndefined(facade.raw("location" as keyof AgencyRow)) ?? {};
-  return {
-    entityType: "agency",
-    entityId: source.name,
-    state: valueAsString(facade.raw("state")),
-    place: valueAsString(facade.raw("city")),
-    zipCode: valueAsString(facade.raw("zip_code")),
-    address: valueAsString(facade.raw("address")),
-    administrativeAreaName: valueAsString(location.administrativeAreaName),
-    administrativeAreaSlug: valueAsString(location.administrativeAreaSlug),
-    latitude: valueAsFiniteNumber(facade.raw("latitude")),
-    longitude: valueAsFiniteNumber(facade.raw("longitude")),
-    name: valueAsString(facade.raw("name")),
-    sourceName: source.name,
-  };
-}
-
-/** `location_path_id` composition resolver (resolve-or-fail, ADR 0006/0015). */
-function agencyLocationPathResolver(): Resolver<
-  string,
-  ResolverContext<AgencyRow, AgencyResolverBackend>
-> {
-  return new Resolver(async ({ facade, backend, source }) => {
-    const present = valueAsString(facade.raw("location_path_id"));
-    if (present !== undefined) {
-      return present;
-    }
-    // Stability: an existing agency keeps its current location rather than
-    // being re-geocoded on update.
-    const id = await facade.value("id");
-    const current = await backend.existingRow(id);
-    const currentValue =
-      current === undefined
-        ? undefined
-        : valueAsString(current.location_path_id);
-    if (currentValue !== undefined) {
-      return currentValue;
-    }
-    const resolution = await backend.resolveAgencyLocation(
-      agencyAddressInput(facade, source),
-    );
-    return resolution.locationPathId;
-  });
-}
-
-function agencyCoordinateResolver(
-  field: "addressLatitude" | "addressLongitude",
-  column: "latitude" | "longitude",
-): Resolver<number, ResolverContext<AgencyRow, AgencyResolverBackend>> {
-  return new Resolver(async ({ facade, backend, source }) => {
-    const present = valueAsFiniteNumber(facade.raw(column));
-    if (present !== undefined) {
-      return present;
-    }
-    const id = await facade.value("id");
-    const current = await backend.existingRow(id);
-    const currentValue =
-      current === undefined ? undefined : valueAsFiniteNumber(current[column]);
-    if (currentValue !== undefined) {
-      return currentValue;
-    }
-    const resolution = await backend.resolveAgencyLocation(
-      agencyAddressInput(facade, source),
-    );
-    return resolution[field];
-  });
-}
-
-/** Generate-unique slug resolver for Agency (mirrors Personnel). */
-function agencySlugResolver(): Resolver<
-  string,
-  ResolverContext<AgencyRow, AgencyResolverBackend>
-> {
-  return new Resolver(async ({ facade, source, backend }) => {
-    const id = await facade.value("id");
-    const explicit = valueAsString(facade.raw("slug"));
-    if (explicit !== undefined) {
-      backend.registerAgencySlug({ slug: explicit, canonicalId: id });
-      return explicit;
-    }
-    const current = await backend.existingRow(id);
-    const currentSlug =
-      current === undefined ? undefined : valueAsString(current.slug);
-    if (currentSlug !== undefined) {
-      backend.registerAgencySlug({ slug: currentSlug, canonicalId: id });
-      return currentSlug;
-    }
-    const name = valueAsString(facade.raw("name"));
-    if (name === undefined) {
-      throw new Error(
-        `Cannot generate slug for Agency ${source.namespace}/${source.name}; name is required.`,
-      );
-    }
-    const base = slugify(name);
-    return backend.ensureUniqueAgencySlug({ base, canonicalId: id });
-  });
-}
-
-type AgencyResolvers = Partial<{
-  [K in keyof AgencyRow]: Resolver<
-    AgencyRow[K],
-    ResolverContext<AgencyRow, AgencyResolverBackend>
-  >;
-}>;
-
-export class AgencyFacade extends ResolvingFacade<
-  AgencyRow,
-  AgencyResolverBackend
-> {
-  private static readonly kind = "Agency";
-  private readonly current?: Record<string, unknown>;
-
-  protected readonly resolvers: AgencyResolvers = {
-    id: facadeCanonicalIdResolver<AgencyRow, AgencyResolverBackend>(
-      AgencyFacade.kind,
-    ),
-    slug: agencySlugResolver(),
-    // Casing normalization for ALL-CAPS source data (applied via resolvers so
-    // slugs, which read `facade.raw`, are unaffected). `name` is required;
-    // `city`/`address`/`contact_name`/`contact_email` are nullable columns.
-    name: titleCaseResolver<AgencyRow, AgencyResolverBackend>("name"),
-    // `address`/`city`/`zip_code` are optional in the artifact but required in
-    // the *Create mutation (`RESOLVED_PROPERTIES.Agency`): a source that omits
-    // one is supplied from the property cache (a committed seed) — which then
-    // feeds the coordinate + location-path resolvers below via `facade.value`;
-    // with neither source nor seed, the required resolver fails loud at the
-    // mutation boundary. Which properties are cached is derived from
-    // `RESOLVED_PROPERTIES`, not marked here. `state`/`zip_code` pass through
-    // uncased (a code, not prose); `state` is always source-provided.
-    city: titleCaseResolver<AgencyRow, AgencyResolverBackend>("city"),
-    state: passthroughResolver<AgencyRow, AgencyResolverBackend>("state"),
-    address: titleCaseResolver<AgencyRow, AgencyResolverBackend>(
-      "address",
-    ),
-    zip_code: passthroughResolver<AgencyRow, AgencyResolverBackend>(
-      "zip_code",
-    ),
-    contact_name: nameCaseResolverNullable<
-      AgencyRow,
-      AgencyResolverBackend
-    >("contact_name"),
-    contact_email: lowerCaseEmailResolverNullable<
-      AgencyRow,
-      AgencyResolverBackend
-    >("contact_email"),
-    location_path_id: agencyLocationPathResolver(),
-    latitude: agencyCoordinateResolver("addressLatitude", "latitude"),
-    longitude: agencyCoordinateResolver("addressLongitude", "longitude"),
-  };
-
-  constructor(options: {
-    current?: Record<string, unknown>;
-    source: FacadeSource;
-    backend: AgencyResolverBackend;
-    cache?: PropertyCache;
-  }) {
-    super(
-      AgencyFacade.kind,
-      options.source,
-      options.backend,
-      options.cache,
-      RESOLVED_PROPERTIES[AgencyFacade.kind],
-    );
-    this.current = options.current;
-  }
-
-  protected canonicalId(): Promise<string> {
-    return this.value("id");
-  }
-
-  /** Present pass-through metadata columns (omitted when absent, never null). */
-  async toMutation(): Promise<AgencyCreateEnvelope | AgencyUpdateEnvelope> {
-    const id = await this.value("id");
-    const desired: Record<string, unknown> = {};
-    for (const column of AGENCY_SCALAR_COLUMNS) {
-      desired[column] = await this.value(column);
-    }
-
-    const current = this.current ?? (await this.backend.existingRow(id));
-
-    if (current === undefined) {
-      return AgencyCreate.new({
-        metadata: {
-          namespace: this.source.namespace,
-          name: this.source.name,
-        },
-        spec: {
-          id,
-          ...desired,
-        } as Parameters<typeof AgencyCreate.new>[0]["spec"],
-      });
-    }
-
-    const commandName = valueAsString(this.source.commandName);
-    if (commandName === undefined) {
-      throw new Error(
-        `Cannot create agency update for ${this.source.namespace}/${this.source.name} without command name.`,
-      );
-    }
-
-    const source = {
-      namespace: this.source.namespace,
-      command: { name: commandName },
-      kind: AgencyFacade.kind,
-      name: this.source.name,
-    };
-    const operations = Object.entries(desired).map(([path, to]) => {
-      const from = current[path];
-      if (Object.is(from, to)) {
-        return {
-          action: "check" as const,
-          path,
-          value: to,
-          reason: `Expected existing ${AgencyFacade.kind} ${path}.`,
-          source,
-        };
-      }
-
-      return {
-        action: "set" as const,
-        path,
-        from,
-        to,
-        reason: `Set ${AgencyFacade.kind} ${path}.`,
-        source,
-      };
-    });
-
-    return AgencyUpdate.new({
-      metadata: {
-        namespace: this.source.namespace,
-        name: this.source.name,
-      },
-      spec: { operations },
-    });
-  }
-}
 
 export type LocationAdministrativeAreaRequest = {
   address?: string;
@@ -818,20 +185,6 @@ export type ResolveAddressInput = {
   sourceName?: string;
   preferredLocationPathId?: string;
 };
-
-function valueAsFiniteNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value)
-    ? value
-    : undefined;
-}
-
-function valueAsRecordOrUndefined(
-  value: unknown,
-): Record<string, unknown> | undefined {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
 
 function normalizeAddressToken(value: string): string {
   return value
@@ -1018,6 +371,23 @@ type RegistryFacade = EntityFacade<
   DatabaseMutationEnvelope
 >;
 
+// The single backend the resolver builder injects: the generic facade backend
+// plus the slug and agency-geocode capabilities the Personnel/Agency resolvers
+// reach through. Inert for kinds whose resolvers never call them.
+type UnifiedFacadeBackend = EntityFacadeBackend & {
+  ensureUniqueSlug(input: {
+    kind: string;
+    base: string;
+    canonicalId: string;
+  }): Promise<string>;
+  registerSlug(input: {
+    kind: string;
+    slug: string;
+    canonicalId: string;
+  }): void;
+  resolveAgencyLocation(input: ResolveAddressInput): Promise<LocationResolution>;
+};
+
 export class DataContext {
   readonly locations: LocationDataContext;
   readonly locationPaths: LocationPathDataContext;
@@ -1048,8 +418,8 @@ export class DataContext {
     SlugKind,
     Map<string, string | null>
   >();
-  private readonly agencyFacades = new Map<string, AgencyFacade>();
-  private readonly personnelFacades = new Map<string, PersonnelFacade>();
+  private readonly agencyFacades = new Map<string, RegistryFacade>();
+  private readonly personnelFacades = new Map<string, RegistryFacade>();
   private readonly agencyPersonnelFacades = new Map<string, RegistryFacade>();
   private readonly licensingAuthorityFacades = new Map<
     string,
@@ -1091,34 +461,8 @@ export class DataContext {
     this.locationPaths = new LocationPathDataContext(this);
   }
 
-  fromSource(input: SourceRecordContext): AgencyFacade {
-    validateSourceRecordContext(input);
-    const key = [input.apiVersion, input.namespace, "Agency", input.name].join(
-      ":",
-    );
-    const existing = this.agencyFacades.get(key);
-    if (existing !== undefined) {
-      if (input.spec !== undefined) {
-        existing.merge(input.spec);
-      }
-      return existing;
-    }
-    const facade = new AgencyFacade({
-      current: input.current,
-      source: {
-        namespace: input.namespace,
-        sourceFile: input.sourceFile,
-        name: input.name,
-        commandName: input.commandName ?? this.commandName,
-      },
-      backend: this.agencyResolverBackend(),
-      cache: this.propertyCache(),
-    });
-    if (input.spec !== undefined) {
-      facade.merge(input.spec);
-    }
-    this.agencyFacades.set(key, facade);
-    return facade;
+  fromSource(input: SourceRecordContext): RegistryFacade {
+    return this.registryFacadeFromSource("Agency", this.agencyFacades, input);
   }
 
   /**
@@ -1147,20 +491,6 @@ export class DataContext {
     };
   }
 
-  private agencyResolverBackend(): AgencyResolverBackend {
-    return {
-      findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
-      existingRow: (id) =>
-        this.getById("Agency", id),
-      ensureUniqueAgencySlug: (input) =>
-        this.ensureUniqueSlug("Agency", input),
-      registerAgencySlug: (input) => {
-        this.registerSlug("Agency", input.slug, input.canonicalId);
-      },
-      resolveAgencyLocation: (input) => this.locations.resolveAddress(input),
-    };
-  }
-
   addAgencyRecords(artifacts: ArtifactsEnvelope): void {
     for (const artifact of artifacts.spec.artifacts.filter(
       (item) => item.kind === "Agencies",
@@ -1178,49 +508,12 @@ export class DataContext {
     }
   }
 
-  personnelFromSource(input: SourceRecordContext): PersonnelFacade {
-    validateSourceRecordContext(input);
-    const key = [
-      input.apiVersion,
-      input.namespace,
+  personnelFromSource(input: SourceRecordContext): RegistryFacade {
+    return this.registryFacadeFromSource(
       "Personnel",
-      input.name,
-    ].join(":");
-    const existing = this.personnelFacades.get(key);
-    if (existing !== undefined) {
-      if (input.spec !== undefined) {
-        existing.merge(input.spec);
-      }
-      return existing;
-    }
-    const facade = new PersonnelFacade({
-      current: input.current,
-      source: {
-        namespace: input.namespace,
-        sourceFile: input.sourceFile,
-        name: input.name,
-        commandName: input.commandName ?? this.commandName,
-      },
-      backend: this.personnelResolverBackend(),
-    });
-    if (input.spec !== undefined) {
-      facade.merge(input.spec);
-    }
-    this.personnelFacades.set(key, facade);
-    return facade;
-  }
-
-  private personnelResolverBackend(): PersonnelResolverBackend {
-    return {
-      findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
-      existingRow: (id) =>
-        this.getById("Personnel", id),
-      ensureUniquePersonnelSlug: (input) =>
-        this.ensureUniqueSlug("Personnel", input),
-      registerPersonnelSlug: (input) => {
-        this.registerSlug("Personnel", input.slug, input.canonicalId);
-      },
-    };
+      this.personnelFacades,
+      input,
+    );
   }
 
   private slugClaimsFor(kind: SlugKind): Map<string, string> {
@@ -1323,17 +616,26 @@ export class DataContext {
 
   // The full backend every registry-built facade reaches through (ADR 0016/0019):
   // canonical-id find-or-create, lazy current-row read by identityColumn, same-
-  // source FK finds, and location-path resolve-by-path. A kind uses only the
+  // source FK finds, location-path resolve-by-path, and the slug + agency-geocode
+  // capabilities the Personnel/Agency resolvers use. A kind uses only the
   // capabilities its resolvers need; the others are inert.
   private resolverBackend(
     kind: string,
     identityColumn?: string,
-  ): EntityFacadeBackend {
+  ): UnifiedFacadeBackend {
     return {
       findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
       existingRow: (id) => this.getById(kind, id, identityColumn),
       findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
       getLocationPathByPath: (path) => this.locationPaths.getByPath(path),
+      ensureUniqueSlug: (input) =>
+        this.ensureUniqueSlug(input.kind as SlugKind, {
+          base: input.base,
+          canonicalId: input.canonicalId,
+        }),
+      registerSlug: (input) =>
+        this.registerSlug(input.kind as SlugKind, input.slug, input.canonicalId),
+      resolveAgencyLocation: (input) => this.locations.resolveAddress(input),
     };
   }
 
@@ -1364,6 +666,9 @@ export class DataContext {
         commandName: input.commandName ?? this.commandName,
       },
       backend: this.resolverBackend(kind, identityColumnForKind(kind)),
+      // The property cache is gated by RESOLVED_PROPERTIES[kind]: a kind with no
+      // cache-backed properties never touches it (ADR 0019).
+      cache: this.propertyCache(),
     }) as RegistryFacade;
     if (input.spec !== undefined) {
       facade.merge(input.spec);
@@ -1642,20 +947,14 @@ export class DataContext {
       input.kind,
       input.sourceId,
     ].join(":");
-    // Agency/Personnel keep bespoke facades whose `value("id")` is already
-    // typed as the id; return them directly.
-    if (input.kind === "Agency") {
-      return this.agencyFacades.get(key);
-    }
-    if (input.kind === "Personnel") {
-      return this.personnelFacades.get(key);
-    }
     // Registry facades resolve toward an erased row, so bridge `value("id")` to
     // the target's identity column (LocationPath keys on `location_path_id`).
     const registryFacadeByKind: Record<
       string,
       Map<string, RegistryFacade> | undefined
     > = {
+      Agency: this.agencyFacades,
+      Personnel: this.personnelFacades,
       LocationPath: this.locationPathFacades,
       LicensingAuthority: this.licensingAuthorityFacades,
       License: this.licenseFacades,

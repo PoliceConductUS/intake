@@ -12,9 +12,19 @@ import {
   facadeNullableForeignKeyResolver,
   facadeLedgerForeignKeyResolver,
   facadeStateLocationPathResolver,
+  titleCaseResolver,
+  nameCaseResolver,
+  nameCaseResolverNullable,
+  lowerCaseEmailResolverNullable,
   type FacadeSource,
   type PropertyCache,
 } from "../resolver-kit.js";
+import {
+  personnelSlugResolver,
+  agencySlugResolver,
+  agencyLocationPathResolver,
+  agencyCoordinateResolver,
+} from "./agency-personnel-resolvers.js";
 import {
   EntityFacade,
   type EntityFacadeBackend,
@@ -55,6 +65,40 @@ type KindConfig = {
 };
 
 const REGISTRY: Record<string, KindConfig> = {
+  Personnel: {
+    overrides: {
+      slug: personnelSlugResolver() as AnyResolver,
+      first_name: nameCaseResolver<Row, EntityFacadeBackend>("first_name") as AnyResolver,
+      last_name: nameCaseResolverNullable<Row, EntityFacadeBackend>("last_name") as AnyResolver,
+      middle_name: nameCaseResolverNullable<Row, EntityFacadeBackend>("middle_name") as AnyResolver,
+      prefix: nameCaseResolverNullable<Row, EntityFacadeBackend>("prefix") as AnyResolver,
+      suffix: nameCaseResolverNullable<Row, EntityFacadeBackend>("suffix") as AnyResolver,
+    },
+  },
+  Agency: {
+    // slug/location_path_id/latitude/longitude are cache-backed
+    // (RESOLVED_PROPERTIES.Agency); id is auto-canonical; state and zip_code are
+    // plain codes and pass through uncased.
+    overrides: {
+      slug: agencySlugResolver() as AnyResolver,
+      name: titleCaseResolver<Row, EntityFacadeBackend>("name") as AnyResolver,
+      city: titleCaseResolver<Row, EntityFacadeBackend>("city") as AnyResolver,
+      address: titleCaseResolver<Row, EntityFacadeBackend>("address") as AnyResolver,
+      contact_name: nameCaseResolverNullable<Row, EntityFacadeBackend>("contact_name") as AnyResolver,
+      contact_email: lowerCaseEmailResolverNullable<Row, EntityFacadeBackend>(
+        "contact_email",
+      ) as AnyResolver,
+      location_path_id: agencyLocationPathResolver() as AnyResolver,
+      latitude: agencyCoordinateResolver(
+        "addressLatitude",
+        "latitude",
+      ) as AnyResolver,
+      longitude: agencyCoordinateResolver(
+        "addressLongitude",
+        "longitude",
+      ) as AnyResolver,
+    },
+  },
   LocationPath: {
     identity: "location_path_id",
     upsert: "read",
@@ -116,14 +160,16 @@ export function identityColumnForKind(kind: string): string {
   return REGISTRY[kind]?.identity ?? "id";
 }
 
-/** True when the builder can construct this kind (Agency/Personnel are not yet folded in). */
+/** True when the generic builder can construct this kind. */
 export function isRegistryKind(kind: string): boolean {
   return SUPPORTED_KINDS.has(kind);
 }
 
-// The kinds the generic builder owns. Agency and Personnel keep bespoke facades
-// until their slug/geocode resolvers move into the kit.
+// Every persisted entity kind the generic builder owns (LocationPathGeometry is
+// streamed separately and is not a facade).
 const SUPPORTED_KINDS = new Set<string>([
+  "Agency",
+  "Personnel",
   "LocationPath",
   "LocationPathAlias",
   "LicensingAuthority",

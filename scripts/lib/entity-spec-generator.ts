@@ -165,10 +165,12 @@ const DESCRIPTORS: EntityDescriptor[] = [
       "longitude",
     ],
     // Envelope-only geocoding hint consumed during resolution (administrative-
-    // area name/slug); not a column of public.agency.
+    // area name/slug); not a column of public.agency, so it stays off the
+    // *Create mutation (the generic builder derives columns from the CreateSpec).
     extras: {
       location: "z.record(z.string(), z.unknown()).optional()",
     },
+    createOmit: ["location"],
   },
   {
     recordKind: "Personnel",
