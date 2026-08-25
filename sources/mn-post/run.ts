@@ -50,18 +50,19 @@ import type {
 export const description =
   "Minnesota POST — agencies, officers, licenses, and disciplinary/coverage records from the MN POST license-lookup rosters.";
 
-// Columns the roster CSV is read for (see the address/contact reads below),
-// asserted present so a renamed column fails loud instead of silently dropping
-// every agency's address and contact.
-const AGENCY_CSV_COLUMNS = [
-  "Agency",
-  "State",
-  "City",
-  "Address",
-  "Zip",
-  "Chief Law Enforcement Officer",
-  "Organization Email",
-] as const;
+// The roster CSV columns this source reads, each header string defined exactly
+// once. Object.values(AGENCY_CSV) is the required-columns list asserted at read
+// (a renamed header fails loud instead of silently dropping address/contact);
+// every read goes through AGENCY_CSV.<key>, so a rename is a one-line change.
+const AGENCY_CSV = {
+  agency: "Agency",
+  state: "State",
+  city: "City",
+  address: "Address",
+  zip: "Zip",
+  chief: "Chief Law Enforcement Officer",
+  email: "Organization Email",
+} as const;
 
 export const run: SourceRun = async ({ paths }) => {
   const rosterPaths = paths.filter((p) => p.endsWith(".roster.json")).sort();
@@ -91,10 +92,14 @@ export const run: SourceRun = async ({ paths }) => {
     if (csvRows[0] !== undefined) {
       // Fail loud if the roster CSV is missing a column this source reads,
       // rather than silently emitting agencies with no address/contact.
-      assertRequiredColumns(Object.keys(csvRows[0]), AGENCY_CSV_COLUMNS, csvPath);
+      assertRequiredColumns(
+        Object.keys(csvRows[0]),
+        Object.values(AGENCY_CSV),
+        csvPath,
+      );
     }
     for (const row of csvRows) {
-      const name = (row["Agency"] ?? "").trim();
+      const name = (row[AGENCY_CSV.agency] ?? "").trim();
       if (name !== "") {
         csvByName.set(name, row);
       }
@@ -148,11 +153,11 @@ export const run: SourceRun = async ({ paths }) => {
       // null", which a required location field must never be.
       const location: Record<string, string> = {
         // Every MN POST agency is in Minnesota; the Q2 sheet confirms it.
-        state: nullIfBlank(csv?.["State"]) ?? "MN",
+        state: nullIfBlank(csv?.[AGENCY_CSV.state]) ?? "MN",
       };
-      const city = nullIfBlank(csv?.["City"]);
-      const address = nullIfBlank(csv?.["Address"]);
-      const zipCode = nullIfBlank(csv?.["Zip"]);
+      const city = nullIfBlank(csv?.[AGENCY_CSV.city]);
+      const address = nullIfBlank(csv?.[AGENCY_CSV.address]);
+      const zipCode = nullIfBlank(csv?.[AGENCY_CSV.zip]);
       if (city !== null) location.city = city;
       if (address !== null) location.address = address;
       if (zipCode !== null) location.zip_code = zipCode;
@@ -160,8 +165,8 @@ export const run: SourceRun = async ({ paths }) => {
         spec: {
           name: agency.name,
           ...location,
-          contact_name: nullIfBlank(csv?.["Chief Law Enforcement Officer"]),
-          contact_email: nullIfBlank(csv?.["Organization Email"]),
+          contact_name: nullIfBlank(csv?.[AGENCY_CSV.chief]),
+          contact_email: nullIfBlank(csv?.[AGENCY_CSV.email]),
         },
       };
     }

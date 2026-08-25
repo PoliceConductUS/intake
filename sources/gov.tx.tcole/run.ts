@@ -51,40 +51,48 @@ export const produces: readonly ImportArtifactKind[] = [
 export const description =
   "Texas TCOLE — agencies, officers, licenses, and assignments reconstructed from the TCOLE public-information workbook.";
 
-// The columns each sheet is read for, asserted present at the read boundary so a
-// renamed/mis-typed column fails loud instead of silently reading "" (and
-// dropping every row). Keep in sync with the buildX functions below.
-const DEPARTMENT_COLUMNS = [
-  "DEPARTMENT_NUMBER",
-  "DEPARTMENT_NAME",
-  "STATE",
-  "STATUS",
-  "ADD_LINE1",
-  "ADD_LINE2",
-  "CITY",
-  "ZIP_CODE",
-  "HEAD_NAME",
-  "E_MAIL",
-  "PHONE",
-  "FAX",
-] as const;
-const SERVICE_COLUMNS = [
-  "PUBLIC_GUID",
-  "DEPARTMENT_NUMBER",
-  "APPOINTMENT",
-  "LICENSE",
-  "ST_DATE",
-  "END_DATE",
-] as const;
-const OFFICER_COLUMNS = ["PUBLIC_GUID", "FNAME", "LNAME", "MNAME", "SFX"] as const;
-const LICENSE_ACTION_COLUMNS = [
-  "PUBLIC_GUID",
-  "LICENSE",
-  "DATE_AWARDED",
-  "ACTION_DATE",
-  "LICENSE_ACTION",
-  "LICENSE_STATUS",
-] as const;
+// The columns each sheet is read for, every header string defined exactly once.
+// Object.values(MAP) is the required-columns list asserted at the read boundary
+// (a renamed/mis-typed header fails loud instead of silently reading "" and
+// dropping every row); every read below goes through MAP.<key>, so a source
+// column rename is a one-line change here.
+const DEPARTMENT = {
+  number: "DEPARTMENT_NUMBER",
+  name: "DEPARTMENT_NAME",
+  state: "STATE",
+  status: "STATUS",
+  addressLine1: "ADD_LINE1",
+  addressLine2: "ADD_LINE2",
+  city: "CITY",
+  zip: "ZIP_CODE",
+  headName: "HEAD_NAME",
+  email: "E_MAIL",
+  phone: "PHONE",
+  fax: "FAX",
+} as const;
+const SERVICE = {
+  publicGuid: "PUBLIC_GUID",
+  departmentNumber: "DEPARTMENT_NUMBER",
+  appointment: "APPOINTMENT",
+  license: "LICENSE",
+  startDate: "ST_DATE",
+  endDate: "END_DATE",
+} as const;
+const OFFICER = {
+  publicGuid: "PUBLIC_GUID",
+  firstName: "FNAME",
+  lastName: "LNAME",
+  middleName: "MNAME",
+  suffix: "SFX",
+} as const;
+const ACTION = {
+  publicGuid: "PUBLIC_GUID",
+  license: "LICENSE",
+  dateAwarded: "DATE_AWARDED",
+  actionDate: "ACTION_DATE",
+  action: "LICENSE_ACTION",
+  status: "LICENSE_STATUS",
+} as const;
 
 export const run: SourceRun = async ({ paths, readXlsx, logger }) => {
   const log = logger ?? { info() {} };
@@ -96,7 +104,11 @@ export const run: SourceRun = async ({ paths, readXlsx, logger }) => {
   // Agencies: STATUS = ACTIVE only (the original seed omitted the 953 inactive
   // departments). Everything else cascades from that decision.
   log.info("tcole: reading Departments sheet");
-  const departmentRows = await readXlsx(workbook, "Departments", DEPARTMENT_COLUMNS);
+  const departmentRows = await readXlsx(
+    workbook,
+    "Departments",
+    Object.values(DEPARTMENT),
+  );
   const agencies = buildAgencies(departmentRows);
   log.info(`tcole: ${Object.keys(agencies).length} active agencies`);
   const agencyPhoneNumbers = buildAgencyPhoneNumbers(departmentRows, agencies);
@@ -105,12 +117,16 @@ export const run: SourceRun = async ({ paths, readXlsx, logger }) => {
   // iff some Services row links them to an emitted (active) agency. Officers with
   // no services, or only services at inactive agencies, are dropped.
   log.info("tcole: reading Services sheet");
-  const serviceRows = await readXlsx(workbook, "Services", SERVICE_COLUMNS);
+  const serviceRows = await readXlsx(
+    workbook,
+    "Services",
+    Object.values(SERVICE),
+  );
   log.info(`tcole: ${serviceRows.length} service rows`);
   const activeOfficerGuids = new Set<string>();
   for (const row of serviceRows) {
-    const departmentNumber = (row["DEPARTMENT_NUMBER"] ?? "").trim();
-    const publicGuid = (row["PUBLIC_GUID"] ?? "").trim();
+    const departmentNumber = (row[SERVICE.departmentNumber] ?? "").trim();
+    const publicGuid = (row[SERVICE.publicGuid] ?? "").trim();
     if (publicGuid !== "" && agencies[departmentNumber] !== undefined) {
       activeOfficerGuids.add(publicGuid);
     }
@@ -118,7 +134,7 @@ export const run: SourceRun = async ({ paths, readXlsx, logger }) => {
 
   log.info("tcole: reading Officers sheet");
   const personnel = buildPersonnel(
-    await readXlsx(workbook, "Officers", OFFICER_COLUMNS),
+    await readXlsx(workbook, "Officers", Object.values(OFFICER)),
     activeOfficerGuids,
   );
   log.info(`tcole: ${Object.keys(personnel).length} active officers`);
@@ -129,7 +145,7 @@ export const run: SourceRun = async ({ paths, readXlsx, logger }) => {
   const licenseActionRows = await readXlsx(
     workbook,
     "OfficersLicensesActions",
-    LICENSE_ACTION_COLUMNS,
+    Object.values(ACTION),
   );
 
   log.info("tcole: building records");
@@ -178,11 +194,11 @@ function buildAgencyPhoneNumbers(
 ): EmittedRecords {
   const records: EmittedRecords = {};
   for (const row of rows) {
-    const departmentNumber = (row["DEPARTMENT_NUMBER"] ?? "").trim();
+    const departmentNumber = (row[DEPARTMENT.number] ?? "").trim();
     if (agencies[departmentNumber] === undefined) continue;
     for (const [column, description] of [
-      ["PHONE", "Phone"],
-      ["FAX", "Fax"],
+      [DEPARTMENT.phone, "Phone"],
+      [DEPARTMENT.fax, "Fax"],
     ] as const) {
       const phoneNumber = (row[column] ?? "").trim();
       if (phoneNumber === "") continue;
@@ -218,8 +234,8 @@ function buildPersonnel(
 ): EmittedRecords {
   const records: EmittedRecords = {};
   for (const row of rows) {
-    const publicGuid = (row["PUBLIC_GUID"] ?? "").trim();
-    const firstName = nullIfBlank(row["FNAME"]);
+    const publicGuid = (row[OFFICER.publicGuid] ?? "").trim();
+    const firstName = nullIfBlank(row[OFFICER.firstName]);
     // Only import officers attached to an active agency.
     if (!activeOfficerGuids.has(publicGuid)) continue;
     // Personnel spec requires a stable id and a first name. last_name is
@@ -230,9 +246,9 @@ function buildPersonnel(
       spec: {
         id: publicGuid,
         first_name: firstName,
-        last_name: nullIfBlank(row["LNAME"]),
-        middle_name: nullIfBlank(row["MNAME"]),
-        suffix: nullIfBlank(row["SFX"]),
+        last_name: nullIfBlank(row[OFFICER.lastName]),
+        middle_name: nullIfBlank(row[OFFICER.middleName]),
+        suffix: nullIfBlank(row[OFFICER.suffix]),
       },
     };
   }
@@ -242,16 +258,16 @@ function buildPersonnel(
 function buildAgencies(rows: Array<Record<string, string>>): EmittedRecords {
   const records: EmittedRecords = {};
   for (const row of rows) {
-    const departmentNumber = (row["DEPARTMENT_NUMBER"] ?? "").trim();
-    const name = (row["DEPARTMENT_NAME"] ?? "").trim();
-    const state = (row["STATE"] ?? "").trim();
+    const departmentNumber = (row[DEPARTMENT.number] ?? "").trim();
+    const name = (row[DEPARTMENT.name] ?? "").trim();
+    const state = (row[DEPARTMENT.state] ?? "").trim();
     // Only active agencies are imported (the original seed omitted inactive
     // departments). Everything downstream cascades from this filter.
-    if ((row["STATUS"] ?? "").trim().toUpperCase() !== "ACTIVE") continue;
+    if ((row[DEPARTMENT.status] ?? "").trim().toUpperCase() !== "ACTIVE") continue;
     // Agency spec requires a non-empty name and state; the key must be stable.
     if (departmentNumber === "" || name === "" || state === "") continue;
 
-    const address = [row["ADD_LINE1"], row["ADD_LINE2"]]
+    const address = [row[DEPARTMENT.addressLine1], row[DEPARTMENT.addressLine2]]
       .map((part) => (part ?? "").trim())
       .filter((part) => part !== "")
       .join(", ");
@@ -261,11 +277,11 @@ function buildAgencies(rows: Array<Record<string, string>>): EmittedRecords {
       spec: {
         name,
         state,
-        city: nullIfBlank(row["CITY"]),
+        city: nullIfBlank(row[DEPARTMENT.city]),
         address: address === "" ? null : address,
-        zip_code: nullIfBlank(row["ZIP_CODE"]),
-        contact_name: nullIfBlank(row["HEAD_NAME"]),
-        contact_email: nullIfBlank(row["E_MAIL"]),
+        zip_code: nullIfBlank(row[DEPARTMENT.zip]),
+        contact_name: nullIfBlank(row[DEPARTMENT.headName]),
+        contact_email: nullIfBlank(row[DEPARTMENT.email]),
       },
     };
   }
@@ -280,12 +296,12 @@ function buildAgencyPersonnel(
 ): EmittedRecords {
   const records: EmittedRecords = {};
   for (const row of rows) {
-    const publicGuid = (row["PUBLIC_GUID"] ?? "").trim();
-    const departmentNumber = (row["DEPARTMENT_NUMBER"] ?? "").trim();
-    const appointment = (row["APPOINTMENT"] ?? "").trim();
-    const license = (row["LICENSE"] ?? "").trim();
-    const startDate = toDate(row["ST_DATE"]);
-    const endDate = toDate(row["END_DATE"]);
+    const publicGuid = (row[SERVICE.publicGuid] ?? "").trim();
+    const departmentNumber = (row[SERVICE.departmentNumber] ?? "").trim();
+    const appointment = (row[SERVICE.appointment] ?? "").trim();
+    const license = (row[SERVICE.license] ?? "").trim();
+    const startDate = toDate(row[SERVICE.startDate]);
+    const endDate = toDate(row[SERVICE.endDate]);
 
     // Required fields for AgencyPersonnel: agency_id, personnel_id, start_date,
     // title (the role). A blank APPOINTMENT is retained as title "Unknown"
@@ -384,16 +400,16 @@ function buildLicenses(
   const latestActionDate = new Map<string, string>();
   const currentStatus = new Map<string, string>();
   for (const row of licenseActionRows) {
-    const publicGuid = (row["PUBLIC_GUID"] ?? "").trim();
-    const license = (row["LICENSE"] ?? "").trim();
+    const publicGuid = (row[ACTION.publicGuid] ?? "").trim();
+    const license = (row[ACTION.license] ?? "").trim();
     if (publicGuid === "" || license === "") continue;
     const key = `${publicGuid}|${license}`;
 
-    const dateAwarded = toDate(row["DATE_AWARDED"]);
+    const dateAwarded = toDate(row[ACTION.dateAwarded]);
     if (dateAwarded !== "" && !awardDate.has(key)) awardDate.set(key, dateAwarded);
 
-    const actionDate = toDate(row["ACTION_DATE"]);
-    const status = (row["LICENSE_STATUS"] ?? "").trim();
+    const actionDate = toDate(row[ACTION.actionDate]);
+    const status = (row[ACTION.status] ?? "").trim();
     if (actionDate !== "") {
       const latest = latestActionDate.get(key);
       if (latest === undefined || actionDate >= latest) {
@@ -405,8 +421,9 @@ function buildLicenses(
 
   const records: EmittedRecords = {};
   for (const row of [...licenseActionRows, ...serviceRows]) {
-    const publicGuid = (row["PUBLIC_GUID"] ?? "").trim();
-    const license = (row["LICENSE"] ?? "").trim();
+    // PUBLIC_GUID and LICENSE are the same header on both sheets.
+    const publicGuid = (row[ACTION.publicGuid] ?? "").trim();
+    const license = (row[ACTION.license] ?? "").trim();
     // Skip blanks and officers not emitted by the active cascade.
     if (publicGuid === "" || license === "") continue;
     if (personnel[publicGuid] === undefined) continue;
@@ -441,11 +458,11 @@ function buildLicenseActions(
 ): EmittedRecords {
   const records: EmittedRecords = {};
   for (const row of rows) {
-    const publicGuid = (row["PUBLIC_GUID"] ?? "").trim();
-    const license = (row["LICENSE"] ?? "").trim();
-    const action = (row["LICENSE_ACTION"] ?? "").trim();
-    const actionDate = toDate(row["ACTION_DATE"]);
-    const status = (row["LICENSE_STATUS"] ?? "").trim();
+    const publicGuid = (row[ACTION.publicGuid] ?? "").trim();
+    const license = (row[ACTION.license] ?? "").trim();
+    const action = (row[ACTION.action] ?? "").trim();
+    const actionDate = toDate(row[ACTION.actionDate]);
+    const status = (row[ACTION.status] ?? "").trim();
 
     if (publicGuid === "" || license === "" || action === "") continue;
     if (personnel[publicGuid] === undefined) continue;
