@@ -322,7 +322,11 @@ export class DataContext {
       const kindMutations = await Promise.all(
         [...facades.values()].map((facade) => facade.toMutation()),
       );
-      mutations.push(...kindMutations);
+      // A single kind can hold >100k rows (tcole assignments); spreading that
+      // into push() arguments overflows the call stack, so append in place.
+      for (const mutation of kindMutations) {
+        mutations.push(mutation);
+      }
     }
     return mutations;
   }
