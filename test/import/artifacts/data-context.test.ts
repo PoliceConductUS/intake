@@ -89,6 +89,8 @@ const locationPaths: LocationPathRow[] = [
     administrative_area_name: null,
     place_name: null,
     parent_location_path_id: null,
+    centroid: null,
+    bbox: null,
   },
   {
     location_path_id: "ramsey-county-location-path-id",
@@ -101,6 +103,8 @@ const locationPaths: LocationPathRow[] = [
     administrative_area_name: "Ramsey County",
     place_name: null,
     parent_location_path_id: "mn-location-path-id",
+    centroid: null,
+    bbox: null,
   },
   {
     location_path_id: "saint-paul-location-path-id",
@@ -113,6 +117,8 @@ const locationPaths: LocationPathRow[] = [
     administrative_area_name: "Ramsey County",
     place_name: "Saint Paul",
     parent_location_path_id: "ramsey-county-location-path-id",
+    centroid: null,
+    bbox: null,
   },
 ];
 
@@ -127,6 +133,8 @@ const txLocationPath: LocationPathRow = {
   administrative_area_name: null,
   place_name: null,
   parent_location_path_id: null,
+  centroid: null,
+  bbox: null,
 };
 
 function licensingSourceNameToCanonicalIds(

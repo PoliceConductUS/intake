@@ -74,9 +74,34 @@ export async function introspectSchema(
   await client.connect();
   try {
     const tables = new Map<string, IntrospectedTable>();
-    for (const qualified of qualifiedTables) {
-      const table = stripSchema(qualified);
+    // Every public base table, so a ROW type is generated for tables intake does
+    // not own but the website reads. spatial_ref_sys is PostGIS system state.
+    const systemTables = new Set(["spatial_ref_sys"]);
+    const baseTables = await client.query<{ table_name: string }>(
+      `select table_name from information_schema.tables
+        where table_schema = 'public' and table_type = 'BASE TABLE'
+        order by table_name`,
+    );
+    const tableNames = baseTables.rows
+      .map((row) => row.table_name)
+      .filter((name) => !systemTables.has(name));
 
+    // Native pg enum types (CREATE TYPE ... AS ENUM) → their labels, so a column
+    // typed by one becomes a union (CHECK-list enums are parsed per-table below).
+    const enumTypeRows = await client.query<{ typname: string; label: string }>(
+      `select t.typname, e.enumlabel as label
+         from pg_type t
+         join pg_enum e on e.enumtypid = t.oid
+        order by t.typname, e.enumsortorder`,
+    );
+    const enumTypes = new Map<string, string[]>();
+    for (const { typname, label } of enumTypeRows.rows) {
+      const labels = enumTypes.get(typname) ?? [];
+      labels.push(label);
+      enumTypes.set(typname, labels);
+    }
+
+    for (const table of tableNames) {
       const columns = await client.query<{
         column_name: string;
         udt_name: string;
@@ -117,6 +142,12 @@ export async function introspectSchema(
           enums.set(enumCheck.column, enumCheck.values);
         }
       }
+      for (const column of columns.rows) {
+        const labels = enumTypes.get(column.udt_name);
+        if (labels !== undefined) {
+          enums.set(column.column_name, labels);
+        }
+      }
 
       const foreignKeyRows = await client.query<{
         column: string;
@@ -152,6 +183,15 @@ export async function introspectSchema(
         references,
         foreignKeys,
       });
+    }
+
+    for (const qualified of qualifiedTables) {
+      const entityTable = stripSchema(qualified);
+      if (!tables.has(entityTable)) {
+        throw new Error(
+          `Entity table public.${entityTable} was not found among the schema's base tables.`,
+        );
+      }
     }
 
     const migrationRows = await client.query<{ version: string }>(

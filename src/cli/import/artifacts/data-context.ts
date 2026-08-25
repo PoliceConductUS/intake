@@ -87,6 +87,14 @@ import {
   RECORD_KINDS_IN_DEPENDENCY_ORDER,
   RESOLVED_PROPERTIES,
   TABLE_BY_KIND,
+  type AgencyRow,
+  type OfficersRow,
+  type AgencyOfficersRow,
+  type LicensingAuthorityRow,
+  type LicenseRow,
+  type LicenseActionRow,
+  type LocationPathRow,
+  type LocationPathAliasRow,
 } from "../../../shared/io/generated/entity-specs.js";
 import { IMPORT_OPERATION_SUFFIXES } from "../../../shared/io/import-type-metadata.js";
 import type { ArtifactsEnvelope } from "../../../shared/io/Artifacts.js";
@@ -104,9 +112,6 @@ import {
 } from "../../database/location-paths.js";
 import { readDatabaseRecordsByColumn } from "../../database/entities.js";
 import type { SupportedTableName } from "../../database/schema.js";
-
-// The location_path row is the generated model (stays in sync with the schema).
-type LocationPathRow = z.infer<typeof LocationPathSpec>;
 
 /** Tables whose slug uniqueness the DataContext enforces (generate-unique). */
 type SlugKind = "Personnel" | "Agency";
@@ -291,13 +296,7 @@ function validateSourceRecordContext(input: SourceRecordContext): void {
  * target-column type. (`LicensingAuthority` no longer produces a transform row;
  * the facade owns the column set.)
  */
-export type LicensingAuthorityRowShape = {
-  id: string;
-  name: string;
-  abbreviation: string | null;
-  website: string | null;
-  location_path_id: string;
-};
+export type LicensingAuthorityRowShape = LicensingAuthorityRow;
 
 /** Backend capabilities the LicensingAuthority resolvers reach through. */
 export type LicensingAuthorityResolverBackend = {
@@ -550,23 +549,10 @@ export class LicensingAuthorityFacade implements PropertyResolutionFacade<Licens
 // target is absent (a forward-reference violation) rather than minting a stub.
 
 /** The database row shape a `LicenseFacade` resolves toward. */
-export type LicenseRowShape = {
-  id: string;
-  officer_id: string;
-  license_type: string;
-  status: string | null;
-  first_awarded: string | null;
-  issued_by_authority_id: string;
-};
+export type LicenseRowShape = LicenseRow;
 
 /** The database row shape a `LicenseActionFacade` resolves toward. */
-export type LicenseActionRowShape = {
-  id: string;
-  license_id: string;
-  action: string;
-  action_date: string | null;
-  status: string | null;
-};
+export type LicenseActionRowShape = LicenseActionRow;
 
 /**
  * Backend capabilities the License / LicenseAction resolvers reach through:
@@ -961,15 +947,7 @@ export class LicenseActionFacade implements PropertyResolutionFacade<LicenseActi
 // into the resolver.
 
 /** The database row shape a `PersonnelFacade` resolves toward (public.officers). */
-export type PersonnelRowShape = {
-  id: string;
-  first_name: string;
-  last_name: string | null;
-  middle_name: string | null;
-  prefix: string | null;
-  suffix: string | null;
-  slug: string;
-};
+export type PersonnelRowShape = OfficersRow;
 
 /**
  * Backend capabilities the Personnel resolvers reach through: the entity's own
@@ -1273,20 +1251,9 @@ export class PersonnelFacade implements PropertyResolutionFacade<PersonnelRowSha
 // `longitude` fall out of the same geocode.
 
 /** The database row shape an `AgencyFacade` resolves toward (public.agency). */
-export type AgencyRowShape = {
-  id: string;
-  name: string;
-  city: string;
-  state: string;
-  address: string;
-  zip_code: string;
-  contact_name: string | null;
-  contact_email: string | null;
-  slug: string;
-  location_path_id: string;
-  latitude: number;
-  longitude: number;
-  // Envelope-only geocoding hint (administrative-area name/slug); not a column.
+// The generated agency row plus the envelope-only geocoding hint (administrative-
+// area name/slug) the address resolver reads; the hint is not a column.
+export type AgencyRowShape = AgencyRow & {
   location?: Record<string, unknown>;
 };
 
@@ -1580,16 +1547,7 @@ export class AgencyFacade extends ResolvingFacade<
 // The remaining columns are plain.
 
 /** The database row shape an `AgencyPersonnelFacade` resolves toward. */
-export type AgencyOfficerRowShape = {
-  id: string;
-  agency_id: string;
-  officer_id: string;
-  badge_number: string | null;
-  start_date: string;
-  end_date: string | null;
-  title: string;
-  license_id: string | null;
-};
+export type AgencyOfficerRowShape = AgencyOfficersRow;
 
 type AgencyPersonnelResolvers = Partial<{
   [K in keyof AgencyOfficerRowShape]: Resolver<
@@ -1803,20 +1761,7 @@ export class AgencyPersonnelFacade implements PropertyResolutionFacade<AgencyOff
 // separately (`appendStreamingLocationPathGeometryMutations`).
 
 /** The database row shape a `LocationPathFacade` resolves toward. */
-export type LocationPathRowShape = {
-  location_path_id: string;
-  path: string;
-  level: "state" | "administrative_area" | "place";
-  state_or_territory_slug: string;
-  administrative_area_slug: string | null;
-  place_slug: string | null;
-  state_or_territory_name: string;
-  administrative_area_name: string | null;
-  place_name: string | null;
-  parent_location_path_id: string | null;
-  centroid?: unknown;
-  bbox?: unknown;
-};
+export type LocationPathRowShape = LocationPathRow;
 
 /** Canonical-id find-or-create resolver bound to a non-`id` identity column. */
 function facadeIdentityColumnResolver<Row>(
@@ -1987,10 +1932,7 @@ export class LocationPathFacade implements PropertyResolutionFacade<LocationPath
 }
 
 /** The database row shape a `LocationPathAliasFacade` resolves toward. */
-export type LocationPathAliasRowShape = {
-  alias_path: string;
-  location_path_id: string;
-};
+export type LocationPathAliasRowShape = LocationPathAliasRow;
 
 type LocationPathAliasResolvers = Partial<{
   [K in keyof LocationPathAliasRowShape]: Resolver<

@@ -356,6 +356,87 @@ function baseType(column: Column, table: IntrospectedTable): string {
   }
 }
 
+function scalarTsType(udtName: string): string | undefined {
+  switch (udtName) {
+    case "text":
+    case "varchar":
+    case "bpchar":
+    case "uuid":
+    case "date":
+    case "timestamptz":
+    case "timestamp":
+    case "time":
+    case "timetz":
+      return "string";
+    case "float8":
+    case "float4":
+    case "numeric":
+    case "int2":
+    case "int4":
+    case "int8":
+      return "number";
+    case "bool":
+      return "boolean";
+    case "jsonb":
+    case "json":
+    case "geography":
+    case "geometry":
+      return "unknown";
+    default:
+      return undefined;
+  }
+}
+
+// The TypeScript type of a database column as it appears in a persisted row —
+// present, and nullable-as-`| null` (never optional). This is the DB row, not
+// the source-input spec. A `_x` udt is a Postgres array of `x`.
+function columnTsType(column: Column, table: IntrospectedTable): string {
+  const enumValues = table.enums.get(column.name);
+  if (enumValues !== undefined) {
+    return enumValues.map((value) => JSON.stringify(value)).join(" | ");
+  }
+  const isArray = column.udtName.startsWith("_");
+  const scalar = scalarTsType(isArray ? column.udtName.slice(1) : column.udtName);
+  if (scalar === undefined) {
+    throw new Error(
+      `No TypeScript row type for ${table.table}.${column.name} of type ${column.udtName}.`,
+    );
+  }
+  return isArray ? `${scalar}[]` : scalar;
+}
+
+// Derived/build tables (stored as base tables) that are NOT a source of truth,
+// so they get no generated ROW type. Convert to a naming convention later.
+const ROW_TYPE_EXCLUDED_TABLES = new Set([
+  "agency_stats",
+  "officers_stats",
+  "agency_officers_stats",
+  "agency_zip_index",
+  "location_path_closure",
+  "build_page_payload",
+]);
+
+function pascalCase(tableName: string): string {
+  return tableName
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("");
+}
+
+// A `<PascalTable>Row` type for a base table: every column (actual database
+// name), each present, nullable columns as `T | null`. Emitted for EVERY table
+// in the schema — including tables intake does not own but the website reads —
+// so no hand-coded copy of a row ever exists (ADR 0025).
+function renderRowType(table: IntrospectedTable): string {
+  const fields = table.columns
+    .filter((column) => !ALWAYS_EXCLUDED.has(column.name))
+    .map((column) => {
+      const type = columnTsType(column, table);
+      return `  ${column.name}: ${column.nullable ? `${type} | null` : type};`;
+    });
+  return `export type ${pascalCase(table.table)}Row = {\n${fields.join("\n")}\n};`;
+}
+
 function renderEntity(
   descriptor: EntityDescriptor,
   table: IntrospectedTable,
@@ -580,7 +661,16 @@ const LocationPathBboxSpec = z
     return renderEntity(descriptor, table);
   });
 
-  return `${preamble}\n${entities.join("\n\n")}\n`;
+  // A ROW type for every source-of-truth base table (ADR 0025) — the 19 intake
+  // entities plus the website's own data tables — so no hand-coded row shape ever
+  // exists. Derived/build tables (denormalized stats, closure, page payload) are
+  // not source of truth and are skipped.
+  const rowTypes = [...schema.tables.values()]
+    .filter((table) => !ROW_TYPE_EXCLUDED_TABLES.has(table.table))
+    .sort((left, right) => left.table.localeCompare(right.table))
+    .map((table) => renderRowType(table));
+
+  return `${preamble}\n${entities.join("\n\n")}\n\n${rowTypes.join("\n\n")}\n`;
 }
 
 /** Schema-qualified tables the generator introspects, in dependency order. */

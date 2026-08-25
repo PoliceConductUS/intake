@@ -420,3 +420,365 @@ export const CivilCaseLinkSpec = z
 export const CivilCaseLinkCreateSpec = CivilCaseLinkSpec.extend({
   id: z.string(),
 });
+
+export type AgencyRow = {
+  id: string;
+  name: string;
+  city: string | null;
+  state: string;
+  address: string | null;
+  zip_code: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
+  slug: string;
+  location_path_id: string;
+  latitude: number | null;
+  longitude: number | null;
+};
+
+export type AgencyLinksRow = {
+  id: string;
+  agency_id: string | null;
+  url: string;
+  description: string | null;
+  label: string;
+};
+
+export type AgencyOfficersRow = {
+  id: string;
+  agency_id: string;
+  officer_id: string;
+  badge_number: string | null;
+  start_date: string;
+  end_date: string | null;
+  title: string;
+  license_id: string | null;
+};
+
+export type AgencyPhoneNumbersRow = {
+  id: string;
+  agency_id: string | null;
+  phone_number: string;
+  description: string | null;
+};
+
+export type AuditLogsRow = {
+  id: string;
+  table_name: string;
+  record_id: string;
+  action: string;
+  old_values: unknown | null;
+  new_values: unknown | null;
+  created_by: string | null;
+};
+
+export type CivilCaseLinksRow = {
+  id: string;
+  civil_case_id: string;
+  url: string;
+  title: string;
+};
+
+export type CivilCaseOfficersRow = {
+  id: string;
+  civil_case_id: string;
+  agency_officer_id: string;
+};
+
+export type CivilCasesRow = {
+  id: string;
+  title: string;
+  cause_number: string;
+  court: string | null;
+  filed_date: string;
+  claims_summary: string;
+  slug: string;
+  outcome: string | null;
+  primary_source_url: string | null;
+  date_terminated: string | null;
+  location_path_id: string;
+};
+
+export type CoverageLinkAgencyOfficersRow = {
+  id: string;
+  coverage_link_id: string;
+  agency_officer_id: string;
+  confidence: string;
+  notes: string | null;
+};
+
+export type CoverageLinkCivilCasesRow = {
+  id: string;
+  coverage_link_id: string;
+  civil_case_id: string;
+  notes: string | null;
+};
+
+export type CoverageLinkReportsRow = {
+  id: string;
+  coverage_link_id: string;
+  review_id: string;
+  notes: string | null;
+};
+
+export type CoverageLinksRow = {
+  id: string;
+  url: string;
+  normalized_url: string;
+  title: string;
+  source_name: string | null;
+  published_at: string | null;
+  notes: string | null;
+};
+
+export type DisciplineRow = {
+  id: string;
+  action: string;
+  effective_date: string | null;
+  expiration_date: string | null;
+  case_number: string | null;
+};
+
+export type DisciplineAgencyOfficersRow = {
+  id: string;
+  discipline_id: string;
+  agency_officer_id: string;
+};
+
+export type FederalAgencyRow = {
+  id: string;
+  name: string;
+  slug: string;
+};
+
+export type FederalAgencyBranchRow = {
+  federal_agency_id: string;
+  agency_id: string;
+  id: string;
+};
+
+export type LicenseRow = {
+  id: string;
+  officer_id: string;
+  license_type: string;
+  status: string | null;
+  first_awarded: string | null;
+  issued_by_authority_id: string;
+};
+
+export type LicenseActionRow = {
+  id: string;
+  license_id: string;
+  action: string;
+  action_date: string | null;
+  status: string | null;
+};
+
+export type LicensingAuthorityRow = {
+  id: string;
+  name: string;
+  abbreviation: string | null;
+  website: string | null;
+  location_path_id: string;
+};
+
+export type LocationPathRow = {
+  location_path_id: string;
+  path: string;
+  level: "state" | "administrative_area" | "place";
+  state_or_territory_slug: string;
+  administrative_area_slug: string | null;
+  place_slug: string | null;
+  state_or_territory_name: string;
+  administrative_area_name: string | null;
+  place_name: string | null;
+  parent_location_path_id: string | null;
+  centroid: unknown | null;
+  bbox: unknown | null;
+};
+
+export type LocationPathAliasRow = {
+  alias_path: string;
+  location_path_id: string;
+};
+
+export type LocationPathGeometryRow = {
+  location_path_id: string;
+  boundary: unknown;
+};
+
+export type LocationReportSourcesRow = {
+  id: string;
+  location_report_id: string;
+  source_key: string;
+  label: string;
+  url: string;
+  source_type: "law" | "methodology" | "pdf" | "web";
+  sort_order: number;
+};
+
+export type LocationReportsRow = {
+  id: string;
+  location_path_id: string;
+  report_type: string;
+  report_key: string;
+  title: string;
+  summary: string;
+  payload: unknown;
+  sort_order: number;
+  status: "draft" | "published" | "archived";
+  published_at: string | null;
+};
+
+export type OfficersRow = {
+  id: string;
+  first_name: string;
+  last_name: string | null;
+  middle_name: string | null;
+  prefix: string | null;
+  suffix: string | null;
+  slug: string;
+  deceased_on: string | null;
+  deceased_source: string | null;
+  deceased_message: string | null;
+};
+
+export type ProfileEmailsRow = {
+  id: string;
+  profile_id: string | null;
+  email: string;
+  is_primary: boolean | null;
+  verified: boolean | null;
+  label: string | null;
+};
+
+export type ProfileLinksRow = {
+  id: string;
+  profile_id: string | null;
+  url: string;
+  label: string;
+};
+
+export type ProfilePhoneNumbersRow = {
+  id: string;
+  profile_id: string | null;
+  phone_number: string;
+  is_primary: boolean | null;
+  can_receive_sms: boolean | null;
+  is_verified: boolean | null;
+  label: string | null;
+};
+
+export type ProfilesRow = {
+  id: string;
+  phone_number: string | null;
+  avatar_url: string | null;
+  street_address: string | null;
+  city: string | null;
+  state: string | null;
+  zip_code: string | null;
+  primary_phone_id: string | null;
+  primary_email_id: string | null;
+  mailing_address_street: string | null;
+  mailing_address_city: string | null;
+  mailing_address_state: string | null;
+  mailing_address_zip: string | null;
+  physical_address_street: string | null;
+  physical_address_city: string | null;
+  physical_address_state: string | null;
+  physical_address_zip: string | null;
+  languages: string[] | null;
+};
+
+export type ReviewAttachmentsRow = {
+  id: string;
+  review_id: string | null;
+  file_path: string;
+  file_name: string;
+  content_type: string;
+};
+
+export type ReviewLinksRow = {
+  id: string;
+  review_id: string | null;
+  url: string;
+  title: string;
+  created_by: string | null;
+  updated_by: string | null;
+};
+
+export type ReviewOfficersRow = {
+  id: string;
+  review_id: string;
+  created_by: string | null;
+  updated_by: string | null;
+  rating_overall: number | null;
+  agency_officer_id: string;
+};
+
+export type ReviewOfficersRatingsRow = {
+  id: string;
+  review_officer_id: string | null;
+  trait_id: string | null;
+  rubric_id: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+};
+
+export type ReviewTagsRow = {
+  review_id: string;
+  tag_id: string;
+  id: string;
+};
+
+export type ReviewWitnessesRow = {
+  id: string;
+  review_id: string | null;
+  profile_id: string | null;
+  statement: string | null;
+};
+
+export type ReviewsRow = {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string | null;
+  incident_date: string | null;
+  desired_outcome: string | null;
+  address: string | null;
+  thumbnail_url: string | null;
+  slug: string;
+  charges: string | null;
+  location_path_id: string;
+  latitude: number | null;
+  longitude: number | null;
+};
+
+export type RubricLabelsRow = {
+  label: "Outstanding" | "Good" | "Adequate" | "Needs Improvement" | "Unacceptable";
+  value: number;
+};
+
+export type RubricsRow = {
+  id: string;
+  trait_id: string;
+  description: string;
+  created_by: string | null;
+  updated_by: string | null;
+  help: string;
+  rubric_value: number;
+};
+
+export type TagsRow = {
+  id: string;
+  label: string;
+};
+
+export type TraitsRow = {
+  id: string;
+  label: string;
+  active: boolean | null;
+  created_by: string | null;
+  updated_by: string | null;
+  description: string | null;
+};

@@ -1,15 +1,11 @@
-import type { z } from "zod";
 import type { DatabaseClient } from "./index.js";
-import { LocationPathSpec } from "../../shared/io/generated/entity-specs.js";
+import type {
+  LocationPathRow,
+  LocationPathAliasRow,
+} from "../../shared/io/generated/entity-specs.js";
 
-// The location_path row is the generated model, so the read stays in sync with
-// the database schema.
-export type DatabaseLocationPathRow = z.infer<typeof LocationPathSpec>;
-
-export type DatabaseLocationPathAliasRow = {
-  alias_path: string;
-  location_path_id: string;
-};
+export type DatabaseLocationPathRow = LocationPathRow;
+export type DatabaseLocationPathAliasRow = LocationPathAliasRow;
 
 function rowsFromResult(
   result: { rows?: Record<string, unknown>[] } | unknown,
@@ -34,7 +30,8 @@ export async function readLocationPathById(
     await client.query(
       `select location_path_id, path, level, state_or_territory_slug,
               administrative_area_slug, place_slug, state_or_territory_name,
-              administrative_area_name, place_name, parent_location_path_id
+              administrative_area_name, place_name, parent_location_path_id,
+              centroid, bbox
          from public.location_path
         where location_path_id = $1`,
       [locationPathId],
@@ -50,7 +47,8 @@ export async function readLocationPathByPath(
     await client.query(
       `select location_path_id, path, level, state_or_territory_slug,
               administrative_area_slug, place_slug, state_or_territory_name,
-              administrative_area_name, place_name, parent_location_path_id
+              administrative_area_name, place_name, parent_location_path_id,
+              centroid, bbox
          from public.location_path
         where path = $1`,
       [locationPathPath],
