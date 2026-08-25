@@ -403,36 +403,11 @@ export class DataContext {
   private readonly commandName?: string;
   private readonly ledger?: SourceNameToCanonicalIdLedger;
   private readonly slugs: SlugAllocator;
-  private readonly agencyFacades = new Map<string, RegistryFacade>();
-  private readonly personnelFacades = new Map<string, RegistryFacade>();
-  private readonly agencyPersonnelFacades = new Map<string, RegistryFacade>();
-  private readonly licensingAuthorityFacades = new Map<
+  /** Every facade built this command, grouped by kind then memo key. */
+  private readonly facadesByKind = new Map<
     string,
-    RegistryFacade
+    Map<string, RegistryFacade>
   >();
-  private readonly licenseFacades = new Map<string, RegistryFacade>();
-  private readonly licenseActionFacades = new Map<string, RegistryFacade>();
-  private readonly locationPathFacades = new Map<string, RegistryFacade>();
-  private readonly locationPathAliasFacades = new Map<string, RegistryFacade>();
-  private readonly disciplineFacades = new Map<string, RegistryFacade>();
-  private readonly disciplineAgencyOfficerFacades = new Map<
-    string,
-    RegistryFacade
-  >();
-  private readonly coverageLinkFacades = new Map<string, RegistryFacade>();
-  private readonly coverageLinkAgencyOfficerFacades = new Map<
-    string,
-    RegistryFacade
-  >();
-  private readonly agencyPhoneNumberFacades = new Map<string, RegistryFacade>();
-  private readonly federalAgencyFacades = new Map<string, RegistryFacade>();
-  private readonly federalAgencyBranchFacades = new Map<
-    string,
-    RegistryFacade
-  >();
-  private readonly civilCaseFacades = new Map<string, RegistryFacade>();
-  private readonly civilCaseOfficerFacades = new Map<string, RegistryFacade>();
-  private readonly civilCaseLinkFacades = new Map<string, RegistryFacade>();
 
   constructor(options: DataContextOptions) {
     this.client = options.client;
@@ -450,7 +425,7 @@ export class DataContext {
   }
 
   fromSource(input: SourceRecordContext): RegistryFacade {
-    return this.registryFacadeFromSource("Agency", this.agencyFacades, input);
+    return this.registryFacadeFromSource("Agency", input);
   }
 
   /**
@@ -499,7 +474,6 @@ export class DataContext {
   personnelFromSource(input: SourceRecordContext): RegistryFacade {
     return this.registryFacadeFromSource(
       "Personnel",
-      this.personnelFacades,
       input,
     );
   }
@@ -508,7 +482,6 @@ export class DataContext {
   agencyPersonnelFromSource(input: SourceRecordContext): RegistryFacade {
     return this.registryFacadeFromSource(
       "AgencyPersonnel",
-      this.agencyPersonnelFacades,
       input,
     );
   }
@@ -516,7 +489,6 @@ export class DataContext {
   locationPathFromSource(input: SourceRecordContext): RegistryFacade {
     return this.registryFacadeFromSource(
       "LocationPath",
-      this.locationPathFacades,
       input,
     );
   }
@@ -524,7 +496,6 @@ export class DataContext {
   locationPathAliasFromSource(input: SourceRecordContext): RegistryFacade {
     return this.registryFacadeFromSource(
       "LocationPathAlias",
-      this.locationPathAliasFacades,
       input,
     );
   }
@@ -558,12 +529,21 @@ export class DataContext {
   // memoize by (apiVersion, namespace, kind, name), merging the source spec into
   // an existing facade or building a new one from the registry. The per-kind
   // resolution nuance lives entirely in the registry, not here.
+  private facadesFor(kind: string): Map<string, RegistryFacade> {
+    let facades = this.facadesByKind.get(kind);
+    if (facades === undefined) {
+      facades = new Map();
+      this.facadesByKind.set(kind, facades);
+    }
+    return facades;
+  }
+
   private registryFacadeFromSource(
     kind: string,
-    facades: Map<string, RegistryFacade>,
     input: SourceRecordContext,
   ): RegistryFacade {
     validateSourceRecordContext(input);
+    const facades = this.facadesFor(kind);
     const key = [input.apiVersion, input.namespace, kind, input.name].join(":");
     const existing = facades.get(key);
     if (existing !== undefined) {
@@ -611,7 +591,6 @@ export class DataContext {
   licensingAuthorityFromSource(input: SourceRecordContext): RegistryFacade {
     return this.registryFacadeFromSource(
       "LicensingAuthority",
-      this.licensingAuthorityFacades,
       input,
     );
   }
@@ -619,7 +598,6 @@ export class DataContext {
   licenseFromSource(input: SourceRecordContext): RegistryFacade {
     return this.registryFacadeFromSource(
       "License",
-      this.licenseFacades,
       input,
     );
   }
@@ -627,7 +605,6 @@ export class DataContext {
   licenseActionFromSource(input: SourceRecordContext): RegistryFacade {
     return this.registryFacadeFromSource(
       "LicenseAction",
-      this.licenseActionFacades,
       input,
     );
   }
@@ -764,7 +741,6 @@ export class DataContext {
   disciplineFromSource(input: SourceRecordContext): RegistryFacade {
     return this.registryFacadeFromSource(
       "Discipline",
-      this.disciplineFacades,
       input,
     );
   }
@@ -774,7 +750,6 @@ export class DataContext {
   ): RegistryFacade {
     return this.registryFacadeFromSource(
       "DisciplineAgencyOfficer",
-      this.disciplineAgencyOfficerFacades,
       input,
     );
   }
@@ -782,7 +757,6 @@ export class DataContext {
   coverageLinkFromSource(input: SourceRecordContext): RegistryFacade {
     return this.registryFacadeFromSource(
       "CoverageLink",
-      this.coverageLinkFacades,
       input,
     );
   }
@@ -792,7 +766,6 @@ export class DataContext {
   ): RegistryFacade {
     return this.registryFacadeFromSource(
       "CoverageLinkAgencyOfficer",
-      this.coverageLinkAgencyOfficerFacades,
       input,
     );
   }
@@ -800,7 +773,6 @@ export class DataContext {
   agencyPhoneNumberFromSource(input: SourceRecordContext): RegistryFacade {
     return this.registryFacadeFromSource(
       "AgencyPhoneNumber",
-      this.agencyPhoneNumberFacades,
       input,
     );
   }
@@ -808,7 +780,6 @@ export class DataContext {
   federalAgencyFromSource(input: SourceRecordContext): RegistryFacade {
     return this.registryFacadeFromSource(
       "FederalAgency",
-      this.federalAgencyFacades,
       input,
     );
   }
@@ -816,7 +787,6 @@ export class DataContext {
   federalAgencyBranchFromSource(input: SourceRecordContext): RegistryFacade {
     return this.registryFacadeFromSource(
       "FederalAgencyBranch",
-      this.federalAgencyBranchFacades,
       input,
     );
   }
@@ -824,7 +794,6 @@ export class DataContext {
   civilCaseFromSource(input: SourceRecordContext): RegistryFacade {
     return this.registryFacadeFromSource(
       "CivilCase",
-      this.civilCaseFacades,
       input,
     );
   }
@@ -832,7 +801,6 @@ export class DataContext {
   civilCaseOfficerFromSource(input: SourceRecordContext): RegistryFacade {
     return this.registryFacadeFromSource(
       "CivilCaseOfficer",
-      this.civilCaseOfficerFacades,
       input,
     );
   }
@@ -840,7 +808,6 @@ export class DataContext {
   civilCaseLinkFromSource(input: SourceRecordContext): RegistryFacade {
     return this.registryFacadeFromSource(
       "CivilCaseLink",
-      this.civilCaseLinkFacades,
       input,
     );
   }
@@ -862,155 +829,33 @@ export class DataContext {
       input.kind,
       input.sourceId,
     ].join(":");
-    // Registry facades resolve toward an erased row, so bridge `value("id")` to
-    // the target's identity column (LocationPath keys on `location_path_id`).
-    const registryFacadeByKind: Record<
-      string,
-      Map<string, RegistryFacade> | undefined
-    > = {
-      Agency: this.agencyFacades,
-      Personnel: this.personnelFacades,
-      LocationPath: this.locationPathFacades,
-      LicensingAuthority: this.licensingAuthorityFacades,
-      License: this.licenseFacades,
-      AgencyPersonnel: this.agencyPersonnelFacades,
-      Discipline: this.disciplineFacades,
-      CoverageLink: this.coverageLinkFacades,
-      FederalAgency: this.federalAgencyFacades,
-      CivilCase: this.civilCaseFacades,
-    };
-    const facades = registryFacadeByKind[input.kind];
-    if (facades === undefined) {
-      return undefined;
-    }
-    const facade = facades.get(key);
+    const facade = this.facadesByKind.get(input.kind)?.get(key);
     if (facade === undefined) {
       return undefined;
     }
+    // Registry facades resolve toward an erased row, so bridge `value("id")` to
+    // the target's identity column (LocationPath keys on `location_path_id`).
     const identityColumn = identityColumnForKind(input.kind);
     return { value: () => facade.value(identityColumn) as Promise<string> };
   }
 
   async toMutations(): Promise<DatabaseMutationEnvelope[]> {
-    // Drain in FK-dependency order (ADR 0016 #4/#9): paths before aliases — a
-    // path's parent self-FK and an alias's target both find an already-drained path.
-    const locationPaths = await Promise.all(
-      [...this.locationPathFacades.values()].map((facade) =>
-        facade.toMutation(),
-      ),
-    );
-    const locationPathAliases = await Promise.all(
-      [...this.locationPathAliasFacades.values()].map((facade) =>
-        facade.toMutation(),
-      ),
-    );
-    const licensingAuthorities = await Promise.all(
-      [...this.licensingAuthorityFacades.values()].map((facade) =>
-        facade.toMutation(),
-      ),
-    );
-    const licenses = await Promise.all(
-      [...this.licenseFacades.values()].map((facade) => facade.toMutation()),
-    );
-    const licenseActions = await Promise.all(
-      [...this.licenseActionFacades.values()].map((facade) =>
-        facade.toMutation(),
-      ),
-    );
-    // Personnel are resolver-based (ADR 0016): resolve them before Licenses so a
-    // License officer-FK find (which awaits the Personnel facade's id) targets an
-    // already-registered facade. Id resolution is idempotent/memoized, so order
-    // only matters for registration, not correctness.
-    const personnel = await Promise.all(
-      [...this.personnelFacades.values()].map((facade) => facade.toMutation()),
-    );
-    const agencies = await Promise.all(
-      [...this.agencyFacades.values()].map((facade) => facade.toMutation()),
-    );
-    // AgencyPersonnel FK-find the Agency / Personnel / License facades, so those
-    // must be resolved first; id resolution is idempotent/memoized, so this only
-    // guarantees the facades are registered.
-    const agencyPersonnel = await Promise.all(
-      [...this.agencyPersonnelFacades.values()].map((facade) =>
-        facade.toMutation(),
-      ),
-    );
-    // Discipline + coverage attributions FK-find AgencyPersonnel (and the
-    // discipline/coverage events), all registered above; the final apply order is
-    // re-sorted by the FK-derived topo sort, so this only fixes registration.
-    const disciplines = await Promise.all(
-      [...this.disciplineFacades.values()].map((facade) => facade.toMutation()),
-    );
-    const coverageLinks = await Promise.all(
-      [...this.coverageLinkFacades.values()].map((facade) =>
-        facade.toMutation(),
-      ),
-    );
-    const disciplineAgencyOfficers = await Promise.all(
-      [...this.disciplineAgencyOfficerFacades.values()].map((facade) =>
-        facade.toMutation(),
-      ),
-    );
-    const coverageLinkAgencyOfficers = await Promise.all(
-      [...this.coverageLinkAgencyOfficerFacades.values()].map((facade) =>
-        facade.toMutation(),
-      ),
-    );
-    // AgencyPhoneNumbers depend only on Agencies (already drained above).
-    const agencyPhoneNumbers = await Promise.all(
-      [...this.agencyPhoneNumberFacades.values()].map((facade) =>
-        facade.toMutation(),
-      ),
-    );
-    // FederalAgencies are independent; branches depend on FederalAgencies + Agencies.
-    const federalAgencies = await Promise.all(
-      [...this.federalAgencyFacades.values()].map((facade) =>
-        facade.toMutation(),
-      ),
-    );
-    const federalAgencyBranches = await Promise.all(
-      [...this.federalAgencyBranchFacades.values()].map((facade) =>
-        facade.toMutation(),
-      ),
-    );
-    // Civil cases before their officers/links (FK targets).
-    const civilCases = await Promise.all(
-      [...this.civilCaseFacades.values()].map((facade) => facade.toMutation()),
-    );
-    const civilCaseOfficers = await Promise.all(
-      [...this.civilCaseOfficerFacades.values()].map((facade) =>
-        facade.toMutation(),
-      ),
-    );
-    const civilCaseLinks = await Promise.all(
-      [...this.civilCaseLinkFacades.values()].map((facade) =>
-        facade.toMutation(),
-      ),
-    );
-    return [
-      // Paths + aliases first: FK targets for the entities below, dependents of none.
-      ...locationPaths,
-      ...locationPathAliases,
-      ...agencies,
-      ...personnel,
-      ...licensingAuthorities,
-      ...licenses,
-      ...licenseActions,
-      // AgencyPersonnel last: agency_officers.license_id is a FK to license, so
-      // licenses must be inserted before the assignments that reference them
-      // (dependsOn: Agencies, Personnel, Licenses).
-      ...agencyPersonnel,
-      ...disciplines,
-      ...coverageLinks,
-      ...disciplineAgencyOfficers,
-      ...coverageLinkAgencyOfficers,
-      ...agencyPhoneNumbers,
-      ...federalAgencies,
-      ...federalAgencyBranches,
-      ...civilCases,
-      ...civilCaseOfficers,
-      ...civilCaseLinks,
-    ];
+    // Every facade is registered during the add phase, so a FK find always locates
+    // its target regardless of resolution order; the emitted plan is re-sorted by
+    // the FK-derived topological sort in toDatabaseMutationItems. Draining in the
+    // generated dependency order keeps the pre-sort output stable and legible.
+    const mutations: DatabaseMutationEnvelope[] = [];
+    for (const kind of RECORD_KINDS_IN_DEPENDENCY_ORDER) {
+      const facades = this.facadesByKind.get(kind);
+      if (facades === undefined) {
+        continue;
+      }
+      const kindMutations = await Promise.all(
+        [...facades.values()].map((facade) => facade.toMutation()),
+      );
+      mutations.push(...kindMutations);
+    }
+    return mutations;
   }
 
   async toDatabaseMutationItems(): Promise<DatabaseMutationItem[]> {
