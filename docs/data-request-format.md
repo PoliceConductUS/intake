@@ -26,8 +26,8 @@ type, whether it is required, its constraints, and any relationship to another
 record:
 
 - **Required `yes`** — your export must include this field for every row.
-- **`recommended`** — supply it if you have it; we can resolve or seed it when you
-  can't, but the record is more complete (and more accurate) when you do.
+- **`recommended`** — not strictly required, but the record is more complete and
+  more accurate when you include it, so send it whenever you have it.
 - **`optional`** — include it when you have it; omit it otherwise.
 - **Constraints** — an allowed value set, a non-empty requirement, or a date/time
   format the field must follow.
@@ -36,14 +36,12 @@ record:
 
 ### Ids and references
 
-- Every record needs **your own stable id** (the `id` field): any string that is
-  unique within your export and that you will keep the same for the same record
-  in future exports. We map it to our canonical id; we never expect you to know
-  ours.
-- A **reference** field (e.g. `agency_id`, `officer_id`) is *your* id for the
-  linked record — the same id you gave it elsewhere in the same export. We
-  resolve references within your export, so a referenced record must also be in
-  it.
+- Every record needs **your own id** (the `id` field): any string that is unique
+  within your export and that you keep the same for the same record in future
+  exports.
+- A **reference** field (e.g. `agency_id`, `officer_id`) is the `id` you gave the
+  linked record elsewhere in the same export — so a record you reference must
+  also be included in that export.
 
 ### These are the MINIMUM — send us more
 
@@ -62,16 +60,16 @@ Table `public.agency`. One row per Agency.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports; non-empty | Your own id for this record; intake maps it to a canonical id. |
+| `id` | text | yes | unique within your export; stable across exports; non-empty | A stable id you assign to this record and reuse next time. |
 | `name` | text | yes | non-empty | — |
-| `city` | text | recommended | non-empty | Needed for a complete record; if you omit it we resolve or seed it, but supplying it is better. |
+| `city` | text | recommended | non-empty | Send it if you have it — the record is more complete when you do. |
 | `state` | text | yes | non-empty | — |
-| `address` | text | recommended | non-empty | Needed for a complete record; if you omit it we resolve or seed it, but supplying it is better. |
-| `zip_code` | text | recommended | non-empty | Needed for a complete record; if you omit it we resolve or seed it, but supplying it is better. |
+| `address` | text | recommended | non-empty | Send it if you have it — the record is more complete when you do. |
+| `zip_code` | text | recommended | non-empty | Send it if you have it — the record is more complete when you do. |
 | `contact_name` | text | optional | non-empty | — |
 | `contact_email` | text | optional | non-empty | — |
-| `latitude` | number | recommended | — | Needed for a complete record; if you omit it we resolve or seed it, but supplying it is better. |
-| `longitude` | number | recommended | — | Needed for a complete record; if you omit it we resolve or seed it, but supplying it is better. |
+| `latitude` | number | recommended | — | Send it if you have it — the record is more complete when you do. |
+| `longitude` | number | recommended | — | Send it if you have it — the record is more complete when you do. |
 
 ### Personnel
 
@@ -79,7 +77,7 @@ Table `public.officers`. One row per Personnel.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports; non-empty | Your own id for this record; intake maps it to a canonical id. |
+| `id` | text | yes | unique within your export; stable across exports; non-empty | A stable id you assign to this record and reuse next time. |
 | `first_name` | text | yes | non-empty | — |
 | `last_name` | text | optional | non-empty | — |
 | `middle_name` | text | optional | non-empty | — |
@@ -95,7 +93,7 @@ Table `public.agency_officers`. One row per AgencyPersonnel.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports; non-empty | Your own id for this record; intake maps it to a canonical id. |
+| `id` | text | yes | unique within your export; stable across exports; non-empty | A stable id you assign to this record and reuse next time. |
 | `agency_id` | text | yes | non-empty | → **Agency**: your id for the linked Agency, present in the same export. |
 | `officer_id` | text | yes | non-empty | → **Personnel**: your id for the linked Personnel, present in the same export. |
 | `badge_number` | text | optional | non-empty | — |
@@ -110,7 +108,7 @@ Table `public.licensing_authority`. One row per LicensingAuthority.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports; non-empty | Your own id for this record; intake maps it to a canonical id. |
+| `id` | text | yes | unique within your export; stable across exports; non-empty | A stable id you assign to this record and reuse next time. |
 | `name` | text | yes | non-empty | — |
 | `abbreviation` | text | optional | non-empty | — |
 | `website` | text | optional | non-empty | — |
@@ -121,7 +119,7 @@ Table `public.license`. One row per License.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports; non-empty | Your own id for this record; intake maps it to a canonical id. |
+| `id` | text | yes | unique within your export; stable across exports; non-empty | A stable id you assign to this record and reuse next time. |
 | `officer_id` | text | yes | non-empty | → **Personnel**: your id for the linked Personnel, present in the same export. |
 | `license_type` | text | yes | non-empty | — |
 | `status` | text | optional | non-empty | — |
@@ -134,7 +132,7 @@ Table `public.license_action`. One row per LicenseAction.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports; non-empty | Your own id for this record; intake maps it to a canonical id. |
+| `id` | text | yes | unique within your export; stable across exports; non-empty | A stable id you assign to this record and reuse next time. |
 | `license_id` | text | yes | non-empty | → **License**: your id for the linked License, present in the same export. |
 | `action` | text | yes | non-empty | — |
 | `action_date` | date (`YYYY-MM-DD`) | optional | format `YYYY-MM-DD` | — |
@@ -146,7 +144,7 @@ Table `public.discipline`. One row per Discipline.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports | Your own id for this record; intake maps it to a canonical id. |
+| `id` | text | yes | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
 | `action` | text | yes | non-empty | — |
 | `effective_date` | date (`YYYY-MM-DD`) | optional | format `YYYY-MM-DD` | — |
 | `expiration_date` | date (`YYYY-MM-DD`) | optional | format `YYYY-MM-DD` | — |
@@ -158,7 +156,7 @@ Table `public.discipline_agency_officers`. One row per DisciplineAgencyOfficer.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports | Your own id for this record; intake maps it to a canonical id. |
+| `id` | text | yes | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
 | `discipline_id` | text | yes | — | → **Discipline**: your id for the linked Discipline, present in the same export. |
 | `agency_officer_id` | text | yes | — | → **AgencyPersonnel**: your id for the linked AgencyPersonnel, present in the same export. |
 
@@ -168,7 +166,7 @@ Table `public.coverage_links`. One row per CoverageLink.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports | Your own id for this record; intake maps it to a canonical id. |
+| `id` | text | yes | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
 | `url` | text | yes | — | — |
 | `normalized_url` | text | yes | — | — |
 | `title` | text | yes | — | — |
@@ -182,7 +180,7 @@ Table `public.coverage_link_agency_officers`. One row per CoverageLinkAgencyOffi
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports | Your own id for this record; intake maps it to a canonical id. |
+| `id` | text | yes | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
 | `coverage_link_id` | text | yes | — | → **CoverageLink**: your id for the linked CoverageLink, present in the same export. |
 | `agency_officer_id` | text | yes | — | → **AgencyPersonnel**: your id for the linked AgencyPersonnel, present in the same export. |
 | `confidence` | text | yes | — | — |
@@ -194,7 +192,7 @@ Table `public.agency_phone_numbers`. One row per AgencyPhoneNumber.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports | Your own id for this record; intake maps it to a canonical id. |
+| `id` | text | yes | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
 | `agency_id` | text | yes | — | → **Agency**: your id for the linked Agency, present in the same export. |
 | `phone_number` | text | yes | — | — |
 | `description` | text | optional | — | — |
@@ -205,7 +203,7 @@ Table `public.federal_agency`. One row per FederalAgency.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports | Your own id for this record; intake maps it to a canonical id. |
+| `id` | text | yes | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
 | `name` | text | yes | — | — |
 
 ### FederalAgencyBranch
@@ -216,7 +214,7 @@ Table `public.federal_agency_branch`. One row per FederalAgencyBranch.
 |---|---|---|---|---|
 | `federal_agency_id` | text | yes | — | → **FederalAgency**: your id for the linked FederalAgency, present in the same export. |
 | `agency_id` | text | yes | — | → **Agency**: your id for the linked Agency, present in the same export. |
-| `id` | text | yes | unique within your export; stable across exports | Your own id for this record; intake maps it to a canonical id. |
+| `id` | text | yes | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
 
 ### CivilCase
 
@@ -224,7 +222,7 @@ Table `public.civil_cases`. One row per CivilCase.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports | Your own id for this record; intake maps it to a canonical id. |
+| `id` | text | yes | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
 | `title` | text | yes | — | — |
 | `cause_number` | text | yes | — | — |
 | `court` | text | optional | — | — |
@@ -240,7 +238,7 @@ Table `public.civil_case_officers`. One row per CivilCaseOfficer.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports | Your own id for this record; intake maps it to a canonical id. |
+| `id` | text | yes | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
 | `civil_case_id` | text | yes | — | → **CivilCase**: your id for the linked CivilCase, present in the same export. |
 | `agency_officer_id` | text | yes | — | → **AgencyPersonnel**: your id for the linked AgencyPersonnel, present in the same export. |
 
@@ -250,7 +248,7 @@ Table `public.civil_case_links`. One row per CivilCaseLink.
 
 | Field | Type | Required | Constraints | Relationship / notes |
 |---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports | Your own id for this record; intake maps it to a canonical id. |
+| `id` | text | yes | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
 | `civil_case_id` | text | yes | — | → **CivilCase**: your id for the linked CivilCase, present in the same export. |
 | `url` | text | yes | — | — |
 | `title` | text | yes | — | — |

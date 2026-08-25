@@ -144,8 +144,7 @@ function classifyTable(recordKind: string, table: IntrospectedTable): FieldRow[]
         constraints: ["unique within your export; stable across exports"]
           .concat(constraintParts)
           .join("; "),
-        relationship:
-          "Your own id for this record; intake maps it to a canonical id.",
+        relationship: "A stable id you assign to this record and reuse next time.",
       });
       continue;
     }
@@ -167,8 +166,7 @@ function classifyTable(recordKind: string, table: IntrospectedTable): FieldRow[]
         type,
         required: "recommended",
         constraints: constraintParts.join("; ") || "—",
-        relationship:
-          "Needed for a complete record; if you omit it we resolve or seed it, but supplying it is better.",
+        relationship: "Send it if you have it — the record is more complete when you do.",
       });
       continue;
     }
@@ -245,8 +243,8 @@ type, whether it is required, its constraints, and any relationship to another
 record:
 
 - **Required \`yes\`** — your export must include this field for every row.
-- **\`recommended\`** — supply it if you have it; we can resolve or seed it when you
-  can't, but the record is more complete (and more accurate) when you do.
+- **\`recommended\`** — not strictly required, but the record is more complete and
+  more accurate when you include it, so send it whenever you have it.
 - **\`optional\`** — include it when you have it; omit it otherwise.
 - **Constraints** — an allowed value set, a non-empty requirement, or a date/time
   format the field must follow.
@@ -255,14 +253,12 @@ record:
 
 ### Ids and references
 
-- Every record needs **your own stable id** (the \`id\` field): any string that is
-  unique within your export and that you will keep the same for the same record
-  in future exports. We map it to our canonical id; we never expect you to know
-  ours.
-- A **reference** field (e.g. \`agency_id\`, \`officer_id\`) is *your* id for the
-  linked record — the same id you gave it elsewhere in the same export. We
-  resolve references within your export, so a referenced record must also be in
-  it.
+- Every record needs **your own id** (the \`id\` field): any string that is unique
+  within your export and that you keep the same for the same record in future
+  exports.
+- A **reference** field (e.g. \`agency_id\`, \`officer_id\`) is the \`id\` you gave the
+  linked record elsewhere in the same export — so a record you reference must
+  also be included in that export.
 
 ### These are the MINIMUM — send us more
 
