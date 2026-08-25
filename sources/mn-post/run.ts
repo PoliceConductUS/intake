@@ -15,6 +15,7 @@ export const produces: readonly ImportArtifactKind[] = [
 import path from "node:path";
 import { parse as parseCsvSync } from "csv-parse/sync";
 import { parse as parseYaml } from "yaml";
+import { assertRequiredColumns } from "../../src/cli/run/assert-required-columns.js";
 import type {
   SourceRun,
   EmittedRecords,
@@ -49,6 +50,19 @@ import type {
 export const description =
   "Minnesota POST — agencies, officers, licenses, and disciplinary/coverage records from the MN POST license-lookup rosters.";
 
+// Columns the roster CSV is read for (see the address/contact reads below),
+// asserted present so a renamed column fails loud instead of silently dropping
+// every agency's address and contact.
+const AGENCY_CSV_COLUMNS = [
+  "Agency",
+  "State",
+  "City",
+  "Address",
+  "Zip",
+  "Chief Law Enforcement Officer",
+  "Email",
+] as const;
+
 export const run: SourceRun = async ({ paths }) => {
   const rosterPaths = paths.filter((p) => p.endsWith(".roster.json")).sort();
   const idMapPath = paths.find((p) => path.basename(p) === "agency-ids.yaml");
@@ -73,7 +87,13 @@ export const run: SourceRun = async ({ paths }) => {
 
   const csvByName = new Map<string, Record<string, string>>();
   if (csvPath !== undefined) {
-    for (const row of parseCsv(await readFile(csvPath, "utf8"))) {
+    const csvRows = parseCsv(await readFile(csvPath, "utf8"));
+    if (csvRows[0] !== undefined) {
+      // Fail loud if the roster CSV is missing a column this source reads,
+      // rather than silently emitting agencies with no address/contact.
+      assertRequiredColumns(Object.keys(csvRows[0]), AGENCY_CSV_COLUMNS, csvPath);
+    }
+    for (const row of csvRows) {
       const name = (row["Agency"] ?? "").trim();
       if (name !== "") {
         csvByName.set(name, row);

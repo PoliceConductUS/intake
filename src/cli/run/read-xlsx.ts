@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { assertRequiredColumns } from "./assert-required-columns.js";
 
 /**
  * Coerces an exceljs cell value to a trimmed string, handling the common
@@ -69,15 +70,11 @@ export async function readXlsx(
   });
 
   if (requiredColumns !== undefined && requiredColumns.length > 0) {
-    const present = new Set(headers.filter((header) => header !== ""));
-    const missing = requiredColumns.filter((column) => !present.has(column));
-    if (missing.length > 0) {
-      const sheetName = worksheet.name;
-      throw new Error(
-        `Worksheet "${sheetName}" in ${filePath} is missing required column(s): ` +
-          `${missing.join(", ")} (available: ${[...present].join(", ")}).`,
-      );
-    }
+    assertRequiredColumns(
+      headers.filter((header) => header !== ""),
+      requiredColumns,
+      `Worksheet "${worksheet.name}" in ${filePath}`,
+    );
   }
 
   const rows: Array<Record<string, string>> = [];
