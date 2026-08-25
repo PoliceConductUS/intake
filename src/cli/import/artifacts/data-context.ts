@@ -290,14 +290,6 @@ function validateSourceRecordContext(input: SourceRecordContext): void {
 // here (ADR 0016 #8 proves the mechanism first); the durable cache collapse and
 // the migration of the other entities are deferred.
 
-/**
- * The database row shape a `LicensingAuthorityFacade` resolves toward. Used to
- * type the generic property accessor so each property's promise carries its own
- * target-column type. (`LicensingAuthority` no longer produces a transform row;
- * the facade owns the column set.)
- */
-export type LicensingAuthorityRowShape = LicensingAuthorityRow;
-
 /** Backend capabilities the LicensingAuthority resolvers reach through. */
 export type LicensingAuthorityResolverBackend = {
   /**
@@ -327,10 +319,10 @@ export type LicensingAuthorityResolverBackend = {
 // in ./resolver-kit.ts — imported and re-exported at the top of this file.
 
 type LicensingAuthorityResolvers = Partial<{
-  [K in keyof LicensingAuthorityRowShape]: Resolver<
-    LicensingAuthorityRowShape[K],
+  [K in keyof LicensingAuthorityRow]: Resolver<
+    LicensingAuthorityRow[K],
     ResolverContext<
-      LicensingAuthorityRowShape,
+      LicensingAuthorityRow,
       LicensingAuthorityResolverBackend
     >
   >;
@@ -339,7 +331,7 @@ type LicensingAuthorityResolvers = Partial<{
 /** Canonical-id find-or-create resolver (ADR 0016 #4, "id" property). */
 function licensingAuthorityCanonicalIdResolver(): Resolver<
   string,
-  ResolverContext<LicensingAuthorityRowShape, LicensingAuthorityResolverBackend>
+  ResolverContext<LicensingAuthorityRow, LicensingAuthorityResolverBackend>
 > {
   return new Resolver(async ({ source, backend }) =>
     // Find in the ledger by (namespace, kind, source-id); mint + persist when
@@ -354,7 +346,7 @@ function licensingAuthorityCanonicalIdResolver(): Resolver<
   );
 }
 
-export class LicensingAuthorityFacade implements PropertyResolutionFacade<LicensingAuthorityRowShape> {
+export class LicensingAuthorityFacade implements PropertyResolutionFacade<LicensingAuthorityRow> {
   private static readonly kind = "LicensingAuthority";
   private readonly current?: Record<string, unknown>;
   private readonly spec: Record<string, unknown> = {};
@@ -362,10 +354,10 @@ export class LicensingAuthorityFacade implements PropertyResolutionFacade<Licens
   private readonly backend: LicensingAuthorityResolverBackend;
   private readonly resolvers: LicensingAuthorityResolvers;
   private readonly memo = new Map<
-    keyof LicensingAuthorityRowShape,
+    keyof LicensingAuthorityRow,
     Promise<unknown>
   >();
-  private readonly inProgress = new Set<keyof LicensingAuthorityRowShape>();
+  private readonly inProgress = new Set<keyof LicensingAuthorityRow>();
 
   constructor(options: {
     current?: Record<string, unknown>;
@@ -378,7 +370,7 @@ export class LicensingAuthorityFacade implements PropertyResolutionFacade<Licens
     this.resolvers = {
       id: licensingAuthorityCanonicalIdResolver(),
       location_path_id: facadeStateLocationPathResolver<
-        LicensingAuthorityRowShape,
+        LicensingAuthorityRow,
         LicensingAuthorityResolverBackend
       >("LicensingAuthority"),
     };
@@ -388,7 +380,7 @@ export class LicensingAuthorityFacade implements PropertyResolutionFacade<Licens
     Object.assign(this.spec, spec);
   }
 
-  raw(property: keyof LicensingAuthorityRowShape): unknown {
+  raw(property: keyof LicensingAuthorityRow): unknown {
     return this.spec[property as string];
   }
 
@@ -398,21 +390,21 @@ export class LicensingAuthorityFacade implements PropertyResolutionFacade<Licens
    * runs its attached resolver once per facade instance. A per-facade
    * in-progress guard turns a circular dependency into a loud error.
    */
-  value<K extends keyof LicensingAuthorityRowShape>(
+  value<K extends keyof LicensingAuthorityRow>(
     property: K,
-  ): Promise<LicensingAuthorityRowShape[K]> {
+  ): Promise<LicensingAuthorityRow[K]> {
     const cached = this.memo.get(property);
     if (cached !== undefined) {
-      return cached as Promise<LicensingAuthorityRowShape[K]>;
+      return cached as Promise<LicensingAuthorityRow[K]>;
     }
     const pending = this.computeValue(property);
     this.memo.set(property, pending);
     return pending;
   }
 
-  private async computeValue<K extends keyof LicensingAuthorityRowShape>(
+  private async computeValue<K extends keyof LicensingAuthorityRow>(
     property: K,
-  ): Promise<LicensingAuthorityRowShape[K]> {
+  ): Promise<LicensingAuthorityRow[K]> {
     if (this.inProgress.has(property)) {
       throw new Error(
         `Circular property dependency while resolving ${LicensingAuthorityFacade.kind}.${String(
@@ -435,19 +427,19 @@ export class LicensingAuthorityFacade implements PropertyResolutionFacade<Licens
     }
   }
 
-  private plainValue<K extends keyof LicensingAuthorityRowShape>(
+  private plainValue<K extends keyof LicensingAuthorityRow>(
     property: K,
-  ): LicensingAuthorityRowShape[K] {
+  ): LicensingAuthorityRow[K] {
     // Plain source properties resolve to the merged source value already in the
     // target column's datatype; a nullable column with no source value is null.
     const value = this.spec[property as string];
     return (
       value === undefined ? null : value
-    ) as LicensingAuthorityRowShape[K];
+    ) as LicensingAuthorityRow[K];
   }
 
   private unresolvedMessage(
-    property: keyof LicensingAuthorityRowShape,
+    property: keyof LicensingAuthorityRow,
   ): string {
     return `Cannot resolve ${LicensingAuthorityFacade.kind}.${String(
       property,
@@ -548,12 +540,6 @@ export class LicensingAuthorityFacade implements PropertyResolutionFacade<Licens
 // the resolver locates it and awaits its `id`, failing fast and loud when the
 // target is absent (a forward-reference violation) rather than minting a stub.
 
-/** The database row shape a `LicenseFacade` resolves toward. */
-export type LicenseRowShape = LicenseRow;
-
-/** The database row shape a `LicenseActionFacade` resolves toward. */
-export type LicenseActionRowShape = LicenseActionRow;
-
 /**
  * Backend capabilities the License / LicenseAction resolvers reach through:
  * the entity's own canonical-id find-or-create, the existing DB row for
@@ -579,28 +565,28 @@ export type LicenseResolverBackend = {
 };
 
 type LicenseResolvers = Partial<{
-  [K in keyof LicenseRowShape]: Resolver<
-    LicenseRowShape[K],
-    ResolverContext<LicenseRowShape, LicenseResolverBackend>
+  [K in keyof LicenseRow]: Resolver<
+    LicenseRow[K],
+    ResolverContext<LicenseRow, LicenseResolverBackend>
   >;
 }>;
 
 type LicenseActionResolvers = Partial<{
-  [K in keyof LicenseActionRowShape]: Resolver<
-    LicenseActionRowShape[K],
-    ResolverContext<LicenseActionRowShape, LicenseResolverBackend>
+  [K in keyof LicenseActionRow]: Resolver<
+    LicenseActionRow[K],
+    ResolverContext<LicenseActionRow, LicenseResolverBackend>
   >;
 }>;
 
-export class LicenseFacade implements PropertyResolutionFacade<LicenseRowShape> {
+export class LicenseFacade implements PropertyResolutionFacade<LicenseRow> {
   private static readonly kind = "License";
   private readonly current?: Record<string, unknown>;
   private readonly spec: Record<string, unknown> = {};
   private readonly source: FacadeSource;
   private readonly backend: LicenseResolverBackend;
   private readonly resolvers: LicenseResolvers;
-  private readonly memo = new Map<keyof LicenseRowShape, Promise<unknown>>();
-  private readonly inProgress = new Set<keyof LicenseRowShape>();
+  private readonly memo = new Map<keyof LicenseRow, Promise<unknown>>();
+  private readonly inProgress = new Set<keyof LicenseRow>();
 
   constructor(options: {
     current?: Record<string, unknown>;
@@ -611,13 +597,13 @@ export class LicenseFacade implements PropertyResolutionFacade<LicenseRowShape> 
     this.source = options.source;
     this.backend = options.backend;
     this.resolvers = {
-      id: facadeCanonicalIdResolver<LicenseRowShape>(LicenseFacade.kind),
-      officer_id: facadeForeignKeyResolver<LicenseRowShape>(
+      id: facadeCanonicalIdResolver<LicenseRow>(LicenseFacade.kind),
+      officer_id: facadeForeignKeyResolver<LicenseRow>(
         LicenseFacade.kind,
         "officer_id",
         "Personnel",
       ),
-      issued_by_authority_id: facadeForeignKeyResolver<LicenseRowShape>(
+      issued_by_authority_id: facadeForeignKeyResolver<LicenseRow>(
         LicenseFacade.kind,
         "issued_by_authority_id",
         "LicensingAuthority",
@@ -629,25 +615,25 @@ export class LicenseFacade implements PropertyResolutionFacade<LicenseRowShape> 
     Object.assign(this.spec, spec);
   }
 
-  raw(property: keyof LicenseRowShape): unknown {
+  raw(property: keyof LicenseRow): unknown {
     return this.spec[property as string];
   }
 
-  value<K extends keyof LicenseRowShape>(
+  value<K extends keyof LicenseRow>(
     property: K,
-  ): Promise<LicenseRowShape[K]> {
+  ): Promise<LicenseRow[K]> {
     const cached = this.memo.get(property);
     if (cached !== undefined) {
-      return cached as Promise<LicenseRowShape[K]>;
+      return cached as Promise<LicenseRow[K]>;
     }
     const pending = this.computeValue(property);
     this.memo.set(property, pending);
     return pending;
   }
 
-  private async computeValue<K extends keyof LicenseRowShape>(
+  private async computeValue<K extends keyof LicenseRow>(
     property: K,
-  ): Promise<LicenseRowShape[K]> {
+  ): Promise<LicenseRow[K]> {
     if (this.inProgress.has(property)) {
       throw new Error(
         `Circular property dependency while resolving ${LicenseFacade.kind}.${String(
@@ -670,14 +656,14 @@ export class LicenseFacade implements PropertyResolutionFacade<LicenseRowShape> 
     }
   }
 
-  private plainValue<K extends keyof LicenseRowShape>(
+  private plainValue<K extends keyof LicenseRow>(
     property: K,
-  ): LicenseRowShape[K] {
+  ): LicenseRow[K] {
     const value = this.spec[property as string];
-    return (value === undefined ? null : value) as LicenseRowShape[K];
+    return (value === undefined ? null : value) as LicenseRow[K];
   }
 
-  private unresolvedMessage(property: keyof LicenseRowShape): string {
+  private unresolvedMessage(property: keyof LicenseRow): string {
     return `Cannot resolve ${LicenseFacade.kind}.${String(
       property,
     )} for source ${this.source.namespace}/${this.source.name}; offending value ${JSON.stringify(
@@ -764,7 +750,7 @@ export class LicenseFacade implements PropertyResolutionFacade<LicenseRowShape> 
   }
 }
 
-export class LicenseActionFacade implements PropertyResolutionFacade<LicenseActionRowShape> {
+export class LicenseActionFacade implements PropertyResolutionFacade<LicenseActionRow> {
   private static readonly kind = "LicenseAction";
   private readonly current?: Record<string, unknown>;
   private readonly spec: Record<string, unknown> = {};
@@ -772,10 +758,10 @@ export class LicenseActionFacade implements PropertyResolutionFacade<LicenseActi
   private readonly backend: LicenseResolverBackend;
   private readonly resolvers: LicenseActionResolvers;
   private readonly memo = new Map<
-    keyof LicenseActionRowShape,
+    keyof LicenseActionRow,
     Promise<unknown>
   >();
-  private readonly inProgress = new Set<keyof LicenseActionRowShape>();
+  private readonly inProgress = new Set<keyof LicenseActionRow>();
 
   constructor(options: {
     current?: Record<string, unknown>;
@@ -786,10 +772,10 @@ export class LicenseActionFacade implements PropertyResolutionFacade<LicenseActi
     this.source = options.source;
     this.backend = options.backend;
     this.resolvers = {
-      id: facadeCanonicalIdResolver<LicenseActionRowShape>(
+      id: facadeCanonicalIdResolver<LicenseActionRow>(
         LicenseActionFacade.kind,
       ),
-      license_id: facadeForeignKeyResolver<LicenseActionRowShape>(
+      license_id: facadeForeignKeyResolver<LicenseActionRow>(
         LicenseActionFacade.kind,
         "license_id",
         "License",
@@ -801,25 +787,25 @@ export class LicenseActionFacade implements PropertyResolutionFacade<LicenseActi
     Object.assign(this.spec, spec);
   }
 
-  raw(property: keyof LicenseActionRowShape): unknown {
+  raw(property: keyof LicenseActionRow): unknown {
     return this.spec[property as string];
   }
 
-  value<K extends keyof LicenseActionRowShape>(
+  value<K extends keyof LicenseActionRow>(
     property: K,
-  ): Promise<LicenseActionRowShape[K]> {
+  ): Promise<LicenseActionRow[K]> {
     const cached = this.memo.get(property);
     if (cached !== undefined) {
-      return cached as Promise<LicenseActionRowShape[K]>;
+      return cached as Promise<LicenseActionRow[K]>;
     }
     const pending = this.computeValue(property);
     this.memo.set(property, pending);
     return pending;
   }
 
-  private async computeValue<K extends keyof LicenseActionRowShape>(
+  private async computeValue<K extends keyof LicenseActionRow>(
     property: K,
-  ): Promise<LicenseActionRowShape[K]> {
+  ): Promise<LicenseActionRow[K]> {
     if (this.inProgress.has(property)) {
       throw new Error(
         `Circular property dependency while resolving ${LicenseActionFacade.kind}.${String(
@@ -842,14 +828,14 @@ export class LicenseActionFacade implements PropertyResolutionFacade<LicenseActi
     }
   }
 
-  private plainValue<K extends keyof LicenseActionRowShape>(
+  private plainValue<K extends keyof LicenseActionRow>(
     property: K,
-  ): LicenseActionRowShape[K] {
+  ): LicenseActionRow[K] {
     const value = this.spec[property as string];
-    return (value === undefined ? null : value) as LicenseActionRowShape[K];
+    return (value === undefined ? null : value) as LicenseActionRow[K];
   }
 
-  private unresolvedMessage(property: keyof LicenseActionRowShape): string {
+  private unresolvedMessage(property: keyof LicenseActionRow): string {
     return `Cannot resolve ${LicenseActionFacade.kind}.${String(
       property,
     )} for source ${this.source.namespace}/${this.source.name}; offending value ${JSON.stringify(
@@ -946,9 +932,6 @@ export class LicenseActionFacade implements PropertyResolutionFacade<LicenseActi
 // database). This folds the former `validate-new-slug-conflicts` officer check
 // into the resolver.
 
-/** The database row shape a `PersonnelFacade` resolves toward (public.officers). */
-export type PersonnelRowShape = OfficersRow;
-
 /**
  * Backend capabilities the Personnel resolvers reach through: the entity's own
  * canonical-id find-or-create, the existing DB row for create-vs-update, and the
@@ -1000,7 +983,7 @@ function canonicalSuffix(id: unknown): string {
 /** Generate-unique slug resolver for Personnel (ADR 0016 #4, generated value). */
 function personnelSlugResolver(): Resolver<
   string,
-  ResolverContext<PersonnelRowShape, PersonnelResolverBackend>
+  ResolverContext<OfficersRow, PersonnelResolverBackend>
 > {
   return new Resolver(async ({ facade, source, backend }) => {
     // Resolve: an explicitly-supplied slug wins.
@@ -1041,21 +1024,21 @@ function personnelSlugResolver(): Resolver<
 }
 
 type PersonnelResolvers = Partial<{
-  [K in keyof PersonnelRowShape]: Resolver<
-    PersonnelRowShape[K],
-    ResolverContext<PersonnelRowShape, PersonnelResolverBackend>
+  [K in keyof OfficersRow]: Resolver<
+    OfficersRow[K],
+    ResolverContext<OfficersRow, PersonnelResolverBackend>
   >;
 }>;
 
-export class PersonnelFacade implements PropertyResolutionFacade<PersonnelRowShape> {
+export class PersonnelFacade implements PropertyResolutionFacade<OfficersRow> {
   private static readonly kind = "Personnel";
   private readonly current?: Record<string, unknown>;
   private readonly spec: Record<string, unknown> = {};
   private readonly source: FacadeSource;
   private readonly backend: PersonnelResolverBackend;
   private readonly resolvers: PersonnelResolvers;
-  private readonly memo = new Map<keyof PersonnelRowShape, Promise<unknown>>();
-  private readonly inProgress = new Set<keyof PersonnelRowShape>();
+  private readonly memo = new Map<keyof OfficersRow, Promise<unknown>>();
+  private readonly inProgress = new Set<keyof OfficersRow>();
 
   constructor(options: {
     current?: Record<string, unknown>;
@@ -1067,30 +1050,30 @@ export class PersonnelFacade implements PropertyResolutionFacade<PersonnelRowSha
     this.backend = options.backend;
     this.resolvers = {
       id: facadeCanonicalIdResolver<
-        PersonnelRowShape,
+        OfficersRow,
         PersonnelResolverBackend
       >(PersonnelFacade.kind),
       slug: personnelSlugResolver(),
       // Casing normalization for ALL-CAPS source names (applied via resolvers so
       // slugs, which read `facade.raw`, are unaffected). `first_name` is required;
       // `last_name`/`middle_name`/`prefix`/`suffix` are nullable columns.
-      first_name: nameCaseResolver<PersonnelRowShape, PersonnelResolverBackend>(
+      first_name: nameCaseResolver<OfficersRow, PersonnelResolverBackend>(
         "first_name",
       ),
       last_name: nameCaseResolverNullable<
-        PersonnelRowShape,
+        OfficersRow,
         PersonnelResolverBackend
       >("last_name"),
       middle_name: nameCaseResolverNullable<
-        PersonnelRowShape,
+        OfficersRow,
         PersonnelResolverBackend
       >("middle_name"),
       prefix: nameCaseResolverNullable<
-        PersonnelRowShape,
+        OfficersRow,
         PersonnelResolverBackend
       >("prefix"),
       suffix: nameCaseResolverNullable<
-        PersonnelRowShape,
+        OfficersRow,
         PersonnelResolverBackend
       >("suffix"),
     };
@@ -1100,25 +1083,25 @@ export class PersonnelFacade implements PropertyResolutionFacade<PersonnelRowSha
     Object.assign(this.spec, spec);
   }
 
-  raw(property: keyof PersonnelRowShape): unknown {
+  raw(property: keyof OfficersRow): unknown {
     return this.spec[property as string];
   }
 
-  value<K extends keyof PersonnelRowShape>(
+  value<K extends keyof OfficersRow>(
     property: K,
-  ): Promise<PersonnelRowShape[K]> {
+  ): Promise<OfficersRow[K]> {
     const cached = this.memo.get(property);
     if (cached !== undefined) {
-      return cached as Promise<PersonnelRowShape[K]>;
+      return cached as Promise<OfficersRow[K]>;
     }
     const pending = this.computeValue(property);
     this.memo.set(property, pending);
     return pending;
   }
 
-  private async computeValue<K extends keyof PersonnelRowShape>(
+  private async computeValue<K extends keyof OfficersRow>(
     property: K,
-  ): Promise<PersonnelRowShape[K]> {
+  ): Promise<OfficersRow[K]> {
     if (this.inProgress.has(property)) {
       throw new Error(
         `Circular property dependency while resolving ${PersonnelFacade.kind}.${String(
@@ -1141,14 +1124,14 @@ export class PersonnelFacade implements PropertyResolutionFacade<PersonnelRowSha
     }
   }
 
-  private plainValue<K extends keyof PersonnelRowShape>(
+  private plainValue<K extends keyof OfficersRow>(
     property: K,
-  ): PersonnelRowShape[K] {
+  ): OfficersRow[K] {
     const value = this.spec[property as string];
-    return (value === undefined ? null : value) as PersonnelRowShape[K];
+    return (value === undefined ? null : value) as OfficersRow[K];
   }
 
-  private unresolvedMessage(property: keyof PersonnelRowShape): string {
+  private unresolvedMessage(property: keyof OfficersRow): string {
     return `Cannot resolve ${PersonnelFacade.kind}.${String(
       property,
     )} for source ${this.source.namespace}/${this.source.name}; offending value ${JSON.stringify(
@@ -1250,13 +1233,6 @@ export class PersonnelFacade implements PropertyResolutionFacade<PersonnelRowSha
 // containment, resolve-or-fail (ADR 0006/0015), never minted. `latitude` /
 // `longitude` fall out of the same geocode.
 
-/** The database row shape an `AgencyFacade` resolves toward (public.agency). */
-// The generated agency row plus the envelope-only geocoding hint (administrative-
-// area name/slug) the address resolver reads; the hint is not a column.
-export type AgencyRowShape = AgencyRow & {
-  location?: Record<string, unknown>;
-};
-
 /** Backend capabilities the Agency resolvers reach through. */
 export type AgencyResolverBackend = {
   findOrCreateCanonicalId(input: {
@@ -1293,13 +1269,14 @@ const AGENCY_SCALAR_COLUMNS = [
   "location_path_id",
   "latitude",
   "longitude",
-] as const satisfies readonly (keyof AgencyRowShape)[];
+] as const satisfies readonly (keyof AgencyRow)[];
 
 function agencyAddressInput(
-  facade: PropertyResolutionFacade<AgencyRowShape>,
+  facade: PropertyResolutionFacade<AgencyRow>,
   source: FacadeSource,
 ): ResolveAddressInput {
-  const location = valueAsRecordOrUndefined(facade.raw("location")) ?? {};
+  const location =
+    valueAsRecordOrUndefined(facade.raw("location" as keyof AgencyRow)) ?? {};
   return {
     entityType: "agency",
     entityId: source.name,
@@ -1319,7 +1296,7 @@ function agencyAddressInput(
 /** `location_path_id` composition resolver (resolve-or-fail, ADR 0006/0015). */
 function agencyLocationPathResolver(): Resolver<
   string,
-  ResolverContext<AgencyRowShape, AgencyResolverBackend>
+  ResolverContext<AgencyRow, AgencyResolverBackend>
 > {
   return new Resolver(async ({ facade, backend, source }) => {
     const present = valueAsString(facade.raw("location_path_id"));
@@ -1347,7 +1324,7 @@ function agencyLocationPathResolver(): Resolver<
 function agencyCoordinateResolver(
   field: "addressLatitude" | "addressLongitude",
   column: "latitude" | "longitude",
-): Resolver<number, ResolverContext<AgencyRowShape, AgencyResolverBackend>> {
+): Resolver<number, ResolverContext<AgencyRow, AgencyResolverBackend>> {
   return new Resolver(async ({ facade, backend, source }) => {
     const present = valueAsFiniteNumber(facade.raw(column));
     if (present !== undefined) {
@@ -1370,7 +1347,7 @@ function agencyCoordinateResolver(
 /** Generate-unique slug resolver for Agency (mirrors Personnel). */
 function agencySlugResolver(): Resolver<
   string,
-  ResolverContext<AgencyRowShape, AgencyResolverBackend>
+  ResolverContext<AgencyRow, AgencyResolverBackend>
 > {
   return new Resolver(async ({ facade, source, backend }) => {
     const id = await facade.value("id");
@@ -1398,28 +1375,28 @@ function agencySlugResolver(): Resolver<
 }
 
 type AgencyResolvers = Partial<{
-  [K in keyof AgencyRowShape]: Resolver<
-    AgencyRowShape[K],
-    ResolverContext<AgencyRowShape, AgencyResolverBackend>
+  [K in keyof AgencyRow]: Resolver<
+    AgencyRow[K],
+    ResolverContext<AgencyRow, AgencyResolverBackend>
   >;
 }>;
 
 export class AgencyFacade extends ResolvingFacade<
-  AgencyRowShape,
+  AgencyRow,
   AgencyResolverBackend
 > {
   private static readonly kind = "Agency";
   private readonly current?: Record<string, unknown>;
 
   protected readonly resolvers: AgencyResolvers = {
-    id: facadeCanonicalIdResolver<AgencyRowShape, AgencyResolverBackend>(
+    id: facadeCanonicalIdResolver<AgencyRow, AgencyResolverBackend>(
       AgencyFacade.kind,
     ),
     slug: agencySlugResolver(),
     // Casing normalization for ALL-CAPS source data (applied via resolvers so
     // slugs, which read `facade.raw`, are unaffected). `name` is required;
     // `city`/`address`/`contact_name`/`contact_email` are nullable columns.
-    name: titleCaseResolver<AgencyRowShape, AgencyResolverBackend>("name"),
+    name: titleCaseResolver<AgencyRow, AgencyResolverBackend>("name"),
     // `address`/`city`/`zip_code` are optional in the artifact but required in
     // the *Create mutation (`RESOLVED_PROPERTIES.Agency`): a source that omits
     // one is supplied from the property cache (a committed seed) — which then
@@ -1428,20 +1405,20 @@ export class AgencyFacade extends ResolvingFacade<
     // mutation boundary. Which properties are cached is derived from
     // `RESOLVED_PROPERTIES`, not marked here. `state`/`zip_code` pass through
     // uncased (a code, not prose); `state` is always source-provided.
-    city: titleCaseResolver<AgencyRowShape, AgencyResolverBackend>("city"),
-    state: passthroughResolver<AgencyRowShape, AgencyResolverBackend>("state"),
-    address: titleCaseResolver<AgencyRowShape, AgencyResolverBackend>(
+    city: titleCaseResolver<AgencyRow, AgencyResolverBackend>("city"),
+    state: passthroughResolver<AgencyRow, AgencyResolverBackend>("state"),
+    address: titleCaseResolver<AgencyRow, AgencyResolverBackend>(
       "address",
     ),
-    zip_code: passthroughResolver<AgencyRowShape, AgencyResolverBackend>(
+    zip_code: passthroughResolver<AgencyRow, AgencyResolverBackend>(
       "zip_code",
     ),
     contact_name: nameCaseResolverNullable<
-      AgencyRowShape,
+      AgencyRow,
       AgencyResolverBackend
     >("contact_name"),
     contact_email: lowerCaseEmailResolverNullable<
-      AgencyRowShape,
+      AgencyRow,
       AgencyResolverBackend
     >("contact_email"),
     location_path_id: agencyLocationPathResolver(),
@@ -1546,17 +1523,14 @@ export class AgencyFacade extends ResolvingFacade<
 // the target facade's id and fails loud on a forward reference (ADR 0016 #4/#9).
 // The remaining columns are plain.
 
-/** The database row shape an `AgencyPersonnelFacade` resolves toward. */
-export type AgencyOfficerRowShape = AgencyOfficersRow;
-
 type AgencyPersonnelResolvers = Partial<{
-  [K in keyof AgencyOfficerRowShape]: Resolver<
-    AgencyOfficerRowShape[K],
-    ResolverContext<AgencyOfficerRowShape, LicenseResolverBackend>
+  [K in keyof AgencyOfficersRow]: Resolver<
+    AgencyOfficersRow[K],
+    ResolverContext<AgencyOfficersRow, LicenseResolverBackend>
   >;
 }>;
 
-export class AgencyPersonnelFacade implements PropertyResolutionFacade<AgencyOfficerRowShape> {
+export class AgencyPersonnelFacade implements PropertyResolutionFacade<AgencyOfficersRow> {
   private static readonly kind = "AgencyPersonnel";
   private readonly current?: Record<string, unknown>;
   private readonly spec: Record<string, unknown> = {};
@@ -1564,10 +1538,10 @@ export class AgencyPersonnelFacade implements PropertyResolutionFacade<AgencyOff
   private readonly backend: LicenseResolverBackend;
   private readonly resolvers: AgencyPersonnelResolvers;
   private readonly memo = new Map<
-    keyof AgencyOfficerRowShape,
+    keyof AgencyOfficersRow,
     Promise<unknown>
   >();
-  private readonly inProgress = new Set<keyof AgencyOfficerRowShape>();
+  private readonly inProgress = new Set<keyof AgencyOfficersRow>();
 
   constructor(options: {
     current?: Record<string, unknown>;
@@ -1578,21 +1552,21 @@ export class AgencyPersonnelFacade implements PropertyResolutionFacade<AgencyOff
     this.source = options.source;
     this.backend = options.backend;
     this.resolvers = {
-      id: facadeCanonicalIdResolver<AgencyOfficerRowShape>(
+      id: facadeCanonicalIdResolver<AgencyOfficersRow>(
         AgencyPersonnelFacade.kind,
       ),
-      agency_id: facadeForeignKeyResolver<AgencyOfficerRowShape>(
+      agency_id: facadeForeignKeyResolver<AgencyOfficersRow>(
         AgencyPersonnelFacade.kind,
         "agency_id",
         "Agency",
       ),
       // officer_id is the agency_officers column; the FK still targets Personnel.
-      officer_id: facadeForeignKeyResolver<AgencyOfficerRowShape>(
+      officer_id: facadeForeignKeyResolver<AgencyOfficersRow>(
         AgencyPersonnelFacade.kind,
         "officer_id",
         "Personnel",
       ),
-      license_id: facadeNullableForeignKeyResolver<AgencyOfficerRowShape>(
+      license_id: facadeNullableForeignKeyResolver<AgencyOfficersRow>(
         AgencyPersonnelFacade.kind,
         "license_id",
         "License",
@@ -1604,25 +1578,25 @@ export class AgencyPersonnelFacade implements PropertyResolutionFacade<AgencyOff
     Object.assign(this.spec, spec);
   }
 
-  raw(property: keyof AgencyOfficerRowShape): unknown {
+  raw(property: keyof AgencyOfficersRow): unknown {
     return this.spec[property as string];
   }
 
-  value<K extends keyof AgencyOfficerRowShape>(
+  value<K extends keyof AgencyOfficersRow>(
     property: K,
-  ): Promise<AgencyOfficerRowShape[K]> {
+  ): Promise<AgencyOfficersRow[K]> {
     const cached = this.memo.get(property);
     if (cached !== undefined) {
-      return cached as Promise<AgencyOfficerRowShape[K]>;
+      return cached as Promise<AgencyOfficersRow[K]>;
     }
     const pending = this.computeValue(property);
     this.memo.set(property, pending);
     return pending;
   }
 
-  private async computeValue<K extends keyof AgencyOfficerRowShape>(
+  private async computeValue<K extends keyof AgencyOfficersRow>(
     property: K,
-  ): Promise<AgencyOfficerRowShape[K]> {
+  ): Promise<AgencyOfficersRow[K]> {
     if (this.inProgress.has(property)) {
       throw new Error(
         `Circular property dependency while resolving ${AgencyPersonnelFacade.kind}.${String(
@@ -1645,14 +1619,14 @@ export class AgencyPersonnelFacade implements PropertyResolutionFacade<AgencyOff
     }
   }
 
-  private plainValue<K extends keyof AgencyOfficerRowShape>(
+  private plainValue<K extends keyof AgencyOfficersRow>(
     property: K,
-  ): AgencyOfficerRowShape[K] {
+  ): AgencyOfficersRow[K] {
     const value = this.spec[property as string];
-    return (value === undefined ? null : value) as AgencyOfficerRowShape[K];
+    return (value === undefined ? null : value) as AgencyOfficersRow[K];
   }
 
-  private unresolvedMessage(property: keyof AgencyOfficerRowShape): string {
+  private unresolvedMessage(property: keyof AgencyOfficersRow): string {
     return `Cannot resolve ${AgencyPersonnelFacade.kind}.${String(
       property,
     )} for source ${this.source.namespace}/${this.source.name}; offending value ${JSON.stringify(
@@ -1760,9 +1734,6 @@ export class AgencyPersonnelFacade implements PropertyResolutionFacade<AgencyOff
 // as location-resolver / id-stability-validation substrate. Geometries stream
 // separately (`appendStreamingLocationPathGeometryMutations`).
 
-/** The database row shape a `LocationPathFacade` resolves toward. */
-export type LocationPathRowShape = LocationPathRow;
-
 /** Canonical-id find-or-create resolver bound to a non-`id` identity column. */
 function facadeIdentityColumnResolver<Row>(
   kind: string,
@@ -1788,16 +1759,16 @@ const LOCATION_PATH_COLUMNS = [
   "parent_location_path_id",
   "centroid",
   "bbox",
-] as const satisfies readonly (keyof LocationPathRowShape)[];
+] as const satisfies readonly (keyof LocationPathRow)[];
 
 type LocationPathResolvers = Partial<{
-  [K in keyof LocationPathRowShape]: Resolver<
-    LocationPathRowShape[K],
-    ResolverContext<LocationPathRowShape, LicenseResolverBackend>
+  [K in keyof LocationPathRow]: Resolver<
+    LocationPathRow[K],
+    ResolverContext<LocationPathRow, LicenseResolverBackend>
   >;
 }>;
 
-export class LocationPathFacade implements PropertyResolutionFacade<LocationPathRowShape> {
+export class LocationPathFacade implements PropertyResolutionFacade<LocationPathRow> {
   private static readonly kind = "LocationPath";
   private readonly current?: Record<string, unknown>;
   private readonly spec: Record<string, unknown> = {};
@@ -1805,10 +1776,10 @@ export class LocationPathFacade implements PropertyResolutionFacade<LocationPath
   private readonly backend: LicenseResolverBackend;
   private readonly resolvers: LocationPathResolvers;
   private readonly memo = new Map<
-    keyof LocationPathRowShape,
+    keyof LocationPathRow,
     Promise<unknown>
   >();
-  private readonly inProgress = new Set<keyof LocationPathRowShape>();
+  private readonly inProgress = new Set<keyof LocationPathRow>();
 
   constructor(options: {
     current?: Record<string, unknown>;
@@ -1819,11 +1790,11 @@ export class LocationPathFacade implements PropertyResolutionFacade<LocationPath
     this.source = options.source;
     this.backend = options.backend;
     this.resolvers = {
-      location_path_id: facadeIdentityColumnResolver<LocationPathRowShape>(
+      location_path_id: facadeIdentityColumnResolver<LocationPathRow>(
         LocationPathFacade.kind,
       ),
       parent_location_path_id:
-        facadeNullableForeignKeyResolver<LocationPathRowShape>(
+        facadeNullableForeignKeyResolver<LocationPathRow>(
           LocationPathFacade.kind,
           "parent_location_path_id",
           "LocationPath",
@@ -1835,25 +1806,25 @@ export class LocationPathFacade implements PropertyResolutionFacade<LocationPath
     Object.assign(this.spec, spec);
   }
 
-  raw(property: keyof LocationPathRowShape): unknown {
+  raw(property: keyof LocationPathRow): unknown {
     return this.spec[property as string];
   }
 
-  value<K extends keyof LocationPathRowShape>(
+  value<K extends keyof LocationPathRow>(
     property: K,
-  ): Promise<LocationPathRowShape[K]> {
+  ): Promise<LocationPathRow[K]> {
     const cached = this.memo.get(property);
     if (cached !== undefined) {
-      return cached as Promise<LocationPathRowShape[K]>;
+      return cached as Promise<LocationPathRow[K]>;
     }
     const pending = this.computeValue(property);
     this.memo.set(property, pending);
     return pending;
   }
 
-  private async computeValue<K extends keyof LocationPathRowShape>(
+  private async computeValue<K extends keyof LocationPathRow>(
     property: K,
-  ): Promise<LocationPathRowShape[K]> {
+  ): Promise<LocationPathRow[K]> {
     if (this.inProgress.has(property)) {
       throw new Error(
         `Circular property dependency while resolving ${LocationPathFacade.kind}.${String(
@@ -1876,14 +1847,14 @@ export class LocationPathFacade implements PropertyResolutionFacade<LocationPath
     }
   }
 
-  private plainValue<K extends keyof LocationPathRowShape>(
+  private plainValue<K extends keyof LocationPathRow>(
     property: K,
-  ): LocationPathRowShape[K] {
+  ): LocationPathRow[K] {
     const value = this.spec[property as string];
-    return (value === undefined ? null : value) as LocationPathRowShape[K];
+    return (value === undefined ? null : value) as LocationPathRow[K];
   }
 
-  private unresolvedMessage(property: keyof LocationPathRowShape): string {
+  private unresolvedMessage(property: keyof LocationPathRow): string {
     return `Cannot resolve ${LocationPathFacade.kind}.${String(
       property,
     )} for source ${this.source.namespace}/${this.source.name}; offending value ${JSON.stringify(
@@ -1931,17 +1902,14 @@ export class LocationPathFacade implements PropertyResolutionFacade<LocationPath
   }
 }
 
-/** The database row shape a `LocationPathAliasFacade` resolves toward. */
-export type LocationPathAliasRowShape = LocationPathAliasRow;
-
 type LocationPathAliasResolvers = Partial<{
-  [K in keyof LocationPathAliasRowShape]: Resolver<
-    LocationPathAliasRowShape[K],
-    ResolverContext<LocationPathAliasRowShape, LicenseResolverBackend>
+  [K in keyof LocationPathAliasRow]: Resolver<
+    LocationPathAliasRow[K],
+    ResolverContext<LocationPathAliasRow, LicenseResolverBackend>
   >;
 }>;
 
-export class LocationPathAliasFacade implements PropertyResolutionFacade<LocationPathAliasRowShape> {
+export class LocationPathAliasFacade implements PropertyResolutionFacade<LocationPathAliasRow> {
   private static readonly kind = "LocationPathAlias";
   private readonly current?: Record<string, unknown>;
   private readonly spec: Record<string, unknown> = {};
@@ -1949,10 +1917,10 @@ export class LocationPathAliasFacade implements PropertyResolutionFacade<Locatio
   private readonly backend: LicenseResolverBackend;
   private readonly resolvers: LocationPathAliasResolvers;
   private readonly memo = new Map<
-    keyof LocationPathAliasRowShape,
+    keyof LocationPathAliasRow,
     Promise<unknown>
   >();
-  private readonly inProgress = new Set<keyof LocationPathAliasRowShape>();
+  private readonly inProgress = new Set<keyof LocationPathAliasRow>();
 
   constructor(options: {
     current?: Record<string, unknown>;
@@ -1965,7 +1933,7 @@ export class LocationPathAliasFacade implements PropertyResolutionFacade<Locatio
     this.resolvers = {
       // The alias's identity is its natural key `alias_path` (plain); only the
       // FK to the target LocationPath is resolved.
-      location_path_id: facadeForeignKeyResolver<LocationPathAliasRowShape>(
+      location_path_id: facadeForeignKeyResolver<LocationPathAliasRow>(
         LocationPathAliasFacade.kind,
         "location_path_id",
         "LocationPath",
@@ -1977,25 +1945,25 @@ export class LocationPathAliasFacade implements PropertyResolutionFacade<Locatio
     Object.assign(this.spec, spec);
   }
 
-  raw(property: keyof LocationPathAliasRowShape): unknown {
+  raw(property: keyof LocationPathAliasRow): unknown {
     return this.spec[property as string];
   }
 
-  value<K extends keyof LocationPathAliasRowShape>(
+  value<K extends keyof LocationPathAliasRow>(
     property: K,
-  ): Promise<LocationPathAliasRowShape[K]> {
+  ): Promise<LocationPathAliasRow[K]> {
     const cached = this.memo.get(property);
     if (cached !== undefined) {
-      return cached as Promise<LocationPathAliasRowShape[K]>;
+      return cached as Promise<LocationPathAliasRow[K]>;
     }
     const pending = this.computeValue(property);
     this.memo.set(property, pending);
     return pending;
   }
 
-  private async computeValue<K extends keyof LocationPathAliasRowShape>(
+  private async computeValue<K extends keyof LocationPathAliasRow>(
     property: K,
-  ): Promise<LocationPathAliasRowShape[K]> {
+  ): Promise<LocationPathAliasRow[K]> {
     if (this.inProgress.has(property)) {
       throw new Error(
         `Circular property dependency while resolving ${LocationPathAliasFacade.kind}.${String(
@@ -2018,14 +1986,14 @@ export class LocationPathAliasFacade implements PropertyResolutionFacade<Locatio
     }
   }
 
-  private plainValue<K extends keyof LocationPathAliasRowShape>(
+  private plainValue<K extends keyof LocationPathAliasRow>(
     property: K,
-  ): LocationPathAliasRowShape[K] {
+  ): LocationPathAliasRow[K] {
     const value = this.spec[property as string];
-    return (value === undefined ? null : value) as LocationPathAliasRowShape[K];
+    return (value === undefined ? null : value) as LocationPathAliasRow[K];
   }
 
-  private unresolvedMessage(property: keyof LocationPathAliasRowShape): string {
+  private unresolvedMessage(property: keyof LocationPathAliasRow): string {
     return `Cannot resolve ${LocationPathAliasFacade.kind}.${String(
       property,
     )} for source ${this.source.namespace}/${this.source.name}; offending value ${JSON.stringify(
