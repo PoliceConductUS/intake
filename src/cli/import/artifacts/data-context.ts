@@ -28,11 +28,7 @@ import {
   RESOLVED_PROPERTIES,
   type LocationPathRow,
 } from "../../../shared/io/generated/entity-specs.js";
-import { IMPORT_OPERATION_SUFFIXES } from "../../../shared/io/import-type-metadata.js";
-import {
-  INTAKE_API_VERSION,
-  parseMutationKind,
-} from "../../../shared/io/import-types.js";
+import { INTAKE_API_VERSION } from "../../../shared/io/import-types.js";
 import type { DatabaseClient } from "../../database/index.js";
 import {
   readLocationPathAliasByPath,
@@ -42,6 +38,7 @@ import {
 } from "../../database/location-paths.js";
 import { SlugAllocator } from "./slug.js";
 import { CurrentRowReader } from "./current-row-reader.js";
+import { planDatabaseMutationItems } from "./mutation-plan.js";
 import type { ResolvedPropertyCacheInput } from "../../state/resolved-property/index.js";
 
 /**
@@ -258,83 +255,6 @@ function isMissingContainingPlaceError(error: unknown): boolean {
 }
 
 
-/**
- * True when an item is an update whose operations are *all* `check` — it asserts
- * expected state but sets nothing, so it mutates nothing and is not a mutation
- * (ADR 0011/0014). These are dropped from the emitted plan so a re-import of an
- * already-matching row emits no SELECT + empty UPDATE; an update that still
- * carries a `set` keeps its sibling `check`s as per-row drift guards, and creates
- * (which have no `operations`) are never affected.
- */
-const DEPENDENCY_ORDER_INDEX = new Map<string, number>(
-  RECORD_KINDS_IN_DEPENDENCY_ORDER.map((recordKind, index) => [
-    recordKind,
-    index,
-  ]),
-);
-
-/** The record kind of a mutation kind, stripping the operation suffix. */
-function recordKindOfMutation(mutationKind: string): string {
-  for (const suffix of Object.values(IMPORT_OPERATION_SUFFIXES)) {
-    if (mutationKind.endsWith(suffix)) {
-      return mutationKind.slice(0, -suffix.length);
-    }
-  }
-  return mutationKind;
-}
-
-/**
- * Orders mutation items by database dependency, using the generated
- * `RECORD_KINDS_IN_DEPENDENCY_ORDER` (a topological sort of the introspected
- * foreign-key graph), so a referenced entity is applied before its referrer
- * (e.g. Licenses before the AgencyPersonnel whose `license_id` targets them). A
- * stable sort preserves the within-kind order. Unknown kinds sort last.
- */
-// Order every create before any update (ADR 0020). Creates keep FK-dependency
-// order among themselves (a row's FK targets are created first); updates follow
-// all creates, so an update's FK to a row created this import already exists and
-// an update never gates a create (its own target row already existed). The
-// replay can then batch each contiguous create run and apply updates singly —
-// the first update marks the end of the creates.
-function sortByDependencyOrder(
-  items: DatabaseMutationItem[],
-): DatabaseMutationItem[] {
-  const operationRank = (item: DatabaseMutationItem): number =>
-    "kind" in item && parseMutationKind(item.kind).operation === "create"
-      ? 0
-      : 1;
-  const dependencyIndex = (item: DatabaseMutationItem): number =>
-    "kind" in item
-      ? (DEPENDENCY_ORDER_INDEX.get(recordKindOfMutation(item.kind)) ??
-        Number.MAX_SAFE_INTEGER)
-      : Number.MAX_SAFE_INTEGER;
-  return items
-    .map((item, index) => ({ item, index }))
-    .sort(
-      (a, b) =>
-        operationRank(a.item) - operationRank(b.item) ||
-        dependencyIndex(a.item) - dependencyIndex(b.item) ||
-        a.index - b.index,
-    )
-    .map(({ item }) => item);
-}
-
-function isCheckOnlyUpdateItem(item: DatabaseMutationItem): boolean {
-  if (!("spec" in item)) {
-    return false;
-  }
-  const operations = (item.spec as { operations?: unknown }).operations;
-  return (
-    Array.isArray(operations) &&
-    operations.length > 0 &&
-    operations.every(
-      (operation) =>
-        typeof operation === "object" &&
-        operation !== null &&
-        (operation as { action?: unknown }).action === "check",
-    )
-  );
-}
 
 
 
@@ -564,24 +484,7 @@ export class DataContext {
   }
 
   async toDatabaseMutationItems(): Promise<DatabaseMutationItem[]> {
-    const facadeMutations = (await this.toMutations()).map((mutation) => ({
-      kind: mutation.kind,
-      name: mutation.metadata.name,
-      spec: mutation.spec,
-    }));
-
-    // Every entity emits through its facade (ADR 0016); the transform rows are
-    // validation/exclusion substrate, never an emission input.
-    const items: DatabaseMutationItem[] = [...facadeMutations];
-
-    // Drop check-only updates: an update whose operations are all `check` mutates
-    // nothing, so it is not a mutation (ADR 0011/0014). Filtering here — the one
-    // point every facade and location-path mutation flows through — keeps the
-    // emitted plan to genuine changes, so a re-import of an already-matching
-    // dataset yields an empty (no-op) plan rather than a wall of no-op updates.
-    return sortByDependencyOrder(
-      items.filter((item) => !isCheckOnlyUpdateItem(item)),
-    );
+    return planDatabaseMutationItems(await this.toMutations());
   }
 
   async toDatabaseMutations(
