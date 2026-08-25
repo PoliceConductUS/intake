@@ -5,6 +5,12 @@ import { writeCommandPointer } from "../state/command-pointer.js";
 
 type CopyItem = { source: string; destinationRelative: string };
 
+// A path carrying glob metacharacters is treated as a pattern to expand; one
+// without them is a literal file/folder path (so a missing one is a typo).
+function isGlob(pattern: string): boolean {
+  return /[*?[\]{}]/.test(pattern);
+}
+
 // Recurse a directory into copy items, preserving each file's path relative to
 // `base` and skipping dotfiles (mirrors how the run collects source inputs).
 async function collectDirectory(
@@ -55,6 +61,10 @@ export async function resolveLocalInputs(
       items.push(...(await collectDirectory(absolute, absolute)));
       continue;
     }
+    // A plain path that does not exist is a typo, not a zero-match glob — say so.
+    if (!isGlob(argument)) {
+      throw new Error(`--from-local: no such file or folder: ${argument}`);
+    }
     let matched = false;
     for await (const match of glob(argument, { cwd })) {
       matched = true;
@@ -70,9 +80,7 @@ export async function resolveLocalInputs(
       }
     }
     if (!matched) {
-      throw new Error(
-        `--from-local matched no file, folder, or glob: ${argument}`,
-      );
+      throw new Error(`--from-local: glob matched nothing: ${argument}`);
     }
   }
   if (items.length === 0) {

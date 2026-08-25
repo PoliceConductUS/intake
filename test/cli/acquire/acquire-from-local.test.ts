@@ -86,10 +86,17 @@ describe("resolveLocalInputs", () => {
     ]);
   });
 
-  it("fails loud when an argument matches nothing", async () => {
+  it("fails loud with a plain 'no such file' message for a non-glob path typo", async () => {
+    const dir = await tempDir("from-local-typo-");
+    await expect(resolveLocalInputs(["roster.xls"], dir)).rejects.toThrow(
+      /no such file or folder: roster\.xls/,
+    );
+  });
+
+  it("fails loud when a glob matches nothing", async () => {
     const dir = await tempDir("from-local-none-");
     await expect(resolveLocalInputs(["missing-*.csv"], dir)).rejects.toThrow(
-      /matched no file, folder, or glob/,
+      /glob matched nothing/,
     );
   });
 
