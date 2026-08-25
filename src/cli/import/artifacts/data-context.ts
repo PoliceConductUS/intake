@@ -1,4 +1,5 @@
 import { createId } from "@paralleldrive/cuid2";
+import type { z } from "zod";
 import {
   Resolver,
   facadeCanonicalIdResolver,
@@ -100,13 +101,11 @@ import {
   readLocationPathByPath,
   readLocationPathsContainingPoint,
 } from "../../database/location-paths.js";
-import {
-  type ImportRows,
-  type LocationPathAliasRow,
-  type LocationPathRow,
-} from "./transform.js";
 import { readDatabaseRecordsByColumn } from "../../database/entities.js";
 import type { SupportedTableName } from "../../database/schema.js";
+
+// The location_path row is the generated model (stays in sync with the schema).
+type LocationPathRow = z.infer<typeof LocationPathSpec>;
 
 /** Tables whose slug uniqueness the DataContext enforces (generate-unique). */
 type SlugTableName = "public.officers" | "public.agency";
@@ -209,16 +208,7 @@ type DataContextLogger = {
 
 export type DataContextOptions = {
   client?: DatabaseClient;
-  rows: ImportRows;
   logger?: DataContextLogger;
-  databaseLocationPaths?: LocationPathRow[];
-  databaseLocationPathAliases?: LocationPathAliasRow[];
-  loadLocationPathById?: (
-    locationPathId: string,
-  ) => Promise<LocationPathRow | undefined>;
-  loadLocationPathByPath?: (
-    locationPathPath: string,
-  ) => Promise<LocationPathRow | undefined>;
   resolveAddress?: (
     input: AddressResolutionRequest,
   ) => Promise<AddressResolution | undefined>;
@@ -234,10 +224,6 @@ export type DataContextOptions = {
    * ledger load, no whole-map re-persist.
    */
   ledger?: SourceNameToCanonicalIdLedger;
-  databaseAgencyPersonnel?: Record<string, unknown>[];
-  databaseLicensingAuthorities?: Record<string, unknown>[];
-  databaseLicenses?: Record<string, unknown>[];
-  databaseLicenseActions?: Record<string, unknown>[];
 };
 
 type SourceRecordContext = {
@@ -2290,12 +2276,6 @@ function firstZodIssuePath(
     : result.error.issues[0]?.path.join(".") || "record";
 }
 
-function malformedLocationPathMessage(locationPath: LocationPathRow): string {
-  const result = LocationPathSpec.safeParse(locationPath);
-  return result.success
-    ? ""
-    : `Cannot prepare public.location_path ${locationPath.location_path_id}; location path is malformed at ${firstZodIssuePath(result)}.`;
-}
 
 
 /**
@@ -2411,23 +2391,11 @@ export class DataContext {
     string,
     LocationResolution
   >();
-  private readonly databaseLocationPathsLoaded: boolean;
-  private readonly databaseLocationPathById?: Map<string, LocationPathRow>;
-  private readonly databaseLocationPathByPath?: Map<string, LocationPathRow>;
-  private readonly databaseLocationPathIdByAliasPath?: Map<string, string>;
-  private readonly importRows: ImportRows;
-  private readonly loadLocationPathById?: DataContextOptions["loadLocationPathById"];
-  private readonly loadLocationPathByPath?: DataContextOptions["loadLocationPathByPath"];
   private readonly resolveAddressFn?: DataContextOptions["resolveAddress"];
   private readonly resolveAdministrativeArea?: DataContextOptions["resolveAdministrativeArea"];
   private readonly resolvedPropertyStore?: ResolvedPropertyStore;
   private readonly commandName?: string;
   private readonly ledger?: SourceNameToCanonicalIdLedger;
-  private readonly databaseLicensingAuthorityById: Map<
-    string,
-    Record<string, unknown>
-  >;
-  private readonly databaseLicenseById: Map<string, Record<string, unknown>>;
   /** per-table current-command slug → owning canonical id (uniqueness level 1). */
   private readonly slugClaimsByTable = new Map<
     SlugTableName,
@@ -2438,14 +2406,6 @@ export class DataContext {
     SlugTableName,
     Map<string, string | null>
   >();
-  private readonly databaseLicenseActionById: Map<
-    string,
-    Record<string, unknown>
-  >;
-  private readonly databaseAgencyPersonnelById: Map<
-    string,
-    Record<string, unknown>
-  >;
   private readonly agencyFacades = new Map<string, AgencyFacade>();
   private readonly personnelFacades = new Map<string, PersonnelFacade>();
   private readonly agencyPersonnelFacades = new Map<
@@ -2509,140 +2469,17 @@ export class DataContext {
     string,
     EntityFacade<CivilCaseLinkRow, CivilCaseLinkEnvelope>
   >();
-  // First-import snapshots for the discipline/coverage kinds are empty (blank
-  // tables); re-import snapshot loading is a later addition.
-  private readonly disciplineById = new Map<string, Record<string, unknown>>();
-  private readonly disciplineAgencyOfficerById = new Map<
-    string,
-    Record<string, unknown>
-  >();
-  private readonly coverageLinkById = new Map<
-    string,
-    Record<string, unknown>
-  >();
-  private readonly coverageLinkAgencyOfficerById = new Map<
-    string,
-    Record<string, unknown>
-  >();
-  private readonly agencyPhoneNumberById = new Map<
-    string,
-    Record<string, unknown>
-  >();
-  private readonly federalAgencyById = new Map<
-    string,
-    Record<string, unknown>
-  >();
-  private readonly federalAgencyBranchById = new Map<
-    string,
-    Record<string, unknown>
-  >();
 
   constructor(options: DataContextOptions) {
     this.client = options.client;
-    this.importRows = options.rows;
     this.logger = options.logger;
-    this.databaseLocationPathsLoaded =
-      options.databaseLocationPaths !== undefined;
-    this.databaseLocationPathById =
-      options.databaseLocationPaths === undefined
-        ? undefined
-        : new Map(
-            options.databaseLocationPaths.map((locationPath) => [
-              locationPath.location_path_id,
-              locationPath,
-            ]),
-          );
-    this.databaseLocationPathByPath =
-      options.databaseLocationPaths === undefined
-        ? undefined
-        : new Map(
-            options.databaseLocationPaths.map((locationPath) => [
-              locationPath.path,
-              locationPath,
-            ]),
-          );
-    this.databaseLocationPathIdByAliasPath =
-      options.databaseLocationPathAliases === undefined
-        ? undefined
-        : new Map(
-            options.databaseLocationPathAliases.map((locationPathAlias) => [
-              locationPathAlias.alias_path,
-              locationPathAlias.location_path_id,
-            ]),
-          );
-    this.loadLocationPathById = options.loadLocationPathById;
-    this.loadLocationPathByPath = options.loadLocationPathByPath;
     this.resolveAddressFn = options.resolveAddress;
     this.resolveAdministrativeArea = options.resolveAdministrativeArea;
     this.resolvedPropertyStore = options.resolvedPropertyStore;
     this.commandName = options.commandName;
     this.ledger = options.ledger;
-    this.databaseLicensingAuthorityById = new Map(
-      (options.databaseLicensingAuthorities ?? [])
-        .map((authority) => [valueAsString(authority.id), authority] as const)
-        .filter(
-          (entry): entry is readonly [string, Record<string, unknown>] =>
-            entry[0] !== undefined,
-        ),
-    );
-    this.databaseLicenseById = new Map(
-      (options.databaseLicenses ?? [])
-        .map((license) => [valueAsString(license.id), license] as const)
-        .filter(
-          (entry): entry is readonly [string, Record<string, unknown>] =>
-            entry[0] !== undefined,
-        ),
-    );
-    this.databaseLicenseActionById = new Map(
-      (options.databaseLicenseActions ?? [])
-        .map((action) => [valueAsString(action.id), action] as const)
-        .filter(
-          (entry): entry is readonly [string, Record<string, unknown>] =>
-            entry[0] !== undefined,
-        ),
-    );
-    this.databaseAgencyPersonnelById = new Map(
-      (options.databaseAgencyPersonnel ?? [])
-        .map(
-          (agencyPersonnel) =>
-            [valueAsString(agencyPersonnel.id), agencyPersonnel] as const,
-        )
-        .filter(
-          (entry): entry is readonly [string, Record<string, unknown>] =>
-            entry[0] !== undefined,
-        ),
-    );
     this.locations = new LocationDataContext(this);
     this.locationPaths = new LocationPathDataContext(this);
-  }
-
-  toImportRows(): ImportRows {
-    return this.importRows;
-  }
-
-  validatePreparedRows(): string[] {
-    return this.locationPaths.validatePreparedRows();
-  }
-
-  // The facade decides create-vs-read by canonical id, so it cannot catch a path
-  // whose id drifted from the database — this guards it explicitly (fail-loud).
-  validateLocationPathIdStability(): string[] {
-    if (this.databaseLocationPathByPath === undefined) {
-      return [];
-    }
-    const errors: string[] = [];
-    for (const locationPath of this.importRows.locationPaths) {
-      const existing = this.databaseLocationPathByPath.get(locationPath.path);
-      if (
-        existing !== undefined &&
-        existing.location_path_id !== locationPath.location_path_id
-      ) {
-        errors.push(
-          `Location path ${locationPath.path} already exists with location_path_id ${existing.location_path_id}, but import mapped it to ${locationPath.location_path_id}.`,
-        );
-      }
-    }
-    return errors;
   }
 
   fromSource(input: SourceRecordContext): AgencyFacade {
@@ -2705,7 +2542,7 @@ export class DataContext {
     return {
       findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
       getCurrentById: (id) =>
-        this.currentRow("public.agency", undefined, id),
+        this.currentRow("public.agency", id),
       ensureUniqueAgencySlug: (input) =>
         this.ensureUniqueSlug("public.agency", input),
       registerAgencySlug: (input) => {
@@ -2768,7 +2605,7 @@ export class DataContext {
     return {
       findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
       getCurrentById: (id) =>
-        this.currentRow("public.officers", undefined, id),
+        this.currentRow("public.officers", id),
       ensureUniquePersonnelSlug: (input) =>
         this.ensureUniqueSlug("public.officers", input),
       registerPersonnelSlug: (input) => {
@@ -2845,7 +2682,7 @@ export class DataContext {
     if (cached !== undefined) {
       return cached ?? undefined;
     }
-    const row = await this.currentRow(table, undefined, slug, "slug");
+    const row = await this.currentRow(table, slug, "slug");
     const owner = row === undefined ? undefined : valueAsString(row.id);
     owners.set(slug, owner ?? null);
     return owner;
@@ -2886,12 +2723,7 @@ export class DataContext {
   private agencyPersonnelResolverBackend(): LicenseResolverBackend {
     return {
       findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
-      getCurrentById: (id) =>
-        this.currentRow(
-          "public.agency_officers",
-          this.databaseAgencyPersonnelById,
-          id,
-        ),
+      getCurrentById: (id) => this.currentRow("public.agency_officers", id),
       findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
     };
   }
@@ -2921,7 +2753,6 @@ export class DataContext {
       },
       backend: this.resolverBackend(
         "public.location_path",
-        this.databaseLocationPathById,
         "location_path_id",
       ),
     });
@@ -2959,7 +2790,6 @@ export class DataContext {
       },
       backend: this.resolverBackend(
         "public.location_path_alias",
-        undefined,
         "alias_path",
       ),
     });
@@ -2974,13 +2804,11 @@ export class DataContext {
   // read by identityColumn, same-source FK finds. Richer facades compose their own.
   private resolverBackend(
     tableName: SupportedTableName,
-    preloaded: ReadonlyMap<string, Record<string, unknown>> | undefined,
     identityColumn?: string,
   ): LicenseResolverBackend {
     return {
       findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
-      getCurrentById: (id) =>
-        this.currentRow(tableName, preloaded, id, identityColumn),
+      getCurrentById: (id) => this.currentRow(tableName, id, identityColumn),
       findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
     };
   }
@@ -3043,11 +2871,7 @@ export class DataContext {
       getLocationPathByPath: (path) => this.locationPaths.getByPath(path),
       findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
       getCurrentById: (id) =>
-        this.currentRow(
-          "public.licensing_authority",
-          this.databaseLicensingAuthorityById,
-          id,
-        ),
+        this.currentRow("public.licensing_authority", id),
     };
   }
 
@@ -3071,10 +2895,7 @@ export class DataContext {
         name: input.name,
         commandName: input.commandName ?? this.commandName,
       },
-      backend: this.licenseResolverBackend(
-        "public.license",
-        this.databaseLicenseById,
-      ),
+      backend: this.licenseResolverBackend("public.license"),
     });
     if (input.spec !== undefined) {
       facade.merge(input.spec);
@@ -3106,10 +2927,7 @@ export class DataContext {
         name: input.name,
         commandName: input.commandName ?? this.commandName,
       },
-      backend: this.licenseResolverBackend(
-        "public.license_action",
-        this.databaseLicenseActionById,
-      ),
+      backend: this.licenseResolverBackend("public.license_action"),
     });
     if (input.spec !== undefined) {
       facade.merge(input.spec);
@@ -3120,35 +2938,27 @@ export class DataContext {
 
   private licenseResolverBackend(
     tableName: SupportedTableName,
-    databaseCurrentById: Map<string, Record<string, unknown>>,
   ): LicenseResolverBackend {
     return {
       findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
-      getCurrentById: (id) =>
-        this.currentRow(tableName, databaseCurrentById, id),
+      getCurrentById: (id) => this.currentRow(tableName, id),
       findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
     };
   }
 
   /**
-   * The existing database row for a resolved canonical id, decided lazily at
-   * mutation time (ADR 0019): a preloaded row wins; otherwise the read is
-   * enqueued and coalesced with every other read requested in the same tick
-   * into one `where <col> = any($1)`, then memoized. No bulk current-row read
-   * at startup.
+   * The existing database row for a resolved canonical id, read lazily at
+   * mutation time (ADR 0019): the read is enqueued and coalesced with every
+   * other read requested in the same tick into one `where <col> = any($1)`,
+   * then memoized. No bulk current-row read at startup.
    */
   private currentRow(
     tableName: SupportedTableName,
-    preloaded: ReadonlyMap<string, Record<string, unknown>> | undefined,
     id: string,
     // The row's identity column. Defaults to `id`; location paths and aliases
     // key on `location_path_id` / `alias_path`, which have no `id` column.
     identityColumn = "id",
   ): Promise<Record<string, unknown> | undefined> {
-    const fromPreloaded = preloaded?.get(id);
-    if (fromPreloaded !== undefined) {
-      return Promise.resolve(fromPreloaded);
-    }
     const cacheKey = `${tableName}:${identityColumn}:${id}`;
     let pending = this.lazyCurrentRowCache.get(cacheKey);
     if (pending === undefined) {
@@ -3250,17 +3060,6 @@ export class DataContext {
     }
   }
 
-  /** The shared backend for the generic EntityFacade-based kinds. */
-  private entityFacadeBackend(
-    databaseCurrentById: Map<string, Record<string, unknown>>,
-  ): EntityFacadeBackend {
-    return {
-      findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
-      getCurrentById: async (id) => databaseCurrentById.get(id),
-      findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
-      getLocationPathByPath: (path) => this.locationPaths.getByPath(path),
-    };
-  }
 
   /**
    * Like {@link entityFacadeBackend} but for facade-owned entities with no
@@ -3273,7 +3072,7 @@ export class DataContext {
   ): EntityFacadeBackend {
     return {
       findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
-      getCurrentById: (id) => this.currentRow(table, undefined, id),
+      getCurrentById: (id) => this.currentRow(table, id),
       findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
       getLocationPathByPath: (path) => this.locationPaths.getByPath(path),
     };
@@ -3306,7 +3105,7 @@ export class DataContext {
     const facade = createDisciplineFacade({
       current: input.current,
       source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackend(this.disciplineById),
+      backend: this.entityFacadeBackendForTable("public.discipline"),
     });
     if (input.spec !== undefined) facade.merge(input.spec);
     this.disciplineFacades.set(key, facade);
@@ -3331,7 +3130,7 @@ export class DataContext {
     const facade = createDisciplineAgencyOfficerFacade({
       current: input.current,
       source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackend(this.disciplineAgencyOfficerById),
+      backend: this.entityFacadeBackendForTable("public.discipline_agency_officers"),
     });
     if (input.spec !== undefined) facade.merge(input.spec);
     this.disciplineAgencyOfficerFacades.set(key, facade);
@@ -3356,7 +3155,7 @@ export class DataContext {
     const facade = createCoverageLinkFacade({
       current: input.current,
       source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackend(this.coverageLinkById),
+      backend: this.entityFacadeBackendForTable("public.coverage_links"),
     });
     if (input.spec !== undefined) facade.merge(input.spec);
     this.coverageLinkFacades.set(key, facade);
@@ -3384,7 +3183,7 @@ export class DataContext {
     const facade = createCoverageLinkAgencyOfficerFacade({
       current: input.current,
       source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackend(this.coverageLinkAgencyOfficerById),
+      backend: this.entityFacadeBackendForTable("public.coverage_link_agency_officers"),
     });
     if (input.spec !== undefined) facade.merge(input.spec);
     this.coverageLinkAgencyOfficerFacades.set(key, facade);
@@ -3409,7 +3208,7 @@ export class DataContext {
     const facade = createAgencyPhoneNumberFacade({
       current: input.current,
       source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackend(this.agencyPhoneNumberById),
+      backend: this.entityFacadeBackendForTable("public.agency_phone_numbers"),
     });
     if (input.spec !== undefined) facade.merge(input.spec);
     this.agencyPhoneNumberFacades.set(key, facade);
@@ -3434,7 +3233,7 @@ export class DataContext {
     const facade = createFederalAgencyFacade({
       current: input.current,
       source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackend(this.federalAgencyById),
+      backend: this.entityFacadeBackendForTable("public.federal_agency"),
     });
     if (input.spec !== undefined) facade.merge(input.spec);
     this.federalAgencyFacades.set(key, facade);
@@ -3459,7 +3258,7 @@ export class DataContext {
     const facade = createFederalAgencyBranchFacade({
       current: input.current,
       source: this.entityFacadeSource(input),
-      backend: this.entityFacadeBackend(this.federalAgencyBranchById),
+      backend: this.entityFacadeBackendForTable("public.federal_agency_branch"),
     });
     if (input.spec !== undefined) facade.merge(input.spec);
     this.federalAgencyBranchFacades.set(key, facade);
@@ -3812,36 +3611,6 @@ export class DataContext {
     this.addressResolutionCache.set(`${entityType}:${entityId}`, resolution);
   }
 
-  async loadLocationPathStateById(
-    locationPathId: string,
-  ): Promise<LocationPathRow | undefined> {
-    return this.loadLocationPathById?.(locationPathId);
-  }
-
-  async loadLocationPathStateByPath(
-    locationPathPath: string,
-  ): Promise<LocationPathRow | undefined> {
-    return this.loadLocationPathByPath?.(locationPathPath);
-  }
-
-  getDatabaseLocationPathById(
-    locationPathId: string,
-  ): LocationPathRow | undefined {
-    return this.databaseLocationPathById?.get(locationPathId);
-  }
-
-  getDatabaseLocationPathByPath(path: string): LocationPathRow | undefined {
-    return this.databaseLocationPathByPath?.get(path);
-  }
-
-  getDatabaseLocationPathIdByAliasPath(aliasPath: string): string | undefined {
-    return this.databaseLocationPathIdByAliasPath?.get(aliasPath);
-  }
-
-  hasDatabaseLocationPathSnapshot(): boolean {
-    return this.databaseLocationPathsLoaded;
-  }
-
   databaseClient(): DatabaseClient {
     if (this.client === undefined) {
       throw new Error("Database client is required for database reads.");
@@ -3977,102 +3746,24 @@ class LocationDataContext {
 class LocationPathDataContext {
   constructor(private readonly context: DataContext) {}
 
-  private preparedByPath(path: string): LocationPathRow | undefined {
-    return this.context
-      .toImportRows()
-      .locationPaths.find((locationPath) => locationPath.path === path);
-  }
-
-  private preparedById(locationPathId: string): LocationPathRow | undefined {
-    return this.context
-      .toImportRows()
-      .locationPaths.find(
-        (locationPath) => locationPath.location_path_id === locationPathId,
-      );
-  }
-
-  private async databaseByPath(
-    path: string,
-  ): Promise<LocationPathRow | undefined> {
-    const cached = this.context.getDatabaseLocationPathByPath(path);
-    if (cached !== undefined) {
-      return cached;
+  // A location_path_id source key is the full path string; resolve it by a lazy
+  // per-reference read of the census-owned tables (ADR 0024): the location_path
+  // by `path`, else the location_path_alias by `alias_path`. The caller (a field
+  // resolver) caches the hit and fails loud when neither matches.
+  async getByPath(path: string): Promise<LocationPathRow | undefined> {
+    const client = this.context.databaseClient();
+    const direct = await readLocationPathByPath(client, path);
+    if (direct !== undefined) {
+      return direct;
     }
-    if (this.context.hasDatabaseLocationPathSnapshot()) {
-      return undefined;
-    }
-
-    return readLocationPathByPath(this.context.databaseClient(), path);
-  }
-
-  private async databaseById(
-    locationPathId: string,
-  ): Promise<LocationPathRow | undefined> {
-    const cached = this.context.getDatabaseLocationPathById(locationPathId);
-    if (cached !== undefined) {
-      return cached;
-    }
-    if (this.context.hasDatabaseLocationPathSnapshot()) {
-      return undefined;
-    }
-
-    return readLocationPathById(this.context.databaseClient(), locationPathId);
+    const alias = await readLocationPathAliasByPath(client, path);
+    return alias === undefined
+      ? undefined
+      : readLocationPathById(client, alias.location_path_id);
   }
 
   async getById(locationPathId: string): Promise<LocationPathRow | undefined> {
-    const prepared = this.preparedById(locationPathId);
-    if (prepared !== undefined) {
-      return prepared;
-    }
-
-    const canonical =
-      await this.context.loadLocationPathStateById(locationPathId);
-    if (canonical !== undefined) {
-      return canonical;
-    }
-
-    return this.databaseById(locationPathId);
-  }
-
-  async getByPath(path: string): Promise<LocationPathRow | undefined> {
-    const prepared = this.preparedByPath(path);
-    if (prepared !== undefined) {
-      return prepared;
-    }
-
-    const canonical = await this.context.loadLocationPathStateByPath(path);
-    if (canonical !== undefined) {
-      return canonical;
-    }
-
-    return this.databaseByPath(path);
-  }
-
-  async getByAliasPath(
-    aliasPath: string,
-  ): Promise<LocationPathRow | undefined> {
-    const preparedAlias = this.context
-      .toImportRows()
-      .locationPathAliases.find((alias) => alias.alias_path === aliasPath);
-    const locationPathId =
-      preparedAlias?.location_path_id ??
-      this.context.getDatabaseLocationPathIdByAliasPath(aliasPath);
-    if (locationPathId !== undefined) {
-      return this.getById(locationPathId);
-    }
-
-    if (this.context.hasDatabaseLocationPathSnapshot()) {
-      return undefined;
-    }
-
-    const alias = await readLocationPathAliasByPath(
-      this.context.databaseClient(),
-      aliasPath,
-    );
-    const aliasLocationPathId = valueAsString(alias?.location_path_id);
-    return aliasLocationPathId === undefined
-      ? undefined
-      : this.getById(aliasLocationPathId);
+    return readLocationPathById(this.context.databaseClient(), locationPathId);
   }
 
   async getPlaceContainingPoint(input: {
@@ -4118,34 +3809,4 @@ class LocationPathDataContext {
     );
   }
 
-  validatePreparedRows(): string[] {
-    const errors: string[] = [];
-    const locationPathIdByPath = new Map<string, string>();
-
-    for (const locationPath of this.context.toImportRows().locationPaths) {
-      const malformed = malformedLocationPathMessage(locationPath);
-      if (malformed.length > 0) {
-        errors.push(malformed);
-        continue;
-      }
-
-      const existingId = locationPathIdByPath.get(locationPath.path);
-      if (
-        existingId !== undefined &&
-        existingId !== locationPath.location_path_id
-      ) {
-        errors.push(
-          `Cannot prepare public.location_path ${locationPath.location_path_id}; path ${locationPath.path} already belongs to prepared location path ${existingId}.`,
-        );
-        continue;
-      }
-
-      locationPathIdByPath.set(
-        locationPath.path,
-        locationPath.location_path_id,
-      );
-    }
-
-    return errors;
-  }
 }

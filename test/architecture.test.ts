@@ -235,34 +235,11 @@ describe("architecture boundaries", () => {
       "readArtifactsStage",
       "rejectExistingImportStage",
       "applyArtifactMutationsStage",
-      "transformArtifactsStage",
+      "validateArtifactRecordsStage",
       "writeDatabaseMutationsStage",
     ]) {
       expect(contents).toContain(stageName);
     }
-  });
-
-  test("isolates failed DatabaseMutationsDebug writing to a dedicated helper", async () => {
-    const filePath = path.join(
-      sourceRoot,
-      "cli",
-      "import",
-      "artifacts",
-      "config.ts",
-    );
-    const contents = await readFile(filePath, "utf8");
-    const helperStart = contents.indexOf(
-      "async function writeFailedDatabaseMutationsDebugEnvelope",
-    );
-    const helperEnd = contents.indexOf("\nasync function ", helperStart + 1);
-    const helper = contents.slice(helperStart, helperEnd);
-
-    // The debug envelope is written only by the dedicated failure helper — never
-    // inline in the success/emit path.
-    expect(helperStart).toBeGreaterThanOrEqual(0);
-    expect(helper).toContain("DatabaseMutationsDebug.write");
-    expect(contents.split("DatabaseMutationsDebug.write").length - 1).toBe(1);
-    expect(contents.split("DatabaseMutationsDebug.new").length - 1).toBe(1);
   });
 
   test("keeps DatabaseMutations assembly on DataContext and exact kind IO", async () => {

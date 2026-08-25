@@ -4,10 +4,7 @@ import {
   type DataContextOptions,
 } from "../../../src/cli/import/artifacts/data-context.js";
 import type { DatabaseClient } from "../../../src/cli/database/index.js";
-import type {
-  ImportRows,
-  LocationPathRow,
-} from "../../../src/cli/import/artifacts/transform.js";
+import type { DatabaseLocationPathRow as LocationPathRow } from "../../../src/cli/database/location-paths.js";
 import { mkdtemp } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -24,48 +21,61 @@ import { EmptyDatabaseClient } from "../../cli/database/empty-database-client.js
 // Returns injected current rows through the lazy current-row read
 // (`select * from <table> where id = any($1)`), so a facade sees an existing
 // database row and emits an update.
+// Serves the lazy reads a facade issues: current rows (`where id = any($1)`),
+// and location paths by `path`/`location_path_id` or aliases by `alias_path`.
 class CurrentRowClient extends EmptyDatabaseClient {
+  private readonly locationPaths: LocationPathRow[];
+  private readonly aliases: { alias_path: string; location_path_id: string }[];
   constructor(
-    private readonly rowsByTable: Record<string, Record<string, unknown>[]>,
+    private readonly rowsByTable: Record<string, Record<string, unknown>[]> = {},
+    locations: {
+      locationPaths?: LocationPathRow[];
+      aliases?: { alias_path: string; location_path_id: string }[];
+    } = {},
   ) {
     super();
+    this.locationPaths = locations.locationPaths ?? [];
+    this.aliases = locations.aliases ?? [];
   }
   async query(
     text = "",
     values: readonly unknown[] = [],
   ): Promise<{ rows: Record<string, unknown>[] }> {
-    const match = /select \* from (\S+) where \S+ = any\(\$(\d+)\)/.exec(text);
-    if (match === null) {
-      return { rows: [] };
+    const currentRow = /select \* from (\S+) where \S+ = any\(\$(\d+)\)/.exec(
+      text,
+    );
+    if (currentRow !== null) {
+      const ids =
+        (values[Number(currentRow[2]) - 1] as string[] | undefined) ?? [];
+      return {
+        rows: (this.rowsByTable[currentRow[1]] ?? []).filter((row) =>
+          ids.includes(String(row.id)),
+        ),
+      };
     }
-    const ids = (values[Number(match[2]) - 1] as string[] | undefined) ?? [];
-    return {
-      rows: (this.rowsByTable[match[1]] ?? []).filter((row) =>
-        ids.includes(String(row.id)),
-      ),
-    };
-  }
-}
-
-class BoundaryClient extends EmptyDatabaseClient {
-  async query(text: string): Promise<{ rows: Record<string, unknown>[] }> {
     if (/join public\.location_path_geometry\b/i.test(text)) {
       return {
-        rows: locationPaths.filter(
+        rows: this.locationPaths.filter(
           (locationPath) => locationPath.level === "place",
         ),
       };
     }
-
+    if (/from public\.location_path\b/.test(text)) {
+      const column = /where location_path_id = \$1/.test(text)
+        ? "location_path_id"
+        : "path";
+      return {
+        rows: this.locationPaths.filter(
+          (locationPath) => locationPath[column] === values[0],
+        ),
+      };
+    }
+    if (/from public\.location_path_alias where alias_path = \$1/.test(text)) {
+      return { rows: this.aliases.filter((a) => a.alias_path === values[0]) };
+    }
     return { rows: [] };
   }
 }
-
-const rows: ImportRows = {
-  locationPaths: [],
-  locationPathAliases: [],
-  preparationMutations: [],
-};
 
 const locationPaths: LocationPathRow[] = [
   {
@@ -133,13 +143,9 @@ function licensingSourceNameToCanonicalIds(
 
 function licensingContext(ledger: SourceNameToCanonicalIdLedger): DataContext {
   return new DataContext({
-    client: new EmptyDatabaseClient(),
-    rows,
+    // The client serves "/tx/" for the lazy resolve-or-fail path lookup.
+    client: new CurrentRowClient({}, { locationPaths: [txLocationPath] }),
     commandName: "command-name",
-    // A loaded snapshot lets getByPath resolve "/tx/" and return undefined for
-    // an unknown state without reaching a live client (resolve-or-fail path).
-    databaseLocationPaths: [txLocationPath],
-    databaseLocationPathAliases: [],
     ledger,
   });
 }
@@ -150,15 +156,16 @@ describe("DataContext", () => {
     databaseAgencies?: Record<string, unknown>[];
     resolveAddress?: (input: unknown) => Promise<unknown>;
     databaseLocationPaths?: LocationPathRow[];
-    rows?: ImportRows;
   }): DataContext {
     return new DataContext({
       client:
         options?.client ??
-        (options?.databaseAgencies === undefined
-          ? new EmptyDatabaseClient()
-          : new CurrentRowClient({ "public.agency": options.databaseAgencies })),
-      rows: options?.rows ?? rows,
+        new CurrentRowClient(
+          options?.databaseAgencies === undefined
+            ? {}
+            : { "public.agency": options.databaseAgencies },
+          { locationPaths: options?.databaseLocationPaths ?? [] },
+        ),
       commandName: "command-name",
       ledger: fakeSourceNameLedger({
         agencies: {
@@ -168,12 +175,6 @@ describe("DataContext", () => {
         agencyPersonnel: {},
         locationPaths: {},
       }),
-      ...(options?.databaseLocationPaths === undefined
-        ? {}
-        : {
-            databaseLocationPaths: options.databaseLocationPaths,
-            databaseLocationPathAliases: [],
-          }),
       ...(options?.resolveAddress === undefined
         ? {}
         : {
@@ -325,10 +326,7 @@ describe("DataContext", () => {
 
   test("returns the same facade for the same source identity", () => {
     const context = new DataContext({
-      client: new EmptyDatabaseClient(),
-      rows,
-      databaseLocationPaths: locationPaths,
-      databaseLocationPathAliases: [],
+      client: new CurrentRowClient({}, { locationPaths }),
     });
 
     const first = context.fromSource({
@@ -351,7 +349,6 @@ describe("DataContext", () => {
   test("creates agency facade with canonical ID from source mapping and collects create mutation", async () => {
     const context = new DataContext({
       client: new EmptyDatabaseClient(),
-      rows,
       commandName: "command-name",
       ledger: fakeSourceNameLedger({
         agencies: {
@@ -394,7 +391,6 @@ describe("DataContext", () => {
   test("collects touched facades into a DatabaseMutations envelope", async () => {
     const context = new DataContext({
       client: new EmptyDatabaseClient(),
-      rows,
       commandName: "command-name",
       ledger: fakeSourceNameLedger({
         agencies: {
@@ -454,7 +450,6 @@ describe("DataContext", () => {
     const existingLocationPath = locationPaths[0]!;
     const context = new DataContext({
       client: new EmptyDatabaseClient(),
-      rows,
       commandName: "command-name",
       ledger: fakeSourceNameLedger({
         agencies: {},
@@ -508,125 +503,6 @@ describe("DataContext", () => {
         ],
       },
     });
-  });
-
-  test("validateLocationPathIdStability rejects an imported path whose id drifted from the database", () => {
-    // The path /ak/ already exists in the database under a different id than the
-    // import mapped it to — a fail-loud id-stability violation (never emit a
-    // create/read that would fork the path onto a second id).
-    const context = new DataContext({
-      rows: {
-        ...rows,
-        locationPaths: [
-          {
-            location_path_id: "mapped-ak-id",
-            path: "/ak/",
-            level: "state",
-            state_or_territory_slug: "ak",
-            administrative_area_slug: null,
-            place_slug: null,
-            state_or_territory_name: "Alaska",
-            administrative_area_name: null,
-            place_name: null,
-            parent_location_path_id: null,
-          },
-        ],
-      },
-      databaseLocationPaths: [
-        {
-          location_path_id: "existing-ak-id",
-          path: "/ak/",
-          level: "state",
-          state_or_territory_slug: "ak",
-          administrative_area_slug: null,
-          place_slug: null,
-          state_or_territory_name: "Alaska",
-          administrative_area_name: null,
-          place_name: null,
-          parent_location_path_id: null,
-        },
-      ],
-    });
-
-    expect(context.validateLocationPathIdStability()).toEqual([
-      "Location path /ak/ already exists with location_path_id existing-ak-id, but import mapped it to mapped-ak-id.",
-    ]);
-  });
-
-  test("validateLocationPathIdStability accepts an imported path whose id matches the database", () => {
-    const context = new DataContext({
-      rows: {
-        ...rows,
-        locationPaths: [
-          {
-            location_path_id: "ak-id",
-            path: "/ak/",
-            level: "state",
-            state_or_territory_slug: "ak",
-            administrative_area_slug: null,
-            place_slug: null,
-            state_or_territory_name: "Alaska",
-            administrative_area_name: null,
-            place_name: null,
-            parent_location_path_id: null,
-          },
-        ],
-      },
-      databaseLocationPaths: [
-        {
-          location_path_id: "ak-id",
-          path: "/ak/",
-          level: "state",
-          state_or_territory_slug: "ak",
-          administrative_area_slug: null,
-          place_slug: null,
-          state_or_territory_name: "Alaska",
-          administrative_area_name: null,
-          place_name: null,
-          parent_location_path_id: null,
-        },
-      ],
-    });
-
-    expect(context.validateLocationPathIdStability()).toEqual([]);
-  });
-
-  test("validatePreparedRows rejects two prepared location paths that share a path with different ids", () => {
-    const context = new DataContext({
-      rows: {
-        ...rows,
-        locationPaths: [
-          {
-            location_path_id: "ak-id-a",
-            path: "/ak/",
-            level: "state",
-            state_or_territory_slug: "ak",
-            administrative_area_slug: null,
-            place_slug: null,
-            state_or_territory_name: "Alaska",
-            administrative_area_name: null,
-            place_name: null,
-            parent_location_path_id: null,
-          },
-          {
-            location_path_id: "ak-id-b",
-            path: "/ak/",
-            level: "state",
-            state_or_territory_slug: "ak",
-            administrative_area_slug: null,
-            place_slug: null,
-            state_or_territory_name: "Alaska",
-            administrative_area_name: null,
-            place_name: null,
-            parent_location_path_id: null,
-          },
-        ],
-      },
-    });
-
-    expect(context.validatePreparedRows()).toContain(
-      "Cannot prepare public.location_path ak-id-b; path /ak/ already belongs to prepared location path ak-id-a.",
-    );
   });
 
   test("creates agency facade with current database row and collects update mutation", async () => {
@@ -731,8 +607,7 @@ describe("DataContext", () => {
     // The composition resolver (ADR 0016): geocode the address, then
     // point-in-polygon containment against the location hierarchy.
     const context = new DataContext({
-      client: new BoundaryClient(),
-      rows,
+      client: new CurrentRowClient({}, { locationPaths }),
       commandName: "command-name",
       ledger: fakeSourceNameLedger({
         agencies: {
@@ -742,8 +617,6 @@ describe("DataContext", () => {
         agencyPersonnel: {},
         locationPaths: {},
       }),
-      databaseLocationPaths: locationPaths,
-      databaseLocationPathAliases: [],
       resolveAddress: async () => ({
         latitude: 44.955097,
         longitude: -93.102211,
@@ -779,7 +652,6 @@ describe("DataContext", () => {
     });
     const context = new DataContext({
       client: new EmptyDatabaseClient(),
-      rows,
       commandName: "command-name",
       ledger,
     });
@@ -873,11 +745,8 @@ describe("DataContext", () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), "la-ledger-"));
     const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
     const context = new DataContext({
-      client: new EmptyDatabaseClient(),
-      rows,
+      client: new CurrentRowClient({}, { locationPaths: [txLocationPath] }),
       commandName: "command-name",
-      databaseLocationPaths: [txLocationPath],
-      databaseLocationPathAliases: [],
       // The resolver is the sole owner of LicensingAuthority identity: it mints
       // AND persists, with no earlier minting stage involved.
       ledger,
@@ -903,27 +772,27 @@ describe("DataContext", () => {
 
   test("LicensingAuthorityFacade auto-loads its current DB row and emits an update, not a create", async () => {
     const context = new DataContext({
-      client: new EmptyDatabaseClient(),
-      rows,
+      // The facade loads its current row lazily; the client serves it.
+      client: new CurrentRowClient(
+        {
+          "public.licensing_authority": [
+            {
+              id: "authority-canonical-id",
+              name: "Texas Commission on Law Enforcement",
+              abbreviation: "TCOLE",
+              website: "https://www.tcole.texas.gov",
+              location_path_id: "tx-location-path-id",
+            },
+          ],
+        },
+        { locationPaths: [txLocationPath] },
+      ),
       commandName: "command-name",
-      databaseLocationPaths: [txLocationPath],
-      databaseLocationPathAliases: [],
       ledger: fakeSourceNameLedger(
         licensingSourceNameToCanonicalIds({
           tcole: { canonicalId: "authority-canonical-id" },
         }),
       ),
-      // Mirrors databaseAgencies: the facade loads `current` from here after it
-      // resolves the canonical id — no per-record special-casing at the caller.
-      databaseLicensingAuthorities: [
-        {
-          id: "authority-canonical-id",
-          name: "Texas Commission on Law Enforcement",
-          abbreviation: "TCOLE",
-          website: "https://www.tcole.texas.gov",
-          location_path_id: "tx-location-path-id",
-        },
-      ],
     });
 
     const facade = context.licensingAuthorityFromSource({
@@ -1086,11 +955,14 @@ describe("DataContext", () => {
     ledger?: SourceNameToCanonicalIdLedger;
   }): DataContext {
     return new DataContext({
-      client: new EmptyDatabaseClient(),
-      rows,
+      client: new CurrentRowClient(
+        {
+          "public.license": options?.databaseLicenses ?? [],
+          "public.license_action": options?.databaseLicenseActions ?? [],
+        },
+        { locationPaths: [txLocationPath] },
+      ),
       commandName: "command-name",
-      databaseLocationPaths: [txLocationPath],
-      databaseLocationPathAliases: [],
       ledger:
         options?.ledger ??
         fakeSourceNameLedger({
@@ -1104,12 +976,6 @@ describe("DataContext", () => {
           licenses: options?.licenses ?? {},
           licenseActions: options?.licenseActions ?? {},
         }),
-      ...(options?.databaseLicenses === undefined
-        ? {}
-        : { databaseLicenses: options.databaseLicenses }),
-      ...(options?.databaseLicenseActions === undefined
-        ? {}
-        : { databaseLicenseActions: options.databaseLicenseActions }),
     });
   }
 
@@ -1389,7 +1255,6 @@ describe("PersonnelFacade", () => {
           : new CurrentRowClient({
               "public.officers": options.databaseOfficers,
             })),
-      rows,
       commandName: "command-name",
       ledger:
         options?.ledger ??
@@ -1668,8 +1533,9 @@ describe("AgencyPersonnelFacade", () => {
     databaseAgencyPersonnel?: Record<string, unknown>[];
   }): DataContext {
     return new DataContext({
-      client: new EmptyDatabaseClient(),
-      rows,
+      client: new CurrentRowClient({
+        "public.agency_officers": options?.databaseAgencyPersonnel ?? [],
+      }),
       commandName: "command-name",
       ledger: fakeSourceNameLedger({
         agencies: options?.agencies ?? {},
@@ -1680,9 +1546,6 @@ describe("AgencyPersonnelFacade", () => {
         licenses: options?.licenses ?? {},
         licenseActions: {},
       }),
-      ...(options?.databaseAgencyPersonnel === undefined
-        ? {}
-        : { databaseAgencyPersonnel: options.databaseAgencyPersonnel }),
     });
   }
 
@@ -1865,7 +1728,6 @@ describe("Census substrate facades", () => {
   }): DataContext {
     return new DataContext({
       client: new EmptyDatabaseClient(),
-      rows,
       commandName: "command-name",
       ledger: fakeSourceNameLedger({
         agencies: {},

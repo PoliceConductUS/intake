@@ -1,25 +1,14 @@
+import type { z } from "zod";
 import type { DatabaseClient } from "./index.js";
 import {
   locationPathBboxGeoJson,
   locationPathCentroidGeoJson,
-  type LocationPathBbox,
-  type LocationPathCentroid,
 } from "./location-path-spatial.js";
+import { LocationPathSpec } from "../../shared/io/generated/entity-specs.js";
 
-export type DatabaseLocationPathRow = {
-  location_path_id: string;
-  path: string;
-  level: "state" | "administrative_area" | "place";
-  state_or_territory_slug: string;
-  administrative_area_slug: string | null;
-  place_slug: string | null;
-  state_or_territory_name: string;
-  administrative_area_name: string | null;
-  place_name: string | null;
-  parent_location_path_id: string | null;
-  centroid?: LocationPathCentroid | null;
-  bbox?: LocationPathBbox | null;
-};
+// The location_path row is the generated model, so the read stays in sync with
+// the database schema.
+export type DatabaseLocationPathRow = z.infer<typeof LocationPathSpec>;
 
 export type DatabaseLocationPathAliasRow = {
   alias_path: string;
@@ -39,46 +28,6 @@ function rowsFromResult(
 
 function firstRow<T>(result: unknown): T | undefined {
   return rowsFromResult(result)[0] as T | undefined;
-}
-
-export async function readLocationPaths(
-  client: DatabaseClient,
-): Promise<DatabaseLocationPathRow[]> {
-  return rowsFromResult(
-    await client.query(
-      `select location_path_id,
-              path,
-              level,
-              state_or_territory_slug,
-              administrative_area_slug,
-              place_slug,
-              state_or_territory_name,
-              administrative_area_name,
-              place_name,
-              parent_location_path_id,
-              case
-                when centroid is null then null
-                else ST_AsGeoJSON(centroid::geometry)::jsonb
-              end as centroid,
-              case
-                when bbox is null then null
-                else ST_AsGeoJSON(bbox)::jsonb
-              end as bbox
-         from public.location_path`,
-    ),
-  ) as unknown as DatabaseLocationPathRow[];
-}
-
-export async function readLocationPathAliases(
-  client: DatabaseClient,
-): Promise<DatabaseLocationPathAliasRow[]> {
-  return rowsFromResult(
-    await client.query(
-      `select alias_path,
-              location_path_id
-         from public.location_path_alias`,
-    ),
-  ) as unknown as DatabaseLocationPathAliasRow[];
 }
 
 export async function readLocationPathById(
@@ -109,18 +58,6 @@ export async function readLocationPathByPath(
          from public.location_path
         where path = $1`,
       [locationPathPath],
-    ),
-  );
-}
-
-export async function readLocationPathByIdOrPath(
-  client: DatabaseClient,
-  input: { locationPathId: string; path: string },
-): Promise<DatabaseLocationPathRow | undefined> {
-  return firstRow<DatabaseLocationPathRow>(
-    await client.query(
-      "select * from public.location_path where location_path_id = $1 or path = $2",
-      [input.locationPathId, input.path],
     ),
   );
 }

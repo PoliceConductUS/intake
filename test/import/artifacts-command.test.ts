@@ -24,16 +24,6 @@ import { Command as CommandEnvelope } from "../../src/shared/io/Command.js";
 import { write as writeAgencies } from "../../src/shared/io/generated/Agencies.js";
 import { INTAKE_API_VERSION } from "../../src/shared/io/import-types.js";
 import { yamlResourceFileName } from "../../src/shared/io/resource.js";
-import type {
-  ImportRows,
-  LocationPathRow,
-} from "../../src/cli/import/artifacts/transform.js";
-
-const rows: ImportRows = {
-  locationPaths: [],
-  locationPathAliases: [],
-  preparationMutations: [],
-};
 
 const agencyRecord = {
   id: "agency-canonical-id",
@@ -308,7 +298,6 @@ describe("importArtifacts", () => {
       `2026-06-08T00-00-00-000Z-${runId}`,
     );
     const runContext = new DataContext({
-      rows,
       client: new EmptyDatabaseClient(),
       ledger: fakeSourceNameLedger({
         agencies: {

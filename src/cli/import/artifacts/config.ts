@@ -5,16 +5,12 @@ import {
   createCensusLocationAdministrativeAreaResolver,
 } from "./agency-coordinate-resolver.js";
 import { resolveImportAddress } from "./agency-address-resolution.js";
-import { DatabaseMutationPlanningError } from "./mutation-planning-error.js";
 import type {
   AgencyCoordinateRequest,
   AgencyCoordinateResolution,
 } from "./agency-coordinate-types.js";
 import { assertGeneratedSchemaCurrent } from "./assert-schema-current.js";
-import {
-  readLocationPaths,
-  readLocationPathAliases,
-} from "../../database/location-paths.js";
+import { validateArtifactRecords } from "./validate-artifact-records.js";
 import { loadDatabaseSchemaMetadata } from "../../database/schema.js";
 import {
   defaultDatabaseClientFactory,
@@ -49,10 +45,6 @@ import {
   type DatabaseMutationCounts,
 } from "./io/DatabaseMutationCounts.js";
 import {
-  DatabaseMutationsDebug,
-  type DatabaseMutationsDebugInput,
-} from "./io/DatabaseMutationsDebug.js";
-import {
   createSourceNameToCanonicalIdLedger,
   type SourceNameToCanonicalIdLedger,
 } from "../../state/source-name-to-canonical-id/index.js";
@@ -62,8 +54,6 @@ import {
   writeResolvedProperty,
 } from "../../state/resolved-property/index.js";
 import { replayDatabaseMutations } from "../../replay/database-mutations/config.js";
-import type { ImportRows } from "./transform.js";
-import { transformArtifacts } from "./transform.js";
 import {
   IMPORT_ARTIFACT_KINDS,
   INTAKE_API_VERSION,
@@ -484,7 +474,6 @@ type ImportArtifactsPipelineContext = {
   artifacts?: ArtifactsEnvelope;
   artifactMutation?: ApplyArtifactMutationResult;
   ledger: SourceNameToCanonicalIdLedger;
-  rows?: ImportRows;
   databaseMutationCounts?: DatabaseMutationCounts;
 };
 
@@ -587,20 +576,14 @@ async function applyArtifactMutationsStage(
   return { ...context, artifactMutation };
 }
 
-async function transformArtifactsStage(
+async function validateArtifactRecordsStage(
   context: ImportArtifactsPipelineContext,
 ): Promise<ImportArtifactsPipelineContext> {
   if (context.artifacts === undefined) {
-    throw new Error("Artifacts must be loaded before transforming artifacts.");
+    throw new Error("Artifacts must be loaded before validating records.");
   }
-
-  context.commandInput.logger?.info("Transforming artifact records.");
-  const rows = await transformArtifacts(context.artifacts, context.ledger);
-  context.commandInput.logger?.debug(
-    { locationPaths: rows.locationPaths.length },
-    "Artifacts transformed.",
-  );
-  return { ...context, rows };
+  validateArtifactRecords(context.artifacts);
+  return context;
 }
 
 /**
@@ -655,60 +638,6 @@ async function closeClient(client: DatabaseClient): Promise<void> {
   } catch {
     // The original connection or write error is the actionable failure.
   }
-}
-
-async function writeFailedDatabaseMutationsDebugEnvelope(
-  context: ImportArtifactsPipelineContext,
-  error: DatabaseMutationPlanningError,
-): Promise<never> {
-  if (
-    context.artifacts === undefined ||
-    context.artifactMutation === undefined
-  ) {
-    throw new Error(
-      "Artifacts must be loaded before writing DatabaseMutationsDebug.",
-    );
-  }
-  if (context.commandInput.commandDirectory === undefined) {
-    throw new Error(
-      "Command directory is required to write DatabaseMutationsDebug.",
-    );
-  }
-  context.commandInput.logger?.info(
-    "Writing debug DatabaseMutations envelope.",
-  );
-  const envelopeInput: DatabaseMutationsDebugInput = {
-    metadata: {
-      namespace: context.artifacts.metadata.namespace,
-      name: context.commandName,
-      sourceArtifactsName: context.artifacts.metadata.name,
-      sourceArtifactsPath: context.artifactsPath,
-      sourceArtifactsDigest: await Artifacts.digest(context.artifactsPath),
-      databaseSchema: error.schema,
-      ...(context.artifactMutation.applied
-        ? { artifactMutation: context.artifactMutation.reference }
-        : {}),
-      status: "failed",
-      counts: {
-        locationPaths: error.rows.locationPaths.length,
-        locationPathGeometries: error.rows.locationPathGeometries?.length ?? 0,
-        locationPathAliases: error.rows.locationPathAliases.length,
-      },
-      errors: [...error.errors],
-      preparationMutations: [...error.rows.preparationMutations],
-    },
-    spec: { mutations: [] },
-  };
-  await mkdir(context.commandInput.commandDirectory, { recursive: true });
-  const databaseMutationsEnvelope = await DatabaseMutationsDebug.write(
-    context.commandInput.commandDirectory,
-    DatabaseMutationsDebug.new(envelopeInput),
-  );
-  context.commandInput.logger?.info(
-    { databaseMutationsPath: databaseMutationsEnvelope.path },
-    "Debug DatabaseMutations envelope written.",
-  );
-  throw error;
 }
 
 type RawLocationPathGeometryArtifact = {
@@ -970,12 +899,10 @@ async function writeDatabaseMutationsStage(
 ): Promise<ImportArtifactsPipelineContext> {
   if (
     context.artifacts === undefined ||
-    context.artifactMutation === undefined ||
-    context.rows === undefined
+    context.artifactMutation === undefined
   ) {
-    throw new Error("Artifacts must be transformed before writing.");
+    throw new Error("Artifacts must be validated before writing.");
   }
-  const rows = context.rows;
   const artifacts = context.artifacts;
   const ledger = context.ledger;
   const logger = context.commandInput.logger;
@@ -990,8 +917,6 @@ async function writeDatabaseMutationsStage(
   if (databaseUrl === undefined || databaseUrl.trim().length === 0) {
     throw new Error("DATABASE_URL is required to write database mutations.");
   }
-  rows.preparationMutations = [];
-
   // Read-only connection (ADR 0019): validation and every facade's lazy
   // current-row read share it; the envelope is applied by the replay client.
   const deps = agencyResolutionDeps(context);
@@ -1010,39 +935,15 @@ async function writeDatabaseMutationsStage(
   try {
     const { importSchema } = await loadDatabaseSchemaMetadata(client);
     assertGeneratedSchemaCurrent(importSchema.appliedMigrations);
-    const databaseLocationPaths = await readLocationPaths(client);
-    const databaseLocationPathAliases = await readLocationPathAliases(client);
     const dataContext = new DataContext({
       client,
-      rows,
       logger,
       ledger,
       commandName: context.commandName,
-      databaseLocationPaths,
-      databaseLocationPathAliases,
       resolvedPropertyStore: deps.resolvedPropertyCache,
       resolveAddress: (input) => resolveImportAddress(input, deps),
       resolveAdministrativeArea: deps.resolveLocationAdministrativeArea,
     });
-
-    const preparationErrors = [
-      ...dataContext.validatePreparedRows(),
-      ...dataContext.validateLocationPathIdStability(),
-    ];
-    if (preparationErrors.length > 0) {
-      logger?.info?.(
-        { errorCount: preparationErrors.length },
-        "Database row preparation failed.",
-      );
-      await writeFailedDatabaseMutationsDebugEnvelope(
-        context,
-        new DatabaseMutationPlanningError(
-          rows,
-          preparationErrors,
-          importSchema,
-        ),
-      );
-    }
 
     dataContext.addAgencyRecords(artifacts);
     // Register in FK-dependency order so each same-source find targets an
@@ -1122,7 +1023,7 @@ const importArtifactsPipelineStages: ImportArtifactsPipelineStage[] = [
   readArtifactsStage,
   rejectExistingImportStage,
   applyArtifactMutationsStage,
-  transformArtifactsStage,
+  validateArtifactRecordsStage,
   // Prepares, validates, emits, and applies in one pass over a single DataContext.
   writeDatabaseMutationsStage,
 ];

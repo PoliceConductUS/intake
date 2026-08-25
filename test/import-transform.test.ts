@@ -3,9 +3,7 @@ import type {
   ImportArtifactKind,
   ArtifactsEnvelope,
 } from "../src/shared/io/Artifacts.js";
-import type { SourceNameToCanonicalIds } from "../src/cli/state/source-name-to-canonical-id/index.js";
-import { transformArtifacts } from "../src/cli/import/artifacts/transform.js";
-import { fakeSourceNameLedger } from "./cli/state/fake-source-name-ledger.js";
+import { validateArtifactRecords } from "../src/cli/import/artifacts/validate-artifact-records.js";
 
 const agency = {
   id: "a2j-agency-source",
@@ -72,14 +70,6 @@ function artifactsWithEntities(entities: EntityMaps): ArtifactsEnvelope {
   };
 }
 
-const mappings = {
-  locationPaths: {},
-  agencies: { [agency.id]: { canonicalId: "agency-canonical-id" } },
-  personnel: { [personnel.id]: { canonicalId: "personnel-canonical-id" } },
-  agencyPersonnel: {
-    [roster.id]: { canonicalId: "agency-personnel-canonical-id" },
-  },
-} satisfies SourceNameToCanonicalIds;
 
 type EntityName = "agencies" | "personnel" | "agencyPersonnel";
 
@@ -114,142 +104,13 @@ function artifactsWithInvalidRequiredField(
   });
 }
 
-describe("transformArtifacts", () => {
-  test("transforms artifacts-provided location paths and aliases", async () => {
-    const artifacts = artifactsWithEntities({
-      locationPaths: {
-        "/mn/ramsey-county/saint-paul/": {
-          location_path_id: "/mn/ramsey-county/saint-paul/",
-          path: "/mn/ramsey-county/saint-paul/",
-          level: "place",
-          state_or_territory_slug: "mn",
-          administrative_area_slug: "ramsey-county",
-          place_slug: "saint-paul",
-          state_or_territory_name: "Minnesota",
-          administrative_area_name: "Ramsey County",
-          place_name: "Saint Paul",
-          parent_location_path_id: "/mn/ramsey-county/",
-          centroid: { type: "Point", coordinates: [-93.09, 44.9537] },
-          bbox: {
-            type: "Polygon",
-            coordinates: [
-              [
-                [-93.23, 44.88],
-                [-92.98, 44.88],
-                [-92.98, 45.03],
-                [-93.23, 45.03],
-                [-93.23, 44.88],
-              ],
-            ],
-          },
-        },
-      },
-      locationPathAliases: {
-        "st-paul-alias": {
-          alias_path: "/mn/ramsey-county/st-paul/",
-          location_path_id: "saint-paul-location-path",
-        },
-      },
-    });
-
-    const rows = await transformArtifacts(
-      artifacts,
-      fakeSourceNameLedger({
-        locationPaths: {
-          "/mn/ramsey-county/saint-paul/": {
-            canonicalId: "saint-paul-location-path",
-          },
-          "/mn/ramsey-county/": {
-            canonicalId: "ramsey-county-location-path",
-          },
-        },
-      }),
-    );
-
-    expect(rows.locationPaths).toEqual([
-      {
-        location_path_id: "saint-paul-location-path",
-        path: "/mn/ramsey-county/saint-paul/",
-        level: "place",
-        state_or_territory_slug: "mn",
-        administrative_area_slug: "ramsey-county",
-        place_slug: "saint-paul",
-        state_or_territory_name: "Minnesota",
-        administrative_area_name: "Ramsey County",
-        place_name: "Saint Paul",
-        parent_location_path_id: "ramsey-county-location-path",
-        centroid: { type: "Point", coordinates: [-93.09, 44.9537] },
-        bbox: {
-          type: "Polygon",
-          coordinates: [
-            [
-              [-93.23, 44.88],
-              [-92.98, 44.88],
-              [-92.98, 45.03],
-              [-93.23, 45.03],
-              [-93.23, 44.88],
-            ],
-          ],
-        },
-      },
-    ]);
-    expect(rows.locationPathAliases).toEqual([
-      {
-        alias_path: "/mn/ramsey-county/st-paul/",
-        location_path_id: "saint-paul-location-path",
-      },
-    ]);
-  });
-
-  test("allows location path source names to differ from source location paths", async () => {
-    const artifacts = artifactsWithEntities({
-      locationPaths: {
-        "place:GEOID:2758000": {
-          location_path_id: "/mn/ramsey-county/saint-paul/",
-          path: "/mn/ramsey-county/saint-paul/",
-          level: "place",
-          state_or_territory_slug: "mn",
-          administrative_area_slug: "ramsey-county",
-          place_slug: "saint-paul",
-          state_or_territory_name: "Minnesota",
-          administrative_area_name: "Ramsey County",
-          place_name: "Saint Paul",
-          parent_location_path_id: "administrative_area:GEOID:27123",
-        },
-      },
-    });
-
-    const rows = await transformArtifacts(
-      artifacts,
-      fakeSourceNameLedger({
-        locationPaths: {
-          "place:GEOID:2758000": { canonicalId: "canonical-location-path-id" },
-          "administrative_area:GEOID:27123": {
-            canonicalId: "ramsey-county-location-path",
-          },
-        },
-      }),
-    );
-
-    expect(rows.locationPaths[0]).toMatchObject({
-      location_path_id: "canonical-location-path-id",
-      parent_location_path_id: "ramsey-county-location-path",
-      path: "/mn/ramsey-county/saint-paul/",
-    });
-  });
-
-  // Agency, Personnel, and AgencyPersonnel mutation building moved from the
-  // transform to their facades (ADR 0016/0019); the transform only validates
-  // their source records against the schema and builds location-path rows.
-
+describe("validateArtifactRecords", () => {
   test("rejects unknown source record fields", async () => {
     const artifacts = artifactsWithEntities({
       agencies: { [agency.id]: { ...agency, unsupported: "rejected" } },
     });
 
-    await expect(
-      transformArtifacts(artifacts, fakeSourceNameLedger(mappings)),
-    ).rejects.toThrow(
+    expect(() => validateArtifactRecords(artifacts)).toThrow(
       "Artifacts Agencies record a2j-agency-source is malformed at unsupported.",
     );
   });
@@ -269,9 +130,7 @@ describe("transformArtifacts", () => {
           value,
         );
 
-        await expect(
-          transformArtifacts(artifacts, fakeSourceNameLedger(mappings)),
-        ).rejects.toThrow(
+        expect(() => validateArtifactRecords(artifacts)).toThrow(
           `Artifacts ${entityName === "agencyPersonnel" ? "AgencyPersonnel" : entityName === "personnel" ? "Personnel" : "Agencies"} record ${sourceName} is malformed at ${fieldName}.`,
         );
       }
@@ -285,8 +144,6 @@ describe("transformArtifacts", () => {
       agencyPersonnel: { [roster.id]: roster },
     });
 
-    await expect(
-      transformArtifacts(artifacts, fakeSourceNameLedger(mappings)),
-    ).resolves.toBeDefined();
+    expect(() => validateArtifactRecords(artifacts)).not.toThrow();
   });
 });
