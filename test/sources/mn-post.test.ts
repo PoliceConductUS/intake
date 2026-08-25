@@ -31,8 +31,10 @@ const agencyIds = [
   "  id: a2jBETA",
 ].join("\n");
 
+// Header matches the real MN POST roster export: the email column is
+// "Organization Email", not "Email".
 const agenciesCsv = [
-  "Agency,Agency Type,Chief Law Enforcement Officer,Address,City,State,Zip,Phone,Email",
+  "Agency,Agency Type,Chief Law Enforcement Officer,Address,City,State,Zip,Phone,Organization Email",
   "Alpha Police Dept.,Police,Jane Chief,100 Main St,Alphaville,MN,55111,555-1000,chief@alpha.mn",
 ].join("\n");
 

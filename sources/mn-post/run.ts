@@ -60,7 +60,7 @@ const AGENCY_CSV_COLUMNS = [
   "Address",
   "Zip",
   "Chief Law Enforcement Officer",
-  "Email",
+  "Organization Email",
 ] as const;
 
 export const run: SourceRun = async ({ paths }) => {
@@ -161,7 +161,7 @@ export const run: SourceRun = async ({ paths }) => {
           name: agency.name,
           ...location,
           contact_name: nullIfBlank(csv?.["Chief Law Enforcement Officer"]),
-          contact_email: nullIfBlank(csv?.["Email"]),
+          contact_email: nullIfBlank(csv?.["Organization Email"]),
         },
       };
     }
