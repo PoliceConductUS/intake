@@ -6,7 +6,7 @@ import type {
 import type {
   LocationAdministrativeAreaRequest,
   LocationAdministrativeAreaResolution,
-} from "./data-context.js";
+} from "./location-resolution.js";
 
 const CENSUS_BATCH_URL =
   "https://geocoding.geo.census.gov/geocoder/locations/addressbatch";

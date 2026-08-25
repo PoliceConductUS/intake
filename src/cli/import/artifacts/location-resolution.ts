@@ -7,13 +7,63 @@ import {
 } from "../../database/location-paths.js";
 import type { LocationPathRow } from "../../../shared/io/generated/entity-specs.js";
 // Type-only (erased at runtime), so there is no import cycle with data-context,
-// which imports these classes as values.
-import type {
-  DataContext,
-  AddressResolutionRequest,
-  LocationResolution,
-  ResolveAddressInput,
-} from "./data-context.js";
+// which imports these classes and types as values/types.
+import type { DataContext } from "./data-context.js";
+
+export type LocationAdministrativeAreaRequest = {
+  address?: string;
+  state: string;
+  placeName: string;
+  placeSlug: string;
+  zipCode?: string;
+};
+
+export type LocationAdministrativeAreaResolution = {
+  administrativeAreaName: string;
+  administrativeAreaSlug?: string;
+};
+
+export type AddressResolutionRequest = {
+  entityType: string;
+  entityId: string;
+  sourceName?: string;
+  name?: string;
+  address: string;
+  place: string;
+  state: string;
+  zipCode: string;
+  administrativeAreaName?: string;
+  administrativeAreaSlug?: string;
+  latitude?: number;
+  longitude?: number;
+};
+
+export type AddressResolution = {
+  latitude: number;
+  longitude: number;
+};
+
+export type LocationResolution = {
+  locationPathId: string;
+  addressLatitude: number;
+  addressLongitude: number;
+};
+
+export type ResolveAddressInput = {
+  entityType: string;
+  entityId: string;
+  state?: string;
+  place?: string;
+  zipCode?: string;
+  address?: string;
+  administrativeAreaName?: string;
+  administrativeAreaSlug?: string;
+  latitude?: number;
+  longitude?: number;
+  name?: string;
+  sourceName?: string;
+  preferredLocationPathId?: string;
+};
 
 function normalizeAddressToken(value: string): string {
   return value

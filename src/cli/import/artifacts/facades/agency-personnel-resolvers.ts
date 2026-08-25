@@ -8,7 +8,7 @@ import {
 import type {
   LocationResolution,
   ResolveAddressInput,
-} from "../data-context.js";
+} from "../location-resolution.js";
 
 // The Agency and Personnel resolvers operate on a plain string-keyed row so they
 // slot into the generic registry; their specific column types are erased there.

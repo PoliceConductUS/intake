@@ -21,7 +21,7 @@ import { readDatabaseRecordByColumn } from "../../database/entities.js";
 import type {
   LocationAdministrativeAreaRequest,
   LocationAdministrativeAreaResolution,
-} from "./data-context.js";
+} from "./location-resolution.js";
 import { DataContext } from "./data-context.js";
 import { isRegistryKind } from "./facades/resolver-registry.js";
 import type { ApplyArtifactMutationResult } from "./artifact-mutation.js";

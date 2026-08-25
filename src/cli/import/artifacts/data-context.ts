@@ -37,6 +37,12 @@ import {
   LocationDataContext,
   LocationPathDataContext,
 } from "./location-resolution.js";
+import type {
+  AddressResolutionRequest,
+  AddressResolution,
+  LocationResolution,
+  ResolveAddressInput,
+} from "./location-resolution.js";
 import type { ResolvedPropertyCacheInput } from "../../state/resolved-property/index.js";
 
 /**
@@ -115,64 +121,6 @@ function validateSourceRecordContext(input: SourceRecordContext): void {
     throw new Error("Source record metadata.name is required.");
   }
 }
-
-
-export type LocationAdministrativeAreaRequest = {
-  address?: string;
-  state: string;
-  placeName: string;
-  placeSlug: string;
-  zipCode?: string;
-};
-
-export type LocationAdministrativeAreaResolution = {
-  administrativeAreaName: string;
-  administrativeAreaSlug?: string;
-};
-
-export type AddressResolutionRequest = {
-  entityType: string;
-  entityId: string;
-  sourceName?: string;
-  name?: string;
-  address: string;
-  place: string;
-  state: string;
-  zipCode: string;
-  administrativeAreaName?: string;
-  administrativeAreaSlug?: string;
-  latitude?: number;
-  longitude?: number;
-};
-
-export type AddressResolution = {
-  latitude: number;
-  longitude: number;
-};
-
-export type LocationResolution = {
-  locationPathId: string;
-  addressLatitude: number;
-  addressLongitude: number;
-};
-
-export type ResolveAddressInput = {
-  entityType: string;
-  entityId: string;
-  state?: string;
-  place?: string;
-  zipCode?: string;
-  address?: string;
-  administrativeAreaName?: string;
-  administrativeAreaSlug?: string;
-  latitude?: number;
-  longitude?: number;
-  name?: string;
-  sourceName?: string;
-  preferredLocationPathId?: string;
-};
-
-
 
 
 

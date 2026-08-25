@@ -4,7 +4,7 @@ import {
   type LocationAdministrativeAreaRequest,
   type LocationAdministrativeAreaResolution,
   type LocationResolution,
-} from "./data-context.js";
+} from "./location-resolution.js";
 import type {
   AgencyCoordinateRequest,
   AgencyCoordinateResolution,
