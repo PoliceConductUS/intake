@@ -26,7 +26,6 @@ import {
 import {
   RECORD_KINDS_IN_DEPENDENCY_ORDER,
   RESOLVED_PROPERTIES,
-  TABLE_BY_KIND,
   type LocationPathRow,
 } from "../../../shared/io/generated/entity-specs.js";
 import { IMPORT_OPERATION_SUFFIXES } from "../../../shared/io/import-type-metadata.js";
@@ -41,9 +40,8 @@ import {
   readLocationPathByPath,
   readLocationPathsContainingPoint,
 } from "../../database/location-paths.js";
-import { readDatabaseRecordsByColumn } from "../../database/entities.js";
-import type { SupportedTableName } from "../../database/schema.js";
 import { SlugAllocator } from "./slug.js";
+import { CurrentRowReader } from "./current-row-reader.js";
 import type { ResolvedPropertyCacheInput } from "../../state/resolved-property/index.js";
 
 /**
@@ -339,17 +337,6 @@ function isCheckOnlyUpdateItem(item: DatabaseMutationItem): boolean {
 }
 
 
-type RowReadBatch = {
-  tableName: SupportedTableName;
-  identityColumn: string;
-  requests: Map<
-    string,
-    {
-      resolve: (row: Record<string, unknown> | undefined) => void;
-      reject: (error: unknown) => void;
-    }
-  >;
-};
 
 /** A facade the generic registry builder produces (its row shape is erased). */
 type RegistryFacade = EntityFacade<
@@ -378,12 +365,7 @@ export class DataContext {
   readonly locations: LocationDataContext;
   readonly locationPaths: LocationPathDataContext;
   private readonly client?: DatabaseClient;
-  private readonly lazyCurrentRowCache = new Map<
-    string,
-    Promise<Record<string, unknown> | undefined>
-  >();
-  private readonly pendingRowReads = new Map<string, RowReadBatch>();
-  private rowReadFlushScheduled = false;
+  private readonly rows: CurrentRowReader;
   readonly logger?: DataContextLogger;
   private readonly addressResolutionCache = new Map<
     string,
@@ -402,13 +384,14 @@ export class DataContext {
 
   constructor(options: DataContextOptions) {
     this.client = options.client;
+    this.rows = new CurrentRowReader(options.client);
     this.logger = options.logger;
     this.resolveAddressFn = options.resolveAddress;
     this.resolvedPropertyStore = options.resolvedPropertyStore;
     this.commandName = options.commandName;
     this.ledger = options.ledger;
     this.slugs = new SlugAllocator(async (kind, slug) => {
-      const row = await this.getById(kind, slug, "slug");
+      const row = await this.rows.getById(kind, slug, "slug");
       return row === undefined ? undefined : valueAsString(row.id);
     });
     this.locations = new LocationDataContext(this);
@@ -452,7 +435,7 @@ export class DataContext {
   ): UnifiedFacadeBackend {
     return {
       findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
-      existingRow: (id) => this.getById(kind, id, identityColumn),
+      existingRow: (id) => this.rows.getById(kind, id, identityColumn),
       findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
       getLocationPathByPath: (path) => this.locationPaths.getByPath(path),
       ensureUniqueSlug: (input) =>
@@ -532,127 +515,6 @@ export class DataContext {
    * other read requested in the same tick into one `where <col> = any($1)`,
    * then memoized. No bulk current-row read at startup.
    */
-  private tableForKind(kind: string): SupportedTableName {
-    const table = TABLE_BY_KIND[kind];
-    if (table === undefined) {
-      throw new Error(`No table is mapped for record kind ${kind}.`);
-    }
-    return table as SupportedTableName;
-  }
-
-  getById(
-    kind: string,
-    id: string,
-    identityColumn = "id",
-  ): Promise<Record<string, unknown> | undefined> {
-    return this.rowByColumn(this.tableForKind(kind), id, identityColumn);
-  }
-
-  private rowByColumn(
-    tableName: SupportedTableName,
-    id: string,
-    identityColumn = "id",
-  ): Promise<Record<string, unknown> | undefined> {
-    const cacheKey = `${tableName}:${identityColumn}:${id}`;
-    let pending = this.lazyCurrentRowCache.get(cacheKey);
-    if (pending === undefined) {
-      pending = this.enqueueRowRead(tableName, identityColumn, id);
-      this.lazyCurrentRowCache.set(cacheKey, pending);
-    }
-    return pending;
-  }
-
-  private enqueueRowRead(
-    tableName: SupportedTableName,
-    identityColumn: string,
-    id: string,
-  ): Promise<Record<string, unknown> | undefined> {
-    const batchKey = `${tableName}:${identityColumn}`;
-    let batch = this.pendingRowReads.get(batchKey);
-    if (batch === undefined) {
-      batch = { tableName, identityColumn, requests: new Map() };
-      this.pendingRowReads.set(batchKey, batch);
-    }
-    return new Promise((resolve, reject) => {
-      batch.requests.set(id, { resolve, reject });
-      if (!this.rowReadFlushScheduled) {
-        this.rowReadFlushScheduled = true;
-        // setImmediate, not queueMicrotask: a group's facades reach this read
-        // spread across many microtasks (FK and slug resolution), so a microtask
-        // flush fires before they gather and each read runs alone. Deferring to
-        // the macrotask boundary lets the whole group batch into one query.
-        setImmediate(() => void this.flushRowReads());
-      }
-    });
-  }
-
-  private async flushRowReads(): Promise<void> {
-    this.rowReadFlushScheduled = false;
-    const batches = [...this.pendingRowReads.values()].filter(
-      (batch) => batch.requests.size > 0,
-    );
-    this.pendingRowReads.clear();
-    if (batches.length === 0) return;
-    if (batches.length === 1) {
-      await this.runRowReadBatch(batches[0]);
-      return;
-    }
-    // Fold the pending per-table batches into one UNION ALL round-trip rather
-    // than a concurrent query each (which overlaps on the single read client).
-    const selects = batches.map(
-      (batch, index) =>
-        `select ${index} as __batch, row_to_json(t.*) as __row ` +
-        `from ${batch.tableName} t where ${batch.identityColumn} = any($${index + 1})`,
-    );
-    const params = batches.map((batch) => [...new Set(batch.requests.keys())]);
-    try {
-      const result = await this.databaseClient().query(
-        selects.join(" union all "),
-        params,
-      );
-      const rowsByBatch = batches.map(
-        () => new Map<string, Record<string, unknown>>(),
-      );
-      for (const item of searchRows(result)) {
-        const index = Number(item.__batch);
-        const row = (item.__row ?? {}) as Record<string, unknown>;
-        const id = row[batches[index].identityColumn];
-        if (id !== undefined && id !== null) {
-          rowsByBatch[index].set(String(id), row);
-        }
-      }
-      batches.forEach((batch, index) => {
-        for (const [id, request] of batch.requests) {
-          request.resolve(rowsByBatch[index].get(id));
-        }
-      });
-    } catch (error) {
-      for (const batch of batches) {
-        for (const request of batch.requests.values()) request.reject(error);
-      }
-    }
-  }
-
-  private async runRowReadBatch(batch: RowReadBatch): Promise<void> {
-    try {
-      const rows = await readDatabaseRecordsByColumn(
-        this.databaseClient(),
-        batch.tableName,
-        batch.identityColumn,
-        [...batch.requests.keys()],
-      );
-      const rowByKey = new Map(
-        rows.map((row) => [String(row[batch.identityColumn]), row] as const),
-      );
-      for (const [id, request] of batch.requests) {
-        request.resolve(rowByKey.get(id));
-      }
-    } catch (error) {
-      for (const request of batch.requests.values()) {
-        request.reject(error);
-      }
-    }
-  }
 
 
   /**
@@ -763,14 +625,6 @@ export class DataContext {
 
 }
 
-function searchRows(result: unknown): Record<string, unknown>[] {
-  return typeof result === "object" &&
-    result !== null &&
-    "rows" in result &&
-    Array.isArray((result as { rows?: unknown[] }).rows)
-    ? (result as { rows: Record<string, unknown>[] }).rows
-    : [];
-}
 
 function addressResolutionRequest(
   input: ResolveAddressInput,
