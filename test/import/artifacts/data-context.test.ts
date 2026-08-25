@@ -217,7 +217,7 @@ describe("DataContext", () => {
 
     expect(await agency.toMutation()).toMatchObject({
       kind: "AgencyCreate",
-      metadata: { namespace: "mn-post", name: "mn-state-patrol" },
+      metadata: { namespace: "mn-post", name: "agency-canonical-id" },
       spec: {
         id: "agency-canonical-id",
         name: "Minnesota State Patrol",
@@ -278,7 +278,7 @@ describe("DataContext", () => {
 
     expect(await agency.toMutation()).toMatchObject({
       kind: "AgencyUpdate",
-      metadata: { namespace: "mn-post", name: "mn-state-patrol" },
+      metadata: { namespace: "mn-post", name: "agency-canonical-id" },
       spec: {
         operations: expect.arrayContaining([
           expect.objectContaining({
@@ -390,7 +390,7 @@ describe("DataContext", () => {
     expect(await context.toMutations()).toMatchObject([
       {
         kind: "AgencyCreate",
-        metadata: { namespace: "mn-post", name: "mn-state-patrol" },
+        metadata: { namespace: "mn-post", name: "agency-canonical-id" },
         spec: { id: "agency-canonical-id" },
       },
     ]);
@@ -446,7 +446,7 @@ describe("DataContext", () => {
         mutations: [
           {
             kind: "AgencyCreate",
-            name: "mn-state-patrol",
+            name: "agency-canonical-id",
             spec: { id: "agency-canonical-id" },
           },
         ],
@@ -528,7 +528,7 @@ describe("DataContext", () => {
     expect(await context.toMutations()).toMatchObject([
       {
         kind: "AgencyUpdate",
-        metadata: { namespace: "mn-post", name: "mn-state-patrol" },
+        metadata: { namespace: "mn-post", name: "agency-canonical-id" },
         spec: {
           operations: expect.arrayContaining([
             expect.objectContaining({ action: "check", path: "name" }),
@@ -818,7 +818,7 @@ describe("DataContext", () => {
 
     expect(await facade.toMutation()).toMatchObject({
       kind: "LicensingAuthorityUpdate",
-      metadata: { namespace: "gov.tx.tcole", name: "tcole" },
+      metadata: { namespace: "gov.tx.tcole", name: "authority-canonical-id" },
       spec: {
         operations: [
           { action: "check", path: "name" },
@@ -868,7 +868,7 @@ describe("DataContext", () => {
     expect(envelope.spec.mutations).toMatchObject([
       {
         kind: "LicensingAuthorityCreate",
-        name: "tcole",
+        name: "authority-canonical-id",
         spec: {
           id: "authority-canonical-id",
           name: "Texas Commission on Law Enforcement",
@@ -914,7 +914,7 @@ describe("DataContext", () => {
 
     expect(await facade.toMutation()).toMatchObject({
       kind: "LicensingAuthorityUpdate",
-      metadata: { namespace: "gov.tx.tcole", name: "tcole" },
+      metadata: { namespace: "gov.tx.tcole", name: "authority-canonical-id" },
       spec: {
         operations: [
           { action: "check", path: "name" },
@@ -1039,7 +1039,7 @@ describe("DataContext", () => {
       kind: "LicenseCreate",
       metadata: {
         namespace: "gov.tx.tcole",
-        name: "1000038|Peace Officer License",
+        name: "license-canonical-id",
       },
       spec: {
         id: "license-canonical-id",
@@ -1081,7 +1081,7 @@ describe("DataContext", () => {
       kind: "LicenseUpdate",
       metadata: {
         namespace: "gov.tx.tcole",
-        name: "1000038|Peace Officer License",
+        name: "license-canonical-id",
       },
       spec: {
         operations: [
@@ -1197,7 +1197,7 @@ describe("DataContext", () => {
       kind: "LicenseActionCreate",
       metadata: {
         namespace: "gov.tx.tcole",
-        name: "1000038|Peace Officer License|Issued|1994-06-16",
+        name: "license-action-canonical-id",
       },
       spec: {
         id: "license-action-canonical-id",
@@ -1286,7 +1286,7 @@ describe("PersonnelFacade", () => {
 
     expect(await facade.toMutation()).toMatchObject({
       kind: "PersonnelCreate",
-      metadata: { namespace: "gov.tx.tcole", name: "1000038" },
+      metadata: { namespace: "gov.tx.tcole", name: "personnel-canonical-id" },
       spec: {
         id: "personnel-canonical-id",
         first_name: "Marc",
@@ -1589,6 +1589,9 @@ describe("AgencyPersonnelFacade", () => {
       "personnel-source": { canonicalId: "personnel-canonical-id" },
     },
     licenses: { "license-source": { canonicalId: "license-canonical-id" } },
+    agencyPersonnel: {
+      "ap-source": { canonicalId: "agency-personnel-canonical-id" },
+    },
   };
 
   test("resolves its agency, personnel, and license foreign keys to canonical ids", async () => {
@@ -1611,7 +1614,7 @@ describe("AgencyPersonnelFacade", () => {
 
     expect(await facade.toMutation()).toMatchObject({
       kind: "AgencyPersonnelCreate",
-      metadata: { namespace: "mn-post", name: "ap-source" },
+      metadata: { namespace: "mn-post", name: "agency-personnel-canonical-id" },
       spec: {
         agency_id: "agency-canonical-id",
         officer_id: "personnel-canonical-id",

@@ -52,8 +52,6 @@ type KindConfig = {
   identityKind?: "canonical" | "natural";
   /** Existing row → a diffed update (default) or an idempotent read. */
   upsert?: "update" | "read";
-  /** Envelope `metadata.name`: the source name (default) or the identity value. */
-  metadataName?: "source" | "identity";
   /** Columns dropped from the write when null (streamed/optional geometry). */
   omitWhenNull?: readonly string[];
   /**
@@ -102,7 +100,6 @@ const REGISTRY: Record<string, KindConfig> = {
   LocationPath: {
     identity: "location_path_id",
     upsert: "read",
-    metadataName: "identity",
     omitWhenNull: ["centroid", "bbox"],
     overrides: {
       parent_location_path_id: facadeNullableForeignKeyResolver<Row>(
@@ -116,7 +113,6 @@ const REGISTRY: Record<string, KindConfig> = {
     identity: "alias_path",
     identityKind: "natural",
     upsert: "read",
-    metadataName: "identity",
   },
   LicensingAuthority: {
     overrides: {
@@ -267,7 +263,6 @@ export function buildFacadeForKind(
       backend: options.backend,
       identity,
       upsert: config.upsert,
-      metadataName: config.metadataName,
       omitWhenNull: config.omitWhenNull,
       cache: options.cache,
       cacheableProperties: RESOLVED_PROPERTIES[kind],

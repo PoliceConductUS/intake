@@ -82,8 +82,6 @@ export type EntityFacadeOptions<Backend> = {
   existingBy?: string;
   /** Existing row → a diffed Update (default) or a Read (natural-key idempotent rows). */
   upsert?: UpsertMode;
-  /** Envelope `metadata.name`: the source name (default) or the identity value. */
-  metadataName?: "source" | "identity";
   /** Columns dropped from the write when their resolved value is null (e.g. geometry). */
   omitWhenNull?: readonly string[];
   /** The `source > cache > live-resolve` property cache (ADR 0019). */
@@ -115,7 +113,6 @@ export class EntityFacade<
   private readonly identity: keyof Row & string;
   private readonly existingBy: keyof Row & string;
   private readonly upsert: UpsertMode;
-  private readonly metadataName: "source" | "identity";
   private readonly omitWhenNull: ReadonlySet<string>;
   private readonly cache?: PropertyCache;
   private readonly cacheableProperties: ReadonlySet<string>;
@@ -135,7 +132,6 @@ export class EntityFacade<
     this.existingBy = (options.existingBy ?? this.identity) as keyof Row &
       string;
     this.upsert = options.upsert ?? "update";
-    this.metadataName = options.metadataName ?? "source";
     this.omitWhenNull = new Set(options.omitWhenNull ?? []);
     this.cache = options.cache;
     this.cacheableProperties = new Set(
@@ -275,13 +271,12 @@ export class EntityFacade<
       this.current ??
       (await this.backend.existingRow(existingKey as unknown as string));
 
-    const name =
-      this.metadataName === "identity"
-        ? String(identityValue)
-        : this.source.name;
+    // The envelope name is the target row's key value (ADR 0027): the pair
+    // (kind, name) is (which table/op, which row), and replay locates an
+    // update/read row by keyColumnName = name.
     const metadata: EnvelopeMetadata = {
       namespace: this.source.namespace,
-      name,
+      name: String(identityValue),
     };
 
     if (current === undefined) {

@@ -153,6 +153,53 @@ describeWithDocker("replay against a real Postgres", () => {
     expect(rows.rows).toEqual([{ slug: "existing" }]);
   });
 
+  test("applies an update by canonical id (metadata.name is the row key, ADR 0027)", async () => {
+    // An existing id-keyed row; its canonical id is what the update must locate.
+    await db.query(
+      `insert into public.agency (id, name, city, state, address, zip_code, slug, location_path_id, latitude, longitude)
+       values ('agency-canonical-id', 'A', 'Saint Paul', 'MN', '444 Cedar', '55101', 'old-slug', $1, 44.9, -93.1)`,
+      [LOCATION_PATH_ID],
+    );
+    const rootDir = await mkdtemp(path.join(tmpdir(), "intake-replay-"));
+    const source = {
+      namespace: "mn-post",
+      command: { name: "import" },
+      kind: "Agency",
+      name: "agency-canonical-id",
+    };
+    // metadata.name is the canonical id (the row key), NOT the source name — the
+    // update spec carries no id, so replay locates the row by metadata.name.
+    const envelopePath = await writeEnvelope(rootDir, [
+      {
+        kind: "AgencyUpdate",
+        name: "agency-canonical-id",
+        spec: {
+          operations: [
+            {
+              action: "set",
+              path: "slug",
+              from: "old-slug",
+              to: "new-slug",
+              reason: "Set Agency slug.",
+              source,
+            },
+          ],
+        },
+      },
+    ]);
+
+    const result = await replayDatabaseMutations({
+      databaseMutationsPath: envelopePath,
+      env: { DATABASE_URL: db.connectionString },
+    });
+
+    expect(result.ok).toBe(true);
+    const rows = await db.query(
+      "select id, slug from public.agency where id = 'agency-canonical-id'",
+    );
+    expect(rows.rows).toEqual([{ id: "agency-canonical-id", slug: "new-slug" }]);
+  });
+
   test("stores a location path centroid and bbox as real PostGIS geometry", async () => {
     await db.query(
       `insert into public.location_path (location_path_id, path, level, state_or_territory_slug, state_or_territory_name)
