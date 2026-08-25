@@ -942,7 +942,6 @@ async function writeDatabaseMutationsStage(
       commandName: context.commandName,
       resolvedPropertyStore: deps.resolvedPropertyCache,
       resolveAddress: (input) => resolveImportAddress(input, deps),
-      resolveAdministrativeArea: deps.resolveLocationAdministrativeArea,
     });
 
     dataContext.addAgencyRecords(artifacts);

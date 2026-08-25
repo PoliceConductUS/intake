@@ -80,9 +80,6 @@ export type DataContextOptions = {
   resolveAddress?: (
     input: AddressResolutionRequest,
   ) => Promise<AddressResolution | undefined>;
-  resolveAdministrativeArea?: (
-    input: LocationAdministrativeAreaRequest,
-  ) => Promise<LocationAdministrativeAreaResolution | undefined>;
   resolvedPropertyStore?: ResolvedPropertyStore;
   commandName?: string;
   /**
@@ -404,7 +401,6 @@ export class DataContext {
     LocationResolution
   >();
   private readonly resolveAddressFn?: DataContextOptions["resolveAddress"];
-  private readonly resolveAdministrativeArea?: DataContextOptions["resolveAdministrativeArea"];
   private readonly resolvedPropertyStore?: ResolvedPropertyStore;
   private readonly commandName?: string;
   private readonly ledger?: SourceNameToCanonicalIdLedger;
@@ -453,7 +449,6 @@ export class DataContext {
     this.client = options.client;
     this.logger = options.logger;
     this.resolveAddressFn = options.resolveAddress;
-    this.resolveAdministrativeArea = options.resolveAdministrativeArea;
     this.resolvedPropertyStore = options.resolvedPropertyStore;
     this.commandName = options.commandName;
     this.ledger = options.ledger;
@@ -1128,15 +1123,6 @@ export class DataContext {
         mutations: await this.toDatabaseMutationItems(),
       },
     });
-  }
-
-  // `canonicalIdFromProperty` (ADR 0011) is superseded by the AgencyFacade
-  // `location_path_id` composition resolver (ADR 0016 #7).
-
-  async resolveLocationAdministrativeArea(
-    input: LocationAdministrativeAreaRequest,
-  ): Promise<LocationAdministrativeAreaResolution | undefined> {
-    return this.resolveAdministrativeArea?.(input);
   }
 
   async resolveAddress(
