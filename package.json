@@ -13,6 +13,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "generate:envelope-types": "tsx scripts/generate-envelope-types.ts",
+    "generate:data-request-doc": "tsx scripts/generate-data-request-doc.ts",
     "setup": "bash scripts/bootstrap-dev.sh",
     "doctor": "bash scripts/bootstrap-dev.sh --check",
     "cli": "tsx src/cli/index.ts",
