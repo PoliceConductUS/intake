@@ -256,11 +256,29 @@ export class LocationDataContext {
 export class LocationPathDataContext {
   constructor(private readonly context: DataContext) {}
 
+  // The census hierarchy is read-only during an import, so a path resolves to the
+  // same row every time; memoize per path so N same-state records share one read.
+  private readonly byPathCache = new Map<
+    string,
+    Promise<LocationPathRow | undefined>
+  >();
+
   // A location_path_id source key is the full path string; resolve it by a lazy
   // per-reference read of the census-owned tables (ADR 0024): the location_path
   // by `path`, else the location_path_alias by `alias_path`. The caller (a field
   // resolver) caches the hit and fails loud when neither matches.
-  async getByPath(path: string): Promise<LocationPathRow | undefined> {
+  getByPath(path: string): Promise<LocationPathRow | undefined> {
+    let pending = this.byPathCache.get(path);
+    if (pending === undefined) {
+      pending = this.readByPath(path);
+      this.byPathCache.set(path, pending);
+    }
+    return pending;
+  }
+
+  private async readByPath(
+    path: string,
+  ): Promise<LocationPathRow | undefined> {
     const client = this.context.databaseClient();
     const direct = await readLocationPathByPath(client, path);
     if (direct !== undefined) {
