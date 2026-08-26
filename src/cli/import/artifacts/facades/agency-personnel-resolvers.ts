@@ -184,9 +184,16 @@ export function agencyLocationPathResolver(): Resolver<
     if (currentValue !== undefined) {
       return currentValue;
     }
-    const resolution = await backend.resolveAgencyLocation(
-      agencyAddressInput(facade, source),
-    );
+    // Reuse the resolved coordinates (the `latitude`/`longitude` resolvers read
+    // them from the PropertyCache / existing row / geocode), so the location does
+    // not re-geocode the address independently — an unchanged address with cached
+    // coordinates resolves from the cache, not a fresh (and possibly failing, e.g.
+    // a PO box) geocode.
+    const resolution = await backend.resolveAgencyLocation({
+      ...agencyAddressInput(facade, source),
+      latitude: valueAsFiniteNumber(await facade.value("latitude")),
+      longitude: valueAsFiniteNumber(await facade.value("longitude")),
+    });
     return resolution.locationPathId;
   });
 }
