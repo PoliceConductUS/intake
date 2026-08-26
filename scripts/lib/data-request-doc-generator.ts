@@ -242,6 +242,9 @@ function renderTable(rows: FieldRow[]): string {
  * records, and which intake resolves on its own.
  */
 export function generateDataRequestDoc(schema: IntrospectedSchema): string {
+  // The spec version is the schema's latest applied migration — it changes only
+  // when the schema changes, so it is a stable identifier a provider can target.
+  const specVersion = schema.migrations.versions.at(-1) ?? "unknown";
   const sections: string[] = [];
   for (const artifactKind of IMPORT_ARTIFACT_KINDS) {
     const meta = importTypeMetadata[artifactKind];
@@ -267,6 +270,10 @@ This document defines the data PoliceConduct.US can accept from a source export,
 generated directly from our database schema so it never drifts. Use it when
 preparing a data export or when requesting one from an agency or records office.
 
+**Spec version: \`${specVersion}\`.** This version changes only when our schema
+changes; record it as \`spec_version\` in your manifest (below) so we know which
+version of the format your export targets.
+
 ## File naming and layout
 
 - **One file per record type.** Name each file \`<request-id>.<Kind>.csv\`, where
@@ -279,6 +286,33 @@ preparing a data export or when requesting one from an agency or records office.
   tabular or JSON form.)
 - Use the **same \`<request-id>\`** across all files in one export so we can link
   references between them.
+
+## Manifest
+
+Include **exactly one** manifest in the export — \`manifest.json\`,
+\`manifest.yaml\`, or \`manifest.csv\` — listing the spec version you targeted and
+every file you are sending. It lets us confirm the export is complete and know
+which record type each file holds. It carries:
+
+- \`spec_version\` — the spec version above your export targets.
+- \`request_id\` — the \`<request-id>\` shared by your files.
+- \`files\` — one entry per data file: its \`file\` name, the \`kind\` (record type)
+  it holds, and the \`rows\` it contains.
+
+\`manifest.json\`:
+
+    {
+      "spec_version": "${specVersion}",
+      "request_id": "az-post-2026-06",
+      "files": [
+        { "file": "az-post-2026-06.Agency.csv", "kind": "Agency", "rows": 1234 },
+        { "file": "az-post-2026-06.Personnel.csv", "kind": "Personnel", "rows": 5678 }
+      ]
+    }
+
+\`manifest.yaml\` is the same shape. \`manifest.csv\` is one row per file with the
+header \`spec_version,request_id,file,kind,rows\` (repeat the version and request
+id on every row).
 
 ## How to read this
 
