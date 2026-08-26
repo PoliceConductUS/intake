@@ -8,9 +8,13 @@ function fakeContext(options: {
   containing: Partial<Record<"place" | "administrative_area", unknown[]>>;
   byId?: Record<string, unknown>;
   byStateSlug?: unknown[];
+  nearest?: unknown;
 }) {
   const client = {
     query: async (text: string, values: readonly unknown[] = []) => {
+      if (text.includes("<->")) {
+        return { rows: options.nearest === undefined ? [] : [options.nearest] };
+      }
       if (text.includes("ST_Covers")) {
         const level = values[2] as "place" | "administrative_area";
         return { rows: options.containing[level] ?? [] };
@@ -108,11 +112,17 @@ describe("getPlaceContainingPoint place snap (ADR: agency location must be a pla
     ).resolves.toBe("amarillo");
   });
 
-  it("fails loud when the city is not a place in the state (typo/unincorporated → seed)", async () => {
+  it("falls back to the nearest place when the city names no place (typo/unincorporated)", async () => {
+    // The address is the office building's location, so the nearest place is a
+    // valid answer — no fail-loud.
     const context = fakeContext({
       containing: { place: [], administrative_area: [county] },
       byId: { bexar: county },
       byStateSlug: [],
+      nearest: {
+        location_path_id: "nearest-town",
+        path: "/tx/austin-county/some-town/",
+      },
     });
     await expect(
       context.getPlaceContainingPoint({
@@ -122,6 +132,6 @@ describe("getPlaceContainingPoint place snap (ADR: agency location must be a pla
         place: "Bleiblerville",
         stateSlug: "TX",
       }),
-    ).rejects.toThrow(/no place location_path_geometry boundary contains/);
+    ).resolves.toBe("nearest-town");
   });
 });

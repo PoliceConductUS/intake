@@ -4,6 +4,7 @@ import {
   readLocationPathById,
   readLocationPathByPath,
   readLocationPathsContainingPoint,
+  readNearestPlace,
   readPlacesByStateAndSlug,
 } from "../../database/location-paths.js";
 import type { LocationPathRow } from "../../../shared/io/generated/entity-specs.js";
@@ -383,8 +384,20 @@ export class LocationPathDataContext {
       }
     }
 
+    // The address is the office building's location, so the nearest place is a
+    // valid answer when the point is in no place and its city names none (a
+    // mis-typed or unincorporated community). Jurisdiction is out of scope.
+    if (stateSlug !== "") {
+      const nearest = await readNearestPlace(this.context.databaseClient(), {
+        latitude: input.latitude,
+        longitude: input.longitude,
+        stateSlug,
+      });
+      if (nearest !== undefined) return nearest.location_path_id;
+    }
+
     throw new Error(
-      `Cannot resolve a place location_path_id for ${input.subject}: no place location_path_geometry boundary contains point ${input.latitude}, ${input.longitude}, and its city ${JSON.stringify(cityName)} is not a place in ${JSON.stringify(stateSlug)}.`,
+      `Cannot resolve a place location_path_id for ${input.subject}: point ${input.latitude}, ${input.longitude} is in no place and ${JSON.stringify(stateSlug)} has no place at all.`,
     );
   }
 }

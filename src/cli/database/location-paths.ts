@@ -79,6 +79,34 @@ export async function readPlacesByStateAndSlug(
   ) as unknown as DatabaseLocationPathRow[];
 }
 
+// The place nearest a point within a state (KNN by boundary distance). An
+// agency's address is its office building, a physical point, so when no place
+// contains it and its city names no place, the nearest place is a valid location.
+export async function readNearestPlace(
+  client: DatabaseClient,
+  input: { latitude: number; longitude: number; stateSlug: string },
+): Promise<DatabaseLocationPathRow | undefined> {
+  return firstRow<DatabaseLocationPathRow>(
+    await client.query(
+      `select lp.location_path_id, lp.path, lp.level, lp.state_or_territory_slug,
+              lp.administrative_area_slug, lp.place_slug, lp.state_or_territory_name,
+              lp.administrative_area_name, lp.place_name, lp.parent_location_path_id,
+              case when lp.centroid is null then null
+                   else ST_AsGeoJSON(lp.centroid::geometry)::jsonb end as centroid,
+              case when lp.bbox is null then null
+                   else ST_AsGeoJSON(lp.bbox)::jsonb end as bbox
+         from public.location_path lp
+         join public.location_path_geometry lpg
+           on lpg.location_path_id = lp.location_path_id
+        where lp.level = 'place'
+          and lp.state_or_territory_slug = $3
+        order by lpg.boundary <-> ST_SetSRID(ST_MakePoint($1, $2), 4326)
+        limit 1`,
+      [input.longitude, input.latitude, input.stateSlug],
+    ),
+  );
+}
+
 export async function readLocationPathAliasByPath(
   client: DatabaseClient,
   aliasPath: string,
