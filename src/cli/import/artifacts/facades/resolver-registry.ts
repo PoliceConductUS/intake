@@ -185,6 +185,19 @@ const REGISTRY: Record<string, KindConfig> = {
       id: coverageLinkIdResolver() as AnyResolver,
     },
   },
+  CoverageLinkAgencyPersonnel: {
+    // The officer belongs to a roster source, so agency_personnel_id resolves
+    // through the ledger, not a same-run facade (ADR 0023) — this holds whether
+    // the coverage source produced the roster (mn-post) or only references it
+    // via resolvePersonnel (youtube.policeactivity).
+    overrides: {
+      agency_personnel_id: facadeLedgerForeignKeyResolver<Row>(
+        "CoverageLinkAgencyPersonnel",
+        "agency_personnel_id",
+        "AgencyPersonnel",
+      ) as AnyResolver,
+    },
+  },
 };
 
 /** The identity/primary-key column a kind resolves and keys existing rows on. */
