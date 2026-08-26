@@ -120,6 +120,8 @@ export const acquire: SourceAcquire = async ({
   let searched = 0;
   let skipped = 0;
   let failed = 0;
+  let agenciesWithCases = 0;
+  let totalCases = 0;
   let cursor: string | undefined;
   do {
     const page = await data.agencies({ minOfficers: 1, cursor, limit: 50 });
@@ -141,6 +143,8 @@ export const acquire: SourceAcquire = async ({
         continue;
       }
       searched += 1;
+      totalCases += cases.length;
+      if (cases.length > 0) agenciesWithCases += 1;
       await writeFile(
         path.join(sourceDir, `${slugify(agencyName)}.cases.json`),
         JSON.stringify(
@@ -160,6 +164,7 @@ export const acquire: SourceAcquire = async ({
   } while (cursor !== undefined);
 
   log.info(
-    `clearinghouse: ${searched} agencies searched, ${skipped} skipped (no clearinghouse state id), ${failed} skipped after errors.`,
+    `clearinghouse: ${totalCases} case(s) across ${agenciesWithCases} of ${searched} agencies searched; ` +
+      `${skipped} skipped (no clearinghouse state id), ${failed} skipped after errors.`,
   );
 };
