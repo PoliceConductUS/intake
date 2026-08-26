@@ -38,19 +38,8 @@ describe("youtube api client", () => {
     expect(await api.resolveChannelId("@Nope")).toBeNull();
   });
 
-  it("parses, de-duplicates, and paginates channel search hits", async () => {
-    const { api } = apiWith({
-      // Page 2 (checked first): repeats v1 (deduped) and adds v2. Page 1 (no
-      // pageToken) falls through to the channelId key and returns nextPageToken.
-      "pageToken=PT2": {
-        items: [
-          { id: { videoId: "v1" }, snippet: { title: "dupe" } },
-          {
-            id: { videoId: "v2" },
-            snippet: { title: "T2", description: "D2" },
-          },
-        ],
-      },
+  it("issues one date-bounded search call and parses/de-duplicates its hits", async () => {
+    const { api, jsonCalls } = apiWith({
       "channelId=UCpa123": {
         items: [
           {
@@ -58,22 +47,35 @@ describe("youtube api client", () => {
             snippet: {
               title: "T1",
               description: "D1",
-              publishedAt: "2024-01-01T00:00:00Z",
+              publishedAt: "2024-06-01T00:00:00Z",
               channelId: "UCpa123",
             },
           },
+          { id: { videoId: "v1" }, snippet: { title: "dupe" } },
+          { id: { videoId: "v2" }, snippet: { title: "T2" } },
         ],
         nextPageToken: "PT2",
       },
     });
 
-    const hits = await api.searchChannelVideos("UCpa123", "Irving Police");
+    const hits = await api.searchChannelVideos("UCpa123", "Irving Police", {
+      publishedAfter: "2024-01-01T00:00:00Z",
+      publishedBefore: "2025-01-01T00:00:00Z",
+    });
+
+    // Exactly one search call, ignoring nextPageToken, with the date window.
+    const searchCalls = jsonCalls.filter((u) => u.includes("/search?"));
+    expect(searchCalls).toHaveLength(1);
+    expect(searchCalls[0]).toContain("publishedAfter=2024-01-01T00%3A00%3A00Z");
+    expect(searchCalls[0]).toContain(
+      "publishedBefore=2025-01-01T00%3A00%3A00Z",
+    );
     expect(hits.map((h) => h.videoId)).toEqual(["v1", "v2"]);
     expect(hits[0]).toEqual({
       videoId: "v1",
       title: "T1",
       description: "D1",
-      publishedAt: "2024-01-01T00:00:00Z",
+      publishedAt: "2024-06-01T00:00:00Z",
       channelId: "UCpa123",
       url: videoUrl("v1"),
     });

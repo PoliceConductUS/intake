@@ -12,13 +12,16 @@ export type YoutubeSearchHit = {
   url: string;
 };
 
+export type DateWindow = { publishedAfter?: string; publishedBefore?: string };
+
 export type YoutubeApi = {
   /** The immutable channel id for a handle like `@PoliceActivity`, or null. */
   resolveChannelId(handle: string): Promise<string | null>;
-  /** Video hits within a channel for a query (paged up to `maxPages`). */
+  /** One search call (up to 50 hits) within a channel, optionally date-bounded. */
   searchChannelVideos(
     channelId: string,
     query: string,
+    window?: DateWindow,
   ): Promise<YoutubeSearchHit[]>;
   /** The caption/transcript text for a video, or null when none is available. */
   fetchCaptions(videoId: string): Promise<string | null>;
@@ -41,9 +44,7 @@ export function videoUrl(videoId: string): string {
 export function createYoutubeApi(deps: {
   fetchJson: (url: string) => Promise<Record<string, unknown>>;
   fetchText: (url: string) => Promise<string>;
-  maxPages?: number;
 }): YoutubeApi {
-  const maxPages = deps.maxPages ?? 4;
   const api = "https://www.googleapis.com/youtube/v3";
 
   return {
@@ -57,38 +58,36 @@ export function createYoutubeApi(deps: {
       return id === "" ? null : id;
     },
 
-    async searchChannelVideos(channelId, query) {
+    async searchChannelVideos(channelId, query, window = {}) {
+      const params = new URLSearchParams({
+        part: "snippet",
+        channelId,
+        q: query,
+        type: "video",
+        maxResults: "50",
+        order: "date",
+      });
+      if (window.publishedAfter !== undefined)
+        params.set("publishedAfter", window.publishedAfter);
+      if (window.publishedBefore !== undefined)
+        params.set("publishedBefore", window.publishedBefore);
+      const body = await deps.fetchJson(`${api}/search?${params.toString()}`);
       const hits: YoutubeSearchHit[] = [];
       const seen = new Set<string>();
-      let pageToken = "";
-      for (let page = 0; page < maxPages; page += 1) {
-        const params = new URLSearchParams({
-          part: "snippet",
-          channelId,
-          q: query,
-          type: "video",
-          maxResults: "50",
-          order: "relevance",
+      for (const item of Array.isArray(body.items) ? body.items : []) {
+        const entry = record(item);
+        const videoId = str(record(entry.id).videoId);
+        if (videoId === "" || seen.has(videoId)) continue;
+        seen.add(videoId);
+        const snippet = record(entry.snippet);
+        hits.push({
+          videoId,
+          title: str(snippet.title),
+          description: str(snippet.description),
+          publishedAt: str(snippet.publishedAt),
+          channelId: str(snippet.channelId) || channelId,
+          url: videoUrl(videoId),
         });
-        if (pageToken !== "") params.set("pageToken", pageToken);
-        const body = await deps.fetchJson(`${api}/search?${params.toString()}`);
-        for (const item of Array.isArray(body.items) ? body.items : []) {
-          const entry = record(item);
-          const videoId = str(record(entry.id).videoId);
-          if (videoId === "" || seen.has(videoId)) continue;
-          seen.add(videoId);
-          const snippet = record(entry.snippet);
-          hits.push({
-            videoId,
-            title: str(snippet.title),
-            description: str(snippet.description),
-            publishedAt: str(snippet.publishedAt),
-            channelId: str(snippet.channelId) || channelId,
-            url: videoUrl(videoId),
-          });
-        }
-        pageToken = str(body.nextPageToken);
-        if (pageToken === "") break;
       }
       return hits;
     },

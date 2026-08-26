@@ -1,11 +1,10 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-// A per-agency search cache so a re-run does not re-spend YouTube search quota on
-// agencies searched within the refresh window (mirrors courtlistener's
-// docket-cache). Keyed by agency slug.
+// Per-agency, per-year search cache: a run does one search call per agency for
+// one year, so re-runs skip years already fetched and backfill older years one at
+// a time (gentle on the YouTube search quota).
 export const CACHE_FILE = "video-cache.json";
-export const REFRESH_DAYS = 30;
 
 export type AcquiredVideo = {
   videoId: string;
@@ -14,14 +13,11 @@ export type AcquiredVideo = {
   publishedAt: string;
   channelId: string;
   url: string;
-  // Caption text, or null when the video has no available captions (provenance
-  // is part of video identity, #52).
   captions: string | null;
 };
 
 export type AgencyVideoCacheEntry = {
-  lastSearchedAt: string;
-  videos: AcquiredVideo[];
+  years: Record<string, { searchedAt: string; videos: AcquiredVideo[] }>;
 };
 
 export type VideoCache = {
@@ -50,13 +46,30 @@ export async function saveVideoCache(
   );
 }
 
-export function agencyNeedsSearch(
+// The newest year in [floorYear, currentYear] this agency has not searched yet,
+// or null when it is backfilled to the floor.
+export function nextYearToAcquire(
   entry: AgencyVideoCacheEntry | undefined,
-  nowMs: number,
-  refreshDays: number = REFRESH_DAYS,
-): boolean {
-  if (entry === undefined) return true;
-  const lastMs = Date.parse(entry.lastSearchedAt);
-  if (!Number.isFinite(lastMs)) return true;
-  return (nowMs - lastMs) / 86_400_000 > refreshDays;
+  floorYear: number,
+  currentYear: number,
+): number | null {
+  for (let year = currentYear; year >= floorYear; year -= 1) {
+    if (entry === undefined || entry.years[String(year)] === undefined) {
+      return year;
+    }
+  }
+  return null;
+}
+
+// Every cached year's videos for an agency, de-duplicated by videoId.
+export function mergedVideos(
+  entry: AgencyVideoCacheEntry | undefined,
+): AcquiredVideo[] {
+  const byId = new Map<string, AcquiredVideo>();
+  for (const year of Object.values(entry?.years ?? {})) {
+    for (const video of year.videos) {
+      if (!byId.has(video.videoId)) byId.set(video.videoId, video);
+    }
+  }
+  return [...byId.values()];
 }

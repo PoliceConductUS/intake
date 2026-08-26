@@ -5,28 +5,30 @@ import type {
   SourceAcquire,
 } from "../../src/cli/run/source-run.js";
 import { slugify } from "../lib/civil-defendants.js";
-import { createYoutubeApi, type AcquiredVideo } from "../lib/youtube.js";
+import { createYoutubeApi } from "../lib/youtube.js";
 import {
-  agencyNeedsSearch,
   loadVideoCache,
-  REFRESH_DAYS,
+  mergedVideos,
+  nextYearToAcquire,
   saveVideoCache,
+  type AcquiredVideo,
 } from "./video-cache.js";
 
-// The PoliceActivity channel (#64). Identity is the immutable channel id resolved
-// from this handle at acquire time (#52).
 const CHANNEL_HANDLE = "@PoliceActivity";
 const MAX_RETRIES = 5;
 const MAX_BACKOFF_MS = 60_000;
+// Be gentle: a small pause between agency searches (we are in no rush).
+const POLITE_DELAY_MS = 250;
 
-// The channel search query for an agency: its name plus, when present, its place,
-// so the channel search is scoped to that agency.
 function agencyQuery(name: string, place: string): string {
   return [name, place]
     .map((part) => part.trim())
     .filter(Boolean)
     .join(" ");
 }
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
 
 export const acquire: SourceAcquire = async ({
   sourceDir,
@@ -56,7 +58,6 @@ export const acquire: SourceAcquire = async ({
       } catch {
         body = text;
       }
-      // Log with the key redacted so raw evidence never carries the secret.
       await appendFile(
         apiLogPath,
         `${JSON.stringify({ at: new Date().toISOString(), url, status: response.status, body })}\n`,
@@ -72,7 +73,7 @@ export const acquire: SourceAcquire = async ({
       log.info(
         `youtube.policeactivity: ${response.status}; retrying in ${Math.round(waitMs / 1000)}s (attempt ${attempt + 1}/${MAX_RETRIES}).`,
       );
-      await new Promise((resolve) => setTimeout(resolve, waitMs));
+      await sleep(waitMs);
     }
   };
   const fetchText = async (url: string): Promise<string> => {
@@ -92,11 +93,15 @@ export const acquire: SourceAcquire = async ({
     JSON.stringify({ handle: CHANNEL_HANDLE, channelId }, null, 2),
   );
 
+  // Backfill window: the current year by default; prod widens it (e.g. 5 years)
+  // via YOUTUBE_MIN_YEAR. Each run fetches one agency-year, newest first.
+  const currentYear = new Date().getFullYear();
+  const floorYear = Number(env.YOUTUBE_MIN_YEAR ?? currentYear);
+
   const cache = await loadVideoCache(state);
-  const nowMs = Date.now();
-  const nowIso = new Date(nowMs).toISOString();
+  const nowIso = new Date().toISOString();
   let searched = 0;
-  let cached = 0;
+  let upToDate = 0;
   let failed = 0;
 
   const processAgency = async (
@@ -108,39 +113,45 @@ export const acquire: SourceAcquire = async ({
   ): Promise<void> => {
     if (agencyName === "") return;
     const slug = slugify(agencyName);
+    const entry = cache.agencies[slug] ?? { years: {} };
 
-    let videos: AcquiredVideo[];
-    if (agencyNeedsSearch(cache.agencies[slug], nowMs)) {
+    const year = nextYearToAcquire(entry, floorYear, currentYear);
+    if (year === null) {
+      upToDate += 1;
+    } else {
       try {
         const hits = await youtube.searchChannelVideos(
           channelId,
           agencyQuery(agencyName, place),
+          {
+            publishedAfter: `${year}-01-01T00:00:00Z`,
+            publishedBefore: `${year + 1}-01-01T00:00:00Z`,
+          },
         );
-        videos = [];
+        const videos: AcquiredVideo[] = [];
         for (const hit of hits) {
           videos.push({
             ...hit,
             captions: await youtube.fetchCaptions(hit.videoId),
           });
         }
+        entry.years[String(year)] = { searchedAt: nowIso, videos };
+        cache.agencies[slug] = entry;
+        await saveVideoCache(state, cache);
+        searched += 1;
+        log.info(
+          `youtube.policeactivity: ${agencyName} ${year} — ${videos.length} video(s) [searched ${searched}]`,
+        );
+        await sleep(POLITE_DELAY_MS);
       } catch (error) {
-        // One agency's search failing must not abort the whole run — log and
-        // skip, leaving it uncached so a later run retries it.
+        // One agency-year failing (an odd query, or quota exhausted) must not
+        // abort the run — log and skip, uncached so a later run retries it.
         failed += 1;
         log.info(
-          `youtube.policeactivity: ${agencyName} — search failed, skipped (${error instanceof Error ? error.message : String(error)}).`,
+          `youtube.policeactivity: ${agencyName} ${year} — search failed, skipped (${error instanceof Error ? error.message : String(error)}).`,
         );
         return;
       }
-      cache.agencies[slug] = { lastSearchedAt: nowIso, videos };
-      await saveVideoCache(state, cache);
-      searched += 1;
-      log.info(
-        `youtube.policeactivity: ${agencyName} — ${videos.length} video(s) [searched ${searched}]`,
-      );
-    } else {
-      videos = cache.agencies[slug].videos;
-      cached += 1;
     }
 
     await writeFile(
@@ -155,7 +166,7 @@ export const acquire: SourceAcquire = async ({
             place,
           },
           channelId,
-          videos,
+          videos: mergedVideos(entry),
         },
         null,
         2,
@@ -179,6 +190,6 @@ export const acquire: SourceAcquire = async ({
   } while (cursor !== undefined);
 
   log.info(
-    `youtube.policeactivity: ${searched} agencies searched, ${cached} served from cache (< ${REFRESH_DAYS} days), ${failed} skipped after errors. state=${state}`,
+    `youtube.policeactivity: ${searched} agency-years searched, ${upToDate} already backfilled to ${floorYear}, ${failed} skipped after errors. state=${state}`,
   );
 };
