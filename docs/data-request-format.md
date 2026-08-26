@@ -180,15 +180,15 @@ A news article, report, or record documenting an incident or person.
 
 One row per CoverageLink.
 
-| Field            | Type                 | Required | Constraints                                      | Relationship / notes                                       |
-| ---------------- | -------------------- | -------- | ------------------------------------------------ | ---------------------------------------------------------- |
-| `id`             | text                 | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
-| `url`            | text                 | yes      | —                                                | —                                                          |
-| `normalized_url` | text                 | yes      | —                                                | —                                                          |
-| `title`          | text                 | yes      | —                                                | —                                                          |
-| `source_name`    | text                 | optional | —                                                | —                                                          |
-| `published_at`   | timestamp (ISO 8601) | optional | ISO 8601                                         | —                                                          |
-| `notes`          | text                 | optional | —                                                | —                                                          |
+| Field            | Type                | Required | Constraints                                      | Relationship / notes                                       |
+| ---------------- | ------------------- | -------- | ------------------------------------------------ | ---------------------------------------------------------- |
+| `id`             | text                | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
+| `url`            | text                | yes      | —                                                | —                                                          |
+| `normalized_url` | text                | yes      | —                                                | —                                                          |
+| `title`          | text                | yes      | —                                                | —                                                          |
+| `source_name`    | text                | optional | —                                                | —                                                          |
+| `published_at`   | date (`YYYY-MM-DD`) | optional | format `YYYY-MM-DD`                              | —                                                          |
+| `notes`          | text                | optional | —                                                | —                                                          |
 
 ### CoverageLinkAgencyPersonnel
 
