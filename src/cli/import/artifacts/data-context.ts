@@ -28,7 +28,10 @@ import type {
   LocationResolution,
   ResolveAddressInput,
 } from "./location-resolution.js";
-import type { ResolvedPropertyCacheInput } from "../../state/resolved-property/index.js";
+import type {
+  ResolvedPropertyCacheInput,
+  ResolvedPropertySource,
+} from "../../state/resolved-property/index.js";
 
 /**
  * The workspace `ResolvedProperty` store, adapted to `(input) -> value`. The
@@ -37,7 +40,12 @@ import type { ResolvedPropertyCacheInput } from "../../state/resolved-property/i
  */
 type ResolvedPropertyStore = {
   read(input: ResolvedPropertyCacheInput): Promise<unknown | undefined>;
-  write(input: ResolvedPropertyCacheInput & { value: unknown }): Promise<void>;
+  write(
+    input: ResolvedPropertyCacheInput & {
+      value: unknown;
+      source?: ResolvedPropertySource;
+    },
+  ): Promise<void>;
 };
 import {
   DatabaseMutations,
@@ -181,16 +189,27 @@ export class DataContext {
       return undefined;
     }
     return {
-      read: ({ kind, id, property }) =>
+      read: ({ kind, id, property, inputFingerprint }) =>
         cache.read({
           subject: { apiVersion: INTAKE_API_VERSION, kind, name: id },
           targetProperty: property,
+          inputFingerprint,
         }),
-      write: ({ kind, id, property }, value) =>
+      write: ({ kind, id, property, inputFingerprint, source }, value) =>
         cache.write({
           subject: { apiVersion: INTAKE_API_VERSION, kind, name: id },
           targetProperty: property,
+          inputFingerprint,
           value,
+          ...(source === undefined
+            ? {}
+            : {
+                source: {
+                  namespace: source.namespace,
+                  kind,
+                  name: source.name,
+                },
+              }),
         }),
     };
   }

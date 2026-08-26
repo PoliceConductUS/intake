@@ -42,12 +42,32 @@ export class Resolver<T, Ctx> {
   constructor(
     private readonly resolveFn: (context: Ctx) => Promise<T | undefined>,
     private readonly policy: ResolverPolicy<T> = {},
+    /**
+     * The normalized input this resolver derives its value from — the only thing
+     * that knows what the value depends on is the resolver itself (ADR 0019). The
+     * cache keys entries by a fingerprint of this object, so an unchanged input
+     * serves the cached value and a changed one re-resolves. Absent ⇒ the property
+     * is cached by `(subject, property)` alone (a single legacy value).
+     */
+    private readonly cacheInputFn?: (
+      context: Ctx,
+    ) => Promise<unknown> | unknown,
   ) {
     if (Object.keys(policy).length > 1) {
       throw new Error(
         "A resolver is constructed with at most one of defaultValue or exception.",
       );
     }
+  }
+
+  get cachesByInput(): boolean {
+    return this.cacheInputFn !== undefined;
+  }
+
+  async cacheInput(context: Ctx): Promise<unknown | undefined> {
+    return this.cacheInputFn === undefined
+      ? undefined
+      : await this.cacheInputFn(context);
   }
 
   async resolve(context: Ctx, locate: () => string): Promise<T> {
@@ -99,9 +119,17 @@ export interface PropertyCache {
     kind: string;
     id: string;
     property: string;
+    inputFingerprint?: string;
   }): Promise<unknown | undefined>;
   write(
-    key: { kind: string; id: string; property: string },
+    key: {
+      kind: string;
+      id: string;
+      property: string;
+      inputFingerprint?: string;
+      /** The source record that resolved this value (per-entry provenance). */
+      source?: { namespace: string; name: string };
+    },
     value: unknown,
   ): Promise<void>;
 }

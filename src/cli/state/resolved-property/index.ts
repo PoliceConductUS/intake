@@ -11,19 +11,25 @@ export type ResolvedPropertySubject = {
   name: string;
 };
 
+/** The source record that resolved a value (per-entry provenance). */
 export type ResolvedPropertySource = {
   namespace: string;
   kind: string;
   name: string;
-  inputFingerprint: string;
 };
 
-type ResolvedPropertySourceEvidence = Omit<ResolvedPropertySource, "namespace">;
+type EntrySources = Record<string, { kind: string; name: string }>;
 
 export type ResolvedPropertyCacheInput = {
   subject: ResolvedPropertySubject;
   targetProperty: string;
-  source?: ResolvedPropertySource;
+  /**
+   * Fingerprint of the resolver's normalized input (ADR 0019). The cache stores
+   * one entry per fingerprint; a read hits only the entry with the matching
+   * fingerprint. Absent ⇒ the property is keyed by `(subject, property)` alone
+   * (a single legacy value that matches any read).
+   */
+  inputFingerprint?: string;
 };
 
 function stableJson(value: unknown): string {
@@ -73,22 +79,6 @@ function resolvedPropertyPath(
     resolvedPropertyDirectory(rootDir),
     yamlResourceFileName(resolvedPropertyCacheName(input), "ResolvedProperty"),
   );
-}
-
-function resolvedPropertySources(
-  source: ResolvedPropertySource | undefined,
-): Record<string, ResolvedPropertySourceEvidence> | undefined {
-  if (source === undefined) {
-    return undefined;
-  }
-
-  return {
-    [source.namespace]: {
-      kind: source.kind,
-      name: source.name,
-      inputFingerprint: source.inputFingerprint,
-    },
-  };
 }
 
 async function readableResolvedPropertyFile(
@@ -181,37 +171,94 @@ export async function readResolvedProperty(
       `ResolvedProperty spec identity does not match cache name ${resolvedPropertyCacheName(input)}.`,
     );
   }
-  return envelope.spec.value;
+
+  const entries = envelopeEntries(envelope.spec);
+  // No fingerprint (a property keyed by subject+property alone): the first
+  // stored value wins, matching the pre-`entries` single-value behavior.
+  if (input.inputFingerprint === undefined) {
+    return entries[0]?.value;
+  }
+  const match = entries.find(
+    (entry) => entry.inputFingerprint === input.inputFingerprint,
+  );
+  if (match !== undefined) {
+    return match.value;
+  }
+  // A legacy seed carries a value but no fingerprint; the seed corresponds to
+  // the source data being imported, so its value is this input's value. Adopt it
+  // under the current fingerprint (so a later input change re-resolves) and serve.
+  const legacy = entries.find((entry) => entry.inputFingerprint === undefined);
+  if (legacy !== undefined) {
+    await persistEntries(input.rootDir, input, [
+      ...fingerprintedEntries(entries),
+      { inputFingerprint: input.inputFingerprint, value: legacy.value },
+    ]);
+    return legacy.value;
+  }
+  return undefined;
 }
 
-export async function writeResolvedProperty(
-  input: ResolvedPropertyCacheInput & { rootDir?: string; value: unknown },
-): Promise<void> {
-  if (input.rootDir === undefined) {
-    return;
-  }
+type ResolvedPropertyEntry = {
+  inputFingerprint?: string;
+  value: unknown;
+  sources?: EntrySources;
+};
+type FingerprintedEntry = ResolvedPropertyEntry & { inputFingerprint: string };
 
-  const filePath = resolvedPropertyPath(input.rootDir, input);
-  const existingEnvelope = (await readableResolvedPropertyFile(filePath))
-    ? await ResolvedProperty.read(filePath, {
-        expectedNamespace: "intake",
-      })
-    : undefined;
-  if (
-    existingEnvelope !== undefined &&
-    stableJson(existingEnvelope.spec.value) !== stableJson(input.value)
-  ) {
-    throw new Error(
-      `ResolvedProperty ${resolvedPropertyCacheName(input)} already has a different value.`,
-    );
+function fingerprintedEntries(
+  entries: ReadonlyArray<ResolvedPropertyEntry>,
+): FingerprintedEntry[] {
+  return entries.flatMap((entry) =>
+    entry.inputFingerprint === undefined
+      ? []
+      : [
+          {
+            inputFingerprint: entry.inputFingerprint,
+            value: entry.value,
+            ...(entry.sources === undefined ? {} : { sources: entry.sources }),
+          },
+        ],
+  );
+}
+
+function mergedSources(
+  existing: EntrySources | undefined,
+  source: ResolvedPropertySource | undefined,
+): EntrySources | undefined {
+  if (source === undefined) {
+    return existing;
   }
-  const sources = {
-    ...(existingEnvelope?.spec.sources ?? {}),
-    ...(resolvedPropertySources(input.source) ?? {}),
+  return {
+    ...(existing ?? {}),
+    [source.namespace]: { kind: source.kind, name: source.name },
   };
+}
 
+function envelopeEntries(spec: {
+  entries?: ReadonlyArray<{
+    inputFingerprint: string;
+    value: unknown;
+    sources?: EntrySources;
+  }>;
+  value?: unknown;
+}): ResolvedPropertyEntry[] {
+  if (spec.entries !== undefined) {
+    return spec.entries.map((entry) => ({
+      inputFingerprint: entry.inputFingerprint,
+      value: entry.value,
+      ...(entry.sources === undefined ? {} : { sources: entry.sources }),
+    }));
+  }
+  return spec.value === undefined ? [] : [{ value: spec.value }];
+}
+
+async function persistEntries(
+  rootDir: string,
+  input: ResolvedPropertyCacheInput,
+  entries: ReadonlyArray<FingerprintedEntry>,
+): Promise<void> {
   await ResolvedProperty.write(
-    resolvedPropertyDirectory(input.rootDir),
+    resolvedPropertyDirectory(rootDir),
     ResolvedProperty.new({
       metadata: {
         name: resolvedPropertyCacheName(input),
@@ -220,9 +267,86 @@ export async function writeResolvedProperty(
       spec: {
         subject: input.subject,
         targetProperty: input.targetProperty,
-        ...(Object.keys(sources).length === 0 ? {} : { sources }),
-        value: input.value,
+        entries: [...entries],
       },
     }),
   );
+}
+
+export async function writeResolvedProperty(
+  input: ResolvedPropertyCacheInput & {
+    rootDir?: string;
+    value: unknown;
+    source?: ResolvedPropertySource;
+  },
+): Promise<void> {
+  if (input.rootDir === undefined) {
+    return;
+  }
+
+  const filePath = resolvedPropertyPath(input.rootDir, input);
+  const existingEnvelope = (await readableResolvedPropertyFile(filePath))
+    ? await ResolvedProperty.read(filePath, { expectedNamespace: "intake" })
+    : undefined;
+  const existing =
+    existingEnvelope === undefined
+      ? []
+      : envelopeEntries(existingEnvelope.spec);
+
+  // A property with no fingerprint keeps the single legacy value (subject+property
+  // is the whole key); it is written once and never changes for a given subject.
+  if (input.inputFingerprint === undefined) {
+    if (existing[0] !== undefined) {
+      if (stableJson(existing[0].value) !== stableJson(input.value)) {
+        throw new Error(
+          `ResolvedProperty ${resolvedPropertyCacheName(input)} already has a different value.`,
+        );
+      }
+      return;
+    }
+    await ResolvedProperty.write(
+      resolvedPropertyDirectory(input.rootDir),
+      ResolvedProperty.new({
+        metadata: {
+          name: resolvedPropertyCacheName(input),
+          namespace: "intake",
+        },
+        spec: {
+          subject: input.subject,
+          targetProperty: input.targetProperty,
+          value: input.value,
+        },
+      }),
+    );
+    return;
+  }
+
+  const fingerprint = input.inputFingerprint;
+  // Keep every prior fingerprinted entry (N inputs → N values); a legacy
+  // no-fingerprint value is dropped, superseded by this keyed entry.
+  const others = fingerprintedEntries(existing).filter(
+    (entry) => entry.inputFingerprint !== fingerprint,
+  );
+  const priorSameInput = existing.find(
+    (entry) => entry.inputFingerprint === fingerprint,
+  );
+  if (
+    priorSameInput !== undefined &&
+    // The resolver is deterministic on its input: the same fingerprint must
+    // produce the same value, so a mismatch is a bug, not a second entry.
+    stableJson(priorSameInput.value) !== stableJson(input.value)
+  ) {
+    throw new Error(
+      `ResolvedProperty ${resolvedPropertyCacheName(input)} already has a different value for the same input.`,
+    );
+  }
+  const sources = mergedSources(priorSameInput?.sources, input.source);
+  await persistEntries(input.rootDir, input, [
+    ...others,
+    {
+      inputFingerprint: fingerprint,
+      value: input.value,
+      ...(sources === undefined ? {} : { sources }),
+    },
+  ]);
 }

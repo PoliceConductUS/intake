@@ -142,6 +142,33 @@ export function agencySlugResolver(): Resolver<
   });
 }
 
+function normalizeToken(value: string | undefined): string | undefined {
+  return value === undefined
+    ? undefined
+    : value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/**
+ * The normalized geocode input the coordinate resolver derives lat/lng from — the
+ * address fields only (ADR 0019). The cache keys a coordinate entry by this, so
+ * an unchanged address serves the cached coordinate and a changed one re-geocodes.
+ * Identity fields (entity id, source name) are excluded: they do not move the pin.
+ */
+function agencyCoordinateCacheInput(
+  facade: PropertyResolutionFacade<Row>,
+  source: FacadeSource,
+): Record<string, string | undefined> {
+  const address = agencyAddressInput(facade, source);
+  return {
+    state: normalizeToken(address.state),
+    city: normalizeToken(address.place),
+    zipCode: normalizeToken(address.zipCode),
+    address: normalizeToken(address.address),
+    administrativeAreaName: normalizeToken(address.administrativeAreaName),
+    administrativeAreaSlug: normalizeToken(address.administrativeAreaSlug),
+  };
+}
+
 function agencyAddressInput(
   facade: PropertyResolutionFacade<Row>,
   source: FacadeSource,
@@ -171,34 +198,46 @@ export function agencyLocationPathResolver(): Resolver<
   string,
   ResolverContext<Row, AgencyLocationBackend>
 > {
-  return new Resolver(async ({ facade, backend, source }) => {
-    const present = valueAsString(facade.raw("location_path_id"));
-    if (present !== undefined) {
-      return present;
-    }
-    // Stability: an existing agency keeps its current location rather than being
-    // re-geocoded on update.
-    const id = String(await facade.value("id"));
-    const current = await backend.existingRow(id);
-    const currentValue =
-      current === undefined
-        ? undefined
-        : valueAsString(current.location_path_id);
-    if (currentValue !== undefined) {
-      return currentValue;
-    }
-    // Reuse the resolved coordinates (the `latitude`/`longitude` resolvers read
-    // them from the PropertyCache / existing row / geocode), so the location does
-    // not re-geocode the address independently — an unchanged address with cached
-    // coordinates resolves from the cache, not a fresh (and possibly failing, e.g.
-    // a PO box) geocode.
-    const resolution = await backend.resolveAgencyLocation({
-      ...agencyAddressInput(facade, source),
+  return new Resolver(
+    async ({ facade, backend, source }) => {
+      const present = valueAsString(facade.raw("location_path_id"));
+      if (present !== undefined) {
+        return present;
+      }
+      // Stability: an existing agency keeps its current location rather than being
+      // re-geocoded on update.
+      const id = String(await facade.value("id"));
+      const current = await backend.existingRow(id);
+      const currentValue =
+        current === undefined
+          ? undefined
+          : valueAsString(current.location_path_id);
+      if (currentValue !== undefined) {
+        return currentValue;
+      }
+      // Reuse the resolved coordinates (the `latitude`/`longitude` resolvers read
+      // them from the PropertyCache / existing row / geocode), so the location does
+      // not re-geocode the address independently — an unchanged address with cached
+      // coordinates resolves from the cache, not a fresh (and possibly failing, e.g.
+      // a PO box) geocode.
+      const resolution = await backend.resolveAgencyLocation({
+        ...agencyAddressInput(facade, source),
+        latitude: valueAsFiniteNumber(await facade.value("latitude")),
+        longitude: valueAsFiniteNumber(await facade.value("longitude")),
+      });
+      return resolution.locationPathId;
+    },
+    {},
+    async ({ facade }) => ({
+      // location_path_id derives from the resolved coordinates (which resolve
+      // through their own cache) plus the address city used to snap to a place;
+      // key on those so unchanged coordinates + city serve the cached path.
       latitude: valueAsFiniteNumber(await facade.value("latitude")),
       longitude: valueAsFiniteNumber(await facade.value("longitude")),
-    });
-    return resolution.locationPathId;
-  });
+      city: normalizeToken(valueAsString(facade.raw("city"))),
+      state: normalizeToken(valueAsString(facade.raw("state"))),
+    }),
+  );
 }
 
 /** `latitude`/`longitude` resolver: reuse source/existing, else the geocode. */
@@ -206,21 +245,27 @@ export function agencyCoordinateResolver(
   field: "addressLatitude" | "addressLongitude",
   column: "latitude" | "longitude",
 ): Resolver<number, ResolverContext<Row, AgencyLocationBackend>> {
-  return new Resolver(async ({ facade, backend, source }) => {
-    const present = valueAsFiniteNumber(facade.raw(column));
-    if (present !== undefined) {
-      return present;
-    }
-    const id = String(await facade.value("id"));
-    const current = await backend.existingRow(id);
-    const currentValue =
-      current === undefined ? undefined : valueAsFiniteNumber(current[column]);
-    if (currentValue !== undefined) {
-      return currentValue;
-    }
-    const resolution = await backend.resolveAgencyLocation(
-      agencyAddressInput(facade, source),
-    );
-    return resolution[field];
-  });
+  return new Resolver(
+    async ({ facade, backend, source }) => {
+      const present = valueAsFiniteNumber(facade.raw(column));
+      if (present !== undefined) {
+        return present;
+      }
+      const id = String(await facade.value("id"));
+      const current = await backend.existingRow(id);
+      const currentValue =
+        current === undefined
+          ? undefined
+          : valueAsFiniteNumber(current[column]);
+      if (currentValue !== undefined) {
+        return currentValue;
+      }
+      const resolution = await backend.resolveAgencyLocation(
+        agencyAddressInput(facade, source),
+      );
+      return resolution[field];
+    },
+    {},
+    ({ facade, source }) => agencyCoordinateCacheInput(facade, source),
+  );
 }

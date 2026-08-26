@@ -45,6 +45,7 @@ import {
 import {
   readResolvedProperty,
   type ResolvedPropertyCacheInput,
+  type ResolvedPropertySource,
   writeResolvedProperty,
 } from "../../state/resolved-property/index.js";
 import { replayDatabaseMutations } from "../../replay/database-mutations/config.js";
@@ -287,8 +288,12 @@ function agencyResolutionDeps(context: ImportArtifactsPipelineContext) {
     resolvedPropertyCache: {
       read: (input: ResolvedPropertyCacheInput) =>
         readResolvedProperty({ ...input, rootDir: context.workspaceRoot }),
-      write: (input: ResolvedPropertyCacheInput & { value: unknown }) =>
-        writeResolvedProperty({ ...input, rootDir: context.workspaceRoot }),
+      write: (
+        input: ResolvedPropertyCacheInput & {
+          value: unknown;
+          source?: ResolvedPropertySource;
+        },
+      ) => writeResolvedProperty({ ...input, rootDir: context.workspaceRoot }),
     },
   };
 }

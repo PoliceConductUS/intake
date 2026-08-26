@@ -8,6 +8,7 @@ import {
   type CanonicalIdBackend,
   type ForeignKeyBackend,
 } from "../resolver-kit.js";
+import { typedInputFingerprint } from "../../../state/resolved-property/index.js";
 
 /**
  * The backend a resolver-based entity facade reaches through: its own
@@ -209,18 +210,33 @@ export class EntityFacade<
     if (this.hasSourceValue(property)) {
       return resolver.resolve(context, locate);
     }
+    // The resolver alone knows what its value depends on; ask it for that
+    // normalized input and key the cache by its fingerprint (ADR 0019), so an
+    // unchanged input serves the cached value and a changed one re-resolves.
+    const input = await resolver.cacheInput(context);
     const key = {
       kind: this.kind,
-      id: await this.value(this.identity),
+      id: String(await this.value(this.identity)),
       property: String(property),
-    } as { kind: string; id: string; property: string };
+      inputFingerprint:
+        input === undefined ? undefined : typedInputFingerprint(input),
+    };
     const hit = await cache.read(key);
     if (hit !== undefined) {
       return hit as Row[K];
     }
     const resolved = await resolver.resolve(context, locate);
     if (resolved !== null && resolved !== undefined) {
-      await cache.write(key, resolved);
+      await cache.write(
+        {
+          ...key,
+          source: {
+            namespace: this.source.namespace,
+            name: this.source.name,
+          },
+        },
+        resolved,
+      );
     }
     return resolved;
   }
