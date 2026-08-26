@@ -232,6 +232,32 @@ export function facadeForeignKeyResolver<Row>(
 }
 
 /**
+ * Composed natural-key id (ADR 0028): the entity's id is the `|`-joined resolved
+ * values of the given properties — typically its foreign keys — so records that
+ * resolve to the same targets converge on one row across sources (e.g. the same
+ * officer named in the same case by two sources). Each property resolves through
+ * the normal path (an FK resolves to its target's canonical id), so the id
+ * depends on those FKs — a legal ordering, since no FK depends on the id.
+ */
+export function facadeComposedIdResolver<Row>(
+  properties: ReadonlyArray<keyof Row & string>,
+): Resolver<string, ResolverContext<Row, unknown>> {
+  return new Resolver(async ({ facade }) => {
+    const segments: string[] = [];
+    for (const property of properties) {
+      const value = valueAsString(await facade.value(property));
+      if (value === undefined) {
+        throw new Error(
+          `Cannot compose id: ${String(property)} resolved to no value.`,
+        );
+      }
+      segments.push(value);
+    }
+    return segments.join("|");
+  });
+}
+
+/**
  * Cross-source foreign-key resolver (ADR 0023): the referenced entity was created
  * by another source and is not a same-run facade, so the source id is resolved
  * straight through the ledger. The source minted the mapping (via `sourceIdFor`)

@@ -8,6 +8,7 @@ import { importMutationEnvelopeTypes } from "../io/generated-mutations/index.js"
 import {
   Resolver,
   facadeCanonicalIdResolver,
+  facadeComposedIdResolver,
   facadeForeignKeyResolver,
   facadeNullableForeignKeyResolver,
   facadeLedgerForeignKeyResolver,
@@ -143,9 +144,18 @@ const REGISTRY: Record<string, KindConfig> = {
     },
   },
   CivilCasePersonnel: {
-    // The agency_personnel was created by a roster source, so it resolves through
-    // the ledger, not a same-run facade (ADR 0023).
+    // Identity is composed from the two resolved FKs (ADR 0028), so the same
+    // officer named in the same case by two sources converges on one row. Both
+    // halves are canonical: civil_case_id resolves to the case's natural key,
+    // agency_personnel_id through the ledger to the roster's canonical id.
+    identityKind: "natural",
     overrides: {
+      id: facadeComposedIdResolver<Row>([
+        "civil_case_id",
+        "agency_personnel_id",
+      ]) as AnyResolver,
+      // The agency_personnel was created by a roster source, so it resolves through
+      // the ledger, not a same-run facade (ADR 0023).
       agency_personnel_id: facadeLedgerForeignKeyResolver<Row>(
         "CivilCasePersonnel",
         "agency_personnel_id",
