@@ -1,5 +1,32 @@
 import { describe, it, expect } from "vitest";
-import { createYoutubeApi, videoUrl } from "../../../sources/lib/youtube.js";
+import {
+  createYoutubeApi,
+  isQuotaExhaustedBody,
+  videoUrl,
+} from "../../../sources/lib/youtube.js";
+
+describe("isQuotaExhaustedBody", () => {
+  it("detects a quotaExceeded / dailyLimitExceeded 403 body", () => {
+    expect(
+      isQuotaExhaustedBody({
+        error: { errors: [{ reason: "quotaExceeded" }] },
+      }),
+    ).toBe(true);
+    expect(
+      isQuotaExhaustedBody({
+        error: { errors: [{ reason: "dailyLimitExceeded" }] },
+      }),
+    ).toBe(true);
+  });
+
+  it("is false for other errors and non-error bodies", () => {
+    expect(
+      isQuotaExhaustedBody({ error: { errors: [{ reason: "badRequest" }] } }),
+    ).toBe(false);
+    expect(isQuotaExhaustedBody({ items: [] })).toBe(false);
+    expect(isQuotaExhaustedBody("nope")).toBe(false);
+  });
+});
 
 function apiWith(
   jsonByUrl: Record<string, unknown>,

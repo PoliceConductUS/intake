@@ -37,6 +37,18 @@ function record(value: unknown): Record<string, unknown> {
     : {};
 }
 
+/** Thrown when the YouTube daily quota is exhausted, to halt a run (not skip). */
+export class YoutubeQuotaError extends Error {}
+
+/** True when a 403 body reports the daily quota is spent. */
+export function isQuotaExhaustedBody(body: unknown): boolean {
+  const errors = record(record(body).error).errors;
+  return (Array.isArray(errors) ? errors : []).some((entry) => {
+    const reason = str(record(entry).reason);
+    return reason === "quotaExceeded" || reason === "dailyLimitExceeded";
+  });
+}
+
 export function videoUrl(videoId: string): string {
   return `https://www.youtube.com/watch?v=${videoId}`;
 }

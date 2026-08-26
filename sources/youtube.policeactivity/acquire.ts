@@ -5,7 +5,11 @@ import type {
   SourceAcquire,
 } from "../../src/cli/run/source-run.js";
 import { slugify } from "../lib/civil-defendants.js";
-import { createYoutubeApi } from "../lib/youtube.js";
+import {
+  createYoutubeApi,
+  isQuotaExhaustedBody,
+  YoutubeQuotaError,
+} from "../lib/youtube.js";
 import {
   loadVideoCache,
   mergedVideos,
@@ -63,6 +67,11 @@ export const acquire: SourceAcquire = async ({
         `${JSON.stringify({ at: new Date().toISOString(), url, status: response.status, body })}\n`,
       );
       if (response.ok) return body as Record<string, unknown>;
+      if (response.status === 403 && isQuotaExhaustedBody(body)) {
+        throw new YoutubeQuotaError(
+          "youtube.policeactivity: YouTube daily quota exhausted; stopping (resumes next run).",
+        );
+      }
       const retryable = response.status === 429 || response.status >= 500;
       if (!retryable || attempt >= MAX_RETRIES) {
         throw new Error(
@@ -144,8 +153,10 @@ export const acquire: SourceAcquire = async ({
         );
         await sleep(POLITE_DELAY_MS);
       } catch (error) {
-        // One agency-year failing (an odd query, or quota exhausted) must not
-        // abort the run — log and skip, uncached so a later run retries it.
+        // Quota exhausted halts the whole run (every later call would 403 too);
+        // any other single-agency failure is logged and skipped, uncached so a
+        // later run retries it.
+        if (error instanceof YoutubeQuotaError) throw error;
         failed += 1;
         log.info(
           `youtube.policeactivity: ${agencyName} ${year} — search failed, skipped (${error instanceof Error ? error.message : String(error)}).`,
@@ -174,22 +185,29 @@ export const acquire: SourceAcquire = async ({
     );
   };
 
-  let cursor: string | undefined;
-  do {
-    const page = await data.agencies({ minOfficers: 1, cursor, limit: 50 });
-    for (const record of page.items) {
-      await processAgency(
-        record.agencyId,
-        record.name.trim(),
-        record.state,
-        record.place ?? "",
-        record.county ?? "",
-      );
-    }
-    cursor = page.nextCursor;
-  } while (cursor !== undefined);
+  let quotaHit = false;
+  try {
+    let cursor: string | undefined;
+    do {
+      const page = await data.agencies({ minOfficers: 1, cursor, limit: 50 });
+      for (const record of page.items) {
+        await processAgency(
+          record.agencyId,
+          record.name.trim(),
+          record.state,
+          record.place ?? "",
+          record.county ?? "",
+        );
+      }
+      cursor = page.nextCursor;
+    } while (cursor !== undefined);
+  } catch (error) {
+    if (!(error instanceof YoutubeQuotaError)) throw error;
+    quotaHit = true;
+    log.info(error.message);
+  }
 
   log.info(
-    `youtube.policeactivity: ${searched} agency-years searched, ${upToDate} already backfilled to ${floorYear}, ${failed} skipped after errors. state=${state}`,
+    `youtube.policeactivity: ${searched} agency-years searched, ${upToDate} already backfilled to ${floorYear}, ${failed} skipped after errors${quotaHit ? ", stopped on quota" : ""}. state=${state}`,
   );
 };
