@@ -2012,3 +2012,86 @@ describe("Census substrate facades", () => {
     });
   });
 });
+
+describe("CivilCase cross-source convergence (ADR 0028)", () => {
+  const caseId = "txnd:3:23-cv-001";
+  const civilCaseSpec = {
+    id: caseId,
+    title: "Doe v. City of Irving",
+    cause_number: "3:23-cv-001",
+    court: "txnd",
+    filed_date: "2023-04-01",
+    claims_summary: "Original summary.",
+    slug: "doe-v-city-of-irving-txnd-3-23-cv-001",
+    outcome: null,
+    primary_source_url: "https://www.courtlistener.com/docket/1/",
+    date_terminated: null,
+    location_path_id: "tx",
+  };
+  // The DB row a prior source (Clearinghouse) would have created: same natural
+  // id, location resolved to its canonical location_path_id.
+  const resolvedRow = { ...civilCaseSpec, location_path_id: "tx-location-path-id" };
+
+  function civilCaseContext(databaseCivilCases: Record<string, unknown>[] = []) {
+    return new DataContext({
+      client: new CurrentRowClient(
+        databaseCivilCases.length > 0
+          ? { "public.civil_cases": databaseCivilCases }
+          : {},
+        { locationPaths: [txLocationPath] },
+      ),
+      commandName: "command-name",
+      ledger: fakeSourceNameLedger({
+        agencies: {},
+        personnel: {},
+        agencyPersonnel: {},
+        locationPaths: {},
+      }),
+    });
+  }
+
+  test("the first source creates the CivilCase keyed by its natural id, not a cuid", async () => {
+    const context = civilCaseContext();
+    const civilCase = context.facadeFromSource("CivilCase", {
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "clearinghouse-api",
+      name: caseId,
+    });
+    civilCase.merge(civilCaseSpec);
+    expect(await context.toMutations()).toMatchObject([
+      {
+        kind: "CivilCaseCreate",
+        metadata: { namespace: "clearinghouse-api", name: caseId },
+        spec: { id: caseId, cause_number: "3:23-cv-001" },
+      },
+    ]);
+  });
+
+  test("a second source with the same docket converges onto that row (update, not a duplicate)", async () => {
+    // CourtListener imports the same docket. Same natural id -> the facade finds
+    // the existing row and emits an update; there is no second CivilCase.
+    const context = civilCaseContext([resolvedRow]);
+    const civilCase = context.facadeFromSource("CivilCase", {
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "courtlistener",
+      name: caseId,
+    });
+    civilCase.merge({ ...civilCaseSpec, claims_summary: "Updated summary." });
+    expect(await context.toMutations()).toMatchObject([
+      {
+        kind: "CivilCaseUpdate",
+        metadata: { namespace: "courtlistener", name: caseId },
+        spec: {
+          operations: expect.arrayContaining([
+            expect.objectContaining({
+              action: "set",
+              path: "claims_summary",
+              from: "Original summary.",
+              to: "Updated summary.",
+            }),
+          ]),
+        },
+      },
+    ]);
+  });
+});
