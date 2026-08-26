@@ -1,18 +1,21 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
-  IMPORT_ARTIFACT_KINDS,
   IMPORT_OPERATIONS,
   IMPORT_OPERATION_SUFFIXES,
-  type ImportArtifactKind,
   type ImportOperation,
-  importTypeMetadata,
-} from "../src/shared/io/import-type-metadata.js";
+} from "../src/shared/io/import-operations.js";
 import { introspectSchema } from "./lib/schema-introspection.js";
 import {
   ENTITY_TABLES,
+  IMPORT_ARTIFACT_KINDS,
+  RECORD_KIND_BY_ARTIFACT_KIND,
   generateEntitySpecsModule,
 } from "./lib/entity-spec-generator.js";
+
+// The generator sources the kind list from the descriptors, never from its own
+// generated output — the plural artifact kind is just a string here.
+type ImportArtifactKind = string;
 
 const outputDirectory = path.join(
   process.cwd(),
@@ -59,7 +62,7 @@ function supportsRecordEnvelopeFor(kind: ImportArtifactKind): boolean {
 // not collide with the plural ones. The metadata `recordKind` is left untouched
 // because the DatabaseMutations kinds derive from it.
 function recordEnvelopeKindFor(kind: ImportArtifactKind): string {
-  const recordKind = importTypeMetadata[kind].recordKind;
+  const recordKind = RECORD_KIND_BY_ARTIFACT_KIND[kind];
   return recordKind === kind ? `${recordKind}Record` : recordKind;
 }
 
@@ -124,7 +127,7 @@ function resolveReadPath(
 }
 
 function artifactModule(kind: ImportArtifactKind): string {
-  const recordKind = importTypeMetadata[kind].recordKind;
+  const recordKind = RECORD_KIND_BY_ARTIFACT_KIND[kind];
   const recordSpecName = recordKind;
   const supportsRecordEnvelope = supportsRecordEnvelopeFor(kind);
   const recordEnvelopeKind = recordEnvelopeKindFor(kind);
@@ -630,7 +633,7 @@ function mutationKind(recordKind: string, operation: ImportOperation): string {
 }
 
 function specName(kind: ImportArtifactKind): string {
-  return importTypeMetadata[kind].recordKind;
+  return RECORD_KIND_BY_ARTIFACT_KIND[kind];
 }
 
 function mutationSpecExpression(
@@ -654,7 +657,7 @@ function mutationModule(
   kind: ImportArtifactKind,
   operation: ImportOperation,
 ): string {
-  const recordKind = importTypeMetadata[kind].recordKind;
+  const recordKind = RECORD_KIND_BY_ARTIFACT_KIND[kind];
   const specBaseName = specName(kind);
   const envelopeKind = mutationKind(recordKind, operation);
   const specImport =
@@ -855,10 +858,9 @@ export const ${envelopeKind} = {
 function mutationIndexModule(): string {
   const imports: string[] = [];
   const mapItems: string[] = [];
-  for (const kind of IMPORT_ARTIFACT_KINDS.filter(
-    (candidate) => "targetTable" in importTypeMetadata[candidate],
-  )) {
-    const recordKind = importTypeMetadata[kind].recordKind;
+  // Every importable kind maps to a database table (each descriptor has one).
+  for (const kind of IMPORT_ARTIFACT_KINDS) {
+    const recordKind = RECORD_KIND_BY_ARTIFACT_KIND[kind];
     for (const operation of IMPORT_OPERATIONS) {
       const envelopeKind = mutationKind(recordKind, operation);
       imports.push(`import { ${envelopeKind} } from "./${envelopeKind}.js";`);
@@ -875,7 +877,7 @@ ${mapItems.join("\n")}
 
 function indexModule(): string {
   const artifactExports = IMPORT_ARTIFACT_KINDS.map((kind) => {
-    const recordKind = importTypeMetadata[kind].recordKind;
+    const recordKind = RECORD_KIND_BY_ARTIFACT_KIND[kind];
     if (!supportsRecordEnvelopeFor(kind)) {
       return `export { ${kind}, ${recordKind}Spec } from "./${kind}.js";
 export type { ${kind}Envelope, ${kind}Input } from "./${kind}.js";`;
@@ -912,14 +914,11 @@ for (const kind of IMPORT_ARTIFACT_KINDS) {
     path.join(outputDirectory, `${kind}.ts`),
     artifactModule(kind),
   );
-  if (!("targetTable" in importTypeMetadata[kind])) {
-    continue;
-  }
   for (const operation of IMPORT_OPERATIONS) {
     await writeFile(
       path.join(
         importMutationOutputDirectory,
-        `${mutationKind(importTypeMetadata[kind].recordKind, operation)}.ts`,
+        `${mutationKind(RECORD_KIND_BY_ARTIFACT_KIND[kind], operation)}.ts`,
       ),
       mutationModule(kind, operation),
     );

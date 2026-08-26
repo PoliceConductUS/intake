@@ -161,6 +161,175 @@ export const TABLE_BY_KIND: Record<string, string> = {
   CivilCaseLink: "public.civil_case_links",
 };
 
+// Import artifact metadata per kind: kind/entityName naming plus the FK-derived
+// dependency graph (dependsOn), with no hand-maintained edges. This is the single
+// source of truth for what is importable — it can never drift from the entity
+// specs because it is generated from the same descriptors.
+export const importTypeMetadata = {
+  LocationPaths: {
+    kind: "LocationPaths",
+    recordKind: "LocationPath",
+    entityName: "locationPaths",
+    targetTable: "public.location_path",
+    dependsOn: [],
+  },
+  LocationPathGeometries: {
+    kind: "LocationPathGeometries",
+    recordKind: "LocationPathGeometry",
+    entityName: "locationPathGeometries",
+    targetTable: "public.location_path_geometry",
+    dependsOn: ["LocationPaths"],
+  },
+  LocationPathAliases: {
+    kind: "LocationPathAliases",
+    recordKind: "LocationPathAlias",
+    entityName: "locationPathAliases",
+    targetTable: "public.location_path_alias",
+    dependsOn: ["LocationPaths"],
+  },
+  Agencies: {
+    kind: "Agencies",
+    recordKind: "Agency",
+    entityName: "agencies",
+    targetTable: "public.agency",
+    dependsOn: ["LocationPaths"],
+  },
+  Personnel: {
+    kind: "Personnel",
+    recordKind: "Personnel",
+    entityName: "personnel",
+    targetTable: "public.personnel",
+    dependsOn: [],
+  },
+  AgencyPersonnel: {
+    kind: "AgencyPersonnel",
+    recordKind: "AgencyPersonnel",
+    entityName: "agencyPersonnel",
+    targetTable: "public.agency_personnel",
+    dependsOn: ["Agencies", "Personnel", "Licenses"],
+  },
+  LicensingAuthorities: {
+    kind: "LicensingAuthorities",
+    recordKind: "LicensingAuthority",
+    entityName: "licensingAuthorities",
+    targetTable: "public.licensing_authority",
+    dependsOn: ["LocationPaths"],
+  },
+  Licenses: {
+    kind: "Licenses",
+    recordKind: "License",
+    entityName: "licenses",
+    targetTable: "public.license",
+    dependsOn: ["Personnel", "LicensingAuthorities"],
+  },
+  LicenseActions: {
+    kind: "LicenseActions",
+    recordKind: "LicenseAction",
+    entityName: "licenseActions",
+    targetTable: "public.license_action",
+    dependsOn: ["Licenses"],
+  },
+  Disciplines: {
+    kind: "Disciplines",
+    recordKind: "Discipline",
+    entityName: "disciplines",
+    targetTable: "public.discipline",
+    dependsOn: [],
+  },
+  DisciplineAgencyPersonnel: {
+    kind: "DisciplineAgencyPersonnel",
+    recordKind: "DisciplineAgencyPersonnel",
+    entityName: "disciplineAgencyPersonnel",
+    targetTable: "public.discipline_agency_personnel",
+    dependsOn: ["AgencyPersonnel", "Disciplines"],
+  },
+  CoverageLinks: {
+    kind: "CoverageLinks",
+    recordKind: "CoverageLink",
+    entityName: "coverageLinks",
+    targetTable: "public.coverage_links",
+    dependsOn: [],
+  },
+  CoverageLinkAgencyPersonnel: {
+    kind: "CoverageLinkAgencyPersonnel",
+    recordKind: "CoverageLinkAgencyPersonnel",
+    entityName: "coverageLinkAgencyPersonnel",
+    targetTable: "public.coverage_link_agency_personnel",
+    dependsOn: ["AgencyPersonnel", "CoverageLinks"],
+  },
+  AgencyPhoneNumbers: {
+    kind: "AgencyPhoneNumbers",
+    recordKind: "AgencyPhoneNumber",
+    entityName: "agencyPhoneNumbers",
+    targetTable: "public.agency_phone_numbers",
+    dependsOn: ["Agencies"],
+  },
+  FederalAgencies: {
+    kind: "FederalAgencies",
+    recordKind: "FederalAgency",
+    entityName: "federalAgencies",
+    targetTable: "public.federal_agency",
+    dependsOn: [],
+  },
+  FederalAgencyBranches: {
+    kind: "FederalAgencyBranches",
+    recordKind: "FederalAgencyBranch",
+    entityName: "federalAgencyBranches",
+    targetTable: "public.federal_agency_branch",
+    dependsOn: ["Agencies", "FederalAgencies"],
+  },
+  CivilCases: {
+    kind: "CivilCases",
+    recordKind: "CivilCase",
+    entityName: "civilCases",
+    targetTable: "public.civil_cases",
+    dependsOn: ["LocationPaths"],
+  },
+  CivilCasePersonnel: {
+    kind: "CivilCasePersonnel",
+    recordKind: "CivilCasePersonnel",
+    entityName: "civilCasePersonnel",
+    targetTable: "public.civil_case_personnel",
+    dependsOn: ["AgencyPersonnel", "CivilCases"],
+  },
+  CivilCaseLinks: {
+    kind: "CivilCaseLinks",
+    recordKind: "CivilCaseLink",
+    entityName: "civilCaseLinks",
+    targetTable: "public.civil_case_links",
+    dependsOn: ["CivilCases"],
+  },
+} as const;
+
+export type ImportArtifactKind = keyof typeof importTypeMetadata;
+
+// The artifact kinds in descriptor order (a referenced entity's source can still
+// run in any order a source declares; run-order is derived from dependsOn).
+export const IMPORT_ARTIFACT_KINDS = [
+  "LocationPaths",
+  "LocationPathGeometries",
+  "LocationPathAliases",
+  "Agencies",
+  "Personnel",
+  "AgencyPersonnel",
+  "LicensingAuthorities",
+  "Licenses",
+  "LicenseActions",
+  "Disciplines",
+  "DisciplineAgencyPersonnel",
+  "CoverageLinks",
+  "CoverageLinkAgencyPersonnel",
+  "AgencyPhoneNumbers",
+  "FederalAgencies",
+  "FederalAgencyBranches",
+  "CivilCases",
+  "CivilCasePersonnel",
+  "CivilCaseLinks",
+] as const satisfies readonly ImportArtifactKind[];
+
+export type ImportEntityName =
+  (typeof importTypeMetadata)[ImportArtifactKind]["entityName"];
+
 const nonEmptyString = z.string().trim().min(1);
 const nullableNonEmptyString = nonEmptyString.nullable();
 

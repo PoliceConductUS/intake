@@ -322,6 +322,106 @@ function foreignKeyReferences(
   return references;
 }
 
+// The camelCase plural each record kind is addressed by in the import pipeline
+// and the source-module API (e.g. `agencies`, `agencyPersonnel`). English
+// pluralization is irregular, so it is declared, not derived — but this is
+// naming only, NEVER a dependency: the dependency graph is the database's FKs.
+const ENTITY_NAME_BY_RECORD_KIND: Record<string, string> = {
+  LocationPath: "locationPaths",
+  LocationPathGeometry: "locationPathGeometries",
+  LocationPathAlias: "locationPathAliases",
+  Agency: "agencies",
+  Personnel: "personnel",
+  AgencyPersonnel: "agencyPersonnel",
+  LicensingAuthority: "licensingAuthorities",
+  License: "licenses",
+  LicenseAction: "licenseActions",
+  Discipline: "disciplines",
+  DisciplineAgencyPersonnel: "disciplineAgencyPersonnel",
+  CoverageLink: "coverageLinks",
+  CoverageLinkAgencyPersonnel: "coverageLinkAgencyPersonnel",
+  AgencyPhoneNumber: "agencyPhoneNumbers",
+  FederalAgency: "federalAgencies",
+  FederalAgencyBranch: "federalAgencyBranches",
+  CivilCase: "civilCases",
+  CivilCasePersonnel: "civilCasePersonnel",
+  CivilCaseLink: "civilCaseLinks",
+};
+
+function capitalizeFirst(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+/** The plural import-artifact kind for a record kind (e.g. `Agency` → `Agencies`). */
+function artifactKindFor(recordKind: string): string {
+  const entityName = ENTITY_NAME_BY_RECORD_KIND[recordKind];
+  if (entityName === undefined) {
+    throw new Error(`No entityName declared for record kind ${recordKind}.`);
+  }
+  return capitalizeFirst(entityName);
+}
+
+/**
+ * Import metadata per artifact kind, fully derived: `kind`/`entityName` from the
+ * naming map, `targetTable` from the descriptor, and `dependsOn` from the
+ * database's own foreign-key graph — no hand-maintained dependency edges. Keys
+ * are in descriptor order (the emitted `IMPORT_ARTIFACT_KINDS` order).
+ */
+function buildImportTypeMetadata(schema: IntrospectedSchema): Record<
+  string,
+  {
+    kind: string;
+    recordKind: string;
+    entityName: string;
+    targetTable: string;
+    dependsOn: string[];
+  }
+> {
+  const references = foreignKeyReferences(schema);
+  const descriptorOrder = new Map(
+    DESCRIPTORS.map((descriptor, index) => [descriptor.recordKind, index]),
+  );
+  return Object.fromEntries(
+    DESCRIPTORS.map((descriptor) => {
+      const { recordKind } = descriptor;
+      const dependsOn = [
+        ...new Set((references[recordKind] ?? []).map((ref) => ref.targetKind)),
+      ]
+        .filter((target) => target !== recordKind)
+        .sort(
+          (a, b) =>
+            (descriptorOrder.get(a) ?? 0) - (descriptorOrder.get(b) ?? 0),
+        )
+        .map(artifactKindFor);
+      return [
+        artifactKindFor(recordKind),
+        {
+          kind: artifactKindFor(recordKind),
+          recordKind,
+          entityName: ENTITY_NAME_BY_RECORD_KIND[recordKind],
+          targetTable: `public.${descriptor.table}`,
+          dependsOn,
+        },
+      ];
+    }),
+  );
+}
+
+// The importable artifact kinds in descriptor order, and each kind's record
+// kind — both static (naming only), so the generator sources them from the
+// descriptors rather than from its own generated output (no bootstrapping cycle).
+export const IMPORT_ARTIFACT_KINDS = DESCRIPTORS.map((descriptor) =>
+  artifactKindFor(descriptor.recordKind),
+);
+
+export const RECORD_KIND_BY_ARTIFACT_KIND: Record<string, string> =
+  Object.fromEntries(
+    DESCRIPTORS.map((descriptor) => [
+      artifactKindFor(descriptor.recordKind),
+      descriptor.recordKind,
+    ]),
+  );
+
 type Column = IntrospectedTable["columns"][number];
 
 /** The base zod type for a column, from its database type + non-blank/enum. */
@@ -613,6 +713,25 @@ export const TABLE_BY_KIND: Record<string, string> = ${JSON.stringify(
       ]),
     ),
   )};
+
+// Import artifact metadata per kind: kind/entityName naming plus the FK-derived
+// dependency graph (dependsOn), with no hand-maintained edges. This is the single
+// source of truth for what is importable — it can never drift from the entity
+// specs because it is generated from the same descriptors.
+export const importTypeMetadata = ${JSON.stringify(
+    buildImportTypeMetadata(schema),
+  )} as const;
+
+export type ImportArtifactKind = keyof typeof importTypeMetadata;
+
+// The artifact kinds in descriptor order (a referenced entity's source can still
+// run in any order a source declares; run-order is derived from dependsOn).
+export const IMPORT_ARTIFACT_KINDS = ${JSON.stringify(
+    DESCRIPTORS.map((descriptor) => artifactKindFor(descriptor.recordKind)),
+  )} as const satisfies readonly ImportArtifactKind[];
+
+export type ImportEntityName =
+  (typeof importTypeMetadata)[ImportArtifactKind]["entityName"];
 
 const nonEmptyString = z.string().trim().min(1);
 const nullableNonEmptyString = nonEmptyString.nullable();
