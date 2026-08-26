@@ -7,6 +7,11 @@ import type {
   SourceRun,
 } from "../../src/cli/run/source-run.js";
 import { isPersonName, slugify } from "../lib/civil-defendants.js";
+import {
+  civilCaseNaturalId,
+  courtTokenFromName,
+  normalizeDocketNumber,
+} from "../lib/civil-case-id.js";
 
 export const produces: readonly ImportArtifactKind[] = [
   "CivilCases",
@@ -57,6 +62,16 @@ type Case = {
   prevailing_party?: string;
   clearinghouse_link?: string;
   case_defendants?: Defendant[];
+  dockets?: Docket[];
+};
+
+// A case's dockets (acquired from cases/<id>/dockets/). The main docket carries
+// the court-assigned number the CivilCase is keyed on (ADR 0028).
+type Docket = {
+  court?: string;
+  is_main_docket?: boolean;
+  docket_number_manual?: string;
+  recap_docket_number?: string;
 };
 
 type AgencyCases = {
@@ -118,6 +133,25 @@ function caseUrl(civilCase: Case): string {
   return link.startsWith("http") ? link : `https://${link}`;
 }
 
+// The CivilCase id (ADR 0028) — the main docket's court-assigned identity,
+// `court:docket`, so this case converges with the same docket from CourtListener.
+// A case with no docket number (rare; some state cases) falls back to a
+// deterministic court+title key: safe, but it only matches another source by
+// luck — fine, since such cases are Clearinghouse-only.
+function caseNaturalId(civilCase: Case, title: string): string {
+  const dockets = civilCase.dockets ?? [];
+  const main =
+    dockets.find((docket) => docket.is_main_docket) ??
+    dockets.find((docket) => text(docket.docket_number_manual) !== "") ??
+    dockets[0];
+  const courtToken = courtTokenFromName(text(main?.court) || text(civilCase.court));
+  const docketNumber =
+    text(main?.docket_number_manual) || text(main?.recap_docket_number);
+  return docketNumber !== ""
+    ? civilCaseNaturalId(courtToken, docketNumber)
+    : `${courtToken}:${slugify(title)}`;
+}
+
 export const run: SourceRun = async ({
   paths,
   data,
@@ -157,7 +191,6 @@ export const run: SourceRun = async ({
       const defendants = civilCase.case_defendants ?? [];
       if (!namesAgency(defendants, tokens)) continue;
 
-      const caseKey = `ch-${civilCase.id}`;
       const resolvedPersonnelIds = new Set<string>();
       for (const defendant of defendants) {
         const personnelName = text(defendant.name);
@@ -167,17 +200,23 @@ export const run: SourceRun = async ({
       }
       if (resolvedPersonnelIds.size === 0) continue;
 
+      // Canonical id is the natural docket key (ADR 0028), shared with CL.
+      const caseId = caseNaturalId(civilCase, title);
+      const docketNumber = caseId.includes(":")
+        ? caseId.slice(caseId.indexOf(":") + 1)
+        : caseId;
       const url = caseUrl(civilCase);
       const terminated = text(civilCase.terminating_date);
-      civilCases[caseKey] = {
+      civilCases[caseId] = {
         spec: {
+          id: caseId,
           title,
-          cause_number: text(civilCase.non_docket_case_number) || caseKey,
+          cause_number: docketNumber,
           court: text(civilCase.court) || null,
           filed_date: filed,
           claims_summary:
             text(civilCase.summary) || text(civilCase.summary_short) || title,
-          slug: `${slugify(title)}-${caseKey}`,
+          slug: slugify(`${title}-${caseId}`),
           outcome: text(civilCase.prevailing_party) || null,
           primary_source_url: url || null,
           date_terminated: /^\d{4}-\d{2}-\d{2}/.test(terminated)
@@ -187,18 +226,18 @@ export const run: SourceRun = async ({
         },
       };
       if (url !== "") {
-        links[`${caseKey}|clearinghouse`] = {
+        links[`${caseId}|clearinghouse`] = {
           spec: {
-            civil_case_id: caseKey,
+            civil_case_id: caseId,
             url,
             title: "Civil Rights Litigation Clearinghouse",
           },
         };
       }
       for (const agencyPersonnelId of resolvedPersonnelIds) {
-        personnel[`${caseKey}|${agencyPersonnelId}`] = {
+        personnel[`${caseId}|${agencyPersonnelId}`] = {
           spec: {
-            civil_case_id: caseKey,
+            civil_case_id: caseId,
             agency_personnel_id: agencyPersonnelId,
           },
         };

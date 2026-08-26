@@ -132,6 +132,10 @@ const REGISTRY: Record<string, KindConfig> = {
     },
   },
   CivilCase: {
+    // Identity is the source-provided natural key `court:docket` (ADR 0028), not a
+    // minted canonical, so the Clearinghouse and CourtListener converge on one row
+    // for the same docket. The source sets `spec.id`; there is no ledger mint.
+    identityKind: "natural",
     overrides: {
       location_path_id: facadeStateLocationPathResolver<Row>(
         "CivilCase",

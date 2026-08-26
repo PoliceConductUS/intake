@@ -16,12 +16,22 @@ const envelope = {
     {
       id: 100,
       name: "Doe v. Austin PD",
-      court: "W.D. Tex.",
+      court: "Western District of Texas",
       filing_date: "2023-05-01",
       filing_year: 2023,
-      non_docket_case_number: "1:23-cv-001",
       summary: "Excessive force claim.",
       clearinghouse_link: "https://clearinghouse.net/case/100",
+      // The main docket carries the court-assigned number the CivilCase is keyed
+      // on. court "Western District of Texas" -> court_id "txwd" (same token CL
+      // uses natively), docket "1:23-cv-001" -> id "txwd:1:23-cv-001".
+      dockets: [
+        {
+          court: "Western District of Texas",
+          is_main_docket: true,
+          docket_number_manual: "1:23-cv-001",
+          recap_docket_number: "1:23-cv-001",
+        },
+      ],
       case_defendants: [
         { name: "City of Austin", institution: "Austin Police Department" },
         { name: "John Smith" },
@@ -105,20 +115,26 @@ describe("clearinghouse-api run", () => {
     );
 
     // 300 (year), 500 (guard), 600 (no officer) all drop; only 100 survives.
-    expect(Object.keys(byKind.CivilCases)).toEqual(["ch-100"]);
-    expect(byKind.CivilCases["ch-100"].spec).toMatchObject({
+    // Its id is the natural docket key (ADR 0028): court_id "txwd" + docket.
+    const caseId = "txwd:1:23-cv-001";
+    expect(Object.keys(byKind.CivilCases)).toEqual([caseId]);
+    expect(byKind.CivilCases[caseId].spec).toMatchObject({
+      id: caseId,
       title: "Doe v. Austin PD",
+      cause_number: "1:23-cv-001",
       filed_date: "2023-05-01",
       location_path_id: "tx",
       primary_source_url: "https://clearinghouse.net/case/100",
     });
 
-    expect(Object.keys(byKind.CivilCasePersonnel)).toEqual(["ch-100|ao-1"]);
-    expect(byKind.CivilCasePersonnel["ch-100|ao-1"].spec).toEqual({
-      civil_case_id: "ch-100",
+    expect(Object.keys(byKind.CivilCasePersonnel)).toEqual([`${caseId}|ao-1`]);
+    expect(byKind.CivilCasePersonnel[`${caseId}|ao-1`].spec).toEqual({
+      civil_case_id: caseId,
       agency_personnel_id: "ao-1",
     });
-    expect(Object.keys(byKind.CivilCaseLinks)).toEqual(["ch-100|clearinghouse"]);
+    expect(Object.keys(byKind.CivilCaseLinks)).toEqual([
+      `${caseId}|clearinghouse`,
+    ]);
 
     // The guard runs before resolution: case 500 (Dallas) is never resolved, so
     // "John Smith" is only asked for cases 100 and 600 (both name Austin).

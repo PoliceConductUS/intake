@@ -13,6 +13,7 @@ import type {
   SourceRun,
 } from "../../src/cli/run/source-run.js";
 import { isPersonName, slugify } from "../lib/civil-defendants.js";
+import { civilCaseNaturalId } from "../lib/civil-case-id.js";
 
 export const description =
   "CourtListener — federal dockets naming any U.S. agency with at least one officer (active or not), linked to any officer named as a party (plaintiff or defendant) via the fuzzy agency_personnel resolver.";
@@ -80,7 +81,6 @@ export const run: SourceRun = async ({ paths, data, logger }: RunDeps) => {
       const title = text(docket.case_name);
       const filed = text(docket.date_filed);
       if (title === "" || !/^\d{4}-\d{2}-\d{2}/.test(filed)) continue;
-      const caseKey = `cl-${docket.id}`;
 
       const resolvedPersonnelIds = new Set<string>();
       for (const party of docket.parties ?? []) {
@@ -91,16 +91,26 @@ export const run: SourceRun = async ({ paths, data, logger }: RunDeps) => {
       }
       if (resolvedPersonnelIds.size === 0) continue;
 
+      // Canonical id is the natural docket key (ADR 0028), shared with the
+      // Clearinghouse. `docket.court` is already CourtListener's court_id (the
+      // acquire stores court_id), so it is the court token directly.
+      const courtToken = text(docket.court);
+      const docketNumber = text(docket.docket_number);
+      const caseId =
+        docketNumber !== "" && courtToken !== ""
+          ? civilCaseNaturalId(courtToken, docketNumber)
+          : `${courtToken || "unknown"}:${slugify(title)}`;
       const url = docketUrl(docket);
       const terminated = text(docket.date_terminated);
-      civilCases[caseKey] = {
+      civilCases[caseId] = {
         spec: {
+          id: caseId,
           title,
-          cause_number: text(docket.docket_number) || caseKey,
-          court: text(docket.court) || null,
+          cause_number: docketNumber || caseId,
+          court: courtToken || null,
           filed_date: filed.slice(0, 10),
           claims_summary: text(docket.cause) || title,
-          slug: `${slugify(title)}-${caseKey}`,
+          slug: slugify(`${title}-${caseId}`),
           outcome: null,
           primary_source_url: url || null,
           date_terminated: /^\d{4}-\d{2}-\d{2}/.test(terminated)
@@ -110,18 +120,18 @@ export const run: SourceRun = async ({ paths, data, logger }: RunDeps) => {
         },
       };
       if (url !== "") {
-        links[`${caseKey}|courtlistener`] = {
+        links[`${caseId}|courtlistener`] = {
           spec: {
-            civil_case_id: caseKey,
+            civil_case_id: caseId,
             url,
             title: "CourtListener docket",
           },
         };
       }
       for (const agencyPersonnelId of resolvedPersonnelIds) {
-        personnel[`${caseKey}|${agencyPersonnelId}`] = {
+        personnel[`${caseId}|${agencyPersonnelId}`] = {
           spec: {
-            civil_case_id: caseKey,
+            civil_case_id: caseId,
             agency_personnel_id: agencyPersonnelId,
           },
         };

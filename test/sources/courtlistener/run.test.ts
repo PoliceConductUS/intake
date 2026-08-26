@@ -80,10 +80,14 @@ describe("courtlistener run", () => {
       manifest.artifacts.map((a) => [a.kind, a.records]),
     );
 
-    // docket 124 has no filing date -> skipped.
-    expect(Object.keys(byKind.CivilCases)).toEqual(["cl-123"]);
-    expect(byKind.CivilCases["cl-123"].spec).toMatchObject({
+    // docket 124 has no filing date -> skipped. The id is the natural docket key
+    // `court_id:docket_number` (ADR 0028), not the source docket id.
+    const caseId = "txnd:3:23-cv-001";
+    expect(Object.keys(byKind.CivilCases)).toEqual([caseId]);
+    expect(byKind.CivilCases[caseId].spec).toMatchObject({
+      id: caseId,
       title: "Doe v. City of Irving",
+      cause_number: "3:23-cv-001",
       filed_date: "2023-04-01",
       location_path_id: "tx",
     });
@@ -91,15 +95,13 @@ describe("courtlistener run", () => {
     // The agency source id from the envelope scopes the resolve; only the person
     // party is resolved, and the returned source id is stamped verbatim.
     expect(data.calls).toEqual([{ agencyId: "a1", personnelName: "John Smith" }]);
-    expect(Object.keys(byKind.CivilCasePersonnel)).toEqual(["cl-123|ao-1"]);
-    expect(byKind.CivilCasePersonnel["cl-123|ao-1"].spec).toEqual({
-      civil_case_id: "cl-123",
+    expect(Object.keys(byKind.CivilCasePersonnel)).toEqual([`${caseId}|ao-1`]);
+    expect(byKind.CivilCasePersonnel[`${caseId}|ao-1`].spec).toEqual({
+      civil_case_id: caseId,
       agency_personnel_id: "ao-1",
     });
 
-    expect(Object.keys(byKind.CivilCaseLinks)).toEqual([
-      "cl-123|courtlistener",
-    ]);
+    expect(Object.keys(byKind.CivilCaseLinks)).toEqual([`${caseId}|courtlistener`]);
   });
 
   it("skips a case whose only person party resolves to no officer", async () => {
