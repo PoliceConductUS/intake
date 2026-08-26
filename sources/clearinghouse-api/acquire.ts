@@ -98,6 +98,28 @@ export const acquire: SourceAcquire = async ({
     }
   };
 
+  // A case's dockets carry the court-assigned docket number (`docket_number_manual`
+  // / `recap_docket_number`) and a `recap_link` to the matching CourtListener
+  // docket — the identity the import keys a CivilCase on (ADR 0028). Cached by
+  // case id so a case naming several agencies is fetched once. `docket_entries`
+  // (every filing) is dropped — bulky and unused.
+  const docketCache = new Map<string, Record<string, unknown>[]>();
+  const docketsForCase = async (
+    caseId: string,
+  ): Promise<Record<string, unknown>[]> => {
+    const cached = docketCache.get(caseId);
+    if (cached !== undefined) return cached;
+    const raw = await fetchJson(
+      `${API}/cases/${encodeURIComponent(caseId)}/dockets/`,
+    );
+    const rows = Array.isArray(raw)
+      ? (raw as Record<string, unknown>[])
+      : asArray((raw as { results?: unknown }).results);
+    const dockets = rows.map(({ docket_entries: _ignored, ...rest }) => rest);
+    docketCache.set(caseId, dockets);
+    return dockets;
+  };
+
   const casesForAgency = async (
     name: string,
     stateId: number,
@@ -113,6 +135,9 @@ export const acquire: SourceAcquire = async ({
       const body = await fetchJson(url);
       cases.push(...asArray(body.results));
       url = str(body.next);
+    }
+    for (const civilCase of cases) {
+      civilCase.dockets = await docketsForCase(str(civilCase.id));
     }
     return cases;
   };
