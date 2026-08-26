@@ -56,6 +56,29 @@ export async function readLocationPathByPath(
   );
 }
 
+// Place rows with a given slug in a state, across counties. An agency whose
+// geocoded point lands just outside its city's polygon snaps to the place its
+// address names; the caller disambiguates (the point's county, else a lone match).
+export async function readPlacesByStateAndSlug(
+  client: DatabaseClient,
+  stateSlug: string,
+  placeSlug: string,
+): Promise<DatabaseLocationPathRow[]> {
+  return rowsFromResult(
+    await client.query(
+      `select location_path_id, path, level, state_or_territory_slug,
+              administrative_area_slug, place_slug, state_or_territory_name,
+              administrative_area_name, place_name, parent_location_path_id,
+              centroid, bbox
+         from public.location_path
+        where level = 'place'
+          and state_or_territory_slug = $1
+          and place_slug = $2`,
+      [stateSlug, placeSlug],
+    ),
+  ) as unknown as DatabaseLocationPathRow[];
+}
+
 export async function readLocationPathAliasByPath(
   client: DatabaseClient,
   aliasPath: string,

@@ -4,6 +4,7 @@ import {
   readLocationPathById,
   readLocationPathByPath,
   readLocationPathsContainingPoint,
+  readPlacesByStateAndSlug,
 } from "../../database/location-paths.js";
 import type { LocationPathRow } from "../../../shared/io/generated/entity-specs.js";
 // Type-only (erased at runtime), so there is no import cycle with data-context,
@@ -61,6 +62,17 @@ function normalizeAddressToken(value: string): string {
     .replace(/[^a-z0-9]+/g, " ")
     .trim()
     .replace(/\s+/g, " ");
+}
+
+// A place slug matching the census `place_slug` convention, so a city name
+// composes into its place path (`/tx/bexar-county/` + `san-antonio` + `/`).
+function citySlug(value: string): string {
+  return value
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 function zip5(value: string): string {
@@ -124,11 +136,10 @@ function postalAreaPlacePaths(request: AddressResolutionRequest): string[] {
   return rule === undefined ? [] : [...rule.paths];
 }
 
-const CONTAINING_POINT_LEVELS = [
-  "place",
-  "administrative_area",
-  "state",
-] as const;
+// An agency resolves to a place, or (on a place miss) the county the point falls
+// in — used only to compose the address city's place path. No state fallback: an
+// agency's location_path must be a place.
+const CONTAINING_POINT_LEVELS = ["place", "administrative_area"] as const;
 
 function isMissingContainingPlaceError(error: unknown): boolean {
   return (
@@ -226,6 +237,8 @@ export class LocationDataContext {
           latitude: addressResolution.latitude,
           longitude: addressResolution.longitude,
           subject: `${request.entityType} ${request.entityId}`,
+          place: request.place,
+          stateSlug: request.state,
         },
       );
     } catch (error) {
@@ -292,47 +305,86 @@ export class LocationPathDataContext {
     return readLocationPathById(this.context.databaseClient(), locationPathId);
   }
 
+  private async uniqueContainingLocationPath(
+    input: { latitude: number; longitude: number; subject: string },
+    level: (typeof CONTAINING_POINT_LEVELS)[number],
+  ): Promise<string | undefined> {
+    const matches = await readLocationPathsContainingPoint(
+      this.context.databaseClient(),
+      { latitude: input.latitude, longitude: input.longitude, level },
+    );
+    if (matches.length === 0) return undefined;
+    const uniqueMatches = [
+      ...new Map(
+        matches.map((locationPath) => [
+          locationPath.location_path_id,
+          locationPath,
+        ]),
+      ).values(),
+    ];
+    if (uniqueMatches.length > 1) {
+      throw new Error(
+        `Cannot resolve location_path_id for ${input.subject}; multiple ${level} location_path_geometry boundaries contain point ${input.latitude}, ${input.longitude}: ${uniqueMatches
+          .map((locationPath) => locationPath.location_path_id)
+          .sort()
+          .join(", ")}.`,
+      );
+    }
+    return uniqueMatches[0]!.location_path_id;
+  }
+
+  // An agency's location_path must be a *place*, never a county (the website
+  // excludes county-level agencies from projections). Point-in-polygon is exact
+  // when a census place polygon contains the point, but a mailing address often
+  // geocodes just outside a city's polygon (mailing areas sprawl past city
+  // limits) — so on a place miss, snap to the place the address names inside the
+  // county the point falls in. A genuinely placeless address fails loud, to be
+  // fixed by a seeded resolved-property or the postal fallback.
   async getPlaceContainingPoint(input: {
     latitude: number;
     longitude: number;
     /** A label for the record being resolved, for error context (e.g. "agency <id>"). */
     subject: string;
+    /** The address city and state, used to snap to a place when the point is in none. */
+    place?: string;
+    stateSlug?: string;
   }): Promise<string> {
-    // Prefer the most specific containing boundary: an incorporated place,
-    // falling back to the containing county (administrative_area), falling
-    // back to the state. Most Texas land is unincorporated, so many real
-    // agencies (county constables, precincts, ISD police outside city
-    // limits) only resolve at the county or state level.
-    for (const level of CONTAINING_POINT_LEVELS) {
-      const matches = await readLocationPathsContainingPoint(
-        this.context.databaseClient(),
-        { latitude: input.latitude, longitude: input.longitude, level },
-      );
-      if (matches.length === 0) {
-        continue;
-      }
-      const uniqueMatches = [
-        ...new Map(
-          matches.map((locationPath) => [
-            locationPath.location_path_id,
-            locationPath,
-          ]),
-        ).values(),
-      ];
-      if (uniqueMatches.length > 1) {
-        throw new Error(
-          `Cannot resolve location_path_id for ${input.subject}; multiple ${level} location_path_geometry boundaries contain point ${input.latitude}, ${input.longitude}: ${uniqueMatches
-            .map((locationPath) => locationPath.location_path_id)
-            .sort()
-            .join(", ")}.`,
-        );
-      }
+    const placeId = await this.uniqueContainingLocationPath(input, "place");
+    if (placeId !== undefined) return placeId;
 
-      return uniqueMatches[0]!.location_path_id;
+    const cityName = input.place?.trim() ?? "";
+    const stateSlug = input.stateSlug?.trim().toLowerCase() ?? "";
+    if (cityName !== "" && stateSlug !== "") {
+      const slug = citySlug(cityName);
+      const candidates = await readPlacesByStateAndSlug(
+        this.context.databaseClient(),
+        stateSlug,
+        slug,
+      );
+      if (candidates.length > 0) {
+        // Prefer the place in the county the point falls in; else, if the city
+        // names exactly one place statewide, use it (the point landed in the
+        // wrong county). Multiple same-named places in different counties, none
+        // containing the point, stay ambiguous and fail.
+        const countyId = await this.uniqueContainingLocationPath(
+          input,
+          "administrative_area",
+        );
+        const county =
+          countyId === undefined ? undefined : await this.getById(countyId);
+        const inCounty =
+          county === undefined
+            ? undefined
+            : candidates.find(
+                (candidate) => candidate.path === `${county.path}${slug}/`,
+              );
+        if (inCounty !== undefined) return inCounty.location_path_id;
+        if (candidates.length === 1) return candidates[0]!.location_path_id;
+      }
     }
 
     throw new Error(
-      `Cannot resolve location_path_id for ${input.subject}; no place location_path_geometry boundary contains point ${input.latitude}, ${input.longitude}.`,
+      `Cannot resolve a place location_path_id for ${input.subject}: no place location_path_geometry boundary contains point ${input.latitude}, ${input.longitude}, and its city ${JSON.stringify(cityName)} is not a place in ${JSON.stringify(stateSlug)}.`,
     );
   }
 }
