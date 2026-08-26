@@ -74,6 +74,29 @@ The interface is a deliberately small set of named queries, extended by adding a
 focused method for a concrete acquire need — never widened into a general query
 runner or a service locator (mirroring ADR 0011's stance for the import context).
 
+### The default API-source shape: search by agency in acquire, resolve in run
+
+An API source's **default** shape is: **acquire searches the external API once
+per agency** — driving its queries from `agencies(query)` and stamping each raw
+record with that agency's namespace-local source id — and **`run` then resolves
+one or more officers (and any other artifacts) at that known agency** through the
+intake-owned run context (`resolvePersonnel`, ADR 0023) to decide which artifacts
+are created. `courtlistener`, `clearinghouse-api`, and `youtube.policeactivity`
+all follow it.
+
+This is the default because it puts agency identity where it is exact and cheap —
+the acquire fixes it as a ledger-backed source id, so `run` never resolves an
+agency from free text and never guesses one; the only fuzzy step left is
+officer/case resolution, which is gated inside an intake-owned context. It also
+keeps sources isolated (ADR 0015) and runnable in dependency order (ADR 0021).
+
+A source **may** deviate — a bulk-file source that already carries agency and
+officer identity, or a source whose data has no per-agency search axis, is not
+forced through a per-agency search. But deviation is **explicit and justified**:
+a source that does not follow this default MUST state, in its source config or
+OpenSpec change, why the per-agency-search-then-resolve path is not appropriate
+for it. The default is the presumption; departing from it silently is not allowed.
+
 ## Consequences
 
 - An acquire decides what to download from intake-owned canonical data without
