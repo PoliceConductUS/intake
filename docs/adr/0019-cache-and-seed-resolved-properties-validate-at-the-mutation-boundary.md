@@ -35,8 +35,9 @@ resolver-filled field is optional versus required.
 
 **1. A generic `PropertyCache` lives in the resolver layer, not per entity.**
 The shared `ResolvingFacade` base (in `resolver-kit.ts`) routes a **derived** set
-of properties through a cache keyed by `(entity kind, subject id, property)`,
-with a fixed precedence:
+of properties through a cache. One file holds a `(entity kind, subject id,
+property)`; **inside it, N entries are keyed by the fingerprint of the resolver's
+normalized input** (see point 5). Precedence for a cached property:
 
 The cached set is **not hand-marked per resolver.** It is generated:
 `RESOLVED_PROPERTIES[kind]` (emitted by the entity-spec generator, = each
@@ -53,11 +54,12 @@ in `createRequired`/`RESOLVED_PROPERTIES`. The precedence for a cached property:
 - A source-provided value wins and is returned untouched — **never written** to
   the cache (the source is authoritative and re-read each run; persisting it
   would risk a later "already has a different value" write conflict).
-- With no source value, a cache **hit** short-circuits the resolver.
-- With no source value and a cache **miss**, the resolver runs live and the
-  result is **written through** — unless it is `null`/`undefined` (an absent
-  result is never cached, so it cannot masquerade as a hit and shadow a later
-  seed).
+- With no source value, a cache **hit** (an entry whose fingerprint matches the
+  resolver's current input) short-circuits the resolver.
+- With no source value and a cache **miss** (no entry for this input), the
+  resolver runs live and the result is **written through** as a new entry —
+  unless it is `null`/`undefined` (an absent result is never cached, so it cannot
+  masquerade as a hit and shadow a later seed).
 
 This deletes the bespoke `agency-coordinate-cache`: coordinates are just one
 cached property among several.
@@ -68,7 +70,10 @@ the cache at run time (`seedResolvedPropertyCache`, ADR 0018) and read as an
 ordinary cache hit. Seeding is how a value a resolver cannot derive is supplied:
 a missing address is **seeded**; an address that will not geocode gets its
 `latitude`/`longitude` **seeded**. No per-property or per-source code is
-involved — the cache is opaque to what it holds.
+involved — the cache is opaque to what it holds. A seed committed in the legacy
+single-`value` shape (no fingerprint) is **adopted** under the current input's
+fingerprint on first read — the seed corresponds to the committed source data,
+so that data is the value's input — after which point 5's invalidation applies.
 
 **3. Resolver-filled fields are optional in the artifact spec and required in
 the mutation spec.** Validation is explicit (Zod `.safeParse`), and the model is
@@ -96,6 +101,27 @@ a column null.** A source with no value for a field **omits it** (leaves it
 fills. Emitting `null` is a deliberate instruction to set the column to `null`,
 so a resolver-filled/required field must **never** be emitted `null`. (This is
 why the artifact spec for these fields accepts _omitted_ but rejects `null`.)
+
+**5. The cache invalidates on input change; the resolver owns the input.** A
+cached value is only correct while the input that produced it is unchanged, and
+**only the resolver knows what its value depends on** — `latitude`/`longitude`
+depend on the address fields, `location_path_id` on the resolved coordinates plus
+the address city. So a derived resolver declares a `cacheInput` returning that
+**normalized** input; the engine fingerprints it (sha256 of stable JSON) and keys
+the entry by it. Re-using the cached value is the default path — an unchanged
+input is a hit — and bypassing it requires the input to actually change (the new
+fingerprint has no entry, so the value re-resolves and a new entry is appended).
+Keeping N entries makes the cache a memoization table: a previously-seen input
+(including one contributed by another source) stays a hit. A cacheable resolver
+that declares **no** `cacheInput` keeps a single value keyed by
+`(subject, property)` alone — the pre-fingerprint behavior, for properties where
+input-invalidation is not yet modeled.
+
+Each entry also records **per-entry provenance** — the source record(s) that
+resolved this input to this value, keyed by namespace — merged across sources
+that agree. It is traceability from a cached value back to its source, and the
+hook for detecting cross-source disagreement (two sources, same input, different
+value is a resolver-determinism violation and fails loud on write).
 
 ## Mandated pattern — and disallowed alternatives
 
