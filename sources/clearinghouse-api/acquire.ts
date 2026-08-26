@@ -147,46 +147,56 @@ export const acquire: SourceAcquire = async ({
   let failed = 0;
   let agenciesWithCases = 0;
   let totalCases = 0;
+  // Page every agency into memory first, so the long, throttled search phase below
+  // does not hold a DB connection open across it — a DB restart mid-run would
+  // otherwise drop the idle connection. The agency list is only a few thousand rows.
+  const agencyRecords: Awaited<ReturnType<typeof data.agencies>>["items"] = [];
   let cursor: string | undefined;
   do {
     const page = await data.agencies({ minOfficers: 1, cursor, limit: 50 });
-    for (const record of page.items) {
-      const agencyName = record.name.trim();
-      const stateId = CLEARINGHOUSE_STATE_ID[record.state.toUpperCase()];
-      if (agencyName === "" || stateId === undefined) {
-        skipped += 1;
-        continue;
-      }
-      let cases: Record<string, unknown>[];
-      try {
-        cases = await casesForAgency(agencyName, stateId);
-      } catch (error) {
-        failed += 1;
-        log.info(
-          `clearinghouse: ${agencyName} — search failed, skipped (${error instanceof Error ? error.message : String(error)}).`,
-        );
-        continue;
-      }
-      searched += 1;
-      totalCases += cases.length;
-      if (cases.length > 0) agenciesWithCases += 1;
-      await writeFile(
-        path.join(sourceDir, `${slugify(agencyName)}.cases.json`),
-        JSON.stringify(
-          {
-            agency: { id: record.agencyId, name: agencyName, state: record.state },
-            cases,
-          },
-          null,
-          2,
-        ),
-      );
-      log.info(
-        `clearinghouse: ${agencyName} — ${cases.length} case(s) [searched ${searched}]`,
-      );
-    }
+    agencyRecords.push(...page.items);
     cursor = page.nextCursor;
   } while (cursor !== undefined);
+
+  for (const record of agencyRecords) {
+    const agencyName = record.name.trim();
+    const stateId = CLEARINGHOUSE_STATE_ID[record.state.toUpperCase()];
+    if (agencyName === "" || stateId === undefined) {
+      skipped += 1;
+      continue;
+    }
+    let cases: Record<string, unknown>[];
+    try {
+      cases = await casesForAgency(agencyName, stateId);
+    } catch (error) {
+      failed += 1;
+      log.info(
+        `clearinghouse: ${agencyName} — search failed, skipped (${error instanceof Error ? error.message : String(error)}).`,
+      );
+      continue;
+    }
+    searched += 1;
+    totalCases += cases.length;
+    if (cases.length > 0) agenciesWithCases += 1;
+    await writeFile(
+      path.join(sourceDir, `${slugify(agencyName)}.cases.json`),
+      JSON.stringify(
+        {
+          agency: {
+            id: record.agencyId,
+            name: agencyName,
+            state: record.state,
+          },
+          cases,
+        },
+        null,
+        2,
+      ),
+    );
+    log.info(
+      `clearinghouse: ${agencyName} — ${cases.length} case(s) [searched ${searched}]`,
+    );
+  }
 
   log.info(
     `clearinghouse: ${totalCases} case(s) across ${agenciesWithCases} of ${searched} agencies searched; ` +

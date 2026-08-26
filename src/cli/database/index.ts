@@ -28,16 +28,30 @@ export function defaultDatabaseClientFactory(
 // them internally already, but doing it here drops the deprecation warning and
 // is safe for pg@9.
 function serializeQueries(client: pg.Client): DatabaseClient {
+  // A connection-level failure (the DB restarting, an idle drop) emits an 'error'
+  // event on the client. With no listener Node treats it as fatal and aborts the
+  // process — enough to kill a multi-hour command over a momentary blip. Capture
+  // it so the *next* query rejects with a clear message instead; in-flight and
+  // future queries reject on their own.
+  let connectionError: Error | undefined;
+  client.on("error", (error: Error) => {
+    connectionError = error;
+  });
   let tail: Promise<unknown> = Promise.resolve();
   return {
     connect: () => client.connect(),
     end: () => client.end(),
     query: (text, values) => {
-      const result = tail.then(() =>
-        values === undefined
+      const result = tail.then(() => {
+        if (connectionError !== undefined) {
+          throw new Error(
+            `Database connection lost: ${connectionError.message}`,
+          );
+        }
+        return values === undefined
           ? client.query(text)
-          : client.query(text, values as unknown[]),
-      );
+          : client.query(text, values as unknown[]);
+      });
       tail = result.then(
         () => undefined,
         () => undefined,
