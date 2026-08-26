@@ -133,12 +133,15 @@ function caseUrl(civilCase: Case): string {
   return link.startsWith("http") ? link : `https://${link}`;
 }
 
-// The CivilCase id (ADR 0028) — the main docket's court-assigned identity,
-// `court:docket`, so this case converges with the same docket from CourtListener.
-// A case with no docket number (rare; some state cases) falls back to a
-// deterministic court+title key: safe, but it only matches another source by
-// luck — fine, since such cases are Clearinghouse-only.
-function caseNaturalId(civilCase: Case, title: string): string {
+// The CivilCase identity (ADR 0028): the main docket's court-assigned key
+// `court:docket` (so it converges with the same docket from CourtListener) plus
+// the normalized docket number for `cause_number`. A case with no docket number
+// (rare; some state cases) falls back to a deterministic court+title id and an
+// empty docket number — Clearinghouse-only, so a lucky-only match is fine.
+function caseIdentity(
+  civilCase: Case,
+  title: string,
+): { id: string; docketNumber: string } {
   const dockets = civilCase.dockets ?? [];
   const main =
     dockets.find((docket) => docket.is_main_docket) ??
@@ -147,11 +150,12 @@ function caseNaturalId(civilCase: Case, title: string): string {
   const courtToken = courtTokenFromName(
     text(main?.court) || text(civilCase.court),
   );
-  const docketNumber =
-    text(main?.docket_number_manual) || text(main?.recap_docket_number);
+  const docketNumber = normalizeDocketNumber(
+    text(main?.docket_number_manual) || text(main?.recap_docket_number),
+  );
   return docketNumber !== ""
-    ? civilCaseNaturalId(courtToken, docketNumber)
-    : `${courtToken}:${slugify(title)}`;
+    ? { id: civilCaseNaturalId(courtToken, docketNumber), docketNumber }
+    : { id: `${courtToken}:${slugify(title)}`, docketNumber: "" };
 }
 
 export const run: SourceRun = async ({ paths, data, env, logger }: RunDeps) => {
@@ -198,17 +202,16 @@ export const run: SourceRun = async ({ paths, data, env, logger }: RunDeps) => {
       if (resolvedPersonnelIds.size === 0) continue;
 
       // Canonical id is the natural docket key (ADR 0028), shared with CL.
-      const caseId = caseNaturalId(civilCase, title);
-      const docketNumber = caseId.includes(":")
-        ? caseId.slice(caseId.indexOf(":") + 1)
-        : caseId;
+      const { id: caseId, docketNumber } = caseIdentity(civilCase, title);
       const url = caseUrl(civilCase);
       const terminated = text(civilCase.terminating_date);
       civilCases[caseId] = {
         spec: {
           id: caseId,
           title,
-          cause_number: docketNumber,
+          // The court-assigned docket number; the id itself when the case has no
+          // docket (a court+title fallback), never an empty string.
+          cause_number: docketNumber || caseId,
           court: text(civilCase.court) || null,
           filed_date: filed,
           claims_summary:

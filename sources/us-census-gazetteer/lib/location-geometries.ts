@@ -11,7 +11,7 @@ import {
 
 /**
  * Ported from `intake.us-census-gazetteer/src/location-geometries.js`
- * (`buildLocationPathGeometries`, `buildLocationPathGeometryPackage`).
+ * (`buildLocationPathGeometryPackage`).
  *
  * The geometry/bbox/centroid math, the `sortedObject()` lexical sorting, and
  * the lexical `locationPathEntries` emit order (which the `onGeometryRow`
@@ -97,13 +97,6 @@ export interface BuildLocationPathGeometriesOptions {
   placeGeometryPaths: string[];
   selectedYear: number | string;
   state: string;
-}
-
-export async function buildLocationPathGeometries(
-  options: BuildLocationPathGeometriesOptions,
-): Promise<Record<string, LocationPathGeometryRow> | undefined> {
-  return (await buildLocationPathGeometryPackage(options))
-    .locationPathGeometries;
 }
 
 export async function buildLocationPathGeometryPackage({

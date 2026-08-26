@@ -45,39 +45,6 @@ export async function readDatabaseRecordsByColumn(
   );
 }
 
-// The rows whose id is not already in the database, found with one
-// `where id = any($1)` rather than a read per row.
-export async function readNewDatabaseRecords(
-  client: DatabaseClient,
-  tableName: SupportedTableName,
-  rows: readonly DatabaseRecord[],
-): Promise<DatabaseRecord[]> {
-  if (rows.length === 0) {
-    return [];
-  }
-  const existing = await readDatabaseRecordsByColumn(
-    client,
-    tableName,
-    "id",
-    rows.map((row) => String(row.id)),
-  );
-  const existingIds = new Set(existing.map((row) => String(row.id)));
-  return rows.filter((row) => !existingIds.has(String(row.id)));
-}
-
-export async function readDatabaseRecordsBySlugs(
-  client: DatabaseClient,
-  tableName: "public.agency" | "public.personnel",
-  slugs: readonly string[],
-): Promise<Record<string, unknown>[]> {
-  return rowsFromResult(
-    await client.query(
-      `select id, slug from ${tableName} where slug = any($1)`,
-      [slugs],
-    ),
-  );
-}
-
 // Insert one multi-row statement, doing nothing where `conflictKeyColumn`
 // already holds a key. Returns the set of keys actually inserted, so the caller
 // can fail loud on any pre-existing key without a separate existence read (the

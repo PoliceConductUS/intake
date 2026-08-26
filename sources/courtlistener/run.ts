@@ -13,7 +13,10 @@ import type {
   SourceRun,
 } from "../../src/cli/run/source-run.js";
 import { isPersonName, slugify } from "../lib/civil-defendants.js";
-import { civilCaseNaturalId } from "../lib/civil-case-id.js";
+import {
+  civilCaseNaturalId,
+  normalizeDocketNumber,
+} from "../lib/civil-case-id.js";
 
 export const description =
   "CourtListener — federal dockets naming any U.S. agency with at least one officer (active or not), linked to any officer named as a party (plaintiff or defendant) via the fuzzy agency_personnel resolver.";
@@ -95,7 +98,7 @@ export const run: SourceRun = async ({ paths, data, logger }: RunDeps) => {
       // Clearinghouse. `docket.court` is already CourtListener's court_id (the
       // acquire stores court_id), so it is the court token directly.
       const courtToken = text(docket.court);
-      const docketNumber = text(docket.docket_number);
+      const docketNumber = normalizeDocketNumber(text(docket.docket_number));
       const caseId =
         docketNumber !== "" && courtToken !== ""
           ? civilCaseNaturalId(courtToken, docketNumber)

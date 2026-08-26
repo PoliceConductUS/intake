@@ -144,13 +144,6 @@ export const importTypeRegistry = {
   },
 } satisfies Record<ImportArtifactKind, ImportTypeDefinition>;
 
-export const importKindByEntityName = Object.fromEntries(
-  Object.values(importTypeRegistry).map((definition) => [
-    definition.entityName,
-    definition.kind,
-  ]),
-) as Record<ImportEntityName, ImportArtifactKind>;
-
 function visitImportKind(
   kind: ImportArtifactKind,
   visiting: Set<ImportArtifactKind>,

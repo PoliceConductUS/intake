@@ -84,10 +84,3 @@ export function commandOutputDir(
 ): string {
   return path.join(commandDirectory, namespace, "output");
 }
-
-export function commandNamespaceStateDir(
-  commandDirectory: string,
-  namespace: string,
-): string {
-  return path.join(commandDirectory, namespace, "state");
-}

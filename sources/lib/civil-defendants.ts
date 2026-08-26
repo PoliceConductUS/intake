@@ -21,11 +21,3 @@ export function isPersonName(name: string): boolean {
     /^[A-Z][a-z]+ [A-Z]/.test(trimmed)
   );
 }
-
-export function primaryAgencyName(
-  names: readonly string[],
-): string | undefined {
-  return names
-    .map((name) => name.trim())
-    .find((name) => name !== "" && INSTITUTION.test(name));
-}
