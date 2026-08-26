@@ -1,0 +1,107 @@
+# ADR 0029: Align the Public Report Model to the /report/new Form
+
+## Status
+
+Proposed
+
+> Applies the resolve-or-fail discipline of
+> [ADR 0006](0006-allow-artifacts-to-create-known-valid-related-entities.md) /
+> [ADR 0015](0015-isolate-namespaces-and-own-cross-source-identity-at-root.md) /
+> [ADR 0023](0023-contexts-return-mapped-source-ids-never-canonical-ids.md) and
+> the natural-key identity of
+> [ADR 0028](0028-natural-key-identity-for-cross-source-entities.md) to
+> user-submitted reports. The schema is intake-owned (all migrations live here),
+> so the schema half is an intake change; the form, submit endpoint, and display
+> are website changes that must move in lockstep.
+
+## Context
+
+The `reviews` / `review_*` / `rubrics` / `traits` tables predate the current
+product model. The website's `/report/new` form defines the intended model: a
+**first-person narrative account** of a police interaction — what led up to it,
+what happened, how it felt — **not** the old per-trait rubric scoring. Rubrics
+and traits are no longer used (confirmed), though current `main`'s
+`report-detail.ts` still queries and renders them.
+
+A report must attach to **canonical** records, never free text: a specific
+officer at a specific agency (`agency_personnel`), a specific `location_path_id`,
+an existing `civil_case` — the same resolve-or-fail discipline intake uses.
+
+Submission is **capture-then-resolve**, mirroring intake's acquire→run: a generic
+form-submission endpoint captures the raw report as `verification_pending`
+(unresolved, the submitter's words verbatim); a separate **resolution step** turns
+it into a published, anchored report. `reviews` already carries the
+resolved-location columns (`location_path_id`, `latitude`, `longitude`,
+`address`).
+
+## Decision
+
+Adopt the `/report/new` model as the canonical report shape and align the schema
+to it.
+
+**1. The report row carries narrative + resolved location.**
+
+- Kept: `id`, `slug`, `title`, `incident_date`, `location_path_id`, `latitude`,
+  `longitude`, `address`, `desired_outcome`, `charges`, `created_at`,
+  `updated_at`.
+- Added: `incident_time`, `submitter_relationship`, `interaction_type`,
+  `setting`, `what_happened`, `how_felt`, `what_else`, `bodycam_requested`,
+  `complaint_filed`, `purpose`, `case_number`.
+
+**2. Resolved links, never free text** (the resolution step resolves these):
+
+| Form input                       | Resolves to                                                     |
+| -------------------------------- | --------------------------------------------------------------- |
+| `location` (city/state)          | `location_path_id` (+ `latitude`/`longitude`)                   |
+| `agencyName`                     | a specific agency                                               |
+| officers named in `whatHappened` | `agency_personnel` (officer@agency) via `review_personnel`      |
+| `caseNumber`                     | an existing `civil_case` (natural key `court:docket`, ADR 0028) |
+
+An officer/agency/case that does not resolve is kept as an **attributed claim**
+(the submitter's words), never a canonical link — as with the youtube /
+courtlistener / clearinghouse sources.
+
+**3. Submitter PII is isolated.** `reporterName` / `reporterEmail` /
+`reporterPhone` / relationship never live on the public report row; a separate
+submissions table (or auth) holds contact info and the public row references it
+by id.
+
+**4. Drop the dead scoring model** — `rubrics`, `traits`, `rubric_labels`,
+`review_personnel_ratings` — **in lockstep with the display rewrite**, never
+before (current `main` renders them).
+
+**5. Publish gate.** A captured report stays `verification_pending` until the
+resolution step anchors it to at least one real officer@agency
+(everything-resolves-to-an-officer); it is published only then, never as an
+unanchored record.
+
+## Consequences
+
+Cross-repo and **phased**, drop last:
+
+1. **Schema migration (intake), non-breaking:** add the new report columns and
+   confirm the report→`agency_personnel` / →`civil_case` links. Nothing dropped.
+2. **Resolution step + website:** the resolution step resolves
+   officer/agency/location/case (mirroring intake's resolvers) to move a captured
+   submission from `verification_pending` to a published report; the website
+   rewrites the report display to the new narrative model. The generic capture
+   endpoint already exists, so this is resolution + display, not a new endpoint.
+3. **Follow-up migration:** once the display no longer reads `rubrics`/`traits`,
+   drop the scoring tables. This is the **last** step, after the display moves.
+
+Result: user reports become structured, verifiable records anchored to real
+officers/agencies/cases, and the public dataset carries no submitter PII.
+
+## Alternatives Considered
+
+- **Keep rubric/trait scoring** — rejected; the form abandoned it and it is
+  unused.
+- **Free-text officer/agency/location on the report** — rejected; violates
+  resolve-or-fail. A report must point at real records.
+- **Drop the scoring tables now** — rejected; breaks current `main`'s display.
+  The drop is coordinated and last.
+
+## Revisit Trigger
+
+The `/report/new` fields change materially, or the submit endpoint's resolution
+rules need to diverge from intake's.
