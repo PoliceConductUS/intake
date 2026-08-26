@@ -112,10 +112,20 @@ the entry by it. Re-using the cached value is the default path — an unchanged
 input is a hit — and bypassing it requires the input to actually change (the new
 fingerprint has no entry, so the value re-resolves and a new entry is appended).
 Keeping N entries makes the cache a memoization table: a previously-seen input
-(including one contributed by another source) stays a hit. A cacheable resolver
-that declares **no** `cacheInput` keeps a single value keyed by
-`(subject, property)` alone — the pre-fingerprint behavior, for properties where
-input-invalidation is not yet modeled.
+(including one contributed by another source) stays a hit.
+
+Only a **genuinely derived** property declares a `cacheInput`: `latitude`,
+`longitude`, `location_path_id`. A cacheable property that declares **none** keeps
+a single value keyed by `(subject, property)` alone, and this is **deliberate and
+permanent** for two kinds of property — do not add a `cacheInput` to them:
+
+- **Sticky, not derived (`slug`).** A slug, once assigned, must **never** change
+  — a corrected name keeps the old slug (the existing-row-slug reuse in ADR 0016
+  #4 guarantees this). Fingerprinting a slug by its name would re-derive it on
+  rename, the exact opposite of the requirement.
+- **Not derived at all (`address`/`city`/`state`/`zip_code`).** These are
+  source-provided (source > cache); the cache only ever **seeds** one the source
+  lacks. There is no derivation, so there is no input to fingerprint.
 
 Each entry also records **per-entry provenance** — the source record(s) that
 resolved this input to this value, keyed by namespace — merged across sources
