@@ -26,6 +26,7 @@ import {
   agencyLocationPathResolver,
   agencyCoordinateResolver,
 } from "./agency-personnel-resolvers.js";
+import { coverageLinkIdResolver } from "./coverage-resolvers.js";
 import {
   EntityFacade,
   type EntityFacadeBackend,
@@ -175,6 +176,13 @@ const REGISTRY: Record<string, KindConfig> = {
         "agency_personnel_id",
         "AgencyPersonnel",
       ) as AnyResolver,
+    },
+  },
+  CoverageLink: {
+    // Identity is the normalized URL (ADR 0028): a URL is unique in coverage_links.
+    identityKind: "natural",
+    overrides: {
+      id: coverageLinkIdResolver() as AnyResolver,
     },
   },
 };
