@@ -156,8 +156,11 @@ function agencyAddressInput(
     address: valueAsString(facade.raw("address")),
     administrativeAreaName: valueAsString(location.administrativeAreaName),
     administrativeAreaSlug: valueAsString(location.administrativeAreaSlug),
-    latitude: valueAsFiniteNumber(facade.raw("latitude")),
-    longitude: valueAsFiniteNumber(facade.raw("longitude")),
+    // No latitude/longitude here: the source never supplies coordinates, and
+    // reading them raw silently bypasses the cache (the bug this replaced). A
+    // caller that has resolved coordinates passes them explicitly (see
+    // agencyLocationPathResolver); the coordinate resolver, which produces them,
+    // geocodes when they are absent.
     name: valueAsString(facade.raw("name")),
     sourceName: source.name,
   };
