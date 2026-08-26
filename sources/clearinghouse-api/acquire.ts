@@ -158,7 +158,18 @@ export const acquire: SourceAcquire = async ({
     cursor = page.nextCursor;
   } while (cursor !== undefined);
 
+  const total = agencyRecords.length;
+  let processed = 0;
+  log.info(`clearinghouse: searching ${total} agencies`);
   for (const record of agencyRecords) {
+    processed += 1;
+    // A periodic X/Y heartbeat instead of a line per agency: most agencies have
+    // no cases, so per-agency logging is thousands of lines of noise.
+    if (processed % 200 === 0 || processed === total) {
+      log.info(
+        `clearinghouse: ${processed}/${total} agencies searched, ${totalCases} case(s) so far`,
+      );
+    }
     const agencyName = record.name.trim();
     const stateId = CLEARINGHOUSE_STATE_ID[record.state.toUpperCase()];
     if (agencyName === "" || stateId === undefined) {
@@ -193,9 +204,12 @@ export const acquire: SourceAcquire = async ({
         2,
       ),
     );
-    log.info(
-      `clearinghouse: ${agencyName} — ${cases.length} case(s) [searched ${searched}]`,
-    );
+    // Only the agencies that actually have cases are worth a line.
+    if (cases.length > 0) {
+      log.info(
+        `clearinghouse: ${agencyName} — ${cases.length} case(s) [${processed}/${total}]`,
+      );
+    }
   }
 
   log.info(
