@@ -32,6 +32,9 @@ describe("source run order over the real sources", () => {
       "clearinghouse-api",
       "courtlistener",
       "gov.us.federal-le",
+      // Produces CoverageLinks + CoverageLinkAgencyPersonnel, which consume
+      // AgencyPersonnel — so it orders after the personnel/agency producers.
+      "youtube.policeactivity",
     ]);
     expect(skipped).toEqual(["gov.azpost.roster"]);
 

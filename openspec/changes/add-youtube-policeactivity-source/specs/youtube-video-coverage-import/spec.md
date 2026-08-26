@@ -29,11 +29,12 @@ marker), **stamped with the agency's namespace-local source id**. It MUST requir
 ### Requirement: Run resolves officers at the acquired agency and never guesses
 
 The `run.ts` phase MUST be deterministic and MUST link a video only to
-**existing** personnel and civil cases at the agency the acquire stamped — it MUST
-NOT mint an agency or personnel record, MUST NOT resolve an agency from free text,
-and MUST NOT infer an officer from appearance, geography, title fragments, or
-comments. Every emitted link MUST carry the source passage (with caption timestamp
-when applicable) supporting it.
+**existing** personnel at the agency the acquire stamped — it MUST NOT mint an
+agency or personnel record, MUST NOT resolve an agency from free text, and MUST
+NOT infer an officer from appearance, geography, title fragments, or comments.
+Every emitted link MUST carry the source passage (with caption timestamp when
+applicable) supporting it. (Linking a video to an existing civil case is a planned
+extension, gated on a match-only `resolveCivilCase` capability.)
 
 #### Scenario: a video naming a resolvable officer at its acquired agency emits a cited link
 

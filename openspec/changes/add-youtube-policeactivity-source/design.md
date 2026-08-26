@@ -33,13 +33,16 @@ so for each video over `title + description + captions`:
 1. **Officer** — extract candidate officer names and resolve via
    `data.resolvePersonnel({ agencyId, personnelName })` (the agency is fixed by
    acquire). Each match emits a `CoverageLinkAgencyPersonnel`.
-2. **Case** — extract docket tokens and resolve to an existing CivilCase by its
-   natural key (`court:docket`, ADR 0028); a match emits a `CoverageLinkCivilCase`.
-3. A video with **≥1** verified officer/case link emits one `CoverageLink` (url,
-   title, `published_at`, `source_name` = channel, description as attributed
-   framing). A video with no verified link emits no durable coverage record — a
+2. A video with **≥1** verified officer link emits one `CoverageLink` (url, title,
+   `published_at`, `source_name` = channel, description as attributed framing). A
+   video with no verified officer link emits no durable coverage record — a
    visible unmatched result, not silent success. (The agency search alone is only
-   a candidate filter; the officer/case resolution is the verification.)
+   a candidate filter; the officer resolution is the verification.)
+
+**Case links are deferred.** `CoverageLinkCivilCase` needs a match-only
+`resolveCivilCase` run capability (a coverage link may only reference an existing
+civil case; emitting an unverified case ref would fail-loud at import). That
+capability is a follow-up, tracked in tasks; the first cut is officer links.
 
 ### Evidence, never guessing (#52)
 
