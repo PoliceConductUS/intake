@@ -299,7 +299,9 @@ export const run: SourceRun = async ({ paths }) => {
             normalized_url: normalizeUrl(documentUrl),
             title: [documentName, caseNumber].filter(Boolean).join(" "),
             source_name: "Minnesota POST",
-            published_at: effectiveDate,
+            // published_at is nullable-non-empty: emit null, never "" (a blank
+            // effective date), or the create/update spec rejects it.
+            published_at: effectiveDate || null,
           },
         };
       }
