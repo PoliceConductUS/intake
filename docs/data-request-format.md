@@ -217,6 +217,18 @@ One row per AgencyPhoneNumber.
 | `phone_number` | text | yes      | —                                                | —                                                                        |
 | `description`  | text | optional | —                                                | —                                                                        |
 
+### AgencyLink
+
+One row per AgencyLink.
+
+| Field         | Type | Required | Constraints                                      | Relationship / notes                                                     |
+| ------------- | ---- | -------- | ------------------------------------------------ | ------------------------------------------------------------------------ |
+| `id`          | text | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time.               |
+| `agency_id`   | text | optional | —                                                | → **Agency**: your id for the linked Agency, present in the same export. |
+| `url`         | text | yes      | —                                                | —                                                                        |
+| `description` | text | optional | —                                                | —                                                                        |
+| `label`       | text | yes      | —                                                | —                                                                        |
+
 ### FederalAgency
 
 A federal law-enforcement agency (e.g. the FBI, DEA), distinct from its individual offices.
@@ -282,3 +294,14 @@ One row per CivilCaseLink.
 | `civil_case_id` | text | yes      | —                                                | → **CivilCase**: your id for the linked CivilCase, present in the same export. |
 | `url`           | text | yes      | —                                                | —                                                                              |
 | `title`         | text | yes      | —                                                | —                                                                              |
+
+### CoverageLinkCivilCase
+
+One row per CoverageLinkCivilCase.
+
+| Field              | Type | Required | Constraints                                      | Relationship / notes                                                                 |
+| ------------------ | ---- | -------- | ------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `id`               | text | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time.                           |
+| `coverage_link_id` | text | yes      | —                                                | → **CoverageLink**: your id for the linked CoverageLink, present in the same export. |
+| `civil_case_id`    | text | yes      | —                                                | → **CivilCase**: your id for the linked CivilCase, present in the same export.       |
+| `notes`            | text | optional | —                                                | —                                                                                    |

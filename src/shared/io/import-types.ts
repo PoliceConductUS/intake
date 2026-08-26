@@ -10,6 +10,7 @@ import {
   type ImportTypeMetadata,
 } from "./import-type-metadata.js";
 import {
+  AgencyLinkSpec,
   AgencyPersonnelSpec,
   AgencyPhoneNumberSpec,
   AgencySpec,
@@ -17,6 +18,7 @@ import {
   CivilCasePersonnelSpec,
   CivilCaseLinkSpec,
   CoverageLinkAgencyPersonnelSpec,
+  CoverageLinkCivilCaseSpec,
   CoverageLinkSpec,
   DisciplineAgencyPersonnelSpec,
   DisciplineSpec,
@@ -58,91 +60,23 @@ const recordSchemas = {
   CoverageLinks: CoverageLinkSpec,
   CoverageLinkAgencyPersonnel: CoverageLinkAgencyPersonnelSpec,
   AgencyPhoneNumbers: AgencyPhoneNumberSpec,
+  AgencyLinks: AgencyLinkSpec,
   FederalAgencies: FederalAgencySpec,
   FederalAgencyBranches: FederalAgencyBranchSpec,
   CivilCases: CivilCaseSpec,
   CivilCasePersonnel: CivilCasePersonnelSpec,
   CivilCaseLinks: CivilCaseLinkSpec,
+  CoverageLinkCivilCases: CoverageLinkCivilCaseSpec,
 } satisfies Record<ImportArtifactKind, z.ZodType<Record<string, unknown>>>;
 
-export const importTypeRegistry = {
-  LocationPaths: {
-    ...importTypeMetadata.LocationPaths,
-    recordSchema: recordSchemas.LocationPaths,
-  },
-  LocationPathGeometries: {
-    ...importTypeMetadata.LocationPathGeometries,
-    recordSchema: recordSchemas.LocationPathGeometries,
-  },
-  LocationPathAliases: {
-    ...importTypeMetadata.LocationPathAliases,
-    recordSchema: recordSchemas.LocationPathAliases,
-  },
-  Agencies: {
-    ...importTypeMetadata.Agencies,
-    recordSchema: recordSchemas.Agencies,
-  },
-  Personnel: {
-    ...importTypeMetadata.Personnel,
-    recordSchema: recordSchemas.Personnel,
-  },
-  AgencyPersonnel: {
-    ...importTypeMetadata.AgencyPersonnel,
-    recordSchema: recordSchemas.AgencyPersonnel,
-  },
-  LicensingAuthorities: {
-    ...importTypeMetadata.LicensingAuthorities,
-    recordSchema: recordSchemas.LicensingAuthorities,
-  },
-  Licenses: {
-    ...importTypeMetadata.Licenses,
-    recordSchema: recordSchemas.Licenses,
-  },
-  LicenseActions: {
-    ...importTypeMetadata.LicenseActions,
-    recordSchema: recordSchemas.LicenseActions,
-  },
-  Disciplines: {
-    ...importTypeMetadata.Disciplines,
-    recordSchema: recordSchemas.Disciplines,
-  },
-  DisciplineAgencyPersonnel: {
-    ...importTypeMetadata.DisciplineAgencyPersonnel,
-    recordSchema: recordSchemas.DisciplineAgencyPersonnel,
-  },
-  CoverageLinks: {
-    ...importTypeMetadata.CoverageLinks,
-    recordSchema: recordSchemas.CoverageLinks,
-  },
-  CoverageLinkAgencyPersonnel: {
-    ...importTypeMetadata.CoverageLinkAgencyPersonnel,
-    recordSchema: recordSchemas.CoverageLinkAgencyPersonnel,
-  },
-  AgencyPhoneNumbers: {
-    ...importTypeMetadata.AgencyPhoneNumbers,
-    recordSchema: recordSchemas.AgencyPhoneNumbers,
-  },
-  FederalAgencies: {
-    ...importTypeMetadata.FederalAgencies,
-    recordSchema: recordSchemas.FederalAgencies,
-  },
-  FederalAgencyBranches: {
-    ...importTypeMetadata.FederalAgencyBranches,
-    recordSchema: recordSchemas.FederalAgencyBranches,
-  },
-  CivilCases: {
-    ...importTypeMetadata.CivilCases,
-    recordSchema: recordSchemas.CivilCases,
-  },
-  CivilCasePersonnel: {
-    ...importTypeMetadata.CivilCasePersonnel,
-    recordSchema: recordSchemas.CivilCasePersonnel,
-  },
-  CivilCaseLinks: {
-    ...importTypeMetadata.CivilCaseLinks,
-    recordSchema: recordSchemas.CivilCaseLinks,
-  },
-} satisfies Record<ImportArtifactKind, ImportTypeDefinition>;
+// Derived from the generated kinds so a new entity is picked up automatically —
+// each kind's metadata plus its record schema, no per-kind enumeration.
+export const importTypeRegistry = Object.fromEntries(
+  IMPORT_ARTIFACT_KINDS.map((kind) => [
+    kind,
+    { ...importTypeMetadata[kind], recordSchema: recordSchemas[kind] },
+  ]),
+) as unknown as Record<ImportArtifactKind, ImportTypeDefinition>;
 
 function visitImportKind(
   kind: ImportArtifactKind,

@@ -42,6 +42,9 @@ import { CoverageLinkAgencyPersonnelUpdate } from "./CoverageLinkAgencyPersonnel
 import { AgencyPhoneNumberCreate } from "./AgencyPhoneNumberCreate.js";
 import { AgencyPhoneNumberRead } from "./AgencyPhoneNumberRead.js";
 import { AgencyPhoneNumberUpdate } from "./AgencyPhoneNumberUpdate.js";
+import { AgencyLinkCreate } from "./AgencyLinkCreate.js";
+import { AgencyLinkRead } from "./AgencyLinkRead.js";
+import { AgencyLinkUpdate } from "./AgencyLinkUpdate.js";
 import { FederalAgencyCreate } from "./FederalAgencyCreate.js";
 import { FederalAgencyRead } from "./FederalAgencyRead.js";
 import { FederalAgencyUpdate } from "./FederalAgencyUpdate.js";
@@ -57,6 +60,9 @@ import { CivilCasePersonnelUpdate } from "./CivilCasePersonnelUpdate.js";
 import { CivilCaseLinkCreate } from "./CivilCaseLinkCreate.js";
 import { CivilCaseLinkRead } from "./CivilCaseLinkRead.js";
 import { CivilCaseLinkUpdate } from "./CivilCaseLinkUpdate.js";
+import { CoverageLinkCivilCaseCreate } from "./CoverageLinkCivilCaseCreate.js";
+import { CoverageLinkCivilCaseRead } from "./CoverageLinkCivilCaseRead.js";
+import { CoverageLinkCivilCaseUpdate } from "./CoverageLinkCivilCaseUpdate.js";
 
 export const importMutationEnvelopeTypes = {
   LocationPathCreate,
@@ -101,6 +107,9 @@ export const importMutationEnvelopeTypes = {
   AgencyPhoneNumberCreate,
   AgencyPhoneNumberRead,
   AgencyPhoneNumberUpdate,
+  AgencyLinkCreate,
+  AgencyLinkRead,
+  AgencyLinkUpdate,
   FederalAgencyCreate,
   FederalAgencyRead,
   FederalAgencyUpdate,
@@ -116,4 +125,7 @@ export const importMutationEnvelopeTypes = {
   CivilCaseLinkCreate,
   CivilCaseLinkRead,
   CivilCaseLinkUpdate,
+  CoverageLinkCivilCaseCreate,
+  CoverageLinkCivilCaseRead,
+  CoverageLinkCivilCaseUpdate,
 };

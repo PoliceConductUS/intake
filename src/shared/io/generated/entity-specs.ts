@@ -47,11 +47,13 @@ export const RECORD_KINDS_IN_DEPENDENCY_ORDER = [
   "CoverageLink",
   "CoverageLinkAgencyPersonnel",
   "AgencyPhoneNumber",
+  "AgencyLink",
   "FederalAgency",
   "FederalAgencyBranch",
   "CivilCase",
   "CivilCasePersonnel",
   "CivilCaseLink",
+  "CoverageLinkCivilCase",
 ] as const;
 
 // Each record kind's foreign keys to other entity kinds (field → target kind),
@@ -90,6 +92,7 @@ export const FK_REFERENCES: Record<
     { field: "coverage_link_id", targetKind: "CoverageLink" },
   ],
   AgencyPhoneNumber: [{ field: "agency_id", targetKind: "Agency" }],
+  AgencyLink: [{ field: "agency_id", targetKind: "Agency" }],
   FederalAgencyBranch: [
     { field: "agency_id", targetKind: "Agency" },
     { field: "federal_agency_id", targetKind: "FederalAgency" },
@@ -100,6 +103,10 @@ export const FK_REFERENCES: Record<
     { field: "civil_case_id", targetKind: "CivilCase" },
   ],
   CivilCaseLink: [{ field: "civil_case_id", targetKind: "CivilCase" }],
+  CoverageLinkCivilCase: [
+    { field: "civil_case_id", targetKind: "CivilCase" },
+    { field: "coverage_link_id", targetKind: "CoverageLink" },
+  ],
 };
 
 // Each record kind's properties resolved during import rather than supplied by
@@ -131,11 +138,13 @@ export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = {
   CoverageLink: ["id"],
   CoverageLinkAgencyPersonnel: ["id"],
   AgencyPhoneNumber: ["id"],
+  AgencyLink: ["id"],
   FederalAgency: ["id"],
   FederalAgencyBranch: ["id"],
   CivilCase: ["id", "slug", "location_path_id"],
   CivilCasePersonnel: ["id"],
   CivilCaseLink: ["id"],
+  CoverageLinkCivilCase: ["id"],
 };
 
 // Each record kind's schema-qualified database table.
@@ -154,11 +163,13 @@ export const TABLE_BY_KIND: Record<string, string> = {
   CoverageLink: "public.coverage_links",
   CoverageLinkAgencyPersonnel: "public.coverage_link_agency_personnel",
   AgencyPhoneNumber: "public.agency_phone_numbers",
+  AgencyLink: "public.agency_links",
   FederalAgency: "public.federal_agency",
   FederalAgencyBranch: "public.federal_agency_branch",
   CivilCase: "public.civil_cases",
   CivilCasePersonnel: "public.civil_case_personnel",
   CivilCaseLink: "public.civil_case_links",
+  CoverageLinkCivilCase: "public.coverage_link_civil_cases",
 };
 
 // Import artifact metadata per kind: kind/entityName naming plus the FK-derived
@@ -264,6 +275,13 @@ export const importTypeMetadata = {
     targetTable: "public.agency_phone_numbers",
     dependsOn: ["Agencies"],
   },
+  AgencyLinks: {
+    kind: "AgencyLinks",
+    recordKind: "AgencyLink",
+    entityName: "agencyLinks",
+    targetTable: "public.agency_links",
+    dependsOn: ["Agencies"],
+  },
   FederalAgencies: {
     kind: "FederalAgencies",
     recordKind: "FederalAgency",
@@ -299,6 +317,13 @@ export const importTypeMetadata = {
     targetTable: "public.civil_case_links",
     dependsOn: ["CivilCases"],
   },
+  CoverageLinkCivilCases: {
+    kind: "CoverageLinkCivilCases",
+    recordKind: "CoverageLinkCivilCase",
+    entityName: "coverageLinkCivilCases",
+    targetTable: "public.coverage_link_civil_cases",
+    dependsOn: ["CoverageLinks", "CivilCases"],
+  },
 } as const;
 
 export type ImportArtifactKind = keyof typeof importTypeMetadata;
@@ -320,11 +345,13 @@ export const IMPORT_ARTIFACT_KINDS = [
   "CoverageLinks",
   "CoverageLinkAgencyPersonnel",
   "AgencyPhoneNumbers",
+  "AgencyLinks",
   "FederalAgencies",
   "FederalAgencyBranches",
   "CivilCases",
   "CivilCasePersonnel",
   "CivilCaseLinks",
+  "CoverageLinkCivilCases",
 ] as const satisfies readonly ImportArtifactKind[];
 
 export type ImportEntityName =
@@ -654,6 +681,20 @@ export const AgencyPhoneNumberCreateSpec = AgencyPhoneNumberSpec.extend({
   id: z.string(),
 });
 
+export const AgencyLinkSpec = z
+  .object({
+    id: z.string().optional(),
+    agency_id: z.string().nullable().optional(),
+    url: z.string(),
+    description: z.string().nullable().optional(),
+    label: z.string(),
+  })
+  .strict();
+
+export const AgencyLinkCreateSpec = AgencyLinkSpec.extend({
+  id: z.string(),
+});
+
 export const FederalAgencySpec = z
   .object({
     id: z.string().optional(),
@@ -724,6 +765,21 @@ export const CivilCaseLinkSpec = z
 export const CivilCaseLinkCreateSpec = CivilCaseLinkSpec.extend({
   id: z.string(),
 });
+
+export const CoverageLinkCivilCaseSpec = z
+  .object({
+    id: z.string().optional(),
+    coverage_link_id: z.string(),
+    civil_case_id: z.string(),
+    notes: z.string().nullable().optional(),
+  })
+  .strict();
+
+export const CoverageLinkCivilCaseCreateSpec = CoverageLinkCivilCaseSpec.extend(
+  {
+    id: z.string(),
+  },
+);
 
 export type AgencyRow = {
   id: string;

@@ -22,11 +22,13 @@ import { DisciplineAgencyPersonnel } from "./DisciplineAgencyPersonnel.js";
 import { CoverageLinks } from "./CoverageLinks.js";
 import { CoverageLinkAgencyPersonnel } from "./CoverageLinkAgencyPersonnel.js";
 import { AgencyPhoneNumbers } from "./AgencyPhoneNumbers.js";
+import { AgencyLinks } from "./AgencyLinks.js";
 import { FederalAgencies } from "./FederalAgencies.js";
 import { FederalAgencyBranches } from "./FederalAgencyBranches.js";
 import { CivilCases } from "./CivilCases.js";
 import { CivilCasePersonnel } from "./CivilCasePersonnel.js";
 import { CivilCaseLinks } from "./CivilCaseLinks.js";
+import { CoverageLinkCivilCases } from "./CoverageLinkCivilCases.js";
 
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
@@ -110,11 +112,13 @@ const artifactSpecSchemas: Record<string, z.ZodType> = {
   CoverageLinks: CoverageLinks.schema.shape.spec,
   CoverageLinkAgencyPersonnel: CoverageLinkAgencyPersonnel.schema.shape.spec,
   AgencyPhoneNumbers: AgencyPhoneNumbers.schema.shape.spec,
+  AgencyLinks: AgencyLinks.schema.shape.spec,
   FederalAgencies: FederalAgencies.schema.shape.spec,
   FederalAgencyBranches: FederalAgencyBranches.schema.shape.spec,
   CivilCases: CivilCases.schema.shape.spec,
   CivilCasePersonnel: CivilCasePersonnel.schema.shape.spec,
   CivilCaseLinks: CivilCaseLinks.schema.shape.spec,
+  CoverageLinkCivilCases: CoverageLinkCivilCases.schema.shape.spec,
 };
 const artifactReferenceSchema = z
   .object({

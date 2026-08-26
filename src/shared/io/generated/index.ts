@@ -120,6 +120,8 @@ export type {
   AgencyPhoneNumbersEnvelope,
   AgencyPhoneNumbersInput,
 } from "./AgencyPhoneNumbers.js";
+export { AgencyLinks, AgencyLinkSpec } from "./AgencyLinks.js";
+export type { AgencyLinksEnvelope, AgencyLinksInput } from "./AgencyLinks.js";
 export { FederalAgencies, FederalAgencySpec } from "./FederalAgencies.js";
 export type {
   FederalAgenciesEnvelope,
@@ -148,3 +150,11 @@ export type {
   CivilCaseLinksEnvelope,
   CivilCaseLinksInput,
 } from "./CivilCaseLinks.js";
+export {
+  CoverageLinkCivilCases,
+  CoverageLinkCivilCaseSpec,
+} from "./CoverageLinkCivilCases.js";
+export type {
+  CoverageLinkCivilCasesEnvelope,
+  CoverageLinkCivilCasesInput,
+} from "./CoverageLinkCivilCases.js";

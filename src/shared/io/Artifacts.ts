@@ -15,6 +15,18 @@ import {
   write as writeAgencyPersonnel,
 } from "./generated/AgencyPersonnel.js";
 import {
+  AgencyLinks,
+  AgencyLinkSpec,
+  read as readAgencyLinks,
+  write as writeAgencyLinks,
+} from "./generated/AgencyLinks.js";
+import {
+  CoverageLinkCivilCases,
+  CoverageLinkCivilCaseSpec,
+  read as readCoverageLinkCivilCases,
+  write as writeCoverageLinkCivilCases,
+} from "./generated/CoverageLinkCivilCases.js";
+import {
   LocationPathAliases,
   LocationPathAliasSpec,
   read as readLocationPathAliases,
@@ -206,6 +218,13 @@ type ArtifactRecordSpec = {
 };
 
 const artifactReaders: Record<ImportArtifactKind, ArtifactReader> = {
+  AgencyLinks: (filePath, options) =>
+    readAgencyLinks(filePath, { ...options, expectedKind: "AgencyLinks" }),
+  CoverageLinkCivilCases: (filePath, options) =>
+    readCoverageLinkCivilCases(filePath, {
+      ...options,
+      expectedKind: "CoverageLinkCivilCases",
+    }),
   Agencies: (filePath, options) =>
     readAgencies(filePath, { ...options, expectedKind: "Agencies" }),
   AgencyPersonnel: (filePath, options) =>
@@ -284,6 +303,11 @@ const artifactReaders: Record<ImportArtifactKind, ArtifactReader> = {
 
 const artifactEnvelopeTypes: Record<ImportArtifactKind, ArtifactEnvelopeType> =
   {
+    AgencyLinks: { ...AgencyLinks, write: writeAgencyLinks },
+    CoverageLinkCivilCases: {
+      ...CoverageLinkCivilCases,
+      write: writeCoverageLinkCivilCases,
+    },
     Agencies: { ...Agencies, write: writeAgencies },
     AgencyPersonnel: { ...AgencyPersonnel, write: writeAgencyPersonnel },
     LocationPathAliases: {
@@ -330,6 +354,8 @@ const artifactEnvelopeTypes: Record<ImportArtifactKind, ArtifactEnvelopeType> =
   };
 
 const artifactRecordSpecs: Record<ImportArtifactKind, ArtifactRecordSpec> = {
+  AgencyLinks: AgencyLinkSpec,
+  CoverageLinkCivilCases: CoverageLinkCivilCaseSpec,
   Agencies: AgencySpec,
   AgencyPersonnel: AgencyPersonnelSpec,
   LocationPathAliases: LocationPathAliasSpec,
