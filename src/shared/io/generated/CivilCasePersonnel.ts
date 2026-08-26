@@ -16,7 +16,6 @@ import {
 import { CivilCasePersonnelSpec } from "./entity-specs.js";
 export { CivilCasePersonnelSpec } from "./entity-specs.js";
 
-
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -52,19 +51,25 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "CivilCasePersonnel"} ref requires relativeTo.`);
+  if (
+    options.relativeTo === undefined ||
+    options.relativeTo.trim().length === 0
+  ) {
+    throw new Error(
+      `Relative ${ref.kind ?? "CivilCasePersonnel"} ref requires relativeTo.`,
+    );
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "CivilCasePersonnel"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(
+      `${ref.kind ?? "CivilCasePersonnel"} ref.path escapes its directory: ${ref.path}`,
+    );
   }
   return { ...ref, filePath: resolvedPath };
 }
-
 
 const metadataSchema = z
   .object({
@@ -78,9 +83,7 @@ const metadataSchema = z
   })
   .strict();
 
-const recordItemSchema = z
-  .object({ spec: CivilCasePersonnelSpec })
-  .strict();
+const recordItemSchema = z.object({ spec: CivilCasePersonnelSpec }).strict();
 
 export const schema = z
   .object({
@@ -98,8 +101,14 @@ export const schema = z
   .strict();
 
 export type CivilCasePersonnelEnvelope = z.infer<typeof schema>;
-export type CivilCasePersonnelInput = Omit<CivilCasePersonnelEnvelope, "apiVersion" | "kind">;
-export type CivilCasePersonnelResolvedEnvelope = Omit<CivilCasePersonnelEnvelope, "spec"> & {
+export type CivilCasePersonnelInput = Omit<
+  CivilCasePersonnelEnvelope,
+  "apiVersion" | "kind"
+>;
+export type CivilCasePersonnelResolvedEnvelope = Omit<
+  CivilCasePersonnelEnvelope,
+  "spec"
+> & {
   spec: Omit<CivilCasePersonnelEnvelope["spec"], "records"> & {
     records: Record<string, z.infer<typeof CivilCasePersonnelSpec>>;
   };
@@ -118,7 +127,9 @@ function parseCivilCasePersonnel(value: unknown): CivilCasePersonnelEnvelope {
   return result.data;
 }
 
-function newCivilCasePersonnel(input: CivilCasePersonnelInput): CivilCasePersonnelEnvelope {
+function newCivilCasePersonnel(
+  input: CivilCasePersonnelInput,
+): CivilCasePersonnelEnvelope {
   return parseCivilCasePersonnel({
     apiVersion: INTAKE_API_VERSION,
     kind: "CivilCasePersonnel",
@@ -139,8 +150,6 @@ function validateRecord(
   }
   return result.data;
 }
-
-
 
 async function readCivilCasePersonnel(
   filePath: string,
@@ -166,13 +175,24 @@ async function readCivilCasePersonnel(
     raw?: boolean;
   } = {},
 ): Promise<CivilCasePersonnelEnvelope | CivilCasePersonnelResolvedEnvelope> {
-  const { contents, document } = await readYamlDocumentFile(filePath, "CivilCasePersonnel");
-  if (options.expectedSha256 !== undefined && yamlDigest(contents) !== options.expectedSha256) {
+  const { contents, document } = await readYamlDocumentFile(
+    filePath,
+    "CivilCasePersonnel",
+  );
+  if (
+    options.expectedSha256 !== undefined &&
+    yamlDigest(contents) !== options.expectedSha256
+  ) {
     throw new Error(`CivilCasePersonnel sha256 mismatch: ${filePath}`);
   }
   const artifact = parseCivilCasePersonnel(document);
-  if (options.expectedKind !== undefined && artifact.kind !== options.expectedKind) {
-    throw new Error(`CivilCasePersonnel kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`);
+  if (
+    options.expectedKind !== undefined &&
+    artifact.kind !== options.expectedKind
+  ) {
+    throw new Error(
+      `CivilCasePersonnel kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`,
+    );
   }
   if (
     options.expectedNamespace !== undefined &&
@@ -209,7 +229,9 @@ async function writeCivilCasePersonnel(
   const artifactPath = yamlResourcePath(directory, artifact);
 
   if (options.externalizeRecords === true) {
-    throw new Error("CivilCasePersonnel does not support externalized singular record envelopes.");
+    throw new Error(
+      "CivilCasePersonnel does not support externalized singular record envelopes.",
+    );
   }
 
   const contents = await writeYamlDocumentFile(artifactPath, artifact);
@@ -223,8 +245,6 @@ export const CivilCasePersonnel = {
   read: readCivilCasePersonnel,
   write: writeCivilCasePersonnel,
 };
-
-
 
 export const read = readCivilCasePersonnel;
 export const write = writeCivilCasePersonnel;

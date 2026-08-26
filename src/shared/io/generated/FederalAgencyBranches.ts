@@ -16,7 +16,6 @@ import {
 import { FederalAgencyBranchSpec } from "./entity-specs.js";
 export { FederalAgencyBranchSpec } from "./entity-specs.js";
 
-
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -52,19 +51,25 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "FederalAgencyBranches"} ref requires relativeTo.`);
+  if (
+    options.relativeTo === undefined ||
+    options.relativeTo.trim().length === 0
+  ) {
+    throw new Error(
+      `Relative ${ref.kind ?? "FederalAgencyBranches"} ref requires relativeTo.`,
+    );
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "FederalAgencyBranches"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(
+      `${ref.kind ?? "FederalAgencyBranches"} ref.path escapes its directory: ${ref.path}`,
+    );
   }
   return { ...ref, filePath: resolvedPath };
 }
-
 
 const metadataSchema = z
   .object({
@@ -78,9 +83,7 @@ const metadataSchema = z
   })
   .strict();
 
-const recordItemSchema = z
-  .object({ spec: FederalAgencyBranchSpec })
-  .strict();
+const recordItemSchema = z.object({ spec: FederalAgencyBranchSpec }).strict();
 
 export const schema = z
   .object({
@@ -98,8 +101,14 @@ export const schema = z
   .strict();
 
 export type FederalAgencyBranchesEnvelope = z.infer<typeof schema>;
-export type FederalAgencyBranchesInput = Omit<FederalAgencyBranchesEnvelope, "apiVersion" | "kind">;
-export type FederalAgencyBranchesResolvedEnvelope = Omit<FederalAgencyBranchesEnvelope, "spec"> & {
+export type FederalAgencyBranchesInput = Omit<
+  FederalAgencyBranchesEnvelope,
+  "apiVersion" | "kind"
+>;
+export type FederalAgencyBranchesResolvedEnvelope = Omit<
+  FederalAgencyBranchesEnvelope,
+  "spec"
+> & {
   spec: Omit<FederalAgencyBranchesEnvelope["spec"], "records"> & {
     records: Record<string, z.infer<typeof FederalAgencyBranchSpec>>;
   };
@@ -110,7 +119,9 @@ export type ImportArtifactWriteOptions = {
   recordsDirectory?: string;
 };
 
-function parseFederalAgencyBranches(value: unknown): FederalAgencyBranchesEnvelope {
+function parseFederalAgencyBranches(
+  value: unknown,
+): FederalAgencyBranchesEnvelope {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new Error(formatError(result.error));
@@ -118,7 +129,9 @@ function parseFederalAgencyBranches(value: unknown): FederalAgencyBranchesEnvelo
   return result.data;
 }
 
-function newFederalAgencyBranches(input: FederalAgencyBranchesInput): FederalAgencyBranchesEnvelope {
+function newFederalAgencyBranches(
+  input: FederalAgencyBranchesInput,
+): FederalAgencyBranchesEnvelope {
   return parseFederalAgencyBranches({
     apiVersion: INTAKE_API_VERSION,
     kind: "FederalAgencyBranches",
@@ -139,8 +152,6 @@ function validateRecord(
   }
   return result.data;
 }
-
-
 
 async function readFederalAgencyBranches(
   filePath: string,
@@ -165,14 +176,27 @@ async function readFederalAgencyBranches(
     expectedSha256?: string;
     raw?: boolean;
   } = {},
-): Promise<FederalAgencyBranchesEnvelope | FederalAgencyBranchesResolvedEnvelope> {
-  const { contents, document } = await readYamlDocumentFile(filePath, "FederalAgencyBranches");
-  if (options.expectedSha256 !== undefined && yamlDigest(contents) !== options.expectedSha256) {
+): Promise<
+  FederalAgencyBranchesEnvelope | FederalAgencyBranchesResolvedEnvelope
+> {
+  const { contents, document } = await readYamlDocumentFile(
+    filePath,
+    "FederalAgencyBranches",
+  );
+  if (
+    options.expectedSha256 !== undefined &&
+    yamlDigest(contents) !== options.expectedSha256
+  ) {
     throw new Error(`FederalAgencyBranches sha256 mismatch: ${filePath}`);
   }
   const artifact = parseFederalAgencyBranches(document);
-  if (options.expectedKind !== undefined && artifact.kind !== options.expectedKind) {
-    throw new Error(`FederalAgencyBranches kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`);
+  if (
+    options.expectedKind !== undefined &&
+    artifact.kind !== options.expectedKind
+  ) {
+    throw new Error(
+      `FederalAgencyBranches kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`,
+    );
   }
   if (
     options.expectedNamespace !== undefined &&
@@ -209,7 +233,9 @@ async function writeFederalAgencyBranches(
   const artifactPath = yamlResourcePath(directory, artifact);
 
   if (options.externalizeRecords === true) {
-    throw new Error("FederalAgencyBranches does not support externalized singular record envelopes.");
+    throw new Error(
+      "FederalAgencyBranches does not support externalized singular record envelopes.",
+    );
   }
 
   const contents = await writeYamlDocumentFile(artifactPath, artifact);
@@ -223,8 +249,6 @@ export const FederalAgencyBranches = {
   read: readFederalAgencyBranches,
   write: writeFederalAgencyBranches,
 };
-
-
 
 export const read = readFederalAgencyBranches;
 export const write = writeFederalAgencyBranches;

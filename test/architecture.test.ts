@@ -329,7 +329,6 @@ describe("architecture boundaries", () => {
     expect(violations).toEqual([]);
   });
 
-
   test("keeps source artifact facade construction on DataContext", async () => {
     const filePath = path.join(
       sourceRoot,

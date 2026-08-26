@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { INTAKE_API_VERSION } from "../../../shared/io/import-types.js";
-import { firstIssuePath, yamlResourcePath } from "../../../shared/io/resource.js";
+import {
+  firstIssuePath,
+  yamlResourcePath,
+} from "../../../shared/io/resource.js";
 import {
   readYamlDocumentFile,
   writeYamlDocumentFile,

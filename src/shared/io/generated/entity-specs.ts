@@ -5,13 +5,53 @@ import { z } from "zod";
 // Fingerprint of the applied database migrations these specs were generated
 // against. The importer refuses to run when the live database's migrations
 // differ (see assertGeneratedSchemaCurrent).
-export const GENERATED_MIGRATION_VERSIONS = ["20250303232529","20260520000000","20260526162500","20260526173000","20260608172000","20260619142000","20260626000000","20260627000000","20260627000100","20260701000000","20260702000000","20260703000000","20260822000000","20260824000000","20260825000000","20260825000100","20260825000200","20260825000300"] as const;
-export const GENERATED_MIGRATION_FINGERPRINT = "594cb4cb6af28def61a17039f5dad301eaac867992d733f9f899095a1ed7ae9b";
+export const GENERATED_MIGRATION_VERSIONS = [
+  "20250303232529",
+  "20260520000000",
+  "20260526162500",
+  "20260526173000",
+  "20260608172000",
+  "20260619142000",
+  "20260626000000",
+  "20260627000000",
+  "20260627000100",
+  "20260701000000",
+  "20260702000000",
+  "20260703000000",
+  "20260822000000",
+  "20260824000000",
+  "20260825000000",
+  "20260825000100",
+  "20260825000200",
+  "20260825000300",
+] as const;
+export const GENERATED_MIGRATION_FINGERPRINT =
+  "594cb4cb6af28def61a17039f5dad301eaac867992d733f9f899095a1ed7ae9b";
 
 // Entity record kinds in database-dependency order (topological sort of the
 // foreign-key graph): a referenced entity precedes its referrer, so mutations
 // emitted/applied in this order never violate a foreign key.
-export const RECORD_KINDS_IN_DEPENDENCY_ORDER = ["LocationPath","LocationPathGeometry","LocationPathAlias","Agency","Personnel","LicensingAuthority","License","AgencyPersonnel","LicenseAction","Discipline","DisciplineAgencyPersonnel","CoverageLink","CoverageLinkAgencyPersonnel","AgencyPhoneNumber","FederalAgency","FederalAgencyBranch","CivilCase","CivilCasePersonnel","CivilCaseLink"] as const;
+export const RECORD_KINDS_IN_DEPENDENCY_ORDER = [
+  "LocationPath",
+  "LocationPathGeometry",
+  "LocationPathAlias",
+  "Agency",
+  "Personnel",
+  "LicensingAuthority",
+  "License",
+  "AgencyPersonnel",
+  "LicenseAction",
+  "Discipline",
+  "DisciplineAgencyPersonnel",
+  "CoverageLink",
+  "CoverageLinkAgencyPersonnel",
+  "AgencyPhoneNumber",
+  "FederalAgency",
+  "FederalAgencyBranch",
+  "CivilCase",
+  "CivilCasePersonnel",
+  "CivilCaseLink",
+] as const;
 
 // Each record kind's foreign keys to other entity kinds (field → target kind),
 // from the database's own FKs. Drives the exclusion cascade: a record whose FK
@@ -19,17 +59,106 @@ export const RECORD_KINDS_IN_DEPENDENCY_ORDER = ["LocationPath","LocationPathGeo
 export const FK_REFERENCES: Record<
   string,
   ReadonlyArray<{ field: string; targetKind: string }>
-> = {"LocationPathGeometry":[{"field":"location_path_id","targetKind":"LocationPath"}],"LocationPathAlias":[{"field":"location_path_id","targetKind":"LocationPath"}],"Agency":[{"field":"location_path_id","targetKind":"LocationPath"}],"AgencyPersonnel":[{"field":"agency_id","targetKind":"Agency"},{"field":"license_id","targetKind":"License"},{"field":"personnel_id","targetKind":"Personnel"}],"LicensingAuthority":[{"field":"location_path_id","targetKind":"LocationPath"}],"License":[{"field":"issued_by_authority_id","targetKind":"LicensingAuthority"},{"field":"personnel_id","targetKind":"Personnel"}],"LicenseAction":[{"field":"license_id","targetKind":"License"}],"DisciplineAgencyPersonnel":[{"field":"agency_personnel_id","targetKind":"AgencyPersonnel"},{"field":"discipline_id","targetKind":"Discipline"}],"CoverageLinkAgencyPersonnel":[{"field":"agency_personnel_id","targetKind":"AgencyPersonnel"},{"field":"coverage_link_id","targetKind":"CoverageLink"}],"AgencyPhoneNumber":[{"field":"agency_id","targetKind":"Agency"}],"FederalAgencyBranch":[{"field":"agency_id","targetKind":"Agency"},{"field":"federal_agency_id","targetKind":"FederalAgency"}],"CivilCase":[{"field":"location_path_id","targetKind":"LocationPath"}],"CivilCasePersonnel":[{"field":"agency_personnel_id","targetKind":"AgencyPersonnel"},{"field":"civil_case_id","targetKind":"CivilCase"}],"CivilCaseLink":[{"field":"civil_case_id","targetKind":"CivilCase"}]};
+> = {
+  LocationPathGeometry: [
+    { field: "location_path_id", targetKind: "LocationPath" },
+  ],
+  LocationPathAlias: [
+    { field: "location_path_id", targetKind: "LocationPath" },
+  ],
+  Agency: [{ field: "location_path_id", targetKind: "LocationPath" }],
+  AgencyPersonnel: [
+    { field: "agency_id", targetKind: "Agency" },
+    { field: "license_id", targetKind: "License" },
+    { field: "personnel_id", targetKind: "Personnel" },
+  ],
+  LicensingAuthority: [
+    { field: "location_path_id", targetKind: "LocationPath" },
+  ],
+  License: [
+    { field: "issued_by_authority_id", targetKind: "LicensingAuthority" },
+    { field: "personnel_id", targetKind: "Personnel" },
+  ],
+  LicenseAction: [{ field: "license_id", targetKind: "License" }],
+  DisciplineAgencyPersonnel: [
+    { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
+    { field: "discipline_id", targetKind: "Discipline" },
+  ],
+  CoverageLinkAgencyPersonnel: [
+    { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
+    { field: "coverage_link_id", targetKind: "CoverageLink" },
+  ],
+  AgencyPhoneNumber: [{ field: "agency_id", targetKind: "Agency" }],
+  FederalAgencyBranch: [
+    { field: "agency_id", targetKind: "Agency" },
+    { field: "federal_agency_id", targetKind: "FederalAgency" },
+  ],
+  CivilCase: [{ field: "location_path_id", targetKind: "LocationPath" }],
+  CivilCasePersonnel: [
+    { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
+    { field: "civil_case_id", targetKind: "CivilCase" },
+  ],
+  CivilCaseLink: [{ field: "civil_case_id", targetKind: "CivilCase" }],
+};
 
 // Each record kind's properties resolved during import rather than supplied by
 // the source (`createRequired`): optional in the base spec, required in the
 // *Create mutation. The facade caches every one of these except `id` (which the
 // ledger mints) through the property cache — so a resolved field becomes
 // cache-backed and seedable automatically, with no per-resolver wiring.
-export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = {"LocationPath":[],"LocationPathGeometry":[],"LocationPathAlias":[],"Agency":["id","slug","address","city","zip_code","location_path_id","latitude","longitude"],"Personnel":["id","slug"],"AgencyPersonnel":["id"],"LicensingAuthority":["id"],"License":["id"],"LicenseAction":["id"],"Discipline":["id"],"DisciplineAgencyPersonnel":["id"],"CoverageLink":["id"],"CoverageLinkAgencyPersonnel":["id"],"AgencyPhoneNumber":["id"],"FederalAgency":["id"],"FederalAgencyBranch":["id"],"CivilCase":["id","slug","location_path_id"],"CivilCasePersonnel":["id"],"CivilCaseLink":["id"]};
+export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = {
+  LocationPath: [],
+  LocationPathGeometry: [],
+  LocationPathAlias: [],
+  Agency: [
+    "id",
+    "slug",
+    "address",
+    "city",
+    "zip_code",
+    "location_path_id",
+    "latitude",
+    "longitude",
+  ],
+  Personnel: ["id", "slug"],
+  AgencyPersonnel: ["id"],
+  LicensingAuthority: ["id"],
+  License: ["id"],
+  LicenseAction: ["id"],
+  Discipline: ["id"],
+  DisciplineAgencyPersonnel: ["id"],
+  CoverageLink: ["id"],
+  CoverageLinkAgencyPersonnel: ["id"],
+  AgencyPhoneNumber: ["id"],
+  FederalAgency: ["id"],
+  FederalAgencyBranch: ["id"],
+  CivilCase: ["id", "slug", "location_path_id"],
+  CivilCasePersonnel: ["id"],
+  CivilCaseLink: ["id"],
+};
 
 // Each record kind's schema-qualified database table.
-export const TABLE_BY_KIND: Record<string, string> = {"LocationPath":"public.location_path","LocationPathGeometry":"public.location_path_geometry","LocationPathAlias":"public.location_path_alias","Agency":"public.agency","Personnel":"public.personnel","AgencyPersonnel":"public.agency_personnel","LicensingAuthority":"public.licensing_authority","License":"public.license","LicenseAction":"public.license_action","Discipline":"public.discipline","DisciplineAgencyPersonnel":"public.discipline_agency_personnel","CoverageLink":"public.coverage_links","CoverageLinkAgencyPersonnel":"public.coverage_link_agency_personnel","AgencyPhoneNumber":"public.agency_phone_numbers","FederalAgency":"public.federal_agency","FederalAgencyBranch":"public.federal_agency_branch","CivilCase":"public.civil_cases","CivilCasePersonnel":"public.civil_case_personnel","CivilCaseLink":"public.civil_case_links"};
+export const TABLE_BY_KIND: Record<string, string> = {
+  LocationPath: "public.location_path",
+  LocationPathGeometry: "public.location_path_geometry",
+  LocationPathAlias: "public.location_path_alias",
+  Agency: "public.agency",
+  Personnel: "public.personnel",
+  AgencyPersonnel: "public.agency_personnel",
+  LicensingAuthority: "public.licensing_authority",
+  License: "public.license",
+  LicenseAction: "public.license_action",
+  Discipline: "public.discipline",
+  DisciplineAgencyPersonnel: "public.discipline_agency_personnel",
+  CoverageLink: "public.coverage_links",
+  CoverageLinkAgencyPersonnel: "public.coverage_link_agency_personnel",
+  AgencyPhoneNumber: "public.agency_phone_numbers",
+  FederalAgency: "public.federal_agency",
+  FederalAgencyBranch: "public.federal_agency_branch",
+  CivilCase: "public.civil_cases",
+  CivilCasePersonnel: "public.civil_case_personnel",
+  CivilCaseLink: "public.civil_case_links",
+};
 
 const nonEmptyString = z.string().trim().min(1);
 const nullableNonEmptyString = nonEmptyString.nullable();
@@ -86,7 +215,8 @@ export const LocationPathSpec = z
     centroid: LocationPathCentroidSpec.nullable().optional(),
     bbox: LocationPathBboxSpec.nullable().optional(),
   })
-  .strict().superRefine((row, context) => {
+  .strict()
+  .superRefine((row, context) => {
     if (row.level === "state") {
       for (const fieldName of [
         "administrative_area_slug",
@@ -170,7 +300,9 @@ export const LocationPathAliasSpec = z
   })
   .strict();
 
-export const LocationPathAliasCreateSpec = LocationPathAliasSpec.omit({ selectedYear: true });
+export const LocationPathAliasCreateSpec = LocationPathAliasSpec.omit({
+  selectedYear: true,
+});
 
 export const AgencySpec = z
   .object({
@@ -303,9 +435,10 @@ export const DisciplineAgencyPersonnelSpec = z
   })
   .strict();
 
-export const DisciplineAgencyPersonnelCreateSpec = DisciplineAgencyPersonnelSpec.extend({
-  id: z.string(),
-});
+export const DisciplineAgencyPersonnelCreateSpec =
+  DisciplineAgencyPersonnelSpec.extend({
+    id: z.string(),
+  });
 
 export const CoverageLinkSpec = z
   .object({
@@ -333,9 +466,10 @@ export const CoverageLinkAgencyPersonnelSpec = z
   })
   .strict();
 
-export const CoverageLinkAgencyPersonnelCreateSpec = CoverageLinkAgencyPersonnelSpec.extend({
-  id: z.string(),
-});
+export const CoverageLinkAgencyPersonnelCreateSpec =
+  CoverageLinkAgencyPersonnelSpec.extend({
+    id: z.string(),
+  });
 
 export const AgencyPhoneNumberSpec = z
   .object({
@@ -755,7 +889,12 @@ export type ReviewsRow = {
 };
 
 export type RubricLabelsRow = {
-  label: "Outstanding" | "Good" | "Adequate" | "Needs Improvement" | "Unacceptable";
+  label:
+    | "Outstanding"
+    | "Good"
+    | "Adequate"
+    | "Needs Improvement"
+    | "Unacceptable";
   value: number;
 };
 

@@ -184,7 +184,11 @@ describe("CanonicalIdToSourceName reverse lookup (ADR 0023)", () => {
     const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
 
     const canonicalId = "agency-canonical-42";
-    const sourceId = await ledger.sourceIdFor("courtlistener", "Agency", canonicalId);
+    const sourceId = await ledger.sourceIdFor(
+      "courtlistener",
+      "Agency",
+      canonicalId,
+    );
     expect(sourceId).toMatch(/^[a-z][a-z0-9]+$/);
 
     // a fresh accessor over the same root returns the same source id...
@@ -202,7 +206,11 @@ describe("CanonicalIdToSourceName reverse lookup (ADR 0023)", () => {
     const rootDir = await createTempRoot();
     const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
 
-    const canonicalId = await ledger.findOrCreate("mn-post", "Agency", "agency-1");
+    const canonicalId = await ledger.findOrCreate(
+      "mn-post",
+      "Agency",
+      "agency-1",
+    );
 
     // the reverse of a mapping created forward hands back the source's own id,
     // not a fresh mint — across a reopened ledger (no in-memory cache to lean on)
@@ -233,6 +241,8 @@ describe("CanonicalIdToSourceName reverse lookup (ADR 0023)", () => {
       canonicalId,
     );
 
-    expect(new Set([courtlistenerId, clearinghouseId, personnelId]).size).toBe(3);
+    expect(new Set([courtlistenerId, clearinghouseId, personnelId]).size).toBe(
+      3,
+    );
   });
 });

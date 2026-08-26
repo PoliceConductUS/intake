@@ -16,7 +16,6 @@ import {
 import { LicensingAuthoritySpec } from "./entity-specs.js";
 export { LicensingAuthoritySpec } from "./entity-specs.js";
 
-
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -52,19 +51,25 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "LicensingAuthorities"} ref requires relativeTo.`);
+  if (
+    options.relativeTo === undefined ||
+    options.relativeTo.trim().length === 0
+  ) {
+    throw new Error(
+      `Relative ${ref.kind ?? "LicensingAuthorities"} ref requires relativeTo.`,
+    );
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "LicensingAuthorities"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(
+      `${ref.kind ?? "LicensingAuthorities"} ref.path escapes its directory: ${ref.path}`,
+    );
   }
   return { ...ref, filePath: resolvedPath };
 }
-
 
 const metadataSchema = z
   .object({
@@ -84,7 +89,10 @@ const recordReferenceSchema = z
       .object({
         path: z.string().trim().min(1),
         kind: z.literal("LicensingAuthority"),
-        sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+        sha256: z
+          .string()
+          .regex(/^[a-f0-9]{64}$/)
+          .optional(),
       })
       .strict(),
   })
@@ -92,7 +100,10 @@ const recordReferenceSchema = z
 const inlineRecordItemSchema = z
   .object({ spec: LicensingAuthoritySpec })
   .strict();
-const recordItemSchema = z.union([recordReferenceSchema, inlineRecordItemSchema]);
+const recordItemSchema = z.union([
+  recordReferenceSchema,
+  inlineRecordItemSchema,
+]);
 
 export const schema = z
   .object({
@@ -110,8 +121,14 @@ export const schema = z
   .strict();
 
 export type LicensingAuthoritiesEnvelope = z.infer<typeof schema>;
-export type LicensingAuthoritiesInput = Omit<LicensingAuthoritiesEnvelope, "apiVersion" | "kind">;
-export type LicensingAuthoritiesResolvedEnvelope = Omit<LicensingAuthoritiesEnvelope, "spec"> & {
+export type LicensingAuthoritiesInput = Omit<
+  LicensingAuthoritiesEnvelope,
+  "apiVersion" | "kind"
+>;
+export type LicensingAuthoritiesResolvedEnvelope = Omit<
+  LicensingAuthoritiesEnvelope,
+  "spec"
+> & {
   spec: Omit<LicensingAuthoritiesEnvelope["spec"], "records"> & {
     records: Record<string, z.infer<typeof LicensingAuthoritySpec>>;
   };
@@ -122,7 +139,9 @@ export type ImportArtifactWriteOptions = {
   recordsDirectory?: string;
 };
 
-function parseLicensingAuthorities(value: unknown): LicensingAuthoritiesEnvelope {
+function parseLicensingAuthorities(
+  value: unknown,
+): LicensingAuthoritiesEnvelope {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new Error(formatError(result.error));
@@ -130,7 +149,9 @@ function parseLicensingAuthorities(value: unknown): LicensingAuthoritiesEnvelope
   return result.data;
 }
 
-function newLicensingAuthorities(input: LicensingAuthoritiesInput): LicensingAuthoritiesEnvelope {
+function newLicensingAuthorities(
+  input: LicensingAuthoritiesInput,
+): LicensingAuthoritiesEnvelope {
   return parseLicensingAuthorities({
     apiVersion: INTAKE_API_VERSION,
     kind: "LicensingAuthorities",
@@ -152,7 +173,6 @@ function validateRecord(
   return result.data;
 }
 
-
 export const recordSchema = z
   .object({
     apiVersion: z.literal(INTAKE_API_VERSION),
@@ -170,17 +190,24 @@ export const recordSchema = z
   .strict();
 
 export type LicensingAuthorityEnvelope = z.infer<typeof recordSchema>;
-export type LicensingAuthorityInput = Omit<LicensingAuthorityEnvelope, "apiVersion" | "kind">;
+export type LicensingAuthorityInput = Omit<
+  LicensingAuthorityEnvelope,
+  "apiVersion" | "kind"
+>;
 
 function parseLicensingAuthority(value: unknown): LicensingAuthorityEnvelope {
   const result = recordSchema.safeParse(value);
   if (!result.success) {
-    throw new Error(`LicensingAuthority is malformed at ${firstIssuePath(result.error)}.`);
+    throw new Error(
+      `LicensingAuthority is malformed at ${firstIssuePath(result.error)}.`,
+    );
   }
   return result.data;
 }
 
-function newLicensingAuthority(input: LicensingAuthorityInput): LicensingAuthorityEnvelope {
+function newLicensingAuthority(
+  input: LicensingAuthorityInput,
+): LicensingAuthorityEnvelope {
   return parseLicensingAuthority({
     apiVersion: INTAKE_API_VERSION,
     kind: "LicensingAuthority",
@@ -194,9 +221,14 @@ async function readLicensingAuthority(
 ): Promise<LicensingAuthorityEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "LicensingAuthority") {
-    throw new Error(`LicensingAuthority ref.kind ${ref.kind} does not match expected kind LicensingAuthority: ${ref.filePath}`);
+    throw new Error(
+      `LicensingAuthority ref.kind ${ref.kind} does not match expected kind LicensingAuthority: ${ref.filePath}`,
+    );
   }
-  const { contents, document } = await readYamlDocumentFile(ref.filePath, "LicensingAuthority");
+  const { contents, document } = await readYamlDocumentFile(
+    ref.filePath,
+    "LicensingAuthority",
+  );
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
     throw new Error(`LicensingAuthority sha256 mismatch: ${ref.filePath}`);
   }
@@ -222,7 +254,6 @@ async function writeLicensingAuthority(
   return { path: filePath, sha256: yamlDigest(contents) };
 }
 
-
 async function readLicensingAuthorities(
   filePath: string,
   options: EnvelopeReadOptions & {
@@ -246,14 +277,27 @@ async function readLicensingAuthorities(
     expectedSha256?: string;
     raw?: boolean;
   } = {},
-): Promise<LicensingAuthoritiesEnvelope | LicensingAuthoritiesResolvedEnvelope> {
-  const { contents, document } = await readYamlDocumentFile(filePath, "LicensingAuthorities");
-  if (options.expectedSha256 !== undefined && yamlDigest(contents) !== options.expectedSha256) {
+): Promise<
+  LicensingAuthoritiesEnvelope | LicensingAuthoritiesResolvedEnvelope
+> {
+  const { contents, document } = await readYamlDocumentFile(
+    filePath,
+    "LicensingAuthorities",
+  );
+  if (
+    options.expectedSha256 !== undefined &&
+    yamlDigest(contents) !== options.expectedSha256
+  ) {
     throw new Error(`LicensingAuthorities sha256 mismatch: ${filePath}`);
   }
   const artifact = parseLicensingAuthorities(document);
-  if (options.expectedKind !== undefined && artifact.kind !== options.expectedKind) {
-    throw new Error(`LicensingAuthorities kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`);
+  if (
+    options.expectedKind !== undefined &&
+    artifact.kind !== options.expectedKind
+  ) {
+    throw new Error(
+      `LicensingAuthorities kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`,
+    );
   }
   if (
     options.expectedNamespace !== undefined &&
@@ -306,9 +350,14 @@ async function writeLicensingAuthorities(
     const recordsDirectory =
       options.recordsDirectory ??
       `${path.basename(artifactPath, path.extname(artifactPath))}.records`;
-    const records: Record<string, { ref: { path: string; kind: "LicensingAuthority"; sha256?: string } }> = {};
+    const records: Record<
+      string,
+      { ref: { path: string; kind: "LicensingAuthority"; sha256?: string } }
+    > = {};
 
-    for (const [recordKey, recordItem] of Object.entries(artifact.spec.records)) {
+    for (const [recordKey, recordItem] of Object.entries(
+      artifact.spec.records,
+    )) {
       if ("ref" in recordItem) {
         records[recordKey] = recordItem;
         continue;
@@ -356,7 +405,6 @@ export const LicensingAuthorities = {
   write: writeLicensingAuthorities,
 };
 
-
 export const LicensingAuthority = {
   kind: "LicensingAuthority",
   schema: recordSchema,
@@ -364,7 +412,6 @@ export const LicensingAuthority = {
   read: readLicensingAuthority,
   write: writeLicensingAuthority,
 };
-
 
 export const read = readLicensingAuthorities;
 export const write = writeLicensingAuthorities;

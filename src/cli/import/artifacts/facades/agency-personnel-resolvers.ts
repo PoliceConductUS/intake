@@ -35,7 +35,9 @@ export type SlugBackend = {
 
 /** The capability the agency location/coordinate resolvers reach through. */
 export type AgencyLocationBackend = {
-  resolveAgencyLocation(input: ResolveAddressInput): Promise<LocationResolution>;
+  resolveAgencyLocation(
+    input: ResolveAddressInput,
+  ): Promise<LocationResolution>;
   existingRow(id: string): Promise<Record<string, unknown> | undefined>;
 };
 

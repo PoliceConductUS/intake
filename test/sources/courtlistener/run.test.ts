@@ -94,14 +94,18 @@ describe("courtlistener run", () => {
 
     // The agency source id from the envelope scopes the resolve; only the person
     // party is resolved, and the returned source id is stamped verbatim.
-    expect(data.calls).toEqual([{ agencyId: "a1", personnelName: "John Smith" }]);
+    expect(data.calls).toEqual([
+      { agencyId: "a1", personnelName: "John Smith" },
+    ]);
     expect(Object.keys(byKind.CivilCasePersonnel)).toEqual([`${caseId}|ao-1`]);
     expect(byKind.CivilCasePersonnel[`${caseId}|ao-1`].spec).toEqual({
       civil_case_id: caseId,
       agency_personnel_id: "ao-1",
     });
 
-    expect(Object.keys(byKind.CivilCaseLinks)).toEqual([`${caseId}|courtlistener`]);
+    expect(Object.keys(byKind.CivilCaseLinks)).toEqual([
+      `${caseId}|courtlistener`,
+    ]);
   });
 
   it("skips a case whose only person party resolves to no officer", async () => {

@@ -200,7 +200,9 @@ export class LocationDataContext {
     return undefined;
   }
 
-  async resolveAddress(input: ResolveAddressInput): Promise<LocationResolution> {
+  async resolveAddress(
+    input: ResolveAddressInput,
+  ): Promise<LocationResolution> {
     const request = addressResolutionRequest(input);
     const cached = this.context.getCachedLocation(
       request.entityType,
@@ -219,11 +221,13 @@ export class LocationDataContext {
 
     let locationPathId: string;
     try {
-      locationPathId = await this.context.locationPaths.getPlaceContainingPoint({
-        latitude: addressResolution.latitude,
-        longitude: addressResolution.longitude,
-        subject: `${request.entityType} ${request.entityId}`,
-      });
+      locationPathId = await this.context.locationPaths.getPlaceContainingPoint(
+        {
+          latitude: addressResolution.latitude,
+          longitude: addressResolution.longitude,
+          subject: `${request.entityType} ${request.entityId}`,
+        },
+      );
     } catch (error) {
       if (!isMissingContainingPlaceError(error)) {
         throw error;
@@ -239,7 +243,11 @@ export class LocationDataContext {
       addressLatitude: addressResolution.latitude,
       addressLongitude: addressResolution.longitude,
     };
-    this.context.cacheLocation(request.entityType, request.entityId, resolution);
+    this.context.cacheLocation(
+      request.entityType,
+      request.entityId,
+      resolution,
+    );
     return resolution;
   }
 }
@@ -268,9 +276,7 @@ export class LocationPathDataContext {
     return pending;
   }
 
-  private async readByPath(
-    path: string,
-  ): Promise<LocationPathRow | undefined> {
+  private async readByPath(path: string): Promise<LocationPathRow | undefined> {
     const client = this.context.databaseClient();
     const direct = await readLocationPathByPath(client, path);
     if (direct !== undefined) {

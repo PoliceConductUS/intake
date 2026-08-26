@@ -87,10 +87,7 @@ function fakeData(resolved: Record<string, string> = { "John Smith": "ao-1" }) {
   };
 }
 
-async function runWith(
-  data = fakeData(),
-  env: Record<string, string> = {},
-) {
+async function runWith(data = fakeData(), env: Record<string, string> = {}) {
   const dir = await mkdtemp(path.join(tmpdir(), "clearinghouse-"));
   tempDirs.push(dir);
   const file = path.join(dir, "austin-police-department.cases.json");

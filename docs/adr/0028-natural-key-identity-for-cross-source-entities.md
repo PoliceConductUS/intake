@@ -14,7 +14,7 @@ Proposed
 Most entities have no identifier shared across sources. A tcole agency
 (`DEPARTMENT_NUMBER`), an mn-post agency (a Salesforce id), and a clearinghouse
 agency are the same real agency under three unrelated keys, so their canonical id
-must be a minted cuid and convergence happens by *reference* — a later source is
+must be a minted cuid and convergence happens by _reference_ — a later source is
 handed the existing canonical id for an entity it did not create (ADR 0023).
 
 Civil cases are different in two ways:

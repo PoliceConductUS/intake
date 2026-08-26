@@ -16,7 +16,6 @@ import {
 import { LocationPathAliasSpec } from "./entity-specs.js";
 export { LocationPathAliasSpec } from "./entity-specs.js";
 
-
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -52,19 +51,25 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "LocationPathAliases"} ref requires relativeTo.`);
+  if (
+    options.relativeTo === undefined ||
+    options.relativeTo.trim().length === 0
+  ) {
+    throw new Error(
+      `Relative ${ref.kind ?? "LocationPathAliases"} ref requires relativeTo.`,
+    );
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "LocationPathAliases"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(
+      `${ref.kind ?? "LocationPathAliases"} ref.path escapes its directory: ${ref.path}`,
+    );
   }
   return { ...ref, filePath: resolvedPath };
 }
-
 
 const metadataSchema = z
   .object({
@@ -84,7 +89,10 @@ const recordReferenceSchema = z
       .object({
         path: z.string().trim().min(1),
         kind: z.literal("LocationPathAlias"),
-        sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+        sha256: z
+          .string()
+          .regex(/^[a-f0-9]{64}$/)
+          .optional(),
       })
       .strict(),
   })
@@ -92,7 +100,10 @@ const recordReferenceSchema = z
 const inlineRecordItemSchema = z
   .object({ spec: LocationPathAliasSpec })
   .strict();
-const recordItemSchema = z.union([recordReferenceSchema, inlineRecordItemSchema]);
+const recordItemSchema = z.union([
+  recordReferenceSchema,
+  inlineRecordItemSchema,
+]);
 
 export const schema = z
   .object({
@@ -110,8 +121,14 @@ export const schema = z
   .strict();
 
 export type LocationPathAliasesEnvelope = z.infer<typeof schema>;
-export type LocationPathAliasesInput = Omit<LocationPathAliasesEnvelope, "apiVersion" | "kind">;
-export type LocationPathAliasesResolvedEnvelope = Omit<LocationPathAliasesEnvelope, "spec"> & {
+export type LocationPathAliasesInput = Omit<
+  LocationPathAliasesEnvelope,
+  "apiVersion" | "kind"
+>;
+export type LocationPathAliasesResolvedEnvelope = Omit<
+  LocationPathAliasesEnvelope,
+  "spec"
+> & {
   spec: Omit<LocationPathAliasesEnvelope["spec"], "records"> & {
     records: Record<string, z.infer<typeof LocationPathAliasSpec>>;
   };
@@ -130,7 +147,9 @@ function parseLocationPathAliases(value: unknown): LocationPathAliasesEnvelope {
   return result.data;
 }
 
-function newLocationPathAliases(input: LocationPathAliasesInput): LocationPathAliasesEnvelope {
+function newLocationPathAliases(
+  input: LocationPathAliasesInput,
+): LocationPathAliasesEnvelope {
   return parseLocationPathAliases({
     apiVersion: INTAKE_API_VERSION,
     kind: "LocationPathAliases",
@@ -152,7 +171,6 @@ function validateRecord(
   return result.data;
 }
 
-
 export const recordSchema = z
   .object({
     apiVersion: z.literal(INTAKE_API_VERSION),
@@ -170,17 +188,24 @@ export const recordSchema = z
   .strict();
 
 export type LocationPathAliasEnvelope = z.infer<typeof recordSchema>;
-export type LocationPathAliasInput = Omit<LocationPathAliasEnvelope, "apiVersion" | "kind">;
+export type LocationPathAliasInput = Omit<
+  LocationPathAliasEnvelope,
+  "apiVersion" | "kind"
+>;
 
 function parseLocationPathAlias(value: unknown): LocationPathAliasEnvelope {
   const result = recordSchema.safeParse(value);
   if (!result.success) {
-    throw new Error(`LocationPathAlias is malformed at ${firstIssuePath(result.error)}.`);
+    throw new Error(
+      `LocationPathAlias is malformed at ${firstIssuePath(result.error)}.`,
+    );
   }
   return result.data;
 }
 
-function newLocationPathAlias(input: LocationPathAliasInput): LocationPathAliasEnvelope {
+function newLocationPathAlias(
+  input: LocationPathAliasInput,
+): LocationPathAliasEnvelope {
   return parseLocationPathAlias({
     apiVersion: INTAKE_API_VERSION,
     kind: "LocationPathAlias",
@@ -194,9 +219,14 @@ async function readLocationPathAlias(
 ): Promise<LocationPathAliasEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "LocationPathAlias") {
-    throw new Error(`LocationPathAlias ref.kind ${ref.kind} does not match expected kind LocationPathAlias: ${ref.filePath}`);
+    throw new Error(
+      `LocationPathAlias ref.kind ${ref.kind} does not match expected kind LocationPathAlias: ${ref.filePath}`,
+    );
   }
-  const { contents, document } = await readYamlDocumentFile(ref.filePath, "LocationPathAlias");
+  const { contents, document } = await readYamlDocumentFile(
+    ref.filePath,
+    "LocationPathAlias",
+  );
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
     throw new Error(`LocationPathAlias sha256 mismatch: ${ref.filePath}`);
   }
@@ -222,7 +252,6 @@ async function writeLocationPathAlias(
   return { path: filePath, sha256: yamlDigest(contents) };
 }
 
-
 async function readLocationPathAliases(
   filePath: string,
   options: EnvelopeReadOptions & {
@@ -247,13 +276,24 @@ async function readLocationPathAliases(
     raw?: boolean;
   } = {},
 ): Promise<LocationPathAliasesEnvelope | LocationPathAliasesResolvedEnvelope> {
-  const { contents, document } = await readYamlDocumentFile(filePath, "LocationPathAliases");
-  if (options.expectedSha256 !== undefined && yamlDigest(contents) !== options.expectedSha256) {
+  const { contents, document } = await readYamlDocumentFile(
+    filePath,
+    "LocationPathAliases",
+  );
+  if (
+    options.expectedSha256 !== undefined &&
+    yamlDigest(contents) !== options.expectedSha256
+  ) {
     throw new Error(`LocationPathAliases sha256 mismatch: ${filePath}`);
   }
   const artifact = parseLocationPathAliases(document);
-  if (options.expectedKind !== undefined && artifact.kind !== options.expectedKind) {
-    throw new Error(`LocationPathAliases kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`);
+  if (
+    options.expectedKind !== undefined &&
+    artifact.kind !== options.expectedKind
+  ) {
+    throw new Error(
+      `LocationPathAliases kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`,
+    );
   }
   if (
     options.expectedNamespace !== undefined &&
@@ -306,9 +346,14 @@ async function writeLocationPathAliases(
     const recordsDirectory =
       options.recordsDirectory ??
       `${path.basename(artifactPath, path.extname(artifactPath))}.records`;
-    const records: Record<string, { ref: { path: string; kind: "LocationPathAlias"; sha256?: string } }> = {};
+    const records: Record<
+      string,
+      { ref: { path: string; kind: "LocationPathAlias"; sha256?: string } }
+    > = {};
 
-    for (const [recordKey, recordItem] of Object.entries(artifact.spec.records)) {
+    for (const [recordKey, recordItem] of Object.entries(
+      artifact.spec.records,
+    )) {
       if ("ref" in recordItem) {
         records[recordKey] = recordItem;
         continue;
@@ -356,7 +401,6 @@ export const LocationPathAliases = {
   write: writeLocationPathAliases,
 };
 
-
 export const LocationPathAlias = {
   kind: "LocationPathAlias",
   schema: recordSchema,
@@ -364,7 +408,6 @@ export const LocationPathAlias = {
   read: readLocationPathAlias,
   write: writeLocationPathAlias,
 };
-
 
 export const read = readLocationPathAliases;
 export const write = writeLocationPathAliases;

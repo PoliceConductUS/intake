@@ -59,7 +59,11 @@ export function createRunDataContext(
       // agencyId is the agency's namespace-local source id; resolve it to the
       // canonical agency the ordinary way. A source id with no agency is a broken
       // reference — fail loud (ADR 0023).
-      const canonicalAgencyId = await ledger.read(namespace, "Agency", agencyId);
+      const canonicalAgencyId = await ledger.read(
+        namespace,
+        "Agency",
+        agencyId,
+      );
       if (canonicalAgencyId === undefined) {
         throw new Error(
           `Agency source id ${agencyId} resolves to no canonical agency in ${namespace} (ADR 0023).`,
@@ -87,7 +91,10 @@ export function createRunDataContext(
           return {
             confidence,
             uncertainty,
-            agencyPersonnel: (row.agency_personnel ?? {}) as Record<string, unknown>,
+            agencyPersonnel: (row.agency_personnel ?? {}) as Record<
+              string,
+              unknown
+            >,
           };
         })
         // Rank by confidence, then lowest uncertainty (fullest matching form).

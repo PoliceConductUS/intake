@@ -106,7 +106,6 @@ function valueAsFiniteNumber(value: unknown): number | undefined {
     : undefined;
 }
 
-
 function addSourceFacades(
   dataContext: DataContext,
   artifacts: ArtifactsEnvelope,
@@ -122,7 +121,9 @@ function addSourceFacades(
     for (const artifact of artifacts.spec.artifacts.filter(
       (item) => item.kind === artifactKind,
     )) {
-      for (const [recordName, record] of Object.entries(artifact.spec.records)) {
+      for (const [recordName, record] of Object.entries(
+        artifact.spec.records,
+      )) {
         dataContext.facadeFromSource(recordKind, {
           apiVersion: INTAKE_API_VERSION,
           namespace,

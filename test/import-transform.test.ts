@@ -70,7 +70,6 @@ function artifactsWithEntities(entities: EntityMaps): ArtifactsEnvelope {
   };
 }
 
-
 type EntityName = "agencies" | "personnel" | "agencyPersonnel";
 
 function artifactsWithInvalidRequiredField(

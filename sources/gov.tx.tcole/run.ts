@@ -263,7 +263,8 @@ function buildAgencies(rows: Array<Record<string, string>>): EmittedRecords {
     const state = (row[DEPARTMENT.state] ?? "").trim();
     // Only active agencies are imported (the original seed omitted inactive
     // departments). Everything downstream cascades from this filter.
-    if ((row[DEPARTMENT.status] ?? "").trim().toUpperCase() !== "ACTIVE") continue;
+    if ((row[DEPARTMENT.status] ?? "").trim().toUpperCase() !== "ACTIVE")
+      continue;
     // Agency spec requires a non-empty name and state; the key must be stable.
     if (departmentNumber === "" || name === "" || state === "") continue;
 
@@ -406,7 +407,8 @@ function buildLicenses(
     const key = `${publicGuid}|${license}`;
 
     const dateAwarded = toDate(row[ACTION.dateAwarded]);
-    if (dateAwarded !== "" && !awardDate.has(key)) awardDate.set(key, dateAwarded);
+    if (dateAwarded !== "" && !awardDate.has(key))
+      awardDate.set(key, dateAwarded);
 
     const actionDate = toDate(row[ACTION.actionDate]);
     const status = (row[ACTION.status] ?? "").trim();

@@ -79,9 +79,10 @@ function makeFacade(cache: PropertyCache | undefined): {
     ),
     // A cacheable resolver that yields "no value" (nullable column with nothing
     // to derive) — used to prove absence is never written to the cache.
-    absent: new Resolver<string | null, ResolverContext<Row, EntityFacadeBackend>>(
-      async () => null,
-    ),
+    absent: new Resolver<
+      string | null,
+      ResolverContext<Row, EntityFacadeBackend>
+    >(async () => null),
   };
   const facade = new EntityFacade<Row, unknown, EntityFacadeBackend>(
     "Widget",

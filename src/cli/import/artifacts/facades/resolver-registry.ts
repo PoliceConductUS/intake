@@ -67,11 +67,21 @@ const REGISTRY: Record<string, KindConfig> = {
   Personnel: {
     overrides: {
       slug: personnelSlugResolver() as AnyResolver,
-      first_name: nameCaseResolver<Row, EntityFacadeBackend>("first_name") as AnyResolver,
-      last_name: nameCaseResolverNullable<Row, EntityFacadeBackend>("last_name") as AnyResolver,
-      middle_name: nameCaseResolverNullable<Row, EntityFacadeBackend>("middle_name") as AnyResolver,
-      prefix: nameCaseResolverNullable<Row, EntityFacadeBackend>("prefix") as AnyResolver,
-      suffix: nameCaseResolverNullable<Row, EntityFacadeBackend>("suffix") as AnyResolver,
+      first_name: nameCaseResolver<Row, EntityFacadeBackend>(
+        "first_name",
+      ) as AnyResolver,
+      last_name: nameCaseResolverNullable<Row, EntityFacadeBackend>(
+        "last_name",
+      ) as AnyResolver,
+      middle_name: nameCaseResolverNullable<Row, EntityFacadeBackend>(
+        "middle_name",
+      ) as AnyResolver,
+      prefix: nameCaseResolverNullable<Row, EntityFacadeBackend>(
+        "prefix",
+      ) as AnyResolver,
+      suffix: nameCaseResolverNullable<Row, EntityFacadeBackend>(
+        "suffix",
+      ) as AnyResolver,
     },
   },
   Agency: {
@@ -82,8 +92,12 @@ const REGISTRY: Record<string, KindConfig> = {
       slug: agencySlugResolver() as AnyResolver,
       name: titleCaseResolver<Row, EntityFacadeBackend>("name") as AnyResolver,
       city: titleCaseResolver<Row, EntityFacadeBackend>("city") as AnyResolver,
-      address: titleCaseResolver<Row, EntityFacadeBackend>("address") as AnyResolver,
-      contact_name: nameCaseResolverNullable<Row, EntityFacadeBackend>("contact_name") as AnyResolver,
+      address: titleCaseResolver<Row, EntityFacadeBackend>(
+        "address",
+      ) as AnyResolver,
+      contact_name: nameCaseResolverNullable<Row, EntityFacadeBackend>(
+        "contact_name",
+      ) as AnyResolver,
       contact_email: lowerCaseEmailResolverNullable<Row, EntityFacadeBackend>(
         "contact_email",
       ) as AnyResolver,
@@ -201,7 +215,9 @@ const SUPPORTED_KINDS = new Set<string>([
 function createSpecShapeKeys(kind: string): string[] {
   const spec = (entitySpecs as Record<string, unknown>)[`${kind}CreateSpec`];
   if (!(spec instanceof z.ZodObject)) {
-    throw new Error(`No CreateSpec for kind ${kind}; cannot derive its columns.`);
+    throw new Error(
+      `No CreateSpec for kind ${kind}; cannot derive its columns.`,
+    );
   }
   return Object.keys(spec.shape);
 }

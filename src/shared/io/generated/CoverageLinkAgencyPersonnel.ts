@@ -16,7 +16,6 @@ import {
 import { CoverageLinkAgencyPersonnelSpec } from "./entity-specs.js";
 export { CoverageLinkAgencyPersonnelSpec } from "./entity-specs.js";
 
-
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -52,19 +51,25 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "CoverageLinkAgencyPersonnel"} ref requires relativeTo.`);
+  if (
+    options.relativeTo === undefined ||
+    options.relativeTo.trim().length === 0
+  ) {
+    throw new Error(
+      `Relative ${ref.kind ?? "CoverageLinkAgencyPersonnel"} ref requires relativeTo.`,
+    );
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "CoverageLinkAgencyPersonnel"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(
+      `${ref.kind ?? "CoverageLinkAgencyPersonnel"} ref.path escapes its directory: ${ref.path}`,
+    );
   }
   return { ...ref, filePath: resolvedPath };
 }
-
 
 const metadataSchema = z
   .object({
@@ -98,8 +103,14 @@ export const schema = z
   .strict();
 
 export type CoverageLinkAgencyPersonnelEnvelope = z.infer<typeof schema>;
-export type CoverageLinkAgencyPersonnelInput = Omit<CoverageLinkAgencyPersonnelEnvelope, "apiVersion" | "kind">;
-export type CoverageLinkAgencyPersonnelResolvedEnvelope = Omit<CoverageLinkAgencyPersonnelEnvelope, "spec"> & {
+export type CoverageLinkAgencyPersonnelInput = Omit<
+  CoverageLinkAgencyPersonnelEnvelope,
+  "apiVersion" | "kind"
+>;
+export type CoverageLinkAgencyPersonnelResolvedEnvelope = Omit<
+  CoverageLinkAgencyPersonnelEnvelope,
+  "spec"
+> & {
   spec: Omit<CoverageLinkAgencyPersonnelEnvelope["spec"], "records"> & {
     records: Record<string, z.infer<typeof CoverageLinkAgencyPersonnelSpec>>;
   };
@@ -110,7 +121,9 @@ export type ImportArtifactWriteOptions = {
   recordsDirectory?: string;
 };
 
-function parseCoverageLinkAgencyPersonnel(value: unknown): CoverageLinkAgencyPersonnelEnvelope {
+function parseCoverageLinkAgencyPersonnel(
+  value: unknown,
+): CoverageLinkAgencyPersonnelEnvelope {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new Error(formatError(result.error));
@@ -118,7 +131,9 @@ function parseCoverageLinkAgencyPersonnel(value: unknown): CoverageLinkAgencyPer
   return result.data;
 }
 
-function newCoverageLinkAgencyPersonnel(input: CoverageLinkAgencyPersonnelInput): CoverageLinkAgencyPersonnelEnvelope {
+function newCoverageLinkAgencyPersonnel(
+  input: CoverageLinkAgencyPersonnelInput,
+): CoverageLinkAgencyPersonnelEnvelope {
   return parseCoverageLinkAgencyPersonnel({
     apiVersion: INTAKE_API_VERSION,
     kind: "CoverageLinkAgencyPersonnel",
@@ -139,8 +154,6 @@ function validateRecord(
   }
   return result.data;
 }
-
-
 
 async function readCoverageLinkAgencyPersonnel(
   filePath: string,
@@ -165,14 +178,28 @@ async function readCoverageLinkAgencyPersonnel(
     expectedSha256?: string;
     raw?: boolean;
   } = {},
-): Promise<CoverageLinkAgencyPersonnelEnvelope | CoverageLinkAgencyPersonnelResolvedEnvelope> {
-  const { contents, document } = await readYamlDocumentFile(filePath, "CoverageLinkAgencyPersonnel");
-  if (options.expectedSha256 !== undefined && yamlDigest(contents) !== options.expectedSha256) {
+): Promise<
+  | CoverageLinkAgencyPersonnelEnvelope
+  | CoverageLinkAgencyPersonnelResolvedEnvelope
+> {
+  const { contents, document } = await readYamlDocumentFile(
+    filePath,
+    "CoverageLinkAgencyPersonnel",
+  );
+  if (
+    options.expectedSha256 !== undefined &&
+    yamlDigest(contents) !== options.expectedSha256
+  ) {
     throw new Error(`CoverageLinkAgencyPersonnel sha256 mismatch: ${filePath}`);
   }
   const artifact = parseCoverageLinkAgencyPersonnel(document);
-  if (options.expectedKind !== undefined && artifact.kind !== options.expectedKind) {
-    throw new Error(`CoverageLinkAgencyPersonnel kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`);
+  if (
+    options.expectedKind !== undefined &&
+    artifact.kind !== options.expectedKind
+  ) {
+    throw new Error(
+      `CoverageLinkAgencyPersonnel kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`,
+    );
   }
   if (
     options.expectedNamespace !== undefined &&
@@ -186,7 +213,10 @@ async function readCoverageLinkAgencyPersonnel(
     return artifact;
   }
 
-  const records: Record<string, z.infer<typeof CoverageLinkAgencyPersonnelSpec>> = {};
+  const records: Record<
+    string,
+    z.infer<typeof CoverageLinkAgencyPersonnelSpec>
+  > = {};
   for (const [recordKey, recordItem] of Object.entries(artifact.spec.records)) {
     records[recordKey] = validateRecord(filePath, recordKey, recordItem.spec);
   }
@@ -209,7 +239,9 @@ async function writeCoverageLinkAgencyPersonnel(
   const artifactPath = yamlResourcePath(directory, artifact);
 
   if (options.externalizeRecords === true) {
-    throw new Error("CoverageLinkAgencyPersonnel does not support externalized singular record envelopes.");
+    throw new Error(
+      "CoverageLinkAgencyPersonnel does not support externalized singular record envelopes.",
+    );
   }
 
   const contents = await writeYamlDocumentFile(artifactPath, artifact);
@@ -223,8 +255,6 @@ export const CoverageLinkAgencyPersonnel = {
   read: readCoverageLinkAgencyPersonnel,
   write: writeCoverageLinkAgencyPersonnel,
 };
-
-
 
 export const read = readCoverageLinkAgencyPersonnel;
 export const write = writeCoverageLinkAgencyPersonnel;

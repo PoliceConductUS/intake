@@ -16,7 +16,6 @@ import {
 import { DisciplineAgencyPersonnelSpec } from "./entity-specs.js";
 export { DisciplineAgencyPersonnelSpec } from "./entity-specs.js";
 
-
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -52,19 +51,25 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "DisciplineAgencyPersonnel"} ref requires relativeTo.`);
+  if (
+    options.relativeTo === undefined ||
+    options.relativeTo.trim().length === 0
+  ) {
+    throw new Error(
+      `Relative ${ref.kind ?? "DisciplineAgencyPersonnel"} ref requires relativeTo.`,
+    );
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "DisciplineAgencyPersonnel"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(
+      `${ref.kind ?? "DisciplineAgencyPersonnel"} ref.path escapes its directory: ${ref.path}`,
+    );
   }
   return { ...ref, filePath: resolvedPath };
 }
-
 
 const metadataSchema = z
   .object({
@@ -98,8 +103,14 @@ export const schema = z
   .strict();
 
 export type DisciplineAgencyPersonnelEnvelope = z.infer<typeof schema>;
-export type DisciplineAgencyPersonnelInput = Omit<DisciplineAgencyPersonnelEnvelope, "apiVersion" | "kind">;
-export type DisciplineAgencyPersonnelResolvedEnvelope = Omit<DisciplineAgencyPersonnelEnvelope, "spec"> & {
+export type DisciplineAgencyPersonnelInput = Omit<
+  DisciplineAgencyPersonnelEnvelope,
+  "apiVersion" | "kind"
+>;
+export type DisciplineAgencyPersonnelResolvedEnvelope = Omit<
+  DisciplineAgencyPersonnelEnvelope,
+  "spec"
+> & {
   spec: Omit<DisciplineAgencyPersonnelEnvelope["spec"], "records"> & {
     records: Record<string, z.infer<typeof DisciplineAgencyPersonnelSpec>>;
   };
@@ -110,7 +121,9 @@ export type ImportArtifactWriteOptions = {
   recordsDirectory?: string;
 };
 
-function parseDisciplineAgencyPersonnel(value: unknown): DisciplineAgencyPersonnelEnvelope {
+function parseDisciplineAgencyPersonnel(
+  value: unknown,
+): DisciplineAgencyPersonnelEnvelope {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new Error(formatError(result.error));
@@ -118,7 +131,9 @@ function parseDisciplineAgencyPersonnel(value: unknown): DisciplineAgencyPersonn
   return result.data;
 }
 
-function newDisciplineAgencyPersonnel(input: DisciplineAgencyPersonnelInput): DisciplineAgencyPersonnelEnvelope {
+function newDisciplineAgencyPersonnel(
+  input: DisciplineAgencyPersonnelInput,
+): DisciplineAgencyPersonnelEnvelope {
   return parseDisciplineAgencyPersonnel({
     apiVersion: INTAKE_API_VERSION,
     kind: "DisciplineAgencyPersonnel",
@@ -139,8 +154,6 @@ function validateRecord(
   }
   return result.data;
 }
-
-
 
 async function readDisciplineAgencyPersonnel(
   filePath: string,
@@ -165,14 +178,27 @@ async function readDisciplineAgencyPersonnel(
     expectedSha256?: string;
     raw?: boolean;
   } = {},
-): Promise<DisciplineAgencyPersonnelEnvelope | DisciplineAgencyPersonnelResolvedEnvelope> {
-  const { contents, document } = await readYamlDocumentFile(filePath, "DisciplineAgencyPersonnel");
-  if (options.expectedSha256 !== undefined && yamlDigest(contents) !== options.expectedSha256) {
+): Promise<
+  DisciplineAgencyPersonnelEnvelope | DisciplineAgencyPersonnelResolvedEnvelope
+> {
+  const { contents, document } = await readYamlDocumentFile(
+    filePath,
+    "DisciplineAgencyPersonnel",
+  );
+  if (
+    options.expectedSha256 !== undefined &&
+    yamlDigest(contents) !== options.expectedSha256
+  ) {
     throw new Error(`DisciplineAgencyPersonnel sha256 mismatch: ${filePath}`);
   }
   const artifact = parseDisciplineAgencyPersonnel(document);
-  if (options.expectedKind !== undefined && artifact.kind !== options.expectedKind) {
-    throw new Error(`DisciplineAgencyPersonnel kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`);
+  if (
+    options.expectedKind !== undefined &&
+    artifact.kind !== options.expectedKind
+  ) {
+    throw new Error(
+      `DisciplineAgencyPersonnel kind ${artifact.kind} does not match expected kind ${options.expectedKind}: ${filePath}`,
+    );
   }
   if (
     options.expectedNamespace !== undefined &&
@@ -186,7 +212,10 @@ async function readDisciplineAgencyPersonnel(
     return artifact;
   }
 
-  const records: Record<string, z.infer<typeof DisciplineAgencyPersonnelSpec>> = {};
+  const records: Record<
+    string,
+    z.infer<typeof DisciplineAgencyPersonnelSpec>
+  > = {};
   for (const [recordKey, recordItem] of Object.entries(artifact.spec.records)) {
     records[recordKey] = validateRecord(filePath, recordKey, recordItem.spec);
   }
@@ -209,7 +238,9 @@ async function writeDisciplineAgencyPersonnel(
   const artifactPath = yamlResourcePath(directory, artifact);
 
   if (options.externalizeRecords === true) {
-    throw new Error("DisciplineAgencyPersonnel does not support externalized singular record envelopes.");
+    throw new Error(
+      "DisciplineAgencyPersonnel does not support externalized singular record envelopes.",
+    );
   }
 
   const contents = await writeYamlDocumentFile(artifactPath, artifact);
@@ -223,8 +254,6 @@ export const DisciplineAgencyPersonnel = {
   read: readDisciplineAgencyPersonnel,
   write: writeDisciplineAgencyPersonnel,
 };
-
-
 
 export const read = readDisciplineAgencyPersonnel;
 export const write = writeDisciplineAgencyPersonnel;

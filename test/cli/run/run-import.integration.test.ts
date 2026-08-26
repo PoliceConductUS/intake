@@ -42,17 +42,20 @@ describe("intake run gov.azpost.roster (disabled)", () => {
       .mockImplementation(() => true);
 
     try {
-      const result = await runIntake(["run", "gov.azpost.roster", "--dry-run"], {
-        runImportArtifactsCommand,
-      });
+      const result = await runIntake(
+        ["run", "gov.azpost.roster", "--dry-run"],
+        {
+          runImportArtifactsCommand,
+        },
+      );
 
       expect(result.exitCode).toBe(0);
       expect(importCalled).toBe(false);
 
       const messages = stderr.mock.calls.map((call) => String(call[0]));
-      expect(messages.some((line) => /skipped: gov\.azpost\.roster/.test(line))).toBe(
-        true,
-      );
+      expect(
+        messages.some((line) => /skipped: gov\.azpost\.roster/.test(line)),
+      ).toBe(true);
     } finally {
       stderr.mockRestore();
     }

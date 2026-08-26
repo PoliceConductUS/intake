@@ -330,9 +330,9 @@ describe("mn-post run", () => {
       expect(CoverageLinkSpec.safeParse(record.spec).success).toBe(true);
     }
     for (const record of Object.values(coverageAttr)) {
-      expect(CoverageLinkAgencyPersonnelSpec.safeParse(record.spec).success).toBe(
-        true,
-      );
+      expect(
+        CoverageLinkAgencyPersonnelSpec.safeParse(record.spec).success,
+      ).toBe(true);
     }
   });
 });

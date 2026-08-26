@@ -27,7 +27,10 @@ class CurrentRowClient extends EmptyDatabaseClient {
   private readonly locationPaths: LocationPathRow[];
   private readonly aliases: { alias_path: string; location_path_id: string }[];
   constructor(
-    private readonly rowsByTable: Record<string, Record<string, unknown>[]> = {},
+    private readonly rowsByTable: Record<
+      string,
+      Record<string, unknown>[]
+    > = {},
     locations: {
       locationPaths?: LocationPathRow[];
       aliases?: { alias_path: string; location_path_id: string }[];
@@ -2030,9 +2033,14 @@ describe("CivilCase cross-source convergence (ADR 0028)", () => {
   };
   // The DB row a prior source (Clearinghouse) would have created: same natural
   // id, location resolved to its canonical location_path_id.
-  const resolvedRow = { ...civilCaseSpec, location_path_id: "tx-location-path-id" };
+  const resolvedRow = {
+    ...civilCaseSpec,
+    location_path_id: "tx-location-path-id",
+  };
 
-  function civilCaseContext(databaseCivilCases: Record<string, unknown>[] = []) {
+  function civilCaseContext(
+    databaseCivilCases: Record<string, unknown>[] = [],
+  ) {
     return new DataContext({
       client: new CurrentRowClient(
         databaseCivilCases.length > 0

@@ -36,7 +36,7 @@ would trip it.
 **A single mutation envelope's `metadata.name` is the value of its target row's
 key column** — the canonical `id` for an id-keyed entity, the natural key
 (`location_path_id`, `alias_path`) for the natural-key kinds. The pair is uniform:
-`kind` says *which table and operation*, `metadata.name` says *which row*.
+`kind` says _which table and operation_, `metadata.name` says _which row_.
 
 - Every kind's create, update, and read envelope sets `metadata.name` to the
   resolved identity value. There is no per-kind "source name vs identity"

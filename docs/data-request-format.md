@@ -58,18 +58,18 @@ A law-enforcement agency — a department, office, or unit that employs licensed
 
 One row per Agency.
 
-| Field | Type | Required | Constraints | Relationship / notes |
-|---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports; non-empty | A stable id you assign to this record and reuse next time. |
-| `name` | text | yes | non-empty | — |
-| `city` | text | yes | non-empty | — |
-| `state` | text | yes | non-empty | — |
-| `address` | text | yes | non-empty | — |
-| `zip_code` | text | yes | non-empty | — |
-| `contact_name` | text | optional | non-empty | — |
-| `contact_email` | text | optional | non-empty | — |
-| `latitude` | number | optional | — | — |
-| `longitude` | number | optional | — | — |
+| Field           | Type   | Required | Constraints                                                 | Relationship / notes                                       |
+| --------------- | ------ | -------- | ----------------------------------------------------------- | ---------------------------------------------------------- |
+| `id`            | text   | yes      | unique within your export; stable across exports; non-empty | A stable id you assign to this record and reuse next time. |
+| `name`          | text   | yes      | non-empty                                                   | —                                                          |
+| `city`          | text   | yes      | non-empty                                                   | —                                                          |
+| `state`         | text   | yes      | non-empty                                                   | —                                                          |
+| `address`       | text   | yes      | non-empty                                                   | —                                                          |
+| `zip_code`      | text   | yes      | non-empty                                                   | —                                                          |
+| `contact_name`  | text   | optional | non-empty                                                   | —                                                          |
+| `contact_email` | text   | optional | non-empty                                                   | —                                                          |
+| `latitude`      | number | optional | —                                                           | —                                                          |
+| `longitude`     | number | optional | —                                                           | —                                                          |
 
 ### Personnel
 
@@ -77,17 +77,17 @@ A person licensed or certified by a licensing authority — a sworn officer or a
 
 One row per Personnel.
 
-| Field | Type | Required | Constraints | Relationship / notes |
-|---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports; non-empty | A stable id you assign to this record and reuse next time. |
-| `first_name` | text | yes | non-empty | — |
-| `last_name` | text | yes | non-empty | — |
-| `middle_name` | text | optional | non-empty | — |
-| `prefix` | text | optional | non-empty | — |
-| `suffix` | text | optional | non-empty | — |
-| `deceased_on` | date (`YYYY-MM-DD`) | optional | format `YYYY-MM-DD` | — |
-| `deceased_source` | text | optional | non-empty | — |
-| `deceased_message` | text | optional | non-empty | — |
+| Field              | Type                | Required | Constraints                                                 | Relationship / notes                                       |
+| ------------------ | ------------------- | -------- | ----------------------------------------------------------- | ---------------------------------------------------------- |
+| `id`               | text                | yes      | unique within your export; stable across exports; non-empty | A stable id you assign to this record and reuse next time. |
+| `first_name`       | text                | yes      | non-empty                                                   | —                                                          |
+| `last_name`        | text                | yes      | non-empty                                                   | —                                                          |
+| `middle_name`      | text                | optional | non-empty                                                   | —                                                          |
+| `prefix`           | text                | optional | non-empty                                                   | —                                                          |
+| `suffix`           | text                | optional | non-empty                                                   | —                                                          |
+| `deceased_on`      | date (`YYYY-MM-DD`) | optional | format `YYYY-MM-DD`                                         | —                                                          |
+| `deceased_source`  | text                | optional | non-empty                                                   | —                                                          |
+| `deceased_message` | text                | optional | non-empty                                                   | —                                                          |
 
 ### AgencyPersonnel
 
@@ -95,16 +95,16 @@ An assignment: one person serving at one agency over a period (their appointment
 
 One row per AgencyPersonnel.
 
-| Field | Type | Required | Constraints | Relationship / notes |
-|---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports; non-empty | A stable id you assign to this record and reuse next time. |
-| `agency_id` | text | yes | non-empty | → **Agency**: your id for the linked Agency, present in the same export. |
-| `personnel_id` | text | yes | non-empty | → **Personnel**: your id for the linked Personnel, present in the same export. |
-| `badge_number` | text | optional | non-empty | — |
-| `start_date` | date (`YYYY-MM-DD`) | yes | format `YYYY-MM-DD` | — |
-| `end_date` | date (`YYYY-MM-DD`) | optional | format `YYYY-MM-DD` | — |
-| `title` | text | yes | non-empty | — |
-| `license_id` | text | optional | non-empty | → **License**: your id for the linked License, present in the same export. |
+| Field          | Type                | Required | Constraints                                                 | Relationship / notes                                                           |
+| -------------- | ------------------- | -------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `id`           | text                | yes      | unique within your export; stable across exports; non-empty | A stable id you assign to this record and reuse next time.                     |
+| `agency_id`    | text                | yes      | non-empty                                                   | → **Agency**: your id for the linked Agency, present in the same export.       |
+| `personnel_id` | text                | yes      | non-empty                                                   | → **Personnel**: your id for the linked Personnel, present in the same export. |
+| `badge_number` | text                | optional | non-empty                                                   | —                                                                              |
+| `start_date`   | date (`YYYY-MM-DD`) | yes      | format `YYYY-MM-DD`                                         | —                                                                              |
+| `end_date`     | date (`YYYY-MM-DD`) | optional | format `YYYY-MM-DD`                                         | —                                                                              |
+| `title`        | text                | yes      | non-empty                                                   | —                                                                              |
+| `license_id`   | text                | optional | non-empty                                                   | → **License**: your id for the linked License, present in the same export.     |
 
 ### LicensingAuthority
 
@@ -112,12 +112,12 @@ The body that licenses or certifies personnel — typically a state POST (Peace 
 
 One row per LicensingAuthority.
 
-| Field | Type | Required | Constraints | Relationship / notes |
-|---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports; non-empty | A stable id you assign to this record and reuse next time. |
-| `name` | text | yes | non-empty | — |
-| `abbreviation` | text | optional | non-empty | — |
-| `website` | text | optional | non-empty | — |
+| Field          | Type | Required | Constraints                                                 | Relationship / notes                                       |
+| -------------- | ---- | -------- | ----------------------------------------------------------- | ---------------------------------------------------------- |
+| `id`           | text | yes      | unique within your export; stable across exports; non-empty | A stable id you assign to this record and reuse next time. |
+| `name`         | text | yes      | non-empty                                                   | —                                                          |
+| `abbreviation` | text | optional | non-empty                                                   | —                                                          |
+| `website`      | text | optional | non-empty                                                   | —                                                          |
 
 ### License
 
@@ -125,14 +125,14 @@ A license or certification a person holds, issued by a licensing authority.
 
 One row per License.
 
-| Field | Type | Required | Constraints | Relationship / notes |
-|---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports; non-empty | A stable id you assign to this record and reuse next time. |
-| `personnel_id` | text | yes | non-empty | → **Personnel**: your id for the linked Personnel, present in the same export. |
-| `license_type` | text | yes | non-empty | — |
-| `status` | text | optional | non-empty | — |
-| `first_awarded` | date (`YYYY-MM-DD`) | optional | format `YYYY-MM-DD` | — |
-| `issued_by_authority_id` | text | yes | non-empty | → **LicensingAuthority**: your id for the linked LicensingAuthority, present in the same export. |
+| Field                    | Type                | Required | Constraints                                                 | Relationship / notes                                                                             |
+| ------------------------ | ------------------- | -------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `id`                     | text                | yes      | unique within your export; stable across exports; non-empty | A stable id you assign to this record and reuse next time.                                       |
+| `personnel_id`           | text                | yes      | non-empty                                                   | → **Personnel**: your id for the linked Personnel, present in the same export.                   |
+| `license_type`           | text                | yes      | non-empty                                                   | —                                                                                                |
+| `status`                 | text                | optional | non-empty                                                   | —                                                                                                |
+| `first_awarded`          | date (`YYYY-MM-DD`) | optional | format `YYYY-MM-DD`                                         | —                                                                                                |
+| `issued_by_authority_id` | text                | yes      | non-empty                                                   | → **LicensingAuthority**: your id for the linked LicensingAuthority, present in the same export. |
 
 ### LicenseAction
 
@@ -140,13 +140,13 @@ An event in a license's history — issuance, renewal, suspension, or revocation
 
 One row per LicenseAction.
 
-| Field | Type | Required | Constraints | Relationship / notes |
-|---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports; non-empty | A stable id you assign to this record and reuse next time. |
-| `license_id` | text | yes | non-empty | → **License**: your id for the linked License, present in the same export. |
-| `action` | text | yes | non-empty | — |
-| `action_date` | date (`YYYY-MM-DD`) | optional | format `YYYY-MM-DD` | — |
-| `status` | text | optional | non-empty | — |
+| Field         | Type                | Required | Constraints                                                 | Relationship / notes                                                       |
+| ------------- | ------------------- | -------- | ----------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `id`          | text                | yes      | unique within your export; stable across exports; non-empty | A stable id you assign to this record and reuse next time.                 |
+| `license_id`  | text                | yes      | non-empty                                                   | → **License**: your id for the linked License, present in the same export. |
+| `action`      | text                | yes      | non-empty                                                   | —                                                                          |
+| `action_date` | date (`YYYY-MM-DD`) | optional | format `YYYY-MM-DD`                                         | —                                                                          |
+| `status`      | text                | optional | non-empty                                                   | —                                                                          |
 
 ### Discipline
 
@@ -154,13 +154,13 @@ A disciplinary action or finding.
 
 One row per Discipline.
 
-| Field | Type | Required | Constraints | Relationship / notes |
-|---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
-| `action` | text | yes | non-empty | — |
-| `effective_date` | date (`YYYY-MM-DD`) | optional | format `YYYY-MM-DD` | — |
-| `expiration_date` | date (`YYYY-MM-DD`) | optional | format `YYYY-MM-DD` | — |
-| `case_number` | text | optional | non-empty | — |
+| Field             | Type                | Required | Constraints                                      | Relationship / notes                                       |
+| ----------------- | ------------------- | -------- | ------------------------------------------------ | ---------------------------------------------------------- |
+| `id`              | text                | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
+| `action`          | text                | yes      | non-empty                                        | —                                                          |
+| `effective_date`  | date (`YYYY-MM-DD`) | optional | format `YYYY-MM-DD`                              | —                                                          |
+| `expiration_date` | date (`YYYY-MM-DD`) | optional | format `YYYY-MM-DD`                              | —                                                          |
+| `case_number`     | text                | optional | non-empty                                        | —                                                          |
 
 ### DisciplineAgencyPersonnel
 
@@ -168,11 +168,11 @@ Ties a disciplinary action to the specific assignment (person at an agency) it c
 
 One row per DisciplineAgencyPersonnel.
 
-| Field | Type | Required | Constraints | Relationship / notes |
-|---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
-| `discipline_id` | text | yes | — | → **Discipline**: your id for the linked Discipline, present in the same export. |
-| `agency_personnel_id` | text | yes | — | → **AgencyPersonnel**: your id for the linked AgencyPersonnel, present in the same export. |
+| Field                 | Type | Required | Constraints                                      | Relationship / notes                                                                       |
+| --------------------- | ---- | -------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `id`                  | text | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time.                                 |
+| `discipline_id`       | text | yes      | —                                                | → **Discipline**: your id for the linked Discipline, present in the same export.           |
+| `agency_personnel_id` | text | yes      | —                                                | → **AgencyPersonnel**: your id for the linked AgencyPersonnel, present in the same export. |
 
 ### CoverageLink
 
@@ -180,15 +180,15 @@ A news article, report, or record documenting an incident or person.
 
 One row per CoverageLink.
 
-| Field | Type | Required | Constraints | Relationship / notes |
-|---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
-| `url` | text | yes | — | — |
-| `normalized_url` | text | yes | — | — |
-| `title` | text | yes | — | — |
-| `source_name` | text | optional | — | — |
-| `published_at` | timestamp (ISO 8601) | optional | ISO 8601 | — |
-| `notes` | text | optional | — | — |
+| Field            | Type                 | Required | Constraints                                      | Relationship / notes                                       |
+| ---------------- | -------------------- | -------- | ------------------------------------------------ | ---------------------------------------------------------- |
+| `id`             | text                 | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
+| `url`            | text                 | yes      | —                                                | —                                                          |
+| `normalized_url` | text                 | yes      | —                                                | —                                                          |
+| `title`          | text                 | yes      | —                                                | —                                                          |
+| `source_name`    | text                 | optional | —                                                | —                                                          |
+| `published_at`   | timestamp (ISO 8601) | optional | ISO 8601                                         | —                                                          |
+| `notes`          | text                 | optional | —                                                | —                                                          |
 
 ### CoverageLinkAgencyPersonnel
 
@@ -196,13 +196,13 @@ Ties a piece of coverage to the specific assignment (person at an agency) it con
 
 One row per CoverageLinkAgencyPersonnel.
 
-| Field | Type | Required | Constraints | Relationship / notes |
-|---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
-| `coverage_link_id` | text | yes | — | → **CoverageLink**: your id for the linked CoverageLink, present in the same export. |
-| `agency_personnel_id` | text | yes | — | → **AgencyPersonnel**: your id for the linked AgencyPersonnel, present in the same export. |
-| `confidence` | text | yes | — | — |
-| `notes` | text | optional | — | — |
+| Field                 | Type | Required | Constraints                                      | Relationship / notes                                                                       |
+| --------------------- | ---- | -------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `id`                  | text | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time.                                 |
+| `coverage_link_id`    | text | yes      | —                                                | → **CoverageLink**: your id for the linked CoverageLink, present in the same export.       |
+| `agency_personnel_id` | text | yes      | —                                                | → **AgencyPersonnel**: your id for the linked AgencyPersonnel, present in the same export. |
+| `confidence`          | text | yes      | —                                                | —                                                                                          |
+| `notes`               | text | optional | —                                                | —                                                                                          |
 
 ### AgencyPhoneNumber
 
@@ -210,12 +210,12 @@ A phone or fax number for an agency.
 
 One row per AgencyPhoneNumber.
 
-| Field | Type | Required | Constraints | Relationship / notes |
-|---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
-| `agency_id` | text | yes | — | → **Agency**: your id for the linked Agency, present in the same export. |
-| `phone_number` | text | yes | — | — |
-| `description` | text | optional | — | — |
+| Field          | Type | Required | Constraints                                      | Relationship / notes                                                     |
+| -------------- | ---- | -------- | ------------------------------------------------ | ------------------------------------------------------------------------ |
+| `id`           | text | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time.               |
+| `agency_id`    | text | yes      | —                                                | → **Agency**: your id for the linked Agency, present in the same export. |
+| `phone_number` | text | yes      | —                                                | —                                                                        |
+| `description`  | text | optional | —                                                | —                                                                        |
 
 ### FederalAgency
 
@@ -223,10 +223,10 @@ A federal law-enforcement agency (e.g. the FBI, DEA), distinct from its individu
 
 One row per FederalAgency.
 
-| Field | Type | Required | Constraints | Relationship / notes |
-|---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
-| `name` | text | yes | — | — |
+| Field  | Type | Required | Constraints                                      | Relationship / notes                                       |
+| ------ | ---- | -------- | ------------------------------------------------ | ---------------------------------------------------------- |
+| `id`   | text | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
+| `name` | text | yes      | —                                                | —                                                          |
 
 ### FederalAgencyBranch
 
@@ -234,11 +234,11 @@ A federal agency's office or field location, recorded as its own agency and link
 
 One row per FederalAgencyBranch.
 
-| Field | Type | Required | Constraints | Relationship / notes |
-|---|---|---|---|---|
-| `federal_agency_id` | text | yes | — | → **FederalAgency**: your id for the linked FederalAgency, present in the same export. |
-| `agency_id` | text | yes | — | → **Agency**: your id for the linked Agency, present in the same export. |
-| `id` | text | yes | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
+| Field               | Type | Required | Constraints                                      | Relationship / notes                                                                   |
+| ------------------- | ---- | -------- | ------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `federal_agency_id` | text | yes      | —                                                | → **FederalAgency**: your id for the linked FederalAgency, present in the same export. |
+| `agency_id`         | text | yes      | —                                                | → **Agency**: your id for the linked Agency, present in the same export.               |
+| `id`                | text | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time.                             |
 
 ### CivilCase
 
@@ -246,17 +246,17 @@ A civil lawsuit naming an agency and/or its personnel.
 
 One row per CivilCase.
 
-| Field | Type | Required | Constraints | Relationship / notes |
-|---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
-| `title` | text | yes | — | — |
-| `cause_number` | text | yes | — | — |
-| `court` | text | optional | — | — |
-| `filed_date` | date (`YYYY-MM-DD`) | yes | format `YYYY-MM-DD` | — |
-| `claims_summary` | text | yes | — | — |
-| `outcome` | text | optional | — | — |
-| `primary_source_url` | text | optional | — | — |
-| `date_terminated` | date (`YYYY-MM-DD`) | optional | format `YYYY-MM-DD` | — |
+| Field                | Type                | Required | Constraints                                      | Relationship / notes                                       |
+| -------------------- | ------------------- | -------- | ------------------------------------------------ | ---------------------------------------------------------- |
+| `id`                 | text                | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
+| `title`              | text                | yes      | —                                                | —                                                          |
+| `cause_number`       | text                | yes      | —                                                | —                                                          |
+| `court`              | text                | optional | —                                                | —                                                          |
+| `filed_date`         | date (`YYYY-MM-DD`) | yes      | format `YYYY-MM-DD`                              | —                                                          |
+| `claims_summary`     | text                | yes      | —                                                | —                                                          |
+| `outcome`            | text                | optional | —                                                | —                                                          |
+| `primary_source_url` | text                | optional | —                                                | —                                                          |
+| `date_terminated`    | date (`YYYY-MM-DD`) | optional | format `YYYY-MM-DD`                              | —                                                          |
 
 ### CivilCasePersonnel
 
@@ -264,11 +264,11 @@ Ties a civil case to a named assignment (person at an agency) it involves.
 
 One row per CivilCasePersonnel.
 
-| Field | Type | Required | Constraints | Relationship / notes |
-|---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
-| `civil_case_id` | text | yes | — | → **CivilCase**: your id for the linked CivilCase, present in the same export. |
-| `agency_personnel_id` | text | yes | — | → **AgencyPersonnel**: your id for the linked AgencyPersonnel, present in the same export. |
+| Field                 | Type | Required | Constraints                                      | Relationship / notes                                                                       |
+| --------------------- | ---- | -------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `id`                  | text | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time.                                 |
+| `civil_case_id`       | text | yes      | —                                                | → **CivilCase**: your id for the linked CivilCase, present in the same export.             |
+| `agency_personnel_id` | text | yes      | —                                                | → **AgencyPersonnel**: your id for the linked AgencyPersonnel, present in the same export. |
 
 ### CivilCaseLink
 
@@ -276,9 +276,9 @@ A source document or link for a civil case.
 
 One row per CivilCaseLink.
 
-| Field | Type | Required | Constraints | Relationship / notes |
-|---|---|---|---|---|
-| `id` | text | yes | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
-| `civil_case_id` | text | yes | — | → **CivilCase**: your id for the linked CivilCase, present in the same export. |
-| `url` | text | yes | — | — |
-| `title` | text | yes | — | — |
+| Field           | Type | Required | Constraints                                      | Relationship / notes                                                           |
+| --------------- | ---- | -------- | ------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `id`            | text | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time.                     |
+| `civil_case_id` | text | yes      | —                                                | → **CivilCase**: your id for the linked CivilCase, present in the same export. |
+| `url`           | text | yes      | —                                                | —                                                                              |
+| `title`         | text | yes      | —                                                | —                                                                              |

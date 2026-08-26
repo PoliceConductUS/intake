@@ -401,7 +401,9 @@ function columnTsType(column: Column, table: IntrospectedTable): string {
     return enumValues.map((value) => JSON.stringify(value)).join(" | ");
   }
   const isArray = column.udtName.startsWith("_");
-  const scalar = scalarTsType(isArray ? column.udtName.slice(1) : column.udtName);
+  const scalar = scalarTsType(
+    isArray ? column.udtName.slice(1) : column.udtName,
+  );
   if (scalar === undefined) {
     throw new Error(
       `No TypeScript row type for ${table.table}.${column.name} of type ${column.udtName}.`,

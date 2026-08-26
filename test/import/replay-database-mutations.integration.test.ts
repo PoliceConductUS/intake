@@ -197,7 +197,9 @@ describeWithDocker("replay against a real Postgres", () => {
     const rows = await db.query(
       "select id, slug from public.agency where id = 'agency-canonical-id'",
     );
-    expect(rows.rows).toEqual([{ id: "agency-canonical-id", slug: "new-slug" }]);
+    expect(rows.rows).toEqual([
+      { id: "agency-canonical-id", slug: "new-slug" },
+    ]);
   });
 
   test("stores a location path centroid and bbox as real PostGIS geometry", async () => {

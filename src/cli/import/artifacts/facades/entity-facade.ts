@@ -100,8 +100,7 @@ export class EntityFacade<
   Row,
   Env,
   Backend extends EntityFacadeBackend = EntityFacadeBackend,
-> implements PropertyResolutionFacade<Row>
-{
+> implements PropertyResolutionFacade<Row> {
   private readonly spec: Record<string, unknown> = {};
   private readonly memo = new Map<keyof Row, Promise<unknown>>();
   private readonly inProgress = new Set<keyof Row>();

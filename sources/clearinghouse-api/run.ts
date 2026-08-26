@@ -144,7 +144,9 @@ function caseNaturalId(civilCase: Case, title: string): string {
     dockets.find((docket) => docket.is_main_docket) ??
     dockets.find((docket) => text(docket.docket_number_manual) !== "") ??
     dockets[0];
-  const courtToken = courtTokenFromName(text(main?.court) || text(civilCase.court));
+  const courtToken = courtTokenFromName(
+    text(main?.court) || text(civilCase.court),
+  );
   const docketNumber =
     text(main?.docket_number_manual) || text(main?.recap_docket_number);
   return docketNumber !== ""
@@ -152,12 +154,7 @@ function caseNaturalId(civilCase: Case, title: string): string {
     : `${courtToken}:${slugify(title)}`;
 }
 
-export const run: SourceRun = async ({
-  paths,
-  data,
-  env,
-  logger,
-}: RunDeps) => {
+export const run: SourceRun = async ({ paths, data, env, logger }: RunDeps) => {
   const log = logger ?? { info() {} };
   if (data === undefined) {
     throw new Error(

@@ -107,9 +107,6 @@ function validateSourceRecordContext(input: SourceRecordContext): void {
   }
 }
 
-
-
-
 /** A facade the generic registry builder produces (its row shape is erased). */
 type RegistryFacade = EntityFacade<
   Record<string, unknown>,
@@ -130,7 +127,9 @@ type UnifiedFacadeBackend = EntityFacadeBackend & {
     slug: string;
     canonicalId: string;
   }): void;
-  resolveAgencyLocation(input: ResolveAddressInput): Promise<LocationResolution>;
+  resolveAgencyLocation(
+    input: ResolveAddressInput,
+  ): Promise<LocationResolution>;
 };
 
 export class DataContext {
@@ -382,8 +381,4 @@ export class DataContext {
     }
     return this.client;
   }
-
 }
-
-
-

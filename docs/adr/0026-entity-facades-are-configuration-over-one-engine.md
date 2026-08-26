@@ -27,7 +27,7 @@ Almost everything a facade needs is already generated from the database:
 `FK_REFERENCES` (each kind's foreign keys and their targets), `RESOLVED_PROPERTIES`
 (the cache-backed fields), the per-kind `*CreateSpec` (whose object shape is the
 exact column set), and the `{Kind}{Create,Update,Read}` mutation constructors
-(one uniform set per kind). What is *not* derivable is small: which column is the
+(one uniform set per kind). What is _not_ derivable is small: which column is the
 identity, whether an existing row is diffed or read, and the handful of columns
 whose resolver is not a plain foreign-key find or pass-through (casing, slug,
 geocode, a state-path lookup, a cross-source ledger reference).

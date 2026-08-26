@@ -16,20 +16,43 @@ function yieldingOwner(
 describe("SlugAllocator", () => {
   it("hands a second entity with the same base the next suffix", async () => {
     const allocator = new SlugAllocator(yieldingOwner());
-    expect(await allocator.ensureUnique("Agency", { base: "smith", canonicalId: "a" })).toBe("smith");
-    expect(await allocator.ensureUnique("Agency", { base: "smith", canonicalId: "b" })).toBe("smith-2");
+    expect(
+      await allocator.ensureUnique("Agency", {
+        base: "smith",
+        canonicalId: "a",
+      }),
+    ).toBe("smith");
+    expect(
+      await allocator.ensureUnique("Agency", {
+        base: "smith",
+        canonicalId: "b",
+      }),
+    ).toBe("smith-2");
   });
 
   it("returns the same slug for the same entity (idempotent)", async () => {
     const allocator = new SlugAllocator(yieldingOwner());
-    const first = await allocator.ensureUnique("Agency", { base: "smith", canonicalId: "a" });
-    const again = await allocator.ensureUnique("Agency", { base: "smith", canonicalId: "a" });
+    const first = await allocator.ensureUnique("Agency", {
+      base: "smith",
+      canonicalId: "a",
+    });
+    const again = await allocator.ensureUnique("Agency", {
+      base: "smith",
+      canonicalId: "a",
+    });
     expect(again).toBe(first);
   });
 
   it("skips a candidate already owned by a different entity in the database", async () => {
-    const allocator = new SlugAllocator(yieldingOwner({ smith: "other-entity" }));
-    expect(await allocator.ensureUnique("Agency", { base: "smith", canonicalId: "a" })).toBe("smith-2");
+    const allocator = new SlugAllocator(
+      yieldingOwner({ smith: "other-entity" }),
+    );
+    expect(
+      await allocator.ensureUnique("Agency", {
+        base: "smith",
+        canonicalId: "a",
+      }),
+    ).toBe("smith-2");
   });
 
   it("gives concurrently-resolved entities with the same base distinct slugs", async () => {
@@ -47,7 +70,17 @@ describe("SlugAllocator", () => {
 
   it("keeps slugs independent across kinds", async () => {
     const allocator = new SlugAllocator(yieldingOwner());
-    expect(await allocator.ensureUnique("Agency", { base: "smith", canonicalId: "a" })).toBe("smith");
-    expect(await allocator.ensureUnique("Personnel", { base: "smith", canonicalId: "b" })).toBe("smith");
+    expect(
+      await allocator.ensureUnique("Agency", {
+        base: "smith",
+        canonicalId: "a",
+      }),
+    ).toBe("smith");
+    expect(
+      await allocator.ensureUnique("Personnel", {
+        base: "smith",
+        canonicalId: "b",
+      }),
+    ).toBe("smith");
   });
 });

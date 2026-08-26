@@ -73,8 +73,7 @@ const DESCRIPTIONS: Record<string, string> = {
     "A federal law-enforcement agency (e.g. the FBI, DEA), distinct from its individual offices.",
   FederalAgencyBranch:
     "A federal agency's office or field location, recorded as its own agency and linked to the parent federal agency.",
-  CivilCase:
-    "A civil lawsuit naming an agency and/or its personnel.",
+  CivilCase: "A civil lawsuit naming an agency and/or its personnel.",
   CivilCasePersonnel:
     "Ties a civil case to a named assignment (person at an agency) it involves.",
   CivilCaseLink: "A source document or link for a civil case.",
@@ -92,7 +91,9 @@ function fieldType(table: IntrospectedTable, columnName: string): string {
   if (enumValues !== undefined) {
     return `one of: ${enumValues.map((value) => `\`${value}\``).join(", ")}`;
   }
-  const column = table.columns.find((candidate) => candidate.name === columnName);
+  const column = table.columns.find(
+    (candidate) => candidate.name === columnName,
+  );
   const udt = column?.udtName ?? "text";
   const isArray = udt.startsWith("_");
   const scalar = isArray ? udt.slice(1) : udt;
@@ -140,14 +141,19 @@ type FieldRow = {
 };
 
 function typeConstraint(table: IntrospectedTable, columnName: string): string {
-  const column = table.columns.find((candidate) => candidate.name === columnName);
+  const column = table.columns.find(
+    (candidate) => candidate.name === columnName,
+  );
   const udt = (column?.udtName ?? "text").replace(/^_/, "");
   if (udt === "date") return "format `YYYY-MM-DD`";
   if (udt === "timestamptz" || udt === "timestamp") return "ISO 8601";
   return "";
 }
 
-function classifyTable(recordKind: string, table: IntrospectedTable): FieldRow[] {
+function classifyTable(
+  recordKind: string,
+  table: IntrospectedTable,
+): FieldRow[] {
   const identity = identityColumn(recordKind);
   const fkByColumn = new Map(
     table.foreignKeys.map((fk) => [fk.column, fk.targetTable]),
@@ -161,7 +167,10 @@ function classifyTable(recordKind: string, table: IntrospectedTable): FieldRow[]
     const constraintParts: string[] = [];
     if (table.enums.has(column.name)) {
       constraintParts.push(
-        `one of ${table.enums.get(column.name)!.map((v) => `\`${v}\``).join(", ")}`,
+        `one of ${table.enums
+          .get(column.name)!
+          .map((v) => `\`${v}\``)
+          .join(", ")}`,
       );
     }
     if (table.nonBlankColumns.has(column.name)) {
@@ -178,13 +187,15 @@ function classifyTable(recordKind: string, table: IntrospectedTable): FieldRow[]
         constraints: ["unique within your export; stable across exports"]
           .concat(constraintParts)
           .join("; "),
-        relationship: "A stable id you assign to this record and reuse next time.",
+        relationship:
+          "A stable id you assign to this record and reuse next time.",
       });
       continue;
     }
     const fkTarget = fkByColumn.get(column.name);
     if (fkTarget !== undefined) {
-      const targetKind = recordKindByTable.get(bareTable(fkTarget)) ?? bareTable(fkTarget);
+      const targetKind =
+        recordKindByTable.get(bareTable(fkTarget)) ?? bareTable(fkTarget);
       rows.push({
         field: column.name,
         type,
