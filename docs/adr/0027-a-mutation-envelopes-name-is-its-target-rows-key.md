@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 > Refines ADR 0018 (versioned database mutations) and ADR 0020 (order creates
 > before updates). Internal to the import → replay boundary; it does not change

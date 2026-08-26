@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 > Extends the generator that already produces envelope/entity specs by
 > introspecting the database, and forbids hand-written alternatives for anything

@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 > Applies [ADR 0016](0016-resolve-entity-properties-with-composable-resolvers.md)
 > (composable resolvers), [ADR 0019](0019-cache-and-seed-resolved-properties-validate-at-the-mutation-boundary.md)

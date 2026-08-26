@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 > Framed by [ADR 0017](0017-intake-persistence-is-a-bespoke-orm.md): these
 > per-property resolvers are the ORM's Lazy Load + Foreign-Key Mapping; facades

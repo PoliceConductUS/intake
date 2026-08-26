@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 > Adds a third identity strategy alongside the two ADR 0023 already defines
 > (minted-cuid via the ledger; referenced-cuid via `sourceIdFor`). Introduced for

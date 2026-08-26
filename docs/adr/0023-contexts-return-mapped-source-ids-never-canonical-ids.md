@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 > Refines [ADR 0015](0015-isolate-namespaces-and-own-cross-source-identity-at-root.md)
 > (source isolation) for the case where a source must reference an intake-owned entity it

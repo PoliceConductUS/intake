@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 > Extends [ADR 0016](0016-resolve-entity-properties-with-composable-resolvers.md)
 > (composable per-property resolvers), [ADR 0009](0009-generate-envelope-types-and-own-yaml-filenames.md)

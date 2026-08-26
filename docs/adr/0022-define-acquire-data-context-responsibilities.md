@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 > Peer of [ADR 0011](0011-define-data-context-responsibilities.md): that ADR
 > defines the import-planning `DataContext` (the transform/load phase); this one

@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 > Builds on ADR 0016 (composable per-property resolvers), ADR 0019 (no startup
 > reads; the property cache), and ADR 0025 (generated database-bound models).

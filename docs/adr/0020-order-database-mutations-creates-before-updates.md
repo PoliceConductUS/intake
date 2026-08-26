@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 > Extends [ADR 0018](0018-version-database-mutations-as-ordered-apply-once-migrations.md)
 > (ordered apply-once mutations) and [ADR 0017](0017-intake-persistence-is-a-bespoke-orm.md)
