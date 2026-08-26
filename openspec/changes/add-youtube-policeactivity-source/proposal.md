@@ -19,24 +19,19 @@ are ever minted from a video.
 
 - From: no way to ingest video coverage; `coverage_links` is populated only by
   mn-post.
-- To: `acquire.ts` fetches the PoliceActivity channel's videos and captions via
-  the YouTube Data API v3 (keyed) into `sourceDir` as raw evidence; `run.ts`
-  reads them, resolves each video to existing records, and emits CoverageLink +
-  CoverageLinkAgencyPersonnel + CoverageLinkCivilCase for verified links only.
-- Reason: ingest accountability-video coverage as cited links on existing data.
+- To: mirroring clearinghouse-api / courtlistener, `acquire.ts` pages agencies
+  via the `data.agencies(...)` facade and searches the PoliceActivity channel
+  **per agency** (YouTube Data API v3, keyed), storing each hit's video + captions
+  stamped with the agency's source id; `run.ts` reads them and, for each video at
+  that known agency, resolves officers (and any docketed case) to existing records
+  and emits CoverageLink + CoverageLinkAgencyPersonnel + CoverageLinkCivilCase for
+  verified links only.
+- Reason: ingest accountability-video coverage as cited links on existing data,
+  reusing the per-agency-search boundary CH/CL already established.
 - Impact: additive namespace `youtube.policeactivity`; no schema change (uses the
-  CoverageLink kinds, including the just-added CoverageLinkCivilCase).
-
-**New run capability: resolve an agency by name (match-only)**
-
-- From: `RunDataContext` exposes only `resolvePersonnel({agencyId, personnelName})`
-  — it assumes the source already knows the agency (CH/CL acquire per agency).
-- To: add `resolveAgency({name, state?}) → { agencyId } | null` — an intake-owned,
-  match-only resolver that maps a name to an **existing** agency's namespace-local
-  id or returns null. Never mints. A video names its agency in text, not by id.
-- Reason: video coverage is not acquired per agency, so the agency must be
-  resolved from the cited passage before its personnel can be.
-- Impact: additive to the ADR 0023 run boundary; source ids only cross it.
+  CoverageLink kinds, including the just-added CoverageLinkCivilCase). No new run
+  capability — the agency is known from acquire (ADR 0023), so `resolvePersonnel`
+  suffices and no agency-from-text resolver is introduced.
 
 **Attributed-claim separation**
 
