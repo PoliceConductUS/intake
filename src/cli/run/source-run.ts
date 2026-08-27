@@ -14,6 +14,9 @@ export type ResolvedPersonnel = { agencyPersonnelId: string };
 // CivilCase identity is its natural key (court:docket, ADR 0028), so a resolved
 // civil case is that key directly — no ledger mapping.
 export type ResolvedCivilCase = { civilCaseId: string };
+// A resolved agency is a namespace-local source id (ADR 0023), which
+// resolvePersonnel then takes as its agencyId to scope the officer match.
+export type ResolvedAgency = { agencyId: string };
 
 // An intake-owned resolver injected into a source's run phase (ADR 0023). The
 // source calls it with source ids only; match, gate, and mint happen inside, and
@@ -29,6 +32,9 @@ export type RunDataContext = {
   resolveCivilCase?(input: {
     docket: string;
   }): Promise<ResolvedCivilCase | null>;
+  // Resolve an agency name to an EXISTING agency's source id, or null (no unique
+  // match). Optional: only sources that name agencies as free text need it.
+  resolveAgency?(input: { agencyName: string }): Promise<ResolvedAgency | null>;
 };
 
 export type RunDeps = {

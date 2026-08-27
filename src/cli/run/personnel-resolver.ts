@@ -126,6 +126,33 @@ export function createRunDataContext(
       return { agencyPersonnelId };
     },
 
+    async resolveAgency({ agencyName }) {
+      // Match an agency by name, normalizing both sides (lowercase, non-alnum →
+      // single space) so punctuation/casing never blocks a hit. A unique match
+      // mints (or reuses) its source id (ADR 0023); anything else — no match or
+      // more than one agency sharing the name — is null (resolve-or-fail).
+      const normalized = agencyName
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+      if (normalized.length < 3) return null;
+      const rows = resultRows(
+        await client.query(
+          `select id from agency
+            where trim(regexp_replace(lower(name), '[^a-z0-9]+', ' ', 'g')) = $1`,
+          [normalized],
+        ),
+      );
+      if (rows.length !== 1) return null;
+      const agencyId = await ledger.sourceIdFor(
+        namespace,
+        "Agency",
+        String(rows[0].id),
+      );
+      return { agencyId };
+    },
+
     async resolveCivilCase({ docket }) {
       // Match a docket against existing civil cases, normalizing both sides so
       // punctuation/casing never blocks a hit. A unique match resolves to the

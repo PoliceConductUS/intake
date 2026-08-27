@@ -48,11 +48,16 @@ gate saw.
 **2. run resolves, gates, and emits — deterministically.** run traverses **only
 verified** submissions of the v1 form type (`reportNew`), and for each:
 
-- resolves the named officers to `agency_personnel` (officer@agency), the agency,
-  the incident `location_path_id`, and any `caseNumber` to an existing
-  `civil_case` — all **resolve-or-fail**, via the run resolver context
-  (ADR 0023). An officer/agency/case that does not resolve is an attributed claim,
-  never a canonical link.
+- resolves each officer's `department` to an agency and the officer's name to
+  `agency_personnel` (officer@agency), and any `caseNumber` to an existing
+  `civil_case` — **resolve-or-fail**, via the run resolver context (ADR 0023). An
+  officer/agency/case that does not resolve is an attributed claim, never a
+  canonical link.
+- resolves the incident `location` (free-text user input) by **geocoding it
+  through the shared agency location path** (address → coordinates → snapped
+  `location_path_id` + `latitude`/`longitude`), at import via the injected
+  coordinate resolver — the same infrastructure agencies use, not a brittle
+  name match. A location that fails to geocode routes the report to human review.
 - applies the cached AI verdict as a **high publication bar**.
 - emits a report (`Review` + `ReviewPersonnel`) **only** when it clears the bar
   and anchors to at least one real officer@agency
@@ -71,7 +76,12 @@ human acts on it. This is the source's second output, alongside the artifacts.
 transiently (verification is already done off-database, in the bucket's `verify/`
 records); none becomes a database column or artifact field.
 
-**5. v1 scope is `reportNew` only.** The other publication-content forms
+**5. Old-model `traits` are transformed, not stored.** A `reportNew` submission's
+`officers[].traits` is the retired rubric/trait model (ADR 0029); it is folded
+into the narrative report (`what_happened` etc.), never persisted as trait ratings
+(the scoring tables are being dropped).
+
+**6. v1 scope is `reportNew` only.** The other publication-content forms
 (`personnelNew`, `civilLitigationNew`, `officerEdit`, `agencyEdit`) need
 edit/merge semantics against existing records and are deferred; until then they
 land in the human-review report. Ops forms (`contact`, `volunteer`,
