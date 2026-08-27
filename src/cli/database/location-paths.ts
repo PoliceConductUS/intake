@@ -29,9 +29,8 @@ export async function readLocationPathById(
   return firstRow<DatabaseLocationPathRow>(
     await client.query(
       `select location_path_id, path, level, state_or_territory_slug,
-              administrative_area_slug, place_slug, state_or_territory_name,
-              administrative_area_name, place_name, parent_location_path_id,
-              centroid, bbox
+              administrative_area_slug, place_slug, display_name,
+              parent_location_path_id, centroid, bbox
          from public.location_path
         where location_path_id = $1`,
       [locationPathId],
@@ -46,9 +45,8 @@ export async function readLocationPathByPath(
   return firstRow<DatabaseLocationPathRow>(
     await client.query(
       `select location_path_id, path, level, state_or_territory_slug,
-              administrative_area_slug, place_slug, state_or_territory_name,
-              administrative_area_name, place_name, parent_location_path_id,
-              centroid, bbox
+              administrative_area_slug, place_slug, display_name,
+              parent_location_path_id, centroid, bbox
          from public.location_path
         where path = $1`,
       [locationPathPath],
@@ -67,9 +65,8 @@ export async function readPlacesByStateAndSlug(
   return rowsFromResult(
     await client.query(
       `select location_path_id, path, level, state_or_territory_slug,
-              administrative_area_slug, place_slug, state_or_territory_name,
-              administrative_area_name, place_name, parent_location_path_id,
-              centroid, bbox
+              administrative_area_slug, place_slug, display_name,
+              parent_location_path_id, centroid, bbox
          from public.location_path
         where level = 'place'
           and state_or_territory_slug = $1
@@ -89,8 +86,8 @@ export async function readNearestPlace(
   return firstRow<DatabaseLocationPathRow>(
     await client.query(
       `select lp.location_path_id, lp.path, lp.level, lp.state_or_territory_slug,
-              lp.administrative_area_slug, lp.place_slug, lp.state_or_territory_name,
-              lp.administrative_area_name, lp.place_name, lp.parent_location_path_id,
+              lp.administrative_area_slug, lp.place_slug, lp.display_name,
+              lp.parent_location_path_id,
               case when lp.centroid is null then null
                    else ST_AsGeoJSON(lp.centroid::geometry)::jsonb end as centroid,
               case when lp.bbox is null then null
@@ -135,9 +132,7 @@ export async function readLocationPathsContainingPoint(
               lp.state_or_territory_slug,
               lp.administrative_area_slug,
               lp.place_slug,
-              lp.state_or_territory_name,
-              lp.administrative_area_name,
-              lp.place_name,
+              lp.display_name,
               lp.parent_location_path_id,
               case
                 when lp.centroid is null then null

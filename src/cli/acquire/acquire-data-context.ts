@@ -65,13 +65,15 @@ export function createAcquireDataContext(
       const rows = resultRows(
         await client.query(
           `select a.id as id, a.name as name, a.state as state,
-                  lp.administrative_area_name as county, lp.place_name as place,
+                  parent.display_name as county, lp.display_name as place,
                   count(ao.id)::int as officer_count
            from agency a
            left join location_path lp on lp.location_path_id = a.location_path_id
+           left join location_path parent
+             on parent.location_path_id = lp.parent_location_path_id
            left join agency_personnel ao on ao.agency_id = a.id
            where ($1::text[] is null or a.state = any($1))
-           group by a.id, lp.administrative_area_name, lp.place_name
+           group by a.id, parent.display_name, lp.display_name
            ${having}
            order by officer_count desc, a.id desc
            limit ${limitParam}`,

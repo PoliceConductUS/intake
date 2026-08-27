@@ -43,9 +43,7 @@ export interface LocationPathRow {
   state_or_territory_slug: string;
   administrative_area_slug: string | null;
   place_slug: string | null;
-  state_or_territory_name: string;
-  administrative_area_name: string | null;
-  place_name: string | null;
+  display_name: string;
   parent_location_path_id: string | null;
   latitude: string;
   longitude: string;
@@ -343,9 +341,7 @@ function stateLocationPath(
     state_or_territory_slug: stateSlug,
     administrative_area_slug: null,
     place_slug: null,
-    state_or_territory_name: state.NAME,
-    administrative_area_name: null,
-    place_name: null,
+    display_name: state.NAME,
     parent_location_path_id: null,
     latitude: state.INTPTLAT,
     longitude: state.INTPTLONG,
@@ -368,9 +364,7 @@ function administrativeAreaLocationPath({
     state_or_territory_slug: state.USPS.toLowerCase(),
     administrative_area_slug: slugFromSourceName(administrativeArea.NAME),
     place_slug: null,
-    state_or_territory_name: state.NAME,
-    administrative_area_name: administrativeArea.NAME,
-    place_name: null,
+    display_name: administrativeArea.NAME,
     parent_location_path_id: `/${state.USPS.toLowerCase()}/`,
     latitude: administrativeArea.INTPTLAT,
     longitude: administrativeArea.INTPTLONG,
@@ -387,9 +381,7 @@ function placeLocationPath(candidate: AssignedPlaceCandidate): LocationPathRow {
       candidate.administrativeArea.NAME,
     ),
     place_slug: candidate.placeSlug,
-    state_or_territory_name: candidate.state.NAME,
-    administrative_area_name: candidate.administrativeArea.NAME,
-    place_name: candidate.placeName,
+    display_name: candidate.placeName,
     parent_location_path_id: candidate.administrativeAreaPath,
     latitude: candidate.place.INTPTLAT,
     longitude: candidate.place.INTPTLONG,

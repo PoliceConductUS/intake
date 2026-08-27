@@ -55,9 +55,7 @@ describe("emit sink integration (via runSource)", () => {
                   state_or_territory_slug: "az",
                   administrative_area_slug: null,
                   place_slug: null,
-                  state_or_territory_name: "Arizona",
-                  administrative_area_name: null,
-                  place_name: null,
+                  display_name: "Arizona",
                   parent_location_path_id: null,
                 },
               },
@@ -119,7 +117,7 @@ describe("emit sink integration (via runSource)", () => {
     expect(Object.keys(locationPaths?.spec.records ?? {})).toEqual(["az"]);
     expect(locationPaths?.spec.records["az"]).toMatchObject({
       location_path_id: "az",
-      state_or_territory_name: "Arizona",
+      display_name: "Arizona",
     });
 
     const geometries = envelope.spec.artifacts.find(

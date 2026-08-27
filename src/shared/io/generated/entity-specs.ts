@@ -29,9 +29,10 @@ export const GENERATED_MIGRATION_VERSIONS = [
   "20260828000000",
   "20260829000000",
   "20260830000000",
+  "20260901000000",
 ] as const;
 export const GENERATED_MIGRATION_FINGERPRINT =
-  "e14bdcaff78613e7243ecb3bc2593bc45dbce321c299991a1a669a94af5bf6b9";
+  "c08d25cf29eae35cef97c6bd3f357e0de8b2fbaac975239b337a81998bd242f0";
 
 // Entity record kinds in database-dependency order (topological sort of the
 // foreign-key graph): a referenced entity precedes its referrer, so mutations
@@ -436,12 +437,10 @@ export const LocationPathSpec = z
     state_or_territory_slug: nonEmptyString,
     administrative_area_slug: nullableNonEmptyString,
     place_slug: nullableNonEmptyString,
-    state_or_territory_name: nonEmptyString,
-    administrative_area_name: nullableNonEmptyString,
-    place_name: nullableNonEmptyString,
     parent_location_path_id: nullableNonEmptyString,
     centroid: LocationPathCentroidSpec.nullable().optional(),
     bbox: LocationPathBboxSpec.nullable().optional(),
+    display_name: z.string(),
   })
   .strict()
   .superRefine((row, context) => {
@@ -449,8 +448,6 @@ export const LocationPathSpec = z
       for (const fieldName of [
         "administrative_area_slug",
         "place_slug",
-        "administrative_area_name",
-        "place_name",
         "parent_location_path_id",
       ] as const) {
         if (row[fieldName] !== null && row[fieldName] !== undefined) {
@@ -466,7 +463,6 @@ export const LocationPathSpec = z
     if (row.level === "administrative_area") {
       for (const fieldName of [
         "administrative_area_slug",
-        "administrative_area_name",
         "parent_location_path_id",
       ] as const) {
         if (row[fieldName] === null || row[fieldName] === undefined) {
@@ -477,7 +473,7 @@ export const LocationPathSpec = z
           });
         }
       }
-      for (const fieldName of ["place_slug", "place_name"] as const) {
+      for (const fieldName of ["place_slug"] as const) {
         if (row[fieldName] !== null && row[fieldName] !== undefined) {
           context.addIssue({
             code: "custom",
@@ -492,8 +488,6 @@ export const LocationPathSpec = z
       for (const fieldName of [
         "administrative_area_slug",
         "place_slug",
-        "administrative_area_name",
-        "place_name",
         "parent_location_path_id",
       ] as const) {
         if (row[fieldName] === null || row[fieldName] === undefined) {
@@ -1018,12 +1012,10 @@ export type LocationPathRow = {
   state_or_territory_slug: string;
   administrative_area_slug: string | null;
   place_slug: string | null;
-  state_or_territory_name: string;
-  administrative_area_name: string | null;
-  place_name: string | null;
   parent_location_path_id: string | null;
   centroid: unknown | null;
   bbox: unknown | null;
+  display_name: string;
 };
 
 export type LocationPathAliasRow = {

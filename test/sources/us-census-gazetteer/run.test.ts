@@ -93,9 +93,7 @@ describe("us-census-gazetteer run", () => {
       state_or_territory_slug: "mn",
       administrative_area_slug: null,
       place_slug: null,
-      state_or_territory_name: "Minnesota",
-      administrative_area_name: null,
-      place_name: null,
+      display_name: "Minnesota",
       parent_location_path_id: null,
       centroid: { type: "Point", coordinates: [-93.5, 44.5] },
       bbox: {
@@ -120,9 +118,8 @@ describe("us-census-gazetteer run", () => {
       location_path_id: "/mn/hennepin-county/",
       level: "administrative_area",
       administrative_area_slug: "hennepin-county",
-      administrative_area_name: "Hennepin County",
+      display_name: "Hennepin County",
       place_slug: null,
-      place_name: null,
       parent_location_path_id: "/mn/",
       centroid: { type: "Point", coordinates: [5, 5] },
     });
@@ -133,7 +130,7 @@ describe("us-census-gazetteer run", () => {
       location_path_id: "/mn/hennepin-county/minneapolis/",
       level: "place",
       place_slug: "minneapolis",
-      place_name: "Minneapolis",
+      display_name: "Minneapolis",
       parent_location_path_id: "/mn/hennepin-county/",
       centroid: { type: "Point", coordinates: [4, 4] },
     });

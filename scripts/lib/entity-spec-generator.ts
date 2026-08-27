@@ -52,8 +52,6 @@ const LEVEL_SUPERREFINE = `.superRefine((row, context) => {
       for (const fieldName of [
         "administrative_area_slug",
         "place_slug",
-        "administrative_area_name",
-        "place_name",
         "parent_location_path_id",
       ] as const) {
         if (row[fieldName] !== null && row[fieldName] !== undefined) {
@@ -69,7 +67,6 @@ const LEVEL_SUPERREFINE = `.superRefine((row, context) => {
     if (row.level === "administrative_area") {
       for (const fieldName of [
         "administrative_area_slug",
-        "administrative_area_name",
         "parent_location_path_id",
       ] as const) {
         if (row[fieldName] === null || row[fieldName] === undefined) {
@@ -80,7 +77,7 @@ const LEVEL_SUPERREFINE = `.superRefine((row, context) => {
           });
         }
       }
-      for (const fieldName of ["place_slug", "place_name"] as const) {
+      for (const fieldName of ["place_slug"] as const) {
         if (row[fieldName] !== null && row[fieldName] !== undefined) {
           context.addIssue({
             code: "custom",
@@ -95,8 +92,6 @@ const LEVEL_SUPERREFINE = `.superRefine((row, context) => {
       for (const fieldName of [
         "administrative_area_slug",
         "place_slug",
-        "administrative_area_name",
-        "place_name",
         "parent_location_path_id",
       ] as const) {
         if (row[fieldName] === null || row[fieldName] === undefined) {

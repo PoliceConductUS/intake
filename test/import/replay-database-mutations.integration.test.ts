@@ -91,7 +91,7 @@ describeWithDocker("replay against a real Postgres", () => {
   beforeEach(async () => {
     await db.truncateAll();
     await db.query(
-      `insert into public.location_path (location_path_id, path, level, state_or_territory_slug, state_or_territory_name)
+      `insert into public.location_path (location_path_id, path, level, state_or_territory_slug, display_name)
        values ($1, '/mn/saint-paul/', 'place', 'mn', 'Minnesota')`,
       [LOCATION_PATH_ID],
     );
@@ -204,7 +204,7 @@ describeWithDocker("replay against a real Postgres", () => {
 
   test("stores a location path centroid and bbox as real PostGIS geometry", async () => {
     await db.query(
-      `insert into public.location_path (location_path_id, path, level, state_or_territory_slug, state_or_territory_name)
+      `insert into public.location_path (location_path_id, path, level, state_or_territory_slug, display_name)
        values ('ramsey-county', '/mn/ramsey-county/', 'administrative_area', 'mn', 'Minnesota')`,
     );
     const rootDir = await mkdtemp(path.join(tmpdir(), "intake-replay-"));
@@ -219,9 +219,7 @@ describeWithDocker("replay against a real Postgres", () => {
           state_or_territory_slug: "mn",
           administrative_area_slug: "ramsey-county",
           place_slug: "saint-paul",
-          state_or_territory_name: "Minnesota",
-          administrative_area_name: "Ramsey County",
-          place_name: "Saint Paul",
+          display_name: "Saint Paul",
           parent_location_path_id: "ramsey-county",
           centroid: { type: "Point", coordinates: [-93.09, 44.9537] },
           bbox: {
@@ -270,7 +268,7 @@ describeWithDocker("replay against a real Postgres", () => {
 
   test("stores location path geometry boundary as a real PostGIS value", async () => {
     await db.query(
-      `insert into public.location_path (location_path_id, path, level, state_or_territory_slug, state_or_territory_name)
+      `insert into public.location_path (location_path_id, path, level, state_or_territory_slug, display_name)
        values ('lp', '/mn/', 'state', 'mn', 'Minnesota')`,
     );
     const rootDir = await mkdtemp(path.join(tmpdir(), "intake-replay-"));
@@ -327,7 +325,7 @@ describeWithDocker("replay against a real Postgres", () => {
     // Seed the place path (+ geometry) the agency resolves into by containment,
     // and the path the streamed geometry attaches to.
     await db.query(
-      `insert into public.location_path (location_path_id, path, level, state_or_territory_slug, state_or_territory_name) values
+      `insert into public.location_path (location_path_id, path, level, state_or_territory_slug, display_name) values
        ('saint-paul-location-path-id', '/mn/ramsey-county/saint-paul/', 'place', 'mn', 'Minnesota'),
        ('mn/saint-paul/minnesota-state-patrol', '/mn/state-patrol-geometry/', 'place', 'mn', 'Minnesota')`,
     );
