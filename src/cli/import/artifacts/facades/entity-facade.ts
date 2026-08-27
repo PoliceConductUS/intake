@@ -5,7 +5,6 @@ import {
   type ResolverContext,
   type FacadeSource,
   type PropertyCache,
-  identityDisposition,
   type CanonicalIdBackend,
   type ForeignKeyBackend,
   type BusinessKeyIdBackend,
@@ -243,12 +242,11 @@ export class EntityFacade<
     return resolved;
   }
 
-  // True when the identity declares a PATCH verb (ADR 0034): resolve an existing
-  // row by selector and write only the provided fields — a partial update, so the
-  // untouched foreign keys are never resolved. PUT (full replace) and POST (create)
-  // resolve every column as usual.
+  // True when the metadata declares PATCH (ADR 0034): resolve an existing row and
+  // write only the provided fields — a partial update, so the untouched foreign
+  // keys are never resolved. PUT (upsert) and POST (create) resolve every column.
   private identityIsPartialUpdate(): boolean {
-    return identityDisposition(this.spec[this.identity as string]).verb === "patch";
+    return this.source.action === "PATCH";
   }
 
   private hasSourceValue(property: keyof Row): boolean {

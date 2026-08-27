@@ -194,18 +194,15 @@ describe("selector-resolved partial update (ADR 0034)", () => {
         namespace: "org.policeconduct.manual",
         name: "markham-badge",
         commandName: "manual-badge-backfill",
-      },
-      ...backend(current, rowsByKind),
-    });
-    facade.merge({
-      id: {
-        patch: {
+        action: "PATCH",
+        selector: {
           agency: { name: "Irving Police Department" },
           personnel: { first_name: "James", last_name: "Markham" },
         },
       },
-      badge_number: "1379",
+      ...backend(current, rowsByKind),
     });
+    facade.merge({ badge_number: "1379" });
 
     const mutation = (await facade.toMutation()) as {
       kind: string;

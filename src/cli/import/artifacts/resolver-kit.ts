@@ -97,6 +97,12 @@ export type FacadeSource = {
   commandName?: string;
   /** Absolute path of the file this record was read from (for error context). */
   sourceFile?: string;
+  // The identity disposition (ADR 0034), from the record's metadata — never its
+  // spec (the payload). Default PUT: upsert by the source-id `name`. PATCH: address
+  // an existing row by `name` or `selector` and write only the provided fields.
+  // POST: create + return the mapping. The addressing is name xor selector.
+  action?: "PUT" | "PATCH" | "POST";
+  selector?: Selector;
 };
 
 /**
@@ -259,40 +265,12 @@ export type SelectorBackend = {
 };
 
 /**
- * The identity disposition a record declares (ADR 0034), named for the HTTP verbs:
- * a scalar id is POST — the normal ledger mint/find that creates a row and returns
- * its namespace/kind/id mapping. An object id declares an explicit verb whose
- * selector resolves an existing row via the model-walk: `patch` updates only the
- * provided fields; `put` replaces/upserts from the full spec. The verb is declared,
- * never inferred, because the default (POST) mints — silently creating a row where
- * an update was meant.
- */
-export function identityDisposition(
-  raw: unknown,
-): { verb: "post" } | { verb: "patch" | "put"; selector: Selector } {
-  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
-    return { verb: "post" };
-  }
-  const object = raw as Record<string, unknown>;
-  for (const verb of ["patch", "put"] as const) {
-    const selector = object[verb];
-    if (selector !== undefined) {
-      if (selector === null || typeof selector !== "object") {
-        throw new Error(`identity ${verb} must be a selector object.`);
-      }
-      return { verb, selector: selector as Selector };
-    }
-  }
-  throw new Error(
-    "an object identity must declare a verb: patch (partial update) or put (replace/upsert).",
-  );
-}
-
-/**
- * A polymorphic identity resolver (ADR 0034): a reference is scalar-or-selector.
- * A scalar id (POST) defers to the kind's normal identity resolver — the ledger
- * mint/find, byte-for-byte unchanged. An object id declares a verb (`patch` / `put`)
- * whose selector resolves to an existing row via the model-walk.
+ * The identity resolver honoring the metadata disposition (ADR 0034), named for the
+ * HTTP verbs. PUT (default) and POST defer to the kind's normal identity resolver —
+ * the ledger mint/find, byte-for-byte unchanged. PATCH addresses an existing row: by
+ * `selector` (resolved through the standard chain — same links every reference uses)
+ * or by a scalar `name`, and never mints. The disposition lives in metadata; the
+ * spec is only the payload.
  */
 export function facadeSelectorOrIdResolver<Row, B extends SelectorBackend>(
   kind: string,
@@ -300,18 +278,21 @@ export function facadeSelectorOrIdResolver<Row, B extends SelectorBackend>(
   fallback: Resolver<string, ResolverContext<Row, B>>,
 ): Resolver<string, ResolverContext<Row, B>> {
   return new Resolver(async (context) => {
-    const disposition = identityDisposition(context.facade.raw(identity));
-    if (disposition.verb === "post") {
-      return fallback.resolve(context, () => `${kind}.${identity}`);
-    }
-    if (disposition.verb === "put") {
-      throw new Error(
-        `${kind}.${identity} put is not yet implemented; use patch for an update.`,
+    const { source } = context;
+    const action = source.action ?? "PUT";
+    if (action === "PATCH" && source.selector !== undefined) {
+      return resolveReference(
+        kind,
+        source.selector,
+        context as unknown as ResolverContext<Row, ReferenceBackend>,
       );
     }
-    return resolveIdBySelector(kind, disposition.selector, (targetKind, columns) =>
-      context.backend.findRowsByColumns(targetKind, columns),
-    );
+    if (action === "PATCH" || action === "POST") {
+      throw new Error(
+        `${kind} ${action} by ${source.selector ? "selector" : "name"} is not yet implemented; use PATCH with a selector.`,
+      );
+    }
+    return fallback.resolve(context, () => `${kind}.${identity}`);
   });
 }
 
@@ -365,20 +346,27 @@ type LocationPathByPathBackend = {
 /** The union backend the standard links reach through. */
 type ReferenceBackend = CanonicalIdBackend &
   ForeignKeyBackend &
-  LocationPathByPathBackend;
+  LocationPathByPathBackend &
+  SelectorBackend;
+
+// A reference is scalar-or-selector (ADR 0034): a source-id string resolved through
+// the same-run/ledger links, or a selector object resolved by the selector link.
+// String links defer on a selector and vice-versa, so one chain carries both.
+export type Reference = string | Selector;
 
 /**
  * One link in the chain: resolve `reference` to a canonical id, or `undefined` to
  * defer to the next link.
  */
 export type ReferenceLink<Row> = (
-  reference: string,
+  reference: Reference,
   context: ResolverContext<Row, ReferenceBackend>,
 ) => Promise<string | undefined>;
 
 /** Same-run link: a target facade emitted this run resolves to its id. */
 export function sameRunLink<Row>(targetKind: string): ReferenceLink<Row> {
   return async (reference, { source, backend }) => {
+    if (typeof reference !== "string") return undefined;
     const target = backend.findForeignKeyTarget({
       kind: targetKind,
       namespace: source.namespace,
@@ -391,27 +379,49 @@ export function sameRunLink<Row>(targetKind: string): ReferenceLink<Row> {
 /** Db-source link: an existing durable ledger mapping (find-only, never mints). */
 export function ledgerFindLink<Row>(targetKind: string): ReferenceLink<Row> {
   return (reference, { source, backend }) =>
-    backend.findCanonicalId({
-      namespace: source.namespace,
-      kind: targetKind,
-      sourceId: reference,
-    });
+    typeof reference !== "string"
+      ? Promise.resolve(undefined)
+      : backend.findCanonicalId({
+          namespace: source.namespace,
+          kind: targetKind,
+          sourceId: reference,
+        });
 }
 
 /** Db-source link for LocationPath: resolve the reference by path, then alias. */
 export function locationPathByPathLink<Row>(): ReferenceLink<Row> {
   return async (reference, { backend }) =>
-    (await backend.getLocationPathByPath(reference))?.location_path_id;
+    typeof reference !== "string"
+      ? undefined
+      : (await backend.getLocationPathByPath(reference))?.location_path_id;
+}
+
+/**
+ * Selector link (ADR 0034): resolve a selector object to an existing row's id by
+ * the model-walk — a foreign-key hop resolves *through this same chain* (recursion),
+ * a scalar column is a literal constraint, the terminal query is resolve-or-fail
+ * (exactly one, never mints). Defers on a scalar reference. This is the natural-key
+ * terminal, the general form of locationPathByPathLink.
+ */
+export function selectorLink<Row>(targetKind: string): ReferenceLink<Row> {
+  return async (reference, context) => {
+    if (typeof reference === "string") return undefined;
+    return resolveIdBySelector(targetKind, reference, (kind, columns) =>
+      context.backend.findRowsByColumns(kind, columns),
+    );
+  };
 }
 
 /** Terminal mint link: the durable find-or-create. Only an identity may mint. */
 export function ledgerMintLink<Row>(targetKind: string): ReferenceLink<Row> {
   return (reference, { source, backend }) =>
-    backend.findOrCreateCanonicalId({
-      namespace: source.namespace,
-      kind: targetKind,
-      sourceId: reference,
-    });
+    typeof reference !== "string"
+      ? Promise.resolve(undefined)
+      : backend.findOrCreateCanonicalId({
+          namespace: source.namespace,
+          kind: targetKind,
+          sourceId: reference,
+        });
 }
 
 /**
@@ -426,12 +436,32 @@ function foreignKeyDbSourceLink<Row>(targetKind: string): ReferenceLink<Row> {
 }
 
 // The one standard chain, in order: same-run co-emitted facade, then the durable
-// db source (ledger, or by-path for a LocationPath). Shared by every resolver.
+// db source (ledger, or by-path for a LocationPath), then the selector terminal
+// (natural-key query). Every link defers on a reference it doesn't handle (string
+// links on a selector, the selector link on a string), so one chain carries both.
 function standardChain<Row>(targetKind: string): ReferenceLink<Row>[] {
   return [
     sameRunLink<Row>(targetKind),
     foreignKeyDbSourceLink<Row>(targetKind),
+    selectorLink<Row>(targetKind),
   ];
+}
+
+/** Run the standard chain for a reference; first hit wins, else fail loud. */
+export async function resolveReference<Row>(
+  targetKind: string,
+  reference: Reference,
+  context: ResolverContext<Row, ReferenceBackend>,
+): Promise<string> {
+  for (const link of standardChain<Row>(targetKind)) {
+    const resolved = await link(reference, context);
+    if (resolved !== undefined) {
+      return resolved;
+    }
+  }
+  throw new Error(
+    `Cannot resolve ${targetKind} reference ${JSON.stringify(reference)}.`,
+  );
 }
 
 /**
