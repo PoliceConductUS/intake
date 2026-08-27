@@ -192,7 +192,13 @@ describe("importArtifacts", () => {
     const agencyArtifact = artifacts.spec.artifacts.find(
       (artifact) => artifact.kind === "Agencies",
     );
-    expect(agencyArtifact?.spec.records["agency-source-id"]).toMatchObject({
+    expect(
+      (
+        agencyArtifact?.spec.records["agency-source-id"] as {
+          spec: Record<string, unknown>;
+        }
+      ).spec,
+    ).toMatchObject({
       urls: { website: "https://example.test/police" },
       latitude: 46.3433,
       longitude: -94.2821,
@@ -234,8 +240,7 @@ describe("importArtifacts", () => {
       spec: {
         records: {
           "agency-source-id": {
-            name: "Baxter Police Dept.",
-            state: "MN",
+            spec: { name: "Baxter Police Dept.", state: "MN" },
           },
         },
       },

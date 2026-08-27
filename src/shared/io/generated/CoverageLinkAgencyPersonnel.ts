@@ -83,8 +83,24 @@ const metadataSchema = z
   })
   .strict();
 
+// A record's own metadata (ADR 0034): the write verb and the addressing, kept with
+// the record — never folded into the spec (the spec is only the payload). Default
+// action is PUT (upsert by name). A record carries only what it needs; the resolver
+// enforces the per-verb constraints (PUT⟹name, PATCH⟹name xor selector, POST⟹neither).
+const recordMetadataSchema = z
+  .object({
+    action: z.enum(["PUT", "PATCH", "POST"]).optional(),
+    name: z.string().trim().min(1).optional(),
+    selector: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict();
+export type RecordMetadata = z.infer<typeof recordMetadataSchema>;
+
 const recordItemSchema = z
-  .object({ spec: CoverageLinkAgencyPersonnelSpec })
+  .object({
+    metadata: recordMetadataSchema.optional(),
+    spec: CoverageLinkAgencyPersonnelSpec,
+  })
   .strict();
 
 export const schema = z
@@ -112,7 +128,13 @@ export type CoverageLinkAgencyPersonnelResolvedEnvelope = Omit<
   "spec"
 > & {
   spec: Omit<CoverageLinkAgencyPersonnelEnvelope["spec"], "records"> & {
-    records: Record<string, z.infer<typeof CoverageLinkAgencyPersonnelSpec>>;
+    records: Record<
+      string,
+      {
+        metadata: RecordMetadata;
+        spec: z.infer<typeof CoverageLinkAgencyPersonnelSpec>;
+      }
+    >;
   };
 };
 
@@ -153,6 +175,26 @@ function validateRecord(
     );
   }
   return result.data;
+}
+
+// The record's metadata, kept with it through resolution (ADR 0034). The record
+// key is its name; the write verb + addressing (action/selector) ride along when
+// present. Works for both an inline item's metadata and a resolved record
+// envelope's metadata (both optionally carry action/selector).
+function toRecordMetadata(
+  recordKey: string,
+  metadata?: {
+    action?: "PUT" | "PATCH" | "POST";
+    selector?: Record<string, unknown>;
+  },
+): RecordMetadata {
+  return {
+    name: recordKey,
+    ...(metadata?.action !== undefined ? { action: metadata.action } : {}),
+    ...(metadata?.selector !== undefined
+      ? { selector: metadata.selector }
+      : {}),
+  };
 }
 
 async function readCoverageLinkAgencyPersonnel(
@@ -215,10 +257,16 @@ async function readCoverageLinkAgencyPersonnel(
 
   const records: Record<
     string,
-    z.infer<typeof CoverageLinkAgencyPersonnelSpec>
+    {
+      metadata: RecordMetadata;
+      spec: z.infer<typeof CoverageLinkAgencyPersonnelSpec>;
+    }
   > = {};
   for (const [recordKey, recordItem] of Object.entries(artifact.spec.records)) {
-    records[recordKey] = validateRecord(filePath, recordKey, recordItem.spec);
+    records[recordKey] = {
+      metadata: toRecordMetadata(recordKey, recordItem.metadata),
+      spec: validateRecord(filePath, recordKey, recordItem.spec),
+    };
   }
 
   return {

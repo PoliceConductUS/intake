@@ -102,7 +102,9 @@ export type FacadeSource = {
   // an existing row by `name` or `selector` and write only the provided fields.
   // POST: create + return the mapping. The addressing is name xor selector.
   action?: "PUT" | "PATCH" | "POST";
-  selector?: Selector;
+  // The raw selector from the record's metadata (loosely typed as it crosses the
+  // artifact boundary); the resolver treats it as a Selector when it resolves.
+  selector?: Record<string, unknown>;
 };
 
 /**
@@ -283,7 +285,7 @@ export function facadeSelectorOrIdResolver<Row, B extends SelectorBackend>(
     if (action === "PATCH" && source.selector !== undefined) {
       return resolveReference(
         kind,
-        source.selector,
+        source.selector as Selector,
         context as unknown as ResolverContext<Row, ReferenceBackend>,
       );
     }

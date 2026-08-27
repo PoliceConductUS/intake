@@ -116,14 +116,25 @@ function addSourceFacades(
     for (const artifact of artifacts.spec.artifacts.filter(
       (item) => item.kind === artifactKind,
     )) {
-      for (const [recordName, record] of Object.entries(
+      for (const [recordName, rawRecord] of Object.entries(
         artifact.spec.records,
       )) {
+        // A record is an envelope (ADR 0034): its metadata (action/selector) rides
+        // with it through the pipeline, never folded into the spec (the payload).
+        const record = rawRecord as {
+          metadata?: {
+            action?: "PUT" | "PATCH" | "POST";
+            selector?: Record<string, unknown>;
+          };
+          spec: Record<string, unknown>;
+        };
         dataContext.facadeFromSource(recordKind, {
           apiVersion: INTAKE_API_VERSION,
           namespace,
-          name: sourceNameForImportRecord(recordName, record),
-          spec: valueAsRecord(record),
+          name: sourceNameForImportRecord(recordName, record.spec),
+          spec: valueAsRecord(record.spec),
+          action: record.metadata?.action,
+          selector: record.metadata?.selector,
           sourceFile: artifact.recordSources?.[recordName],
         });
       }

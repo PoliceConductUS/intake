@@ -83,6 +83,19 @@ const metadataSchema = z
   })
   .strict();
 
+// A record's own metadata (ADR 0034): the write verb and the addressing, kept with
+// the record — never folded into the spec (the spec is only the payload). Default
+// action is PUT (upsert by name). A record carries only what it needs; the resolver
+// enforces the per-verb constraints (PUT⟹name, PATCH⟹name xor selector, POST⟹neither).
+const recordMetadataSchema = z
+  .object({
+    action: z.enum(["PUT", "PATCH", "POST"]).optional(),
+    name: z.string().trim().min(1).optional(),
+    selector: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict();
+export type RecordMetadata = z.infer<typeof recordMetadataSchema>;
+
 const recordReferenceSchema = z
   .object({
     ref: z
@@ -97,7 +110,9 @@ const recordReferenceSchema = z
       .strict(),
   })
   .strict();
-const inlineRecordItemSchema = z.object({ spec: LicenseSpec }).strict();
+const inlineRecordItemSchema = z
+  .object({ metadata: recordMetadataSchema.optional(), spec: LicenseSpec })
+  .strict();
 const recordItemSchema = z.union([
   recordReferenceSchema,
   inlineRecordItemSchema,
@@ -122,7 +137,10 @@ export type LicensesEnvelope = z.infer<typeof schema>;
 export type LicensesInput = Omit<LicensesEnvelope, "apiVersion" | "kind">;
 export type LicensesResolvedEnvelope = Omit<LicensesEnvelope, "spec"> & {
   spec: Omit<LicensesEnvelope["spec"], "records"> & {
-    records: Record<string, z.infer<typeof LicenseSpec>>;
+    records: Record<
+      string,
+      { metadata: RecordMetadata; spec: z.infer<typeof LicenseSpec> }
+    >;
   };
 };
 
@@ -161,6 +179,26 @@ function validateRecord(
   return result.data;
 }
 
+// The record's metadata, kept with it through resolution (ADR 0034). The record
+// key is its name; the write verb + addressing (action/selector) ride along when
+// present. Works for both an inline item's metadata and a resolved record
+// envelope's metadata (both optionally carry action/selector).
+function toRecordMetadata(
+  recordKey: string,
+  metadata?: {
+    action?: "PUT" | "PATCH" | "POST";
+    selector?: Record<string, unknown>;
+  },
+): RecordMetadata {
+  return {
+    name: recordKey,
+    ...(metadata?.action !== undefined ? { action: metadata.action } : {}),
+    ...(metadata?.selector !== undefined
+      ? { selector: metadata.selector }
+      : {}),
+  };
+}
+
 export const recordSchema = z
   .object({
     apiVersion: z.literal(INTAKE_API_VERSION),
@@ -171,6 +209,8 @@ export const recordSchema = z
         namespace: z.string().trim().min(1),
         labels: z.record(z.string(), z.string()).optional(),
         annotations: z.record(z.string(), z.string()).optional(),
+        action: z.enum(["PUT", "PATCH", "POST"]).optional(),
+        selector: z.record(z.string(), z.unknown()).optional(),
       })
       .strict(),
     spec: LicenseSpec,
@@ -290,7 +330,10 @@ async function readLicenses(
     return artifact;
   }
 
-  const records: Record<string, z.infer<typeof LicenseSpec>> = {};
+  const records: Record<
+    string,
+    { metadata: RecordMetadata; spec: z.infer<typeof LicenseSpec> }
+  > = {};
   for (const [recordKey, recordItem] of Object.entries(artifact.spec.records)) {
     if ("ref" in recordItem) {
       const record = await readLicense(recordItem.ref, {
@@ -302,9 +345,15 @@ async function readLicenses(
           `Licenses record metadata.name ${record.metadata.name} does not match expected record key ${recordKey}: ${filePath}`,
         );
       }
-      records[recordKey] = validateRecord(filePath, recordKey, record.spec);
+      records[recordKey] = {
+        metadata: toRecordMetadata(recordKey, record.metadata),
+        spec: validateRecord(filePath, recordKey, record.spec),
+      };
     } else {
-      records[recordKey] = validateRecord(filePath, recordKey, recordItem.spec);
+      records[recordKey] = {
+        metadata: toRecordMetadata(recordKey, recordItem.metadata),
+        spec: validateRecord(filePath, recordKey, recordItem.spec),
+      };
     }
   }
 

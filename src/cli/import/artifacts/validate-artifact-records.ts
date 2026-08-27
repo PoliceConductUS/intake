@@ -20,7 +20,10 @@ export function validateArtifactRecords(artifacts: ArtifactsEnvelope): void {
   for (const artifact of artifacts.spec.artifacts) {
     const definition = importTypeRegistry[artifact.kind];
     for (const [recordKey, record] of Object.entries(artifact.spec.records)) {
-      const result = definition.recordSchema.safeParse(record);
+      // A record is an envelope (ADR 0034): validate its spec (the payload), not
+      // the envelope, against the record schema.
+      const spec = (record as { spec?: unknown }).spec ?? record;
+      const result = definition.recordSchema.safeParse(spec);
       if (!result.success) {
         throw new Error(
           `Artifacts ${artifact.kind} record ${recordKey} is malformed at ${firstIssuePath(result.error)}.`,

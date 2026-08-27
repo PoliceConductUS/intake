@@ -145,11 +145,11 @@ function artifactModule(kind: ImportArtifactKind): string {
   })
   .strict();
 const inlineRecordItemSchema = z
-  .object({ spec: ${recordSpecName}Spec })
+  .object({ metadata: recordMetadataSchema.optional(), spec: ${recordSpecName}Spec })
   .strict();
 const recordItemSchema = z.union([recordReferenceSchema, inlineRecordItemSchema]);`
     : `const recordItemSchema = z
-  .object({ spec: ${recordSpecName}Spec })
+  .object({ metadata: recordMetadataSchema.optional(), spec: ${recordSpecName}Spec })
   .strict();`;
   const singularRecordSchema = supportsRecordEnvelope
     ? `
@@ -163,6 +163,8 @@ export const recordSchema = z
         namespace: z.string().trim().min(1),
         labels: z.record(z.string(), z.string()).optional(),
         annotations: z.record(z.string(), z.string()).optional(),
+        action: z.enum(["PUT", "PATCH", "POST"]).optional(),
+        selector: z.record(z.string(), z.unknown()).optional(),
       })
       .strict(),
     spec: ${recordSpecName}Spec,
@@ -234,11 +236,20 @@ async function write${recordEnvelopeKind}(
           \`${kind} record metadata.name \${record.metadata.name} does not match expected record key \${recordKey}: \${filePath}\`,
         );
       }
-      records[recordKey] = validateRecord(filePath, recordKey, record.spec);
+      records[recordKey] = {
+        metadata: toRecordMetadata(recordKey, record.metadata),
+        spec: validateRecord(filePath, recordKey, record.spec),
+      };
     } else {
-      records[recordKey] = validateRecord(filePath, recordKey, recordItem.spec);
+      records[recordKey] = {
+        metadata: toRecordMetadata(recordKey, recordItem.metadata),
+        spec: validateRecord(filePath, recordKey, recordItem.spec),
+      };
     }`
-    : `    records[recordKey] = validateRecord(filePath, recordKey, recordItem.spec);`;
+    : `    records[recordKey] = {
+      metadata: toRecordMetadata(recordKey, recordItem.metadata),
+      spec: validateRecord(filePath, recordKey, recordItem.spec),
+    };`;
   const externalizeRecords = supportsRecordEnvelope
     ? `  if (options.externalizeRecords === true) {
     const recordsDirectory =
@@ -325,6 +336,19 @@ const metadataSchema = z
   })
   .strict();
 
+// A record's own metadata (ADR 0034): the write verb and the addressing, kept with
+// the record — never folded into the spec (the spec is only the payload). Default
+// action is PUT (upsert by name). A record carries only what it needs; the resolver
+// enforces the per-verb constraints (PUT⟹name, PATCH⟹name xor selector, POST⟹neither).
+const recordMetadataSchema = z
+  .object({
+    action: z.enum(["PUT", "PATCH", "POST"]).optional(),
+    name: z.string().trim().min(1).optional(),
+    selector: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict();
+export type RecordMetadata = z.infer<typeof recordMetadataSchema>;
+
 ${recordItemSchema}
 
 export const schema = z
@@ -346,7 +370,10 @@ export type ${kind}Envelope = z.infer<typeof schema>;
 export type ${kind}Input = Omit<${kind}Envelope, "apiVersion" | "kind">;
 export type ${kind}ResolvedEnvelope = Omit<${kind}Envelope, "spec"> & {
   spec: Omit<${kind}Envelope["spec"], "records"> & {
-    records: Record<string, z.infer<typeof ${recordKind}Spec>>;
+    records: Record<
+      string,
+      { metadata: RecordMetadata; spec: z.infer<typeof ${recordKind}Spec> }
+    >;
   };
 };
 
@@ -383,6 +410,21 @@ function validateRecord(
     );
   }
   return result.data;
+}
+
+// The record's metadata, kept with it through resolution (ADR 0034). The record
+// key is its name; the write verb + addressing (action/selector) ride along when
+// present. Works for both an inline item's metadata and a resolved record
+// envelope's metadata (both optionally carry action/selector).
+function toRecordMetadata(
+  recordKey: string,
+  metadata?: { action?: "PUT" | "PATCH" | "POST"; selector?: Record<string, unknown> },
+): RecordMetadata {
+  return {
+    name: recordKey,
+    ...(metadata?.action !== undefined ? { action: metadata.action } : {}),
+    ...(metadata?.selector !== undefined ? { selector: metadata.selector } : {}),
+  };
 }
 
 ${singularRecordSchema}
@@ -431,7 +473,10 @@ async function read${kind}(
     return artifact;
   }
 
-  const records: Record<string, z.infer<typeof ${recordSpecName}Spec>> = {};
+  const records: Record<
+    string,
+    { metadata: RecordMetadata; spec: z.infer<typeof ${recordSpecName}Spec> }
+  > = {};
   for (const [recordKey, recordItem] of Object.entries(artifact.spec.records)) {
 ${readRecords}
   }

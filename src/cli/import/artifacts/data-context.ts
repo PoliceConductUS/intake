@@ -87,6 +87,9 @@ type SourceRecordContext = {
   commandName?: string;
   current?: Record<string, unknown>;
   spec?: Record<string, unknown>;
+  /** The record's write verb and addressing (ADR 0034), from its metadata. */
+  action?: "PUT" | "PATCH" | "POST";
+  selector?: Record<string, unknown>;
   /** Absolute path of the file this record was read from (for error context). */
   sourceFile?: string;
 };
@@ -292,6 +295,8 @@ export class DataContext {
         sourceFile: input.sourceFile,
         name: input.name,
         commandName: input.commandName ?? this.commandName,
+        action: input.action,
+        selector: input.selector,
       },
       backend: this.resolverBackend(kind, identityColumnForKind(kind)),
       // The property cache is gated by RESOLVED_PROPERTIES[kind]: a kind with no

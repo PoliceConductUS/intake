@@ -112,7 +112,10 @@ describe("emit sink integration (via runSource)", () => {
     );
     expect(locationPaths).toBeDefined();
     expect(Object.keys(locationPaths?.spec.records ?? {})).toEqual(["az"]);
-    expect(locationPaths?.spec.records["az"]).toMatchObject({
+    expect(
+      (locationPaths?.spec.records["az"] as { spec: Record<string, unknown> })
+        .spec,
+    ).toMatchObject({
       location_path_id: "az",
       display_name: "Arizona",
     });
@@ -122,7 +125,10 @@ describe("emit sink integration (via runSource)", () => {
     );
     expect(geometries).toBeDefined();
     expect(Object.keys(geometries?.spec.records ?? {})).toEqual(["az-state"]);
-    expect(geometries?.spec.records["az-state"]).toMatchObject({
+    expect(
+      (geometries?.spec.records["az-state"] as { spec: Record<string, unknown> })
+        .spec,
+    ).toMatchObject({
       location_path_id: "az",
       sourceLocationPathKey: "az",
       geometry: { type: "Point", coordinates: [0, 0] },

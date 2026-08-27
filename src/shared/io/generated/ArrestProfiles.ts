@@ -83,7 +83,25 @@ const metadataSchema = z
   })
   .strict();
 
-const recordItemSchema = z.object({ spec: ArrestProfileSpec }).strict();
+// A record's own metadata (ADR 0034): the write verb and the addressing, kept with
+// the record — never folded into the spec (the spec is only the payload). Default
+// action is PUT (upsert by name). A record carries only what it needs; the resolver
+// enforces the per-verb constraints (PUT⟹name, PATCH⟹name xor selector, POST⟹neither).
+const recordMetadataSchema = z
+  .object({
+    action: z.enum(["PUT", "PATCH", "POST"]).optional(),
+    name: z.string().trim().min(1).optional(),
+    selector: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict();
+export type RecordMetadata = z.infer<typeof recordMetadataSchema>;
+
+const recordItemSchema = z
+  .object({
+    metadata: recordMetadataSchema.optional(),
+    spec: ArrestProfileSpec,
+  })
+  .strict();
 
 export const schema = z
   .object({
@@ -110,7 +128,10 @@ export type ArrestProfilesResolvedEnvelope = Omit<
   "spec"
 > & {
   spec: Omit<ArrestProfilesEnvelope["spec"], "records"> & {
-    records: Record<string, z.infer<typeof ArrestProfileSpec>>;
+    records: Record<
+      string,
+      { metadata: RecordMetadata; spec: z.infer<typeof ArrestProfileSpec> }
+    >;
   };
 };
 
@@ -147,6 +168,26 @@ function validateRecord(
     );
   }
   return result.data;
+}
+
+// The record's metadata, kept with it through resolution (ADR 0034). The record
+// key is its name; the write verb + addressing (action/selector) ride along when
+// present. Works for both an inline item's metadata and a resolved record
+// envelope's metadata (both optionally carry action/selector).
+function toRecordMetadata(
+  recordKey: string,
+  metadata?: {
+    action?: "PUT" | "PATCH" | "POST";
+    selector?: Record<string, unknown>;
+  },
+): RecordMetadata {
+  return {
+    name: recordKey,
+    ...(metadata?.action !== undefined ? { action: metadata.action } : {}),
+    ...(metadata?.selector !== undefined
+      ? { selector: metadata.selector }
+      : {}),
+  };
 }
 
 async function readArrestProfiles(
@@ -204,9 +245,15 @@ async function readArrestProfiles(
     return artifact;
   }
 
-  const records: Record<string, z.infer<typeof ArrestProfileSpec>> = {};
+  const records: Record<
+    string,
+    { metadata: RecordMetadata; spec: z.infer<typeof ArrestProfileSpec> }
+  > = {};
   for (const [recordKey, recordItem] of Object.entries(artifact.spec.records)) {
-    records[recordKey] = validateRecord(filePath, recordKey, recordItem.spec);
+    records[recordKey] = {
+      metadata: toRecordMetadata(recordKey, recordItem.metadata),
+      spec: validateRecord(filePath, recordKey, recordItem.spec),
+    };
   }
 
   return {

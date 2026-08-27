@@ -81,7 +81,14 @@ function entityRecordForMutation(
     );
   }
 
-  return entityRecord as Record<string, unknown>;
+  // A record is an envelope (ADR 0034): a mutation targets the spec (the payload).
+  const spec = (entityRecord as { spec?: unknown }).spec;
+  if (typeof spec !== "object" || spec === null || Array.isArray(spec)) {
+    throw new Error(
+      `Artifact mutation references malformed ${entityName} source name ${sourceName}.`,
+    );
+  }
+  return spec as Record<string, unknown>;
 }
 
 function applyMutation(
