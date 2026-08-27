@@ -168,6 +168,27 @@ export function valueAsString(value: unknown): string | undefined {
 }
 
 /**
+ * A resolver composed from sibling properties (ADR 0016): it `await`s the already-
+ * resolved values of `from` through the facade — which memoizes, so a shared
+ * upstream resolver (e.g. a geocode that sets both `latitude` and `longitude`)
+ * runs once — and applies `build` to transform them. This is how one property
+ * delegates to another's output (e.g. a GeoJSON point built from resolved
+ * coordinates) without recomputing it. `build` returns `null`/`undefined` to defer
+ * to the resolver's unresolved policy.
+ */
+export function composedResolver<T, Row>(
+  from: ReadonlyArray<keyof Row & string>,
+  build: (values: unknown[]) => T | undefined,
+): Resolver<T, ResolverContext<Row, unknown>> {
+  return new Resolver(async ({ facade }) => {
+    const values = await Promise.all(
+      from.map((property) => facade.value(property)),
+    );
+    return build(values);
+  });
+}
+
+/**
  * The capability a state→location_path resolver reaches through: resolve an
  * existing location_path by its `/state/` path (resolve-or-fail, never mints).
  */
