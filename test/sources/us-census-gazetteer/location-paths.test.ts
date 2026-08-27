@@ -81,9 +81,7 @@ describe("buildLocationPaths", () => {
     expect(state.longitude).toBe("-094.1996043");
     expect(admin.parent_location_path_id).toBe("/mn/");
     expect(place.parent_location_path_id).toBe("/mn/hennepin-county/");
-    expect(place.state_or_territory_slug).toBe("mn");
-    expect(place.administrative_area_slug).toBe("hennepin-county");
-    expect(place.place_slug).toBe("minneapolis");
+    expect(place.path).toBe("/mn/hennepin-county/minneapolis/");
     expect(place.display_name).toBe("Minneapolis");
     expect((state as unknown as Record<string, unknown>)._metadata).toBe(
       undefined,
@@ -280,16 +278,16 @@ describe("buildLocationPaths", () => {
         .display_name,
     ).toBe("Chevy Chase town");
     expect(
-      result.locationPaths["/md/montgomery-county/chevy-chase-cdp/"].place_slug,
-    ).toBe("chevy-chase-cdp");
+      result.locationPaths["/md/montgomery-county/chevy-chase-cdp/"].path,
+    ).toBe("/md/montgomery-county/chevy-chase-cdp/");
     expect(
       result.locationPaths["/md/montgomery-county/chevy-chase-village-town/"]
         .display_name,
     ).toBe("Chevy Chase Village town");
     expect(
       result.locationPaths["/md/montgomery-county/chevy-chase-village-town/"]
-        .place_slug,
-    ).toBe("chevy-chase-village-town");
+        .path,
+    ).toBe("/md/montgomery-county/chevy-chase-village-town/");
     expect(result.locationPathAlias).toEqual({});
   });
 

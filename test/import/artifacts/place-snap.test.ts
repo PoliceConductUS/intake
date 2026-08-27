@@ -19,7 +19,7 @@ function fakeContext(options: {
         const level = values[2] as "place" | "administrative_area";
         return { rows: options.containing[level] ?? [] };
       }
-      if (text.includes("place_slug = $2")) {
+      if (text.includes("split_part(path, '/', 4) = $2")) {
         return { rows: options.byStateSlug ?? [] };
       }
       if (text.includes("where location_path_id = $1")) {

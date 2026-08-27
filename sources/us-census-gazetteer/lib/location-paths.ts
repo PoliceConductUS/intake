@@ -40,9 +40,6 @@ export interface LocationPathRow {
   location_path_id: string;
   path: string;
   level: "state" | "administrative_area" | "place";
-  state_or_territory_slug: string;
-  administrative_area_slug: string | null;
-  place_slug: string | null;
   display_name: string;
   parent_location_path_id: string | null;
   latitude: string;
@@ -333,14 +330,10 @@ function stateLocationPath(
   state: GazetteerStateRecord,
   statePath: string,
 ): LocationPathRow {
-  const stateSlug = state.USPS.toLowerCase();
   return {
     location_path_id: statePath,
     path: statePath,
     level: "state",
-    state_or_territory_slug: stateSlug,
-    administrative_area_slug: null,
-    place_slug: null,
     display_name: state.NAME,
     parent_location_path_id: null,
     latitude: state.INTPTLAT,
@@ -361,9 +354,6 @@ function administrativeAreaLocationPath({
     location_path_id: administrativeAreaPath,
     path: administrativeAreaPath,
     level: "administrative_area",
-    state_or_territory_slug: state.USPS.toLowerCase(),
-    administrative_area_slug: slugFromSourceName(administrativeArea.NAME),
-    place_slug: null,
     display_name: administrativeArea.NAME,
     parent_location_path_id: `/${state.USPS.toLowerCase()}/`,
     latitude: administrativeArea.INTPTLAT,
@@ -376,11 +366,6 @@ function placeLocationPath(candidate: AssignedPlaceCandidate): LocationPathRow {
     location_path_id: candidate.placePath,
     path: candidate.placePath,
     level: "place",
-    state_or_territory_slug: candidate.state.USPS.toLowerCase(),
-    administrative_area_slug: slugFromSourceName(
-      candidate.administrativeArea.NAME,
-    ),
-    place_slug: candidate.placeSlug,
     display_name: candidate.placeName,
     parent_location_path_id: candidate.administrativeAreaPath,
     latitude: candidate.place.INTPTLAT,

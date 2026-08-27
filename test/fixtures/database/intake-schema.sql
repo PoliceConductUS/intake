@@ -225,22 +225,16 @@ CREATE TABLE public.location_path (
     location_path_id text NOT NULL,
     path text NOT NULL,
     level text NOT NULL,
-    state_or_territory_slug text NOT NULL,
-    administrative_area_slug text,
-    place_slug text,
     display_name text NOT NULL,
     parent_location_path_id text,
     centroid public.geography(Point,4326),
     bbox public.geometry(Polygon,4326),
     created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
-    CONSTRAINT location_path_administrative_area_slug_not_blank CHECK (((administrative_area_slug IS NULL) OR (char_length(btrim(administrative_area_slug)) > 0))),
     CONSTRAINT location_path_level_check CHECK ((level = ANY (ARRAY['state'::text, 'administrative_area'::text, 'place'::text]))),
     CONSTRAINT location_path_location_path_id_not_blank CHECK ((char_length(btrim(location_path_id)) > 0)),
     CONSTRAINT location_path_parent_location_path_id_not_blank CHECK (((parent_location_path_id IS NULL) OR (char_length(btrim(parent_location_path_id)) > 0))),
-    CONSTRAINT location_path_path_not_blank CHECK ((char_length(btrim(path)) > 0)),
-    CONSTRAINT location_path_place_slug_not_blank CHECK (((place_slug IS NULL) OR (char_length(btrim(place_slug)) > 0))),
-    CONSTRAINT location_path_state_or_territory_slug_not_blank CHECK ((char_length(btrim(state_or_territory_slug)) > 0))
+    CONSTRAINT location_path_path_not_blank CHECK ((char_length(btrim(path)) > 0))
 );
 
 

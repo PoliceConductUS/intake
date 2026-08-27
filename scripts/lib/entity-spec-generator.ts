@@ -47,61 +47,26 @@ type EntityDescriptor = {
   optionalNullable?: boolean;
 };
 
+// The path already encodes state/area/place (slugs dropped), so the only
+// level-dependent invariant left is the parent link: a state has none, an area or
+// place must have one.
 const LEVEL_SUPERREFINE = `.superRefine((row, context) => {
-    if (row.level === "state") {
-      for (const fieldName of [
-        "administrative_area_slug",
-        "place_slug",
-        "parent_location_path_id",
-      ] as const) {
-        if (row[fieldName] !== null && row[fieldName] !== undefined) {
-          context.addIssue({
-            code: "custom",
-            path: [fieldName],
-            message: "must be null for state location paths",
-          });
-        }
-      }
+    const hasParent =
+      row.parent_location_path_id !== null &&
+      row.parent_location_path_id !== undefined;
+    if (row.level === "state" && hasParent) {
+      context.addIssue({
+        code: "custom",
+        path: ["parent_location_path_id"],
+        message: "must be null for state location paths",
+      });
     }
-
-    if (row.level === "administrative_area") {
-      for (const fieldName of [
-        "administrative_area_slug",
-        "parent_location_path_id",
-      ] as const) {
-        if (row[fieldName] === null || row[fieldName] === undefined) {
-          context.addIssue({
-            code: "custom",
-            path: [fieldName],
-            message: "is required for administrative area location paths",
-          });
-        }
-      }
-      for (const fieldName of ["place_slug"] as const) {
-        if (row[fieldName] !== null && row[fieldName] !== undefined) {
-          context.addIssue({
-            code: "custom",
-            path: [fieldName],
-            message: "must be null for administrative area location paths",
-          });
-        }
-      }
-    }
-
-    if (row.level === "place") {
-      for (const fieldName of [
-        "administrative_area_slug",
-        "place_slug",
-        "parent_location_path_id",
-      ] as const) {
-        if (row[fieldName] === null || row[fieldName] === undefined) {
-          context.addIssue({
-            code: "custom",
-            path: [fieldName],
-            message: "is required for place location paths",
-          });
-        }
-      }
+    if (row.level !== "state" && !hasParent) {
+      context.addIssue({
+        code: "custom",
+        path: ["parent_location_path_id"],
+        message: "is required for non-state location paths",
+      });
     }
   })`;
 

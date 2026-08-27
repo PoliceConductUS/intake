@@ -30,9 +30,10 @@ export const GENERATED_MIGRATION_VERSIONS = [
   "20260829000000",
   "20260830000000",
   "20260901000000",
+  "20260902000000",
 ] as const;
 export const GENERATED_MIGRATION_FINGERPRINT =
-  "c08d25cf29eae35cef97c6bd3f357e0de8b2fbaac975239b337a81998bd242f0";
+  "03148ead96e2e8a7b61a260e4c89749559bc8bbecae7b475fbfc9c0c28f6c5c6";
 
 // Entity record kinds in database-dependency order (topological sort of the
 // foreign-key graph): a referenced entity precedes its referrer, so mutations
@@ -434,9 +435,6 @@ export const LocationPathSpec = z
     location_path_id: nonEmptyString,
     path: nonEmptyString,
     level: z.enum(["state", "administrative_area", "place"]),
-    state_or_territory_slug: nonEmptyString,
-    administrative_area_slug: nullableNonEmptyString,
-    place_slug: nullableNonEmptyString,
     parent_location_path_id: nullableNonEmptyString,
     centroid: LocationPathCentroidSpec.nullable().optional(),
     bbox: LocationPathBboxSpec.nullable().optional(),
@@ -444,60 +442,22 @@ export const LocationPathSpec = z
   })
   .strict()
   .superRefine((row, context) => {
-    if (row.level === "state") {
-      for (const fieldName of [
-        "administrative_area_slug",
-        "place_slug",
-        "parent_location_path_id",
-      ] as const) {
-        if (row[fieldName] !== null && row[fieldName] !== undefined) {
-          context.addIssue({
-            code: "custom",
-            path: [fieldName],
-            message: "must be null for state location paths",
-          });
-        }
-      }
+    const hasParent =
+      row.parent_location_path_id !== null &&
+      row.parent_location_path_id !== undefined;
+    if (row.level === "state" && hasParent) {
+      context.addIssue({
+        code: "custom",
+        path: ["parent_location_path_id"],
+        message: "must be null for state location paths",
+      });
     }
-
-    if (row.level === "administrative_area") {
-      for (const fieldName of [
-        "administrative_area_slug",
-        "parent_location_path_id",
-      ] as const) {
-        if (row[fieldName] === null || row[fieldName] === undefined) {
-          context.addIssue({
-            code: "custom",
-            path: [fieldName],
-            message: "is required for administrative area location paths",
-          });
-        }
-      }
-      for (const fieldName of ["place_slug"] as const) {
-        if (row[fieldName] !== null && row[fieldName] !== undefined) {
-          context.addIssue({
-            code: "custom",
-            path: [fieldName],
-            message: "must be null for administrative area location paths",
-          });
-        }
-      }
-    }
-
-    if (row.level === "place") {
-      for (const fieldName of [
-        "administrative_area_slug",
-        "place_slug",
-        "parent_location_path_id",
-      ] as const) {
-        if (row[fieldName] === null || row[fieldName] === undefined) {
-          context.addIssue({
-            code: "custom",
-            path: [fieldName],
-            message: "is required for place location paths",
-          });
-        }
-      }
+    if (row.level !== "state" && !hasParent) {
+      context.addIssue({
+        code: "custom",
+        path: ["parent_location_path_id"],
+        message: "is required for non-state location paths",
+      });
     }
   });
 
@@ -1009,9 +969,6 @@ export type LocationPathRow = {
   location_path_id: string;
   path: string;
   level: "state" | "administrative_area" | "place";
-  state_or_territory_slug: string;
-  administrative_area_slug: string | null;
-  place_slug: string | null;
   parent_location_path_id: string | null;
   centroid: unknown | null;
   bbox: unknown | null;
