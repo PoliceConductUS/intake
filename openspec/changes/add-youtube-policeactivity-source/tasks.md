@@ -28,8 +28,11 @@
       resolved officers, each with the naming passage in `notes`.
 - [x] 2.3 A video with no verified link emits no durable coverage record;
       `run()` is deterministic (no network/clock/randomness).
-- [ ] 2.4 (Deferred) Case links: a match-only `resolveCivilCase` run capability,
-      then docket → existing CivilCase → CoverageLinkCivilCase.
+- [x] 2.4 Case links (officer-gated): a match-only `resolveCivilCase` run
+      capability; docket tokens → existing CivilCase (unique match) →
+      CoverageLinkCivilCase, only for videos that already matched an officer.
+      `CoverageLinkCivilCase.civil_case_id` passes the natural key through at
+      import (cross-source reference, ADR 0023/0028).
 
 ## 3. Tests + validation
 

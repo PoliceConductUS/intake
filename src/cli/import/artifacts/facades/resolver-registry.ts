@@ -26,7 +26,10 @@ import {
   agencyLocationPathResolver,
   agencyCoordinateResolver,
 } from "./agency-personnel-resolvers.js";
-import { coverageLinkIdResolver } from "./coverage-resolvers.js";
+import {
+  coverageLinkIdResolver,
+  civilCaseReferenceResolver,
+} from "./coverage-resolvers.js";
 import {
   licenseStatusResolver,
   licenseTypeResolver,
@@ -195,6 +198,13 @@ const REGISTRY: Record<string, KindConfig> = {
     identityKind: "natural",
     overrides: {
       id: coverageLinkIdResolver() as AnyResolver,
+    },
+  },
+  CoverageLinkCivilCase: {
+    // civil_case_id references an existing case (another source) by its natural
+    // key, so it passes through as the canonical id (ADR 0023/0028).
+    overrides: {
+      civil_case_id: civilCaseReferenceResolver() as AnyResolver,
     },
   },
   CoverageLinkAgencyPersonnel: {

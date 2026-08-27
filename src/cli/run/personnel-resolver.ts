@@ -125,5 +125,22 @@ export function createRunDataContext(
       );
       return { agencyPersonnelId };
     },
+
+    async resolveCivilCase({ docket }) {
+      // Match a docket against existing civil cases, normalizing both sides so
+      // punctuation/casing never blocks a hit. A unique match resolves to the
+      // case's natural key (court:docket, ADR 0028); anything else is null.
+      const normalized = docket.replace(/[^a-z0-9]/gi, "").toUpperCase();
+      if (normalized.length < 4) return null;
+      const rows = resultRows(
+        await client.query(
+          `select id from civil_cases
+            where regexp_replace(upper(cause_number), '[^A-Z0-9]', '', 'g') = $1`,
+          [normalized],
+        ),
+      );
+      if (rows.length !== 1) return null;
+      return { civilCaseId: String(rows[0].id) };
+    },
   };
 }

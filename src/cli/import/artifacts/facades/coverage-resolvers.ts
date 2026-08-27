@@ -63,3 +63,23 @@ export function coverageLinkIdResolver(): Resolver<
     return normalizeCoverageUrl(url);
   });
 }
+
+/**
+ * A CoverageLinkCivilCase's civil_case_id references an EXISTING civil case by its
+ * natural key (court:docket, ADR 0028), produced by another source — so it passes
+ * through as the canonical id, not a same-run facade find.
+ */
+export function civilCaseReferenceResolver(): Resolver<
+  string,
+  ResolverContext<Row, unknown>
+> {
+  return new Resolver(async ({ facade, source }) => {
+    const id = valueAsString(facade.raw("civil_case_id"));
+    if (id === undefined) {
+      throw new Error(
+        `CoverageLinkCivilCase ${source.namespace}/${source.name} has no civil_case_id.`,
+      );
+    }
+    return id;
+  });
+}

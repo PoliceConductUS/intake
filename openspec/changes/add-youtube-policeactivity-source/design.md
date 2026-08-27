@@ -39,10 +39,10 @@ so for each video over `title + description + captions`:
    visible unmatched result, not silent success. (The agency search alone is only
    a candidate filter; the officer resolution is the verification.)
 
-**Case links are deferred.** `CoverageLinkCivilCase` needs a match-only
-`resolveCivilCase` run capability (a coverage link may only reference an existing
-civil case; emitting an unverified case ref would fail-loud at import). That
-capability is a follow-up, tracked in tasks; the first cut is officer links.
+**Case links (officer-gated).** A video already tied to ≥1 officer also links to a
+civil case it cites: docket tokens are matched against existing cases via the
+match-only `resolveCivilCase` run capability (unique match only), and a hit emits
+a `CoverageLinkCivilCase`. A video with no resolved officer emits no case link.
 
 ### Evidence, never guessing (#52)
 
