@@ -1,4 +1,7 @@
-import { RECORD_KINDS_IN_DEPENDENCY_ORDER } from "../../../shared/io/generated/entity-specs.js";
+import {
+  RECORD_KINDS_IN_DEPENDENCY_ORDER,
+  SELF_REFERENCES,
+} from "../../../shared/io/generated/entity-specs.js";
 import { IMPORT_OPERATION_SUFFIXES } from "../../../shared/io/import-type-metadata.js";
 import { parseMutationKind } from "../../../shared/io/import-types.js";
 import type { DatabaseMutationItem } from "./io/DatabaseMutations.js";
@@ -10,6 +13,57 @@ const DEPENDENCY_ORDER_INDEX = new Map<string, number>(
     index,
   ]),
 );
+
+// A record kind's self-referential FK column (a foreign key whose target is the
+// same kind, e.g. location_path.parent_location_path_id), if any. Creates of such
+// a kind must be ordered root-down so a row's own-kind parent is created first.
+const SELF_FK_FIELD = new Map<string, string>(Object.entries(SELF_REFERENCES));
+
+// Kahn's topological sort of one kind's create items over its self-FK: a create
+// whose self-FK points at another create in the batch is emitted after it. The
+// input is already name-sorted, so ties (siblings, roots) stay deterministic.
+function orderBySelfReference(
+  items: DatabaseMutationItem[],
+  selfFkField: string,
+): DatabaseMutationItem[] {
+  const byId = new Map<string, DatabaseMutationItem>();
+  for (const item of items) {
+    if ("name" in item) byId.set(item.name, item);
+  }
+  const inDegree = new Map<string, number>();
+  const children = new Map<string, string[]>();
+  for (const item of items) {
+    if (!("name" in item)) continue;
+    inDegree.set(item.name, inDegree.get(item.name) ?? 0);
+    const parent = (item.spec as Record<string, unknown>)[selfFkField];
+    if (typeof parent === "string" && parent !== item.name && byId.has(parent)) {
+      inDegree.set(item.name, (inDegree.get(item.name) ?? 0) + 1);
+      (children.get(parent) ?? children.set(parent, []).get(parent)!).push(
+        item.name,
+      );
+    }
+  }
+  const ready = items
+    .filter((item) => "name" in item && (inDegree.get(item.name) ?? 0) === 0)
+    .map((item) => (item as { name: string }).name);
+  const ordered: DatabaseMutationItem[] = [];
+  for (let head = 0; head < ready.length; head += 1) {
+    const id = ready[head]!;
+    ordered.push(byId.get(id)!);
+    for (const child of children.get(id) ?? []) {
+      const remaining = (inDegree.get(child) ?? 0) - 1;
+      inDegree.set(child, remaining);
+      if (remaining === 0) ready.push(child);
+    }
+  }
+  // A cycle would leave rows unplaced; fall back to input order for those so the
+  // plan is still complete (a self-FK cycle is a data error the FK will reject).
+  if (ordered.length < items.length) {
+    const placed = new Set(ordered);
+    for (const item of items) if (!placed.has(item)) ordered.push(item);
+  }
+  return ordered;
+}
 
 /** The record kind of a mutation kind, stripping the operation suffix. */
 function recordKindOfMutation(mutationKind: string): string {
@@ -28,15 +82,14 @@ function recordKindOfMutation(mutationKind: string): string {
  * (e.g. Licenses before the AgencyPersonnel whose `license_id` targets them).
  * Unknown kinds sort last.
  *
- * Within a kind, order by a hierarchical key: the record's `path` when it has one
- * (location_path — the only self-referential kind — is keyed on a cuid, so its
- * `name` is random; its `path` is the hierarchy), else the mutation's `name`. Byte
- * order puts a parent (`/tx/dallas-county/`) before its child
- * (`/tx/dallas-county/irving/`), since the parent's path is a prefix. So a row's
- * own-kind FK target is always created first and the create-batcher never inserts
- * a child before its parent. For kinds without a self-reference the within-kind
- * order is immaterial; this just makes the plan deterministic (stable chain
- * entries, ADR 0033).
+ * Within a kind, order by the mutation's `name` (its identity) for a deterministic
+ * plan (stable chain entries, ADR 0033). Then, for any self-referential kind (a
+ * table with an FK to itself, e.g. location_path.parent_location_path_id), the
+ * kind's contiguous create run is re-ordered root-down by a topological sort over
+ * that self-FK, so a row's own-kind parent is always created before it and the
+ * create-batcher never inserts a child before its parent on a fresh apply. This is
+ * general: it derives the self-FK from `SELF_REFERENCES`, so it holds for any
+ * future self-referential table, not one special-cased column.
  *
  * Order every create before any update (ADR 0020). Creates keep FK-dependency
  * order among themselves (a row's FK targets are created first); updates follow
@@ -57,13 +110,8 @@ function sortByDependencyOrder(
       ? (DEPENDENCY_ORDER_INDEX.get(recordKindOfMutation(item.kind)) ??
         Number.MAX_SAFE_INTEGER)
       : Number.MAX_SAFE_INTEGER;
-  const hierarchicalKey = (item: DatabaseMutationItem): string => {
-    if ("spec" in item) {
-      const path = (item.spec as { path?: unknown }).path;
-      if (typeof path === "string") return path;
-    }
-    return "name" in item ? item.name : "";
-  };
+  const nameKey = (item: DatabaseMutationItem): string =>
+    "name" in item ? item.name : "";
   // Compute each item's sort keys once (they involve string parsing), then sort
   // by the cached values. At hundreds of thousands of rows, recomputing the keys
   // inside the comparator would parse strings tens of millions of times.
@@ -71,7 +119,7 @@ function sortByDependencyOrder(
     item,
     rank: operationRank(item),
     dependency: dependencyIndex(item),
-    name: hierarchicalKey(item),
+    name: nameKey(item),
   }));
   decorated.sort(
     (a, b) =>
@@ -79,7 +127,31 @@ function sortByDependencyOrder(
       a.dependency - b.dependency ||
       (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
   );
-  return decorated.map((entry) => entry.item);
+  const sorted = decorated.map((entry) => entry.item);
+
+  // Re-order each self-referential kind's create run root-down (parents first).
+  const result: DatabaseMutationItem[] = [];
+  for (let start = 0; start < sorted.length; ) {
+    const item = sorted[start]!;
+    const selfFk =
+      "kind" in item &&
+      parseMutationKind(item.kind).operation === "create" &&
+      SELF_FK_FIELD.get(recordKindOfMutation(item.kind));
+    if (!selfFk) {
+      result.push(item);
+      start += 1;
+      continue;
+    }
+    let end = start + 1;
+    while (end < sorted.length) {
+      const next = sorted[end]!;
+      if (!("kind" in next) || next.kind !== item.kind) break;
+      end += 1;
+    }
+    result.push(...orderBySelfReference(sorted.slice(start, end), selfFk));
+    start = end;
+  }
+  return result;
 }
 
 /**

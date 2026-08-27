@@ -328,6 +328,27 @@ function foreignKeyReferences(
   return references;
 }
 
+/**
+ * Each record kind that has a foreign key to *itself* (e.g.
+ * `location_path.parent_location_path_id`), as `recordKind → self-FK column`.
+ * Drives root-down ordering of that kind's own rows at plan time so a row's
+ * own-kind parent is created before it (ADR 0033). Kinds without a self-FK are
+ * absent. Self-references are excluded from `foreignKeyReferences` (they are not
+ * a cross-kind dependency), so they are surfaced separately here.
+ */
+function selfReferences(schema: IntrospectedSchema): Record<string, string> {
+  const references: Record<string, string> = {};
+  for (const descriptor of DESCRIPTORS) {
+    const selfReferenceColumn = schema.tables.get(
+      descriptor.table,
+    )?.selfReferenceColumn;
+    if (selfReferenceColumn !== undefined) {
+      references[descriptor.recordKind] = selfReferenceColumn;
+    }
+  }
+  return references;
+}
+
 // Each record kind's business key = the columns of its single (non-PK) unique
 // constraint. A kind with none keeps ledger/source-id minting; a kind with more
 // than one is ambiguous and fails loud (the model must declare one natural key).
@@ -698,6 +719,14 @@ export const FK_REFERENCES: Record<
   string,
   ReadonlyArray<{ field: string; targetKind: string }>
 > = ${JSON.stringify(foreignKeyReferences(schema))};
+
+// Each record kind that has a foreign key to itself (field name), e.g.
+// location_path.parent_location_path_id. A self-referential kind's create run is
+// re-ordered root-down over this column at plan time so a row's own-kind parent is
+// created before it (ADR 0033). Kinds without a self-FK are absent.
+export const SELF_REFERENCES: Record<string, string> = ${JSON.stringify(
+    selfReferences(schema),
+  )};
 
 // Each record kind's business/natural key — the columns of its (non-PK) unique
 // constraint. Identity resolution finds-or-mints the row's canonical id by these

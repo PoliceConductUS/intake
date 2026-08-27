@@ -133,6 +133,14 @@ export const FK_REFERENCES: Record<
   ],
 };
 
+// Each record kind that has a foreign key to itself (field name), e.g.
+// location_path.parent_location_path_id. A self-referential kind's create run is
+// re-ordered root-down over this column at plan time so a row's own-kind parent is
+// created before it (ADR 0033). Kinds without a self-FK are absent.
+export const SELF_REFERENCES: Record<string, string> = {
+  LocationPath: "parent_location_path_id",
+};
+
 // Each record kind's business/natural key — the columns of its (non-PK) unique
 // constraint. Identity resolution finds-or-mints the row's canonical id by these
 // columns, so records with the same business key converge (a cuid id, minted on

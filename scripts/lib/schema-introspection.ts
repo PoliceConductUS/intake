@@ -30,6 +30,13 @@ export type IntrospectedTable = {
    * record is dropped). Self-references are omitted.
    */
   foreignKeys: Array<{ column: string; targetTable: string }>;
+  /**
+   * The self-referential FK column (a foreign key back to this same table, e.g.
+   * location_path.parent_location_path_id), if any. Kept out of `foreignKeys`
+   * (which stays acyclic for apply order) but needed to order a self-referential
+   * kind's own rows root-down (ADR 0033).
+   */
+  selfReferenceColumn?: string;
   /** Unique constraints (excluding the primary key), each as its column list. */
   uniqueKeys: string[][];
 };
@@ -171,6 +178,9 @@ export async function introspectSchema(
         .filter((row) => row.ref_table !== table)
         .map((row) => ({ column: row.column, targetTable: row.ref_table }));
       const references = new Set(foreignKeys.map((fk) => fk.targetTable));
+      const selfReferenceColumn = foreignKeyRows.rows.find(
+        (row) => row.ref_table === table,
+      )?.column;
 
       // Unique constraints (not the PK) — an entity's business/natural key, used
       // to converge records by find-or-mint at import.
@@ -209,6 +219,7 @@ export async function introspectSchema(
         enums,
         references,
         foreignKeys,
+        selfReferenceColumn,
         uniqueKeys,
       });
     }
