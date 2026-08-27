@@ -10,6 +10,7 @@ function backend(current?: Record<string, Record<string, unknown>>): {
 } {
   return {
     backend: {
+      findCanonicalId: async () => undefined,
       findOrCreateCanonicalId: async ({ sourceId }) => `canon:${sourceId}`,
       existingRow: async (id) => current?.[id],
       findForeignKeyTarget: ({ kind, sourceId }) => ({

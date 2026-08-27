@@ -143,6 +143,10 @@ const REGISTRY: Record<string, KindConfig> = {
     identity: "alias_path",
     identityKind: "natural",
     upsert: "read",
+    // location_path_id needs no override: the derived FK chain resolves a
+    // LocationPath reference same-run (census emits the path + alias together) or,
+    // when only the alias is emitted (a curated manual alias), by the target's path
+    // against the DB (ADR 0031/0023). Resolve-or-fail; never mints.
   },
   LicensingAuthority: {
     overrides: {

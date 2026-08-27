@@ -45,6 +45,7 @@ function recordingCache(seed: Record<string, unknown> = {}): PropertyCache & {
 }
 
 const stubBackend: EntityFacadeBackend = {
+  findCanonicalId: async () => undefined,
   findOrCreateCanonicalId: async () => "unused",
   existingRow: async () => undefined,
   findForeignKeyTarget: () => undefined,

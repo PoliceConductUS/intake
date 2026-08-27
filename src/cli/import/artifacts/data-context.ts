@@ -224,6 +224,7 @@ export class DataContext {
     identityColumn?: string,
   ): UnifiedFacadeBackend {
     return {
+      findCanonicalId: (input) => this.findCanonicalId(input),
       findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
       existingRow: (id) => this.rows.getById(kind, id, identityColumn),
       findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
@@ -281,6 +282,23 @@ export class DataContext {
     }
     facades.set(key, facade);
     return facade;
+  }
+
+  // The find-only ledger read (the chain's "db source" link): an existing mapping
+  // or undefined, never a mint. No ledger ⇒ nothing is recorded yet.
+  private async findCanonicalId(input: {
+    namespace: string;
+    kind: string;
+    sourceId: string;
+  }): Promise<string | undefined> {
+    if (this.ledger === undefined) {
+      return undefined;
+    }
+    return this.ledger.read(
+      input.namespace,
+      input.kind as LedgerEntityKind,
+      input.sourceId,
+    );
   }
 
   // Find a seeded/existing id before minting, so ids stay stable (ADR 0016 #4).

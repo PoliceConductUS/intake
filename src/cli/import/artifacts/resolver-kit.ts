@@ -135,10 +135,18 @@ export interface PropertyCache {
 }
 
 /**
- * The minimal capability a canonical-id resolver reaches through: the durable
- * ledger find-or-create. Backend-generic so any entity's facade can reuse it.
+ * The durable-ledger capability the resolution chain reaches through: a find-only
+ * read (the "db source" link — resolve-or-fail, never mints) and a find-or-create
+ * (the "mint" terminal link, used only when resolving an entity's own identity).
+ * Backend-generic so any entity's facade can reuse it.
  */
 export type CanonicalIdBackend = {
+  /** The recorded canonical id for a source id, or undefined — never mints. */
+  findCanonicalId(input: {
+    namespace: string;
+    kind: string;
+    sourceId: string;
+  }): Promise<string | undefined>;
   findOrCreateCanonicalId(input: {
     namespace: string;
     kind: string;
@@ -189,8 +197,8 @@ export function composedResolver<T, Row>(
 }
 
 /**
- * The capability a state→location_path resolver reaches through: resolve an
- * existing location_path by its `/state/` path (resolve-or-fail, never mints).
+ * The capability a location_path chain link reaches through: resolve an existing
+ * location_path by its path, then alias (resolve-or-fail, never mints).
  */
 type LocationPathByPathBackend = {
   getLocationPathByPath(
@@ -198,86 +206,179 @@ type LocationPathByPathBackend = {
   ): Promise<{ location_path_id: string } | undefined>;
 };
 
+// --- The reference-resolution chain (Chain of Responsibility, ADR 0016/0023) --
+//
+// Every foreign key and identity resolves a source-supplied REFERENCE to a
+// canonical id by walking one standard, ordered chain of links. Each link either
+// resolves the reference or defers to the next; a kind differs only in which links
+// it composes (config), never in hand-rolled ordering. The chain terminates in
+// EITHER a mint link (an entity's own identity — always resolves) OR nothing (a
+// foreign key — resolve-or-fail: an unresolved reference throws, never mints).
+
+/** The union backend the standard links reach through. */
+type ReferenceBackend = CanonicalIdBackend &
+  ForeignKeyBackend &
+  LocationPathByPathBackend;
+
 /**
- * `location_path_id` resolve-or-fail resolver (ADR 0006/0015): the source supplies
- * a namespace-local state value (e.g. "tx"); map it to `/<state>/` and resolve
- * against the imported location hierarchy. Never mints a location_path.
+ * One link in the chain: resolve `reference` to a canonical id, or `undefined` to
+ * defer to the next link.
  */
-export function facadeStateLocationPathResolver<
-  Row,
-  Backend extends LocationPathByPathBackend = LocationPathByPathBackend,
->(entityKind: string): Resolver<string, ResolverContext<Row, Backend>> {
-  return new Resolver(async ({ facade, source, backend }) => {
-    const state = valueAsString(facade.raw("location_path_id" as keyof Row));
-    if (state === undefined) {
+export type ReferenceLink<Row> = (
+  reference: string,
+  context: ResolverContext<Row, ReferenceBackend>,
+) => Promise<string | undefined>;
+
+/** Same-run link: a target facade emitted this run resolves to its id. */
+export function sameRunLink<Row>(targetKind: string): ReferenceLink<Row> {
+  return async (reference, { source, backend }) => {
+    const target = backend.findForeignKeyTarget({
+      kind: targetKind,
+      namespace: source.namespace,
+      sourceId: reference,
+    });
+    return target === undefined ? undefined : target.value("id");
+  };
+}
+
+/** Db-source link: an existing durable ledger mapping (find-only, never mints). */
+export function ledgerFindLink<Row>(targetKind: string): ReferenceLink<Row> {
+  return (reference, { source, backend }) =>
+    backend.findCanonicalId({
+      namespace: source.namespace,
+      kind: targetKind,
+      sourceId: reference,
+    });
+}
+
+/** Db-source link for LocationPath: resolve the reference by path, then alias. */
+export function locationPathByPathLink<Row>(): ReferenceLink<Row> {
+  return async (reference, { backend }) =>
+    (await backend.getLocationPathByPath(reference))?.location_path_id;
+}
+
+/** Terminal mint link: the durable find-or-create. Only an identity may mint. */
+export function ledgerMintLink<Row>(targetKind: string): ReferenceLink<Row> {
+  return (reference, { source, backend }) =>
+    backend.findOrCreateCanonicalId({
+      namespace: source.namespace,
+      kind: targetKind,
+      sourceId: reference,
+    });
+}
+
+/**
+ * The durable "db source" link for a foreign-key target: by path (then alias) for
+ * a LocationPath — which is not ledger-mapped — else the ledger find. This is why
+ * a plain FK to a LocationPath composes [same-run, by-path] with no bespoke code.
+ */
+function foreignKeyDbSourceLink<Row>(targetKind: string): ReferenceLink<Row> {
+  return targetKind === "LocationPath"
+    ? locationPathByPathLink<Row>()
+    : ledgerFindLink<Row>(targetKind);
+}
+
+/**
+ * Compose a chain of links into a property resolver (ADR 0016/0023). The reference
+ * is read via `referenceFrom`; the links are tried in order and the first resolved
+ * id wins. An absent reference fails loud (or resolves to null when `optional`); a
+ * present-but-unresolved reference fails loud, naming what it points at
+ * (`referenceLabel`, e.g. the target kind) and the source file — unless a link
+ * mints, in which case the chain always resolves.
+ */
+export function referenceResolver<Row, T extends string | null = string>(
+  entityKind: string,
+  property: string,
+  referenceLabel: string,
+  referenceFrom: (
+    context: ResolverContext<Row, ReferenceBackend>,
+  ) => string | undefined,
+  links: ReadonlyArray<ReferenceLink<Row>>,
+  options: { optional?: boolean } = {},
+): Resolver<T, ResolverContext<Row, ReferenceBackend>> {
+  return new Resolver(async (context) => {
+    const { source } = context;
+    const reference = referenceFrom(context);
+    if (reference === undefined) {
+      if (options.optional === true) {
+        return null as T;
+      }
       throw new Error(
-        `Cannot resolve location_path_id for ${entityKind} ${source.namespace}/${source.name}; source location_path_id is missing.`,
+        `Cannot resolve ${entityKind}.${property} for ${source.namespace}/${source.name}; source ${property} is missing.`,
       );
     }
-    const path = `/${state.toLowerCase()}/`;
-    const locationPath = await backend.getLocationPathByPath(path);
-    if (locationPath === undefined) {
-      throw new Error(
-        `Cannot resolve location_path_id for ${entityKind} ${source.namespace}/${source.name}; source value ${JSON.stringify(
-          state,
-        )} does not match an imported location_path at ${path}.`,
-      );
+    for (const link of links) {
+      const resolved = await link(reference, context);
+      if (resolved !== undefined) {
+        return resolved as T;
+      }
     }
-    return locationPath.location_path_id;
+    throw new Error(
+      [
+        `${entityKind} ${source.namespace}/${source.name} references ${referenceLabel} ${JSON.stringify(
+          reference,
+        )}, which does not exist in namespace ${source.namespace}.`,
+        source.sourceFile && `Source: ${source.sourceFile}.`,
+      ]
+        .filter(Boolean)
+        .join(" "),
+    );
   });
 }
 
-/** Canonical-id find-or-create resolver for an entity `kind` (ADR 0016 #4). */
-export function facadeCanonicalIdResolver<
-  Row,
-  Backend extends CanonicalIdBackend = CanonicalIdBackend,
->(kind: string): Resolver<string, ResolverContext<Row, Backend>> {
-  return new Resolver(async ({ source, backend }) =>
-    backend.findOrCreateCanonicalId({
-      namespace: source.namespace,
-      kind,
-      sourceId: source.name,
-    }),
+/**
+ * `location_path_id` resolve-or-fail resolver (ADR 0006/0015): the source supplies
+ * a namespace-local state value (e.g. "tx"); map it to `/<state>/` and resolve
+ * against the imported location hierarchy by path. A standard one-link chain.
+ */
+export function facadeStateLocationPathResolver<Row>(
+  entityKind: string,
+): Resolver<string, ResolverContext<Row, ReferenceBackend>> {
+  return referenceResolver<Row, string>(
+    entityKind,
+    "location_path_id",
+    "LocationPath",
+    ({ facade }) => {
+      const state = valueAsString(facade.raw("location_path_id" as keyof Row));
+      return state === undefined ? undefined : `/${state.toLowerCase()}/`;
+    },
+    [locationPathByPathLink()],
   );
 }
 
 /**
- * Same-source foreign-key FIND resolver (ADR 0016 #4/#9). Reads the source-local
- * reference value from `property`, locates the target facade of `targetKind`,
- * and awaits its `id`. A missing source value or a missing target facade
- * (forward reference) fails fast and loud.
+ * Canonical-id resolver for an entity's own identity (ADR 0016 #4): a single mint
+ * terminal — find the seeded/existing id, else mint — so it always resolves.
+ */
+export function facadeCanonicalIdResolver<Row>(
+  kind: string,
+): Resolver<string, ResolverContext<Row, ReferenceBackend>> {
+  return referenceResolver<Row, string>(
+    kind,
+    "id",
+    kind,
+    ({ source }) => source.name,
+    [ledgerMintLink(kind)],
+  );
+}
+
+/**
+ * Foreign-key resolver (ADR 0016/0023): the standard chain — a same-run co-emitted
+ * facade, then the durable db source (the ledger, or by-path for a LocationPath) —
+ * resolve-or-fail. Never mints (a foreign key has no mint terminal).
  */
 export function facadeForeignKeyResolver<Row>(
   entityKind: string,
   property: keyof Row & string,
   targetKind: string,
-): Resolver<string, ResolverContext<Row, ForeignKeyBackend>> {
-  return new Resolver(async ({ facade, source, backend }) => {
-    const sourceId = valueAsString(facade.raw(property));
-    if (sourceId === undefined) {
-      throw new Error(
-        `Cannot resolve ${entityKind}.${property} for ${source.namespace}/${source.name}; source ${property} is missing.`,
-      );
-    }
-    const target = backend.findForeignKeyTarget({
-      kind: targetKind,
-      namespace: source.namespace,
-      sourceId,
-    });
-    if (target === undefined) {
-      throw new Error(
-        [
-          `${entityKind} ${source.namespace}/${source.name} references ${targetKind} ${JSON.stringify(
-            sourceId,
-          )}, which does not exist in namespace ${source.namespace}.`,
-          source.sourceFile && `Source: ${source.sourceFile}.`,
-        ]
-          .filter(Boolean)
-          .join(" "),
-      );
-    }
-    return target.value("id");
-  });
+): Resolver<string, ResolverContext<Row, ReferenceBackend>> {
+  return referenceResolver<Row, string>(
+    entityKind,
+    property,
+    targetKind,
+    ({ facade }) => valueAsString(facade.raw(property)),
+    [sameRunLink(targetKind), foreignKeyDbSourceLink(targetKind)],
+  );
 }
 
 /**
@@ -308,66 +409,38 @@ export function facadeComposedIdResolver<Row>(
 
 /**
  * Cross-source foreign-key resolver (ADR 0023): the referenced entity was created
- * by another source and is not a same-run facade, so the source id is resolved
- * straight through the ledger. The source minted the mapping (via `sourceIdFor`)
- * before emitting the record, so this reads an existing mapping — it never mints
- * a phantom canonical.
+ * by another source, so its source id resolves through the durable ledger (the
+ * source minted the mapping via `sourceIdFor` before emitting). It is the standard
+ * FK chain — same-run, then ledger find — resolve-or-fail; it never mints a phantom
+ * canonical. Identical to `facadeForeignKeyResolver` for a ledger-mapped target; the
+ * distinct name documents the cross-source intent at the call site.
  */
 export function facadeLedgerForeignKeyResolver<Row>(
   entityKind: string,
   property: keyof Row & string,
   targetKind: string,
-): Resolver<string, ResolverContext<Row, CanonicalIdBackend>> {
-  return new Resolver(async ({ facade, source, backend }) => {
-    const sourceId = valueAsString(facade.raw(property));
-    if (sourceId === undefined) {
-      throw new Error(
-        `Cannot resolve ${entityKind}.${property} for ${source.namespace}/${source.name}; source ${property} is missing.`,
-      );
-    }
-    return backend.findOrCreateCanonicalId({
-      namespace: source.namespace,
-      kind: targetKind,
-      sourceId,
-    });
-  });
+): Resolver<string, ResolverContext<Row, ReferenceBackend>> {
+  return facadeForeignKeyResolver<Row>(entityKind, property, targetKind);
 }
 
 /**
- * Nullable same-source foreign-key FIND resolver (ADR 0016 #4/#9). Like
- * `facadeForeignKeyResolver`, but an absent/null source reference resolves to
- * `null` (the FK is optional per the source spec) rather than failing; a present
- * reference to a missing target facade still fails fast and loud.
+ * Nullable foreign-key resolver (ADR 0016 #4/#9). The standard FK chain, but an
+ * absent source reference resolves to `null` (the FK is optional per the source
+ * spec) rather than failing; a present-but-unresolved reference still fails loud.
  */
 export function facadeNullableForeignKeyResolver<Row>(
   entityKind: string,
   property: keyof Row & string,
   targetKind: string,
-): Resolver<string | null, ResolverContext<Row, ForeignKeyBackend>> {
-  return new Resolver(async ({ facade, source, backend }) => {
-    const sourceId = valueAsString(facade.raw(property));
-    if (sourceId === undefined) {
-      return null;
-    }
-    const target = backend.findForeignKeyTarget({
-      kind: targetKind,
-      namespace: source.namespace,
-      sourceId,
-    });
-    if (target === undefined) {
-      throw new Error(
-        [
-          `${entityKind} ${source.namespace}/${source.name} references ${targetKind} ${JSON.stringify(
-            sourceId,
-          )}, which does not exist in namespace ${source.namespace}.`,
-          source.sourceFile && `Source: ${source.sourceFile}.`,
-        ]
-          .filter(Boolean)
-          .join(" "),
-      );
-    }
-    return target.value("id");
-  });
+): Resolver<string | null, ResolverContext<Row, ReferenceBackend>> {
+  return referenceResolver<Row, string | null>(
+    entityKind,
+    property,
+    targetKind,
+    ({ facade }) => valueAsString(facade.raw(property)),
+    [sameRunLink(targetKind), foreignKeyDbSourceLink(targetKind)],
+    { optional: true },
+  );
 }
 
 /**

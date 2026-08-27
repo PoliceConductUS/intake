@@ -929,7 +929,7 @@ describe("DataContext", () => {
     });
 
     await expect(facade.toMutation()).rejects.toThrow(
-      'source value "zz" does not match an imported location_path at /zz/',
+      /references LocationPath "\/zz\/", which does not exist in namespace gov\.tx\.tcole/,
     );
   });
 
@@ -1094,7 +1094,9 @@ describe("DataContext", () => {
         },
       },
     });
-    // Register the authority but NOT the referenced Personnel facade.
+    // Register the authority but NOT the referenced Personnel facade, and
+    // reference a personnel that is in neither the run nor the ledger, so the
+    // whole resolution chain misses and fails loud.
     context.facadeFromSource("LicensingAuthority", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
@@ -1107,9 +1109,9 @@ describe("DataContext", () => {
     const facade = context.facadeFromSource("License", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
-      name: "1000038|Peace Officer License",
+      name: "9999999|Peace Officer License",
       spec: {
-        personnel_id: "1000038",
+        personnel_id: "9999999",
         license_type: "Peace Officer License",
         status: null,
         first_awarded: "1994-06-16",
@@ -1118,7 +1120,7 @@ describe("DataContext", () => {
     });
 
     await expect(facade.toMutation()).rejects.toThrow(
-      /references Personnel "1000038", which does not exist in namespace/,
+      /references Personnel "9999999", which does not exist in namespace/,
     );
   });
 
@@ -1684,9 +1686,10 @@ describe("AgencyPersonnelFacade", () => {
     });
   });
 
-  test("agency foreign-key find fails fast and loud on a forward reference", async () => {
+  test("agency foreign-key find fails fast and loud when the reference resolves nowhere", async () => {
     const context = agencyPersonnelContext(foreignKeyLedger);
-    // Register Personnel and License but NOT the referenced Agency facade.
+    // Register Personnel but NOT the referenced Agency facade, and reference an
+    // agency in neither the run nor the ledger, so every chain link misses.
     context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
@@ -1698,7 +1701,7 @@ describe("AgencyPersonnelFacade", () => {
       namespace: "mn-post",
       name: "ap-source",
       spec: {
-        agency_id: "agency-source",
+        agency_id: "missing-agency",
         personnel_id: "personnel-source",
         title: "Peace Officer",
         start_date: "2020-01-01",
@@ -1706,7 +1709,7 @@ describe("AgencyPersonnelFacade", () => {
     });
 
     await expect(facade.toMutation()).rejects.toThrow(
-      /references Agency "agency-source", which does not exist in namespace/,
+      /references Agency "missing-agency", which does not exist in namespace/,
     );
   });
 });
@@ -1892,6 +1895,7 @@ describe("Census substrate facades", () => {
       spec: { alias_path: "/minnesota/", location_path_id: "mn" },
     });
 
+    // Neither same-run nor an imported path/alias resolves the reference.
     await expect(alias.toMutation()).rejects.toThrow(
       /references LocationPath "mn", which does not exist/,
     );
