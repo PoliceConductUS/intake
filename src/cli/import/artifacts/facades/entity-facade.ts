@@ -5,6 +5,7 @@ import {
   type ResolverContext,
   type FacadeSource,
   type PropertyCache,
+  identityDisposition,
   type CanonicalIdBackend,
   type ForeignKeyBackend,
   type BusinessKeyIdBackend,
@@ -242,11 +243,12 @@ export class EntityFacade<
     return resolved;
   }
 
-  // True when the source supplied a selector object (not a scalar) for identity —
-  // i.e. this facade resolves an existing row and writes a partial update (ADR 0034).
-  private identityIsSelector(): boolean {
-    const raw = this.spec[this.identity as string];
-    return raw !== null && typeof raw === "object" && !Array.isArray(raw);
+  // True when the identity declares a PATCH verb (ADR 0034): resolve an existing
+  // row by selector and write only the provided fields — a partial update, so the
+  // untouched foreign keys are never resolved. PUT (full replace) and POST (create)
+  // resolve every column as usual.
+  private identityIsPartialUpdate(): boolean {
+    return identityDisposition(this.spec[this.identity as string]).verb === "patch";
   }
 
   private hasSourceValue(property: keyof Row): boolean {
@@ -284,7 +286,7 @@ export class EntityFacade<
     // only the fields the source provides, so it must not resolve — and fail on —
     // the foreign keys it is not changing (a partial update). A scalar identity
     // resolves every column as before (a full create/update).
-    const partial = this.identityIsSelector();
+    const partial = this.identityIsPartialUpdate();
     const resolved: Record<string, unknown> = {};
     for (const column of this.columns) {
       if (partial && !this.hasSourceValue(column)) {

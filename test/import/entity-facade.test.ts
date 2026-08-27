@@ -199,8 +199,10 @@ describe("selector-resolved partial update (ADR 0034)", () => {
     });
     facade.merge({
       id: {
-        agency: { name: "Irving Police Department" },
-        personnel: { first_name: "James", last_name: "Markham" },
+        patch: {
+          agency: { name: "Irving Police Department" },
+          personnel: { first_name: "James", last_name: "Markham" },
+        },
       },
       badge_number: "1379",
     });

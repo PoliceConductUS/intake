@@ -59,24 +59,41 @@ together.
 
 **3. A manual update names its target by a selector, resolved at generate time.**
 A manual update record supplies **no id**. Its identity column is filled by a
-_selector_ — a set of field matchers, Kubernetes-style — that the id resolver
-runs against the database to find the target row:
+_selector_ — a set of field matchers, Kubernetes-style, rooted at the record's own
+table. A reference (identity or foreign key) is **scalar-or-selector**: a scalar is
+the shorthand (the ledger mint/find, unchanged); a selector object resolves an
+existing row by the model-walk. Each selector key is a scalar column (equality) or
+a foreign-key relationship (the FK column minus its `_id`) whose value is a nested
+selector — so the selector's shape is derived from the model (`FK_REFERENCES`), not
+hand-listed.
+
+**The identity declares an explicit verb (POST/PUT/PATCH).** The create-vs-update
+decision is _declared_, never inferred, because the default for a canonical kind
+(POST) mints — silently creating a row where an update was meant:
+
+- **POST** — a scalar/absent id: create, minting the row's canonical id and
+  returning its namespace/kind/id mapping (the existing default).
+- **PATCH** — `id: { patch: <selector> }`: resolve one existing row, write only the
+  provided fields (a partial update). The badge case.
+- **PUT** — `id: { put: <selector> }`: resolve, then replace/upsert from the full
+  spec.
 
 ```yaml
-kind: AgencyPersonnelUpdate
-metadata:
-  namespace: org.policeconduct.manual
-  annotations:
-    provenance: "PD-2026-1596 production … sha256:f1a85a…"
-spec:
-  selector: { agency: Irving Police Department, full_name: Markham }
-  operations:
-    - { action: set, path: badge_number, to: "1234" }
+# a manual AgencyPersonnel record (org.policeconduct.manual)
+id:
+  patch: { agency: { name: Irving Police Department }, personnel: { last_name: Markham, first_name: James } }
+badge_number: "1379"
 ```
 
-The resolver is **resolve-or-fail**, exactly like a LocationPath reference (ADR
-0031): it must match **exactly one** row — zero or many fails loud, never a guess,
-never a mint (an update targets an existing row). Resolution happens **at
+**Create-vs-update is decided locally, on the artifact's own table — no forward
+references.** The selector resolves _backward_, to rows already created by earlier
+chain entries (the model is complete and valid at that point, ADR 0033), then the
+verb decides create-vs-update on the record's own table by the resolved identity —
+never by peeking at a not-yet-applied entry.
+
+The PATCH/PUT resolver is **resolve-or-fail**, exactly like a LocationPath reference
+(ADR 0031): it must match **exactly one** row — zero or many fails loud, never a
+guess, never a mint (an update targets an existing row). Resolution happens **at
 `generate` time**, and the resolved concrete id is **materialized** into the chain
 entry (`metadata.name = <that workspace's cuid>`). The selector never survives
 into the replayed entry, so replay stays deterministic and never re-queries the

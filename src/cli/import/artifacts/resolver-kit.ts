@@ -259,13 +259,40 @@ export type SelectorBackend = {
 };
 
 /**
+ * The identity disposition a record declares (ADR 0034), named for the HTTP verbs:
+ * a scalar id is POST — the normal ledger mint/find that creates a row and returns
+ * its namespace/kind/id mapping. An object id declares an explicit verb whose
+ * selector resolves an existing row via the model-walk: `patch` updates only the
+ * provided fields; `put` replaces/upserts from the full spec. The verb is declared,
+ * never inferred, because the default (POST) mints — silently creating a row where
+ * an update was meant.
+ */
+export function identityDisposition(
+  raw: unknown,
+): { verb: "post" } | { verb: "patch" | "put"; selector: Selector } {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    return { verb: "post" };
+  }
+  const object = raw as Record<string, unknown>;
+  for (const verb of ["patch", "put"] as const) {
+    const selector = object[verb];
+    if (selector !== undefined) {
+      if (selector === null || typeof selector !== "object") {
+        throw new Error(`identity ${verb} must be a selector object.`);
+      }
+      return { verb, selector: selector as Selector };
+    }
+  }
+  throw new Error(
+    "an object identity must declare a verb: patch (partial update) or put (replace/upsert).",
+  );
+}
+
+/**
  * A polymorphic identity resolver (ADR 0034): a reference is scalar-or-selector.
- * If the record's identity value is a selector object (rooted at this kind's own
- * table), resolve it to an existing row's id via the model-walk — resolve-or-fail,
- * no mint, so it targets an existing row (an update). Otherwise defer to the kind's
- * normal identity resolver: the scalar shorthand, minted/found through the ledger
- * chain, byte-for-byte unchanged. This is the general form behind "the id can be a
- * scalar string or a selector object."
+ * A scalar id (POST) defers to the kind's normal identity resolver — the ledger
+ * mint/find, byte-for-byte unchanged. An object id declares a verb (`patch` / `put`)
+ * whose selector resolves to an existing row via the model-walk.
  */
 export function facadeSelectorOrIdResolver<Row, B extends SelectorBackend>(
   kind: string,
@@ -273,13 +300,18 @@ export function facadeSelectorOrIdResolver<Row, B extends SelectorBackend>(
   fallback: Resolver<string, ResolverContext<Row, B>>,
 ): Resolver<string, ResolverContext<Row, B>> {
   return new Resolver(async (context) => {
-    const raw = context.facade.raw(identity);
-    if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
-      return resolveIdBySelector(kind, raw as Selector, (targetKind, columns) =>
-        context.backend.findRowsByColumns(targetKind, columns),
+    const disposition = identityDisposition(context.facade.raw(identity));
+    if (disposition.verb === "post") {
+      return fallback.resolve(context, () => `${kind}.${identity}`);
+    }
+    if (disposition.verb === "put") {
+      throw new Error(
+        `${kind}.${identity} put is not yet implemented; use patch for an update.`,
       );
     }
-    return fallback.resolve(context, () => `${kind}.${identity}`);
+    return resolveIdBySelector(kind, disposition.selector, (targetKind, columns) =>
+      context.backend.findRowsByColumns(targetKind, columns),
+    );
   });
 }
 
