@@ -84,8 +84,6 @@ export type EntityFacadeOptions<Backend> = {
   identity?: string;
   /** Existing row → a diffed Update (default) or a Read (natural-key idempotent rows). */
   upsert?: UpsertMode;
-  /** Columns dropped from the write when their resolved value is null (e.g. geometry). */
-  omitWhenNull?: readonly string[];
   /** The `source > cache > live-resolve` property cache (ADR 0019). */
   cache?: PropertyCache;
   /** Properties resolved through the cache (`RESOLVED_PROPERTIES[kind]`; identity excluded). */
@@ -113,7 +111,6 @@ export class EntityFacade<
   private readonly backend: Backend;
   private readonly identity: keyof Row & string;
   private readonly upsert: UpsertMode;
-  private readonly omitWhenNull: ReadonlySet<string>;
   private readonly cache?: PropertyCache;
   private readonly cacheableProperties: ReadonlySet<string>;
 
@@ -130,7 +127,6 @@ export class EntityFacade<
     this.backend = options.backend;
     this.identity = (options.identity ?? "id") as keyof Row & string;
     this.upsert = options.upsert ?? "update";
-    this.omitWhenNull = new Set(options.omitWhenNull ?? []);
     this.cache = options.cache;
     this.cacheableProperties = new Set(
       (options.cacheableProperties ?? []).filter(
@@ -253,8 +249,11 @@ export class EntityFacade<
   }
 
   private plainValue<K extends keyof Row>(property: K): Row[K] {
-    const value = this.spec[property as string];
-    return (value === undefined ? null : value) as Row[K];
+    // A field the source did not provide stays `undefined` (omitted downstream);
+    // an explicit `null` is preserved (written as null). Absence is not the same
+    // as an intentional null — a source that never mentions a column must not
+    // overwrite it (e.g. a roster re-import omitting badge_number).
+    return this.spec[property as string] as Row[K];
   }
 
   private unresolvedMessage(property: keyof Row): string {
@@ -275,7 +274,10 @@ export class EntityFacade<
     const resolved: Record<string, unknown> = {};
     for (const column of this.columns) {
       const value = await this.value(column);
-      if (value === null && this.omitWhenNull.has(column)) {
+      // Absent (undefined) → omit: not this source's field to write, so it never
+      // overwrites what another source set. An explicit null is kept and written
+      // as null — a source must be able to clear a field.
+      if (value === undefined) {
         continue;
       }
       resolved[column] = value;

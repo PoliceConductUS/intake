@@ -86,6 +86,62 @@ describe("EntityFacade via the discipline facades", () => {
     expect(byPath.expiration_date).toBe("set");
   });
 
+  it("omits a field the source did not provide, never overwriting it", async () => {
+    const facade = buildFacadeForKind("Discipline", {
+      source: { ...source, commandName: "cmd-1" },
+      ...backend({
+        "canon:0031|PB24-1-01": {
+          action: "SACO",
+          effective_date: "2024-03-01",
+          expiration_date: "2026-03-01",
+          case_number: "PB24-1-01",
+        },
+      }),
+    });
+    // expiration_date is absent — this source does not manage it, so it must not
+    // appear in the update (the existing value is left untouched).
+    facade.merge({
+      action: "SACO",
+      effective_date: "2024-03-01",
+      case_number: "PB24-1-01",
+    });
+
+    const mutation = (await facade.toMutation()) as {
+      spec: { operations: { path: string }[] };
+    };
+    const paths = mutation.spec.operations.map((op) => op.path);
+    expect(paths).not.toContain("expiration_date");
+  });
+
+  it("writes an explicit null so a source can clear a field", async () => {
+    const facade = buildFacadeForKind("Discipline", {
+      source: { ...source, commandName: "cmd-1" },
+      ...backend({
+        "canon:0031|PB24-1-01": {
+          action: "SACO",
+          effective_date: "2024-03-01",
+          expiration_date: "2026-03-01",
+          case_number: "PB24-1-01",
+        },
+      }),
+    });
+    facade.merge({
+      action: "SACO",
+      effective_date: "2024-03-01",
+      expiration_date: null,
+      case_number: "PB24-1-01",
+    });
+
+    const mutation = (await facade.toMutation()) as {
+      spec: { operations: { path: string; action: string; to?: unknown }[] };
+    };
+    const op = mutation.spec.operations.find(
+      (candidate) => candidate.path === "expiration_date",
+    );
+    expect(op?.action).toBe("set");
+    expect(op?.to).toBeNull();
+  });
+
   it("resolves foreign keys through the backend target", async () => {
     const facade = buildFacadeForKind("DisciplineAgencyPersonnel", {
       source,
