@@ -1,0 +1,210 @@
+import { createHash } from "node:crypto";
+import { mkdir, readFile, readdir } from "node:fs/promises";
+import path from "node:path";
+import { DatabaseMutations } from "../import/artifacts/io/DatabaseMutations.js";
+import type { DatabaseMutationsEnvelope } from "../import/artifacts/io/DatabaseMutations.js";
+import { executeDatabaseMutations } from "../replay/database-mutations/execute.js";
+import type { DatabaseClient } from "../database/index.js";
+import {
+  readAppliedDataMutationChecksums,
+  readAppliedDataMutationVersions,
+  readCurrentSchemaVersion,
+  recordDataMutationApplied,
+} from "../database/data-mutation-ledger.js";
+
+// The committed data-mutation chain (ADR 0033). Each entry is a DatabaseMutations
+// envelope stamped with its version and its predecessor's version, so the files
+// form a linked list. Application is tracked in the data_mutation_applied ledger.
+const CHAIN_DIR = "data-mutations";
+const VERSION_KEY = "data-mutation/version";
+const PREVIOUS_KEY = "data-mutation/previous";
+
+export function chainDir(root: string = process.cwd()): string {
+  return path.join(root, CHAIN_DIR);
+}
+
+export type ChainEntry = {
+  version: string;
+  previous: string;
+  minSchemaVersion: string;
+  fileName: string;
+  filePath: string;
+};
+
+function annotationsOf(
+  envelope: DatabaseMutationsEnvelope,
+): Record<string, string> {
+  return (envelope.metadata.annotations ?? {}) as Record<string, string>;
+}
+
+// The highest schema-migration version the entry was generated against — the
+// minimum the database must already have applied to run it (ADR 0033).
+function minSchemaVersion(envelope: DatabaseMutationsEnvelope): string {
+  const schema = envelope.metadata.databaseSchema as
+    | { appliedMigrations?: { version: string }[] }
+    | undefined;
+  const versions = (schema?.appliedMigrations ?? [])
+    .map((migration) => String(migration.version))
+    .sort();
+  return versions[versions.length - 1] ?? "";
+}
+
+export async function listEntries(root?: string): Promise<ChainEntry[]> {
+  const dir = chainDir(root);
+  const files = (await readdir(dir).catch(() => []))
+    .filter((file) => file.endsWith(".DatabaseMutations.yaml"))
+    .sort();
+  const entries: ChainEntry[] = [];
+  for (const fileName of files) {
+    const filePath = path.join(dir, fileName);
+    const envelope = await DatabaseMutations.read(filePath, { raw: true });
+    const annotations = annotationsOf(envelope);
+    entries.push({
+      version: annotations[VERSION_KEY] ?? fileName,
+      previous: annotations[PREVIOUS_KEY] ?? "",
+      minSchemaVersion: minSchemaVersion(envelope),
+      fileName,
+      filePath,
+    });
+  }
+  return entries;
+}
+
+async function fileChecksum(filePath: string): Promise<string> {
+  return createHash("sha256")
+    .update(await readFile(filePath))
+    .digest("hex");
+}
+
+/**
+ * Turn a run's DatabaseMutations envelope (produced by `run --dry-run`) into the
+ * next chain entry: skip an empty diff, else stamp its version + predecessor and
+ * write it to ./data-mutations/. Returns the written path, or undefined when the
+ * diff was empty.
+ */
+export async function generateEntry(
+  mutationsEnvelopePath: string,
+  root?: string,
+): Promise<{ written?: string; version?: string; mutationCount: number }> {
+  // Read fully-expanded (chunks inlined) so the re-write re-chunks into the chain.
+  const envelope = await DatabaseMutations.read(mutationsEnvelopePath);
+  const mutationCount = envelope.spec.mutations.length;
+  if (mutationCount === 0) {
+    return { mutationCount: 0 };
+  }
+  const entries = await listEntries(root);
+  const version = String(entries.length + 1).padStart(6, "0");
+  const previous = entries[entries.length - 1]?.version ?? "";
+  const namespace = envelope.metadata.namespace;
+
+  const stamped: DatabaseMutationsEnvelope = {
+    ...envelope,
+    metadata: {
+      ...envelope.metadata,
+      name: `${version}-${namespace}`,
+      annotations: {
+        ...annotationsOf(envelope),
+        [VERSION_KEY]: version,
+        [PREVIOUS_KEY]: previous,
+      },
+    },
+  };
+  const dir = chainDir(root);
+  await mkdir(dir, { recursive: true });
+  const { path: written } = await DatabaseMutations.write(dir, stamped);
+  return { written, version, mutationCount };
+}
+
+export type ApplyResult = { version: string; mutationCount: number }[];
+
+/**
+ * Apply pending chain entries in order (ADR 0033). Each entry requires its
+ * predecessor already in the ledger and the database schema at ≥ its min-version;
+ * each entry + its ledger row commit in one transaction. `to` stops after that
+ * version.
+ */
+export async function applyPending(
+  client: DatabaseClient,
+  options: { to?: string; root?: string } = {},
+): Promise<ApplyResult> {
+  const entries = await listEntries(options.root);
+  const applied = await readAppliedDataMutationVersions(client);
+  const schema = await readCurrentSchemaVersion(client);
+  const result: ApplyResult = [];
+
+  for (const entry of entries) {
+    if (applied.has(entry.version)) {
+      continue;
+    }
+    if (entry.previous !== "" && !applied.has(entry.previous)) {
+      throw new Error(
+        `data-mutations: ${entry.fileName} requires ${entry.previous} to be applied first.`,
+      );
+    }
+    if (entry.minSchemaVersion !== "" && schema < entry.minSchemaVersion) {
+      throw new Error(
+        `data-mutations: ${entry.fileName} needs schema >= ${entry.minSchemaVersion}, but the database is at ${schema}.`,
+      );
+    }
+    const checksum = await fileChecksum(entry.filePath);
+    await client.query("begin");
+    try {
+      const counts = await executeDatabaseMutations(client, entry.filePath);
+      await recordDataMutationApplied(client, {
+        version: entry.version,
+        previousVersion: entry.previous === "" ? null : entry.previous,
+        checksum,
+      });
+      await client.query("commit");
+      result.push({ version: entry.version, mutationCount: counts.mutations });
+    } catch (error) {
+      await client.query("rollback").catch(() => undefined);
+      throw error;
+    }
+    applied.add(entry.version);
+    if (options.to !== undefined && entry.version === options.to) {
+      break;
+    }
+  }
+  return result;
+}
+
+export type StatusRow = { version: string; fileName: string; applied: boolean };
+
+export async function status(
+  client: DatabaseClient,
+  root?: string,
+): Promise<StatusRow[]> {
+  const entries = await listEntries(root);
+  const applied = await readAppliedDataMutationVersions(client);
+  return entries.map((entry) => ({
+    version: entry.version,
+    fileName: entry.fileName,
+    applied: applied.has(entry.version),
+  }));
+}
+
+/**
+ * Recompute the checksum of every applied entry and compare it to the ledger —
+ * an immutable, applied entry must never change. Returns the versions that drifted.
+ */
+export async function verify(
+  client: DatabaseClient,
+  root?: string,
+): Promise<string[]> {
+  const entries = new Map(
+    (await listEntries(root)).map((entry) => [entry.version, entry]),
+  );
+  const ledger = await readAppliedDataMutationChecksums(client);
+  const drift: string[] = [];
+  for (const [version, checksum] of ledger) {
+    const entry = entries.get(version);
+    if (
+      entry === undefined ||
+      (await fileChecksum(entry.filePath)) !== checksum
+    ) {
+      drift.push(version);
+    }
+  }
+  return drift;
+}

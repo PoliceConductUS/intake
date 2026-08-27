@@ -12,8 +12,10 @@ import {
   readYamlDocumentFile,
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
-import { ReviewSpec, ReviewCreateSpec } from "../../../../../shared/io/generated/entity-specs.js";
-
+import {
+  ReviewSpec,
+  ReviewCreateSpec,
+} from "../../../../../shared/io/generated/entity-specs.js";
 
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
@@ -50,15 +52,22 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "ReviewCreate"} ref requires relativeTo.`);
+  if (
+    options.relativeTo === undefined ||
+    options.relativeTo.trim().length === 0
+  ) {
+    throw new Error(
+      `Relative ${ref.kind ?? "ReviewCreate"} ref requires relativeTo.`,
+    );
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "ReviewCreate"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(
+      `${ref.kind ?? "ReviewCreate"} ref.path escapes its directory: ${ref.path}`,
+    );
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -72,8 +81,6 @@ const metadataSchema = z
   })
   .strict();
 
-
-
 export const specSchema = ReviewCreateSpec;
 
 export const schema = z
@@ -86,7 +93,10 @@ export const schema = z
   .strict();
 
 export type ReviewCreateEnvelope = z.infer<typeof schema>;
-export type ReviewCreateInput = Omit<ReviewCreateEnvelope, "apiVersion" | "kind">;
+export type ReviewCreateInput = Omit<
+  ReviewCreateEnvelope,
+  "apiVersion" | "kind"
+>;
 
 function parseReviewCreate(value: unknown): ReviewCreateEnvelope {
   const result = schema.safeParse(value);
@@ -110,9 +120,14 @@ async function readReviewCreate(
 ): Promise<ReviewCreateEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "ReviewCreate") {
-    throw new Error(`ReviewCreate ref.kind ${ref.kind} does not match expected kind ReviewCreate: ${ref.filePath}`);
+    throw new Error(
+      `ReviewCreate ref.kind ${ref.kind} does not match expected kind ReviewCreate: ${ref.filePath}`,
+    );
   }
-  const { contents, document } = await readYamlDocumentFile(ref.filePath, "ReviewCreate");
+  const { contents, document } = await readYamlDocumentFile(
+    ref.filePath,
+    "ReviewCreate",
+  );
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
     throw new Error(`ReviewCreate sha256 mismatch: ${ref.filePath}`);
   }
