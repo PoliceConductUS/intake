@@ -134,10 +134,12 @@ async function sourceInputPaths(inputDir: string): Promise<string[]> {
 export async function runSource(
   sourceId: string,
   paths: string[],
-  options: { dryRun?: boolean },
+  options: { dryRun?: boolean; standalone?: boolean },
   deps: RunSourceDeps,
 ): Promise<CommandResult> {
-  if (paths.length === 0) {
+  // A standalone (manual curation) source reads its records from state, not input
+  // paths, so it runs with none; every other source requires at least one path.
+  if (paths.length === 0 && options.standalone !== true) {
     return { exitCode: 1, stderr: "intake run requires at least one path\n" };
   }
 
@@ -283,6 +285,11 @@ export const registerCliCommand: RegisterCliCommand = (
           const matchedIds = allMatchedIds.filter(
             (id) => !excludedStandalone.includes(id),
           );
+          // Standalone (manual curation) sources read their records from state, not
+          // downloaded input files, so they are exempt from the input-files gate.
+          const standaloneIds = new Set(
+            allMatchedIds.filter((_, index) => standaloneFlags[index]),
+          );
 
           // Dependency-correct order from declared produces (ADR 0021);
           // missing produces or a cycle fails loud before any source runs.
@@ -320,7 +327,7 @@ export const registerCliCommand: RegisterCliCommand = (
           for (const sourceId of order) {
             const inputDir = await sourceInputDir(workspace, sourceId);
             const paths = await sourceInputPaths(inputDir);
-            if (paths.length === 0) {
+            if (paths.length === 0 && !standaloneIds.has(sourceId)) {
               dependencies.setResult({
                 exitCode: 1,
                 stdout: stdout.join(""),
@@ -363,7 +370,12 @@ export const registerCliCommand: RegisterCliCommand = (
               logger,
             };
             logger.info(`${sourceId}: run — ${paths.length} input file(s)`);
-            const result = await runSource(sourceId, paths, options, deps);
+            const result = await runSource(
+              sourceId,
+              paths,
+              { ...options, standalone: standaloneIds.has(sourceId) },
+              deps,
+            );
             if (result.stdout) stdout.push(result.stdout);
             if (result.exitCode !== 0) {
               dependencies.setResult({
