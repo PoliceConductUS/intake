@@ -1,4 +1,4 @@
-# ADR 0031: Curated Location Aliases Source
+# ADR 0031: A Model-Driven Manual Curation Source
 
 ## Status
 
@@ -6,57 +6,64 @@ Proposed
 
 ## Context
 
-The geocoder's place-snap resolves an address to a `location_path` by the county
-the point falls in plus the address's city slug, through a path-then-alias lookup
-(ADR: alias-aware snap). A `location_path_alias` (`alias_path → location_path_id`)
-therefore corrects a misspelled or alternate city name precisely. The gazetteer
-emits aliases for alternate administrative-area names, but there was no way for a
-human to add a **curated** alias for a misspelling they find in the wild.
+Some data can only come from a human: a curated location alias that fixes a
+misspelling (so the alias-aware place snap resolves it), a hand-added link, a
+correction. Rather than a bespoke source per case, one **type-independent** source
+can interview a human to create a record of **any** kind, because the record model
+is already shared.
 
-Aliases are first-class artifacts (`LocationPathAlias`, natural key `alias_path`),
-so a curated alias is just a source that emits them — no new import path.
+The generated entity model — `<Kind>Spec` (the fields), `FK_REFERENCES` (which
+fields are foreign keys and their target kind), and the registry's identity column
+per kind — fully describes what to ask and how to key a record. So the interview
+can be **model-driven**, and the record it builds flows through the ordinary
+import facades (resolve-or-fail on FKs, natural-key or minted identity) with no new
+resolution code.
 
 ## Decision
 
-Add a source `com.policeconduct.location-alias` whose curated data is built
-interactively and accumulated in an append-only chain.
+Add a source `com.policeconduct.manual`.
 
-**acquire is interactive and append-only.** It prompts a human for one mistaken/
-alternate location **URL** and its canonical **URL** (or takes them from
-`LOCATION_ALIAS_URL` / `LOCATION_CANONICAL_URL` for non-interactive/test runs),
-extracts each location path (`/state/county/place/`) from the URL, and **appends**
-the pair to the current alias list. It writes a new **immutable** output (named by
-its own content hash) that carries the full list plus a reference to the
-**previous output's path + sha256**, then moves a mutable `latest` pointer — the
-same immutable-versions-plus-movable-pointer shape as the publish handoff. The
-chain makes any out-of-band edit to a prior output detectable (a sha mismatch
-fails loud). A repeated `alias_path` updates its target (dedup).
+**acquire is a model-driven interview.** It reads the shared model for the chosen
+kind (`describeKind`) and prompts for each field — marking optional fields and, for
+a foreign key, naming the target kind so the human supplies its **source id**
+(`namespace · Kind · SourceId`, exactly what the FK resolvers already consume). The
+built record is validated against the kind's spec, then appended to an append-only
+chain: each immutable output (named by its content hash) carries the full entry
+list plus the previous output's **path + sha256**, so any out-of-band edit fails
+loud. Entries dedupe by `(kind, identity)` — a repeated record updates in place. A
+non-interactive path (`MANUAL_KIND` / `MANUAL_RECORD`) exists for scripts and
+tests.
 
-**run emits the latest as artifacts.** It reads the latest output and emits one
-`LocationPathAlias` record per alias, keyed by `alias_path`; `location_path_id`
-carries the canonical path and **resolves-or-fails** to a real `location_path` at
-import (only artifact-declared aliases are created).
+**run emits the latest as artifacts.** It groups the curated records by kind and
+emits each as its artifact kind, keyed by the record's identity column. Import
+resolves FKs and identity as for any other source, so validation ("canonical
+exists," "not a duplicate") comes free from resolve-or-fail + natural-key identity.
 
-The chain lives in the source's persistent `state`, so acquire and run share it
-across commands.
+**LocationPathAlias is the first handled kind** — a curated `alias_path →
+location_path_id` that feeds the alias-aware snap.
 
 ## Consequences
 
-- Humans get a durable, auditable place to record known misspellings/alternates;
-  the alias-aware snap then corrects them automatically.
-- The sha chain is integrity, not history: it detects tampering/drift, while git
-  remains the real history of the committed state.
-- Gated behind the full reconstruction rebuild like every new source; the source
-  and its tests land now, it runs after.
+- One source curates any kind; adding a kind is a one-line change to the handled
+  set (`HANDLED_RECORD_KINDS`), no new interview or emission code — it is driven by
+  the shared model.
+- The interview never hand-transforms a record (honours the facade/model rule):
+  the model dictates the fields, import dictates resolution.
+- Two known limits, deferred: a source's `produces` must be **static** for run
+  ordering, so the handled set is declared rather than fully open; and **updating
+  canonical-identity records** (Agency, Personnel) has no human-enterable key, so
+  only creates and natural-key kinds are in scope now.
+- Gated behind the full reconstruction rebuild like every source.
 
 ## Alternatives Considered
 
-- **A hand-edited YAML of aliases.** Rejected: no capture UX, no integrity chain,
-  and easy to malform. The interactive acquire + content-hash chain is safer.
-- **Ad-hoc `location_path_alias` rows.** Rejected: bypasses the artifact/import
-  path and its resolve-or-fail guarantee.
+- **A bespoke source per curated kind** (the original location-alias source).
+  Rejected: the model already describes every kind, so one model-driven source
+  subsumes them.
+- **A hand-edited data file.** Rejected: no capture UX, no integrity chain, easy to
+  malform against the spec.
 
 ## Revisit Trigger
 
-Aliases need attributes beyond `alias_path → canonical` (e.g. provenance notes,
-effective dates), or a bulk-import path is needed alongside the interactive one.
+Canonical-identity records need curated updates (requires a human-stable key or a
+picker), or `produces` needs to be dynamic to open the handled set fully.
