@@ -296,7 +296,7 @@ export const ${recordEnvelopeKind} = {
     : "";
   return `${generatedHeader()}import path from "node:path";
 import { z } from "zod";
-import { INTAKE_API_VERSION } from "../import-types.js";
+import { INTAKE_API_VERSION } from "../intake-api-version.js";
 import {
   firstIssuePath,
   yamlDigest,
@@ -482,7 +482,8 @@ function artifactsModule(): string {
   ).join("\n");
   return `${generatedHeader()}import path from "node:path";
 import { z } from "zod";
-import { INTAKE_API_VERSION, IMPORT_ARTIFACT_KINDS } from "../import-types.js";
+import { INTAKE_API_VERSION } from "../intake-api-version.js";
+import { IMPORT_ARTIFACT_KINDS } from "../import-types.js";
 import {
   firstIssuePath,
   yamlDigest,
@@ -758,7 +759,7 @@ const operationSchema = z.union([
       : "";
   return `${generatedHeader()}import path from "node:path";
 import { z } from "zod";
-import { INTAKE_API_VERSION } from "../../../../../shared/io/import-types.js";
+import { INTAKE_API_VERSION } from "../../../../../shared/io/intake-api-version.js";
 import {
   firstIssuePath,
   yamlDigest,
@@ -892,6 +893,25 @@ ${artifactExports}
 `;
 }
 
+// A uniform per-kind module registry (envelope, record spec, read, write) so the
+// hand io layer builds its maps by looping over this — no kind enumerated by hand.
+function artifactModulesModule(): string {
+  const imports = IMPORT_ARTIFACT_KINDS.map((kind) => {
+    const recordKind = RECORD_KIND_BY_ARTIFACT_KIND[kind];
+    return `import { ${kind}, ${recordKind}Spec, read as read${kind}, write as write${kind} } from "./${kind}.js";`;
+  }).join("\n");
+  const entries = IMPORT_ARTIFACT_KINDS.map((kind) => {
+    const recordKind = RECORD_KIND_BY_ARTIFACT_KIND[kind];
+    return `  ${kind}: { envelope: ${kind}, recordSpec: ${recordKind}Spec, read: read${kind}, write: write${kind} },`;
+  }).join("\n");
+  return `${generatedHeader()}${imports}
+
+export const ARTIFACT_MODULES = {
+${entries}
+} as const;
+`;
+}
+
 const databaseUrl = process.env.DATABASE_URL;
 if (databaseUrl === undefined || databaseUrl.trim() === "") {
   throw new Error(
@@ -924,6 +944,10 @@ for (const kind of IMPORT_ARTIFACT_KINDS) {
     );
   }
 }
+await writeFile(
+  path.join(outputDirectory, "artifact-modules.ts"),
+  artifactModulesModule(),
+);
 await writeFile(path.join(outputDirectory, "index.ts"), indexModule());
 await writeFile(
   path.join(importMutationOutputDirectory, "index.ts"),

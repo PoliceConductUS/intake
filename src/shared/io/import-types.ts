@@ -9,34 +9,12 @@ import {
   importTypeMetadata,
   type ImportTypeMetadata,
 } from "./import-type-metadata.js";
-import {
-  AgencyLinkSpec,
-  AgencyPersonnelSpec,
-  AgencyPhoneNumberSpec,
-  AgencySpec,
-  CivilCaseSpec,
-  CivilCasePersonnelSpec,
-  CivilCaseLinkSpec,
-  CoverageLinkAgencyPersonnelSpec,
-  CoverageLinkCivilCaseSpec,
-  CoverageLinkSpec,
-  DisciplineAgencyPersonnelSpec,
-  DisciplineSpec,
-  FederalAgencyBranchSpec,
-  FederalAgencySpec,
-  LicenseActionSpec,
-  LicenseSpec,
-  LicensingAuthoritySpec,
-  LocationPathAliasSpec,
-  LocationPathGeometrySpec,
-  LocationPathSpec,
-  PersonnelSpec,
-} from "./generated/entity-specs.js";
+import { ARTIFACT_MODULES } from "./generated/artifact-modules.js";
 
 export { IMPORT_ARTIFACT_KINDS };
 export type { ImportArtifactKind, ImportEntityName };
 
-export const INTAKE_API_VERSION = "policeconduct.org/intake/v1alpha1";
+export { INTAKE_API_VERSION } from "./intake-api-version.js";
 
 export { IMPORT_OPERATIONS, IMPORT_OPERATION_SUFFIXES };
 export type { ImportOperation };
@@ -45,29 +23,12 @@ export type ImportTypeDefinition = ImportTypeMetadata & {
   recordSchema: z.ZodType<Record<string, unknown>>;
 };
 
-const recordSchemas = {
-  LocationPaths: LocationPathSpec,
-  LocationPathGeometries: LocationPathGeometrySpec,
-  LocationPathAliases: LocationPathAliasSpec,
-  Agencies: AgencySpec,
-  Personnel: PersonnelSpec,
-  AgencyPersonnel: AgencyPersonnelSpec,
-  LicensingAuthorities: LicensingAuthoritySpec,
-  Licenses: LicenseSpec,
-  LicenseActions: LicenseActionSpec,
-  Disciplines: DisciplineSpec,
-  DisciplineAgencyPersonnel: DisciplineAgencyPersonnelSpec,
-  CoverageLinks: CoverageLinkSpec,
-  CoverageLinkAgencyPersonnel: CoverageLinkAgencyPersonnelSpec,
-  AgencyPhoneNumbers: AgencyPhoneNumberSpec,
-  AgencyLinks: AgencyLinkSpec,
-  FederalAgencies: FederalAgencySpec,
-  FederalAgencyBranches: FederalAgencyBranchSpec,
-  CivilCases: CivilCaseSpec,
-  CivilCasePersonnel: CivilCasePersonnelSpec,
-  CivilCaseLinks: CivilCaseLinkSpec,
-  CoverageLinkCivilCases: CoverageLinkCivilCaseSpec,
-} satisfies Record<ImportArtifactKind, z.ZodType<Record<string, unknown>>>;
+const recordSchemas = Object.fromEntries(
+  IMPORT_ARTIFACT_KINDS.map((kind) => [
+    kind,
+    ARTIFACT_MODULES[kind].recordSpec,
+  ]),
+) as unknown as Record<ImportArtifactKind, z.ZodType<Record<string, unknown>>>;
 
 // Derived from the generated kinds so a new entity is picked up automatically —
 // each kind's metadata plus its record schema, no per-kind enumeration.

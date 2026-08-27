@@ -2,133 +2,9 @@ import path from "node:path";
 import type { z } from "zod";
 import type { ArtifactsEnvelope as ArtifactsEnvelopeResource } from "./generated/Artifacts.js";
 import { Artifacts as GeneratedArtifacts } from "./generated/Artifacts.js";
+import { ARTIFACT_MODULES } from "./generated/artifact-modules.js";
 import {
-  Agencies,
-  AgencySpec,
-  read as readAgencies,
-  write as writeAgencies,
-} from "./generated/Agencies.js";
-import {
-  AgencyPersonnel,
-  AgencyPersonnelSpec,
-  read as readAgencyPersonnel,
-  write as writeAgencyPersonnel,
-} from "./generated/AgencyPersonnel.js";
-import {
-  AgencyLinks,
-  AgencyLinkSpec,
-  read as readAgencyLinks,
-  write as writeAgencyLinks,
-} from "./generated/AgencyLinks.js";
-import {
-  CoverageLinkCivilCases,
-  CoverageLinkCivilCaseSpec,
-  read as readCoverageLinkCivilCases,
-  write as writeCoverageLinkCivilCases,
-} from "./generated/CoverageLinkCivilCases.js";
-import {
-  LocationPathAliases,
-  LocationPathAliasSpec,
-  read as readLocationPathAliases,
-  write as writeLocationPathAliases,
-} from "./generated/LocationPathAliases.js";
-import {
-  LocationPathGeometries,
-  LocationPathGeometrySpec,
-  read as readLocationPathGeometries,
-  write as writeLocationPathGeometries,
-} from "./generated/LocationPathGeometries.js";
-import {
-  LocationPaths,
-  LocationPathSpec,
-  read as readLocationPaths,
-  write as writeLocationPaths,
-} from "./generated/LocationPaths.js";
-import {
-  Personnel,
-  PersonnelSpec,
-  read as readPersonnel,
-  write as writePersonnel,
-} from "./generated/Personnel.js";
-import {
-  LicensingAuthorities,
-  LicensingAuthoritySpec,
-  read as readLicensingAuthorities,
-  write as writeLicensingAuthorities,
-} from "./generated/LicensingAuthorities.js";
-import {
-  Licenses,
-  LicenseSpec,
-  read as readLicenses,
-  write as writeLicenses,
-} from "./generated/Licenses.js";
-import {
-  LicenseActions,
-  LicenseActionSpec,
-  read as readLicenseActions,
-  write as writeLicenseActions,
-} from "./generated/LicenseActions.js";
-import {
-  Disciplines,
-  DisciplineSpec,
-  read as readDisciplines,
-  write as writeDisciplines,
-} from "./generated/Disciplines.js";
-import {
-  DisciplineAgencyPersonnel,
-  DisciplineAgencyPersonnelSpec,
-  read as readDisciplineAgencyPersonnel,
-  write as writeDisciplineAgencyPersonnel,
-} from "./generated/DisciplineAgencyPersonnel.js";
-import {
-  CoverageLinks,
-  CoverageLinkSpec,
-  read as readCoverageLinks,
-  write as writeCoverageLinks,
-} from "./generated/CoverageLinks.js";
-import {
-  CoverageLinkAgencyPersonnel,
-  CoverageLinkAgencyPersonnelSpec,
-  read as readCoverageLinkAgencyPersonnel,
-  write as writeCoverageLinkAgencyPersonnel,
-} from "./generated/CoverageLinkAgencyPersonnel.js";
-import {
-  AgencyPhoneNumbers,
-  AgencyPhoneNumberSpec,
-  read as readAgencyPhoneNumbers,
-  write as writeAgencyPhoneNumbers,
-} from "./generated/AgencyPhoneNumbers.js";
-import {
-  FederalAgencies,
-  FederalAgencySpec,
-  read as readFederalAgencies,
-  write as writeFederalAgencies,
-} from "./generated/FederalAgencies.js";
-import {
-  FederalAgencyBranches,
-  FederalAgencyBranchSpec,
-  read as readFederalAgencyBranches,
-  write as writeFederalAgencyBranches,
-} from "./generated/FederalAgencyBranches.js";
-import {
-  CivilCases,
-  CivilCaseSpec,
-  read as readCivilCases,
-  write as writeCivilCases,
-} from "./generated/CivilCases.js";
-import {
-  CivilCasePersonnel,
-  CivilCasePersonnelSpec,
-  read as readCivilCasePersonnel,
-  write as writeCivilCasePersonnel,
-} from "./generated/CivilCasePersonnel.js";
-import {
-  CivilCaseLinks,
-  CivilCaseLinkSpec,
-  read as readCivilCaseLinks,
-  write as writeCivilCaseLinks,
-} from "./generated/CivilCaseLinks.js";
-import {
+  IMPORT_ARTIFACT_KINDS,
   compareImportArtifactKinds,
   type ImportArtifactKind,
 } from "./import-types.js";
@@ -217,165 +93,41 @@ type ArtifactRecordSpec = {
   ): { success: true; data: unknown } | { success: false; error: z.ZodError };
 };
 
-const artifactReaders: Record<ImportArtifactKind, ArtifactReader> = {
-  AgencyLinks: (filePath, options) =>
-    readAgencyLinks(filePath, { ...options, expectedKind: "AgencyLinks" }),
-  CoverageLinkCivilCases: (filePath, options) =>
-    readCoverageLinkCivilCases(filePath, {
-      ...options,
-      expectedKind: "CoverageLinkCivilCases",
-    }),
-  Agencies: (filePath, options) =>
-    readAgencies(filePath, { ...options, expectedKind: "Agencies" }),
-  AgencyPersonnel: (filePath, options) =>
-    readAgencyPersonnel(filePath, {
-      ...options,
-      expectedKind: "AgencyPersonnel",
-    }),
-  LocationPathAliases: (filePath, options) =>
-    readLocationPathAliases(filePath, {
-      ...options,
-      expectedKind: "LocationPathAliases",
-    }),
-  LocationPathGeometries: (filePath, options) =>
-    readLocationPathGeometries(filePath, {
-      ...options,
-      expectedKind: "LocationPathGeometries",
-    }),
-  LocationPaths: (filePath, options) =>
-    readLocationPaths(filePath, { ...options, expectedKind: "LocationPaths" }),
-  Personnel: (filePath, options) =>
-    readPersonnel(filePath, { ...options, expectedKind: "Personnel" }),
-  LicensingAuthorities: (filePath, options) =>
-    readLicensingAuthorities(filePath, {
-      ...options,
-      expectedKind: "LicensingAuthorities",
-    }),
-  Licenses: (filePath, options) =>
-    readLicenses(filePath, { ...options, expectedKind: "Licenses" }),
-  LicenseActions: (filePath, options) =>
-    readLicenseActions(filePath, {
-      ...options,
-      expectedKind: "LicenseActions",
-    }),
-  Disciplines: (filePath, options) =>
-    readDisciplines(filePath, { ...options, expectedKind: "Disciplines" }),
-  DisciplineAgencyPersonnel: (filePath, options) =>
-    readDisciplineAgencyPersonnel(filePath, {
-      ...options,
-      expectedKind: "DisciplineAgencyPersonnel",
-    }),
-  CoverageLinks: (filePath, options) =>
-    readCoverageLinks(filePath, { ...options, expectedKind: "CoverageLinks" }),
-  CoverageLinkAgencyPersonnel: (filePath, options) =>
-    readCoverageLinkAgencyPersonnel(filePath, {
-      ...options,
-      expectedKind: "CoverageLinkAgencyPersonnel",
-    }),
-  AgencyPhoneNumbers: (filePath, options) =>
-    readAgencyPhoneNumbers(filePath, {
-      ...options,
-      expectedKind: "AgencyPhoneNumbers",
-    }),
-  FederalAgencies: (filePath, options) =>
-    readFederalAgencies(filePath, {
-      ...options,
-      expectedKind: "FederalAgencies",
-    }),
-  FederalAgencyBranches: (filePath, options) =>
-    readFederalAgencyBranches(filePath, {
-      ...options,
-      expectedKind: "FederalAgencyBranches",
-    }),
-  CivilCases: (filePath, options) =>
-    readCivilCases(filePath, { ...options, expectedKind: "CivilCases" }),
-  CivilCasePersonnel: (filePath, options) =>
-    readCivilCasePersonnel(filePath, {
-      ...options,
-      expectedKind: "CivilCasePersonnel",
-    }),
-  CivilCaseLinks: (filePath, options) =>
-    readCivilCaseLinks(filePath, {
-      ...options,
-      expectedKind: "CivilCaseLinks",
-    }),
+// All three maps are derived by looping over the generated ARTIFACT_MODULES, so
+// no kind is enumerated by hand. A uniform view makes the heterogeneous per-kind
+// read/write callable.
+type RegisteredModule = {
+  envelope: ArtifactEnvelopeType;
+  recordSpec: ArtifactRecordSpec;
+  read: (
+    filePath: string,
+    options: Parameters<ArtifactReader>[1],
+  ) => Promise<ImportArtifactEnvelope>;
+  write: ArtifactEnvelopeType["write"];
 };
+const MODULES = ARTIFACT_MODULES as unknown as Record<
+  ImportArtifactKind,
+  RegisteredModule
+>;
 
-const artifactEnvelopeTypes: Record<ImportArtifactKind, ArtifactEnvelopeType> =
-  {
-    AgencyLinks: { ...AgencyLinks, write: writeAgencyLinks },
-    CoverageLinkCivilCases: {
-      ...CoverageLinkCivilCases,
-      write: writeCoverageLinkCivilCases,
-    },
-    Agencies: { ...Agencies, write: writeAgencies },
-    AgencyPersonnel: { ...AgencyPersonnel, write: writeAgencyPersonnel },
-    LocationPathAliases: {
-      ...LocationPathAliases,
-      write: writeLocationPathAliases,
-    },
-    LocationPathGeometries: {
-      ...LocationPathGeometries,
-      write: writeLocationPathGeometries,
-    },
-    LocationPaths: { ...LocationPaths, write: writeLocationPaths },
-    Personnel: { ...Personnel, write: writePersonnel },
-    LicensingAuthorities: {
-      ...LicensingAuthorities,
-      write: writeLicensingAuthorities,
-    },
-    Licenses: { ...Licenses, write: writeLicenses },
-    LicenseActions: { ...LicenseActions, write: writeLicenseActions },
-    Disciplines: { ...Disciplines, write: writeDisciplines },
-    DisciplineAgencyPersonnel: {
-      ...DisciplineAgencyPersonnel,
-      write: writeDisciplineAgencyPersonnel,
-    },
-    CoverageLinks: { ...CoverageLinks, write: writeCoverageLinks },
-    CoverageLinkAgencyPersonnel: {
-      ...CoverageLinkAgencyPersonnel,
-      write: writeCoverageLinkAgencyPersonnel,
-    },
-    AgencyPhoneNumbers: {
-      ...AgencyPhoneNumbers,
-      write: writeAgencyPhoneNumbers,
-    },
-    FederalAgencies: { ...FederalAgencies, write: writeFederalAgencies },
-    FederalAgencyBranches: {
-      ...FederalAgencyBranches,
-      write: writeFederalAgencyBranches,
-    },
-    CivilCases: { ...CivilCases, write: writeCivilCases },
-    CivilCasePersonnel: {
-      ...CivilCasePersonnel,
-      write: writeCivilCasePersonnel,
-    },
-    CivilCaseLinks: { ...CivilCaseLinks, write: writeCivilCaseLinks },
-  };
+const artifactReaders = Object.fromEntries(
+  IMPORT_ARTIFACT_KINDS.map((kind) => [
+    kind,
+    (filePath: string, options: Parameters<ArtifactReader>[1]) =>
+      MODULES[kind].read(filePath, { ...options, expectedKind: kind }),
+  ]),
+) as Record<ImportArtifactKind, ArtifactReader>;
 
-const artifactRecordSpecs: Record<ImportArtifactKind, ArtifactRecordSpec> = {
-  AgencyLinks: AgencyLinkSpec,
-  CoverageLinkCivilCases: CoverageLinkCivilCaseSpec,
-  Agencies: AgencySpec,
-  AgencyPersonnel: AgencyPersonnelSpec,
-  LocationPathAliases: LocationPathAliasSpec,
-  LocationPathGeometries: LocationPathGeometrySpec,
-  LocationPaths: LocationPathSpec,
-  Personnel: PersonnelSpec,
-  LicensingAuthorities: LicensingAuthoritySpec,
-  Licenses: LicenseSpec,
-  LicenseActions: LicenseActionSpec,
-  Disciplines: DisciplineSpec,
-  DisciplineAgencyPersonnel: DisciplineAgencyPersonnelSpec,
-  CoverageLinks: CoverageLinkSpec,
-  CoverageLinkAgencyPersonnel: CoverageLinkAgencyPersonnelSpec,
-  AgencyPhoneNumbers: AgencyPhoneNumberSpec,
-  FederalAgencies: FederalAgencySpec,
-  FederalAgencyBranches: FederalAgencyBranchSpec,
-  CivilCases: CivilCaseSpec,
-  CivilCasePersonnel: CivilCasePersonnelSpec,
-  CivilCaseLinks: CivilCaseLinkSpec,
-};
+const artifactEnvelopeTypes = Object.fromEntries(
+  IMPORT_ARTIFACT_KINDS.map((kind) => [
+    kind,
+    { ...MODULES[kind].envelope, write: MODULES[kind].write },
+  ]),
+) as Record<ImportArtifactKind, ArtifactEnvelopeType>;
+
+const artifactRecordSpecs = Object.fromEntries(
+  IMPORT_ARTIFACT_KINDS.map((kind) => [kind, MODULES[kind].recordSpec]),
+) as Record<ImportArtifactKind, ArtifactRecordSpec>;
 
 function sortedArtifactReferences(
   artifactsEnvelope: ArtifactsEnvelopeResource,
