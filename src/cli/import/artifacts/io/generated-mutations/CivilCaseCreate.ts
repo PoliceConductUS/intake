@@ -12,10 +12,8 @@ import {
   readYamlDocumentFile,
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
-import {
-  CivilCaseSpec,
-  CivilCaseCreateSpec,
-} from "../../../../../shared/io/generated/entity-specs.js";
+import { CivilCaseSpec, CivilCaseCreateSpec } from "../../../../../shared/io/generated/entity-specs.js";
+
 
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
@@ -52,22 +50,15 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (
-    options.relativeTo === undefined ||
-    options.relativeTo.trim().length === 0
-  ) {
-    throw new Error(
-      `Relative ${ref.kind ?? "CivilCaseCreate"} ref requires relativeTo.`,
-    );
+  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
+    throw new Error(`Relative ${ref.kind ?? "CivilCaseCreate"} ref requires relativeTo.`);
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(
-      `${ref.kind ?? "CivilCaseCreate"} ref.path escapes its directory: ${ref.path}`,
-    );
+    throw new Error(`${ref.kind ?? "CivilCaseCreate"} ref.path escapes its directory: ${ref.path}`);
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -81,6 +72,8 @@ const metadataSchema = z
   })
   .strict();
 
+
+
 export const specSchema = CivilCaseCreateSpec;
 
 export const schema = z
@@ -93,10 +86,7 @@ export const schema = z
   .strict();
 
 export type CivilCaseCreateEnvelope = z.infer<typeof schema>;
-export type CivilCaseCreateInput = Omit<
-  CivilCaseCreateEnvelope,
-  "apiVersion" | "kind"
->;
+export type CivilCaseCreateInput = Omit<CivilCaseCreateEnvelope, "apiVersion" | "kind">;
 
 function parseCivilCaseCreate(value: unknown): CivilCaseCreateEnvelope {
   const result = schema.safeParse(value);
@@ -106,9 +96,7 @@ function parseCivilCaseCreate(value: unknown): CivilCaseCreateEnvelope {
   return result.data;
 }
 
-function newCivilCaseCreate(
-  input: CivilCaseCreateInput,
-): CivilCaseCreateEnvelope {
+function newCivilCaseCreate(input: CivilCaseCreateInput): CivilCaseCreateEnvelope {
   return parseCivilCaseCreate({
     apiVersion: INTAKE_API_VERSION,
     kind: "CivilCaseCreate",
@@ -122,14 +110,9 @@ async function readCivilCaseCreate(
 ): Promise<CivilCaseCreateEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "CivilCaseCreate") {
-    throw new Error(
-      `CivilCaseCreate ref.kind ${ref.kind} does not match expected kind CivilCaseCreate: ${ref.filePath}`,
-    );
+    throw new Error(`CivilCaseCreate ref.kind ${ref.kind} does not match expected kind CivilCaseCreate: ${ref.filePath}`);
   }
-  const { contents, document } = await readYamlDocumentFile(
-    ref.filePath,
-    "CivilCaseCreate",
-  );
+  const { contents, document } = await readYamlDocumentFile(ref.filePath, "CivilCaseCreate");
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
     throw new Error(`CivilCaseCreate sha256 mismatch: ${ref.filePath}`);
   }

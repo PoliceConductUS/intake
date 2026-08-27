@@ -13,6 +13,7 @@ import {
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
 
+
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -48,22 +49,15 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (
-    options.relativeTo === undefined ||
-    options.relativeTo.trim().length === 0
-  ) {
-    throw new Error(
-      `Relative ${ref.kind ?? "AuthorityLicenseRead"} ref requires relativeTo.`,
-    );
+  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
+    throw new Error(`Relative ${ref.kind ?? "AuthorityLicenseRead"} ref requires relativeTo.`);
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(
-      `${ref.kind ?? "AuthorityLicenseRead"} ref.path escapes its directory: ${ref.path}`,
-    );
+    throw new Error(`${ref.kind ?? "AuthorityLicenseRead"} ref.path escapes its directory: ${ref.path}`);
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -77,6 +71,8 @@ const metadataSchema = z
   })
   .strict();
 
+
+
 export const specSchema = z.object({}).strict();
 
 export const schema = z
@@ -89,14 +85,9 @@ export const schema = z
   .strict();
 
 export type AuthorityLicenseReadEnvelope = z.infer<typeof schema>;
-export type AuthorityLicenseReadInput = Omit<
-  AuthorityLicenseReadEnvelope,
-  "apiVersion" | "kind"
->;
+export type AuthorityLicenseReadInput = Omit<AuthorityLicenseReadEnvelope, "apiVersion" | "kind">;
 
-function parseAuthorityLicenseRead(
-  value: unknown,
-): AuthorityLicenseReadEnvelope {
+function parseAuthorityLicenseRead(value: unknown): AuthorityLicenseReadEnvelope {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new Error(formatError(result.error));
@@ -104,9 +95,7 @@ function parseAuthorityLicenseRead(
   return result.data;
 }
 
-function newAuthorityLicenseRead(
-  input: AuthorityLicenseReadInput,
-): AuthorityLicenseReadEnvelope {
+function newAuthorityLicenseRead(input: AuthorityLicenseReadInput): AuthorityLicenseReadEnvelope {
   return parseAuthorityLicenseRead({
     apiVersion: INTAKE_API_VERSION,
     kind: "AuthorityLicenseRead",
@@ -120,14 +109,9 @@ async function readAuthorityLicenseRead(
 ): Promise<AuthorityLicenseReadEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "AuthorityLicenseRead") {
-    throw new Error(
-      `AuthorityLicenseRead ref.kind ${ref.kind} does not match expected kind AuthorityLicenseRead: ${ref.filePath}`,
-    );
+    throw new Error(`AuthorityLicenseRead ref.kind ${ref.kind} does not match expected kind AuthorityLicenseRead: ${ref.filePath}`);
   }
-  const { contents, document } = await readYamlDocumentFile(
-    ref.filePath,
-    "AuthorityLicenseRead",
-  );
+  const { contents, document } = await readYamlDocumentFile(ref.filePath, "AuthorityLicenseRead");
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
     throw new Error(`AuthorityLicenseRead sha256 mismatch: ${ref.filePath}`);
   }

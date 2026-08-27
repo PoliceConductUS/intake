@@ -12,10 +12,8 @@ import {
   readYamlDocumentFile,
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
-import {
-  CoverageLinkSpec,
-  CoverageLinkCreateSpec,
-} from "../../../../../shared/io/generated/entity-specs.js";
+import { CoverageLinkSpec, CoverageLinkCreateSpec } from "../../../../../shared/io/generated/entity-specs.js";
+
 
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
@@ -52,22 +50,15 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (
-    options.relativeTo === undefined ||
-    options.relativeTo.trim().length === 0
-  ) {
-    throw new Error(
-      `Relative ${ref.kind ?? "CoverageLinkCreate"} ref requires relativeTo.`,
-    );
+  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
+    throw new Error(`Relative ${ref.kind ?? "CoverageLinkCreate"} ref requires relativeTo.`);
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(
-      `${ref.kind ?? "CoverageLinkCreate"} ref.path escapes its directory: ${ref.path}`,
-    );
+    throw new Error(`${ref.kind ?? "CoverageLinkCreate"} ref.path escapes its directory: ${ref.path}`);
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -81,6 +72,8 @@ const metadataSchema = z
   })
   .strict();
 
+
+
 export const specSchema = CoverageLinkCreateSpec;
 
 export const schema = z
@@ -93,10 +86,7 @@ export const schema = z
   .strict();
 
 export type CoverageLinkCreateEnvelope = z.infer<typeof schema>;
-export type CoverageLinkCreateInput = Omit<
-  CoverageLinkCreateEnvelope,
-  "apiVersion" | "kind"
->;
+export type CoverageLinkCreateInput = Omit<CoverageLinkCreateEnvelope, "apiVersion" | "kind">;
 
 function parseCoverageLinkCreate(value: unknown): CoverageLinkCreateEnvelope {
   const result = schema.safeParse(value);
@@ -106,9 +96,7 @@ function parseCoverageLinkCreate(value: unknown): CoverageLinkCreateEnvelope {
   return result.data;
 }
 
-function newCoverageLinkCreate(
-  input: CoverageLinkCreateInput,
-): CoverageLinkCreateEnvelope {
+function newCoverageLinkCreate(input: CoverageLinkCreateInput): CoverageLinkCreateEnvelope {
   return parseCoverageLinkCreate({
     apiVersion: INTAKE_API_VERSION,
     kind: "CoverageLinkCreate",
@@ -122,14 +110,9 @@ async function readCoverageLinkCreate(
 ): Promise<CoverageLinkCreateEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "CoverageLinkCreate") {
-    throw new Error(
-      `CoverageLinkCreate ref.kind ${ref.kind} does not match expected kind CoverageLinkCreate: ${ref.filePath}`,
-    );
+    throw new Error(`CoverageLinkCreate ref.kind ${ref.kind} does not match expected kind CoverageLinkCreate: ${ref.filePath}`);
   }
-  const { contents, document } = await readYamlDocumentFile(
-    ref.filePath,
-    "CoverageLinkCreate",
-  );
+  const { contents, document } = await readYamlDocumentFile(ref.filePath, "CoverageLinkCreate");
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
     throw new Error(`CoverageLinkCreate sha256 mismatch: ${ref.filePath}`);
   }

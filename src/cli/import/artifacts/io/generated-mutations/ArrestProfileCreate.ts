@@ -12,10 +12,8 @@ import {
   readYamlDocumentFile,
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
-import {
-  ArrestProfileSpec,
-  ArrestProfileCreateSpec,
-} from "../../../../../shared/io/generated/entity-specs.js";
+import { ArrestProfileSpec, ArrestProfileCreateSpec } from "../../../../../shared/io/generated/entity-specs.js";
+
 
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
@@ -52,22 +50,15 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (
-    options.relativeTo === undefined ||
-    options.relativeTo.trim().length === 0
-  ) {
-    throw new Error(
-      `Relative ${ref.kind ?? "ArrestProfileCreate"} ref requires relativeTo.`,
-    );
+  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
+    throw new Error(`Relative ${ref.kind ?? "ArrestProfileCreate"} ref requires relativeTo.`);
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(
-      `${ref.kind ?? "ArrestProfileCreate"} ref.path escapes its directory: ${ref.path}`,
-    );
+    throw new Error(`${ref.kind ?? "ArrestProfileCreate"} ref.path escapes its directory: ${ref.path}`);
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -81,6 +72,8 @@ const metadataSchema = z
   })
   .strict();
 
+
+
 export const specSchema = ArrestProfileCreateSpec;
 
 export const schema = z
@@ -93,10 +86,7 @@ export const schema = z
   .strict();
 
 export type ArrestProfileCreateEnvelope = z.infer<typeof schema>;
-export type ArrestProfileCreateInput = Omit<
-  ArrestProfileCreateEnvelope,
-  "apiVersion" | "kind"
->;
+export type ArrestProfileCreateInput = Omit<ArrestProfileCreateEnvelope, "apiVersion" | "kind">;
 
 function parseArrestProfileCreate(value: unknown): ArrestProfileCreateEnvelope {
   const result = schema.safeParse(value);
@@ -106,9 +96,7 @@ function parseArrestProfileCreate(value: unknown): ArrestProfileCreateEnvelope {
   return result.data;
 }
 
-function newArrestProfileCreate(
-  input: ArrestProfileCreateInput,
-): ArrestProfileCreateEnvelope {
+function newArrestProfileCreate(input: ArrestProfileCreateInput): ArrestProfileCreateEnvelope {
   return parseArrestProfileCreate({
     apiVersion: INTAKE_API_VERSION,
     kind: "ArrestProfileCreate",
@@ -122,14 +110,9 @@ async function readArrestProfileCreate(
 ): Promise<ArrestProfileCreateEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "ArrestProfileCreate") {
-    throw new Error(
-      `ArrestProfileCreate ref.kind ${ref.kind} does not match expected kind ArrestProfileCreate: ${ref.filePath}`,
-    );
+    throw new Error(`ArrestProfileCreate ref.kind ${ref.kind} does not match expected kind ArrestProfileCreate: ${ref.filePath}`);
   }
-  const { contents, document } = await readYamlDocumentFile(
-    ref.filePath,
-    "ArrestProfileCreate",
-  );
+  const { contents, document } = await readYamlDocumentFile(ref.filePath, "ArrestProfileCreate");
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
     throw new Error(`ArrestProfileCreate sha256 mismatch: ${ref.filePath}`);
   }

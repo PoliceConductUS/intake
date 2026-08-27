@@ -13,6 +13,7 @@ import {
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
 
+
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -48,22 +49,15 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (
-    options.relativeTo === undefined ||
-    options.relativeTo.trim().length === 0
-  ) {
-    throw new Error(
-      `Relative ${ref.kind ?? "FederalAgencyRead"} ref requires relativeTo.`,
-    );
+  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
+    throw new Error(`Relative ${ref.kind ?? "FederalAgencyRead"} ref requires relativeTo.`);
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(
-      `${ref.kind ?? "FederalAgencyRead"} ref.path escapes its directory: ${ref.path}`,
-    );
+    throw new Error(`${ref.kind ?? "FederalAgencyRead"} ref.path escapes its directory: ${ref.path}`);
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -77,6 +71,8 @@ const metadataSchema = z
   })
   .strict();
 
+
+
 export const specSchema = z.object({}).strict();
 
 export const schema = z
@@ -89,10 +85,7 @@ export const schema = z
   .strict();
 
 export type FederalAgencyReadEnvelope = z.infer<typeof schema>;
-export type FederalAgencyReadInput = Omit<
-  FederalAgencyReadEnvelope,
-  "apiVersion" | "kind"
->;
+export type FederalAgencyReadInput = Omit<FederalAgencyReadEnvelope, "apiVersion" | "kind">;
 
 function parseFederalAgencyRead(value: unknown): FederalAgencyReadEnvelope {
   const result = schema.safeParse(value);
@@ -102,9 +95,7 @@ function parseFederalAgencyRead(value: unknown): FederalAgencyReadEnvelope {
   return result.data;
 }
 
-function newFederalAgencyRead(
-  input: FederalAgencyReadInput,
-): FederalAgencyReadEnvelope {
+function newFederalAgencyRead(input: FederalAgencyReadInput): FederalAgencyReadEnvelope {
   return parseFederalAgencyRead({
     apiVersion: INTAKE_API_VERSION,
     kind: "FederalAgencyRead",
@@ -118,14 +109,9 @@ async function readFederalAgencyRead(
 ): Promise<FederalAgencyReadEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "FederalAgencyRead") {
-    throw new Error(
-      `FederalAgencyRead ref.kind ${ref.kind} does not match expected kind FederalAgencyRead: ${ref.filePath}`,
-    );
+    throw new Error(`FederalAgencyRead ref.kind ${ref.kind} does not match expected kind FederalAgencyRead: ${ref.filePath}`);
   }
-  const { contents, document } = await readYamlDocumentFile(
-    ref.filePath,
-    "FederalAgencyRead",
-  );
+  const { contents, document } = await readYamlDocumentFile(ref.filePath, "FederalAgencyRead");
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
     throw new Error(`FederalAgencyRead sha256 mismatch: ${ref.filePath}`);
   }

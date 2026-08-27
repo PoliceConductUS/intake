@@ -13,6 +13,7 @@ import {
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
 
+
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
   | { ref: { path: string; kind?: string; sha256?: string } };
@@ -48,22 +49,15 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (
-    options.relativeTo === undefined ||
-    options.relativeTo.trim().length === 0
-  ) {
-    throw new Error(
-      `Relative ${ref.kind ?? "LocationPathAliasRead"} ref requires relativeTo.`,
-    );
+  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
+    throw new Error(`Relative ${ref.kind ?? "LocationPathAliasRead"} ref requires relativeTo.`);
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(
-      `${ref.kind ?? "LocationPathAliasRead"} ref.path escapes its directory: ${ref.path}`,
-    );
+    throw new Error(`${ref.kind ?? "LocationPathAliasRead"} ref.path escapes its directory: ${ref.path}`);
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -77,6 +71,8 @@ const metadataSchema = z
   })
   .strict();
 
+
+
 export const specSchema = z.object({}).strict();
 
 export const schema = z
@@ -89,14 +85,9 @@ export const schema = z
   .strict();
 
 export type LocationPathAliasReadEnvelope = z.infer<typeof schema>;
-export type LocationPathAliasReadInput = Omit<
-  LocationPathAliasReadEnvelope,
-  "apiVersion" | "kind"
->;
+export type LocationPathAliasReadInput = Omit<LocationPathAliasReadEnvelope, "apiVersion" | "kind">;
 
-function parseLocationPathAliasRead(
-  value: unknown,
-): LocationPathAliasReadEnvelope {
+function parseLocationPathAliasRead(value: unknown): LocationPathAliasReadEnvelope {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new Error(formatError(result.error));
@@ -104,9 +95,7 @@ function parseLocationPathAliasRead(
   return result.data;
 }
 
-function newLocationPathAliasRead(
-  input: LocationPathAliasReadInput,
-): LocationPathAliasReadEnvelope {
+function newLocationPathAliasRead(input: LocationPathAliasReadInput): LocationPathAliasReadEnvelope {
   return parseLocationPathAliasRead({
     apiVersion: INTAKE_API_VERSION,
     kind: "LocationPathAliasRead",
@@ -120,14 +109,9 @@ async function readLocationPathAliasRead(
 ): Promise<LocationPathAliasReadEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "LocationPathAliasRead") {
-    throw new Error(
-      `LocationPathAliasRead ref.kind ${ref.kind} does not match expected kind LocationPathAliasRead: ${ref.filePath}`,
-    );
+    throw new Error(`LocationPathAliasRead ref.kind ${ref.kind} does not match expected kind LocationPathAliasRead: ${ref.filePath}`);
   }
-  const { contents, document } = await readYamlDocumentFile(
-    ref.filePath,
-    "LocationPathAliasRead",
-  );
+  const { contents, document } = await readYamlDocumentFile(ref.filePath, "LocationPathAliasRead");
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
     throw new Error(`LocationPathAliasRead sha256 mismatch: ${ref.filePath}`);
   }
