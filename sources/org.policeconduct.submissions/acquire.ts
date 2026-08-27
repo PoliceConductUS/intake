@@ -7,24 +7,19 @@ import type {
 
 const run = promisify(execFile);
 
-// acquire owns the non-deterministic half (ADR 0030): mirror the S3 submissions
+// acquire owns the non-deterministic half (ADR 0030): pull the S3 submissions
 // bucket to its local folder so `run` reads a stable snapshot, and push any local
-// changes (curation status verdicts under submissions/status/) back to S3. The
-// publication gate is human-set for now — statuses live in the bucket — so acquire
-// only syncs; when the AI gate is wired it runs here and caches its verdict too.
+// curator changes (status verdicts, curator-authored submissions) back up. Both
+// directions are additive (never `--delete`): the bucket holds locally-authored
+// content that cannot always round-trip (the write-back principal may be
+// read-only), so a --delete mirror would erase it. New S3 submissions still
+// arrive; a submission deleted directly in S3 is not pruned locally.
 async function s3Sync(
   from: string,
   to: string,
   profile: string | undefined,
-  { mirror }: { mirror: boolean },
 ): Promise<void> {
-  // `--delete` only on the DOWN mirror (local reflects S3). The UP sync is additive
-  // — never `--delete` — so an incomplete local mirror can never delete a real
-  // submission from S3.
   const args = ["s3", "sync", from, to, "--exclude", "*.DS_Store"];
-  if (mirror) {
-    args.push("--delete");
-  }
   if (profile !== undefined && profile.trim() !== "") {
     args.push("--profile", profile);
   }
@@ -49,15 +44,24 @@ export const acquire: SourceAcquire = async ({
   }
   const profile = env.AWS_PROFILE;
 
-  // Push local changes UP first (additive), then mirror DOWN (--delete). The
-  // reverse order would let the down-mirror delete a locally-authored status
-  // verdict or curator submission before it was ever pushed. The cost of pushing
-  // up first: a submission deleted directly in S3 but still present locally is
-  // re-uploaded — acceptable for the current single-curator workflow.
+  // The write-back is best-effort: the bucket policy may deny PutObject to this
+  // principal (submissions are written only by the website pipeline). A denied or
+  // failed up-sync is warned and skipped — never fatal — so a read-only profile
+  // still acquires. Curator changes then stay local until a writable principal
+  // pushes them.
   logger?.info(
-    `org.policeconduct.submissions: syncing local changes → ${s3Bucket}.`,
+    `org.policeconduct.submissions: pushing local changes → ${s3Bucket} (best-effort).`,
   );
-  await s3Sync(bucketDir, s3Bucket, profile, { mirror: false });
-  logger?.info(`org.policeconduct.submissions: mirroring ${s3Bucket} → local.`);
-  await s3Sync(s3Bucket, bucketDir, profile, { mirror: true });
+  try {
+    await s3Sync(bucketDir, s3Bucket, profile);
+  } catch (error) {
+    logger?.info(
+      `org.policeconduct.submissions: WARNING — write-back skipped (${
+        error instanceof Error ? error.message.split("\n")[0] : String(error)
+      }).`,
+    );
+  }
+
+  logger?.info(`org.policeconduct.submissions: pulling ${s3Bucket} → local.`);
+  await s3Sync(s3Bucket, bucketDir, profile);
 };

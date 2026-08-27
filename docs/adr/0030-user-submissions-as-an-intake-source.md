@@ -41,13 +41,18 @@ human, not a silent drop.
 Add a source `org.policeconduct.submissions` with the standard acquire→run shape.
 
 **1. acquire owns sync; the publish verdict is a cached human decision.** acquire
-`aws s3 sync`s the bucket down to the sibling folder (`SUBMISSIONS_BUCKET_DIR`) and
-any local changes back up (additively — an up-sync never `--delete`s a real
-submission). The publish verdict is a **human decision cached as a `status/`
-file** (§Context): `approved` publishes, `rejected` is a permanent exclusion,
-everything else holds. The automated AI coherence/site-rules gate is **deferred**;
-until it lands the verdict is set by hand. Either way `run` reads the cached
-verdict and stays deterministic — network and non-determinism never enter `run`.
+`aws s3 sync`s the bucket to the sibling folder (`SUBMISSIONS_BUCKET_DIR`) and
+pushes local curator changes back up. Both directions are **additive** (never
+`--delete`): the local folder holds curator-authored content (status verdicts, the
+seeded submission) that may not round-trip, since the bucket policy can deny
+`PutObject` to this principal — submissions are written by the website pipeline.
+The write-back is therefore **best-effort**: a denied/failed up-sync is warned and
+skipped, never fatal, so a read-only profile still acquires. The publish verdict
+is a **human decision cached as a `status/` file** (§Context): `approved`
+publishes, `rejected` is a permanent exclusion, everything else holds. The
+automated AI coherence/site-rules gate is **deferred**; until it lands the verdict
+is set by hand. Either way `run` reads the cached verdict and stays deterministic
+— network and non-determinism never enter `run`.
 
 **2. run resolves, gates, and emits — deterministically.** run traverses **only
 verified** submissions of the v1 form type (`reportNew`), and for each:
