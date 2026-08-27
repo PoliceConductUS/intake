@@ -37,6 +37,11 @@ export type IntrospectedTable = {
    * kind's own rows root-down (ADR 0033).
    */
   selfReferenceColumn?: string;
+  /**
+   * The primary-key column — the column a mutation keys existing rows on (its
+   * identity in WHERE clauses). Single-column for every entity table.
+   */
+  primaryKeyColumn: string;
   /** Unique constraints (excluding the primary key), each as its column list. */
   uniqueKeys: string[][];
 };
@@ -207,6 +212,26 @@ export async function introspectSchema(
       }
       const uniqueKeys = [...uniqueKeysByName.values()];
 
+      // Primary key — the column a mutation keys existing rows on (its identity).
+      // Single-column for every entity table (a cuid `id`, or a natural key like
+      // location_path.location_path_id / location_path_alias.alias_path).
+      const primaryKeyRows = await client.query<{ column: string }>(
+        `select att.attname as column
+           from pg_constraint con
+           join pg_class rel on rel.oid = con.conrelid
+           join pg_namespace ns on ns.oid = rel.relnamespace
+           join unnest(con.conkey) with ordinality as u(attnum, ord) on true
+           join pg_attribute att
+             on att.attrelid = rel.oid and att.attnum = u.attnum
+          where ns.nspname = 'public' and rel.relname = $1 and con.contype = 'p'
+          order by u.ord`,
+        [table],
+      );
+      const primaryKeyColumn = primaryKeyRows.rows[0]?.column;
+      if (primaryKeyColumn === undefined) {
+        throw new Error(`Table public.${table} has no primary key.`);
+      }
+
       tables.set(table, {
         table,
         columns: columns.rows.map((row) => ({
@@ -220,6 +245,7 @@ export async function introspectSchema(
         references,
         foreignKeys,
         selfReferenceColumn,
+        primaryKeyColumn,
         uniqueKeys,
       });
     }

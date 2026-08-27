@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { buildFacadeForKind } from "../../src/cli/import/artifacts/facades/resolver-registry.js";
+import {
+  buildFacadeForKind,
+  isRegistryKind,
+  identityColumnForKind,
+} from "../../src/cli/import/artifacts/facades/resolver-registry.js";
+import { RECORD_KINDS_IN_DEPENDENCY_ORDER } from "../../src/shared/io/generated/entity-specs.js";
 import type { EntityFacadeBackend } from "../../src/cli/import/artifacts/facades/entity-facade.js";
 
 // A backend whose canonical id is derived from the source id so assertions are
@@ -160,5 +165,26 @@ describe("EntityFacade via the discipline facades", () => {
       discipline_id: "fk:Discipline:0031|PB24-1-01",
       agency_personnel_id: "fk:AgencyPersonnel:0031|a2jALPHA",
     });
+  });
+});
+
+describe("registry coverage and identity", () => {
+  // The generic builder must own every entity kind except the stream-only ones,
+  // so a kind a source emits is never silently dropped for want of a hand-list
+  // entry (the CoverageLinkCivilCase / AgencyLink drift this consolidation fixed).
+  const STREAM_ONLY = new Set(["LocationPathGeometry"]);
+
+  for (const kind of RECORD_KINDS_IN_DEPENDENCY_ORDER) {
+    it(`${kind} is ${STREAM_ONLY.has(kind) ? "stream-only (no facade)" : "buildable by the registry"}`, () => {
+      expect(isRegistryKind(kind)).toBe(!STREAM_ONLY.has(kind));
+    });
+  }
+
+  it("keys self-natural-key tables on their primary-key column", () => {
+    // Independent oracle: these tables' primary keys are natural, not a cuid id.
+    expect(identityColumnForKind("LocationPath")).toBe("location_path_id");
+    expect(identityColumnForKind("LocationPathAlias")).toBe("alias_path");
+    // A cuid-keyed table falls through to the id column.
+    expect(identityColumnForKind("Agency")).toBe("id");
   });
 });

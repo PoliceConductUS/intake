@@ -4,6 +4,8 @@ import {
   FK_REFERENCES,
   RESOLVED_PROPERTIES,
   BUSINESS_KEYS,
+  PRIMARY_KEY_BY_KIND,
+  RECORD_KINDS_IN_DEPENDENCY_ORDER,
 } from "../../../../shared/io/generated/entity-specs.js";
 import { importMutationEnvelopeTypes } from "../io/generated-mutations/index.js";
 import {
@@ -53,8 +55,6 @@ type AnyResolver = Resolver<any, any>;
  * through, and it plans a create-or-update. Only the exceptions live here.
  */
 type KindConfig = {
-  /** Identity/primary-key column (default `id`). */
-  identity?: string;
   /** Whether the identity is a minted canonical id (default) or a source natural key. */
   identityKind?: "canonical" | "natural";
   /** Existing row → a diffed update (default) or an idempotent read. */
@@ -125,7 +125,6 @@ const REGISTRY: Record<string, KindConfig> = {
     },
   },
   LocationPath: {
-    identity: "location_path_id",
     upsert: "read",
     overrides: {
       parent_location_path_id: facadeNullableForeignKeyResolver<Row>(
@@ -136,7 +135,6 @@ const REGISTRY: Record<string, KindConfig> = {
     },
   },
   LocationPathAlias: {
-    identity: "alias_path",
     identityKind: "natural",
     upsert: "read",
     // location_path_id needs no override: the derived FK chain resolves a
@@ -313,7 +311,7 @@ const REGISTRY: Record<string, KindConfig> = {
 
 /** The identity/primary-key column a kind resolves and keys existing rows on. */
 export function identityColumnForKind(kind: string): string {
-  return REGISTRY[kind]?.identity ?? "id";
+  return PRIMARY_KEY_BY_KIND[kind] ?? "id";
 }
 
 /** True when the generic builder can construct this kind. */
@@ -321,32 +319,19 @@ export function isRegistryKind(kind: string): boolean {
   return SUPPORTED_KINDS.has(kind);
 }
 
-// Every persisted entity kind the generic builder owns (LocationPathGeometry is
-// streamed separately and is not a facade).
-const SUPPORTED_KINDS = new Set<string>([
-  "Agency",
-  "Personnel",
-  "LocationPath",
-  "LocationPathAlias",
-  "LicensingAuthority",
-  "AuthorityLicense",
-  "License",
-  "LicenseAction",
-  "AgencyPersonnel",
-  "Discipline",
-  "DisciplineAgencyPersonnel",
-  "CoverageLink",
-  "CoverageLinkAgencyPersonnel",
-  "AgencyPhoneNumber",
-  "FederalAgency",
-  "FederalAgencyBranch",
-  "CivilCase",
-  "CivilCasePersonnel",
-  "CivilCaseLink",
-  "Review",
-  "ReviewPersonnel",
-  "ArrestProfile",
-]);
+// Kinds persisted by a side channel rather than the generic facade builder:
+// LocationPathGeometry is streamed straight to the geometry writer, so it has no
+// facade. Every other entity kind resolves through the registry.
+const STREAM_ONLY_KINDS = new Set<string>(["LocationPathGeometry"]);
+
+// Every persisted entity kind the generic builder owns — all model kinds except
+// the stream-only ones, derived from the generated model so a new entity is
+// covered automatically (never silently dropped for want of a hand-list entry).
+const SUPPORTED_KINDS = new Set<string>(
+  RECORD_KINDS_IN_DEPENDENCY_ORDER.filter(
+    (kind) => !STREAM_ONLY_KINDS.has(kind),
+  ),
+);
 
 function createSpecShapeKeys(kind: string): string[] {
   const spec = (entitySpecs as Record<string, unknown>)[`${kind}CreateSpec`];
@@ -408,7 +393,7 @@ export function buildFacadeForKind(
   },
 ): EntityFacade<Row, unknown> {
   const config = REGISTRY[kind] ?? {};
-  const identity = config.identity ?? "id";
+  const identity = identityColumnForKind(kind);
   const identityKind = config.identityKind ?? "canonical";
   const columns = createSpecShapeKeys(kind).filter(
     (column) => column !== identity,

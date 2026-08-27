@@ -1,29 +1,8 @@
 import type { DatabaseClient } from "./index.js";
 
-export type SupportedTableName =
-  | "public.location_path"
-  | "public.location_path_geometry"
-  | "public.location_path_alias"
-  | "public.agency"
-  | "public.personnel"
-  | "public.agency_personnel"
-  | "public.licensing_authority"
-  | "public.authority_license"
-  | "public.license"
-  | "public.license_action"
-  | "public.discipline"
-  | "public.discipline_agency_personnel"
-  | "public.coverage_links"
-  | "public.coverage_link_agency_personnel"
-  | "public.agency_phone_numbers"
-  | "public.federal_agency"
-  | "public.federal_agency_branch"
-  | "public.civil_cases"
-  | "public.civil_case_personnel"
-  | "public.civil_case_links"
-  | "public.reviews"
-  | "public.review_personnel"
-  | "public.arrest_profile";
+// The whitelist of writable/readable entity tables is generated from the schema
+// (one union per entity table) so it can never drift from the model.
+export type { SupportedTableName } from "../../shared/io/generated/entity-specs.js";
 
 export type ImportDatabaseSchema = {
   appliedMigrations: {

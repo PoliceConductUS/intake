@@ -227,6 +227,67 @@ export const TABLE_BY_KIND: Record<string, string> = {
   ArrestProfile: "public.arrest_profile",
 };
 
+// Every entity table the database layer may read or write — the compile-time
+// whitelist that keeps ad-hoc SQL off arbitrary tables (see the database-boundary
+// test). Derived from TABLE_BY_KIND so the two never drift.
+export type SupportedTableName =
+  | "public.location_path"
+  | "public.location_path_geometry"
+  | "public.location_path_alias"
+  | "public.agency"
+  | "public.personnel"
+  | "public.agency_personnel"
+  | "public.licensing_authority"
+  | "public.authority_license"
+  | "public.license"
+  | "public.license_action"
+  | "public.discipline"
+  | "public.discipline_agency_personnel"
+  | "public.coverage_links"
+  | "public.coverage_link_agency_personnel"
+  | "public.agency_phone_numbers"
+  | "public.agency_links"
+  | "public.federal_agency"
+  | "public.federal_agency_branch"
+  | "public.civil_cases"
+  | "public.civil_case_personnel"
+  | "public.civil_case_links"
+  | "public.coverage_link_civil_cases"
+  | "public.reviews"
+  | "public.review_personnel"
+  | "public.arrest_profile";
+
+// Each record kind's primary-key column — the column a mutation keys existing
+// rows on (its identity in WHERE clauses). `id` for most tables; a natural key
+// for a few (location_path.location_path_id, location_path_alias.alias_path).
+export const PRIMARY_KEY_BY_KIND: Record<string, string> = {
+  LocationPath: "location_path_id",
+  LocationPathGeometry: "location_path_id",
+  LocationPathAlias: "alias_path",
+  Agency: "id",
+  Personnel: "id",
+  AgencyPersonnel: "id",
+  LicensingAuthority: "id",
+  AuthorityLicense: "id",
+  License: "id",
+  LicenseAction: "id",
+  Discipline: "id",
+  DisciplineAgencyPersonnel: "id",
+  CoverageLink: "id",
+  CoverageLinkAgencyPersonnel: "id",
+  AgencyPhoneNumber: "id",
+  AgencyLink: "id",
+  FederalAgency: "id",
+  FederalAgencyBranch: "id",
+  CivilCase: "id",
+  CivilCasePersonnel: "id",
+  CivilCaseLink: "id",
+  CoverageLinkCivilCase: "id",
+  Review: "id",
+  ReviewPersonnel: "id",
+  ArrestProfile: "id",
+};
+
 // Import artifact metadata per kind: kind/entityName naming plus the FK-derived
 // dependency graph (dependsOn), with no hand-maintained edges. This is the single
 // source of truth for what is importable — it can never drift from the entity

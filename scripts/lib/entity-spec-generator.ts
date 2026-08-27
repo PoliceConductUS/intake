@@ -349,6 +349,22 @@ function selfReferences(schema: IntrospectedSchema): Record<string, string> {
   return references;
 }
 
+/**
+ * Each record kind's primary-key column — the column a mutation keys existing
+ * rows on (its identity in WHERE clauses). `id` for most tables; a natural key
+ * for a few (location_path.location_path_id, location_path_alias.alias_path).
+ */
+function primaryKeyColumns(schema: IntrospectedSchema): Record<string, string> {
+  const columns: Record<string, string> = {};
+  for (const descriptor of DESCRIPTORS) {
+    const table = schema.tables.get(descriptor.table);
+    if (table !== undefined) {
+      columns[descriptor.recordKind] = table.primaryKeyColumn;
+    }
+  }
+  return columns;
+}
+
 // Each record kind's business key = the columns of its single (non-PK) unique
 // constraint. A kind with none keeps ledger/source-id minting; a kind with more
 // than one is ambiguous and fails loud (the model must declare one natural key).
@@ -759,6 +775,21 @@ export const TABLE_BY_KIND: Record<string, string> = ${JSON.stringify(
         `public.${descriptor.table}`,
       ]),
     ),
+  )};
+
+// Every entity table the database layer may read or write — the compile-time
+// whitelist that keeps ad-hoc SQL off arbitrary tables (see the database-boundary
+// test). Derived from TABLE_BY_KIND so the two never drift.
+export type SupportedTableName =
+${DESCRIPTORS.map((descriptor) => `  | "public.${descriptor.table}"`).join(
+  "\n",
+)};
+
+// Each record kind's primary-key column — the column a mutation keys existing
+// rows on (its identity in WHERE clauses). \`id\` for most tables; a natural key
+// for a few (location_path.location_path_id, location_path_alias.alias_path).
+export const PRIMARY_KEY_BY_KIND: Record<string, string> = ${JSON.stringify(
+    primaryKeyColumns(schema),
   )};
 
 // Import artifact metadata per kind: kind/entityName naming plus the FK-derived

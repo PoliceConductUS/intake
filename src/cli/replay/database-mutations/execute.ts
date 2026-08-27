@@ -9,6 +9,10 @@ import {
   locationPathCentroidGeoJson,
 } from "../../database/location-path-spatial.js";
 import type { SupportedTableName } from "../../database/schema.js";
+import {
+  PRIMARY_KEY_BY_KIND,
+  TABLE_BY_KIND,
+} from "../../../shared/io/generated/entity-specs.js";
 import { valuesEqual } from "../../../shared/values-equal.js";
 import path from "node:path";
 import {
@@ -34,112 +38,17 @@ type DatabaseMutationMetadata = {
   keyColumnName: string;
 };
 
-const databaseMutationMetadataByRecordKind: Record<
-  string,
-  DatabaseMutationMetadata
-> = {
-  LocationPath: {
-    tableName: "public.location_path",
-    keyColumnName: "location_path_id",
-  },
-  LocationPathGeometry: {
-    tableName: "public.location_path_geometry",
-    keyColumnName: "location_path_id",
-  },
-  LocationPathAlias: {
-    tableName: "public.location_path_alias",
-    keyColumnName: "alias_path",
-  },
-  Agency: {
-    tableName: "public.agency",
-    keyColumnName: "id",
-  },
-  Personnel: {
-    tableName: "public.personnel",
-    keyColumnName: "id",
-  },
-  AgencyPersonnel: {
-    tableName: "public.agency_personnel",
-    keyColumnName: "id",
-  },
-  LicensingAuthority: {
-    tableName: "public.licensing_authority",
-    keyColumnName: "id",
-  },
-  AuthorityLicense: {
-    tableName: "public.authority_license",
-    keyColumnName: "id",
-  },
-  License: {
-    tableName: "public.license",
-    keyColumnName: "id",
-  },
-  LicenseAction: {
-    tableName: "public.license_action",
-    keyColumnName: "id",
-  },
-  Discipline: {
-    tableName: "public.discipline",
-    keyColumnName: "id",
-  },
-  DisciplineAgencyPersonnel: {
-    tableName: "public.discipline_agency_personnel",
-    keyColumnName: "id",
-  },
-  CoverageLink: {
-    tableName: "public.coverage_links",
-    keyColumnName: "id",
-  },
-  CoverageLinkAgencyPersonnel: {
-    tableName: "public.coverage_link_agency_personnel",
-    keyColumnName: "id",
-  },
-  AgencyPhoneNumber: {
-    tableName: "public.agency_phone_numbers",
-    keyColumnName: "id",
-  },
-  FederalAgency: {
-    tableName: "public.federal_agency",
-    keyColumnName: "id",
-  },
-  FederalAgencyBranch: {
-    tableName: "public.federal_agency_branch",
-    keyColumnName: "id",
-  },
-  CivilCase: {
-    tableName: "public.civil_cases",
-    keyColumnName: "id",
-  },
-  CivilCasePersonnel: {
-    tableName: "public.civil_case_personnel",
-    keyColumnName: "id",
-  },
-  CivilCaseLink: {
-    tableName: "public.civil_case_links",
-    keyColumnName: "id",
-  },
-  Review: {
-    tableName: "public.reviews",
-    keyColumnName: "id",
-  },
-  ReviewPersonnel: {
-    tableName: "public.review_personnel",
-    keyColumnName: "id",
-  },
-  ArrestProfile: {
-    tableName: "public.arrest_profile",
-    keyColumnName: "id",
-  },
-} satisfies Record<string, DatabaseMutationMetadata>;
-
+// A kind's table and primary-key column both come from the generated model
+// (TABLE_BY_KIND / PRIMARY_KEY_BY_KIND), so this can never drift from the schema.
 function databaseMutationMetadata(
   recordKind: string,
 ): DatabaseMutationMetadata {
-  const metadata = databaseMutationMetadataByRecordKind[recordKind];
-  if (metadata === undefined) {
+  const tableName = TABLE_BY_KIND[recordKind];
+  const keyColumnName = PRIMARY_KEY_BY_KIND[recordKind];
+  if (tableName === undefined || keyColumnName === undefined) {
     throw new Error(`Unsupported DatabaseMutation record kind: ${recordKind}`);
   }
-  return metadata;
+  return { tableName: tableName as SupportedTableName, keyColumnName };
 }
 
 function assertExpectedValue(

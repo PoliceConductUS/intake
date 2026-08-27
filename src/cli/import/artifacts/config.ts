@@ -108,8 +108,8 @@ function addSourceFacades(
   const namespace = artifacts.metadata.namespace;
   for (const artifactKind of IMPORT_ARTIFACT_KINDS) {
     const recordKind = importTypeMetadata[artifactKind].recordKind;
-    // LocationPathGeometry (streamed separately) is the only artifact kind with
-    // no facade; every other kind resolves through the registry.
+    // Stream-only kinds (LocationPathGeometry) have no facade; every other kind
+    // resolves through the registry (see STREAM_ONLY_KINDS in resolver-registry).
     if (!isRegistryKind(recordKind)) {
       continue;
     }
