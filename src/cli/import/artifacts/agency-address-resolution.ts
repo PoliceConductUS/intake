@@ -110,10 +110,10 @@ export async function resolveImportAddress(
   input: AddressResolutionRequest,
   options: AgencyAddressResolutionOptions,
 ): Promise<AddressResolution | undefined> {
-  if (
-    input.entityType !== "agency" ||
-    options.resolveAgencyCoordinates === undefined
-  ) {
+  // The coordinate resolver is a generic geocoder (address → point); any
+  // address-bearing entity uses it — agency and review alike (ADR 0030). Absent a
+  // geocoder there is nothing to resolve.
+  if (options.resolveAgencyCoordinates === undefined) {
     return undefined;
   }
 
@@ -134,7 +134,7 @@ export async function resolveImportAddress(
     !Number.isFinite(coordinateResolution.longitude)
   ) {
     throw new Error(
-      `Cannot resolve coordinates for public.agency ${input.entityId} from ${locationDescription(input)}.`,
+      `Cannot resolve coordinates for ${input.entityType} ${input.entityId} from ${locationDescription(input)}.`,
     );
   }
   return {
