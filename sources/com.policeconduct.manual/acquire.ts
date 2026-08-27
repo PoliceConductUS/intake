@@ -16,6 +16,8 @@ async function interview(
   const model = describeKind(kind);
   const record: Record<string, unknown> = {};
   for (const field of model.fields) {
+    // A foreign key is entered as its target's source id. For a LocationPath that
+    // is its path (e.g. /mn/ramsey-county/saint-paul/); import resolves by path.
     const label = field.targetKind
       ? `${field.name} [${field.targetKind} source id]`
       : field.name;

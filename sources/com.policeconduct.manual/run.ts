@@ -10,6 +10,11 @@ import { artifactKindFor, PRODUCES } from "./kinds.js";
 
 export const produces: readonly ImportArtifactKind[] = PRODUCES;
 
+// A manual curation source: run alone to stage creates/updates into the database
+// (e.g. a location alias that fixes a misspelled city), then re-run the group
+// import that needed it. Excluded from multi-source group runs (ADR 0031).
+export const standalone = true;
+
 // Emit the latest curated records (ADR 0031) as artifacts, grouped by kind and
 // keyed by each record's identity column (from the shared model). Import resolves
 // FKs and identity as for any other source.

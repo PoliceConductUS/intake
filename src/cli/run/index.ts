@@ -16,7 +16,11 @@ import type {
 } from "../../shared/cli/types.js";
 import { buildArtifactsEnvelope } from "./source-run.js";
 import type { SourceManifest } from "./source-run.js";
-import { loadSourceModule, loadSourceProduces } from "./load-source-module.js";
+import {
+  loadSourceModule,
+  loadSourceProduces,
+  loadSourceStandalone,
+} from "./load-source-module.js";
 import { planSourceOrder } from "./source-order.js";
 import { defaultDatabaseClientFactory } from "../database/index.js";
 import { createSourceNameToCanonicalIdLedger } from "../state/source-name-to-canonical-id/index.js";
@@ -259,14 +263,26 @@ export const registerCliCommand: RegisterCliCommand = (
         const sourcesRoot = path.join(process.cwd(), "sources");
         try {
           const workspace = intakeWorkspace(env);
-          const matchedIds = await matchSourceIds(sourcesRoot, glob);
-          if (matchedIds.length === 0) {
+          const allMatchedIds = await matchSourceIds(sourcesRoot, glob);
+          if (allMatchedIds.length === 0) {
             dependencies.setResult({
               exitCode: 1,
               stderr: `No source folder under sources/ matches "${glob}".\n`,
             });
             return;
           }
+          // A standalone source (manual curation) is a manual intervention, run on
+          // its own — excluded from a multi-source group run, kept when named alone.
+          const standaloneFlags = await Promise.all(
+            allMatchedIds.map((id) => loadSourceStandalone(id, sourcesRoot)),
+          );
+          const excludedStandalone =
+            allMatchedIds.length > 1
+              ? allMatchedIds.filter((_, index) => standaloneFlags[index])
+              : [];
+          const matchedIds = allMatchedIds.filter(
+            (id) => !excludedStandalone.includes(id),
+          );
 
           // Dependency-correct order from declared produces (ADR 0021);
           // missing produces or a cycle fails loud before any source runs.
@@ -294,6 +310,11 @@ export const registerCliCommand: RegisterCliCommand = (
           }
           if (skipped.length > 0) {
             logger.info(`skipped: ${skipped.join(", ")} (produces nothing)`);
+          }
+          if (excludedStandalone.length > 0) {
+            logger.info(
+              `excluded: ${excludedStandalone.join(", ")} (standalone; run alone)`,
+            );
           }
           const stdout: string[] = [];
           for (const sourceId of order) {

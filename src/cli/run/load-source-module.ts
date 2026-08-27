@@ -85,6 +85,24 @@ export async function loadSourceProduces(
   return produces as ImportArtifactKind[];
 }
 
+// A standalone source (e.g. com.policeconduct.manual) is a manual intervention —
+// run on its own to stage creates/updates into the database between group runs —
+// so it is excluded from a multi-source group run. Default false.
+export async function loadSourceStandalone(
+  sourceId: string,
+  sourcesRoot: string,
+): Promise<boolean> {
+  assertValidSourceId(sourceId);
+  const modulePath = sourcePhasePath(sourceId, sourcesRoot, "run");
+  if (!(await fileExists(modulePath))) {
+    throw new Error(`Unknown source id: no run module at ${modulePath}`);
+  }
+  const module = (await import(pathToFileURL(modulePath).href)) as {
+    standalone?: unknown;
+  };
+  return module.standalone === true;
+}
+
 // Load a source's optional acquire (download/scrape) phase. A source with no
 // acquire.ts is a valid source that simply does not support acquire.
 export async function loadSourceAcquire(

@@ -2,10 +2,12 @@ import type { DatabaseClient } from "../database/index.js";
 import type {
   AcquireAgencyPage,
   AcquireDataContext,
+  AcquireSearchResult,
 } from "../run/source-run.js";
 import type { SourceNameToCanonicalIdLedger } from "../state/source-name-to-canonical-id/index.js";
 
 const DEFAULT_LIMIT = 100;
+const SEARCH_LIMIT = 20;
 
 function resultRows(result: unknown): Record<string, unknown>[] {
   return typeof result === "object" &&
@@ -103,6 +105,47 @@ export function createAcquireDataContext(
             ? encodeCursor(Number(last.officer_count), String(last.id))
             : undefined,
       };
+    },
+
+    async search(kind, query): Promise<AcquireSearchResult[]> {
+      const like = `%${query.trim()}%`;
+      // LocationPath is not ledger-mapped: its `path` IS the reference the import
+      // resolves by (ADR 0031). Every other kind exchanges its canonical id for a
+      // namespace-local source id via the ledger, so no canonical id leaves.
+      if (kind === "LocationPath") {
+        return resultRows(
+          await client.query(
+            `select path, display_name, level from location_path
+              where display_name ilike $1 or path ilike $1
+              order by level, path limit ${SEARCH_LIMIT}`,
+            [like],
+          ),
+        ).map((row) => ({
+          sourceId: String(row.path),
+          label: `${String(row.display_name)} — ${String(row.path)} [${String(row.level)}]`,
+        }));
+      }
+      if (kind === "Agency") {
+        return Promise.all(
+          resultRows(
+            await client.query(
+              `select id, name, state from agency where name ilike $1
+                order by name limit ${SEARCH_LIMIT}`,
+              [like],
+            ),
+          ).map(async (row) => ({
+            sourceId: await ledger.sourceIdFor(
+              namespace,
+              "Agency",
+              String(row.id),
+            ),
+            label: `${String(row.name)}, ${String(row.state)}`,
+          })),
+        );
+      }
+      throw new Error(
+        `AcquireDataContext.search does not support kind ${kind} yet.`,
+      );
     },
   };
 }

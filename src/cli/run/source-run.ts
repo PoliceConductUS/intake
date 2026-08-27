@@ -86,6 +86,14 @@ export type AcquireDataContext = {
     cursor?: string;
     limit?: number;
   }): Promise<AcquireAgencyPage>;
+  /**
+   * Search already-imported records of `kind` for `query`, returning candidates a
+   * human picks a reference from (ADR 0023/0031). Each candidate's `sourceId` is
+   * namespace-local — minted from its canonical id via the ledger, except
+   * LocationPath (not ledger-mapped), whose `path` is its source id. Optional so a
+   * source that never resolves references need not implement it.
+   */
+  search?(kind: string, query: string): Promise<AcquireSearchResult[]>;
 };
 
 export type AcquireDeps = {
