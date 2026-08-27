@@ -131,23 +131,31 @@ async function sourceInputPaths(inputDir: string): Promise<string[]> {
   return (await collect(inputDir)).sort();
 }
 
-export async function runSource(
+/**
+ * The transform phase (`data transform`): run a source's run.ts to produce its
+ * Artifacts and write the envelope, resolving against the live database as needed —
+ * but stop before the import. Returns the written Artifacts path, or a command-error
+ * result. The import (diff → chain) is the separate `data generate` phase.
+ */
+export async function transformSource(
   sourceId: string,
   paths: string[],
-  options: { dryRun?: boolean; standalone?: boolean },
+  options: { standalone?: boolean },
   deps: RunSourceDeps,
-): Promise<CommandResult> {
+): Promise<{ artifactsPath: string } | { error: CommandResult }> {
   // A standalone (manual curation) source reads its records from state, not input
   // paths, so it runs with none; every other source requires at least one path.
   if (paths.length === 0 && options.standalone !== true) {
-    return { exitCode: 1, stderr: "intake run requires at least one path\n" };
+    return {
+      error: { exitCode: 1, stderr: "intake transform requires at least one path\n" },
+    };
   }
 
   let run;
   try {
     run = await deps.loadSourceModule(sourceId, deps.sourcesRoot);
   } catch (error) {
-    return { exitCode: 1, stderr: `${errorMessage(error)}\n` };
+    return { error: { exitCode: 1, stderr: `${errorMessage(error)}\n` } };
   }
 
   try {
@@ -216,8 +224,10 @@ export async function runSource(
     const undeclared = [...emitted].filter((kind) => !declared.has(kind));
     if (undeclared.length > 0) {
       return {
-        exitCode: 1,
-        stderr: `Source ${sourceId} emitted undeclared kind(s): ${undeclared.join(", ")}\n`,
+        error: {
+          exitCode: 1,
+          stderr: `Source ${sourceId} emitted undeclared kind(s): ${undeclared.join(", ")}\n`,
+        },
       };
     }
     const { path: artifactsPath } = await deps.writeEnvelope(
@@ -227,12 +237,29 @@ export async function runSource(
       filteredManifest,
       refItems,
     );
-    return await deps.runImport(artifactsPath, {
-      dryImport: options.dryRun,
-    });
+    return { artifactsPath };
   } catch (error) {
-    return { exitCode: 1, stderr: `${errorMessage(error)}\n` };
+    return { error: { exitCode: 1, stderr: `${errorMessage(error)}\n` } };
   }
+}
+
+/**
+ * Run a source and import it in one shot (transform + generate/migrate). Retained
+ * as the composition of the two phases; the CLI drives the phases separately.
+ */
+export async function runSource(
+  sourceId: string,
+  paths: string[],
+  options: { dryRun?: boolean; standalone?: boolean },
+  deps: RunSourceDeps,
+): Promise<CommandResult> {
+  const transformed = await transformSource(sourceId, paths, options, deps);
+  if ("error" in transformed) {
+    return transformed.error;
+  }
+  return deps.runImport(transformed.artifactsPath, {
+    dryImport: options.dryRun,
+  });
 }
 
 export const registerCliCommand: RegisterCliCommand = (
