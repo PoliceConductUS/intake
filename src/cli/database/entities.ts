@@ -46,6 +46,29 @@ export async function readDatabaseRecordByColumns(
   )[0];
 }
 
+// Every row whose given columns all hold the given values — like
+// readDatabaseRecordByColumns but without a `limit`, so a selector resolver can
+// see when more than one row matches and fail loud (resolve-or-fail, exactly one).
+export async function readDatabaseRecordsByColumns(
+  client: DatabaseClient,
+  tableName: SupportedTableName,
+  values: Record<string, unknown>,
+): Promise<Record<string, unknown>[]> {
+  const columns = Object.keys(values);
+  if (columns.length === 0) {
+    return [];
+  }
+  const where = columns
+    .map((column, index) => `${column} = $${index + 1}`)
+    .join(" and ");
+  return rowsFromResult(
+    await client.query(
+      `select * from ${tableName} where ${where}`,
+      columns.map((column) => values[column]),
+    ),
+  );
+}
+
 export async function readDatabaseRecordsByColumn(
   client: DatabaseClient,
   tableName: SupportedTableName,
