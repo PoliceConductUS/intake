@@ -75,6 +75,13 @@ a **run-output review-report file** (the source's output), listing the submissio
 the AI verdict, and what failed to resolve. Nothing enters the database until a
 human acts on it. This is the source's second output, alongside the artifacts.
 
+**3a. Submitter prose is stored verbatim.** The narrative fields (`title`,
+`what_happened`, `desired_outcome`, `charges`, …) are written exactly as entered
+— no casing, normalization, summarizing, or rewording. Resolution and the AI gate
+act _around_ the prose (deciding publish/hold/flag, resolving officers/location),
+never _on_ it. Mechanically this is the facade default (verbatim pass-through):
+narrative columns carry no normalizing resolver, unlike agency `name`/`city`.
+
 **4. Submitter PII never persists** (ADR 0029 §3). `reporterName` /
 `reporterEmail` / `reporterPhone`, `sourceIp`, and `userAgent` are used only
 transiently (verification is already done off-database, in the bucket's `verify/`

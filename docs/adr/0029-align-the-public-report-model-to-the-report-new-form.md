@@ -98,8 +98,10 @@ Cross-repo and **phased**, drop last:
    rewrites the report display to the new narrative model. The generic capture
    endpoint already exists, so this is resolution + display, not a new endpoint.
    Any existing rubric/trait report content is transformed onto the narrative
-   model (mapped into `what_happened` etc.) as a one-time production backfill —
-   never silently discarded.
+   model as a one-time production backfill — the agency-officer/trait/question/
+   response/rubric link is converted into one or more narrative fields
+   (`what_happened` etc.) **verbatim**, never reworded and never silently
+   discarded.
 3. **Dropped intake-side (done).** The old models are retired in intake now,
    decoupled from the website (the schema is intake-owned; the website's reads of
    these tables are updated separately and are not a blocker):
