@@ -87,10 +87,10 @@ narrative columns carry no normalizing resolver, unlike agency `name`/`city`.
 transiently (verification is already done off-database, in the bucket's `verify/`
 records); none becomes a database column or artifact field.
 
-**5. Old-model `traits` are transformed, not stored.** A `reportNew` submission's
-`officers[].traits` is the retired rubric/trait model (ADR 0029); it is folded
-into the narrative report (`what_happened` etc.), never persisted as trait ratings
-(the scoring tables are being dropped).
+**5. Old-model `traits` are deprecated and ignored.** A `reportNew` submission's
+`officers[].traits` is the retired rubric/trait model (ADR 0029); the scoring
+tables are dropped, so the source never reads or stores it — it resolves the
+officer from `name` + `department` and keeps the submitter's narrative prose.
 
 **6. v1 scope is `reportNew` only.** The other publication-content forms
 (`personnelNew`, `civilLitigationNew`, `officerEdit`, `agencyEdit`) need
@@ -106,9 +106,10 @@ Prerequisites, then the source:
    kind exists yet. Add `Review` + `ReviewPersonnel` entity descriptors and
    regenerate specs/mutations/facades/resolvers (ADR 0026). The report targets the
    ADR 0029 narrative columns.
-2. **New run resolvers.** RunDataContext today has `resolvePersonnel` and
-   `resolveCivilCase`; add `resolveAgency` and `resolveLocationPath`
-   (resolve-or-fail, ADR 0023 — mapped source ids out, never canonical ids).
+2. **New run resolver.** RunDataContext today has `resolvePersonnel` and
+   `resolveCivilCase`; add `resolveAgency` (resolve-or-fail, ADR 0023 — a mapped
+   source id out, never a canonical id). Location is not a run resolver: it
+   geocodes at import through the shared agency path (§2).
 3. **acquire:** sync + AI-analyze-and-cache the verified submissions.
 4. **run:** verified-`reportNew` traversal → resolve → AI gate → emit
    `Review`/`ReviewPersonnel` for publishable, review-report file for the rest.
