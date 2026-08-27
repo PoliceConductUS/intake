@@ -8,6 +8,7 @@ import { slugify } from "../lib/civil-defendants.js";
 import {
   createYoutubeApi,
   isQuotaExhaustedBody,
+  quotaResetHint,
   YoutubeQuotaError,
 } from "../lib/youtube.js";
 import {
@@ -69,7 +70,7 @@ export const acquire: SourceAcquire = async ({
       if (response.ok) return body as Record<string, unknown>;
       if (isQuotaExhaustedBody(body)) {
         throw new YoutubeQuotaError(
-          `youtube.policeactivity: YouTube quota exhausted (${response.status}); stopping (resumes next run).`,
+          `youtube.policeactivity: YouTube quota exhausted (${response.status}); ${quotaResetHint(body, new Date())}. Stopping (resumes next run).`,
         );
       }
       const retryable = response.status === 429 || response.status >= 500;

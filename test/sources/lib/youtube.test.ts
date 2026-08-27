@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   createYoutubeApi,
   isQuotaExhaustedBody,
+  quotaResetHint,
   videoUrl,
 } from "../../../sources/lib/youtube.js";
 
@@ -36,6 +37,23 @@ describe("isQuotaExhaustedBody", () => {
     expect(
       isQuotaExhaustedBody({ error: { status: "RESOURCE_EXHAUSTED" } }),
     ).toBe(true);
+  });
+
+  it("names the next Pacific-midnight reset date, by reason", () => {
+    // 2026-08-26T12:00Z is 2026-08-26 in Pacific (PDT), so the daily quota resets
+    // the next Pacific midnight, 2026-08-27. Oracle: the calendar date after the
+    // Pacific date of `now`, independent of the formatter under test.
+    const now = new Date("2026-08-26T12:00:00Z");
+    expect(
+      quotaResetHint({ error: { errors: [{ reason: "quotaExceeded" }] } }, now),
+    ).toBe("daily quota — resets at 00:00 America/Los_Angeles (2026-08-27)");
+
+    const rate = quotaResetHint(
+      { error: { errors: [{ reason: "rateLimitExceeded" }] }, status: 429 },
+      now,
+    );
+    expect(rate).toContain("per-minute Search cap");
+    expect(rate).toContain("2026-08-27");
   });
 
   it("is false for other errors and non-error bodies", () => {

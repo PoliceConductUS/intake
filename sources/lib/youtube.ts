@@ -62,6 +62,38 @@ export function isQuotaExhaustedBody(body: unknown): boolean {
   );
 }
 
+// The next midnight Pacific (America/Los_Angeles) as a YYYY-MM-DD date — when the
+// YouTube DAILY quota resets. DST-aware via Intl; the response carries no reset
+// timestamp, so it is computed, not read.
+function nextPacificResetDate(now: Date): string {
+  const pacificToday = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles",
+  }).format(now);
+  const [year, month, day] = pacificToday.split("-").map(Number);
+  const tomorrow = new Date(Date.UTC(year, month - 1, day + 1));
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "UTC" }).format(tomorrow);
+}
+
+/**
+ * A human hint about when an exhausted quota resets, chosen by the error's reason
+ * — the daily budget resets at midnight Pacific; the per-minute Search cap resets
+ * within a minute (but persistent failures mean the daily budget is spent/too
+ * low). Google returns no reset timestamp, so the daily time is computed.
+ */
+export function quotaResetHint(body: unknown, now: Date): string {
+  const error = record(record(body).error);
+  const reasons = (Array.isArray(error.errors) ? error.errors : []).map(
+    (entry) => str(record(entry).reason),
+  );
+  const isDaily = reasons.some(
+    (reason) => reason === "quotaExceeded" || reason === "dailyLimitExceeded",
+  );
+  if (isDaily) {
+    return `daily quota — resets at 00:00 America/Los_Angeles (${nextPacificResetDate(now)})`;
+  }
+  return `per-minute Search cap — resets within ~60s, but persistent failures mean the project's daily Search quota is spent or too low: raise it in the Cloud console or wait for the 00:00 America/Los_Angeles reset (${nextPacificResetDate(now)})`;
+}
+
 export function videoUrl(videoId: string): string {
   return `https://www.youtube.com/watch?v=${videoId}`;
 }
