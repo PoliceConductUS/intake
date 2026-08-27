@@ -90,7 +90,7 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-async function sourceInputDir(
+export async function sourceInputDir(
   workspace: string,
   sourceId: string,
 ): Promise<string> {
@@ -111,7 +111,7 @@ async function sourceInputDir(
   return path.join(workspace, latest);
 }
 
-async function sourceInputPaths(inputDir: string): Promise<string[]> {
+export async function sourceInputPaths(inputDir: string): Promise<string[]> {
   const collect = async (dir: string): Promise<string[]> => {
     let entries;
     try {

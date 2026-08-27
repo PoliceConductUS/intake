@@ -15,6 +15,16 @@ import {
   status,
   verify,
 } from "./chain.js";
+import {
+  generateOneSource,
+  isSourceId,
+  orderedSourceIds,
+  transformOneSource,
+} from "./source-pipeline.js";
+
+const consoleLogger = {
+  info: (message: string) => process.stderr.write(`${message}\n`),
+};
 
 function errorResult(error: unknown): CommandResult {
   return {
@@ -50,18 +60,57 @@ export function registerCliCommand(
     .description("The ordered, replayable data-mutation chain (ADR 0033).");
 
   group
+    .command("transform")
+    .description(
+      "Run a source's run.ts against its latest acquired input to produce its Artifacts (no chain, no apply).",
+    )
+    .argument("<source>", "source id under sources/")
+    .action(async (source: string): Promise<void> => {
+      try {
+        const result = await transformOneSource(source, process.env, consoleLogger);
+        dependencies.setResult(
+          "error" in result
+            ? result.error
+            : {
+                exitCode: 0,
+                stdout: `data: transformed ${source} → ${result.artifactsPath}\n`,
+              },
+        );
+      } catch (error) {
+        dependencies.setResult(errorResult(error));
+      }
+    });
+
+  group
     .command("generate")
     .description(
-      "Append the next chain entrie(s). With no file, discover the latest `run --dry-run` output for each source and append the ones not yet in the chain, in the order produced. With a file, append that one DatabaseMutations envelope.",
+      "Append the next chain entry. With a <source>, import its latest transform Artifacts (diff vs the database at head) and append the delta. With a file, append that DatabaseMutations envelope. With nothing, append every source's latest output not yet in the chain.",
     )
     .argument(
-      "[mutations-file]",
-      "path to a run's DatabaseMutations envelope; omit to batch-append every source's latest output",
+      "[source-or-file]",
+      "a source id (import its latest transform Artifacts), a DatabaseMutations envelope path, or omit to batch-append",
     )
-    .action(async (mutationsFile: string | undefined): Promise<void> => {
+    .action(async (target: string | undefined): Promise<void> => {
       try {
         await withClient((client) => assertAtHead(client));
-        if (mutationsFile === undefined) {
+        if (target !== undefined && (await isSourceId(target))) {
+          const result = await generateOneSource(target, process.env);
+          dependencies.setResult(
+            "error" in result
+              ? result.error
+              : result.version === undefined
+                ? {
+                    exitCode: 0,
+                    stdout: `data: ${target} — empty diff, nothing appended.\n`,
+                  }
+                : {
+                    exitCode: 0,
+                    stdout: `data: appended ${result.version} ${target} (${result.mutationCount} mutations).\n`,
+                  },
+          );
+          return;
+        }
+        if (target === undefined) {
           const { appended, skipped } = await generateFromLatestRunOutputs();
           const lines = [
             ...appended.map(
@@ -81,13 +130,10 @@ export function registerCliCommand(
           });
           return;
         }
-        const { written, mutationCount } = await generateEntry(mutationsFile);
+        const { written, mutationCount } = await generateEntry(target);
         dependencies.setResult(
           written === undefined
-            ? {
-                exitCode: 0,
-                stdout: "data: empty diff — nothing appended.\n",
-              }
+            ? { exitCode: 0, stdout: "data: empty diff — nothing appended.\n" }
             : {
                 exitCode: 0,
                 stdout: `data: appended ${written} (${mutationCount} mutations).\n`,
@@ -158,6 +204,56 @@ export function registerCliCommand(
                 stderr: `data: checksum drift on applied entries: ${drift.join(", ")}.\n`,
               },
         );
+      } catch (error) {
+        dependencies.setResult(errorResult(error));
+      }
+    });
+
+  group
+    .command("rebuild")
+    .description(
+      "Rebuild the chain from sources: for each source in dependency order, transform → generate → up. Assumes an externally-migrated database (typically blank); a producer is applied before a consumer transforms against it.",
+    )
+    .action(async (): Promise<void> => {
+      try {
+        const done: string[] = [];
+        const skipped: string[] = [];
+        for (const source of await orderedSourceIds()) {
+          consoleLogger.info(`${source}: transform`);
+          const transformed = await transformOneSource(
+            source,
+            process.env,
+            consoleLogger,
+          );
+          if ("error" in transformed) {
+            skipped.push(`${source} (transform)`);
+            consoleLogger.info(
+              `  ${source} skipped: ${transformed.error.stderr?.trim() ?? "transform failed"}`,
+            );
+            continue;
+          }
+          await withClient((client) => assertAtHead(client));
+          const generated = await generateOneSource(source, process.env);
+          if ("error" in generated) {
+            skipped.push(`${source} (generate)`);
+            continue;
+          }
+          if (generated.version === undefined) {
+            skipped.push(`${source} (empty)`);
+            continue;
+          }
+          await withClient((client) => applyPending(client, {}));
+          done.push(`${generated.version} ${source}`);
+          consoleLogger.info(`  applied ${generated.version} ${source}`);
+        }
+        dependencies.setResult({
+          exitCode: 0,
+          stdout:
+            `data: rebuilt ${done.length} entrie(s):\n` +
+            done.map((entry) => `  + ${entry}`).join("\n") +
+            (skipped.length > 0 ? `\nskipped: ${skipped.join(", ")}` : "") +
+            "\n",
+        });
       } catch (error) {
         dependencies.setResult(errorResult(error));
       }
