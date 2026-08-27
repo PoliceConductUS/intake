@@ -22,7 +22,8 @@ export type SupportedTableName =
   | "public.civil_case_personnel"
   | "public.civil_case_links"
   | "public.reviews"
-  | "public.review_personnel";
+  | "public.review_personnel"
+  | "public.arrest_profile";
 
 export type ImportDatabaseSchema = {
   appliedMigrations: {

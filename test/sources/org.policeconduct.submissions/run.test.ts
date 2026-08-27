@@ -144,7 +144,9 @@ describe("submissions run", () => {
     expect(review.id).toBe("approved-ok");
     expect(review.title).toBe("First Amendment retaliation arrest");
     // Submitter prose is stored verbatim (ADR 0029).
-    expect(review.description).toBe("The submitter's account, stored verbatim.");
+    expect(review.description).toBe(
+      "The submitter's account, stored verbatim.",
+    );
     expect(review.submitter_relationship).toBe("Directly involved");
     expect(review.incident_date).toBe("2023-12-04");
     // The free-text location yields geocode hints for the Review facade.

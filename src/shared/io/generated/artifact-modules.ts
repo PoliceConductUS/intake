@@ -144,6 +144,12 @@ import {
   read as readReviewPersonnel,
   write as writeReviewPersonnel,
 } from "./ReviewPersonnel.js";
+import {
+  ArrestProfiles,
+  ArrestProfileSpec,
+  read as readArrestProfiles,
+  write as writeArrestProfiles,
+} from "./ArrestProfiles.js";
 
 export const ARTIFACT_MODULES = {
   LocationPaths: {
@@ -289,5 +295,11 @@ export const ARTIFACT_MODULES = {
     recordSpec: ReviewPersonnelSpec,
     read: readReviewPersonnel,
     write: writeReviewPersonnel,
+  },
+  ArrestProfiles: {
+    envelope: ArrestProfiles,
+    recordSpec: ArrestProfileSpec,
+    read: readArrestProfiles,
+    write: writeArrestProfiles,
   },
 } as const;

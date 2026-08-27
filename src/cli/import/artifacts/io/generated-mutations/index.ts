@@ -72,6 +72,9 @@ import { ReviewUpdate } from "./ReviewUpdate.js";
 import { ReviewPersonnelCreate } from "./ReviewPersonnelCreate.js";
 import { ReviewPersonnelRead } from "./ReviewPersonnelRead.js";
 import { ReviewPersonnelUpdate } from "./ReviewPersonnelUpdate.js";
+import { ArrestProfileCreate } from "./ArrestProfileCreate.js";
+import { ArrestProfileRead } from "./ArrestProfileRead.js";
+import { ArrestProfileUpdate } from "./ArrestProfileUpdate.js";
 
 export const importMutationEnvelopeTypes = {
   LocationPathCreate,
@@ -146,4 +149,7 @@ export const importMutationEnvelopeTypes = {
   ReviewPersonnelCreate,
   ReviewPersonnelRead,
   ReviewPersonnelUpdate,
+  ArrestProfileCreate,
+  ArrestProfileRead,
+  ArrestProfileUpdate,
 };

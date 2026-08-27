@@ -32,9 +32,10 @@ export const GENERATED_MIGRATION_VERSIONS = [
   "20260901000000",
   "20260902000000",
   "20260903000000",
+  "20260904000000",
 ] as const;
 export const GENERATED_MIGRATION_FINGERPRINT =
-  "411c744740deb7ea7b944fd39f4ca7145b2d7fa368e067f4cb8e7caf92014d47";
+  "80bb205331345c7557df4e34a35f0fa5d544fd9988090a0ee9118a37e58ed4f4";
 
 // Entity record kinds in database-dependency order (topological sort of the
 // foreign-key graph): a referenced entity precedes its referrer, so mutations
@@ -64,6 +65,7 @@ export const RECORD_KINDS_IN_DEPENDENCY_ORDER = [
   "CoverageLinkCivilCase",
   "Review",
   "ReviewPersonnel",
+  "ArrestProfile",
 ] as const;
 
 // Each record kind's foreign keys to other entity kinds (field → target kind),
@@ -125,6 +127,9 @@ export const FK_REFERENCES: Record<
     { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
     { field: "review_id", targetKind: "Review" },
   ],
+  ArrestProfile: [
+    { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
+  ],
 };
 
 // Each record kind's business/natural key — the columns of its (non-PK) unique
@@ -139,6 +144,7 @@ export const BUSINESS_KEYS: Record<string, readonly string[]> = {
   DisciplineAgencyPersonnel: ["discipline_id", "agency_personnel_id"],
   FederalAgency: ["slug"],
   FederalAgencyBranch: ["agency_id"],
+  ArrestProfile: ["agency_personnel_id"],
 };
 
 // Each record kind's properties resolved during import rather than supplied by
@@ -180,6 +186,7 @@ export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = {
   CoverageLinkCivilCase: ["id"],
   Review: ["id", "slug", "location_path_id", "latitude", "longitude"],
   ReviewPersonnel: ["id"],
+  ArrestProfile: ["id"],
 };
 
 // Each record kind's schema-qualified database table.
@@ -208,6 +215,7 @@ export const TABLE_BY_KIND: Record<string, string> = {
   CoverageLinkCivilCase: "public.coverage_link_civil_cases",
   Review: "public.reviews",
   ReviewPersonnel: "public.review_personnel",
+  ArrestProfile: "public.arrest_profile",
 };
 
 // Import artifact metadata per kind: kind/entityName naming plus the FK-derived
@@ -383,6 +391,13 @@ export const importTypeMetadata = {
     targetTable: "public.review_personnel",
     dependsOn: ["AgencyPersonnel", "Reviews"],
   },
+  ArrestProfiles: {
+    kind: "ArrestProfiles",
+    recordKind: "ArrestProfile",
+    entityName: "arrestProfiles",
+    targetTable: "public.arrest_profile",
+    dependsOn: ["AgencyPersonnel"],
+  },
 } as const;
 
 export type ImportArtifactKind = keyof typeof importTypeMetadata;
@@ -414,6 +429,7 @@ export const IMPORT_ARTIFACT_KINDS = [
   "CoverageLinkCivilCases",
   "Reviews",
   "ReviewPersonnel",
+  "ArrestProfiles",
 ] as const satisfies readonly ImportArtifactKind[];
 
 export type ImportEntityName =
@@ -861,5 +877,18 @@ export const ReviewPersonnelSpec = z
   .strict();
 
 export const ReviewPersonnelCreateSpec = ReviewPersonnelSpec.extend({
+  id: z.string(),
+});
+
+export const ArrestProfileSpec = z
+  .object({
+    id: z.string().optional(),
+    agency_personnel_id: z.string(),
+    coverage: z.record(z.string(), z.unknown()),
+    breakdowns: z.record(z.string(), z.unknown()),
+  })
+  .strict();
+
+export const ArrestProfileCreateSpec = ArrestProfileSpec.extend({
   id: z.string(),
 });

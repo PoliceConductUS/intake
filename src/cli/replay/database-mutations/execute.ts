@@ -125,6 +125,10 @@ const databaseMutationMetadataByRecordKind: Record<
     tableName: "public.review_personnel",
     keyColumnName: "id",
   },
+  ArrestProfile: {
+    tableName: "public.arrest_profile",
+    keyColumnName: "id",
+  },
 } satisfies Record<string, DatabaseMutationMetadata>;
 
 function databaseMutationMetadata(

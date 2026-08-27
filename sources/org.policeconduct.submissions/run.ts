@@ -49,7 +49,9 @@ function locationHints(location: string): {
     .map((part) => part.trim())
     .filter(Boolean);
   const zip = location.match(/\b(\d{5})(?:-\d{4})?\b/)?.[1];
-  const state = location.match(/\b([A-Z]{2})\b(?:\s+\d{5}(?:-\d{4})?)?\s*$/)?.[1];
+  const state = location.match(
+    /\b([A-Z]{2})\b(?:\s+\d{5}(?:-\d{4})?)?\s*$/,
+  )?.[1];
   const city = parts.length >= 2 ? parts[parts.length - 2] : undefined;
   return { address: location, city, state, zip_code: zip };
 }
@@ -68,7 +70,10 @@ async function readStatusVerdicts(
     const record = JSON.parse(
       await readFile(path.join(verifyDir, file), "utf8"),
     ) as { submissionId?: string; verificationId?: string };
-    if (record.verificationId !== undefined && record.submissionId !== undefined) {
+    if (
+      record.verificationId !== undefined &&
+      record.submissionId !== undefined
+    ) {
       byVerificationId.set(record.verificationId, record.submissionId);
     }
   }
@@ -127,7 +132,9 @@ async function resolveOfficers(
     if (officer.name.trim() === "" || officer.department.trim() === "") {
       continue;
     }
-    const agency = await data.resolveAgency?.({ agencyName: officer.department });
+    const agency = await data.resolveAgency?.({
+      agencyName: officer.department,
+    });
     if (agency === undefined || agency === null) {
       continue;
     }

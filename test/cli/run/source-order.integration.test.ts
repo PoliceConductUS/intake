@@ -3,7 +3,10 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { matchSourceIds } from "../../../src/cli/source-glob.js";
 import { loadSourceProduces } from "../../../src/cli/run/load-source-module.js";
-import { consumesOf, planSourceOrder } from "../../../src/cli/run/source-order.js";
+import {
+  consumesOf,
+  planSourceOrder,
+} from "../../../src/cli/run/source-order.js";
 
 const sourcesRoot = path.join(
   path.dirname(fileURLToPath(import.meta.url)),

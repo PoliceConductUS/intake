@@ -293,6 +293,25 @@ const REGISTRY: Record<string, KindConfig> = {
       ) as AnyResolver,
     },
   },
+  ArrestProfile: {
+    // A per-officer arrest profile (ADR 0032). Identity is find-or-mint by the
+    // unique agency_personnel_id business key, so a re-run updates the one row in
+    // place (default "update" upsert — the summary is recomputed each run). The
+    // officer resolves cross-source through the ledger; coverage/breakdowns jsonb
+    // pass through unresolved.
+    identityKind: "natural",
+    overrides: {
+      id: facadeBusinessKeyIdResolver<Row>(
+        "ArrestProfile",
+        BUSINESS_KEYS.ArrestProfile,
+      ) as AnyResolver,
+      agency_personnel_id: facadeLedgerForeignKeyResolver<Row>(
+        "ArrestProfile",
+        "agency_personnel_id",
+        "AgencyPersonnel",
+      ) as AnyResolver,
+    },
+  },
 };
 
 /** The identity/primary-key column a kind resolves and keys existing rows on. */
@@ -329,6 +348,7 @@ const SUPPORTED_KINDS = new Set<string>([
   "CivilCaseLink",
   "Review",
   "ReviewPersonnel",
+  "ArrestProfile",
 ]);
 
 function createSpecShapeKeys(kind: string): string[] {
