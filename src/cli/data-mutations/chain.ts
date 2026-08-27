@@ -12,14 +12,29 @@ import {
   recordDataMutationApplied,
 } from "../database/data-mutation-ledger.js";
 
-// The committed data-mutation chain (ADR 0033). Each entry is a DatabaseMutations
+// The data-mutation chain (ADR 0033/0034). Each entry is a DatabaseMutations
 // envelope stamped with its version and its predecessor's version, so the files
 // form a linked list. Application is tracked in the data_mutation_applied ledger.
-const CHAIN_DIR = "data-mutations";
+// The chain lives in the workspace (`$INTAKE_WORKSPACE/data/mutations`), coupled to
+// the cache/ledger that mints its ids — chain and cache are one lineage (ADR 0034).
+const CHAIN_DIR = "mutations";
 const VERSION_KEY = "data-mutation/version";
 const PREVIOUS_KEY = "data-mutation/previous";
 
-export function chainDir(root: string = process.cwd()): string {
+// The chain's default home: `$INTAKE_WORKSPACE/data`. Callers (tests) may pass an
+// explicit root; the CLI uses this default so the chain sits beside command/ and
+// state/ in the workspace.
+function defaultChainRoot(): string {
+  const workspace = process.env.INTAKE_WORKSPACE;
+  if (workspace === undefined || workspace.trim() === "") {
+    throw new Error(
+      "INTAKE_WORKSPACE is required to locate the data-mutation chain.",
+    );
+  }
+  return path.join(workspace, "data");
+}
+
+export function chainDir(root: string = defaultChainRoot()): string {
   return path.join(root, CHAIN_DIR);
 }
 
