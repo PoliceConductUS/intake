@@ -248,6 +248,8 @@ export class DataContext {
       },
       findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
       getLocationPathByPath: (path) => this.locationPaths.getByPath(path),
+      findRowsByColumns: (targetKind, columnValues) =>
+        this.rows.getRowsByColumns(targetKind, columnValues),
       ensureUniqueSlug: (input) =>
         this.slugs.ensureUnique(input.kind, {
           base: input.base,

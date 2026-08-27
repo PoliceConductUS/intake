@@ -1,4 +1,8 @@
 import { lowerCaseEmail, nameCase, titleCase } from "./case-normalization.js";
+import {
+  resolveIdBySelector,
+  type Selector,
+} from "./facades/selector-resolver.js";
 
 // --- ADR 0016: composable per-property resolvers — generic kit ---------------
 //
@@ -245,6 +249,39 @@ export type ForeignKeyBackend = {
     sourceId: string;
   }): ForeignKeyIdSource | undefined;
 };
+
+/** The read a selector resolver reaches through: rows of a kind matching columns. */
+export type SelectorBackend = {
+  findRowsByColumns(
+    kind: string,
+    columnValues: Record<string, string>,
+  ): Promise<Array<Record<string, unknown>>>;
+};
+
+/**
+ * A polymorphic identity resolver (ADR 0034): a reference is scalar-or-selector.
+ * If the record's identity value is a selector object (rooted at this kind's own
+ * table), resolve it to an existing row's id via the model-walk — resolve-or-fail,
+ * no mint, so it targets an existing row (an update). Otherwise defer to the kind's
+ * normal identity resolver: the scalar shorthand, minted/found through the ledger
+ * chain, byte-for-byte unchanged. This is the general form behind "the id can be a
+ * scalar string or a selector object."
+ */
+export function facadeSelectorOrIdResolver<Row, B extends SelectorBackend>(
+  kind: string,
+  identity: keyof Row & string,
+  fallback: Resolver<string, ResolverContext<Row, B>>,
+): Resolver<string, ResolverContext<Row, B>> {
+  return new Resolver(async (context) => {
+    const raw = context.facade.raw(identity);
+    if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
+      return resolveIdBySelector(kind, raw as Selector, (targetKind, columns) =>
+        context.backend.findRowsByColumns(targetKind, columns),
+      );
+    }
+    return fallback.resolve(context, () => `${kind}.${identity}`);
+  });
+}
 
 /** Coerce a spec value to a non-blank string, else undefined. */
 export function valueAsString(value: unknown): string | undefined {

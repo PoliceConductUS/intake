@@ -53,6 +53,7 @@ const stubBackend: EntityFacadeBackend = {
   existingRow: async () => undefined,
   findForeignKeyTarget: () => undefined,
   getLocationPathByPath: async () => undefined,
+  findRowsByColumns: async () => [],
 };
 
 // The cache tests never plan a mutation, so a create-only stub suffices.

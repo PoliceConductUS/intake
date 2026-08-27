@@ -2,6 +2,7 @@ import { TABLE_BY_KIND } from "../../../shared/io/generated/entity-specs.js";
 import type { DatabaseClient } from "../../database/index.js";
 import {
   readDatabaseRecordByColumns,
+  readDatabaseRecordsByColumns,
   readDatabaseRecordsByColumn,
 } from "../../database/entities.js";
 import type { SupportedTableName } from "../../database/schema.js";
@@ -59,6 +60,19 @@ export class CurrentRowReader {
     values: Record<string, string>,
   ): Promise<Record<string, unknown> | undefined> {
     return readDatabaseRecordByColumns(
+      this.requireClient(),
+      tableForKind(kind),
+      values,
+    );
+  }
+
+  // Every row of `kind` matching the given column values — for the selector
+  // resolver, which must see a many-match to fail loud (resolve-or-fail).
+  getRowsByColumns(
+    kind: string,
+    values: Record<string, string>,
+  ): Promise<Record<string, unknown>[]> {
+    return readDatabaseRecordsByColumns(
       this.requireClient(),
       tableForKind(kind),
       values,

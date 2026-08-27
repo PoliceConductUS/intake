@@ -22,8 +22,10 @@ import {
   nameCaseResolver,
   nameCaseResolverNullable,
   lowerCaseEmailResolverNullable,
+  facadeSelectorOrIdResolver,
   type FacadeSource,
   type PropertyCache,
+  type ResolverContext,
 } from "../resolver-kit.js";
 import {
   personnelSlugResolver,
@@ -402,6 +404,26 @@ export function buildFacadeForKind(
     ...derivedResolvers(kind, identity, identityKind),
     ...config.overrides,
   } as EntityResolvers<Row>;
+
+  // Identity is scalar-or-selector (ADR 0034): wrap the kind's normal id resolver
+  // so a selector object rooted at this table resolves to an existing row, while a
+  // scalar defers to the unchanged ledger path. Only kinds with an id resolver
+  // (canonical identity) can be selector-targeted; natural-key kinds pass through.
+  const identityResolvers = resolvers as Record<string, AnyResolver>;
+  const baseIdentityResolver = identityResolvers[identity];
+  if (baseIdentityResolver !== undefined) {
+    identityResolvers[identity] = facadeSelectorOrIdResolver<
+      Row,
+      EntityFacadeBackend
+    >(
+      kind,
+      identity,
+      baseIdentityResolver as Resolver<
+        string,
+        ResolverContext<Row, EntityFacadeBackend>
+      >,
+    ) as AnyResolver;
+  }
 
   return new EntityFacade<Row, unknown>(
     kind,

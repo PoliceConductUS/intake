@@ -8,6 +8,7 @@ import {
   type CanonicalIdBackend,
   type ForeignKeyBackend,
   type BusinessKeyIdBackend,
+  type SelectorBackend,
 } from "../resolver-kit.js";
 import { typedInputFingerprint } from "../../../state/resolved-property/index.js";
 import { valuesEqual } from "../../../../shared/values-equal.js";
@@ -22,7 +23,8 @@ import { valuesEqual } from "../../../../shared/values-equal.js";
  */
 export type EntityFacadeBackend = CanonicalIdBackend &
   ForeignKeyBackend &
-  BusinessKeyIdBackend & {
+  BusinessKeyIdBackend &
+  SelectorBackend & {
     existingRow(id: string): Promise<Record<string, unknown> | undefined>;
     getLocationPathByPath(
       path: string,
@@ -240,6 +242,13 @@ export class EntityFacade<
     return resolved;
   }
 
+  // True when the source supplied a selector object (not a scalar) for identity —
+  // i.e. this facade resolves an existing row and writes a partial update (ADR 0034).
+  private identityIsSelector(): boolean {
+    const raw = this.spec[this.identity as string];
+    return raw !== null && typeof raw === "object" && !Array.isArray(raw);
+  }
+
   private hasSourceValue(property: keyof Row): boolean {
     const raw = this.spec[property as string];
     if (raw === undefined || raw === null) {
@@ -271,8 +280,16 @@ export class EntityFacade<
     resolved: Record<string, unknown>;
   }> {
     const identityValue = String(await this.value(this.identity));
+    // A selector-resolved identity (ADR 0034) targets an existing row and writes
+    // only the fields the source provides, so it must not resolve — and fail on —
+    // the foreign keys it is not changing (a partial update). A scalar identity
+    // resolves every column as before (a full create/update).
+    const partial = this.identityIsSelector();
     const resolved: Record<string, unknown> = {};
     for (const column of this.columns) {
+      if (partial && !this.hasSourceValue(column)) {
+        continue;
+      }
       const value = await this.value(column);
       // Absent (undefined) → omit: not this source's field to write, so it never
       // overwrites what another source set. An explicit null is kept and written

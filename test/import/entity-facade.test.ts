@@ -10,7 +10,10 @@ import type { EntityFacadeBackend } from "../../src/cli/import/artifacts/facades
 // A backend whose canonical id is derived from the source id so assertions are
 // deterministic, with an optional current-row map for the update path and a
 // fixed FK-target resolver.
-function backend(current?: Record<string, Record<string, unknown>>): {
+function backend(
+  current?: Record<string, Record<string, unknown>>,
+  rowsByKind?: Record<string, Array<Record<string, unknown>>>,
+): {
   backend: EntityFacadeBackend;
 } {
   return {
@@ -27,6 +30,12 @@ function backend(current?: Record<string, Record<string, unknown>>): {
       getLocationPathByPath: async (path) => ({
         location_path_id: `lp:${path}`,
       }),
+      findRowsByColumns: async (kind, columnValues) =>
+        (rowsByKind?.[kind] ?? []).filter((row) =>
+          Object.entries(columnValues).every(
+            ([column, value]) => String(row[column]) === value,
+          ),
+        ),
     },
   };
 }
@@ -165,6 +174,51 @@ describe("EntityFacade via the discipline facades", () => {
       discipline_id: "fk:Discipline:0031|PB24-1-01",
       agency_personnel_id: "fk:AgencyPersonnel:0031|a2jALPHA",
     });
+  });
+});
+
+describe("selector-resolved partial update (ADR 0034)", () => {
+  it("resolves an officer by selector and sets only the provided field", async () => {
+    const rowsByKind = {
+      Agency: [{ id: "irving", name: "Irving Police Department" }],
+      Personnel: [{ id: "p-markham", first_name: "James", last_name: "Markham" }],
+      AgencyPersonnel: [
+        { id: "ap-markham", agency_id: "irving", personnel_id: "p-markham" },
+      ],
+    };
+    const current = {
+      "ap-markham": { id: "ap-markham", badge_number: null },
+    };
+    const facade = buildFacadeForKind("AgencyPersonnel", {
+      source: {
+        namespace: "org.policeconduct.manual",
+        name: "markham-badge",
+        commandName: "manual-badge-backfill",
+      },
+      ...backend(current, rowsByKind),
+    });
+    facade.merge({
+      id: {
+        agency: { name: "Irving Police Department" },
+        personnel: { first_name: "James", last_name: "Markham" },
+      },
+      badge_number: "1379",
+    });
+
+    const mutation = (await facade.toMutation()) as {
+      kind: string;
+      metadata: { name: string };
+      spec: { operations: Array<{ action: string; path: string; to?: unknown }> };
+    };
+
+    // The selector materialized to the officer's real id (the mutation's target).
+    expect(mutation.kind).toBe("AgencyPersonnelUpdate");
+    expect(mutation.metadata.name).toBe("ap-markham");
+    // Only badge_number is written — the untouched foreign keys are never resolved.
+    const sets = mutation.spec.operations.filter((op) => op.action === "set");
+    expect(sets).toEqual([
+      expect.objectContaining({ path: "badge_number", to: "1379" }),
+    ]);
   });
 });
 
