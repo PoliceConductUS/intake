@@ -278,24 +278,30 @@ function foreignKeyDbSourceLink<Row>(targetKind: string): ReferenceLink<Row> {
     : ledgerFindLink<Row>(targetKind);
 }
 
+// The one standard chain, in order: same-run co-emitted facade, then the durable
+// db source (ledger, or by-path for a LocationPath). Shared by every resolver.
+function standardChain<Row>(targetKind: string): ReferenceLink<Row>[] {
+  return [
+    sameRunLink<Row>(targetKind),
+    foreignKeyDbSourceLink<Row>(targetKind),
+  ];
+}
+
 /**
- * Compose a chain of links into a property resolver (ADR 0016/0023). The reference
- * is read via `referenceFrom`; the links are tried in order and the first resolved
- * id wins. An absent reference fails loud (or resolves to null when `optional`); a
- * present-but-unresolved reference fails loud, naming what it points at
- * (`referenceLabel`, e.g. the target kind) and the source file — unless a link
- * mints, in which case the chain always resolves.
+ * A reference resolver over the standard chain (ADR 0016/0023): derive the
+ * reference (`referenceFrom`), run the chain, first hit wins. Absent → fail loud
+ * (or null when `optional`); present-but-unresolved → fail loud. Never mints.
  */
 export function referenceResolver<Row, T extends string | null = string>(
   entityKind: string,
   property: string,
-  referenceLabel: string,
+  targetKind: string,
   referenceFrom: (
     context: ResolverContext<Row, ReferenceBackend>,
   ) => string | undefined,
-  links: ReadonlyArray<ReferenceLink<Row>>,
   options: { optional?: boolean } = {},
 ): Resolver<T, ResolverContext<Row, ReferenceBackend>> {
+  const links = standardChain<Row>(targetKind);
   return new Resolver(async (context) => {
     const { source } = context;
     const reference = referenceFrom(context);
@@ -315,7 +321,7 @@ export function referenceResolver<Row, T extends string | null = string>(
     }
     throw new Error(
       [
-        `${entityKind} ${source.namespace}/${source.name} references ${referenceLabel} ${JSON.stringify(
+        `${entityKind} ${source.namespace}/${source.name} references ${targetKind} ${JSON.stringify(
           reference,
         )}, which does not exist in namespace ${source.namespace}.`,
         source.sourceFile && `Source: ${source.sourceFile}.`,
@@ -327,9 +333,8 @@ export function referenceResolver<Row, T extends string | null = string>(
 }
 
 /**
- * `location_path_id` resolve-or-fail resolver (ADR 0006/0015): the source supplies
- * a namespace-local state value (e.g. "tx"); map it to `/<state>/` and resolve
- * against the imported location hierarchy by path. A standard one-link chain.
+ * A state code (e.g. "tx") mapped to `/<state>/`, then the standard chain resolves
+ * it against the imported hierarchy (ADR 0006/0015). Resolve-or-fail; never mints.
  */
 export function facadeStateLocationPathResolver<Row>(
   entityKind: string,
@@ -342,31 +347,21 @@ export function facadeStateLocationPathResolver<Row>(
       const state = valueAsString(facade.raw("location_path_id" as keyof Row));
       return state === undefined ? undefined : `/${state.toLowerCase()}/`;
     },
-    [locationPathByPathLink()],
   );
 }
 
-/**
- * Canonical-id resolver for an entity's own identity (ADR 0016 #4): a single mint
- * terminal — find the seeded/existing id, else mint — so it always resolves.
- */
+// An entity's own id: the ledger mint (find-or-create). Not the reference chain —
+// an entity does not look itself up by same-run/db (ADR 0016 #4).
 export function facadeCanonicalIdResolver<Row>(
   kind: string,
 ): Resolver<string, ResolverContext<Row, ReferenceBackend>> {
-  return referenceResolver<Row, string>(
-    kind,
-    "id",
-    kind,
-    ({ source }) => source.name,
-    [ledgerMintLink(kind)],
+  const mint = ledgerMintLink<Row>(kind);
+  return new Resolver(
+    async (context) => (await mint(context.source.name, context))!,
   );
 }
 
-/**
- * Foreign-key resolver (ADR 0016/0023): the standard chain — a same-run co-emitted
- * facade, then the durable db source (the ledger, or by-path for a LocationPath) —
- * resolve-or-fail. Never mints (a foreign key has no mint terminal).
- */
+/** Foreign key over the standard chain (ADR 0016/0023): resolve-or-fail. */
 export function facadeForeignKeyResolver<Row>(
   entityKind: string,
   property: keyof Row & string,
@@ -377,7 +372,6 @@ export function facadeForeignKeyResolver<Row>(
     property,
     targetKind,
     ({ facade }) => valueAsString(facade.raw(property)),
-    [sameRunLink(targetKind), foreignKeyDbSourceLink(targetKind)],
   );
 }
 
@@ -407,14 +401,7 @@ export function facadeComposedIdResolver<Row>(
   });
 }
 
-/**
- * Cross-source foreign-key resolver (ADR 0023): the referenced entity was created
- * by another source, so its source id resolves through the durable ledger (the
- * source minted the mapping via `sourceIdFor` before emitting). It is the standard
- * FK chain — same-run, then ledger find — resolve-or-fail; it never mints a phantom
- * canonical. Identical to `facadeForeignKeyResolver` for a ledger-mapped target; the
- * distinct name documents the cross-source intent at the call site.
- */
+/** Cross-source FK (ADR 0023): the same standard chain; the name marks intent. */
 export function facadeLedgerForeignKeyResolver<Row>(
   entityKind: string,
   property: keyof Row & string,
@@ -423,11 +410,7 @@ export function facadeLedgerForeignKeyResolver<Row>(
   return facadeForeignKeyResolver<Row>(entityKind, property, targetKind);
 }
 
-/**
- * Nullable foreign-key resolver (ADR 0016 #4/#9). The standard FK chain, but an
- * absent source reference resolves to `null` (the FK is optional per the source
- * spec) rather than failing; a present-but-unresolved reference still fails loud.
- */
+/** Nullable FK (ADR 0016 #9): the standard chain; an absent reference is null. */
 export function facadeNullableForeignKeyResolver<Row>(
   entityKind: string,
   property: keyof Row & string,
@@ -438,7 +421,6 @@ export function facadeNullableForeignKeyResolver<Row>(
     property,
     targetKind,
     ({ facade }) => valueAsString(facade.raw(property)),
-    [sameRunLink(targetKind), foreignKeyDbSourceLink(targetKind)],
     { optional: true },
   );
 }

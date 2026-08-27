@@ -262,8 +262,13 @@ export class EntityFacade<
     )}.`;
   }
 
-  async toMutation(): Promise<Env> {
-    const identityValue = await this.value(this.identity);
+  // The row this facade would write (identity + non-identity columns). The
+  // convergence overlay records it so a later same-identity facade reads it.
+  async resolvedRow(): Promise<{
+    identityValue: string;
+    resolved: Record<string, unknown>;
+  }> {
+    const identityValue = String(await this.value(this.identity));
     const resolved: Record<string, unknown> = {};
     for (const column of this.columns) {
       const value = await this.value(column);
@@ -272,10 +277,14 @@ export class EntityFacade<
       }
       resolved[column] = value;
     }
+    return { identityValue, resolved };
+  }
+
+  async toMutation(): Promise<Env> {
+    const { identityValue, resolved } = await this.resolvedRow();
 
     const current =
-      this.current ??
-      (await this.backend.existingRow(identityValue as unknown as string));
+      this.current ?? (await this.backend.existingRow(identityValue));
 
     // The envelope name is the target row's key value (ADR 0027): the pair
     // (kind, name) is (which table/op, which row), and replay locates an

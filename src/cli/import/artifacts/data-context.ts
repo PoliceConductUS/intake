@@ -160,6 +160,13 @@ export class DataContext {
     string,
     Map<string, RegistryFacade>
   >();
+  // Rows emitted this run, so existingRow finds a same-run create the same way it
+  // finds a prior-run row — one convergence path (ADR 0016). Keyed kind\nidentity.
+  private readonly emittedRows = new Map<string, Record<string, unknown>>();
+
+  private static emittedKey(kind: string, identity: string): string {
+    return `${kind}\n${identity}`;
+  }
 
   constructor(options: DataContextOptions) {
     this.client = options.client;
@@ -226,7 +233,12 @@ export class DataContext {
     return {
       findCanonicalId: (input) => this.findCanonicalId(input),
       findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
-      existingRow: (id) => this.rows.getById(kind, id, identityColumn),
+      existingRow: (id) => {
+        const emitted = this.emittedRows.get(DataContext.emittedKey(kind, id));
+        return emitted !== undefined
+          ? Promise.resolve(emitted)
+          : this.rows.getById(kind, id, identityColumn);
+      },
       findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
       getLocationPathByPath: (path) => this.locationPaths.getByPath(path),
       ensureUniqueSlug: (input) =>
@@ -355,13 +367,51 @@ export class DataContext {
       if (facades === undefined) {
         continue;
       }
-      const kindMutations = await Promise.all(
-        [...facades.values()].map((facade) => facade.toMutation()),
+      const identityColumn = identityColumnForKind(kind);
+      // Lone identities drain concurrently (the common case). Recurring identities
+      // converge in order, each recording its row so the next reads it (create, then
+      // update|read, last-wins).
+      const groups = new Map<string, RegistryFacade[]>();
+      await Promise.all(
+        [...facades.values()].map(async (facade) => {
+          const identity = String(await facade.value(identityColumn));
+          const group = groups.get(identity);
+          if (group === undefined) {
+            groups.set(identity, [facade]);
+          } else {
+            group.push(facade);
+          }
+        }),
       );
-      // A single kind can hold >100k rows (tcole assignments); spreading that
-      // into push() arguments overflows the call stack, so append in place.
-      for (const mutation of kindMutations) {
+
+      const singles: RegistryFacade[] = [];
+      const recurring: RegistryFacade[][] = [];
+      for (const group of groups.values()) {
+        if (group.length === 1) {
+          singles.push(group[0]!);
+        } else {
+          recurring.push(group);
+        }
+      }
+
+      // A single kind can hold >100k rows (tcole assignments); spreading that into
+      // push() arguments overflows the call stack, so append in place.
+      const singleMutations = await Promise.all(
+        singles.map((facade) => facade.toMutation()),
+      );
+      for (const mutation of singleMutations) {
         mutations.push(mutation);
+      }
+
+      for (const group of recurring) {
+        for (const facade of group) {
+          mutations.push(await facade.toMutation());
+          const { identityValue, resolved } = await facade.resolvedRow();
+          this.emittedRows.set(
+            DataContext.emittedKey(kind, identityValue),
+            resolved,
+          );
+        }
       }
     }
     return mutations;
