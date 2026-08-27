@@ -5,10 +5,6 @@ import {
   type PropertyResolutionFacade,
   type ResolverContext,
 } from "../resolver-kit.js";
-import type {
-  LocationResolution,
-  ResolveAddressInput,
-} from "../location-resolution.js";
 
 // The Agency and Personnel resolvers operate on a plain string-keyed row so they
 // slot into the generic registry; their specific column types are erased there.
@@ -32,28 +28,6 @@ export type SlugBackend = {
   }): void;
   existingRow(id: string): Promise<Record<string, unknown> | undefined>;
 };
-
-/** The capability the agency location/coordinate resolvers reach through. */
-export type AgencyLocationBackend = {
-  resolveAgencyLocation(
-    input: ResolveAddressInput,
-  ): Promise<LocationResolution>;
-  existingRow(id: string): Promise<Record<string, unknown> | undefined>;
-};
-
-function valueAsFiniteNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value)
-    ? value
-    : undefined;
-}
-
-function valueAsRecordOrUndefined(
-  value: unknown,
-): Record<string, unknown> | undefined {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
 
 function slugify(value: string): string {
   return (
@@ -140,132 +114,4 @@ export function agencySlugResolver(): Resolver<
     }
     return slugify(name);
   });
-}
-
-function normalizeToken(value: string | undefined): string | undefined {
-  return value === undefined
-    ? undefined
-    : value.trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-/**
- * The normalized geocode input the coordinate resolver derives lat/lng from — the
- * address fields only (ADR 0019). The cache keys a coordinate entry by this, so
- * an unchanged address serves the cached coordinate and a changed one re-geocodes.
- * Identity fields (entity id, source name) are excluded: they do not move the pin.
- */
-function agencyCoordinateCacheInput(
-  facade: PropertyResolutionFacade<Row>,
-  source: FacadeSource,
-): Record<string, string | undefined> {
-  const address = agencyAddressInput(facade, source);
-  return {
-    state: normalizeToken(address.state),
-    city: normalizeToken(address.place),
-    zipCode: normalizeToken(address.zipCode),
-    address: normalizeToken(address.address),
-    administrativeAreaName: normalizeToken(address.administrativeAreaName),
-    administrativeAreaSlug: normalizeToken(address.administrativeAreaSlug),
-  };
-}
-
-function agencyAddressInput(
-  facade: PropertyResolutionFacade<Row>,
-  source: FacadeSource,
-): ResolveAddressInput {
-  const location = valueAsRecordOrUndefined(facade.raw("location")) ?? {};
-  return {
-    entityType: "agency",
-    entityId: source.name,
-    state: valueAsString(facade.raw("state")),
-    place: valueAsString(facade.raw("city")),
-    zipCode: valueAsString(facade.raw("zip_code")),
-    address: valueAsString(facade.raw("address")),
-    administrativeAreaName: valueAsString(location.administrativeAreaName),
-    administrativeAreaSlug: valueAsString(location.administrativeAreaSlug),
-    // No latitude/longitude here: the source never supplies coordinates, and
-    // reading them raw silently bypasses the cache (the bug this replaced). A
-    // caller that has resolved coordinates passes them explicitly (see
-    // agencyLocationPathResolver); the coordinate resolver, which produces them,
-    // geocodes when they are absent.
-    name: valueAsString(facade.raw("name")),
-    sourceName: source.name,
-  };
-}
-
-/** `location_path_id` composition resolver (resolve-or-fail, ADR 0006/0015). */
-export function agencyLocationPathResolver(): Resolver<
-  string,
-  ResolverContext<Row, AgencyLocationBackend>
-> {
-  return new Resolver(
-    async ({ facade, backend, source }) => {
-      const present = valueAsString(facade.raw("location_path_id"));
-      if (present !== undefined) {
-        return present;
-      }
-      // Stability: an existing agency keeps its current location rather than being
-      // re-geocoded on update.
-      const id = String(await facade.value("id"));
-      const current = await backend.existingRow(id);
-      const currentValue =
-        current === undefined
-          ? undefined
-          : valueAsString(current.location_path_id);
-      if (currentValue !== undefined) {
-        return currentValue;
-      }
-      // Reuse the resolved coordinates (the `latitude`/`longitude` resolvers read
-      // them from the PropertyCache / existing row / geocode), so the location does
-      // not re-geocode the address independently — an unchanged address with cached
-      // coordinates resolves from the cache, not a fresh (and possibly failing, e.g.
-      // a PO box) geocode.
-      const resolution = await backend.resolveAgencyLocation({
-        ...agencyAddressInput(facade, source),
-        latitude: valueAsFiniteNumber(await facade.value("latitude")),
-        longitude: valueAsFiniteNumber(await facade.value("longitude")),
-      });
-      return resolution.locationPathId;
-    },
-    {},
-    async ({ facade }) => ({
-      // location_path_id derives from the resolved coordinates (which resolve
-      // through their own cache) plus the address city used to snap to a place;
-      // key on those so unchanged coordinates + city serve the cached path.
-      latitude: valueAsFiniteNumber(await facade.value("latitude")),
-      longitude: valueAsFiniteNumber(await facade.value("longitude")),
-      city: normalizeToken(valueAsString(facade.raw("city"))),
-      state: normalizeToken(valueAsString(facade.raw("state"))),
-    }),
-  );
-}
-
-/** `latitude`/`longitude` resolver: reuse source/existing, else the geocode. */
-export function agencyCoordinateResolver(
-  field: "addressLatitude" | "addressLongitude",
-  column: "latitude" | "longitude",
-): Resolver<number, ResolverContext<Row, AgencyLocationBackend>> {
-  return new Resolver(
-    async ({ facade, backend, source }) => {
-      const present = valueAsFiniteNumber(facade.raw(column));
-      if (present !== undefined) {
-        return present;
-      }
-      const id = String(await facade.value("id"));
-      const current = await backend.existingRow(id);
-      const currentValue =
-        current === undefined
-          ? undefined
-          : valueAsFiniteNumber(current[column]);
-      if (currentValue !== undefined) {
-        return currentValue;
-      }
-      const resolution = await backend.resolveAgencyLocation(
-        agencyAddressInput(facade, source),
-      );
-      return resolution[field];
-    },
-    {},
-    ({ facade, source }) => agencyCoordinateCacheInput(facade, source),
-  );
 }

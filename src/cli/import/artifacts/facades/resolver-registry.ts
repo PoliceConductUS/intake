@@ -23,9 +23,8 @@ import {
 import {
   personnelSlugResolver,
   agencySlugResolver,
-  agencyLocationPathResolver,
-  agencyCoordinateResolver,
 } from "./agency-personnel-resolvers.js";
+import { latLngFromAddress } from "./geocode-resolvers.js";
 import {
   coverageLinkIdResolver,
   civilCaseReferenceResolver,
@@ -109,15 +108,23 @@ const REGISTRY: Record<string, KindConfig> = {
       contact_email: lowerCaseEmailResolverNullable<Row, EntityFacadeBackend>(
         "contact_email",
       ) as AnyResolver,
-      location_path_id: agencyLocationPathResolver() as AnyResolver,
-      latitude: agencyCoordinateResolver(
-        "addressLatitude",
-        "latitude",
-      ) as AnyResolver,
-      longitude: agencyCoordinateResolver(
-        "addressLongitude",
-        "longitude",
-      ) as AnyResolver,
+      // One geocode sets location_path_id + latitude + longitude (ADR 0019).
+      ...(latLngFromAddress({
+        entityType: "agency",
+        from: {
+          state: "state",
+          place: "city",
+          zipCode: "zip_code",
+          address: "address",
+          name: "name",
+          location: "location",
+        },
+        set: {
+          latitude: "latitude",
+          longitude: "longitude",
+          locationPathId: "location_path_id",
+        },
+      }) as Record<string, AnyResolver>),
     },
   },
   LocationPath: {
