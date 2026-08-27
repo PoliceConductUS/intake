@@ -262,6 +262,50 @@ export async function runSource(
   });
 }
 
+/**
+ * Build the per-source dependency bundle a transform/run reaches through. Shared by
+ * the `run` command and the `data transform`/`data generate` commands so the wiring
+ * lives in one place.
+ */
+export async function buildRunSourceDeps(
+  sourceId: string,
+  paths: string[],
+  env: Record<string, string | undefined>,
+  options: {
+    commandArgs: string[];
+    runImport?: RunSourceDeps["runImport"];
+    logger: { info: (message: string) => void };
+  },
+): Promise<RunSourceDeps> {
+  const sourcesRoot = path.join(process.cwd(), "sources");
+  return {
+    sourcesRoot,
+    env,
+    produces: await loadSourceProduces(sourceId, sourcesRoot),
+    loadSourceModule,
+    readXlsx,
+    state: await sourceStateDir(env, sourceId),
+    digest: digestOfPaths,
+    makeWorkspace: async (e) =>
+      (
+        await createCommandDirectory(e, {
+          namespace: sourceId,
+          args: options.commandArgs,
+        })
+      ).outputDirectory,
+    createEmitSink,
+    loadExcludedRecords,
+    seedResolvedPropertyCache,
+    writeEnvelope: async (directory, id, digest, manifest, refItems) =>
+      Artifacts.write(
+        directory,
+        buildArtifactsEnvelope(id, digest, manifest, refItems),
+      ),
+    runImport: options.runImport ?? runImportArtifactsCommand,
+    logger: options.logger,
+  };
+}
+
 export const registerCliCommand: RegisterCliCommand = (
   program: Command,
   dependencies: CliCommandDependencies,
@@ -362,40 +406,11 @@ export const registerCliCommand: RegisterCliCommand = (
               });
               return;
             }
-            const deps: RunSourceDeps = {
-              sourcesRoot,
-              env,
-              produces: producesById.get(sourceId) ?? [],
-              loadSourceModule,
-              readXlsx,
-              state: await sourceStateDir(env, sourceId),
-              digest: digestOfPaths,
-              makeWorkspace: async (e) =>
-                (
-                  await createCommandDirectory(e, {
-                    namespace: sourceId,
-                    args: ["run", sourceId, ...paths],
-                  })
-                ).outputDirectory,
-              createEmitSink,
-              loadExcludedRecords,
-              seedResolvedPropertyCache,
-              writeEnvelope: async (
-                directory,
-                id,
-                digest,
-                manifest,
-                refItems,
-              ) =>
-                Artifacts.write(
-                  directory,
-                  buildArtifactsEnvelope(id, digest, manifest, refItems),
-                ),
-              runImport:
-                dependencies.runImportArtifactsCommand ??
-                runImportArtifactsCommand,
+            const deps = await buildRunSourceDeps(sourceId, paths, env, {
+              commandArgs: ["run", sourceId, ...paths],
+              runImport: dependencies.runImportArtifactsCommand,
               logger,
-            };
+            });
             logger.info(`${sourceId}: run — ${paths.length} input file(s)`);
             const result = await runSource(
               sourceId,
