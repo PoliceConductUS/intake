@@ -6,19 +6,17 @@ import {
 } from "../../../sources/com.policeconduct.manual/reference.js";
 
 // Scripts the interview I/O so the state machine is exercised without stdin: a
-// queue of typed/searched values, a fixed known-mapping, and a queue of
+// queue of resolved source ids (null = no match / cancel) and a queue of
 // dispositions. `waits` counts the pauses.
 function io(options: {
-  values: (string | null)[];
-  known: Record<string, string>;
+  sourceIds: (string | null)[];
   dispositions: Disposition[];
 }): ReferenceIO & { waits: () => number } {
   let waitCount = 0;
-  const values = [...options.values];
+  const sourceIds = [...options.sourceIds];
   const dispositions = [...options.dispositions];
   return {
-    askValue: async () => values.shift() ?? null,
-    resolve: async (value) => options.known[value],
+    getSourceId: async () => (sourceIds.length > 0 ? sourceIds.shift()! : null),
     askDisposition: async () => dispositions.shift() ?? "stop",
     wait: async () => {
       waitCount += 1;
@@ -28,51 +26,33 @@ function io(options: {
 }
 
 describe("resolveReference", () => {
-  it("resolves a typed/selected value to its canonical id", async () => {
+  it("returns the resolved source id (canonical never leaves the data context)", async () => {
     const result = await resolveReference(
-      io({
-        values: ["ap-source-7"],
-        known: { "ap-source-7": "canonical-42" },
-        dispositions: [],
-      }),
+      io({ sourceIds: ["ap-src-7"], dispositions: [] }),
     );
-    expect(result).toEqual({ canonicalId: "canonical-42" });
+    expect(result).toEqual({ sourceId: "ap-src-7" });
   });
 
-  it("skips the reference when the user cancels and chooses skip", async () => {
+  it("skips the reference when nothing matched and the user chooses skip", async () => {
     const result = await resolveReference(
-      io({ values: [null], known: {}, dispositions: ["skip"] }),
+      io({ sourceIds: [null], dispositions: ["skip"] }),
     );
     expect(result).toEqual({ skipped: true });
   });
 
-  it("stops the acquire when the value is unknown and the user chooses stop", async () => {
+  it("stops the acquire when nothing matched and the user chooses stop", async () => {
     await expect(
-      resolveReference(
-        io({ values: ["nope"], known: {}, dispositions: ["stop"] }),
-      ),
+      resolveReference(io({ sourceIds: [null], dispositions: ["stop"] })),
     ).rejects.toThrow(/stopped by the user/);
   });
 
-  it("waits and retries — the target appears on the second search", async () => {
+  it("waits and retries — the target resolves on the second search", async () => {
     const context = io({
-      // First search misses; after the wait, the same value is found.
-      values: ["pending-ref", "pending-ref"],
-      known: { "pending-ref": "canonical-9" },
+      sourceIds: [null, "ap-src-9"],
       dispositions: ["wait"],
     });
-    // Make the first resolve miss, the second hit: flip known after the first
-    // askValue by wrapping resolve.
-    let seen = 0;
-    const gated: ReferenceIO = {
-      ...context,
-      resolve: async (value) => {
-        seen += 1;
-        return seen >= 2 ? "canonical-9" : undefined;
-      },
-    };
-    const result = await resolveReference(gated);
-    expect(result).toEqual({ canonicalId: "canonical-9" });
+    const result = await resolveReference(context);
+    expect(result).toEqual({ sourceId: "ap-src-9" });
     expect(context.waits()).toBe(1);
   });
 });

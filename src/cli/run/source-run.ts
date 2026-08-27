@@ -69,6 +69,13 @@ export type AcquireAgencyPage = {
   nextCursor?: string;
 };
 
+// A standard search result the acquire data context returns for a reference: a
+// human `label` to pick by, and the record's namespace-local `sourceId` — minted
+// from its canonical id inside the data context (ADR 0023), so a canonical id
+// never leaves. The source stores the sourceId; import resolves it back through
+// the ledger.
+export type AcquireSearchResult = { sourceId: string; label: string };
+
 // A read-only facade over already-imported data an acquire may need to decide
 // what to download (e.g. which agencies to search). Sources ask the facade;
 // they never touch the database directly.
