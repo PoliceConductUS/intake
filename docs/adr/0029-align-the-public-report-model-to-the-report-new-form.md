@@ -97,6 +97,10 @@ Cross-repo and **phased**, drop last:
    submission from `verification_pending` to a published report; the website
    rewrites the report display to the new narrative model. The generic capture
    endpoint already exists, so this is resolution + display, not a new endpoint.
+   **Existing reports carry the old rubric/trait scoring and must be transformed
+   onto the narrative model** (their content mapped into `what_happened` etc.), a
+   one-time production backfill that runs before the scoring tables drop in
+   step 3 — never a silent table drop that discards them.
 3. **Follow-up migration:** once the display no longer reads `rubrics`/`traits`,
    drop the scoring tables. This is the **last** step, after the display moves.
 
