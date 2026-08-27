@@ -108,10 +108,13 @@ source now handles updates to existing entities, not only creates — starting w
 a manual update writes only the fields it sets, so `badge_number` is a minimal,
 field-level delta that re-supplies no other column.
 
-**5. The Liquibase-style lifecycle is general, not manual-only.** `data-mutations
+**5. The Liquibase-style lifecycle is general, not manual-only.** `intake data
 generate | up | down | status | verify` is the create-and-apply lifecycle for
-_every_ source's mutations (ADR 0033). A selector-resolved manual update is one
-producer feeding that lifecycle, not a separate mechanism.
+_every_ source's mutations (ADR 0033; the command group is `data`, since data
+mutations — unlike schema migrations — are this CLI's own concern). A
+selector-resolved manual update is one producer feeding that lifecycle, not a
+separate mechanism. `data up` applies all pending entries: on an externally-migrated
+blank database it replays the whole chain, the data reconstruction.
 
 ## Non-Goals (deferred; the design accommodates but does not build them)
 

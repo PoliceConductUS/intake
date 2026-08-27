@@ -5,7 +5,7 @@ import { afterEach, describe, it, expect } from "vitest";
 import {
   generateEntry,
   listEntries,
-} from "../../../src/cli/data-mutations/chain.js";
+} from "../../../src/cli/data/chain.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {

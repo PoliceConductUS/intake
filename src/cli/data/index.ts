@@ -27,7 +27,7 @@ async function withClient<T>(
 ): Promise<T> {
   const databaseUrl = process.env.DATABASE_URL;
   if (databaseUrl === undefined || databaseUrl.trim() === "") {
-    throw new Error("DATABASE_URL is required for data-mutations.");
+    throw new Error("DATABASE_URL is required for data.");
   }
   const client = defaultDatabaseClientFactory(databaseUrl);
   await client.connect();
@@ -45,7 +45,7 @@ export function registerCliCommand(
   dependencies: CliCommandDependencies,
 ): void {
   const group = program
-    .command("data-mutations")
+    .command("data")
     .description("The ordered, replayable data-mutation chain (ADR 0033).");
 
   group
@@ -65,11 +65,11 @@ export function registerCliCommand(
           written === undefined
             ? {
                 exitCode: 0,
-                stdout: "data-mutations: empty diff — nothing appended.\n",
+                stdout: "data: empty diff — nothing appended.\n",
               }
             : {
                 exitCode: 0,
-                stdout: `data-mutations: appended ${written} (${mutationCount} mutations).\n`,
+                stdout: `data: appended ${written} (${mutationCount} mutations).\n`,
               },
         );
       } catch (error) {
@@ -90,8 +90,8 @@ export function registerCliCommand(
           exitCode: 0,
           stdout:
             applied.length === 0
-              ? "data-mutations: up to date.\n"
-              : `data-mutations: applied ${applied.length} entrie(s): ${applied
+              ? "data: up to date.\n"
+              : `data: applied ${applied.length} entrie(s): ${applied
                   .map((entry) => entry.version)
                   .join(", ")}.\n`,
         });
@@ -112,7 +112,7 @@ export function registerCliCommand(
         dependencies.setResult({
           exitCode: 0,
           stdout: `${
-            lines.length === 0 ? "data-mutations: no entries" : lines.join("\n")
+            lines.length === 0 ? "data: no entries" : lines.join("\n")
           }\n`,
         });
       } catch (error) {
@@ -130,11 +130,11 @@ export function registerCliCommand(
           drift.length === 0
             ? {
                 exitCode: 0,
-                stdout: "data-mutations: all applied entries verify.\n",
+                stdout: "data: all applied entries verify.\n",
               }
             : {
                 exitCode: 1,
-                stderr: `data-mutations: checksum drift on applied entries: ${drift.join(", ")}.\n`,
+                stderr: `data: checksum drift on applied entries: ${drift.join(", ")}.\n`,
               },
         );
       } catch (error) {

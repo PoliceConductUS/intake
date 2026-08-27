@@ -94,7 +94,7 @@ async function fileChecksum(filePath: string): Promise<string> {
 /**
  * Turn a run's DatabaseMutations envelope (produced by `run --dry-run`) into the
  * next chain entry: skip an empty diff, else stamp its version + predecessor and
- * write it to ./data-mutations/. Returns the written path, or undefined when the
+ * write it to the workspace chain dir. Returns the written path, or undefined when the
  * diff was empty.
  */
 export async function generateEntry(
@@ -142,9 +142,9 @@ export async function assertAtHead(
   const pending = entries.filter((entry) => !applied.has(entry.version));
   if (pending.length > 0) {
     throw new Error(
-      `data-mutations: ${pending.length} unapplied entr${
+      `data: ${pending.length} unapplied entr${
         pending.length === 1 ? "y" : "ies"
-      } (${pending[0]!.version}…) — run \`data-mutations up\` before generating; the diff must be against the chain head.`,
+      } (${pending[0]!.version}…) — run \`data up\` before generating; the diff must be against the chain head.`,
     );
   }
 }
@@ -172,12 +172,12 @@ export async function applyPending(
     }
     if (entry.previous !== "" && !applied.has(entry.previous)) {
       throw new Error(
-        `data-mutations: ${entry.fileName} requires ${entry.previous} to be applied first.`,
+        `data: ${entry.fileName} requires ${entry.previous} to be applied first.`,
       );
     }
     if (entry.minSchemaVersion !== "" && schema < entry.minSchemaVersion) {
       throw new Error(
-        `data-mutations: ${entry.fileName} needs schema >= ${entry.minSchemaVersion}, but the database is at ${schema}.`,
+        `data: ${entry.fileName} needs schema >= ${entry.minSchemaVersion}, but the database is at ${schema}.`,
       );
     }
     const checksum = await fileChecksum(entry.filePath);
