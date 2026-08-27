@@ -8,6 +8,11 @@ Proposed
 > (ADR 0016), and the recent update-diff fixes (value-equality for jsonb;
 > absent-field omission). It reframes how mutations are stored, ordered, and
 > applied — turning them into the database's authoritative history.
+>
+> **Amended by ADR 0034:** the chain directory is _not_ committed — it lives in the
+> workspace, coupled to the cache that mints its ids (superseding the "chain
+> directory is committed" consequence below). And §4's curated mutations name their
+> target by a selector resolved at generate time, not by a canonical id.
 
 ## Context
 
