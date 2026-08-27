@@ -357,31 +357,33 @@ export class LocationPathDataContext {
     const stateSlug = input.stateSlug?.trim().toLowerCase() ?? "";
     if (cityName !== "" && stateSlug !== "") {
       const slug = citySlug(cityName);
+      // The county comes from the point-in-shape; the city slug from the address,
+      // which may misspell it. Resolve the exact place path at that county through
+      // path-then-alias, so the point's real county plus a seeded alias (e.g.
+      // st-paul -> saint-paul) corrects a misspelled/alternate city precisely —
+      // and this also serves the common case where the point lands just outside
+      // the city polygon but inside the right county.
+      const countyId = await this.uniqueContainingLocationPath(
+        input,
+        "administrative_area",
+      );
+      const county =
+        countyId === undefined ? undefined : await this.getById(countyId);
+      if (county !== undefined) {
+        const atCounty = await this.getByPath(`${county.path}${slug}/`);
+        if (atCounty !== undefined && atCounty.level === "place") {
+          return atCounty.location_path_id;
+        }
+      }
+      // Else, if the city names exactly one place statewide, use it (the point
+      // landed in the wrong county). Multiple same-named places, none at the
+      // point's county, stay ambiguous and fall through.
       const candidates = await readPlacesByStateAndSlug(
         this.context.databaseClient(),
         stateSlug,
         slug,
       );
-      if (candidates.length > 0) {
-        // Prefer the place in the county the point falls in; else, if the city
-        // names exactly one place statewide, use it (the point landed in the
-        // wrong county). Multiple same-named places in different counties, none
-        // containing the point, stay ambiguous and fail.
-        const countyId = await this.uniqueContainingLocationPath(
-          input,
-          "administrative_area",
-        );
-        const county =
-          countyId === undefined ? undefined : await this.getById(countyId);
-        const inCounty =
-          county === undefined
-            ? undefined
-            : candidates.find(
-                (candidate) => candidate.path === `${county.path}${slug}/`,
-              );
-        if (inCounty !== undefined) return inCounty.location_path_id;
-        if (candidates.length === 1) return candidates[0]!.location_path_id;
-      }
+      if (candidates.length === 1) return candidates[0]!.location_path_id;
     }
 
     // The address is the office building's location, so the nearest place is a

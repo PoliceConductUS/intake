@@ -7,6 +7,8 @@ import { LocationPathDataContext } from "../../../src/cli/import/artifacts/locat
 function fakeContext(options: {
   containing: Partial<Record<"place" | "administrative_area", unknown[]>>;
   byId?: Record<string, unknown>;
+  byPath?: Record<string, unknown>;
+  byAlias?: Record<string, string>;
   byStateSlug?: unknown[];
   nearest?: unknown;
 }) {
@@ -21,6 +23,19 @@ function fakeContext(options: {
       }
       if (text.includes("split_part(path, '/', 4) = $2")) {
         return { rows: options.byStateSlug ?? [] };
+      }
+      if (text.includes("where path = $1")) {
+        const row = options.byPath?.[values[0] as string];
+        return { rows: row === undefined ? [] : [row] };
+      }
+      if (text.includes("where alias_path = $1")) {
+        const id = options.byAlias?.[values[0] as string];
+        return {
+          rows:
+            id === undefined
+              ? []
+              : [{ alias_path: values[0], location_path_id: id }],
+        };
       }
       if (text.includes("where location_path_id = $1")) {
         const row = options.byId?.[values[0] as string];
@@ -64,13 +79,15 @@ describe("getPlaceContainingPoint place snap (ADR: agency location must be a pla
     const context = fakeContext({
       containing: { place: [], administrative_area: [county] },
       byId: { bexar: county },
-      byStateSlug: [
-        {
+      // The point's county (from point-in-shape) plus the address city slug
+      // resolve the exact place path.
+      byPath: {
+        "/tx/bexar-county/san-antonio/": {
           location_path_id: "sa",
           path: "/tx/bexar-county/san-antonio/",
           level: "place",
         },
-      ],
+      },
     });
     await expect(
       context.getPlaceContainingPoint({
@@ -81,6 +98,35 @@ describe("getPlaceContainingPoint place snap (ADR: agency location must be a pla
         stateSlug: "TX",
       }),
     ).resolves.toBe("sa");
+  });
+
+  it("resolves a misspelled city via the point's county and a seeded alias", async () => {
+    const ramsey = {
+      location_path_id: "ramsey",
+      path: "/mn/ramsey-county/",
+      level: "administrative_area",
+    };
+    const saintPaul = {
+      location_path_id: "saint-paul",
+      path: "/mn/ramsey-county/saint-paul/",
+      level: "place",
+    };
+    const context = fakeContext({
+      containing: { place: [], administrative_area: [ramsey] },
+      byId: { ramsey, "saint-paul": saintPaul },
+      // "Saint Pual" (typo) → slug saint-pual: no real place at that path, but a
+      // seeded alias maps it to the canonical Saint Paul in the point's county.
+      byAlias: { "/mn/ramsey-county/saint-pual/": "saint-paul" },
+    });
+    await expect(
+      context.getPlaceContainingPoint({
+        latitude: 44.95,
+        longitude: -93.1,
+        subject: "Agency a",
+        place: "Saint Pual",
+        stateSlug: "MN",
+      }),
+    ).resolves.toBe("saint-paul");
   });
 
   it("uses the lone statewide match when the point fell in the wrong county", async () => {
