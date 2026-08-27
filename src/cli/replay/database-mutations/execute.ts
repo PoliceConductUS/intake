@@ -9,6 +9,7 @@ import {
   locationPathCentroidGeoJson,
 } from "../../database/location-path-spatial.js";
 import type { SupportedTableName } from "../../database/schema.js";
+import { valuesEqual } from "../../../shared/values-equal.js";
 import path from "node:path";
 import {
   DatabaseMutations,
@@ -147,7 +148,7 @@ function assertExpectedValue(
   expected: unknown,
   actual: unknown,
 ): void {
-  if (!Object.is(expected, actual)) {
+  if (!valuesEqual(expected, actual)) {
     throw new Error(
       `DatabaseMutation ${mutationName} expected ${fieldName} to be ${String(expected)} but found ${String(actual)}.`,
     );

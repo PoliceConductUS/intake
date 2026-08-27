@@ -10,6 +10,7 @@ import {
   type BusinessKeyIdBackend,
 } from "../resolver-kit.js";
 import { typedInputFingerprint } from "../../../state/resolved-property/index.js";
+import { valuesEqual } from "../../../../shared/values-equal.js";
 
 /**
  * The backend a resolver-based entity facade reaches through: its own
@@ -332,7 +333,7 @@ export class EntityFacade<
     const operations: MutationOperation[] = Object.entries(resolved).map(
       ([path, to]) => {
         const from = current[path];
-        if (Object.is(from, to)) {
+        if (valuesEqual(from, to)) {
           return {
             action: "check",
             path,
