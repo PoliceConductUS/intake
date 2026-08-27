@@ -25,8 +25,17 @@ function recordKindOfMutation(mutationKind: string): string {
  * Orders mutation items by database dependency, using the generated
  * `RECORD_KINDS_IN_DEPENDENCY_ORDER` (a topological sort of the introspected
  * foreign-key graph), so a referenced entity is applied before its referrer
- * (e.g. Licenses before the AgencyPersonnel whose `license_id` targets them). A
- * stable sort preserves the within-kind order. Unknown kinds sort last.
+ * (e.g. Licenses before the AgencyPersonnel whose `license_id` targets them).
+ * Unknown kinds sort last.
+ *
+ * Within a kind, order by the mutation's `name` (its identity value, ADR 0027).
+ * For a self-referential kind whose identity is hierarchical — location_path,
+ * keyed by `path` — byte order puts a parent (`/tx/dallas-county/`) before its
+ * child (`/tx/dallas-county/irving/`), since the parent's path is a prefix. So a
+ * row's own-kind FK target is always created first, and the create-batcher never
+ * inserts a child before its parent. For kinds without a self-reference the
+ * within-kind order is immaterial; sorting by name just makes the plan
+ * deterministic (stable chain entries, ADR 0033).
  *
  * Order every create before any update (ADR 0020). Creates keep FK-dependency
  * order among themselves (a row's FK targets are created first); updates follow
@@ -47,17 +56,23 @@ function sortByDependencyOrder(
       ? (DEPENDENCY_ORDER_INDEX.get(recordKindOfMutation(item.kind)) ??
         Number.MAX_SAFE_INTEGER)
       : Number.MAX_SAFE_INTEGER;
+  const nameKey = (item: DatabaseMutationItem): string =>
+    "name" in item ? item.name : "";
   // Compute each item's sort keys once (they involve string parsing), then sort
-  // by the cached numbers. The sort is stable (ES2019+), so within-kind input
-  // order is preserved without an explicit index tiebreak. At hundreds of
-  // thousands of rows, recomputing the keys inside the comparator would parse
-  // strings tens of millions of times.
+  // by the cached values. At hundreds of thousands of rows, recomputing the keys
+  // inside the comparator would parse strings tens of millions of times.
   const decorated = items.map((item) => ({
     item,
     rank: operationRank(item),
     dependency: dependencyIndex(item),
+    name: nameKey(item),
   }));
-  decorated.sort((a, b) => a.rank - b.rank || a.dependency - b.dependency);
+  decorated.sort(
+    (a, b) =>
+      a.rank - b.rank ||
+      a.dependency - b.dependency ||
+      (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
+  );
   return decorated.map((entry) => entry.item);
 }
 

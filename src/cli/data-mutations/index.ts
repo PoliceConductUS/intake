@@ -7,7 +7,13 @@ import {
   defaultDatabaseClientFactory,
   type DatabaseClient,
 } from "../database/index.js";
-import { applyPending, generateEntry, status, verify } from "./chain.js";
+import {
+  applyPending,
+  assertAtHead,
+  generateEntry,
+  status,
+  verify,
+} from "./chain.js";
 
 function errorResult(error: unknown): CommandResult {
   return {
@@ -53,6 +59,7 @@ export function registerCliCommand(
     )
     .action(async (mutationsFile: string): Promise<void> => {
       try {
+        await withClient((client) => assertAtHead(client));
         const { written, mutationCount } = await generateEntry(mutationsFile);
         dependencies.setResult(
           written === undefined

@@ -115,6 +115,25 @@ export async function generateEntry(
   return { written, version, mutationCount };
 }
 
+// A new entry's diff is computed against the current database, so every existing
+// chain entry must already be applied (the database at the chain head) — otherwise
+// the diff, and thus the mutation, is wrong (ADR 0033).
+export async function assertAtHead(
+  client: DatabaseClient,
+  root?: string,
+): Promise<void> {
+  const entries = await listEntries(root);
+  const applied = await readAppliedDataMutationVersions(client);
+  const pending = entries.filter((entry) => !applied.has(entry.version));
+  if (pending.length > 0) {
+    throw new Error(
+      `data-mutations: ${pending.length} unapplied entr${
+        pending.length === 1 ? "y" : "ies"
+      } (${pending[0]!.version}…) — run \`data-mutations up\` before generating; the diff must be against the chain head.`,
+    );
+  }
+}
+
 export type ApplyResult = { version: string; mutationCount: number }[];
 
 /**

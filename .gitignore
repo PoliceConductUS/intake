@@ -37,3 +37,5 @@ supabase/.env.*.local
 *.sw?
 /.cache/
 supabase/seed.sql.bak
+data-mutations/
+genesis.mjs

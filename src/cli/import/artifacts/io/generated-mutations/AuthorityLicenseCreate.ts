@@ -12,10 +12,8 @@ import {
   readYamlDocumentFile,
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
-import {
-  AuthorityLicenseSpec,
-  AuthorityLicenseCreateSpec,
-} from "../../../../../shared/io/generated/entity-specs.js";
+import { AuthorityLicenseSpec, AuthorityLicenseCreateSpec } from "../../../../../shared/io/generated/entity-specs.js";
+
 
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
@@ -52,22 +50,15 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (
-    options.relativeTo === undefined ||
-    options.relativeTo.trim().length === 0
-  ) {
-    throw new Error(
-      `Relative ${ref.kind ?? "AuthorityLicenseCreate"} ref requires relativeTo.`,
-    );
+  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
+    throw new Error(`Relative ${ref.kind ?? "AuthorityLicenseCreate"} ref requires relativeTo.`);
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(
-      `${ref.kind ?? "AuthorityLicenseCreate"} ref.path escapes its directory: ${ref.path}`,
-    );
+    throw new Error(`${ref.kind ?? "AuthorityLicenseCreate"} ref.path escapes its directory: ${ref.path}`);
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -81,6 +72,8 @@ const metadataSchema = z
   })
   .strict();
 
+
+
 export const specSchema = AuthorityLicenseCreateSpec;
 
 export const schema = z
@@ -93,14 +86,9 @@ export const schema = z
   .strict();
 
 export type AuthorityLicenseCreateEnvelope = z.infer<typeof schema>;
-export type AuthorityLicenseCreateInput = Omit<
-  AuthorityLicenseCreateEnvelope,
-  "apiVersion" | "kind"
->;
+export type AuthorityLicenseCreateInput = Omit<AuthorityLicenseCreateEnvelope, "apiVersion" | "kind">;
 
-function parseAuthorityLicenseCreate(
-  value: unknown,
-): AuthorityLicenseCreateEnvelope {
+function parseAuthorityLicenseCreate(value: unknown): AuthorityLicenseCreateEnvelope {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new Error(formatError(result.error));
@@ -108,9 +96,7 @@ function parseAuthorityLicenseCreate(
   return result.data;
 }
 
-function newAuthorityLicenseCreate(
-  input: AuthorityLicenseCreateInput,
-): AuthorityLicenseCreateEnvelope {
+function newAuthorityLicenseCreate(input: AuthorityLicenseCreateInput): AuthorityLicenseCreateEnvelope {
   return parseAuthorityLicenseCreate({
     apiVersion: INTAKE_API_VERSION,
     kind: "AuthorityLicenseCreate",
@@ -124,14 +110,9 @@ async function readAuthorityLicenseCreate(
 ): Promise<AuthorityLicenseCreateEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "AuthorityLicenseCreate") {
-    throw new Error(
-      `AuthorityLicenseCreate ref.kind ${ref.kind} does not match expected kind AuthorityLicenseCreate: ${ref.filePath}`,
-    );
+    throw new Error(`AuthorityLicenseCreate ref.kind ${ref.kind} does not match expected kind AuthorityLicenseCreate: ${ref.filePath}`);
   }
-  const { contents, document } = await readYamlDocumentFile(
-    ref.filePath,
-    "AuthorityLicenseCreate",
-  );
+  const { contents, document } = await readYamlDocumentFile(ref.filePath, "AuthorityLicenseCreate");
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
     throw new Error(`AuthorityLicenseCreate sha256 mismatch: ${ref.filePath}`);
   }

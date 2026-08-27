@@ -12,10 +12,8 @@ import {
   readYamlDocumentFile,
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
-import {
-  DisciplineSpec,
-  DisciplineCreateSpec,
-} from "../../../../../shared/io/generated/entity-specs.js";
+import { DisciplineSpec, DisciplineCreateSpec } from "../../../../../shared/io/generated/entity-specs.js";
+
 
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
@@ -52,22 +50,15 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (
-    options.relativeTo === undefined ||
-    options.relativeTo.trim().length === 0
-  ) {
-    throw new Error(
-      `Relative ${ref.kind ?? "DisciplineCreate"} ref requires relativeTo.`,
-    );
+  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
+    throw new Error(`Relative ${ref.kind ?? "DisciplineCreate"} ref requires relativeTo.`);
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(
-      `${ref.kind ?? "DisciplineCreate"} ref.path escapes its directory: ${ref.path}`,
-    );
+    throw new Error(`${ref.kind ?? "DisciplineCreate"} ref.path escapes its directory: ${ref.path}`);
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -81,6 +72,8 @@ const metadataSchema = z
   })
   .strict();
 
+
+
 export const specSchema = DisciplineCreateSpec;
 
 export const schema = z
@@ -93,10 +86,7 @@ export const schema = z
   .strict();
 
 export type DisciplineCreateEnvelope = z.infer<typeof schema>;
-export type DisciplineCreateInput = Omit<
-  DisciplineCreateEnvelope,
-  "apiVersion" | "kind"
->;
+export type DisciplineCreateInput = Omit<DisciplineCreateEnvelope, "apiVersion" | "kind">;
 
 function parseDisciplineCreate(value: unknown): DisciplineCreateEnvelope {
   const result = schema.safeParse(value);
@@ -106,9 +96,7 @@ function parseDisciplineCreate(value: unknown): DisciplineCreateEnvelope {
   return result.data;
 }
 
-function newDisciplineCreate(
-  input: DisciplineCreateInput,
-): DisciplineCreateEnvelope {
+function newDisciplineCreate(input: DisciplineCreateInput): DisciplineCreateEnvelope {
   return parseDisciplineCreate({
     apiVersion: INTAKE_API_VERSION,
     kind: "DisciplineCreate",
@@ -122,14 +110,9 @@ async function readDisciplineCreate(
 ): Promise<DisciplineCreateEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "DisciplineCreate") {
-    throw new Error(
-      `DisciplineCreate ref.kind ${ref.kind} does not match expected kind DisciplineCreate: ${ref.filePath}`,
-    );
+    throw new Error(`DisciplineCreate ref.kind ${ref.kind} does not match expected kind DisciplineCreate: ${ref.filePath}`);
   }
-  const { contents, document } = await readYamlDocumentFile(
-    ref.filePath,
-    "DisciplineCreate",
-  );
+  const { contents, document } = await readYamlDocumentFile(ref.filePath, "DisciplineCreate");
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
     throw new Error(`DisciplineCreate sha256 mismatch: ${ref.filePath}`);
   }
