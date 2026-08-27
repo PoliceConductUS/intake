@@ -28,6 +28,10 @@ import {
 } from "./agency-personnel-resolvers.js";
 import { coverageLinkIdResolver } from "./coverage-resolvers.js";
 import {
+  licenseStatusResolver,
+  licenseTypeResolver,
+} from "./license-resolvers.js";
+import {
   EntityFacade,
   type EntityFacadeBackend,
   type EntityResolvers,
@@ -145,6 +149,14 @@ const REGISTRY: Record<string, KindConfig> = {
         "license_id",
         "License",
       ) as AnyResolver,
+    },
+  },
+  License: {
+    // Normalize status casing (ACTIVE/Active → Active) and license_type
+    // whitespace/bare-form dupes, so display and filtering see one canonical value.
+    overrides: {
+      status: licenseStatusResolver() as AnyResolver,
+      license_type: licenseTypeResolver() as AnyResolver,
     },
   },
   CivilCase: {
