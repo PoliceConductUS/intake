@@ -32,6 +32,9 @@ describe("source run order over the real sources", () => {
       "mn-post",
       "clearinghouse-api",
       "courtlistener",
+      // Produces LocationPathAliases, which consume LocationPath — so it orders
+      // after the location-path producer (ADR 0031).
+      "com.policeconduct.location-alias",
       "gov.us.federal-le",
       // Produces CoverageLinks + CoverageLinkAgencyPersonnel, which consume
       // AgencyPersonnel — so it orders after the personnel/agency producers.
