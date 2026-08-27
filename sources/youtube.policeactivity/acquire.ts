@@ -67,9 +67,9 @@ export const acquire: SourceAcquire = async ({
         `${JSON.stringify({ at: new Date().toISOString(), url, status: response.status, body })}\n`,
       );
       if (response.ok) return body as Record<string, unknown>;
-      if (response.status === 403 && isQuotaExhaustedBody(body)) {
+      if (isQuotaExhaustedBody(body)) {
         throw new YoutubeQuotaError(
-          "youtube.policeactivity: YouTube daily quota exhausted; stopping (resumes next run).",
+          `youtube.policeactivity: YouTube quota exhausted (${response.status}); stopping (resumes next run).`,
         );
       }
       const retryable = response.status === 429 || response.status >= 500;

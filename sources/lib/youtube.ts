@@ -37,16 +37,29 @@ function record(value: unknown): Record<string, unknown> {
     : {};
 }
 
-/** Thrown when the YouTube daily quota is exhausted, to halt a run (not skip). */
+/** Thrown when the YouTube quota is exhausted, to halt a run (not skip). */
 export class YoutubeQuotaError extends Error {}
 
-/** True when a 403 body reports the daily quota is spent. */
+// A YouTube quota/rate signal, in either shape Google uses: the older 403 with a
+// `reason` (quotaExceeded/dailyLimitExceeded — daily budget spent) and the newer
+// 429 RESOURCE_EXHAUSTED with `reason: rateLimitExceeded` (Search Queries limit).
+// Both halt the run rather than skip-and-retry the next agency, which would just
+// hammer the same exhausted quota.
+const QUOTA_REASONS = new Set([
+  "quotaExceeded",
+  "dailyLimitExceeded",
+  "rateLimitExceeded",
+  "userRateLimitExceeded",
+]);
+
+/** True when a body reports the quota is spent (403 daily or 429 rate-limit). */
 export function isQuotaExhaustedBody(body: unknown): boolean {
-  const errors = record(record(body).error).errors;
-  return (Array.isArray(errors) ? errors : []).some((entry) => {
-    const reason = str(record(entry).reason);
-    return reason === "quotaExceeded" || reason === "dailyLimitExceeded";
-  });
+  const error = record(record(body).error);
+  if (str(error.status) === "RESOURCE_EXHAUSTED") return true;
+  const errors = error.errors;
+  return (Array.isArray(errors) ? errors : []).some((entry) =>
+    QUOTA_REASONS.has(str(record(entry).reason)),
+  );
 }
 
 export function videoUrl(videoId: string): string {

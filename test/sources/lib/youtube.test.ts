@@ -19,6 +19,25 @@ describe("isQuotaExhaustedBody", () => {
     ).toBe(true);
   });
 
+  it("detects the 429 rate-limit / RESOURCE_EXHAUSTED body", () => {
+    // Verbatim shape logged by search.list when the Search Queries quota is hit.
+    expect(
+      isQuotaExhaustedBody({
+        error: {
+          code: 429,
+          message:
+            "Quota exceeded for quota metric 'Search Queries' and limit 'Search Queries per minute'.",
+          errors: [{ reason: "rateLimitExceeded", domain: "global" }],
+          status: "RESOURCE_EXHAUSTED",
+        },
+      }),
+    ).toBe(true);
+    // status alone is enough, even without a recognized reason.
+    expect(
+      isQuotaExhaustedBody({ error: { status: "RESOURCE_EXHAUSTED" } }),
+    ).toBe(true);
+  });
+
   it("is false for other errors and non-error bodies", () => {
     expect(
       isQuotaExhaustedBody({ error: { errors: [{ reason: "badRequest" }] } }),
