@@ -27,9 +27,11 @@ export const GENERATED_MIGRATION_VERSIONS = [
   "20260826000000",
   "20260827000000",
   "20260828000000",
+  "20260829000000",
+  "20260830000000",
 ] as const;
 export const GENERATED_MIGRATION_FINGERPRINT =
-  "a328f0d38e3a99ff06cc57d3952e21895a1a3780893c8e84327f924e1fc3a86a";
+  "e14bdcaff78613e7243ecb3bc2593bc45dbce321c299991a1a669a94af5bf6b9";
 
 // Entity record kinds in database-dependency order (topological sort of the
 // foreign-key graph): a referenced entity precedes its referrer, so mutations
@@ -813,7 +815,6 @@ export const CoverageLinkCivilCaseCreateSpec = CoverageLinkCivilCaseSpec.extend(
 export const ReviewSpec = z
   .object({
     id: z.string().optional(),
-    user_id: nullableNonEmptyString.optional(),
     title: z.string(),
     description: z.string().nullable().optional(),
     incident_date: nullableNonEmptyString.optional(),
@@ -898,16 +899,6 @@ export type AgencyPhoneNumbersRow = {
   agency_id: string;
   phone_number: string;
   description: string | null;
-};
-
-export type AuditLogsRow = {
-  id: string;
-  table_name: string;
-  record_id: string;
-  action: string;
-  old_values: unknown | null;
-  new_values: unknown | null;
-  created_by: string | null;
 };
 
 export type CivilCaseLinksRow = {
@@ -1081,53 +1072,6 @@ export type PersonnelRow = {
   deceased_message: string | null;
 };
 
-export type ProfileEmailsRow = {
-  id: string;
-  profile_id: string | null;
-  email: string;
-  is_primary: boolean | null;
-  verified: boolean | null;
-  label: string | null;
-};
-
-export type ProfileLinksRow = {
-  id: string;
-  profile_id: string | null;
-  url: string;
-  label: string;
-};
-
-export type ProfilePhoneNumbersRow = {
-  id: string;
-  profile_id: string | null;
-  phone_number: string;
-  is_primary: boolean | null;
-  can_receive_sms: boolean | null;
-  is_verified: boolean | null;
-  label: string | null;
-};
-
-export type ProfilesRow = {
-  id: string;
-  phone_number: string | null;
-  avatar_url: string | null;
-  street_address: string | null;
-  city: string | null;
-  state: string | null;
-  zip_code: string | null;
-  primary_phone_id: string | null;
-  primary_email_id: string | null;
-  mailing_address_street: string | null;
-  mailing_address_city: string | null;
-  mailing_address_state: string | null;
-  mailing_address_zip: string | null;
-  physical_address_street: string | null;
-  physical_address_city: string | null;
-  physical_address_state: string | null;
-  physical_address_zip: string | null;
-  languages: string[] | null;
-};
-
 export type ReviewAttachmentsRow = {
   id: string;
   review_id: string | null;
@@ -1154,15 +1098,6 @@ export type ReviewPersonnelRow = {
   agency_personnel_id: string;
 };
 
-export type ReviewPersonnelRatingsRow = {
-  id: string;
-  review_personnel_id: string | null;
-  trait_id: string | null;
-  rubric_id: string | null;
-  created_by: string | null;
-  updated_by: string | null;
-};
-
 export type ReviewTagsRow = {
   review_id: string;
   tag_id: string;
@@ -1172,13 +1107,11 @@ export type ReviewTagsRow = {
 export type ReviewWitnessesRow = {
   id: string;
   review_id: string | null;
-  profile_id: string | null;
   statement: string | null;
 };
 
 export type ReviewsRow = {
   id: string;
-  user_id: string | null;
   title: string;
   description: string | null;
   incident_date: string | null;
@@ -1203,36 +1136,7 @@ export type ReviewsRow = {
   case_number: string | null;
 };
 
-export type RubricLabelsRow = {
-  label:
-    | "Outstanding"
-    | "Good"
-    | "Adequate"
-    | "Needs Improvement"
-    | "Unacceptable";
-  value: number;
-};
-
-export type RubricsRow = {
-  id: string;
-  trait_id: string;
-  description: string;
-  created_by: string | null;
-  updated_by: string | null;
-  help: string;
-  rubric_value: number;
-};
-
 export type TagsRow = {
   id: string;
   label: string;
-};
-
-export type TraitsRow = {
-  id: string;
-  label: string;
-  active: boolean | null;
-  created_by: string | null;
-  updated_by: string | null;
-  description: string | null;
 };

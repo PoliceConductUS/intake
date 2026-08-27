@@ -97,12 +97,20 @@ Cross-repo and **phased**, drop last:
    submission from `verification_pending` to a published report; the website
    rewrites the report display to the new narrative model. The generic capture
    endpoint already exists, so this is resolution + display, not a new endpoint.
-   **Existing reports carry the old rubric/trait scoring and must be transformed
-   onto the narrative model** (their content mapped into `what_happened` etc.), a
-   one-time production backfill that runs before the scoring tables drop in
-   step 3 — never a silent table drop that discards them.
-3. **Follow-up migration:** once the display no longer reads `rubrics`/`traits`,
-   drop the scoring tables. This is the **last** step, after the display moves.
+   Any existing rubric/trait report content is transformed onto the narrative
+   model (mapped into `what_happened` etc.) as a one-time production backfill —
+   never silently discarded.
+3. **Dropped intake-side (done).** The old models are retired in intake now,
+   decoupled from the website (the schema is intake-owned; the website's reads of
+   these tables are updated separately and are not a blocker):
+   - scoring model — `review_personnel_ratings`, `rubric_labels`, `rubrics`,
+     `traits` (migration `20260829000000`);
+   - submitter/account model — `reviews.user_id`, `review_witnesses.profile_id`,
+     `audit_logs`, `profile_emails`, `profile_links`, `profile_phone_numbers`,
+     `profiles` (migration `20260830000000`).
+
+   Reports now link to officers only via `review_personnel` (officer@agency); no
+   trait linkage and no submitter/account remain.
 
 Result: user reports become structured, verifiable records anchored to real
 officers/agencies/cases, and the public dataset carries no submitter PII.
