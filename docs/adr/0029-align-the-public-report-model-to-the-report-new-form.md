@@ -44,9 +44,13 @@ to it.
 - Kept: `id`, `slug`, `title`, `incident_date`, `location_path_id`, `latitude`,
   `longitude`, `address`, `desired_outcome`, `charges`, `created_at`,
   `updated_at`.
-- Added: `incident_time`, `submitter_relationship`, `interaction_type`,
-  `setting`, `what_happened`, `how_felt`, `what_else`, `bodycam_requested`,
-  `complaint_filed`, `purpose`, `case_number`.
+- Added: `what_happened` (the narrative — the former `description` folds into it),
+  `how_felt`, `what_else`, `incident_time`, `submitter_relationship`,
+  `interaction_type`, `setting`, `bodycam_requested`, `complaint_filed`,
+  `purpose`, `case_number`.
+- `description` is retired into `what_happened` with the display (coordinated, not
+  in the non-breaking phase). `submitter_relationship` is non-identifying report
+  provenance (firsthand vs. secondhand), not contact info.
 
 **2. Resolved links, never free text** (the resolution step resolves these):
 
@@ -61,14 +65,21 @@ An officer/agency/case that does not resolve is kept as an **attributed claim**
 (the submitter's words), never a canonical link — as with the youtube /
 courtlistener / clearinghouse sources.
 
-**3. Submitter PII is isolated.** `reporterName` / `reporterEmail` /
-`reporterPhone` / relationship never live on the public report row; a separate
-submissions table (or auth) holds contact info and the public row references it
-by id.
+**3. Submitter contact is never persisted.** `reporterName` / `reporterEmail` /
+`reporterPhone` do not enter the database at all — no report column and no
+submissions table. Verification uses them transiently, off-database. The report
+therefore has no submitter reference, so `reviews.user_id` is dropped — which in
+turn lets `profiles` (and its children) go.
 
-**4. Drop the dead scoring model** — `rubrics`, `traits`, `rubric_labels`,
-`review_personnel_ratings` — **in lockstep with the display rewrite**, never
-before (current `main` renders them).
+**4. Coordinated drops, in lockstep with the display rewrite** (never before —
+current `main` still renders the scoring tables):
+
+- the dead scoring model: `rubrics`, `traits`, `rubric_labels`,
+  `review_personnel_ratings`;
+- `description` (folded into `what_happened`);
+- `reviews.user_id`, then `profiles`, `profile_emails`, `profile_links`,
+  `profile_phone_numbers` (no submitter stored);
+- `audit_logs` (unused system table).
 
 **5. Publish gate.** A captured report stays `verification_pending` until the
 resolution step anchors it to at least one real officer@agency
