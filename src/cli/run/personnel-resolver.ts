@@ -1,6 +1,6 @@
 import type { DatabaseClient } from "../database/index.js";
 import type { SourceNameToCanonicalIdLedger } from "../state/source-name-to-canonical-id/index.js";
-import type { RunDataContext } from "./source-run.js";
+import type { RunDataContext, ResolvedAgencyLocation } from "./source-run.js";
 import {
   normalizeName,
   officerNameConfidence,
@@ -22,6 +22,28 @@ function resultRows(result: unknown): Record<string, unknown>[] {
     Array.isArray((result as { rows?: unknown[] }).rows)
     ? (result as { rows: Record<string, unknown>[] }).rows
     : [];
+}
+
+// An agency's address for a report's geocode fallback — only when every field is
+// present (a partial address cannot anchor a point).
+function agencyLocation(
+  row: Record<string, unknown>,
+): ResolvedAgencyLocation | undefined {
+  const text = (value: unknown): string | undefined =>
+    typeof value === "string" && value.trim() !== "" ? value : undefined;
+  const address = text(row.address);
+  const city = text(row.city);
+  const state = text(row.state);
+  const zipCode = text(row.zip_code);
+  if (
+    address === undefined ||
+    city === undefined ||
+    state === undefined ||
+    zipCode === undefined
+  ) {
+    return undefined;
+  }
+  return { address, city, state, zipCode };
 }
 
 /**
@@ -139,7 +161,8 @@ export function createRunDataContext(
       if (normalized.length < 3) return null;
       const rows = resultRows(
         await client.query(
-          `select id from agency
+          `select id, address, city, state, zip_code
+             from agency
             where trim(regexp_replace(lower(name), '[^a-z0-9]+', ' ', 'g')) = $1`,
           [normalized],
         ),
@@ -150,7 +173,7 @@ export function createRunDataContext(
         "Agency",
         String(rows[0].id),
       );
-      return { agencyId };
+      return { agencyId, location: agencyLocation(rows[0]) };
     },
 
     async resolveCivilCase({ docket }) {

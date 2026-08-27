@@ -44,7 +44,15 @@ async function verifiedReport(
 const data: RunDataContext = {
   async resolveAgency({ agencyName }) {
     return agencyName === "Irving Police Department"
-      ? { agencyId: "irving-pd" }
+      ? {
+          agencyId: "irving-pd",
+          location: {
+            address: "305 N O'Connor Rd",
+            city: "Irving",
+            state: "TX",
+            zipCode: "75061",
+          },
+        }
       : null;
   },
   async resolvePersonnel({ agencyId, personnelName }) {
@@ -164,6 +172,51 @@ describe("submissions run", () => {
     expect(held.get("no-verdict")).toBe("no verdict");
     expect(held.has("rejected-one")).toBe(false);
     expect(held.has("approved-ok")).toBe(false);
+  });
+
+  it("falls back to the resolved officer's agency address when the incident location is too vague", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "subs-run-"));
+    tempDirs.push(dir);
+    const submissions = path.join(dir, "submissions");
+    const state = path.join(dir, "state");
+    await mkdir(state, { recursive: true });
+
+    // "Irving city jail" has no parseable city/state/zip — not geocodable on its
+    // own — but the officer resolves, so the report anchors to the agency address.
+    await verifiedReport(submissions, "vague-loc", {
+      title: "Jail conditions",
+      description: "Held overnight.",
+      location: "Irving city jail",
+      "officers[0][name]": "James Markham",
+      "officers[0][department]": "Irving Police Department",
+    });
+    await writeJson(path.join(submissions, "status", "vague-loc.json"), {
+      submissionId: "vague-loc",
+      status: "approved",
+    });
+
+    const manifest = await run({
+      paths: [],
+      readXlsx: (() => {
+        throw new Error("unused");
+      }) as never,
+      state,
+      emit: async () => {},
+      env: { SUBMISSIONS_BUCKET_DIR: dir },
+      data,
+    });
+
+    const reviews = records(manifest, "Reviews");
+    expect(Object.keys(reviews)).toEqual(["vague-loc"]);
+    const review = reviews["vague-loc"]!.spec as Record<string, unknown>;
+    // The agency's address supplies the geocodable location.
+    expect(review.address).toBe("305 N O'Connor Rd");
+    expect(review.city).toBe("Irving");
+    expect(review.state).toBe("TX");
+    expect(review.zip_code).toBe("75061");
+    expect(Object.keys(records(manifest, "ReviewPersonnel"))).toEqual([
+      "vague-loc|ap-markham",
+    ]);
   });
 
   it("fails loud when SUBMISSIONS_BUCKET_DIR is missing", async () => {

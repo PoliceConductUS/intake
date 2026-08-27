@@ -250,9 +250,12 @@ const REGISTRY: Record<string, KindConfig> = {
     },
   },
   Review: {
-    // A published report (ADR 0030). id is the submission's natural id (converges on
-    // re-import); one geocode from the report's address sets location + coordinates.
+    // A published report (ADR 0030). id is the submission's natural id; a verified
+    // submission is immutable, so an existing report is a no-op read on re-import
+    // (never re-diffed or rewritten). One geocode from the report's address sets
+    // location + coordinates on first create.
     identityKind: "natural",
+    upsert: "read",
     overrides: {
       ...(latLngFromAddress({
         entityType: "review",
@@ -274,8 +277,10 @@ const REGISTRY: Record<string, KindConfig> = {
   ReviewPersonnel: {
     // The report's link to one resolved officer@agency (ADR 0030). Composed natural
     // id from (review_id, agency_personnel_id); the officer resolves through the
-    // ledger (run matched it against a roster). review_id resolves same-run.
+    // ledger (run matched it against a roster). review_id resolves same-run. Like
+    // the report, an existing link is a no-op read on re-import.
     identityKind: "natural",
+    upsert: "read",
     overrides: {
       id: facadeComposedIdResolver<Row>([
         "review_id",

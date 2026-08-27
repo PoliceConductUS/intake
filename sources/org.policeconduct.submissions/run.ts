@@ -3,6 +3,7 @@ import path from "node:path";
 import type { ImportArtifactKind } from "../../src/shared/io/index.js";
 import type {
   EmittedRecords,
+  ResolvedAgencyLocation,
   RunDataContext,
   SourceManifest,
   SourceRun,
@@ -95,14 +96,33 @@ async function readStatusVerdicts(
   return verdicts;
 }
 
-// Emit ReviewPersonnel for each named officer resolved to an officer@agency
-// (resolve-or-fail against the roster). Returns the resolved count.
+// The importer geocodes state + place + zipCode alongside the address; a location
+// too vague to yield them ("Tarrant county jail") cannot be geocoded on its own.
+function isGeocodable(hints: ReturnType<typeof locationHints>): boolean {
+  return (
+    hints.city !== undefined &&
+    hints.city.trim() !== "" &&
+    hints.state !== undefined &&
+    hints.state.trim() !== "" &&
+    hints.zip_code !== undefined &&
+    hints.zip_code.trim() !== ""
+  );
+}
+
+type OfficerResolution = {
+  ids: string[];
+  agencyLocation: ResolvedAgencyLocation | undefined;
+};
+
+// The distinct officer@agency ids each named officer resolves to (resolve-or-fail
+// against the roster, deduped), plus the location of the first resolved officer's
+// agency — the geocode fallback for a too-vague incident location (ADR 0030).
 async function resolveOfficers(
   report: ReportSubmission,
   data: RunDataContext,
-  reviewPersonnel: EmittedRecords,
-): Promise<number> {
-  let resolved = 0;
+): Promise<OfficerResolution> {
+  const resolved = new Set<string>();
+  let agencyLocation: ResolvedAgencyLocation | undefined;
   for (const officer of report.officers) {
     if (officer.name.trim() === "" || officer.department.trim() === "") {
       continue;
@@ -115,19 +135,14 @@ async function resolveOfficers(
       agencyId: agency.agencyId,
       personnelName: officer.name,
     });
-    if (personnel === null) {
-      continue;
+    if (personnel !== null) {
+      resolved.add(personnel.agencyPersonnelId);
+      if (agencyLocation === undefined) {
+        agencyLocation = agency.location;
+      }
     }
-    const key = `${report.submissionId}|${personnel.agencyPersonnelId}`;
-    reviewPersonnel[key] = {
-      spec: {
-        review_id: report.submissionId,
-        agency_personnel_id: personnel.agencyPersonnelId,
-      },
-    };
-    resolved += 1;
   }
-  return resolved;
+  return { ids: [...resolved], agencyLocation };
 }
 
 export const run: SourceRun = async ({
@@ -169,10 +184,13 @@ export const run: SourceRun = async ({
       continue;
     }
 
-    const officerCount = await resolveOfficers(report, data, reviewPersonnel);
+    const { ids: officerIds, agencyLocation } = await resolveOfficers(
+      report,
+      data,
+    );
     // Everything resolves to an officer: an approved report with no matched officer
     // is held, not published.
-    if (officerCount === 0) {
+    if (officerIds.length === 0) {
       held.push({
         submissionId: report.submissionId,
         title: report.title,
@@ -181,6 +199,31 @@ export const run: SourceRun = async ({
       continue;
     }
 
+    // Prefer the submitter's own incident address when it geocodes; otherwise fall
+    // back to the resolved officer's agency address so the report still anchors to
+    // a point (ADR 0030). Only if neither can geocode is the report held.
+    const submissionHints = locationHints(report.location);
+    const location = isGeocodable(submissionHints)
+      ? submissionHints
+      : agencyLocation !== undefined
+        ? {
+            address: agencyLocation.address,
+            city: agencyLocation.city,
+            state: agencyLocation.state,
+            zip_code: agencyLocation.zipCode,
+          }
+        : undefined;
+    if (location === undefined) {
+      held.push({
+        submissionId: report.submissionId,
+        title: report.title,
+        reason: `approved but location not geocodable: ${report.location}`,
+      });
+      continue;
+    }
+
+    // Emit the Review and its officer links together, so a held report never
+    // leaves an orphaned ReviewPersonnel behind.
     reviews[report.submissionId] = {
       spec: {
         id: report.submissionId,
@@ -192,9 +235,17 @@ export const run: SourceRun = async ({
         charges: report.charges === "" ? null : report.charges,
         submitter_relationship:
           report.relationship === "" ? null : report.relationship,
-        ...locationHints(report.location),
+        ...location,
       },
     };
+    for (const agencyPersonnelId of officerIds) {
+      reviewPersonnel[`${report.submissionId}|${agencyPersonnelId}`] = {
+        spec: {
+          review_id: report.submissionId,
+          agency_personnel_id: agencyPersonnelId,
+        },
+      };
+    }
   }
 
   await writeFile(

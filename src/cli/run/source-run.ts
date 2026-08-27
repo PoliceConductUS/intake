@@ -14,9 +14,24 @@ export type ResolvedPersonnel = { agencyPersonnelId: string };
 // CivilCase identity is its natural key (court:docket, ADR 0028), so a resolved
 // civil case is that key directly — no ledger mapping.
 export type ResolvedCivilCase = { civilCaseId: string };
+// An existing agency's own address, carried so a report with a too-vague incident
+// location can anchor to its resolved officer's agency (ADR 0030). Geocoding this
+// address hits the same cached point the agency already resolved to; the importer
+// re-geocodes the address (it ignores raw coordinates), so only these fields are
+// needed.
+export type ResolvedAgencyLocation = {
+  address: string;
+  city: string;
+  state: string;
+  zipCode: string;
+};
 // A resolved agency is a namespace-local source id (ADR 0023), which
-// resolvePersonnel then takes as its agencyId to scope the officer match.
-export type ResolvedAgency = { agencyId: string };
+// resolvePersonnel then takes as its agencyId to scope the officer match, plus
+// the agency's location when it is fully populated (a geocode fallback).
+export type ResolvedAgency = {
+  agencyId: string;
+  location?: ResolvedAgencyLocation;
+};
 
 // An intake-owned resolver injected into a source's run phase (ADR 0023). The
 // source calls it with source ids only; match, gate, and mint happen inside, and
