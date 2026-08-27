@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, readdir } from "node:fs/promises";
+import { mkdir, readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { DatabaseMutations } from "../import/artifacts/io/DatabaseMutations.js";
 import type { DatabaseMutationsEnvelope } from "../import/artifacts/io/DatabaseMutations.js";
@@ -44,6 +44,9 @@ export type ChainEntry = {
   minSchemaVersion: string;
   fileName: string;
   filePath: string;
+  /** The digest of the source Artifacts this entry was generated from, if any —
+   * lets batch generate skip an output already in the chain (idempotent). */
+  sourceArtifactsDigest?: string;
 };
 
 function annotationsOf(
@@ -74,12 +77,16 @@ export async function listEntries(root?: string): Promise<ChainEntry[]> {
     const filePath = path.join(dir, fileName);
     const envelope = await DatabaseMutations.read(filePath, { raw: true });
     const annotations = annotationsOf(envelope);
+    const sourceArtifactsDigest = (
+      envelope.metadata as { sourceArtifactsDigest?: string }
+    ).sourceArtifactsDigest;
     entries.push({
       version: annotations[VERSION_KEY] ?? fileName,
       previous: annotations[PREVIOUS_KEY] ?? "",
       minSchemaVersion: minSchemaVersion(envelope),
       fileName,
       filePath,
+      sourceArtifactsDigest,
     });
   }
   return entries;
@@ -128,6 +135,85 @@ export async function generateEntry(
   await mkdir(dir, { recursive: true });
   const { path: written } = await DatabaseMutations.write(dir, stamped);
   return { written, version, mutationCount };
+}
+
+export type BatchGenerateResult = {
+  appended: { source: string; version: string; mutationCount: number }[];
+  skipped: { source: string; reason: "empty" | "already-in-chain" }[];
+};
+
+// The newest `*.DatabaseMutations.yaml` each source produced, under
+// `<command>/<cmd>/<source>/output/`, ordered oldest-first — the order the runs were
+// produced, which is dependency order when the sources were run in order.
+async function newestRunOutputPerSource(
+  commandRoot: string,
+): Promise<{ source: string; filePath: string; producedAt: number }[]> {
+  const newest = new Map<string, { filePath: string; producedAt: number }>();
+  for (const commandDir of await readdir(commandRoot).catch(() => [])) {
+    const sourcesDir = path.join(commandRoot, commandDir);
+    for (const source of await readdir(sourcesDir).catch(() => [])) {
+      const outputDir = path.join(sourcesDir, source, "output");
+      for (const file of await readdir(outputDir).catch(() => [])) {
+        if (!file.endsWith(".DatabaseMutations.yaml")) continue;
+        const filePath = path.join(outputDir, file);
+        const producedAt = (await stat(filePath)).mtimeMs;
+        const current = newest.get(source);
+        if (current === undefined || producedAt > current.producedAt) {
+          newest.set(source, { filePath, producedAt });
+        }
+      }
+    }
+  }
+  return [...newest.entries()]
+    .map(([source, value]) => ({ source, ...value }))
+    .sort((left, right) => left.producedAt - right.producedAt);
+}
+
+/**
+ * The batch form of `generate <file>` (ADR 0033): discover the newest run output
+ * each source produced (its latest `run --dry-run` envelope in the workspace) and
+ * append the ones not yet in the chain, in the order they were produced. Idempotent
+ * — an output whose source-Artifacts digest is already an entry is skipped, and an
+ * empty diff appends nothing — so it is safe to re-run and never double-appends.
+ */
+export async function generateFromLatestRunOutputs(
+  root?: string,
+): Promise<BatchGenerateResult> {
+  const workspace = process.env.INTAKE_WORKSPACE;
+  if (workspace === undefined || workspace.trim() === "") {
+    throw new Error("INTAKE_WORKSPACE is required to discover run outputs.");
+  }
+  const existing = new Set(
+    (await listEntries(root))
+      .map((entry) => entry.sourceArtifactsDigest)
+      .filter((digest): digest is string => digest !== undefined),
+  );
+
+  const appended: BatchGenerateResult["appended"] = [];
+  const skipped: BatchGenerateResult["skipped"] = [];
+  for (const output of await newestRunOutputPerSource(
+    path.join(workspace, "command"),
+  )) {
+    const digest = (
+      (await DatabaseMutations.read(output.filePath, { raw: true }))
+        .metadata as { sourceArtifactsDigest?: string }
+    ).sourceArtifactsDigest;
+    if (digest !== undefined && existing.has(digest)) {
+      skipped.push({ source: output.source, reason: "already-in-chain" });
+      continue;
+    }
+    const { written, version, mutationCount } = await generateEntry(
+      output.filePath,
+      root,
+    );
+    if (written === undefined || version === undefined) {
+      skipped.push({ source: output.source, reason: "empty" });
+      continue;
+    }
+    if (digest !== undefined) existing.add(digest);
+    appended.push({ source: output.source, version, mutationCount });
+  }
+  return { appended, skipped };
 }
 
 // A new entry's diff is computed against the current database, so every existing

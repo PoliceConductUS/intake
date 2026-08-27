@@ -11,6 +11,7 @@ import {
   applyPending,
   assertAtHead,
   generateEntry,
+  generateFromLatestRunOutputs,
   status,
   verify,
 } from "./chain.js";
@@ -51,15 +52,35 @@ export function registerCliCommand(
   group
     .command("generate")
     .description(
-      "Append a run's DatabaseMutations envelope (from `run --dry-run`) as the next chain entry.",
+      "Append the next chain entrie(s). With no file, discover the latest `run --dry-run` output for each source and append the ones not yet in the chain, in the order produced. With a file, append that one DatabaseMutations envelope.",
     )
     .argument(
-      "<mutations-file>",
-      "path to the run's DatabaseMutations envelope",
+      "[mutations-file]",
+      "path to a run's DatabaseMutations envelope; omit to batch-append every source's latest output",
     )
-    .action(async (mutationsFile: string): Promise<void> => {
+    .action(async (mutationsFile: string | undefined): Promise<void> => {
       try {
         await withClient((client) => assertAtHead(client));
+        if (mutationsFile === undefined) {
+          const { appended, skipped } = await generateFromLatestRunOutputs();
+          const lines = [
+            ...appended.map(
+              (entry) =>
+                `  + ${entry.version} ${entry.source} (${entry.mutationCount} mutations)`,
+            ),
+            ...skipped.map(
+              (entry) => `  · ${entry.source} skipped (${entry.reason})`,
+            ),
+          ];
+          dependencies.setResult({
+            exitCode: 0,
+            stdout:
+              appended.length === 0
+                ? `data: nothing to append (${skipped.length} source(s) already current).\n`
+                : `data: appended ${appended.length} entrie(s):\n${lines.join("\n")}\n`,
+          });
+          return;
+        }
         const { written, mutationCount } = await generateEntry(mutationsFile);
         dependencies.setResult(
           written === undefined
