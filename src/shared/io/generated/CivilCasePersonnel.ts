@@ -96,12 +96,34 @@ const recordMetadataSchema = z
   .strict();
 export type RecordMetadata = z.infer<typeof recordMetadataSchema>;
 
+// A record's spec validates against the full entity spec for PUT/POST (a create
+// needs its required fields) and against a partial for PATCH (only the fields being
+// set — a partial update). ADR 0034. The partial keeps the strict mode, so an
+// unknown column is still rejected under every verb.
+function recordSpecSchema(action?: "PUT" | "PATCH" | "POST") {
+  return action === "PATCH"
+    ? CivilCasePersonnelSpec.partial()
+    : CivilCasePersonnelSpec;
+}
+function refineRecordSpec(
+  item: { metadata?: { action?: "PUT" | "PATCH" | "POST" }; spec: unknown },
+  ctx: z.RefinementCtx,
+): void {
+  const result = recordSpecSchema(item.metadata?.action).safeParse(item.spec);
+  if (!result.success) {
+    for (const issue of result.error.issues) {
+      ctx.addIssue({ ...issue, path: ["spec", ...issue.path] });
+    }
+  }
+}
+
 const recordItemSchema = z
   .object({
     metadata: recordMetadataSchema.optional(),
-    spec: CivilCasePersonnelSpec,
+    spec: z.record(z.string(), z.unknown()),
   })
-  .strict();
+  .strict()
+  .superRefine((item, ctx) => refineRecordSpec(item, ctx));
 
 export const schema = z
   .object({
@@ -162,14 +184,15 @@ function validateRecord(
   artifactPath: string,
   recordKey: string,
   value: unknown,
+  action?: "PUT" | "PATCH" | "POST",
 ): z.infer<typeof CivilCasePersonnelSpec> {
-  const result = CivilCasePersonnelSpec.safeParse(value);
+  const result = recordSpecSchema(action).safeParse(value);
   if (!result.success) {
     throw new Error(
       `CivilCasePersonnel record ${recordKey} is malformed at ${firstIssuePath(result.error)}: ${artifactPath}`,
     );
   }
-  return result.data;
+  return result.data as z.infer<typeof CivilCasePersonnelSpec>;
 }
 
 // The record's metadata, kept with it through resolution (ADR 0034). The record
@@ -254,7 +277,12 @@ async function readCivilCasePersonnel(
   for (const [recordKey, recordItem] of Object.entries(artifact.spec.records)) {
     records[recordKey] = {
       metadata: toRecordMetadata(recordKey, recordItem.metadata),
-      spec: validateRecord(filePath, recordKey, recordItem.spec),
+      spec: validateRecord(
+        filePath,
+        recordKey,
+        recordItem.spec,
+        recordItem.metadata?.action,
+      ),
     };
   }
 

@@ -258,11 +258,12 @@ export type ForeignKeyBackend = {
   }): ForeignKeyIdSource | undefined;
 };
 
-/** The read a selector resolver reaches through: rows of a kind matching columns. */
+/** The read a selector resolver reaches through: rows of a kind matching columns
+ * (a value by equality, or a candidate set by membership). */
 export type SelectorBackend = {
   findRowsByColumns(
     kind: string,
-    columnValues: Record<string, string>,
+    columnConstraints: Record<string, string | readonly string[]>,
   ): Promise<Array<Record<string, unknown>>>;
 };
 

@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { z } from "zod";
+import { z } from "zod";
 import type { ArtifactsEnvelope as ArtifactsEnvelopeResource } from "./generated/Artifacts.js";
 import { Artifacts as GeneratedArtifacts } from "./generated/Artifacts.js";
 import { ARTIFACT_MODULES } from "./generated/artifact-modules.js";
@@ -192,13 +192,36 @@ function artifactFromInlineItem(
       );
     }
 
-    records[recordKey] = (recordItem as { spec: unknown }).spec;
-    const result = artifactRecordSpecs[item.kind].safeParse(records[recordKey]);
+    // A record is an envelope (ADR 0034): keep its metadata (action/selector) with
+    // it, and validate the spec against the full entity spec for PUT/POST or a
+    // partial for PATCH (a partial update sets only some fields).
+    const envelope = recordItem as {
+      metadata?: { action?: "PUT" | "PATCH" | "POST"; selector?: unknown };
+      spec: unknown;
+    };
+    const specSchema = artifactRecordSpecs[item.kind];
+    const schema =
+      envelope.metadata?.action === "PATCH" && specSchema instanceof z.ZodObject
+        ? specSchema.partial()
+        : specSchema;
+    const result = schema.safeParse(envelope.spec);
     if (!result.success) {
       throw new Error(
         `Inline Artifacts ${item.kind} record ${recordKey} is malformed at ${firstIssuePath(result.error)}.`,
       );
     }
+    records[recordKey] = {
+      metadata: {
+        name: recordKey,
+        ...(envelope.metadata?.action !== undefined
+          ? { action: envelope.metadata.action }
+          : {}),
+        ...(envelope.metadata?.selector !== undefined
+          ? { selector: envelope.metadata.selector }
+          : {}),
+      },
+      spec: envelope.spec,
+    };
   }
 
   return {

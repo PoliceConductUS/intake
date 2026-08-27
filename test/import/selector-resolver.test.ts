@@ -10,10 +10,12 @@ import {
 function rowStore(
   tables: Record<string, Array<Record<string, unknown>>>,
 ): SelectorRowFinder {
-  return async (kind, columnValues) =>
+  return async (kind, constraints) =>
     (tables[kind] ?? []).filter((row) =>
-      Object.entries(columnValues).every(
-        ([column, value]) => String(row[column]) === value,
+      Object.entries(constraints).every(([column, constraint]) =>
+        Array.isArray(constraint)
+          ? constraint.includes(String(row[column]))
+          : String(row[column]) === constraint,
       ),
     );
 }
@@ -21,20 +23,25 @@ function rowStore(
 // Irving PD officers, keyed the way the real schema is: agency_personnel holds
 // FK ids to agency and personnel, not names — so the selector must hop both FKs.
 const IRVING = "irving-agency-id";
+const DALLAS = "dallas-agency-id";
+// Two people named "Paul Lewis" — one at Irving, one at Dallas — the real case:
+// the name is ambiguous, only the agency scopes it to one officer.
 const store = rowStore({
   Agency: [
     { id: IRVING, name: "Irving Police Department" },
-    { id: "dallas-agency-id", name: "Dallas Police Department" },
+    { id: DALLAS, name: "Dallas Police Department" },
   ],
   Personnel: [
     { id: "p-markham", first_name: "James", last_name: "Markham" },
-    { id: "p-paul-lewis", first_name: "Paul", last_name: "Lewis" },
+    { id: "p-paul-lewis-irving", first_name: "Paul", last_name: "Lewis" },
     { id: "p-antwan-lewis", first_name: "Antwan", last_name: "Lewis" },
+    { id: "p-paul-lewis-dallas", first_name: "Paul", last_name: "Lewis" },
   ],
   AgencyPersonnel: [
     { id: "ap-markham", agency_id: IRVING, personnel_id: "p-markham" },
-    { id: "ap-paul-lewis", agency_id: IRVING, personnel_id: "p-paul-lewis" },
+    { id: "ap-paul-lewis", agency_id: IRVING, personnel_id: "p-paul-lewis-irving" },
     { id: "ap-antwan-lewis", agency_id: IRVING, personnel_id: "p-antwan-lewis" },
+    { id: "ap-lewis-dallas", agency_id: DALLAS, personnel_id: "p-paul-lewis-dallas" },
   ],
 });
 
@@ -61,19 +68,21 @@ describe("resolveIdBySelector", () => {
     );
   });
 
-  it("fails loud when the selector names more than one row", async () => {
-    // Two Lewises at Irving — last name alone is ambiguous (the real case). The
-    // ambiguity is at the personnel hop (two people), so it fails there, precisely.
+  it("fails loud when the target row is still ambiguous", async () => {
+    // Two Lewises at Irving — the agency join leaves two officers, so it fails at
+    // the target (AgencyPersonnel), the row we actually resolve to.
     const selector: Selector = {
       agency: { name: "Irving Police Department" },
       personnel: { last_name: "Lewis" },
     };
     await expect(
       resolveIdBySelector("AgencyPersonnel", selector, store),
-    ).rejects.toThrow(/matches 2 Personnel rows/);
+    ).rejects.toThrow(/matches 2 AgencyPersonnel rows/);
   });
 
-  it("disambiguates the two Lewises with the first name", async () => {
+  it("disambiguates two same-named people by agency (the join, not the name)", async () => {
+    // "Paul Lewis" is two people (Irving + Dallas); the personnel hop is ambiguous,
+    // but the agency scopes the officer to exactly one.
     const selector: Selector = {
       agency: { name: "Irving Police Department" },
       personnel: { first_name: "Paul", last_name: "Lewis" },
@@ -83,14 +92,14 @@ describe("resolveIdBySelector", () => {
     );
   });
 
-  it("fails loud when nothing matches (at the failing hop)", async () => {
+  it("fails loud when nothing matches", async () => {
     const selector: Selector = {
       agency: { name: "Irving Police Department" },
       personnel: { last_name: "Nobody" },
     };
     await expect(
       resolveIdBySelector("AgencyPersonnel", selector, store),
-    ).rejects.toThrow(/no Personnel matches/);
+    ).rejects.toThrow(/no AgencyPersonnel matches/);
   });
 
   it("fails loud when the ambiguity is at the target row itself", async () => {

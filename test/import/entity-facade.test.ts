@@ -30,10 +30,12 @@ function backend(
       getLocationPathByPath: async (path) => ({
         location_path_id: `lp:${path}`,
       }),
-      findRowsByColumns: async (kind, columnValues) =>
+      findRowsByColumns: async (kind, constraints) =>
         (rowsByKind?.[kind] ?? []).filter((row) =>
-          Object.entries(columnValues).every(
-            ([column, value]) => String(row[column]) === value,
+          Object.entries(constraints).every(([column, constraint]) =>
+            Array.isArray(constraint)
+              ? constraint.includes(String(row[column]))
+              : String(row[column]) === constraint,
           ),
         ),
     },

@@ -46,25 +46,32 @@ export async function readDatabaseRecordByColumns(
   )[0];
 }
 
-// Every row whose given columns all hold the given values — like
-// readDatabaseRecordByColumns but without a `limit`, so a selector resolver can
-// see when more than one row matches and fail loud (resolve-or-fail, exactly one).
+// Every row whose given columns all satisfy the given constraints — like
+// readDatabaseRecordByColumns but without a `limit` (so a selector resolver can see a
+// many-match and fail loud), and where a constraint may be a single value (matched by
+// equality) or a set of candidate values (matched by membership, `= any`). The set
+// form lets a selector's foreign-key hop stay ambiguous while the parent join names
+// exactly one row (ADR 0034).
 export async function readDatabaseRecordsByColumns(
   client: DatabaseClient,
   tableName: SupportedTableName,
-  values: Record<string, unknown>,
+  constraints: Record<string, unknown>,
 ): Promise<Record<string, unknown>[]> {
-  const columns = Object.keys(values);
+  const columns = Object.keys(constraints);
   if (columns.length === 0) {
     return [];
   }
   const where = columns
-    .map((column, index) => `${column} = $${index + 1}`)
+    .map((column, index) =>
+      Array.isArray(constraints[column])
+        ? `${column} = any($${index + 1})`
+        : `${column} = $${index + 1}`,
+    )
     .join(" and ");
   return rowsFromResult(
     await client.query(
       `select * from ${tableName} where ${where}`,
-      columns.map((column) => values[column]),
+      columns.map((column) => constraints[column]),
     ),
   );
 }

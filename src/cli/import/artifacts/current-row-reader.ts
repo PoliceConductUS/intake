@@ -66,16 +66,17 @@ export class CurrentRowReader {
     );
   }
 
-  // Every row of `kind` matching the given column values — for the selector
-  // resolver, which must see a many-match to fail loud (resolve-or-fail).
+  // Every row of `kind` satisfying the given column constraints (equality, or set
+  // membership for a candidate list) — for the selector resolver, which must see a
+  // many-match to fail loud (resolve-or-fail).
   getRowsByColumns(
     kind: string,
-    values: Record<string, string>,
+    constraints: Record<string, string | readonly string[]>,
   ): Promise<Record<string, unknown>[]> {
     return readDatabaseRecordsByColumns(
       this.requireClient(),
       tableForKind(kind),
-      values,
+      constraints,
     );
   }
 
