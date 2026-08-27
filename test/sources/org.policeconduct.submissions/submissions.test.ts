@@ -108,4 +108,42 @@ describe("readVerifiedReportSubmissions", () => {
     expect(asJson).not.toContain("traits");
     expect(asJson).not.toContain("sourceIp");
   });
+
+  it("de-flattens form-encoded officers (officers[N][field]) into the nested array", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "subs-"));
+    tempDirs.push(dir);
+    const submissions = path.join(dir, "submissions");
+    await writeJson(path.join(submissions, "verify", "v1.json"), {
+      submissionId: "flat1",
+      formName: "reportNew",
+      verifiedAt: "2026-01-02T00:00:00Z",
+    });
+    // The real bucket format: officers arrive as flat form keys, not an array.
+    await writeJson(
+      path.join(submissions, "2026-01-01", "reportNew", "flat1.json"),
+      reportEnvelope("flat1", "2026-01-01T10:00:00Z", {
+        title: "Flat",
+        "officers[0][name]": "James Markham",
+        "officers[0][badge]": "1379",
+        "officers[0][department]": "Irving Police Department",
+        "officers[1][name]": "Andrew Hammett",
+        "officers[1][badge]": "1263",
+        "officers[1][department]": "Irving Police Department",
+      }),
+    );
+
+    const [report] = await readVerifiedReportSubmissions(submissions);
+    expect(report.officers).toEqual([
+      {
+        name: "James Markham",
+        badge: "1379",
+        department: "Irving Police Department",
+      },
+      {
+        name: "Andrew Hammett",
+        badge: "1263",
+        department: "Irving Police Department",
+      },
+    ]);
+  });
 });

@@ -108,9 +108,40 @@ async function verifiedReportIds(submissionsDir: string): Promise<Set<string>> {
   return ids;
 }
 
+// Submissions are form-encoded: officers arrive as flat keys
+// (`officers[0][name]`, `officers[0][badge]`, ...), not a nested array. Rebuild the
+// nested `officers` the schema expects, indexed by N, so no named officer is lost.
+function deflattenOfficers(data: unknown): unknown {
+  if (typeof data !== "object" || data === null || Array.isArray(data)) {
+    return data;
+  }
+  const record = data as Record<string, unknown>;
+  if (Array.isArray(record.officers)) {
+    return record;
+  }
+  const byIndex = new Map<number, Record<string, unknown>>();
+  for (const [key, value] of Object.entries(record)) {
+    const match = key.match(/^officers\[(\d+)\]\[([a-zA-Z]+)\]$/);
+    if (match === null) {
+      continue;
+    }
+    const index = Number(match[1]);
+    const officer = byIndex.get(index) ?? {};
+    officer[match[2]!] = value;
+    byIndex.set(index, officer);
+  }
+  if (byIndex.size === 0) {
+    return record;
+  }
+  const officers = [...byIndex.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([, officer]) => officer);
+  return { ...record, officers };
+}
+
 function toReportSubmission(envelope: unknown): ReportSubmission {
   const parsed = EnvelopeSchema.parse(envelope);
-  const data = ReportDataSchema.parse(parsed.payload.data);
+  const data = ReportDataSchema.parse(deflattenOfficers(parsed.payload.data));
   return {
     submissionId: parsed.submissionId,
     receivedAt: parsed.receivedAt,
