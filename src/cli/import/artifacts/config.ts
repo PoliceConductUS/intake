@@ -18,7 +18,7 @@ import { readDatabaseRecordByColumn } from "../../database/entities.js";
 import { DataContext } from "./data-context.js";
 import { isRegistryKind } from "./facades/resolver-registry.js";
 import type { ApplyArtifactMutationResult } from "./artifact-mutation.js";
-import { applyOptionalArtifactMutation } from "./artifact-mutation.js";
+import { readImportArtifacts } from "./artifacts-reader.js";
 import {
   Artifacts,
   type ArtifactsEnvelope,
@@ -160,9 +160,12 @@ async function readArtifactsStage(
   context: ImportArtifactsPipelineContext,
 ): Promise<ImportArtifactsPipelineContext> {
   context.commandInput.logger?.info("Reading Artifacts.");
-  const artifacts = await Artifacts.read(context.artifactsPath, {
-    includeKinds: initialReadArtifactKinds,
-  });
+  // Reading applies the phase's mutations (corrections + ADR 0012 command-local
+  // mutations) via the reader delegate — no separate apply stage to remember.
+  const { artifacts, artifactMutation } = await readImportArtifacts(
+    context.artifactsPath,
+    { includeKinds: initialReadArtifactKinds },
+  );
   context.commandInput.logger?.debug(
     {
       artifactsPath: context.artifactsPath,
@@ -194,7 +197,13 @@ async function readArtifactsStage(
   context.commandInput.logger?.info(
     `Artifacts namespace: ${artifacts.metadata.namespace}.`,
   );
-  return { ...context, artifacts };
+  if (artifactMutation.applied) {
+    context.commandInput.logger?.info(
+      { artifactMutationPath: artifactMutation.reference.path },
+      "Artifact mutations applied.",
+    );
+  }
+  return { ...context, artifacts, artifactMutation };
 }
 
 async function rejectExistingImportStage(
@@ -214,31 +223,6 @@ async function rejectExistingImportStage(
       : { env: context.commandInput.env },
   );
   return context;
-}
-
-async function applyArtifactMutationsStage(
-  context: ImportArtifactsPipelineContext,
-): Promise<ImportArtifactsPipelineContext> {
-  if (context.artifacts === undefined) {
-    throw new Error(
-      "Artifacts must be read before applying artifact mutations.",
-    );
-  }
-
-  context.commandInput.logger?.info("Checking for artifact mutations.");
-  const artifactMutation = await applyOptionalArtifactMutation(
-    context.artifacts,
-    {
-      artifactsPath: context.artifactsPath,
-    },
-  );
-  if (artifactMutation.applied) {
-    context.commandInput.logger?.info(
-      { artifactMutationPath: artifactMutation.reference.path },
-      "Artifact mutations applied.",
-    );
-  }
-  return { ...context, artifactMutation };
 }
 
 async function validateArtifactRecordsStage(
@@ -667,9 +651,10 @@ async function writeDatabaseMutationsStage(
 }
 
 const importArtifactsPipelineStages: ImportArtifactsPipelineStage[] = [
+  // readArtifactsStage applies artifact mutations as part of reading (the reader
+  // delegate), so there is no separate apply-mutations stage.
   readArtifactsStage,
   rejectExistingImportStage,
-  applyArtifactMutationsStage,
   validateArtifactRecordsStage,
   // Prepares, validates, emits, and applies in one pass over a single DataContext.
   writeDatabaseMutationsStage,

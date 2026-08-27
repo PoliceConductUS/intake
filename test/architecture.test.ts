@@ -234,7 +234,6 @@ describe("architecture boundaries", () => {
     for (const stageName of [
       "readArtifactsStage",
       "rejectExistingImportStage",
-      "applyArtifactMutationsStage",
       "validateArtifactRecordsStage",
       "writeDatabaseMutationsStage",
     ]) {
