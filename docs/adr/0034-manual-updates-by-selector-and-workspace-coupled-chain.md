@@ -46,13 +46,16 @@ workspace artifact, not a committed file. Reconstruction stays "fresh database �
 apply schema migrations → replay this workspace's chain" (ADR 0033) — now
 explicitly _this workspace's_ chain, against _this workspace's_ cache.
 
-**2. What is committed is the manual _intent_, not the generated mutations.**
-The manual curation source (ADR 0031) is a normal source: its records are the
-authored, lineage-independent intent. They carry _selectors_, not ids (§3), so
-the same committed record generates a correct mutation in any workspace. Source
-code and manual-intent records live in git; artifacts, cache, and the generated
-chain live in the workspace. The dividing line is "does it carry a canonical id":
-if yes, it is workspace-coupled; if no, it is committable.
+**2. Only code lives in git; all acquired and generated data lives in the
+workspace.** Source code — including the manual curation source (ADR 0031) — is
+committed. Everything a run acquires or produces lives in the workspace:
+acquired source snapshots, the manual curation records (acquired through the
+manual source like any other source's data), artifacts, the cache/ledger, and the
+generated chain. The manual records name their target by a _selector_, not a
+canonical id (§3), because an id is neither known nor stable when the record is
+authored — not because the record is committed. The workspace is the single
+coupled unit of a lineage: the cache, the chain, and the data that produced them,
+together.
 
 **3. A manual update names its target by a selector, resolved at generate time.**
 A manual update record supplies **no id**. Its identity column is filled by a
@@ -77,9 +80,10 @@ never a mint (an update targets an existing row). Resolution happens **at
 `generate` time**, and the resolved concrete id is **materialized** into the chain
 entry (`metadata.name = <that workspace's cuid>`). The selector never survives
 into the replayed entry, so replay stays deterministic and never re-queries the
-database (ADR 0033 §8). Across a from-scratch rebuild in a new workspace the same
-committed record re-resolves against that workspace and materializes _its_ ids —
-which is exactly why the selector, not a hardcoded id, is the authored form.
+database (ADR 0033 §8). The selector, not a hardcoded id, is the authored form
+because the canonical id is neither known nor stable when the record is authored:
+it is minted inside the data context (ADR 0023) and differs across lineages. The
+selector resolves at generate time against whichever workspace it runs in.
 
 **4. This lifts ADR 0031's "canonical-identity updates out of scope."** The manual
 source now handles updates to existing entities, not only creates — starting with
@@ -101,15 +105,16 @@ producer feeding that lifecycle, not a separate mechanism.
   built now; not needed soon.
 - **Promotion.** Because artifacts are lineage-independent and manual records
   resolve by selector, a future `promote <from> <to>` could re-derive the target
-  environment's mutations from the source environment's artifacts plus the
-  committed manual records. Explicitly out of scope now.
+  environment's mutations from the source environment's artifacts and manual
+  records (both in the source workspace). Explicitly out of scope now.
 
 ## Consequences
 
 - **The chain directory moves out of the repo into the workspace.** `chainDir`
   resolves under `$INTAKE_WORKSPACE/data/mutations` instead of `./data-mutations`;
-  `genesis` and the (to-be-added) `reconstruct` command follow. The repo no longer
-  carries the generated chain — only the manual-intent records.
+  `genesis` and the (to-be-added) `reconstruct` command follow. The repo carries
+  neither the chain nor the manual records — both live in the workspace with all
+  other acquired and generated data. Only code is committed.
 - **The manual source gains a selector-based id resolver and update support.** A
   new resolve-or-fail resolver fills the identity column from a selector; the
   handled kinds grow to include `AgencyPersonnel` updates.
