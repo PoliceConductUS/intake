@@ -85,7 +85,7 @@ export async function loadSourceProduces(
   return produces as ImportArtifactKind[];
 }
 
-// A standalone source (e.g. com.policeconduct.manual) is a manual intervention —
+// A standalone source (e.g. org.policeconduct.manual) is a manual intervention —
 // run on its own to stage creates/updates into the database between group runs —
 // so it is excluded from a multi-source group run. Default false.
 export async function loadSourceStandalone(

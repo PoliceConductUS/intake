@@ -34,7 +34,7 @@ export async function resolveReference(
     const disposition = await io.askDisposition();
     if (disposition === "stop") {
       throw new Error(
-        "com.policeconduct.manual: acquire stopped by the user at an unresolved reference.",
+        "org.policeconduct.manual: acquire stopped by the user at an unresolved reference.",
       );
     }
     if (disposition === "skip") {

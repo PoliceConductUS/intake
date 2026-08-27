@@ -3,7 +3,7 @@ import {
   resolveReference,
   type Disposition,
   type ReferenceIO,
-} from "../../../sources/com.policeconduct.manual/reference.js";
+} from "../../../sources/org.policeconduct.manual/reference.js";
 
 // Scripts the interview I/O so the state machine is exercised without stdin: a
 // queue of resolved source ids (null = no match / cancel) and a queue of

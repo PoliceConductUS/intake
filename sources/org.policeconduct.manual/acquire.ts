@@ -59,7 +59,7 @@ export const acquire: SourceAcquire = async ({
 
   if (!(HANDLED_RECORD_KINDS as readonly string[]).includes(kind)) {
     throw new Error(
-      `com.policeconduct.manual: kind ${kind} is not handled (${HANDLED_RECORD_KINDS.join(", ")}).`,
+      `org.policeconduct.manual: kind ${kind} is not handled (${HANDLED_RECORD_KINDS.join(", ")}).`,
     );
   }
   const model = describeKind(kind);
@@ -70,6 +70,6 @@ export const acquire: SourceAcquire = async ({
     model.identity,
   );
   logger?.info(
-    `com.policeconduct.manual: recorded ${kind} (${output.entries.length} curated record(s) total).`,
+    `org.policeconduct.manual: recorded ${kind} (${output.entries.length} curated record(s) total).`,
   );
 };

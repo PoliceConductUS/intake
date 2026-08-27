@@ -125,7 +125,7 @@ Prerequisites, then the source:
 **Standalone** (ADR 0031): the source is excluded from group runs and runs on its
 own after the reconstruction, so its officer/location resolution reads a fully
 imported roster. It stages the approved reports into the database between group
-runs — the same manual-intervention shape as `com.policeconduct.manual`.
+runs — the same manual-intervention shape as `org.policeconduct.manual`.
 
 ## Alternatives Considered
 

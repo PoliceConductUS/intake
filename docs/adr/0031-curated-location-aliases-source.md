@@ -21,7 +21,7 @@ resolution code.
 
 ## Decision
 
-Add a source `com.policeconduct.manual`.
+Add a source `org.policeconduct.manual`.
 
 **acquire is a model-driven interview.** It reads the shared model for the chosen
 kind (`describeKind`) and prompts for each field — marking optional fields and, for

@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { matchSourceIds } from "../../../src/cli/source-glob.js";
 import { loadSourceProduces } from "../../../src/cli/run/load-source-module.js";
-import { planSourceOrder } from "../../../src/cli/run/source-order.js";
+import { consumesOf, planSourceOrder } from "../../../src/cli/run/source-order.js";
 
 const sourcesRoot = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -11,7 +11,7 @@ const sourcesRoot = path.join(
 );
 
 describe("source run order over the real sources", () => {
-  it("orders every source so its producers run first", async () => {
+  it("runs every source after the producers of what it consumes", async () => {
     const ids = await matchSourceIds(sourcesRoot, "*");
     const sources = await Promise.all(
       ids.map(async (id) => ({
@@ -22,29 +22,37 @@ describe("source run order over the real sources", () => {
 
     const { order, skipped } = planSourceOrder(sources);
 
-    // Independent oracle: hand-derived from each source's declared produces and
-    // the FK graph (see the derive-source-run-order design doc). gov.azpost.roster
-    // produces nothing, so it is skipped, not ordered.
-    expect(order).toEqual([
-      "us-census-gazetteer",
-      "gov.tx.tcole",
-      "mn-post",
-      "clearinghouse-api",
-      "courtlistener",
-      // Produces LocationPathAliases, which consume LocationPath — so it orders
-      // after the location-path producer (ADR 0031).
-      "com.policeconduct.manual",
-      "gov.us.federal-le",
-      // Produces Reviews + ReviewPersonnel (ADR 0030), which consume LocationPath
-      // and AgencyPersonnel and are consumed by nothing — a sink. It ties with
-      // youtube (also a sink) and wins the id tie-break ("org." < "youtube."), so
-      // it orders just before it.
-      "org.policeconduct.submissions",
-      // Produces CoverageLinks + CoverageLinkAgencyPersonnel, which consume
-      // AgencyPersonnel — so it orders after the personnel/agency producers.
-      "youtube.policeactivity",
-    ]);
-    expect(skipped).toEqual(["gov.azpost.roster"]);
+    // The order is computed, never fixed: asserting one exact sequence would pin
+    // the sort's arbitrary tie-break between independent sources (e.g. two sinks
+    // ordered by id), which a rename can flip without changing correctness. The
+    // real guarantee (ADR 0021) is the only thing asserted — every producer of a
+    // kind a source consumes appears before it. The FK graph is the independent
+    // oracle; the sort's output is checked against it.
+    const positionOf = new Map(order.map((id, index) => [id, index]));
+    const producing = sources.filter((source) => source.produces.length > 0);
+
+    // Every producing source is placed exactly once; produce-nothing sources are
+    // skipped, not ordered.
+    expect([...order].sort()).toEqual(producing.map((s) => s.id).sort());
+    expect(skipped).toEqual(
+      sources
+        .filter((source) => source.produces.length === 0)
+        .map((source) => source.id)
+        .sort((left, right) => left.localeCompare(right)),
+    );
+
+    for (const consumer of producing) {
+      for (const consumedKind of consumesOf(consumer.produces)) {
+        for (const producer of producing) {
+          if (producer.id === consumer.id) continue;
+          if (!producer.produces.includes(consumedKind)) continue;
+          expect(
+            positionOf.get(producer.id),
+            `${producer.id} produces ${consumedKind} consumed by ${consumer.id}, so it must run first`,
+          ).toBeLessThan(positionOf.get(consumer.id)!);
+        }
+      }
+    }
 
     // The shared helper dir is not a source.
     expect(ids).not.toContain("lib");

@@ -27,7 +27,7 @@ export function describeKind(recordKind: string): KindModel {
   const spec = specs[`${recordKind}Spec`];
   if (!(spec instanceof z.ZodObject)) {
     throw new Error(
-      `com.policeconduct.manual: no shared spec for kind ${recordKind}.`,
+      `org.policeconduct.manual: no shared spec for kind ${recordKind}.`,
     );
   }
   const foreignKeys = new Map(
@@ -59,7 +59,7 @@ export function parseRecord(
   const spec = specs[`${recordKind}Spec`];
   if (!(spec instanceof z.ZodObject)) {
     throw new Error(
-      `com.policeconduct.manual: no shared spec for kind ${recordKind}.`,
+      `org.policeconduct.manual: no shared spec for kind ${recordKind}.`,
     );
   }
   return spec.parse(record) as Record<string, unknown>;

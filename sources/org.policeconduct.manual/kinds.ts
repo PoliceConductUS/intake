@@ -17,7 +17,7 @@ export function artifactKindFor(recordKind: string): ImportArtifactKind {
   );
   if (kind === undefined) {
     throw new Error(
-      `com.policeconduct.manual: no artifact kind produces record kind ${recordKind}.`,
+      `org.policeconduct.manual: no artifact kind produces record kind ${recordKind}.`,
     );
   }
   return kind;

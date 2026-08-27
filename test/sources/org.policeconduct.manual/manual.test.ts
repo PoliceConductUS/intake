@@ -2,13 +2,13 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, it, expect } from "vitest";
-import { describeKind } from "../../../sources/com.policeconduct.manual/entity-model.js";
+import { describeKind } from "../../../sources/org.policeconduct.manual/entity-model.js";
 import {
   appendEntry,
   readLatest,
-} from "../../../sources/com.policeconduct.manual/chain.js";
-import { acquire } from "../../../sources/com.policeconduct.manual/acquire.js";
-import { run } from "../../../sources/com.policeconduct.manual/run.js";
+} from "../../../sources/org.policeconduct.manual/chain.js";
+import { acquire } from "../../../sources/org.policeconduct.manual/acquire.js";
+import { run } from "../../../sources/org.policeconduct.manual/run.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {
