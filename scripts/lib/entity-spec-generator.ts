@@ -256,6 +256,21 @@ const DESCRIPTORS: EntityDescriptor[] = [
     table: "coverage_link_civil_cases",
     createRequired: ["id"],
   },
+  {
+    // A published user report (ADR 0029 / ADR 0030). id and slug are minted at
+    // import; location_path_id is resolved-or-fail in run and supplied as an
+    // existing path. user_id is nullable (no submitter stored) and omitted.
+    recordKind: "Review",
+    table: "reviews",
+    createRequired: ["id", "slug"],
+  },
+  {
+    // A report's link to one resolved officer@agency (ADR 0030). review_id is a
+    // same-run id; agency_personnel_id resolves cross-source via the ledger.
+    recordKind: "ReviewPersonnel",
+    table: "review_personnel",
+    createRequired: ["id"],
+  },
 ];
 
 /**
@@ -358,6 +373,8 @@ const ENTITY_NAME_BY_RECORD_KIND: Record<string, string> = {
   CivilCasePersonnel: "civilCasePersonnel",
   CivilCaseLink: "civilCaseLinks",
   CoverageLinkCivilCase: "coverageLinkCivilCases",
+  Review: "reviews",
+  ReviewPersonnel: "reviewPersonnel",
 };
 
 function capitalizeFirst(value: string): string {
@@ -448,10 +465,15 @@ function baseType(column: Column, table: IntrospectedTable): string {
     case "varchar":
     case "bpchar":
       return nonBlank ? "nonEmptyString" : "z.string()";
-    // Dates travel as ISO strings in the envelope; a date value is never blank.
+    // A uuid column carries a source id string; it is never blank.
+    case "uuid":
+      return "nonEmptyString";
+    // Dates/times travel as ISO strings in the envelope; the value is never blank.
     case "date":
     case "timestamptz":
     case "timestamp":
+    case "time":
+    case "timetz":
       return "nonEmptyString";
     case "float8":
     case "float4":

@@ -63,6 +63,12 @@ import { CivilCaseLinkUpdate } from "./CivilCaseLinkUpdate.js";
 import { CoverageLinkCivilCaseCreate } from "./CoverageLinkCivilCaseCreate.js";
 import { CoverageLinkCivilCaseRead } from "./CoverageLinkCivilCaseRead.js";
 import { CoverageLinkCivilCaseUpdate } from "./CoverageLinkCivilCaseUpdate.js";
+import { ReviewCreate } from "./ReviewCreate.js";
+import { ReviewRead } from "./ReviewRead.js";
+import { ReviewUpdate } from "./ReviewUpdate.js";
+import { ReviewPersonnelCreate } from "./ReviewPersonnelCreate.js";
+import { ReviewPersonnelRead } from "./ReviewPersonnelRead.js";
+import { ReviewPersonnelUpdate } from "./ReviewPersonnelUpdate.js";
 
 export const importMutationEnvelopeTypes = {
   LocationPathCreate,
@@ -128,4 +134,10 @@ export const importMutationEnvelopeTypes = {
   CoverageLinkCivilCaseCreate,
   CoverageLinkCivilCaseRead,
   CoverageLinkCivilCaseUpdate,
+  ReviewCreate,
+  ReviewRead,
+  ReviewUpdate,
+  ReviewPersonnelCreate,
+  ReviewPersonnelRead,
+  ReviewPersonnelUpdate,
 };

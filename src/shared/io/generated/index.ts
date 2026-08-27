@@ -158,3 +158,10 @@ export type {
   CoverageLinkCivilCasesEnvelope,
   CoverageLinkCivilCasesInput,
 } from "./CoverageLinkCivilCases.js";
+export { Reviews, ReviewSpec } from "./Reviews.js";
+export type { ReviewsEnvelope, ReviewsInput } from "./Reviews.js";
+export { ReviewPersonnel, ReviewPersonnelSpec } from "./ReviewPersonnel.js";
+export type {
+  ReviewPersonnelEnvelope,
+  ReviewPersonnelInput,
+} from "./ReviewPersonnel.js";

@@ -30,6 +30,8 @@ import { CivilCases } from "./CivilCases.js";
 import { CivilCasePersonnel } from "./CivilCasePersonnel.js";
 import { CivilCaseLinks } from "./CivilCaseLinks.js";
 import { CoverageLinkCivilCases } from "./CoverageLinkCivilCases.js";
+import { Reviews } from "./Reviews.js";
+import { ReviewPersonnel } from "./ReviewPersonnel.js";
 
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
@@ -120,6 +122,8 @@ const artifactSpecSchemas: Record<string, z.ZodType> = {
   CivilCasePersonnel: CivilCasePersonnel.schema.shape.spec,
   CivilCaseLinks: CivilCaseLinks.schema.shape.spec,
   CoverageLinkCivilCases: CoverageLinkCivilCases.schema.shape.spec,
+  Reviews: Reviews.schema.shape.spec,
+  ReviewPersonnel: ReviewPersonnel.schema.shape.spec,
 };
 const artifactReferenceSchema = z
   .object({

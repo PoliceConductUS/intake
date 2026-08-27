@@ -126,6 +126,18 @@ import {
   read as readCoverageLinkCivilCases,
   write as writeCoverageLinkCivilCases,
 } from "./CoverageLinkCivilCases.js";
+import {
+  Reviews,
+  ReviewSpec,
+  read as readReviews,
+  write as writeReviews,
+} from "./Reviews.js";
+import {
+  ReviewPersonnel,
+  ReviewPersonnelSpec,
+  read as readReviewPersonnel,
+  write as writeReviewPersonnel,
+} from "./ReviewPersonnel.js";
 
 export const ARTIFACT_MODULES = {
   LocationPaths: {
@@ -253,5 +265,17 @@ export const ARTIFACT_MODULES = {
     recordSpec: CoverageLinkCivilCaseSpec,
     read: readCoverageLinkCivilCases,
     write: writeCoverageLinkCivilCases,
+  },
+  Reviews: {
+    envelope: Reviews,
+    recordSpec: ReviewSpec,
+    read: readReviews,
+    write: writeReviews,
+  },
+  ReviewPersonnel: {
+    envelope: ReviewPersonnel,
+    recordSpec: ReviewPersonnelSpec,
+    read: readReviewPersonnel,
+    write: writeReviewPersonnel,
   },
 } as const;

@@ -26,9 +26,10 @@ export const GENERATED_MIGRATION_VERSIONS = [
   "20260825000300",
   "20260826000000",
   "20260827000000",
+  "20260828000000",
 ] as const;
 export const GENERATED_MIGRATION_FINGERPRINT =
-  "d40fab61639c1734e6203eb96441e863ebd7a0eecf113ab62c66750b7330cbfe";
+  "a328f0d38e3a99ff06cc57d3952e21895a1a3780893c8e84327f924e1fc3a86a";
 
 // Entity record kinds in database-dependency order (topological sort of the
 // foreign-key graph): a referenced entity precedes its referrer, so mutations
@@ -55,6 +56,8 @@ export const RECORD_KINDS_IN_DEPENDENCY_ORDER = [
   "CivilCasePersonnel",
   "CivilCaseLink",
   "CoverageLinkCivilCase",
+  "Review",
+  "ReviewPersonnel",
 ] as const;
 
 // Each record kind's foreign keys to other entity kinds (field → target kind),
@@ -108,6 +111,11 @@ export const FK_REFERENCES: Record<
     { field: "civil_case_id", targetKind: "CivilCase" },
     { field: "coverage_link_id", targetKind: "CoverageLink" },
   ],
+  Review: [{ field: "location_path_id", targetKind: "LocationPath" }],
+  ReviewPersonnel: [
+    { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
+    { field: "review_id", targetKind: "Review" },
+  ],
 };
 
 // Each record kind's properties resolved during import rather than supplied by
@@ -146,6 +154,8 @@ export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = {
   CivilCasePersonnel: ["id"],
   CivilCaseLink: ["id"],
   CoverageLinkCivilCase: ["id"],
+  Review: ["id", "slug"],
+  ReviewPersonnel: ["id"],
 };
 
 // Each record kind's schema-qualified database table.
@@ -171,6 +181,8 @@ export const TABLE_BY_KIND: Record<string, string> = {
   CivilCasePersonnel: "public.civil_case_personnel",
   CivilCaseLink: "public.civil_case_links",
   CoverageLinkCivilCase: "public.coverage_link_civil_cases",
+  Review: "public.reviews",
+  ReviewPersonnel: "public.review_personnel",
 };
 
 // Import artifact metadata per kind: kind/entityName naming plus the FK-derived
@@ -325,6 +337,20 @@ export const importTypeMetadata = {
     targetTable: "public.coverage_link_civil_cases",
     dependsOn: ["CoverageLinks", "CivilCases"],
   },
+  Reviews: {
+    kind: "Reviews",
+    recordKind: "Review",
+    entityName: "reviews",
+    targetTable: "public.reviews",
+    dependsOn: ["LocationPaths"],
+  },
+  ReviewPersonnel: {
+    kind: "ReviewPersonnel",
+    recordKind: "ReviewPersonnel",
+    entityName: "reviewPersonnel",
+    targetTable: "public.review_personnel",
+    dependsOn: ["AgencyPersonnel", "Reviews"],
+  },
 } as const;
 
 export type ImportArtifactKind = keyof typeof importTypeMetadata;
@@ -353,6 +379,8 @@ export const IMPORT_ARTIFACT_KINDS = [
   "CivilCasePersonnel",
   "CivilCaseLinks",
   "CoverageLinkCivilCases",
+  "Reviews",
+  "ReviewPersonnel",
 ] as const satisfies readonly ImportArtifactKind[];
 
 export type ImportEntityName =
@@ -782,6 +810,55 @@ export const CoverageLinkCivilCaseCreateSpec = CoverageLinkCivilCaseSpec.extend(
   },
 );
 
+export const ReviewSpec = z
+  .object({
+    id: z.string().optional(),
+    user_id: nullableNonEmptyString.optional(),
+    title: z.string(),
+    description: z.string().nullable().optional(),
+    incident_date: nullableNonEmptyString.optional(),
+    desired_outcome: z.string().nullable().optional(),
+    address: z.string().nullable().optional(),
+    thumbnail_url: z.string().nullable().optional(),
+    slug: z.string().optional(),
+    charges: z.string().nullable().optional(),
+    location_path_id: z.string(),
+    latitude: z.number().finite().nullable().optional(),
+    longitude: z.number().finite().nullable().optional(),
+    what_happened: z.string().nullable().optional(),
+    how_felt: z.string().nullable().optional(),
+    what_else: z.string().nullable().optional(),
+    incident_time: nullableNonEmptyString.optional(),
+    submitter_relationship: z.string().nullable().optional(),
+    interaction_type: z.string().nullable().optional(),
+    setting: z.string().nullable().optional(),
+    bodycam_requested: z.string().nullable().optional(),
+    complaint_filed: z.string().nullable().optional(),
+    purpose: z.string().nullable().optional(),
+    case_number: z.string().nullable().optional(),
+  })
+  .strict();
+
+export const ReviewCreateSpec = ReviewSpec.extend({
+  id: z.string(),
+  slug: z.string(),
+});
+
+export const ReviewPersonnelSpec = z
+  .object({
+    id: z.string().optional(),
+    review_id: z.string(),
+    created_by: nullableNonEmptyString.optional(),
+    updated_by: nullableNonEmptyString.optional(),
+    rating_overall: z.number().finite().nullable().optional(),
+    agency_personnel_id: z.string(),
+  })
+  .strict();
+
+export const ReviewPersonnelCreateSpec = ReviewPersonnelSpec.extend({
+  id: z.string(),
+});
+
 export type AgencyRow = {
   id: string;
   name: string;
@@ -1101,7 +1178,7 @@ export type ReviewWitnessesRow = {
 
 export type ReviewsRow = {
   id: string;
-  user_id: string;
+  user_id: string | null;
   title: string;
   description: string | null;
   incident_date: string | null;
