@@ -24,8 +24,7 @@ describe("source run order over the real sources", () => {
 
     // Independent oracle: hand-derived from each source's declared produces and
     // the FK graph (see the derive-source-run-order design doc). gov.azpost.roster
-    // and org.policeconduct.submissions produce nothing (the latter a scaffold,
-    // ADR 0030), so they are skipped, not ordered.
+    // produces nothing, so it is skipped, not ordered.
     expect(order).toEqual([
       "us-census-gazetteer",
       "gov.tx.tcole",
@@ -36,14 +35,16 @@ describe("source run order over the real sources", () => {
       // after the location-path producer (ADR 0031).
       "com.policeconduct.manual",
       "gov.us.federal-le",
+      // Produces Reviews + ReviewPersonnel (ADR 0030), which consume LocationPath
+      // and AgencyPersonnel and are consumed by nothing — a sink. It ties with
+      // youtube (also a sink) and wins the id tie-break ("org." < "youtube."), so
+      // it orders just before it.
+      "org.policeconduct.submissions",
       // Produces CoverageLinks + CoverageLinkAgencyPersonnel, which consume
       // AgencyPersonnel — so it orders after the personnel/agency producers.
       "youtube.policeactivity",
     ]);
-    expect(skipped).toEqual([
-      "gov.azpost.roster",
-      "org.policeconduct.submissions",
-    ]);
+    expect(skipped).toEqual(["gov.azpost.roster"]);
 
     // The shared helper dir is not a source.
     expect(ids).not.toContain("lib");

@@ -222,12 +222,20 @@ const DESCRIPTORS: EntityDescriptor[] = [
     createRequired: ["id"],
   },
   {
-    // A published user report (ADR 0029 / ADR 0030). id and slug are minted at
-    // import; location_path_id is resolved-or-fail in run and supplied as an
-    // existing path. user_id is nullable (no submitter stored) and omitted.
+    // A published user report (ADR 0029 / ADR 0030). id is the submission's natural
+    // id and slug comes from the source; location_path_id/latitude/longitude are
+    // geocoded from the report's address at import (like Agency). city/state/zip are
+    // envelope-only geocode hints (reviews has no such columns). user_id is nullable
+    // (no submitter stored) and omitted.
     recordKind: "Review",
     table: "reviews",
-    createRequired: ["id", "slug"],
+    createRequired: ["id", "slug", "location_path_id", "latitude", "longitude"],
+    extras: {
+      city: "z.string().optional()",
+      state: "z.string().optional()",
+      zip_code: "z.string().optional()",
+    },
+    createOmit: ["city", "state", "zip_code"],
   },
   {
     // A report's link to one resolved officer@agency (ADR 0030). review_id is a

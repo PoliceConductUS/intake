@@ -21,7 +21,7 @@ async function s3Sync(
   // `--delete` only on the DOWN mirror (local reflects S3). The UP sync is additive
   // — never `--delete` — so an incomplete local mirror can never delete a real
   // submission from S3.
-  const args = ["s3", "sync", from, to];
+  const args = ["s3", "sync", from, to, "--exclude", "*.DS_Store"];
   if (mirror) {
     args.push("--delete");
   }
@@ -49,10 +49,15 @@ export const acquire: SourceAcquire = async ({
   }
   const profile = env.AWS_PROFILE;
 
-  logger?.info(`org.policeconduct.submissions: syncing ${s3Bucket} → local.`);
-  await s3Sync(s3Bucket, bucketDir, profile, { mirror: true });
+  // Push local changes UP first (additive), then mirror DOWN (--delete). The
+  // reverse order would let the down-mirror delete a locally-authored status
+  // verdict or curator submission before it was ever pushed. The cost of pushing
+  // up first: a submission deleted directly in S3 but still present locally is
+  // re-uploaded — acceptable for the current single-curator workflow.
   logger?.info(
-    `org.policeconduct.submissions: syncing local status changes → ${s3Bucket}.`,
+    `org.policeconduct.submissions: syncing local changes → ${s3Bucket}.`,
   );
   await s3Sync(bucketDir, s3Bucket, profile, { mirror: false });
+  logger?.info(`org.policeconduct.submissions: mirroring ${s3Bucket} → local.`);
+  await s3Sync(s3Bucket, bucketDir, profile, { mirror: true });
 };

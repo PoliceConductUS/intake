@@ -117,6 +117,14 @@ const databaseMutationMetadataByRecordKind: Record<
     tableName: "public.civil_case_links",
     keyColumnName: "id",
   },
+  Review: {
+    tableName: "public.reviews",
+    keyColumnName: "id",
+  },
+  ReviewPersonnel: {
+    tableName: "public.review_personnel",
+    keyColumnName: "id",
+  },
 } satisfies Record<string, DatabaseMutationMetadata>;
 
 function databaseMutationMetadata(

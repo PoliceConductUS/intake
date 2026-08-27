@@ -178,7 +178,7 @@ export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = {
   CivilCasePersonnel: ["id"],
   CivilCaseLink: ["id"],
   CoverageLinkCivilCase: ["id"],
-  Review: ["id", "slug"],
+  Review: ["id", "slug", "location_path_id", "latitude", "longitude"],
   ReviewPersonnel: ["id"],
 };
 
@@ -817,9 +817,9 @@ export const ReviewSpec = z
     thumbnail_url: z.string().nullable().optional(),
     slug: z.string().optional(),
     charges: z.string().nullable().optional(),
-    location_path_id: z.string(),
-    latitude: z.number().finite().nullable().optional(),
-    longitude: z.number().finite().nullable().optional(),
+    location_path_id: z.string().optional(),
+    latitude: z.number().finite().optional(),
+    longitude: z.number().finite().optional(),
     what_happened: z.string().nullable().optional(),
     how_felt: z.string().nullable().optional(),
     what_else: z.string().nullable().optional(),
@@ -831,12 +831,22 @@ export const ReviewSpec = z
     complaint_filed: z.string().nullable().optional(),
     purpose: z.string().nullable().optional(),
     case_number: z.string().nullable().optional(),
+    city: z.string().optional(),
+    state: z.string().optional(),
+    zip_code: z.string().optional(),
   })
   .strict();
 
-export const ReviewCreateSpec = ReviewSpec.extend({
+export const ReviewCreateSpec = ReviewSpec.omit({
+  city: true,
+  state: true,
+  zip_code: true,
+}).extend({
   id: z.string(),
   slug: z.string(),
+  location_path_id: z.string(),
+  latitude: z.number().finite(),
+  longitude: z.number().finite(),
 });
 
 export const ReviewPersonnelSpec = z

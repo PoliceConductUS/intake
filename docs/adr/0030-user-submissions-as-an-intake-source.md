@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 > The intake-side implementation of
 > [ADR 0029](0029-align-the-public-report-model-to-the-report-new-form.md)'s
@@ -22,7 +22,10 @@ an S3 bucket, already synced to a sibling folder of this repo
   `{ submissionId, receivedAt, sourceIp, userAgent, payload: { formName, data } }`.
 - `submissions/verify/<verificationId>.json` — email verification. A submission is
   **verified** when its record has `verifiedAt` set.
-- `submissions/status/<id>.json` — human review workflow (`in_review`, …).
+- `submissions/status/<id>.json` — human review verdict, keyed by `submissionId`:
+  `{ submissionId, status, decision?: { at, by, reason } }`. `approved` publishes;
+  `rejected` is a permanent exclusion; any other value (`received`, `in_review`, …)
+  or a missing file holds the submission for review.
 
 Form types present: `reportNew`, `civilLitigationNew`, `personnelNew`,
 `officerEdit`, `agencyEdit`, `contact`, `volunteer`, `dataSubjectAccessRequest`,
@@ -37,28 +40,30 @@ human, not a silent drop.
 
 Add a source `org.policeconduct.submissions` with the standard acquire→run shape.
 
-**1. acquire owns sync + the non-deterministic AI, cached.** acquire syncs the S3
-bucket to the sibling folder and runs the AI analysis (coherence + site-rules
-compliance) for each verified submission, **caching the verdict alongside the
-submission** — exactly as `youtube.policeactivity` caches captions. Network and
-non-determinism stay in acquire; `run` reads the cached verdict and stays
-deterministic and reproducible, and a human reviewer sees the same verdict the
-gate saw.
+**1. acquire owns sync; the publish verdict is a cached human decision.** acquire
+`aws s3 sync`s the bucket down to the sibling folder (`SUBMISSIONS_BUCKET_DIR`) and
+any local changes back up (additively — an up-sync never `--delete`s a real
+submission). The publish verdict is a **human decision cached as a `status/`
+file** (§Context): `approved` publishes, `rejected` is a permanent exclusion,
+everything else holds. The automated AI coherence/site-rules gate is **deferred**;
+until it lands the verdict is set by hand. Either way `run` reads the cached
+verdict and stays deterministic — network and non-determinism never enter `run`.
 
 **2. run resolves, gates, and emits — deterministically.** run traverses **only
 verified** submissions of the v1 form type (`reportNew`), and for each:
 
 - resolves each officer's `department` to an agency and the officer's name to
-  `agency_personnel` (officer@agency), and any `caseNumber` to an existing
-  `civil_case` — **resolve-or-fail**, via the run resolver context (ADR 0023). An
-  officer/agency/case that does not resolve is an attributed claim, never a
-  canonical link.
+  `agency_personnel` (officer@agency) — **resolve-or-fail**, via the run resolver
+  context (ADR 0023). An officer/agency that does not resolve is an attributed
+  claim, never a canonical link. (The `reportNew` v1 form carries no case number;
+  civil-case linking via `resolveCivilCase` waits on a form field for it.)
 - resolves the incident `location` (free-text user input) by **geocoding it
   through the shared agency location path** (address → coordinates → snapped
   `location_path_id` + `latitude`/`longitude`), at import via the injected
   coordinate resolver — the same infrastructure agencies use, not a brittle
   name match. A location that fails to geocode routes the report to human review.
-- applies the cached AI verdict as a **high publication bar**.
+- applies the cached `status/` verdict as a **high publication bar** — publish only
+  on `approved`; `rejected` is dropped; anything else is held (§1).
 - keys the report on its **`submissionId` as a natural-key identity** (ADR 0028):
   `Review.id = submissionId`, so the report id is the immutable audit tie back to
   the submission (the bucket's `verify/`/`status/` records cross-link the rest),
@@ -69,11 +74,12 @@ verified** submissions of the v1 form type (`reportNew`), and for each:
   nothing to the database.
 
 **3. Everything else goes to a human-review report, not the database.** A
-submission that is not clearly publishable — fails the AI bar, does not resolve to
-an officer, is a non-`reportNew` form, or is otherwise borderline — is written to
-a **run-output review-report file** (the source's output), listing the submission,
-the AI verdict, and what failed to resolve. Nothing enters the database until a
-human acts on it. This is the source's second output, alongside the artifacts.
+submission that is not clearly publishable — lacks an `approved` verdict, does not
+resolve to an officer, is a non-`reportNew` form, or is otherwise borderline — is
+written to a **run-output review-report file** (`review-report.json` in the
+source's state dir), listing the held/rejected submission and why (the verdict, or
+"no officer resolved"). Nothing enters the database until a human acts on it. This
+is the source's second output, alongside the artifacts.
 
 **3a. Submitter prose is stored verbatim.** The narrative fields (`title`,
 `what_happened`, `desired_outcome`, `charges`, …) are written exactly as entered
@@ -110,12 +116,16 @@ Prerequisites, then the source:
    `resolveCivilCase`; add `resolveAgency` (resolve-or-fail, ADR 0023 — a mapped
    source id out, never a canonical id). Location is not a run resolver: it
    geocodes at import through the shared agency path (§2).
-3. **acquire:** sync + AI-analyze-and-cache the verified submissions.
-4. **run:** verified-`reportNew` traversal → resolve → AI gate → emit
-   `Review`/`ReviewPersonnel` for publishable, review-report file for the rest.
+3. **acquire:** `aws s3 sync` down/up; the publish verdict is a cached `status/`
+   file (a human decision for now; the AI gate is deferred).
+4. **run:** verified-`reportNew` traversal → resolve → `status/` gate → emit
+   `Review`/`ReviewPersonnel` for approved+officer-resolved reports, review-report
+   file for the rest.
 
-Gated behind the full reconstruction rebuild (no new source runs before it); the
-schema/specs/resolvers and scaffold land now, the source runs after.
+**Standalone** (ADR 0031): the source is excluded from group runs and runs on its
+own after the reconstruction, so its officer/location resolution reads a fully
+imported roster. It stages the approved reports into the database between group
+runs — the same manual-intervention shape as `com.policeconduct.manual`.
 
 ## Alternatives Considered
 

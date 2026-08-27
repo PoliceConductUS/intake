@@ -20,7 +20,9 @@ export type SupportedTableName =
   | "public.federal_agency_branch"
   | "public.civil_cases"
   | "public.civil_case_personnel"
-  | "public.civil_case_links";
+  | "public.civil_case_links"
+  | "public.reviews"
+  | "public.review_personnel";
 
 export type ImportDatabaseSchema = {
   appliedMigrations: {

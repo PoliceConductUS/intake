@@ -249,6 +249,45 @@ const REGISTRY: Record<string, KindConfig> = {
       ) as AnyResolver,
     },
   },
+  Review: {
+    // A published report (ADR 0030). id is the submission's natural id (converges on
+    // re-import); one geocode from the report's address sets location + coordinates.
+    identityKind: "natural",
+    overrides: {
+      ...(latLngFromAddress({
+        entityType: "review",
+        from: {
+          state: "state",
+          place: "city",
+          zipCode: "zip_code",
+          address: "address",
+          name: "title",
+        },
+        set: {
+          latitude: "latitude",
+          longitude: "longitude",
+          locationPathId: "location_path_id",
+        },
+      }) as Record<string, AnyResolver>),
+    },
+  },
+  ReviewPersonnel: {
+    // The report's link to one resolved officer@agency (ADR 0030). Composed natural
+    // id from (review_id, agency_personnel_id); the officer resolves through the
+    // ledger (run matched it against a roster). review_id resolves same-run.
+    identityKind: "natural",
+    overrides: {
+      id: facadeComposedIdResolver<Row>([
+        "review_id",
+        "agency_personnel_id",
+      ]) as AnyResolver,
+      agency_personnel_id: facadeLedgerForeignKeyResolver<Row>(
+        "ReviewPersonnel",
+        "agency_personnel_id",
+        "AgencyPersonnel",
+      ) as AnyResolver,
+    },
+  },
 };
 
 /** The identity/primary-key column a kind resolves and keys existing rows on. */
@@ -283,6 +322,8 @@ const SUPPORTED_KINDS = new Set<string>([
   "CivilCase",
   "CivilCasePersonnel",
   "CivilCaseLink",
+  "Review",
+  "ReviewPersonnel",
 ]);
 
 function createSpecShapeKeys(kind: string): string[] {
