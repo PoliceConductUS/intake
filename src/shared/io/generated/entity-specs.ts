@@ -25,9 +25,10 @@ export const GENERATED_MIGRATION_VERSIONS = [
   "20260825000200",
   "20260825000300",
   "20260826000000",
+  "20260827000000",
 ] as const;
 export const GENERATED_MIGRATION_FINGERPRINT =
-  "cd9a09e9b451f38a62d94a8b2dad1cadd8d0a9b8aa5b7024a96ded05380a9ded";
+  "d40fab61639c1734e6203eb96441e863ebd7a0eecf113ab62c66750b7330cbfe";
 
 // Entity record kinds in database-dependency order (topological sort of the
 // foreign-key graph): a referenced entity precedes its referrer, so mutations
@@ -1112,6 +1113,17 @@ export type ReviewsRow = {
   location_path_id: string;
   latitude: number | null;
   longitude: number | null;
+  what_happened: string | null;
+  how_felt: string | null;
+  what_else: string | null;
+  incident_time: string | null;
+  submitter_relationship: string | null;
+  interaction_type: string | null;
+  setting: string | null;
+  bodycam_requested: string | null;
+  complaint_filed: string | null;
+  purpose: string | null;
+  case_number: string | null;
 };
 
 export type RubricLabelsRow = {
