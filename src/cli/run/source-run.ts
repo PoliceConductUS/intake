@@ -5,6 +5,7 @@ import type {
 } from "../../shared/io/index.js";
 import type { EmitRefItem } from "./emit-sink.js";
 import type { readXlsx } from "./read-xlsx.js";
+import { correctRecords } from "./data-corrections.js";
 
 export type EmittedRecords = Record<string, { spec: unknown }>;
 export type SourceManifest = {
@@ -96,7 +97,7 @@ export function buildArtifactsEnvelope(
       artifacts: [
         ...manifest.artifacts.map((artifact) => ({
           kind: artifact.kind,
-          spec: { records: artifact.records },
+          spec: { records: correctRecords(artifact.kind, artifact.records) },
         })),
         ...refItems,
       ],
