@@ -56,6 +56,24 @@ class CurrentRowClient extends EmptyDatabaseClient {
         ),
       };
     }
+    // Business-key lookup: select * from <table> where col1=$1 and col2=$2 limit 1
+    const byColumns = /select \* from (\S+) where (.+) limit 1/.exec(text);
+    if (byColumns !== null) {
+      const conditions = [...byColumns[2].matchAll(/(\w+) = \$(\d+)/g)].map(
+        (match) => ({
+          column: match[1],
+          value: values[Number(match[2]) - 1],
+        }),
+      );
+      return {
+        rows: (this.rowsByTable[byColumns[1]] ?? []).filter((row) =>
+          conditions.every(
+            (condition) =>
+              String(row[condition.column]) === String(condition.value),
+          ),
+        ),
+      };
+    }
     if (/join public\.location_path_geometry\b/i.test(text)) {
       return {
         rows: this.locationPaths.filter(
@@ -934,8 +952,8 @@ describe("DataContext", () => {
   });
 
   function licenseClusterContext(options?: {
-    licenses?: SourceNameToCanonicalIds["licenses"];
     licenseActions?: SourceNameToCanonicalIds["licenseActions"];
+    databaseAuthorityLicenses?: Record<string, unknown>[];
     databaseLicenses?: Record<string, unknown>[];
     databaseLicenseActions?: Record<string, unknown>[];
     ledger?: SourceNameToCanonicalIdLedger;
@@ -943,6 +961,7 @@ describe("DataContext", () => {
     return new DataContext({
       client: new CurrentRowClient(
         {
+          "public.authority_license": options?.databaseAuthorityLicenses ?? [],
           "public.license": options?.databaseLicenses ?? [],
           "public.license_action": options?.databaseLicenseActions ?? [],
         },
@@ -959,15 +978,23 @@ describe("DataContext", () => {
           licensingAuthorities: {
             tcole: { canonicalId: "authority-canonical-id" },
           },
-          licenses: options?.licenses ?? {},
           licenseActions: options?.licenseActions ?? {},
         }),
     });
   }
 
+  // A seeded authority_license row so the AuthorityLicense find-or-mint resolves
+  // to a KNOWN id (its (licensing_authority_id, name) business key), keeping the
+  // downstream License assertions deterministic.
+  const seededAuthorityLicense = {
+    id: "authority-license-canonical-id",
+    licensing_authority_id: "authority-canonical-id",
+    name: "Peace Officer",
+  };
+
   function registerLicenseCluster(context: DataContext): void {
-    // Dependency order (ADR 0016 #9): the referenced Personnel and
-    // LicensingAuthority facades are registered before the License that finds
+    // Dependency order (ADR 0016 #9): the referenced Personnel, LicensingAuthority
+    // and AuthorityLicense facades are registered before the License that finds
     // them, and the License before the LicenseAction that finds it.
     context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
@@ -984,67 +1011,65 @@ describe("DataContext", () => {
         location_path_id: "tx",
       },
     });
+    context.facadeFromSource("AuthorityLicense", {
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "gov.tx.tcole",
+      name: "tcole|Peace Officer",
+      spec: { licensing_authority_id: "tcole", name: "Peace Officer" },
+    });
     context.facadeFromSource("License", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
-      name: "1000038|Peace Officer License",
+      name: "1000038|Peace Officer",
       spec: {
         personnel_id: "1000038",
-        license_type: "Peace Officer License",
+        authority_license_id: "tcole|Peace Officer",
         status: null,
         first_awarded: "1994-06-16",
-        issued_by_authority_id: "tcole",
       },
     });
   }
 
   test("LicenseFacade emits a LicenseCreate resolving its officer and authority foreign keys", async () => {
+    // The authority_license exists (its id is known); the license itself does not,
+    // so its business-key identity mints a fresh cuid and it emits a Create.
     const context = licenseClusterContext({
-      licenses: {
-        "1000038|Peace Officer License": {
-          canonicalId: "license-canonical-id",
-        },
-      },
+      databaseAuthorityLicenses: [seededAuthorityLicense],
     });
     registerLicenseCluster(context);
     const facade = context.facadeFromSource("License", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
-      name: "1000038|Peace Officer License",
+      name: "1000038|Peace Officer",
     });
 
+    const mintedId = String(await facade.value("id"));
+    expect(mintedId).toMatch(/^[a-z0-9]{20,}$/); // a freshly minted cuid, not a source key
     expect(await facade.toMutation()).toMatchObject({
       kind: "LicenseCreate",
-      metadata: {
-        namespace: "gov.tx.tcole",
-        name: "license-canonical-id",
-      },
+      metadata: { namespace: "gov.tx.tcole", name: mintedId },
       spec: {
-        id: "license-canonical-id",
+        id: mintedId,
         personnel_id: "personnel-canonical-id",
-        license_type: "Peace Officer License",
+        authority_license_id: "authority-license-canonical-id",
         status: null,
         first_awarded: "1994-06-16",
-        issued_by_authority_id: "authority-canonical-id",
       },
     });
   });
 
   test("LicenseFacade emits a LicenseUpdate diff when a current DB row exists", async () => {
+    // Both the authority_license and the license already exist: the license's
+    // business key finds the existing id and it emits an Update diff.
     const context = licenseClusterContext({
-      licenses: {
-        "1000038|Peace Officer License": {
-          canonicalId: "license-canonical-id",
-        },
-      },
+      databaseAuthorityLicenses: [seededAuthorityLicense],
       databaseLicenses: [
         {
           id: "license-canonical-id",
           personnel_id: "personnel-canonical-id",
-          license_type: "Peace Officer License",
+          authority_license_id: "authority-license-canonical-id",
           status: null,
           first_awarded: "1990-01-01",
-          issued_by_authority_id: "authority-canonical-id",
         },
       ],
     });
@@ -1052,7 +1077,7 @@ describe("DataContext", () => {
     const facade = context.facadeFromSource("License", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
-      name: "1000038|Peace Officer License",
+      name: "1000038|Peace Officer",
     });
 
     expect(await facade.toMutation()).toMatchObject({
@@ -1068,7 +1093,6 @@ describe("DataContext", () => {
             path: "personnel_id",
             value: "personnel-canonical-id",
           },
-          { action: "check", path: "license_type" },
           { action: "check", path: "status" },
           {
             action: "set",
@@ -1078,8 +1102,8 @@ describe("DataContext", () => {
           },
           {
             action: "check",
-            path: "issued_by_authority_id",
-            value: "authority-canonical-id",
+            path: "authority_license_id",
+            value: "authority-license-canonical-id",
           },
         ],
       },
@@ -1087,13 +1111,7 @@ describe("DataContext", () => {
   });
 
   test("LicenseFacade officer foreign-key find fails fast and loud on a forward reference", async () => {
-    const context = licenseClusterContext({
-      licenses: {
-        "1000038|Peace Officer License": {
-          canonicalId: "license-canonical-id",
-        },
-      },
-    });
+    const context = licenseClusterContext();
     // Register the authority but NOT the referenced Personnel facade, and
     // reference a personnel that is in neither the run nor the ledger, so the
     // whole resolution chain misses and fails loud.
@@ -1109,13 +1127,12 @@ describe("DataContext", () => {
     const facade = context.facadeFromSource("License", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
-      name: "9999999|Peace Officer License",
+      name: "9999999|Peace Officer",
       spec: {
         personnel_id: "9999999",
-        license_type: "Peace Officer License",
+        authority_license_id: "tcole|Peace Officer",
         status: null,
         first_awarded: "1994-06-16",
-        issued_by_authority_id: "tcole",
       },
     });
 
@@ -1124,38 +1141,41 @@ describe("DataContext", () => {
     );
   });
 
-  test("LicenseFacade canonical-id resolver mints and durably persists a new id", async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), "license-ledger-"));
+  test("LicenseFacade business-key identity mints a fresh cuid for an unseen holding", async () => {
+    // Nothing seeded, so the (personnel_id, authority_license_id) business key
+    // resolves to a freshly minted cuid — not the source key — and emits a Create.
     const context = licenseClusterContext({
-      ledger: createSourceNameToCanonicalIdLedger({ rootDir }),
+      databaseAuthorityLicenses: [seededAuthorityLicense],
     });
+    registerLicenseCluster(context);
     const facade = context.facadeFromSource("License", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
-      name: "1000038|Peace Officer License",
-      spec: {
-        personnel_id: "1000038",
-        license_type: "Peace Officer License",
-        issued_by_authority_id: "tcole",
-      },
+      name: "1000038|Peace Officer",
     });
-    const mintedId = await facade.value("id");
 
-    const reloaded = createSourceNameToCanonicalIdLedger({ rootDir });
-    await expect(
-      reloaded.read("gov.tx.tcole", "License", "1000038|Peace Officer License"),
-    ).resolves.toBe(mintedId);
+    const mintedId = String(await facade.value("id"));
+    expect(mintedId).toMatch(/^[a-z0-9]{20,}$/);
+    expect(mintedId).not.toBe("1000038|Peace Officer");
+    expect(await facade.toMutation()).toMatchObject({ kind: "LicenseCreate" });
   });
 
   test("LicenseActionFacade emits a LicenseActionCreate resolving its license foreign key", async () => {
+    // Seed the license so its business key resolves to a known id that the
+    // LicenseAction's license_id foreign key resolves to.
     const context = licenseClusterContext({
-      licenses: {
-        "1000038|Peace Officer License": {
-          canonicalId: "license-canonical-id",
+      databaseAuthorityLicenses: [seededAuthorityLicense],
+      databaseLicenses: [
+        {
+          id: "license-canonical-id",
+          personnel_id: "personnel-canonical-id",
+          authority_license_id: "authority-license-canonical-id",
+          status: null,
+          first_awarded: "1994-06-16",
         },
-      },
+      ],
       licenseActions: {
-        "1000038|Peace Officer License|Issued|1994-06-16": {
+        "1000038|Peace Officer|Issued|1994-06-16": {
           canonicalId: "license-action-canonical-id",
         },
       },
@@ -1164,9 +1184,9 @@ describe("DataContext", () => {
     const facade = context.facadeFromSource("LicenseAction", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
-      name: "1000038|Peace Officer License|Issued|1994-06-16",
+      name: "1000038|Peace Officer|Issued|1994-06-16",
       spec: {
-        license_id: "1000038|Peace Officer License",
+        license_id: "1000038|Peace Officer",
         action: "Issued",
         action_date: "1994-06-16",
         status: "Active",
@@ -1192,7 +1212,7 @@ describe("DataContext", () => {
   test("LicenseActionFacade license foreign-key find fails fast and loud on a forward reference", async () => {
     const context = licenseClusterContext({
       licenseActions: {
-        "1000038|Peace Officer License|Issued|1994-06-16": {
+        "1000038|Peace Officer|Issued|1994-06-16": {
           canonicalId: "license-action-canonical-id",
         },
       },
@@ -1201,9 +1221,9 @@ describe("DataContext", () => {
     const facade = context.facadeFromSource("LicenseAction", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "gov.tx.tcole",
-      name: "1000038|Peace Officer License|Issued|1994-06-16",
+      name: "1000038|Peace Officer|Issued|1994-06-16",
       spec: {
-        license_id: "1000038|Peace Officer License",
+        license_id: "1000038|Peace Officer",
         action: "Issued",
         action_date: "1994-06-16",
         status: "Active",
@@ -1211,7 +1231,7 @@ describe("DataContext", () => {
     });
 
     await expect(facade.toMutation()).rejects.toThrow(
-      /references License "1000038\|Peace Officer License", which does not exist in namespace/,
+      /references License "1000038\|Peace Officer", which does not exist in namespace/,
     );
   });
 });
@@ -1519,10 +1539,14 @@ describe("AgencyPersonnelFacade", () => {
     agencyPersonnel?: SourceNameToCanonicalIds["agencyPersonnel"];
     licenses?: SourceNameToCanonicalIds["licenses"];
     databaseAgencyPersonnel?: Record<string, unknown>[];
+    databaseAuthorityLicenses?: Record<string, unknown>[];
+    databaseLicenses?: Record<string, unknown>[];
   }): DataContext {
     return new DataContext({
       client: new CurrentRowClient({
         "public.agency_personnel": options?.databaseAgencyPersonnel ?? [],
+        "public.authority_license": options?.databaseAuthorityLicenses ?? [],
+        "public.license": options?.databaseLicenses ?? [],
       }),
       commandName: "command-name",
       ledger: fakeSourceNameLedger({
@@ -1530,7 +1554,9 @@ describe("AgencyPersonnelFacade", () => {
         personnel: options?.personnel ?? {},
         agencyPersonnel: options?.agencyPersonnel ?? {},
         locationPaths: {},
-        licensingAuthorities: {},
+        licensingAuthorities: {
+          "mn-post": { canonicalId: "mn-authority-id" },
+        },
         licenses: options?.licenses ?? {},
         licenseActions: {},
       }),
@@ -1551,31 +1577,55 @@ describe("AgencyPersonnelFacade", () => {
       name: "personnel-source",
       spec: { first_name: "Marc", last_name: "Denney" },
     });
+    context.facadeFromSource("AuthorityLicense", {
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: "mn-post|Peace Officer",
+      spec: { licensing_authority_id: "mn-post", name: "Peace Officer" },
+    });
     context.facadeFromSource("License", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
       name: "license-source",
       spec: {
         personnel_id: "personnel-source",
-        license_type: "Peace Officer License",
-        issued_by_authority_id: "tcole",
+        authority_license_id: "mn-post|Peace Officer",
       },
     });
   }
+
+  // Seeded rows so the AuthorityLicense/License business keys resolve to known ids.
+  const foreignKeyAuthorityLicenses = [
+    {
+      id: "authority-license-id",
+      licensing_authority_id: "mn-authority-id",
+      name: "Peace Officer",
+    },
+  ];
+  const foreignKeyLicenses = [
+    {
+      id: "license-canonical-id",
+      personnel_id: "personnel-canonical-id",
+      authority_license_id: "authority-license-id",
+    },
+  ];
 
   const foreignKeyLedger = {
     agencies: { "agency-source": { canonicalId: "agency-canonical-id" } },
     personnel: {
       "personnel-source": { canonicalId: "personnel-canonical-id" },
     },
-    licenses: { "license-source": { canonicalId: "license-canonical-id" } },
     agencyPersonnel: {
       "ap-source": { canonicalId: "agency-personnel-canonical-id" },
     },
   };
 
   test("resolves its agency, personnel, and license foreign keys to canonical ids", async () => {
-    const context = agencyPersonnelContext(foreignKeyLedger);
+    const context = agencyPersonnelContext({
+      ...foreignKeyLedger,
+      databaseAuthorityLicenses: foreignKeyAuthorityLicenses,
+      databaseLicenses: foreignKeyLicenses,
+    });
     registerForeignKeyTargets(context);
     const facade = context.facadeFromSource("AgencyPersonnel", {
       apiVersion: INTAKE_API_VERSION,
@@ -1636,6 +1686,8 @@ describe("AgencyPersonnelFacade", () => {
       agencyPersonnel: {
         "ap-source": { canonicalId: "agency-personnel-canonical-id" },
       },
+      databaseAuthorityLicenses: foreignKeyAuthorityLicenses,
+      databaseLicenses: foreignKeyLicenses,
       databaseAgencyPersonnel: [
         {
           id: "agency-personnel-canonical-id",

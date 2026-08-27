@@ -147,6 +147,11 @@ const DESCRIPTORS: EntityDescriptor[] = [
     table: "licensing_authority",
     createRequired: ["id"],
   },
+  {
+    recordKind: "AuthorityLicense",
+    table: "authority_license",
+    createRequired: ["id"],
+  },
   { recordKind: "License", table: "license", createRequired: ["id"] },
   {
     recordKind: "LicenseAction",
@@ -307,6 +312,27 @@ function foreignKeyReferences(
   return references;
 }
 
+// Each record kind's business key = the columns of its single (non-PK) unique
+// constraint. A kind with none keeps ledger/source-id minting; a kind with more
+// than one is ambiguous and fails loud (the model must declare one natural key).
+function businessKeys(
+  schema: IntrospectedSchema,
+): Record<string, readonly string[]> {
+  const keys: Record<string, readonly string[]> = {};
+  for (const descriptor of DESCRIPTORS) {
+    const uniqueKeys = schema.tables.get(descriptor.table)?.uniqueKeys ?? [];
+    if (uniqueKeys.length > 1) {
+      throw new Error(
+        `${descriptor.table} has ${uniqueKeys.length} unique constraints; a business key must be a single natural key.`,
+      );
+    }
+    if (uniqueKeys.length === 1) {
+      keys[descriptor.recordKind] = uniqueKeys[0]!;
+    }
+  }
+  return keys;
+}
+
 // The camelCase plural each record kind is addressed by in the import pipeline
 // and the source-module API (e.g. `agencies`, `agencyPersonnel`). English
 // pluralization is irregular, so it is declared, not derived — but this is
@@ -319,6 +345,7 @@ const ENTITY_NAME_BY_RECORD_KIND: Record<string, string> = {
   Personnel: "personnel",
   AgencyPersonnel: "agencyPersonnel",
   LicensingAuthority: "licensingAuthorities",
+  AuthorityLicense: "authorityLicenses",
   License: "licenses",
   LicenseAction: "licenseActions",
   Discipline: "disciplines",
@@ -506,35 +533,6 @@ function columnTsType(column: Column, table: IntrospectedTable): string {
   return isArray ? `${scalar}[]` : scalar;
 }
 
-// Derived/build tables (stored as base tables) that are NOT a source of truth,
-// so they get no generated ROW type. Convert to a naming convention later.
-const ROW_TYPE_EXCLUDED_TABLES = new Set([
-  "agency_zip_index",
-  "location_path_closure",
-  "build_page_payload",
-]);
-
-function pascalCase(tableName: string): string {
-  return tableName
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join("");
-}
-
-// A `<PascalTable>Row` type for a base table: every column (actual database
-// name), each present, nullable columns as `T | null`. Emitted for EVERY table
-// in the schema — including tables intake does not own but the website reads —
-// so no hand-coded copy of a row ever exists (ADR 0025).
-function renderRowType(table: IntrospectedTable): string {
-  const fields = table.columns
-    .filter((column) => !ALWAYS_EXCLUDED.has(column.name))
-    .map((column) => {
-      const type = columnTsType(column, table);
-      return `  ${column.name}: ${column.nullable ? `${type} | null` : type};`;
-    });
-  return `export type ${pascalCase(table.table)}Row = {\n${fields.join("\n")}\n};`;
-}
-
 function renderEntity(
   descriptor: EntityDescriptor,
   table: IntrospectedTable,
@@ -684,6 +682,15 @@ export const FK_REFERENCES: Record<
   ReadonlyArray<{ field: string; targetKind: string }>
 > = ${JSON.stringify(foreignKeyReferences(schema))};
 
+// Each record kind's business/natural key — the columns of its (non-PK) unique
+// constraint. Identity resolution finds-or-mints the row's canonical id by these
+// columns, so records with the same business key converge (a cuid id, minted on
+// first sight). Kinds keyed only by a source id (no unique constraint) are absent
+// and mint via the source-name ledger instead.
+export const BUSINESS_KEYS: Record<string, readonly string[]> = ${JSON.stringify(
+    businessKeys(schema),
+  )};
+
 // Each record kind's properties resolved during import rather than supplied by
 // the source (\`createRequired\`): optional in the base spec, required in the
 // *Create mutation. The facade caches every one of these except \`id\` (which the
@@ -778,16 +785,7 @@ const LocationPathBboxSpec = z
     return renderEntity(descriptor, table);
   });
 
-  // A ROW type for every source-of-truth base table (ADR 0025) — the 19 intake
-  // entities plus the website's own data tables — so no hand-coded row shape ever
-  // exists. Derived/build tables (denormalized stats, closure, page payload) are
-  // not source of truth and are skipped.
-  const rowTypes = [...schema.tables.values()]
-    .filter((table) => !ROW_TYPE_EXCLUDED_TABLES.has(table.table))
-    .sort((left, right) => left.table.localeCompare(right.table))
-    .map((table) => renderRowType(table));
-
-  return `${preamble}\n${entities.join("\n\n")}\n\n${rowTypes.join("\n\n")}\n`;
+  return `${preamble}\n${entities.join("\n\n")}\n`;
 }
 
 /** Schema-qualified tables the generator introspects, in dependency order. */

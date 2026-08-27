@@ -154,6 +154,84 @@ export type CanonicalIdBackend = {
   }): Promise<string>;
 };
 
+/** The atomic tiers a business-key identity stacks over (the backend is per-kind). */
+export type BusinessKeyIdBackend = {
+  /** Cache / same-run: get-or-compute a stable id per business key (concurrency-safe). */
+  businessKeyId(key: string, resolve: () => Promise<string>): Promise<string>;
+  /** Db: the existing row's id whose columns hold these values, or undefined. */
+  findIdByBusinessKey(
+    values: Record<string, string>,
+  ): Promise<string | undefined>;
+  /** Mint terminal: a fresh canonical id. */
+  mintId(): string;
+};
+
+type BusinessKeyContext = {
+  backend: BusinessKeyIdBackend;
+  key: string;
+  values: Record<string, string>;
+};
+
+/** One link in the identity chain of responsibility: resolve the id or defer to `next`. */
+type BusinessKeyIdLink = (
+  context: BusinessKeyContext,
+  next: () => Promise<string>,
+) => Promise<string>;
+
+// The standard identity chain, in order. cache/same-run wraps the rest (memoize via
+// `next`) so concurrent same-key facades converge; db handles-or-defers; mint is the
+// terminal that always resolves.
+const CACHE_LINK: BusinessKeyIdLink = (context, next) =>
+  context.backend.businessKeyId(context.key, next);
+const DB_LINK: BusinessKeyIdLink = async (context, next) =>
+  (await context.backend.findIdByBusinessKey(context.values)) ?? next();
+const MINT_LINK: BusinessKeyIdLink = (context) =>
+  Promise.resolve(context.backend.mintId());
+const BUSINESS_KEY_ID_CHAIN: readonly BusinessKeyIdLink[] = [
+  CACHE_LINK,
+  DB_LINK,
+  MINT_LINK,
+];
+
+function runBusinessKeyIdChain(
+  context: BusinessKeyContext,
+  index = 0,
+): Promise<string> {
+  const link = BUSINESS_KEY_ID_CHAIN[index];
+  if (link === undefined) {
+    throw new Error(`Business-key id chain exhausted for ${context.key}.`);
+  }
+  return link(context, () => runBusinessKeyIdChain(context, index + 1));
+}
+
+/**
+ * An entity's own id, keyed by its business key (its unique columns from the
+ * model): resolve the key columns, then walk the identity chain (cache/same-run →
+ * db → mint) so two records with the same business key converge on one id.
+ */
+export function facadeBusinessKeyIdResolver<Row>(
+  kind: string,
+  columns: ReadonlyArray<keyof Row & string>,
+): Resolver<string, ResolverContext<Row, BusinessKeyIdBackend>> {
+  return new Resolver(async ({ facade, source, backend }) => {
+    const values: Record<string, string> = {};
+    for (const column of columns) {
+      const value = valueAsString(await facade.value(column));
+      if (value === undefined) {
+        throw new Error(
+          `Cannot resolve ${kind} id for ${source.namespace}/${source.name}; business-key column ${String(column)} resolved to no value.`,
+        );
+      }
+      values[column] = value;
+    }
+    const key = [
+      kind,
+      ...columns.map((column) => `${column}=${values[column]}`),
+    ].join("\n");
+    return runBusinessKeyIdChain({ backend, key, values });
+  });
+}
+
 /**
  * The minimal capability a foreign-key resolver reaches through: locate an
  * already-emitted target facade by `(kind, namespace, source-id)` so it can
@@ -448,6 +526,16 @@ export function titleCaseResolver<Row, Backend>(
 ): Resolver<string, ResolverContext<Row, Backend>> {
   return new Resolver<string, ResolverContext<Row, Backend>>(
     casingResolveFn<Row, Backend>(property, titleCase),
+  );
+}
+
+/** Title-case a string property (NULLABLE column); blank/absent → null. */
+export function titleCaseResolverNullable<Row, Backend>(
+  property: keyof Row & string,
+): Resolver<string | null, ResolverContext<Row, Backend>> {
+  return new Resolver<string | null, ResolverContext<Row, Backend>>(
+    casingResolveFn<Row, Backend>(property, titleCase),
+    { defaultValue: null },
   );
 }
 

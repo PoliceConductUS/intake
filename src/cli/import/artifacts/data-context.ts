@@ -168,6 +168,10 @@ export class DataContext {
     return `${kind}\n${identity}`;
   }
 
+  // Memoized business-key → canonical id (ADR 0016): concurrent facades with the
+  // same business key share one pending find-or-mint, so they converge on one id.
+  private readonly businessKeyIds = new Map<string, Promise<string>>();
+
   constructor(options: DataContextOptions) {
     this.client = options.client;
     this.rows = new CurrentRowReader(options.client);
@@ -233,6 +237,9 @@ export class DataContext {
     return {
       findCanonicalId: (input) => this.findCanonicalId(input),
       findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
+      businessKeyId: (key, resolve) => this.businessKeyId(key, resolve),
+      findIdByBusinessKey: (values) => this.findIdByBusinessKey(kind, values),
+      mintId: () => createId(),
       existingRow: (id) => {
         const emitted = this.emittedRows.get(DataContext.emittedKey(kind, id));
         return emitted !== undefined
@@ -311,6 +318,33 @@ export class DataContext {
       input.kind as LedgerEntityKind,
       input.sourceId,
     );
+  }
+
+  // Cache / same-run tier: memoize the id per business key so concurrent same-key
+  // facades share one pending find-or-mint and converge (ADR 0016).
+  private businessKeyId(
+    key: string,
+    resolve: () => Promise<string>,
+  ): Promise<string> {
+    const existing = this.businessKeyIds.get(key);
+    if (existing !== undefined) {
+      return existing;
+    }
+    const pending = resolve();
+    this.businessKeyIds.set(key, pending);
+    return pending;
+  }
+
+  // Db tier: the existing row's id whose business-key columns hold these values.
+  private async findIdByBusinessKey(
+    kind: string,
+    values: Record<string, string>,
+  ): Promise<string | undefined> {
+    if (this.client === undefined) {
+      return undefined;
+    }
+    const row = await this.rows.getByColumns(kind, values);
+    return row === undefined ? undefined : String(row.id);
   }
 
   // Find a seeded/existing id before minting, so ids stay stable (ADR 0016 #4).

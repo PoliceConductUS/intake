@@ -6,8 +6,8 @@ import {
   readLocationPathsContainingPoint,
   readNearestPlace,
   readPlacesByStateAndSlug,
+  type DatabaseLocationPathRow as LocationPathRow,
 } from "../../database/location-paths.js";
-import type { LocationPathRow } from "../../../shared/io/generated/entity-specs.js";
 // Type-only (erased at runtime), so there is no import cycle with data-context,
 // which imports these classes and types as values/types.
 import type { DataContext } from "./data-context.js";

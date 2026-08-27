@@ -3,9 +3,11 @@ import type {
   EmittedRecords,
 } from "../../src/cli/run/source-run.js";
 import type { ImportArtifactKind } from "../../src/shared/io/index.js";
+import { canonicalLicenseType } from "../../src/shared/license.js";
 
 export const produces: readonly ImportArtifactKind[] = [
   "LicensingAuthorities",
+  "AuthorityLicenses",
   "Agencies",
   "Personnel",
   "Licenses",
@@ -13,6 +15,18 @@ export const produces: readonly ImportArtifactKind[] = [
   "AgencyPersonnel",
   "AgencyPhoneNumbers",
 ];
+
+// TCOLE is the one licensing authority this source has data for.
+const TCOLE_AUTHORITY = "tcole";
+
+// A license's source keys: the authority_license (authority + canonical type) and
+// the officer's holding of it. Canonical so spelling/suffix variants converge.
+function authorityLicenseKey(license: string): string {
+  return `${TCOLE_AUTHORITY}|${canonicalLicenseType(license)}`;
+}
+function licenseHoldingKey(publicGuid: string, license: string): string {
+  return `${publicGuid}|${canonicalLicenseType(license)}`;
+}
 
 /**
  * TX POST (TCOLE) — reconstructs the Texas rows of the database from a single
@@ -150,6 +164,11 @@ export const run: SourceRun = async ({ paths, readXlsx, logger }) => {
 
   log.info("tcole: building records");
   const licensingAuthorities = buildLicensingAuthorities();
+  const authorityLicenses = buildAuthorityLicenses(
+    serviceRows,
+    licenseActionRows,
+    personnel,
+  );
   const licenses = buildLicenses(serviceRows, licenseActionRows, personnel);
   const licenseActions = buildLicenseActions(
     licenseActionRows,
@@ -172,6 +191,7 @@ export const run: SourceRun = async ({ paths, readXlsx, logger }) => {
   return {
     artifacts: [
       { kind: "LicensingAuthorities", records: licensingAuthorities },
+      { kind: "AuthorityLicenses", records: authorityLicenses },
       { kind: "Agencies", records: agencies },
       { kind: "Personnel", records: personnel },
       { kind: "Licenses", records: licenses },
@@ -334,10 +354,10 @@ function buildAgencyPersonnel(
       endDate,
     ].join("|");
 
-    // Link to the emitted License (PUBLIC_GUID|LICENSE). A blank LICENSE has no
+    // Link to the officer's emitted License holding. A blank LICENSE has no
     // license; a non-blank LICENSE whose License was not emitted (e.g. the
     // officer/license was filtered) is left null rather than dangling.
-    const licenseKey = `${publicGuid}|${license}`;
+    const licenseKey = licenseHoldingKey(publicGuid, license);
     const licenseId =
       license === "" || licenses[licenseKey] === undefined ? null : licenseKey;
 
@@ -379,24 +399,47 @@ function buildLicensingAuthorities(): EmittedRecords {
 }
 
 /**
- * Emits one License per distinct PUBLIC_GUID×LICENSE seen in either the
- * OfficersLicensesActions history or the Services roster, for officers that
- * were emitted (active cascade). Keyed by `PUBLIC_GUID|LICENSE`.
- *
- * `first_awarded` is the authoritative `DATE_AWARDED` from the actions history
- * (constant per license) when available, else null. `status` is the
- * `LICENSE_STATUS` recorded by the latest action (by ACTION_DATE) — the license's
- * current standing. Both are null for a license seen only in the Services roster,
- * which carries no action history. All TCOLE licenses are issued by `tcole`.
+ * One AuthorityLicense per distinct license type TCOLE issues, keyed and named by
+ * its canonical (licensing_authority_id, name) — so spelling/suffix variants of a
+ * type converge on one row.
+ */
+function buildAuthorityLicenses(
+  serviceRows: Array<Record<string, string>>,
+  licenseActionRows: Array<Record<string, string>>,
+  personnel: EmittedRecords,
+): EmittedRecords {
+  const records: EmittedRecords = {};
+  for (const row of [...licenseActionRows, ...serviceRows]) {
+    const publicGuid = (row[ACTION.publicGuid] ?? "").trim();
+    const license = (row[ACTION.license] ?? "").trim();
+    if (publicGuid === "" || license === "") continue;
+    if (personnel[publicGuid] === undefined) continue;
+    const key = authorityLicenseKey(license);
+    if (records[key] !== undefined) continue;
+    records[key] = {
+      spec: {
+        licensing_authority_id: TCOLE_AUTHORITY,
+        name: canonicalLicenseType(license),
+      },
+    };
+  }
+  return records;
+}
+
+/**
+ * One License (an officer's holding of an authority_license) per distinct
+ * PUBLIC_GUID×license type seen in the actions history or the Services roster, for
+ * emitted officers. `first_awarded` is the authoritative `DATE_AWARDED`; `status`
+ * is the `LICENSE_STATUS` at the latest ACTION_DATE (its current standing); both
+ * null for a license seen only in the roster.
  */
 function buildLicenses(
   serviceRows: Array<Record<string, string>>,
   licenseActionRows: Array<Record<string, string>>,
   personnel: EmittedRecords,
 ): EmittedRecords {
-  // Per PUBLIC_GUID|LICENSE, in one pass over the action history: the award date
-  // (authoritative DATE_AWARDED) and the current status (LICENSE_STATUS at the
-  // latest ACTION_DATE; a later row at a tied date wins).
+  // Per holding, in one pass over the action history: the award date and the
+  // current status (LICENSE_STATUS at the latest ACTION_DATE; a later row wins).
   const awardDate = new Map<string, string>();
   const latestActionDate = new Map<string, string>();
   const currentStatus = new Map<string, string>();
@@ -404,7 +447,7 @@ function buildLicenses(
     const publicGuid = (row[ACTION.publicGuid] ?? "").trim();
     const license = (row[ACTION.license] ?? "").trim();
     if (publicGuid === "" || license === "") continue;
-    const key = `${publicGuid}|${license}`;
+    const key = licenseHoldingKey(publicGuid, license);
 
     const dateAwarded = toDate(row[ACTION.dateAwarded]);
     if (dateAwarded !== "" && !awardDate.has(key))
@@ -423,23 +466,20 @@ function buildLicenses(
 
   const records: EmittedRecords = {};
   for (const row of [...licenseActionRows, ...serviceRows]) {
-    // PUBLIC_GUID and LICENSE are the same header on both sheets.
     const publicGuid = (row[ACTION.publicGuid] ?? "").trim();
     const license = (row[ACTION.license] ?? "").trim();
-    // Skip blanks and officers not emitted by the active cascade.
     if (publicGuid === "" || license === "") continue;
     if (personnel[publicGuid] === undefined) continue;
 
-    const key = `${publicGuid}|${license}`;
+    const key = licenseHoldingKey(publicGuid, license);
     if (records[key] !== undefined) continue;
 
     records[key] = {
       spec: {
         personnel_id: publicGuid,
-        license_type: license,
+        authority_license_id: authorityLicenseKey(license),
         status: currentStatus.get(key) ?? null,
         first_awarded: awardDate.get(key) ?? null,
-        issued_by_authority_id: "tcole",
       },
     };
   }
@@ -468,10 +508,10 @@ function buildLicenseActions(
 
     if (publicGuid === "" || license === "" || action === "") continue;
     if (personnel[publicGuid] === undefined) continue;
-    const licenseKey = `${publicGuid}|${license}`;
+    const licenseKey = licenseHoldingKey(publicGuid, license);
     if (licenses[licenseKey] === undefined) continue;
 
-    const key = `${publicGuid}|${license}|${action}|${actionDate}`;
+    const key = `${licenseKey}|${action}|${actionDate}`;
     records[key] = {
       spec: {
         license_id: licenseKey,

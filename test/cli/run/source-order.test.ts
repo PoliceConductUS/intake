@@ -37,6 +37,7 @@ describe("consumesOf", () => {
   it("derives a roster source's consumed set as just LocationPaths", () => {
     const produces: ImportArtifactKind[] = [
       "LicensingAuthorities",
+      "AuthorityLicenses",
       "Agencies",
       "Personnel",
       "Licenses",
@@ -45,7 +46,8 @@ describe("consumesOf", () => {
       "AgencyPhoneNumbers",
     ];
     // Agency/LicensingAuthority FK LocationPath; every other FK target
-    // (Agency, License, Personnel, LicensingAuthority) is produced here.
+    // (Agency, AuthorityLicense, License, Personnel, LicensingAuthority) is
+    // produced here.
     expect(consumesOf(produces)).toEqual(["LocationPaths"]);
   });
 });

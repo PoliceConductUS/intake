@@ -31,9 +31,10 @@ export const GENERATED_MIGRATION_VERSIONS = [
   "20260830000000",
   "20260901000000",
   "20260902000000",
+  "20260903000000",
 ] as const;
 export const GENERATED_MIGRATION_FINGERPRINT =
-  "03148ead96e2e8a7b61a260e4c89749559bc8bbecae7b475fbfc9c0c28f6c5c6";
+  "411c744740deb7ea7b944fd39f4ca7145b2d7fa368e067f4cb8e7caf92014d47";
 
 // Entity record kinds in database-dependency order (topological sort of the
 // foreign-key graph): a referenced entity precedes its referrer, so mutations
@@ -45,6 +46,7 @@ export const RECORD_KINDS_IN_DEPENDENCY_ORDER = [
   "Agency",
   "Personnel",
   "LicensingAuthority",
+  "AuthorityLicense",
   "License",
   "AgencyPersonnel",
   "LicenseAction",
@@ -86,8 +88,11 @@ export const FK_REFERENCES: Record<
   LicensingAuthority: [
     { field: "location_path_id", targetKind: "LocationPath" },
   ],
+  AuthorityLicense: [
+    { field: "licensing_authority_id", targetKind: "LicensingAuthority" },
+  ],
   License: [
-    { field: "issued_by_authority_id", targetKind: "LicensingAuthority" },
+    { field: "authority_license_id", targetKind: "AuthorityLicense" },
     { field: "personnel_id", targetKind: "Personnel" },
   ],
   LicenseAction: [{ field: "license_id", targetKind: "License" }],
@@ -122,6 +127,20 @@ export const FK_REFERENCES: Record<
   ],
 };
 
+// Each record kind's business/natural key — the columns of its (non-PK) unique
+// constraint. Identity resolution finds-or-mints the row's canonical id by these
+// columns, so records with the same business key converge (a cuid id, minted on
+// first sight). Kinds keyed only by a source id (no unique constraint) are absent
+// and mint via the source-name ledger instead.
+export const BUSINESS_KEYS: Record<string, readonly string[]> = {
+  LocationPath: ["path"],
+  AuthorityLicense: ["licensing_authority_id", "name"],
+  License: ["personnel_id", "authority_license_id"],
+  DisciplineAgencyPersonnel: ["discipline_id", "agency_personnel_id"],
+  FederalAgency: ["slug"],
+  FederalAgencyBranch: ["agency_id"],
+};
+
 // Each record kind's properties resolved during import rather than supplied by
 // the source (`createRequired`): optional in the base spec, required in the
 // *Create mutation. The facade caches every one of these except `id` (which the
@@ -144,6 +163,7 @@ export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = {
   Personnel: ["id", "slug"],
   AgencyPersonnel: ["id"],
   LicensingAuthority: ["id"],
+  AuthorityLicense: ["id"],
   License: ["id"],
   LicenseAction: ["id"],
   Discipline: ["id"],
@@ -171,6 +191,7 @@ export const TABLE_BY_KIND: Record<string, string> = {
   Personnel: "public.personnel",
   AgencyPersonnel: "public.agency_personnel",
   LicensingAuthority: "public.licensing_authority",
+  AuthorityLicense: "public.authority_license",
   License: "public.license",
   LicenseAction: "public.license_action",
   Discipline: "public.discipline",
@@ -243,12 +264,19 @@ export const importTypeMetadata = {
     targetTable: "public.licensing_authority",
     dependsOn: ["LocationPaths"],
   },
+  AuthorityLicenses: {
+    kind: "AuthorityLicenses",
+    recordKind: "AuthorityLicense",
+    entityName: "authorityLicenses",
+    targetTable: "public.authority_license",
+    dependsOn: ["LicensingAuthorities"],
+  },
   Licenses: {
     kind: "Licenses",
     recordKind: "License",
     entityName: "licenses",
     targetTable: "public.license",
-    dependsOn: ["Personnel", "LicensingAuthorities"],
+    dependsOn: ["Personnel", "AuthorityLicenses"],
   },
   LicenseActions: {
     kind: "LicenseActions",
@@ -369,6 +397,7 @@ export const IMPORT_ARTIFACT_KINDS = [
   "Personnel",
   "AgencyPersonnel",
   "LicensingAuthorities",
+  "AuthorityLicenses",
   "Licenses",
   "LicenseActions",
   "Disciplines",
@@ -566,14 +595,25 @@ export const LicensingAuthorityCreateSpec = LicensingAuthoritySpec.extend({
   id: nonEmptyString,
 });
 
+export const AuthorityLicenseSpec = z
+  .object({
+    id: z.string().optional(),
+    licensing_authority_id: z.string(),
+    name: nonEmptyString,
+  })
+  .strict();
+
+export const AuthorityLicenseCreateSpec = AuthorityLicenseSpec.extend({
+  id: z.string(),
+});
+
 export const LicenseSpec = z
   .object({
     id: nonEmptyString.optional(),
     personnel_id: nonEmptyString,
-    license_type: nonEmptyString,
     status: nullableNonEmptyString.optional(),
     first_awarded: nullableNonEmptyString.optional(),
-    issued_by_authority_id: nonEmptyString,
+    authority_license_id: z.string(),
   })
   .strict();
 
@@ -813,279 +853,3 @@ export const ReviewPersonnelSpec = z
 export const ReviewPersonnelCreateSpec = ReviewPersonnelSpec.extend({
   id: z.string(),
 });
-
-export type AgencyRow = {
-  id: string;
-  name: string;
-  city: string;
-  state: string;
-  address: string;
-  zip_code: string;
-  contact_name: string | null;
-  contact_email: string | null;
-  slug: string;
-  location_path_id: string;
-  latitude: number;
-  longitude: number;
-};
-
-export type AgencyLinksRow = {
-  id: string;
-  agency_id: string | null;
-  url: string;
-  description: string | null;
-  label: string;
-};
-
-export type AgencyPersonnelRow = {
-  id: string;
-  agency_id: string;
-  personnel_id: string;
-  badge_number: string | null;
-  start_date: string;
-  end_date: string | null;
-  title: string;
-  license_id: string | null;
-};
-
-export type AgencyPhoneNumbersRow = {
-  id: string;
-  agency_id: string;
-  phone_number: string;
-  description: string | null;
-};
-
-export type CivilCaseLinksRow = {
-  id: string;
-  civil_case_id: string;
-  url: string;
-  title: string;
-};
-
-export type CivilCasePersonnelRow = {
-  id: string;
-  civil_case_id: string;
-  agency_personnel_id: string;
-};
-
-export type CivilCasesRow = {
-  id: string;
-  title: string;
-  cause_number: string;
-  court: string | null;
-  filed_date: string;
-  claims_summary: string;
-  slug: string;
-  outcome: string | null;
-  primary_source_url: string | null;
-  date_terminated: string | null;
-  location_path_id: string;
-};
-
-export type CoverageLinkAgencyPersonnelRow = {
-  id: string;
-  coverage_link_id: string;
-  agency_personnel_id: string;
-  confidence: string;
-  notes: string | null;
-};
-
-export type CoverageLinkCivilCasesRow = {
-  id: string;
-  coverage_link_id: string;
-  civil_case_id: string;
-  notes: string | null;
-};
-
-export type CoverageLinkReportsRow = {
-  id: string;
-  coverage_link_id: string;
-  review_id: string;
-  notes: string | null;
-};
-
-export type CoverageLinksRow = {
-  id: string;
-  url: string;
-  normalized_url: string;
-  title: string;
-  source_name: string | null;
-  published_at: string | null;
-  notes: string | null;
-};
-
-export type DisciplineRow = {
-  id: string;
-  action: string;
-  effective_date: string | null;
-  expiration_date: string | null;
-  case_number: string | null;
-};
-
-export type DisciplineAgencyPersonnelRow = {
-  id: string;
-  discipline_id: string;
-  agency_personnel_id: string;
-};
-
-export type FederalAgencyRow = {
-  id: string;
-  name: string;
-  slug: string;
-};
-
-export type FederalAgencyBranchRow = {
-  federal_agency_id: string;
-  agency_id: string;
-  id: string;
-};
-
-export type LicenseRow = {
-  id: string;
-  personnel_id: string;
-  license_type: string;
-  status: string | null;
-  first_awarded: string | null;
-  issued_by_authority_id: string;
-};
-
-export type LicenseActionRow = {
-  id: string;
-  license_id: string;
-  action: string;
-  action_date: string | null;
-  status: string | null;
-};
-
-export type LicensingAuthorityRow = {
-  id: string;
-  name: string;
-  abbreviation: string | null;
-  website: string | null;
-  location_path_id: string;
-};
-
-export type LocationPathRow = {
-  location_path_id: string;
-  path: string;
-  level: "state" | "administrative_area" | "place";
-  parent_location_path_id: string | null;
-  centroid: unknown | null;
-  bbox: unknown | null;
-  display_name: string;
-};
-
-export type LocationPathAliasRow = {
-  alias_path: string;
-  location_path_id: string;
-};
-
-export type LocationPathGeometryRow = {
-  location_path_id: string;
-  boundary: unknown;
-};
-
-export type LocationReportSourcesRow = {
-  id: string;
-  location_report_id: string;
-  source_key: string;
-  label: string;
-  url: string;
-  source_type: "law" | "methodology" | "pdf" | "web";
-  sort_order: number;
-};
-
-export type LocationReportsRow = {
-  id: string;
-  location_path_id: string;
-  report_type: string;
-  report_key: string;
-  title: string;
-  summary: string;
-  payload: unknown;
-  sort_order: number;
-  status: "draft" | "published" | "archived";
-  published_at: string | null;
-};
-
-export type PersonnelRow = {
-  id: string;
-  first_name: string;
-  last_name: string | null;
-  middle_name: string | null;
-  prefix: string | null;
-  suffix: string | null;
-  slug: string;
-  deceased_on: string | null;
-  deceased_source: string | null;
-  deceased_message: string | null;
-};
-
-export type ReviewAttachmentsRow = {
-  id: string;
-  review_id: string | null;
-  file_path: string;
-  file_name: string;
-  content_type: string;
-};
-
-export type ReviewLinksRow = {
-  id: string;
-  review_id: string | null;
-  url: string;
-  title: string;
-  created_by: string | null;
-  updated_by: string | null;
-};
-
-export type ReviewPersonnelRow = {
-  id: string;
-  review_id: string;
-  created_by: string | null;
-  updated_by: string | null;
-  rating_overall: number | null;
-  agency_personnel_id: string;
-};
-
-export type ReviewTagsRow = {
-  review_id: string;
-  tag_id: string;
-  id: string;
-};
-
-export type ReviewWitnessesRow = {
-  id: string;
-  review_id: string | null;
-  statement: string | null;
-};
-
-export type ReviewsRow = {
-  id: string;
-  title: string;
-  description: string | null;
-  incident_date: string | null;
-  desired_outcome: string | null;
-  address: string | null;
-  thumbnail_url: string | null;
-  slug: string;
-  charges: string | null;
-  location_path_id: string;
-  latitude: number | null;
-  longitude: number | null;
-  what_happened: string | null;
-  how_felt: string | null;
-  what_else: string | null;
-  incident_time: string | null;
-  submitter_relationship: string | null;
-  interaction_type: string | null;
-  setting: string | null;
-  bodycam_requested: string | null;
-  complaint_filed: string | null;
-  purpose: string | null;
-  case_number: string | null;
-};
-
-export type TagsRow = {
-  id: string;
-  label: string;
-};

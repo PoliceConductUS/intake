@@ -71,6 +71,17 @@ export type {
   LicensingAuthorityEnvelope,
   LicensingAuthorityInput,
 } from "./LicensingAuthorities.js";
+export {
+  AuthorityLicenses,
+  AuthorityLicense,
+  AuthorityLicenseSpec,
+} from "./AuthorityLicenses.js";
+export type {
+  AuthorityLicensesEnvelope,
+  AuthorityLicensesInput,
+  AuthorityLicenseEnvelope,
+  AuthorityLicenseInput,
+} from "./AuthorityLicenses.js";
 export { Licenses, License, LicenseSpec } from "./Licenses.js";
 export type {
   LicensesEnvelope,

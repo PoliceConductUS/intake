@@ -30,6 +30,8 @@ export type IntrospectedTable = {
    * record is dropped). Self-references are omitted.
    */
   foreignKeys: Array<{ column: string; targetTable: string }>;
+  /** Unique constraints (excluding the primary key), each as its column list. */
+  uniqueKeys: string[][];
 };
 
 export type IntrospectedSchema = {
@@ -170,6 +172,31 @@ export async function introspectSchema(
         .map((row) => ({ column: row.column, targetTable: row.ref_table }));
       const references = new Set(foreignKeys.map((fk) => fk.targetTable));
 
+      // Unique constraints (not the PK) — an entity's business/natural key, used
+      // to converge records by find-or-mint at import.
+      const uniqueRows = await client.query<{
+        conname: string;
+        column: string;
+      }>(
+        `select con.conname, att.attname as column
+           from pg_constraint con
+           join pg_class rel on rel.oid = con.conrelid
+           join pg_namespace ns on ns.oid = rel.relnamespace
+           join unnest(con.conkey) with ordinality as u(attnum, ord) on true
+           join pg_attribute att
+             on att.attrelid = rel.oid and att.attnum = u.attnum
+          where ns.nspname = 'public' and rel.relname = $1 and con.contype = 'u'
+          order by con.conname, u.ord`,
+        [table],
+      );
+      const uniqueKeysByName = new Map<string, string[]>();
+      for (const row of uniqueRows.rows) {
+        const columns = uniqueKeysByName.get(row.conname) ?? [];
+        columns.push(row.column);
+        uniqueKeysByName.set(row.conname, columns);
+      }
+      const uniqueKeys = [...uniqueKeysByName.values()];
+
       tables.set(table, {
         table,
         columns: columns.rows.map((row) => ({
@@ -182,6 +209,7 @@ export async function introspectSchema(
         enums,
         references,
         foreignKeys,
+        uniqueKeys,
       });
     }
 

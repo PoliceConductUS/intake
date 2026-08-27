@@ -12,6 +12,9 @@ function backend(current?: Record<string, Record<string, unknown>>): {
     backend: {
       findCanonicalId: async () => undefined,
       findOrCreateCanonicalId: async ({ sourceId }) => `canon:${sourceId}`,
+      businessKeyId: (_key, resolve) => resolve(),
+      findIdByBusinessKey: async () => undefined,
+      mintId: () => "minted-id",
       existingRow: async (id) => current?.[id],
       findForeignKeyTarget: ({ kind, sourceId }) => ({
         value: async () => `fk:${kind}:${sourceId}`,

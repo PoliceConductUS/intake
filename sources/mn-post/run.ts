@@ -3,6 +3,7 @@ import type { ImportArtifactKind } from "../../src/shared/io/index.js";
 
 export const produces: readonly ImportArtifactKind[] = [
   "LicensingAuthorities",
+  "AuthorityLicenses",
   "Agencies",
   "Personnel",
   "Licenses",
@@ -16,6 +17,7 @@ import path from "node:path";
 import { parse as parseCsvSync } from "csv-parse/sync";
 import { parse as parseYaml } from "yaml";
 import { assertRequiredColumns } from "../../src/cli/run/assert-required-columns.js";
+import { canonicalLicenseType } from "../../src/shared/license.js";
 import type {
   SourceRun,
   EmittedRecords,
@@ -118,6 +120,7 @@ export const run: SourceRun = async ({ paths }) => {
   };
   const agencies: EmittedRecords = {};
   const personnel: EmittedRecords = {};
+  const authorityLicenses: EmittedRecords = {};
   const licenses: EmittedRecords = {};
   const agencyPersonnel: EmittedRecords = {};
   // Officer (contactId) → the agency ids they hold an emitted assignment at. A
@@ -200,15 +203,26 @@ export const run: SourceRun = async ({ paths }) => {
         },
       };
 
-      // One License per distinct licenseId, issued by MN POST.
+      // The officer's holding of an MN POST license type. Keyed and referenced by
+      // (officer, canonical type); the type is its own AuthorityLicense.
+      const licenseHoldingKey =
+        licenseType === null
+          ? null
+          : `${contactId}|${canonicalLicenseType(licenseType)}`;
       if (licenseId !== null && licenseType !== null) {
-        licenses[licenseId] = {
+        const authorityLicenseId = `mn-post|${canonicalLicenseType(licenseType)}`;
+        authorityLicenses[authorityLicenseId] = {
+          spec: {
+            licensing_authority_id: "mn-post",
+            name: canonicalLicenseType(licenseType),
+          },
+        };
+        licenses[licenseHoldingKey!] = {
           spec: {
             personnel_id: contactId,
-            license_type: licenseType,
+            authority_license_id: authorityLicenseId,
             status: nullIfBlank(asString(row.status)),
             first_awarded: startDate,
-            issued_by_authority_id: "mn-post",
           },
         };
       }
@@ -225,8 +239,9 @@ export const run: SourceRun = async ({ paths }) => {
             end_date: null,
             title: licenseType,
             license_id:
-              licenseId !== null && licenses[licenseId] !== undefined
-                ? licenseId
+              licenseHoldingKey !== null &&
+              licenses[licenseHoldingKey] !== undefined
+                ? licenseHoldingKey
                 : null,
           },
         };
@@ -331,6 +346,7 @@ export const run: SourceRun = async ({ paths }) => {
   return {
     artifacts: [
       { kind: "LicensingAuthorities", records: licensingAuthorities },
+      { kind: "AuthorityLicenses", records: authorityLicenses },
       { kind: "Agencies", records: agencies },
       { kind: "Personnel", records: personnel },
       { kind: "Licenses", records: licenses },

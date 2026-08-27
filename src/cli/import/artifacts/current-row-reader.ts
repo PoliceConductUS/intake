@@ -1,6 +1,9 @@
 import { TABLE_BY_KIND } from "../../../shared/io/generated/entity-specs.js";
 import type { DatabaseClient } from "../../database/index.js";
-import { readDatabaseRecordsByColumn } from "../../database/entities.js";
+import {
+  readDatabaseRecordByColumns,
+  readDatabaseRecordsByColumn,
+} from "../../database/entities.js";
 import type { SupportedTableName } from "../../database/schema.js";
 
 type RowReadBatch = {
@@ -47,6 +50,19 @@ export class CurrentRowReader {
     identityColumn = "id",
   ): Promise<Record<string, unknown> | undefined> {
     return this.rowByColumn(tableForKind(kind), id, identityColumn);
+  }
+
+  // The row whose business-key columns hold these values (an entity's unique
+  // constraint). Not batched — a business-key lookup is per new record.
+  getByColumns(
+    kind: string,
+    values: Record<string, string>,
+  ): Promise<Record<string, unknown> | undefined> {
+    return readDatabaseRecordByColumns(
+      this.requireClient(),
+      tableForKind(kind),
+      values,
+    );
   }
 
   private rowByColumn(

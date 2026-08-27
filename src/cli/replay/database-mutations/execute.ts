@@ -65,6 +65,10 @@ const databaseMutationMetadataByRecordKind: Record<
     tableName: "public.licensing_authority",
     keyColumnName: "id",
   },
+  AuthorityLicense: {
+    tableName: "public.authority_license",
+    keyColumnName: "id",
+  },
   License: {
     tableName: "public.license",
     keyColumnName: "id",

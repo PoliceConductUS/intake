@@ -43,6 +43,12 @@ import {
   write as writeLicensingAuthorities,
 } from "./LicensingAuthorities.js";
 import {
+  AuthorityLicenses,
+  AuthorityLicenseSpec,
+  read as readAuthorityLicenses,
+  write as writeAuthorityLicenses,
+} from "./AuthorityLicenses.js";
+import {
   Licenses,
   LicenseSpec,
   read as readLicenses,
@@ -181,6 +187,12 @@ export const ARTIFACT_MODULES = {
     recordSpec: LicensingAuthoritySpec,
     read: readLicensingAuthorities,
     write: writeLicensingAuthorities,
+  },
+  AuthorityLicenses: {
+    envelope: AuthorityLicenses,
+    recordSpec: AuthorityLicenseSpec,
+    read: readAuthorityLicenses,
+    write: writeAuthorityLicenses,
   },
   Licenses: {
     envelope: Licenses,

@@ -3,17 +3,20 @@ import * as entitySpecs from "../../../../shared/io/generated/entity-specs.js";
 import {
   FK_REFERENCES,
   RESOLVED_PROPERTIES,
+  BUSINESS_KEYS,
 } from "../../../../shared/io/generated/entity-specs.js";
 import { importMutationEnvelopeTypes } from "../io/generated-mutations/index.js";
 import {
   Resolver,
   facadeCanonicalIdResolver,
   facadeComposedIdResolver,
+  facadeBusinessKeyIdResolver,
   facadeForeignKeyResolver,
   facadeNullableForeignKeyResolver,
   facadeLedgerForeignKeyResolver,
   facadeStateLocationPathResolver,
   titleCaseResolver,
+  titleCaseResolverNullable,
   nameCaseResolver,
   nameCaseResolverNullable,
   lowerCaseEmailResolverNullable,
@@ -29,10 +32,6 @@ import {
   coverageLinkIdResolver,
   civilCaseReferenceResolver,
 } from "./coverage-resolvers.js";
-import {
-  licenseStatusResolver,
-  licenseTypeResolver,
-} from "./license-resolvers.js";
 import {
   EntityFacade,
   type EntityFacadeBackend,
@@ -165,12 +164,31 @@ const REGISTRY: Record<string, KindConfig> = {
       ) as AnyResolver,
     },
   },
-  License: {
-    // Normalize status casing (ACTIVE/Active → Active) and license_type
-    // whitespace/bare-form dupes, so display and filtering see one canonical value.
+  AuthorityLicense: {
+    // A license type scoped by its authority. Identity is find-or-mint by the
+    // (licensing_authority_id, name) business key; the source emits the name already
+    // canonicalized (ADR 0031).
+    identityKind: "natural",
     overrides: {
-      status: licenseStatusResolver() as AnyResolver,
-      license_type: licenseTypeResolver() as AnyResolver,
+      id: facadeBusinessKeyIdResolver<Row>(
+        "AuthorityLicense",
+        BUSINESS_KEYS.AuthorityLicense,
+      ) as AnyResolver,
+    },
+  },
+  License: {
+    // The officer's holding of an authority_license. Identity is find-or-mint by the
+    // (personnel_id, authority_license_id) business key, so re-imports and same-type
+    // variants converge on one row.
+    identityKind: "natural",
+    overrides: {
+      id: facadeBusinessKeyIdResolver<Row>(
+        "License",
+        BUSINESS_KEYS.License,
+      ) as AnyResolver,
+      status: titleCaseResolverNullable<Row, EntityFacadeBackend>(
+        "status",
+      ) as AnyResolver,
     },
   },
   CivilCase: {
@@ -251,6 +269,7 @@ const SUPPORTED_KINDS = new Set<string>([
   "LocationPath",
   "LocationPathAlias",
   "LicensingAuthority",
+  "AuthorityLicense",
   "License",
   "LicenseAction",
   "AgencyPersonnel",

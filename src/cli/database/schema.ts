@@ -8,6 +8,7 @@ export type SupportedTableName =
   | "public.personnel"
   | "public.agency_personnel"
   | "public.licensing_authority"
+  | "public.authority_license"
   | "public.license"
   | "public.license_action"
   | "public.discipline"

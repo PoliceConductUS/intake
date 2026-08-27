@@ -21,6 +21,9 @@ import { AgencyPersonnelUpdate } from "./AgencyPersonnelUpdate.js";
 import { LicensingAuthorityCreate } from "./LicensingAuthorityCreate.js";
 import { LicensingAuthorityRead } from "./LicensingAuthorityRead.js";
 import { LicensingAuthorityUpdate } from "./LicensingAuthorityUpdate.js";
+import { AuthorityLicenseCreate } from "./AuthorityLicenseCreate.js";
+import { AuthorityLicenseRead } from "./AuthorityLicenseRead.js";
+import { AuthorityLicenseUpdate } from "./AuthorityLicenseUpdate.js";
 import { LicenseCreate } from "./LicenseCreate.js";
 import { LicenseRead } from "./LicenseRead.js";
 import { LicenseUpdate } from "./LicenseUpdate.js";
@@ -92,6 +95,9 @@ export const importMutationEnvelopeTypes = {
   LicensingAuthorityCreate,
   LicensingAuthorityRead,
   LicensingAuthorityUpdate,
+  AuthorityLicenseCreate,
+  AuthorityLicenseRead,
+  AuthorityLicenseUpdate,
   LicenseCreate,
   LicenseRead,
   LicenseUpdate,

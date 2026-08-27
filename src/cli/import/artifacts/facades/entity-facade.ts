@@ -7,6 +7,7 @@ import {
   type PropertyCache,
   type CanonicalIdBackend,
   type ForeignKeyBackend,
+  type BusinessKeyIdBackend,
 } from "../resolver-kit.js";
 import { typedInputFingerprint } from "../../../state/resolved-property/index.js";
 
@@ -19,7 +20,8 @@ import { typedInputFingerprint } from "../../../state/resolved-property/index.js
  * by the resolvers configured for those kinds.
  */
 export type EntityFacadeBackend = CanonicalIdBackend &
-  ForeignKeyBackend & {
+  ForeignKeyBackend &
+  BusinessKeyIdBackend & {
     existingRow(id: string): Promise<Record<string, unknown> | undefined>;
     getLocationPathByPath(
       path: string,

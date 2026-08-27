@@ -27,6 +27,25 @@ export async function readDatabaseRecordByColumn(
   )[0];
 }
 
+// The row whose business-key columns all hold the given values (the entity's
+// unique constraint), or undefined. Column names come from the generated model.
+export async function readDatabaseRecordByColumns(
+  client: DatabaseClient,
+  tableName: SupportedTableName,
+  values: Record<string, string>,
+): Promise<Record<string, unknown> | undefined> {
+  const columns = Object.keys(values);
+  const where = columns
+    .map((column, index) => `${column} = $${index + 1}`)
+    .join(" and ");
+  return rowsFromResult(
+    await client.query(
+      `select * from ${tableName} where ${where} limit 1`,
+      columns.map((column) => values[column]),
+    ),
+  )[0];
+}
+
 export async function readDatabaseRecordsByColumn(
   client: DatabaseClient,
   tableName: SupportedTableName,

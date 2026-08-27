@@ -165,6 +165,7 @@ describe("mn-post run", () => {
     const manifest = await runFixture();
     expect(manifest.artifacts.map((a) => a.kind)).toEqual([
       "LicensingAuthorities",
+      "AuthorityLicenses",
       "Agencies",
       "Personnel",
       "Licenses",
@@ -234,19 +235,30 @@ describe("mn-post run", () => {
     }
   });
 
-  it("maps Licenses keyed by licenseId, issued by mn-post", async () => {
+  it("emits one AuthorityLicense per license type, issued by mn-post", async () => {
+    const authorityLicenses = recordsOf(
+      await runFixture(),
+      "AuthorityLicenses",
+    );
+    expect(Object.keys(authorityLicenses)).toEqual(["mn-post|Peace Officer"]);
+    expect(authorityLicenses["mn-post|Peace Officer"].spec).toEqual({
+      licensing_authority_id: "mn-post",
+      name: "Peace Officer",
+    });
+  });
+
+  it("maps Licenses (holdings) keyed by contactId|canonical-type", async () => {
     const licenses = recordsOf(await runFixture(), "Licenses");
     expect(Object.keys(licenses).sort()).toEqual([
-      "a2jLIC31",
-      "a2jLIC32",
-      "a2jLIC99",
+      "0031|Peace Officer",
+      "0032|Peace Officer",
+      "0099|Peace Officer",
     ]);
-    expect(licenses["a2jLIC31"].spec).toEqual({
+    expect(licenses["0031|Peace Officer"].spec).toEqual({
       personnel_id: "0031",
-      license_type: "Peace Officer",
+      authority_license_id: "mn-post|Peace Officer",
       status: "Active",
       first_awarded: "2010-05-01",
-      issued_by_authority_id: "mn-post",
     });
     for (const record of Object.values(licenses)) {
       expect(LicenseSpec.safeParse(record.spec).success).toBe(true);
@@ -269,7 +281,7 @@ describe("mn-post run", () => {
       start_date: "2010-05-01",
       end_date: null,
       title: "Peace Officer",
-      license_id: "a2jLIC31",
+      license_id: "0031|Peace Officer",
     });
     for (const record of Object.values(assignments)) {
       expect(AgencyPersonnelSpec.safeParse(record.spec).success).toBe(true);

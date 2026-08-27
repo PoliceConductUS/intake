@@ -47,6 +47,7 @@ const RECORD_ENVELOPE_KINDS = new Set<ImportArtifactKind>([
   "Personnel",
   "AgencyPersonnel",
   "LicensingAuthorities",
+  "AuthorityLicenses",
   "Licenses",
   "LicenseActions",
 ]);

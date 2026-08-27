@@ -16,6 +16,7 @@ import { Agencies } from "./Agencies.js";
 import { Personnel } from "./Personnel.js";
 import { AgencyPersonnel } from "./AgencyPersonnel.js";
 import { LicensingAuthorities } from "./LicensingAuthorities.js";
+import { AuthorityLicenses } from "./AuthorityLicenses.js";
 import { Licenses } from "./Licenses.js";
 import { LicenseActions } from "./LicenseActions.js";
 import { Disciplines } from "./Disciplines.js";
@@ -108,6 +109,7 @@ const artifactSpecSchemas: Record<string, z.ZodType> = {
   Personnel: Personnel.schema.shape.spec,
   AgencyPersonnel: AgencyPersonnel.schema.shape.spec,
   LicensingAuthorities: LicensingAuthorities.schema.shape.spec,
+  AuthorityLicenses: AuthorityLicenses.schema.shape.spec,
   Licenses: Licenses.schema.shape.spec,
   LicenseActions: LicenseActions.schema.shape.spec,
   Disciplines: Disciplines.schema.shape.spec,
