@@ -59,6 +59,10 @@ verified** submissions of the v1 form type (`reportNew`), and for each:
   coordinate resolver — the same infrastructure agencies use, not a brittle
   name match. A location that fails to geocode routes the report to human review.
 - applies the cached AI verdict as a **high publication bar**.
+- keys the report on its **`submissionId` as a natural-key identity** (ADR 0028):
+  `Review.id = submissionId`, so the report id is the immutable audit tie back to
+  the submission (the bucket's `verify/`/`status/` records cross-link the rest),
+  and re-import is idempotent. `slug` stays the separate user-facing URL.
 - emits a report (`Review` + `ReviewPersonnel`) **only** when it clears the bar
   and anchors to at least one real officer@agency
   (everything-resolves-to-an-officer; ADR 0029 publish gate). Otherwise it emits
