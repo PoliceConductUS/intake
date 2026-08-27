@@ -28,14 +28,15 @@ function recordKindOfMutation(mutationKind: string): string {
  * (e.g. Licenses before the AgencyPersonnel whose `license_id` targets them).
  * Unknown kinds sort last.
  *
- * Within a kind, order by the mutation's `name` (its identity value, ADR 0027).
- * For a self-referential kind whose identity is hierarchical — location_path,
- * keyed by `path` — byte order puts a parent (`/tx/dallas-county/`) before its
- * child (`/tx/dallas-county/irving/`), since the parent's path is a prefix. So a
- * row's own-kind FK target is always created first, and the create-batcher never
- * inserts a child before its parent. For kinds without a self-reference the
- * within-kind order is immaterial; sorting by name just makes the plan
- * deterministic (stable chain entries, ADR 0033).
+ * Within a kind, order by a hierarchical key: the record's `path` when it has one
+ * (location_path — the only self-referential kind — is keyed on a cuid, so its
+ * `name` is random; its `path` is the hierarchy), else the mutation's `name`. Byte
+ * order puts a parent (`/tx/dallas-county/`) before its child
+ * (`/tx/dallas-county/irving/`), since the parent's path is a prefix. So a row's
+ * own-kind FK target is always created first and the create-batcher never inserts
+ * a child before its parent. For kinds without a self-reference the within-kind
+ * order is immaterial; this just makes the plan deterministic (stable chain
+ * entries, ADR 0033).
  *
  * Order every create before any update (ADR 0020). Creates keep FK-dependency
  * order among themselves (a row's FK targets are created first); updates follow
@@ -56,8 +57,13 @@ function sortByDependencyOrder(
       ? (DEPENDENCY_ORDER_INDEX.get(recordKindOfMutation(item.kind)) ??
         Number.MAX_SAFE_INTEGER)
       : Number.MAX_SAFE_INTEGER;
-  const nameKey = (item: DatabaseMutationItem): string =>
-    "name" in item ? item.name : "";
+  const hierarchicalKey = (item: DatabaseMutationItem): string => {
+    if ("spec" in item) {
+      const path = (item.spec as { path?: unknown }).path;
+      if (typeof path === "string") return path;
+    }
+    return "name" in item ? item.name : "";
+  };
   // Compute each item's sort keys once (they involve string parsing), then sort
   // by the cached values. At hundreds of thousands of rows, recomputing the keys
   // inside the comparator would parse strings tens of millions of times.
@@ -65,7 +71,7 @@ function sortByDependencyOrder(
     item,
     rank: operationRank(item),
     dependency: dependencyIndex(item),
-    name: nameKey(item),
+    name: hierarchicalKey(item),
   }));
   decorated.sort(
     (a, b) =>
