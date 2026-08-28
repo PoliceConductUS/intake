@@ -12,7 +12,7 @@ export type Selector = { [field: string]: string | number | Selector };
 
 // A column constraint: an exact value, or a set of candidate ids the column must be
 // one of (a foreign-key hop that resolved to more than one target).
-export type ColumnConstraint = string | readonly string[];
+type ColumnConstraint = string | readonly string[];
 
 // The rows of `kind` whose columns all satisfy the given constraints (a plain value
 // matches by equality; a candidate set matches by membership). The selector resolver

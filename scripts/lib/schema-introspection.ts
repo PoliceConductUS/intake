@@ -7,7 +7,6 @@ export type IntrospectedColumn = {
   /** pg `udt_name` (e.g. `text`, `float8`, `date`, `timestamptz`, `geometry`). */
   udtName: string;
   nullable: boolean;
-  hasDefault: boolean;
 };
 
 /** A single entity table's schema truth: columns, non-blank columns, enums. */
@@ -120,10 +119,8 @@ export async function introspectSchema(
         column_name: string;
         udt_name: string;
         is_nullable: string;
-        has_default: boolean;
       }>(
-        `select column_name, udt_name, is_nullable,
-                (column_default is not null) as has_default
+        `select column_name, udt_name, is_nullable
            from information_schema.columns
           where table_schema = 'public' and table_name = $1
           order by ordinal_position`,
@@ -238,7 +235,6 @@ export async function introspectSchema(
           name: row.column_name,
           udtName: row.udt_name,
           nullable: row.is_nullable === "YES",
-          hasDefault: row.has_default,
         })),
         nonBlankColumns,
         enums,

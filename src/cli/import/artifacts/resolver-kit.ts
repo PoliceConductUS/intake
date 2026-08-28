@@ -355,19 +355,19 @@ type ReferenceBackend = CanonicalIdBackend &
 // A reference is scalar-or-selector (ADR 0034): a source-id string resolved through
 // the same-run/ledger links, or a selector object resolved by the selector link.
 // String links defer on a selector and vice-versa, so one chain carries both.
-export type Reference = string | Selector;
+type Reference = string | Selector;
 
 /**
  * One link in the chain: resolve `reference` to a canonical id, or `undefined` to
  * defer to the next link.
  */
-export type ReferenceLink<Row> = (
+type ReferenceLink<Row> = (
   reference: Reference,
   context: ResolverContext<Row, ReferenceBackend>,
 ) => Promise<string | undefined>;
 
 /** Same-run link: a target facade emitted this run resolves to its id. */
-export function sameRunLink<Row>(targetKind: string): ReferenceLink<Row> {
+function sameRunLink<Row>(targetKind: string): ReferenceLink<Row> {
   return async (reference, { source, backend }) => {
     if (typeof reference !== "string") return undefined;
     const target = backend.findForeignKeyTarget({
@@ -380,7 +380,7 @@ export function sameRunLink<Row>(targetKind: string): ReferenceLink<Row> {
 }
 
 /** Db-source link: an existing durable ledger mapping (find-only, never mints). */
-export function ledgerFindLink<Row>(targetKind: string): ReferenceLink<Row> {
+function ledgerFindLink<Row>(targetKind: string): ReferenceLink<Row> {
   return (reference, { source, backend }) =>
     typeof reference !== "string"
       ? Promise.resolve(undefined)
@@ -392,7 +392,7 @@ export function ledgerFindLink<Row>(targetKind: string): ReferenceLink<Row> {
 }
 
 /** Db-source link for LocationPath: resolve the reference by path, then alias. */
-export function locationPathByPathLink<Row>(): ReferenceLink<Row> {
+function locationPathByPathLink<Row>(): ReferenceLink<Row> {
   return async (reference, { backend }) =>
     typeof reference !== "string"
       ? undefined
@@ -406,7 +406,7 @@ export function locationPathByPathLink<Row>(): ReferenceLink<Row> {
  * (exactly one, never mints). Defers on a scalar reference. This is the natural-key
  * terminal, the general form of locationPathByPathLink.
  */
-export function selectorLink<Row>(targetKind: string): ReferenceLink<Row> {
+function selectorLink<Row>(targetKind: string): ReferenceLink<Row> {
   return async (reference, context) => {
     if (typeof reference === "string") return undefined;
     return resolveIdBySelector(targetKind, reference, (kind, columns) =>
@@ -416,7 +416,7 @@ export function selectorLink<Row>(targetKind: string): ReferenceLink<Row> {
 }
 
 /** Terminal mint link: the durable find-or-create. Only an identity may mint. */
-export function ledgerMintLink<Row>(targetKind: string): ReferenceLink<Row> {
+function ledgerMintLink<Row>(targetKind: string): ReferenceLink<Row> {
   return (reference, { source, backend }) =>
     typeof reference !== "string"
       ? Promise.resolve(undefined)

@@ -247,12 +247,9 @@ async function validateArtifactRecordsStage(
 }
 
 /**
- * The agency-resolution dependencies both the planning and the envelope-writing
- * passes share: the coordinate geocoder (census, or an injected mock in tests),
- * the administrative-area resolver, and the `ResolvedProperty` cache read/write
- * rooted at the workspace. One source of truth so the write pass resolves an
- * agency identically to the planning pass (and, once the planning pass is gone,
- * so it resolves at all).
+ * The agency-resolution dependencies the envelope-writing pass reaches through: the
+ * coordinate geocoder (census, or an injected mock in tests), the administrative-area
+ * resolver, and the `ResolvedProperty` cache read/write rooted at the workspace.
  */
 function agencyResolutionDeps(context: ImportArtifactsPipelineContext) {
   const logger = context.commandInput.logger;
