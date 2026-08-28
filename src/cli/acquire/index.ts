@@ -105,7 +105,7 @@ export async function acquireSource(
   }
 }
 
-export const registerCliCommand: RegisterCliCommand = (
+export const registerAcquireCommand: RegisterCliCommand = (
   program: Command,
   dependencies: CliCommandDependencies,
 ): void => {

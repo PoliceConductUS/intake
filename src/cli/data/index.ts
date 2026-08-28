@@ -21,6 +21,7 @@ import {
   orderedSourceIds,
   transformOneSource,
 } from "./source-pipeline.js";
+import { registerAcquireCommand } from "../acquire/index.js";
 
 const consoleLogger = {
   info: (message: string) => process.stderr.write(`${message}\n`),
@@ -57,7 +58,13 @@ export function registerCliCommand(
 ): void {
   const group = program
     .command("data")
-    .description("The ordered, replayable data-mutation chain (ADR 0033).");
+    .description(
+      "The data pipeline (ADR 0033/0034): acquire → transform → generate → up.",
+    );
+
+  // acquire → transform → generate → up: the phases, in order. acquire lives in its
+  // own module; the rest are below.
+  registerAcquireCommand(group, dependencies);
 
   group
     .command("transform")
