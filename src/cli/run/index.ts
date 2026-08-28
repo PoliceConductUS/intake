@@ -1,27 +1,17 @@
 import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
-import { Command } from "commander";
 import { Artifacts, loadExcludedRecords } from "../../shared/io/index.js";
 import type { ExcludedRecords } from "../../shared/io/index.js";
-import {
-  createCommandDirectory,
-  intakeWorkspace,
-} from "../command-directory.js";
+import { createCommandDirectory } from "../command-directory.js";
 import { runImportArtifactsCommand } from "../import/artifacts/index.js";
-import type {
-  CliCommandDependencies,
-  CommandResult,
-  RegisterCliCommand,
-} from "../../shared/cli/types.js";
+import type { CommandResult } from "../../shared/cli/types.js";
 import { buildArtifactsEnvelope } from "./source-run.js";
 import type { SourceManifest } from "./source-run.js";
 import {
   loadSourceModule,
   loadSourceProduces,
-  loadSourceStandalone,
 } from "./load-source-module.js";
-import { planSourceOrder } from "./source-order.js";
 import { defaultDatabaseClientFactory } from "../database/index.js";
 import { createSourceNameToCanonicalIdLedger } from "../state/source-name-to-canonical-id/index.js";
 import { createRunDataContext } from "./personnel-resolver.js";
@@ -32,7 +22,6 @@ import { seedResolvedPropertyCache } from "../state/resolved-property/index.js";
 import { excludeManifestRecords } from "./exclude-records.js";
 import { createEmitSink } from "./emit-sink.js";
 import type { EmitRefItem, EmitSink } from "./emit-sink.js";
-import { matchSourceIds } from "../source-glob.js";
 import { readCommandPointer } from "../state/command-pointer.js";
 
 type RunSourceDeps = {
@@ -306,135 +295,3 @@ export async function buildRunSourceDeps(
   };
 }
 
-export const registerCliCommand: RegisterCliCommand = (
-  program: Command,
-  dependencies: CliCommandDependencies,
-): void => {
-  program
-    .command("run")
-    .description(
-      "Run the run.ts (produce) phase of every source folder matching <glob> " +
-        "and import the records it returns. Inputs come from the source's latest " +
-        "successful acquire (via $INTAKE_WORKSPACE/state/<source-id>/acquire.yaml); " +
-        "a source that has not been acquired cannot run. Matched sources run " +
-        "in a dependency-correct order derived from the kinds each declares it " +
-        "produces (ADR 0021): a producer runs before every source that consumes it.",
-    )
-    .argument(
-      "[glob]",
-      "glob matching source folder name(s) under sources/ — quote it, e.g. 'gov.*'; defaults to all sources",
-      "*",
-    )
-    .option(
-      "--dry-run",
-      "Write each DatabaseMutations envelope without applying it",
-    )
-    .addHelpText("after", "\nRun `intake sources` to list available sources.")
-    .action(
-      async (glob: string, options: { dryRun?: boolean }): Promise<void> => {
-        const env = process.env;
-        const sourcesRoot = path.join(process.cwd(), "sources");
-        try {
-          const workspace = intakeWorkspace(env);
-          const allMatchedIds = await matchSourceIds(sourcesRoot, glob);
-          if (allMatchedIds.length === 0) {
-            dependencies.setResult({
-              exitCode: 1,
-              stderr: `No source folder under sources/ matches "${glob}".\n`,
-            });
-            return;
-          }
-          // A standalone source (manual curation) is a manual intervention, run on
-          // its own — excluded from a multi-source group run, kept when named alone.
-          const standaloneFlags = await Promise.all(
-            allMatchedIds.map((id) => loadSourceStandalone(id, sourcesRoot)),
-          );
-          const excludedStandalone =
-            allMatchedIds.length > 1
-              ? allMatchedIds.filter((_, index) => standaloneFlags[index])
-              : [];
-          const matchedIds = allMatchedIds.filter(
-            (id) => !excludedStandalone.includes(id),
-          );
-          // Standalone (manual curation) sources read their records from state, not
-          // downloaded input files, so they are exempt from the input-files gate.
-          const standaloneIds = new Set(
-            allMatchedIds.filter((_, index) => standaloneFlags[index]),
-          );
-
-          // Dependency-correct order from declared produces (ADR 0021);
-          // missing produces or a cycle fails loud before any source runs.
-          const sources = await Promise.all(
-            matchedIds.map(async (id) => ({
-              id,
-              produces: await loadSourceProduces(id, sourcesRoot),
-            })),
-          );
-          const { order, edges, skipped } = planSourceOrder(sources);
-          const producesById = new Map(
-            sources.map((source) => [source.id, source.produces]),
-          );
-
-          const logger = {
-            info: (message: string) => process.stderr.write(`${message}\n`),
-          };
-          if (order.length > 1) {
-            logger.info(`run order: ${order.join(" → ")}`);
-            for (const edge of edges) {
-              logger.info(
-                `  ${edge.after} after ${edge.before} (${edge.kind})`,
-              );
-            }
-          }
-          if (skipped.length > 0) {
-            logger.info(`skipped: ${skipped.join(", ")} (produces nothing)`);
-          }
-          if (excludedStandalone.length > 0) {
-            logger.info(
-              `excluded: ${excludedStandalone.join(", ")} (standalone; run alone)`,
-            );
-          }
-          const stdout: string[] = [];
-          for (const sourceId of order) {
-            const inputDir = await sourceInputDir(workspace, sourceId);
-            const paths = await sourceInputPaths(inputDir);
-            if (paths.length === 0 && !standaloneIds.has(sourceId)) {
-              dependencies.setResult({
-                exitCode: 1,
-                stdout: stdout.join(""),
-                stderr: `No input files for ${sourceId} at ${inputDir}\n`,
-              });
-              return;
-            }
-            const deps = await buildRunSourceDeps(sourceId, paths, env, {
-              commandArgs: ["run", sourceId, ...paths],
-              runImport: dependencies.runImportArtifactsCommand,
-              logger,
-            });
-            logger.info(`${sourceId}: run — ${paths.length} input file(s)`);
-            const result = await runSource(
-              sourceId,
-              paths,
-              { ...options, standalone: standaloneIds.has(sourceId) },
-              deps,
-            );
-            if (result.stdout) stdout.push(result.stdout);
-            if (result.exitCode !== 0) {
-              dependencies.setResult({
-                exitCode: result.exitCode,
-                stdout: stdout.join(""),
-                stderr: `${result.stderr ?? ""}intake run failed on source ${sourceId}\n`,
-              });
-              return;
-            }
-          }
-          dependencies.setResult({ exitCode: 0, stdout: stdout.join("") });
-        } catch (error) {
-          dependencies.setResult({
-            exitCode: 1,
-            stderr: `${errorMessage(error)}\n`,
-          });
-        }
-      },
-    );
-};
