@@ -110,7 +110,13 @@ export async function generateEntry(
 ): Promise<{ written?: string; version?: string; mutationCount: number }> {
   // Read fully-expanded (chunks inlined) so the re-write re-chunks into the chain.
   const envelope = await DatabaseMutations.read(mutationsEnvelopePath);
-  const mutationCount = envelope.spec.mutations.length;
+  // A `*Read` mutation asserts an existing row (upsert: read, ADR 0011/0014) — a
+  // no-op that persists nothing. An envelope of only reads is an empty delta (a
+  // re-import of an already-applied source) and is never appended to the chain.
+  const effective = envelope.spec.mutations.filter(
+    (mutation) => !String((mutation as { kind?: unknown }).kind).endsWith("Read"),
+  );
+  const mutationCount = effective.length;
   if (mutationCount === 0) {
     return { mutationCount: 0 };
   }
