@@ -76,7 +76,11 @@ export function registerCliCommand(
     .argument("<source>", "source id under sources/")
     .action(async (source: string): Promise<void> => {
       try {
-        const result = await transformOneSource(source, process.env, consoleLogger);
+        const result = await transformOneSource(
+          source,
+          process.env,
+          consoleLogger,
+        );
         dependencies.setResult(
           "error" in result
             ? result.error

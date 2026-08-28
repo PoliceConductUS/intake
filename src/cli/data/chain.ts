@@ -114,7 +114,8 @@ export async function generateEntry(
   // no-op that persists nothing. An envelope of only reads is an empty delta (a
   // re-import of an already-applied source) and is never appended to the chain.
   const effective = envelope.spec.mutations.filter(
-    (mutation) => !String((mutation as { kind?: unknown }).kind).endsWith("Read"),
+    (mutation) =>
+      !String((mutation as { kind?: unknown }).kind).endsWith("Read"),
   );
   const mutationCount = effective.length;
   if (mutationCount === 0) {

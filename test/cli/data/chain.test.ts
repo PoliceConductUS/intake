@@ -2,10 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, it, expect } from "vitest";
-import {
-  generateEntry,
-  listEntries,
-} from "../../../src/cli/data/chain.js";
+import { generateEntry, listEntries } from "../../../src/cli/data/chain.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {

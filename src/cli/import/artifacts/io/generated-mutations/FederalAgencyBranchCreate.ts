@@ -12,8 +12,10 @@ import {
   readYamlDocumentFile,
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
-import { FederalAgencyBranchSpec, FederalAgencyBranchCreateSpec } from "../../../../../shared/io/generated/entity-specs.js";
-
+import {
+  FederalAgencyBranchSpec,
+  FederalAgencyBranchCreateSpec,
+} from "../../../../../shared/io/generated/entity-specs.js";
 
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
@@ -50,15 +52,22 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "FederalAgencyBranchCreate"} ref requires relativeTo.`);
+  if (
+    options.relativeTo === undefined ||
+    options.relativeTo.trim().length === 0
+  ) {
+    throw new Error(
+      `Relative ${ref.kind ?? "FederalAgencyBranchCreate"} ref requires relativeTo.`,
+    );
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "FederalAgencyBranchCreate"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(
+      `${ref.kind ?? "FederalAgencyBranchCreate"} ref.path escapes its directory: ${ref.path}`,
+    );
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -72,8 +81,6 @@ const metadataSchema = z
   })
   .strict();
 
-
-
 export const specSchema = FederalAgencyBranchCreateSpec;
 
 export const schema = z
@@ -86,9 +93,14 @@ export const schema = z
   .strict();
 
 export type FederalAgencyBranchCreateEnvelope = z.infer<typeof schema>;
-export type FederalAgencyBranchCreateInput = Omit<FederalAgencyBranchCreateEnvelope, "apiVersion" | "kind">;
+export type FederalAgencyBranchCreateInput = Omit<
+  FederalAgencyBranchCreateEnvelope,
+  "apiVersion" | "kind"
+>;
 
-function parseFederalAgencyBranchCreate(value: unknown): FederalAgencyBranchCreateEnvelope {
+function parseFederalAgencyBranchCreate(
+  value: unknown,
+): FederalAgencyBranchCreateEnvelope {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new Error(formatError(result.error));
@@ -96,7 +108,9 @@ function parseFederalAgencyBranchCreate(value: unknown): FederalAgencyBranchCrea
   return result.data;
 }
 
-function newFederalAgencyBranchCreate(input: FederalAgencyBranchCreateInput): FederalAgencyBranchCreateEnvelope {
+function newFederalAgencyBranchCreate(
+  input: FederalAgencyBranchCreateInput,
+): FederalAgencyBranchCreateEnvelope {
   return parseFederalAgencyBranchCreate({
     apiVersion: INTAKE_API_VERSION,
     kind: "FederalAgencyBranchCreate",
@@ -110,11 +124,18 @@ async function readFederalAgencyBranchCreate(
 ): Promise<FederalAgencyBranchCreateEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
   if (ref.kind !== undefined && ref.kind !== "FederalAgencyBranchCreate") {
-    throw new Error(`FederalAgencyBranchCreate ref.kind ${ref.kind} does not match expected kind FederalAgencyBranchCreate: ${ref.filePath}`);
+    throw new Error(
+      `FederalAgencyBranchCreate ref.kind ${ref.kind} does not match expected kind FederalAgencyBranchCreate: ${ref.filePath}`,
+    );
   }
-  const { contents, document } = await readYamlDocumentFile(ref.filePath, "FederalAgencyBranchCreate");
+  const { contents, document } = await readYamlDocumentFile(
+    ref.filePath,
+    "FederalAgencyBranchCreate",
+  );
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
-    throw new Error(`FederalAgencyBranchCreate sha256 mismatch: ${ref.filePath}`);
+    throw new Error(
+      `FederalAgencyBranchCreate sha256 mismatch: ${ref.filePath}`,
+    );
   }
   const envelope = parseFederalAgencyBranchCreate(document);
   if (

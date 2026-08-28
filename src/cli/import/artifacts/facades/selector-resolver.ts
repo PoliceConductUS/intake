@@ -22,7 +22,9 @@ export type SelectorRowFinder = (
   columnConstraints: Record<string, ColumnConstraint>,
 ) => Promise<Array<Record<string, unknown>>>;
 
-function isNestedSelector(value: string | number | Selector): value is Selector {
+function isNestedSelector(
+  value: string | number | Selector,
+): value is Selector {
   return typeof value === "object" && value !== null;
 }
 
@@ -80,7 +82,9 @@ async function resolveCandidates(
   }
 
   if (Object.keys(constraints).length === 0) {
-    throw new Error(`${kind} selector is empty; it must constrain at least one field.`);
+    throw new Error(
+      `${kind} selector is empty; it must constrain at least one field.`,
+    );
   }
 
   const primaryKey = PRIMARY_KEY_BY_KIND[kind] ?? "id";

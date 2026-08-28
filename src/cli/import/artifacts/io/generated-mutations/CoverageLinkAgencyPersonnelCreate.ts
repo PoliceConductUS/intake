@@ -12,8 +12,10 @@ import {
   readYamlDocumentFile,
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
-import { CoverageLinkAgencyPersonnelSpec, CoverageLinkAgencyPersonnelCreateSpec } from "../../../../../shared/io/generated/entity-specs.js";
-
+import {
+  CoverageLinkAgencyPersonnelSpec,
+  CoverageLinkAgencyPersonnelCreateSpec,
+} from "../../../../../shared/io/generated/entity-specs.js";
 
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
@@ -50,15 +52,22 @@ function resolveReadPath(
   if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
     return { ...ref, filePath: ref.path };
   }
-  if (options.relativeTo === undefined || options.relativeTo.trim().length === 0) {
-    throw new Error(`Relative ${ref.kind ?? "CoverageLinkAgencyPersonnelCreate"} ref requires relativeTo.`);
+  if (
+    options.relativeTo === undefined ||
+    options.relativeTo.trim().length === 0
+  ) {
+    throw new Error(
+      `Relative ${ref.kind ?? "CoverageLinkAgencyPersonnelCreate"} ref requires relativeTo.`,
+    );
   }
 
   const baseDirectory = path.dirname(options.relativeTo);
   const resolvedPath = path.resolve(baseDirectory, ref.path);
   const relativePath = path.relative(baseDirectory, resolvedPath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(`${ref.kind ?? "CoverageLinkAgencyPersonnelCreate"} ref.path escapes its directory: ${ref.path}`);
+    throw new Error(
+      `${ref.kind ?? "CoverageLinkAgencyPersonnelCreate"} ref.path escapes its directory: ${ref.path}`,
+    );
   }
   return { ...ref, filePath: resolvedPath };
 }
@@ -72,8 +81,6 @@ const metadataSchema = z
   })
   .strict();
 
-
-
 export const specSchema = CoverageLinkAgencyPersonnelCreateSpec;
 
 export const schema = z
@@ -86,9 +93,14 @@ export const schema = z
   .strict();
 
 export type CoverageLinkAgencyPersonnelCreateEnvelope = z.infer<typeof schema>;
-export type CoverageLinkAgencyPersonnelCreateInput = Omit<CoverageLinkAgencyPersonnelCreateEnvelope, "apiVersion" | "kind">;
+export type CoverageLinkAgencyPersonnelCreateInput = Omit<
+  CoverageLinkAgencyPersonnelCreateEnvelope,
+  "apiVersion" | "kind"
+>;
 
-function parseCoverageLinkAgencyPersonnelCreate(value: unknown): CoverageLinkAgencyPersonnelCreateEnvelope {
+function parseCoverageLinkAgencyPersonnelCreate(
+  value: unknown,
+): CoverageLinkAgencyPersonnelCreateEnvelope {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new Error(formatError(result.error));
@@ -96,7 +108,9 @@ function parseCoverageLinkAgencyPersonnelCreate(value: unknown): CoverageLinkAge
   return result.data;
 }
 
-function newCoverageLinkAgencyPersonnelCreate(input: CoverageLinkAgencyPersonnelCreateInput): CoverageLinkAgencyPersonnelCreateEnvelope {
+function newCoverageLinkAgencyPersonnelCreate(
+  input: CoverageLinkAgencyPersonnelCreateInput,
+): CoverageLinkAgencyPersonnelCreateEnvelope {
   return parseCoverageLinkAgencyPersonnelCreate({
     apiVersion: INTAKE_API_VERSION,
     kind: "CoverageLinkAgencyPersonnelCreate",
@@ -109,12 +123,22 @@ async function readCoverageLinkAgencyPersonnelCreate(
   options: EnvelopeReadOptions = {},
 ): Promise<CoverageLinkAgencyPersonnelCreateEnvelope> {
   const ref = resolveReadPath(pathOrRef, options);
-  if (ref.kind !== undefined && ref.kind !== "CoverageLinkAgencyPersonnelCreate") {
-    throw new Error(`CoverageLinkAgencyPersonnelCreate ref.kind ${ref.kind} does not match expected kind CoverageLinkAgencyPersonnelCreate: ${ref.filePath}`);
+  if (
+    ref.kind !== undefined &&
+    ref.kind !== "CoverageLinkAgencyPersonnelCreate"
+  ) {
+    throw new Error(
+      `CoverageLinkAgencyPersonnelCreate ref.kind ${ref.kind} does not match expected kind CoverageLinkAgencyPersonnelCreate: ${ref.filePath}`,
+    );
   }
-  const { contents, document } = await readYamlDocumentFile(ref.filePath, "CoverageLinkAgencyPersonnelCreate");
+  const { contents, document } = await readYamlDocumentFile(
+    ref.filePath,
+    "CoverageLinkAgencyPersonnelCreate",
+  );
   if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
-    throw new Error(`CoverageLinkAgencyPersonnelCreate sha256 mismatch: ${ref.filePath}`);
+    throw new Error(
+      `CoverageLinkAgencyPersonnelCreate sha256 mismatch: ${ref.filePath}`,
+    );
   }
   const envelope = parseCoverageLinkAgencyPersonnelCreate(document);
   if (

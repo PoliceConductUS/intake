@@ -39,9 +39,21 @@ const store = rowStore({
   ],
   AgencyPersonnel: [
     { id: "ap-markham", agency_id: IRVING, personnel_id: "p-markham" },
-    { id: "ap-paul-lewis", agency_id: IRVING, personnel_id: "p-paul-lewis-irving" },
-    { id: "ap-antwan-lewis", agency_id: IRVING, personnel_id: "p-antwan-lewis" },
-    { id: "ap-lewis-dallas", agency_id: DALLAS, personnel_id: "p-paul-lewis-dallas" },
+    {
+      id: "ap-paul-lewis",
+      agency_id: IRVING,
+      personnel_id: "p-paul-lewis-irving",
+    },
+    {
+      id: "ap-antwan-lewis",
+      agency_id: IRVING,
+      personnel_id: "p-antwan-lewis",
+    },
+    {
+      id: "ap-lewis-dallas",
+      agency_id: DALLAS,
+      personnel_id: "p-paul-lewis-dallas",
+    },
   ],
 });
 

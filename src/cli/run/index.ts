@@ -8,10 +8,7 @@ import { runImportArtifactsCommand } from "../import/artifacts/index.js";
 import type { CommandResult } from "../../shared/cli/types.js";
 import { buildArtifactsEnvelope } from "./source-run.js";
 import type { SourceManifest } from "./source-run.js";
-import {
-  loadSourceModule,
-  loadSourceProduces,
-} from "./load-source-module.js";
+import { loadSourceModule, loadSourceProduces } from "./load-source-module.js";
 import { defaultDatabaseClientFactory } from "../database/index.js";
 import { createSourceNameToCanonicalIdLedger } from "../state/source-name-to-canonical-id/index.js";
 import { createRunDataContext } from "./personnel-resolver.js";
@@ -136,7 +133,10 @@ export async function transformSource(
   // paths, so it runs with none; every other source requires at least one path.
   if (paths.length === 0 && options.standalone !== true) {
     return {
-      error: { exitCode: 1, stderr: "intake transform requires at least one path\n" },
+      error: {
+        exitCode: 1,
+        stderr: "intake transform requires at least one path\n",
+      },
     };
   }
 
@@ -294,4 +294,3 @@ export async function buildRunSourceDeps(
     logger: options.logger,
   };
 }
-

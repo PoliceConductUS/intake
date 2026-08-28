@@ -107,8 +107,8 @@ export async function generateFromArtifacts(
   { version?: string; mutationCount: number } | { error: CommandResult }
 > {
   const workspace = intakeWorkspace(env);
-  const namespace = (await Artifacts.read(artifactsPath, { raw: true })).metadata
-    .namespace;
+  const namespace = (await Artifacts.read(artifactsPath, { raw: true }))
+    .metadata.namespace;
   const importResult = await runImportArtifactsCommand(artifactsPath, {
     dryImport: true,
     env,

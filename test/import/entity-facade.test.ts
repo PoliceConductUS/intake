@@ -183,7 +183,9 @@ describe("selector-resolved partial update (ADR 0034)", () => {
   it("resolves an officer by selector and sets only the provided field", async () => {
     const rowsByKind = {
       Agency: [{ id: "irving", name: "Irving Police Department" }],
-      Personnel: [{ id: "p-markham", first_name: "James", last_name: "Markham" }],
+      Personnel: [
+        { id: "p-markham", first_name: "James", last_name: "Markham" },
+      ],
       AgencyPersonnel: [
         { id: "ap-markham", agency_id: "irving", personnel_id: "p-markham" },
       ],
@@ -209,7 +211,9 @@ describe("selector-resolved partial update (ADR 0034)", () => {
     const mutation = (await facade.toMutation()) as {
       kind: string;
       metadata: { name: string };
-      spec: { operations: Array<{ action: string; path: string; to?: unknown }> };
+      spec: {
+        operations: Array<{ action: string; path: string; to?: unknown }>;
+      };
     };
 
     // The selector materialized to the officer's real id (the mutation's target).

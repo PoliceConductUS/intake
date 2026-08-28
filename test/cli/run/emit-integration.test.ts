@@ -126,8 +126,11 @@ describe("emit sink integration (via runSource)", () => {
     expect(geometries).toBeDefined();
     expect(Object.keys(geometries?.spec.records ?? {})).toEqual(["az-state"]);
     expect(
-      (geometries?.spec.records["az-state"] as { spec: Record<string, unknown> })
-        .spec,
+      (
+        geometries?.spec.records["az-state"] as {
+          spec: Record<string, unknown>;
+        }
+      ).spec,
     ).toMatchObject({
       location_path_id: "az",
       sourceLocationPathKey: "az",

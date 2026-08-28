@@ -81,7 +81,11 @@ decision is _declared_, never inferred, because the default for a canonical kind
 ```yaml
 # a manual AgencyPersonnel record (org.policeconduct.manual)
 id:
-  patch: { agency: { name: Irving Police Department }, personnel: { last_name: Markham, first_name: James } }
+  patch:
+    {
+      agency: { name: Irving Police Department },
+      personnel: { last_name: Markham, first_name: James },
+    }
 badge_number: "1379"
 ```
 

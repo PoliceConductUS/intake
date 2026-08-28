@@ -29,12 +29,14 @@ describe("planDatabaseMutationItems self-referential ordering", () => {
       locationPath("aaa-state", null),
       locationPath("mmm-county", "aaa-state"),
     ]);
-    const order = planned.map((item) =>
-      "name" in item ? item.name : "",
-    );
+    const order = planned.map((item) => ("name" in item ? item.name : ""));
     // Every parent precedes its child.
-    expect(order.indexOf("aaa-state")).toBeLessThan(order.indexOf("mmm-county"));
-    expect(order.indexOf("mmm-county")).toBeLessThan(order.indexOf("zzz-place"));
+    expect(order.indexOf("aaa-state")).toBeLessThan(
+      order.indexOf("mmm-county"),
+    );
+    expect(order.indexOf("mmm-county")).toBeLessThan(
+      order.indexOf("zzz-place"),
+    );
   });
 
   it("handles several roots and deep chains", () => {

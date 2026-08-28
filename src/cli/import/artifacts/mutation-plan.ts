@@ -36,7 +36,11 @@ function orderBySelfReference(
     if (!("name" in item)) continue;
     inDegree.set(item.name, inDegree.get(item.name) ?? 0);
     const parent = (item.spec as Record<string, unknown>)[selfFkField];
-    if (typeof parent === "string" && parent !== item.name && byId.has(parent)) {
+    if (
+      typeof parent === "string" &&
+      parent !== item.name &&
+      byId.has(parent)
+    ) {
       inDegree.set(item.name, (inDegree.get(item.name) ?? 0) + 1);
       (children.get(parent) ?? children.set(parent, []).get(parent)!).push(
         item.name,
