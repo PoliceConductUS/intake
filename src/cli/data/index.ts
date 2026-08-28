@@ -16,7 +16,9 @@ import {
   verify,
 } from "./chain.js";
 import {
+  generateFromArtifacts,
   generateOneSource,
+  isArtifactsFile,
   isSourceId,
   orderedSourceIds,
   transformOneSource,
@@ -95,7 +97,7 @@ export function registerCliCommand(
     )
     .argument(
       "[source-or-file]",
-      "a source id (import its latest transform Artifacts), a DatabaseMutations envelope path, or omit to batch-append",
+      "a source id (import its latest transform Artifacts), an Artifacts file (a hand-authored manual change), a DatabaseMutations envelope path, or omit to batch-append",
     )
     .action(async (target: string | undefined): Promise<void> => {
       try {
@@ -113,6 +115,23 @@ export function registerCliCommand(
                 : {
                     exitCode: 0,
                     stdout: `data: appended ${result.version} ${target} (${result.mutationCount} mutations).\n`,
+                  },
+          );
+          return;
+        }
+        if (target !== undefined && (await isArtifactsFile(target))) {
+          const result = await generateFromArtifacts(target, process.env);
+          dependencies.setResult(
+            "error" in result
+              ? result.error
+              : result.version === undefined
+                ? {
+                    exitCode: 0,
+                    stdout: "data: empty diff — nothing appended.\n",
+                  }
+                : {
+                    exitCode: 0,
+                    stdout: `data: appended ${result.version} (${result.mutationCount} mutations).\n`,
                   },
           );
           return;

@@ -15,6 +15,7 @@ import {
 import { planSourceOrder } from "../run/source-order.js";
 import { matchSourceIds } from "../source-glob.js";
 import { runImportArtifactsCommand } from "../import/artifacts/index.js";
+import { Artifacts } from "../../shared/io/index.js";
 import { generateEntry } from "./chain.js";
 
 const SOURCES_ROOT = path.join(process.cwd(), "sources");
@@ -91,24 +92,48 @@ export async function generateOneSource(
       },
     };
   }
+  return generateFromArtifacts(artifactsPath, env);
+}
+
+/**
+ * Import an Artifacts file (dry — diff vs the database at head) and append the
+ * delta as the next chain entry. The engine behind `data generate <source>` and the
+ * home for a hand-authored manual Artifacts file (`data generate <file>`).
+ */
+export async function generateFromArtifacts(
+  artifactsPath: string,
+  env: Record<string, string | undefined>,
+): Promise<
+  { version?: string; mutationCount: number } | { error: CommandResult }
+> {
+  const workspace = intakeWorkspace(env);
+  const namespace = (await Artifacts.read(artifactsPath, { raw: true })).metadata
+    .namespace;
   const importResult = await runImportArtifactsCommand(artifactsPath, {
     dryImport: true,
     env,
     terminal: false,
-    args: ["data", "generate", sourceId],
+    args: ["data", "generate", artifactsPath],
   });
   if (importResult.exitCode !== 0) {
     return { error: importResult };
   }
   const mutationsPath = await newestSourceOutput(
     workspace,
-    sourceId,
+    namespace,
     ".DatabaseMutations.yaml",
   );
   if (mutationsPath === undefined) {
     return { mutationCount: 0 };
   }
   return generateEntry(mutationsPath);
+}
+
+/** True when `file` is an Artifacts envelope (vs a DatabaseMutations envelope). */
+export async function isArtifactsFile(file: string): Promise<boolean> {
+  return Artifacts.read(file, { raw: true })
+    .then(() => true)
+    .catch(() => false);
 }
 
 /** True when `id` names a source folder under `sources/`. */
