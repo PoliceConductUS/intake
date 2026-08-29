@@ -1,6 +1,6 @@
 import path from "node:path";
 import { describe, it, expect, vi } from "vitest";
-import { runSource } from "../../../src/cli/run/index.js";
+import { transformSource } from "../../../src/cli/run/index.js";
 
 const testRefItems = [
   {
@@ -42,19 +42,18 @@ function makeOkDeps() {
     loadExcludedRecords: vi.fn(async () => new Map()),
     seedResolvedPropertyCache: vi.fn(async () => ({ seeded: [], skipped: [] })),
     writeEnvelope: vi.fn(async () => ({ path: "/ws/artifacts.yaml" })),
-    runImport: vi.fn(async () => ({ exitCode: 0, stdout: "ok" })),
     makeWorkspace: vi.fn(async () => "/ws"),
     env: { INTAKE_WORKSPACE: "/ws" },
   };
 }
 
-describe("runSource", () => {
-  it("loads the module, imports the returned manifest, returns its result", async () => {
+describe("transformSource", () => {
+  it("loads the module, writes the envelope, returns the artifacts path", async () => {
     const okDeps = makeOkDeps();
-    const result = await runSource(
+    const result = await transformSource(
       "gov.azpost.roster",
       ["file.xlsx"],
-      { dryRun: true },
+      {},
       okDeps,
     );
     expect(okDeps.loadSourceModule).toHaveBeenCalledWith(
@@ -75,29 +74,30 @@ describe("runSource", () => {
     expect(okDeps.loadExcludedRecords).toHaveBeenCalledWith(
       path.join("/sources", "gov.azpost.roster"),
     );
-    expect(okDeps.runImport).toHaveBeenCalledWith("/ws/artifacts.yaml", {
-      dryImport: true,
-    });
-    expect(result.exitCode).toBe(0);
+    expect(result).toEqual({ artifactsPath: "/ws/artifacts.yaml" });
   });
 
   it("fails cleanly when no paths are given", async () => {
     const okDeps = makeOkDeps();
-    const result = await runSource("gov.azpost.roster", [], {}, okDeps);
-    expect(result.exitCode).toBe(1);
+    const result = await transformSource("gov.azpost.roster", [], {}, okDeps);
+    expect(result).toMatchObject({ error: { exitCode: 1 } });
     expect(okDeps.loadSourceModule).not.toHaveBeenCalled();
   });
 
-  it("returns exit 1 when the module load fails", async () => {
+  it("returns an error when the module load fails", async () => {
     const deps = {
       ...makeOkDeps(),
       loadSourceModule: vi.fn(async () => {
         throw new Error("Unknown source id");
       }),
     };
-    const result = await runSource("nope", ["file.xlsx"], {}, deps);
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toMatch(/Unknown source id/);
+    const result = await transformSource("nope", ["file.xlsx"], {}, deps);
+    expect(result).toMatchObject({
+      error: {
+        exitCode: 1,
+        stderr: expect.stringMatching(/Unknown source id/),
+      },
+    });
   });
 
   it("fails loud when the source emits a kind it did not declare", async () => {
@@ -107,14 +107,17 @@ describe("runSource", () => {
       ...makeOkDeps(),
       produces: ["LocationPathGeometries"] as const,
     };
-    const result = await runSource(
+    const result = await transformSource(
       "gov.azpost.roster",
       ["file.xlsx"],
       {},
       deps,
     );
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toMatch(/undeclared kind\(s\): Personnel/);
-    expect(deps.runImport).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      error: {
+        exitCode: 1,
+        stderr: expect.stringMatching(/undeclared kind\(s\): Personnel/),
+      },
+    });
   });
 });

@@ -4,7 +4,6 @@ import path from "node:path";
 import { Artifacts, loadExcludedRecords } from "../../shared/io/index.js";
 import type { ExcludedRecords } from "../../shared/io/index.js";
 import { createCommandDirectory } from "../command-directory.js";
-import { runImportArtifactsCommand } from "../import/artifacts/index.js";
 import type { CommandResult } from "../../shared/cli/types.js";
 import { buildArtifactsEnvelope } from "./source-run.js";
 import type { SourceManifest } from "./source-run.js";
@@ -43,10 +42,6 @@ type RunSourceDeps = {
     manifest: SourceManifest,
     refItems: EmitRefItem[],
   ) => Promise<{ path: string }>;
-  runImport: (
-    ref: string,
-    opts: { dryImport?: boolean; excludedRecords?: ExcludedRecords },
-  ) => Promise<CommandResult>;
   logger?: { info: (message: string) => void };
 };
 
@@ -233,28 +228,8 @@ export async function transformSource(
 }
 
 /**
- * Run a source and import it in one shot (transform + generate/migrate). Retained
- * as the composition of the two phases; the CLI drives the phases separately.
- */
-export async function runSource(
-  sourceId: string,
-  paths: string[],
-  options: { dryRun?: boolean; standalone?: boolean },
-  deps: RunSourceDeps,
-): Promise<CommandResult> {
-  const transformed = await transformSource(sourceId, paths, options, deps);
-  if ("error" in transformed) {
-    return transformed.error;
-  }
-  return deps.runImport(transformed.artifactsPath, {
-    dryImport: options.dryRun,
-  });
-}
-
-/**
- * Build the per-source dependency bundle a transform/run reaches through. Shared by
- * the `run` command and the `data transform`/`data generate` commands so the wiring
- * lives in one place.
+ * Build the per-source dependency bundle the transform phase reaches through.
+ * Shared so `data transform`'s wiring lives in one place.
  */
 export async function buildRunSourceDeps(
   sourceId: string,
@@ -262,7 +237,6 @@ export async function buildRunSourceDeps(
   env: Record<string, string | undefined>,
   options: {
     commandArgs: string[];
-    runImport?: RunSourceDeps["runImport"];
     logger: { info: (message: string) => void };
   },
 ): Promise<RunSourceDeps> {
@@ -290,7 +264,6 @@ export async function buildRunSourceDeps(
         directory,
         buildArtifactsEnvelope(id, digest, manifest, refItems),
       ),
-    runImport: options.runImport ?? runImportArtifactsCommand,
     logger: options.logger,
   };
 }

@@ -2,24 +2,22 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { runSource } from "../../../src/cli/run/index.js";
+import { transformSource } from "../../../src/cli/run/index.js";
 import { Artifacts } from "../../../src/shared/io/index.js";
-import type { ExcludedRecords } from "../../../src/shared/io/index.js";
 import { createEmitSink } from "../../../src/cli/run/emit-sink.js";
 import { buildArtifactsEnvelope } from "../../../src/cli/run/source-run.js";
 import type {
   RunDeps,
   SourceManifest,
 } from "../../../src/cli/run/source-run.js";
-import type { CommandResult } from "../../../src/shared/cli/types.js";
 
 // Integration test for the streaming `emit` sink: a fake source `run()`
 // returns an inline `LocationPaths` record AND streams a
 // `LocationPathGeometries` record via `emit`, driven end-to-end through
-// `runSource` with only `runImport` stubbed (it requires a live database).
-// The written Artifacts envelope is read back with `Artifacts.read` to
-// prove the inline records and the streamed ref both resolve correctly.
-describe("emit sink integration (via runSource)", () => {
+// `transformSource`. The written Artifacts envelope is read back with
+// `Artifacts.read` to prove the inline records and the streamed ref both
+// resolve correctly.
+describe("emit sink integration (via transformSource)", () => {
   let workspace: string;
 
   beforeEach(async () => {
@@ -31,11 +29,6 @@ describe("emit sink integration (via runSource)", () => {
   });
 
   it("splices a streamed LocationPathGeometries ref alongside inline LocationPaths records", async () => {
-    let capturedArtifactsPath: string | undefined;
-    let capturedOptions:
-      | { dryImport?: boolean; excludedRecords?: ExcludedRecords }
-      | undefined;
-
     const fakeRun = async (deps: RunDeps): Promise<SourceManifest> => {
       await deps.emit("LocationPathGeometries", "az-state", {
         location_path_id: "az",
@@ -62,19 +55,10 @@ describe("emit sink integration (via runSource)", () => {
       };
     };
 
-    const runImport = async (
-      ref: string,
-      opts: { dryImport?: boolean; excludedRecords?: ExcludedRecords },
-    ): Promise<CommandResult> => {
-      capturedArtifactsPath = ref;
-      capturedOptions = opts;
-      return { exitCode: 0 };
-    };
-
-    const result = await runSource(
+    const result = await transformSource(
       "gov.census.gazetteer",
       ["dummy-snapshot.zip"],
-      { dryRun: true },
+      {},
       {
         sourcesRoot: "/unused",
         env: {},
@@ -92,17 +76,15 @@ describe("emit sink integration (via runSource)", () => {
             directory,
             buildArtifactsEnvelope(id, digest, manifest, refItems),
           ),
-        runImport,
       },
     );
 
-    expect(result.exitCode).toBe(0);
-    expect(capturedOptions).toEqual({
-      dryImport: true,
-    });
-    expect(capturedArtifactsPath).toBeDefined();
+    if ("error" in result) {
+      throw new Error(`transformSource failed: ${result.error.stderr}`);
+    }
+    expect(result.artifactsPath).toBeDefined();
 
-    const envelope = await Artifacts.read(capturedArtifactsPath as string);
+    const envelope = await Artifacts.read(result.artifactsPath);
 
     expect(envelope.metadata.namespace).toBe("gov.census.gazetteer");
     expect(envelope.spec.artifacts).toHaveLength(2);

@@ -7,19 +7,9 @@ import {
   defaultDatabaseClientFactory,
   type DatabaseClient,
 } from "../database/index.js";
+import { applyPending, assertAtHead, status, verify } from "./chain.js";
 import {
-  applyPending,
-  assertAtHead,
-  generateEntry,
-  generateFromLatestRunOutputs,
-  status,
-  verify,
-} from "./chain.js";
-import {
-  generateFromArtifacts,
   generateOneSource,
-  isArtifactsFile,
-  isSourceId,
   orderedSourceIds,
   transformOneSource,
 } from "./source-pipeline.js";
@@ -97,77 +87,25 @@ export function registerCliCommand(
   group
     .command("generate")
     .description(
-      "Append the next chain entry. With a <source>, import its latest transform Artifacts (diff vs the database at head) and append the delta. With a file, append that DatabaseMutations envelope. With nothing, append every source's latest output not yet in the chain.",
+      "Write the next migration: diff a source's transform Artifacts against the database at head and append the delta to the chain. Does not apply it — run `data up` for that.",
     )
-    .argument(
-      "[source-or-file]",
-      "a source id (import its latest transform Artifacts), an Artifacts file (a hand-authored manual change), a DatabaseMutations envelope path, or omit to batch-append",
-    )
-    .action(async (target: string | undefined): Promise<void> => {
+    .argument("<source>", "source id under sources/")
+    .action(async (source: string): Promise<void> => {
       try {
         await withClient((client) => assertAtHead(client));
-        if (target !== undefined && (await isSourceId(target))) {
-          const result = await generateOneSource(target, process.env);
-          dependencies.setResult(
-            "error" in result
-              ? result.error
-              : result.version === undefined
-                ? {
-                    exitCode: 0,
-                    stdout: `data: ${target} — empty diff, nothing appended.\n`,
-                  }
-                : {
-                    exitCode: 0,
-                    stdout: `data: appended ${result.version} ${target} (${result.mutationCount} mutations).\n`,
-                  },
-          );
-          return;
-        }
-        if (target !== undefined && (await isArtifactsFile(target))) {
-          const result = await generateFromArtifacts(target, process.env);
-          dependencies.setResult(
-            "error" in result
-              ? result.error
-              : result.version === undefined
-                ? {
-                    exitCode: 0,
-                    stdout: "data: empty diff — nothing appended.\n",
-                  }
-                : {
-                    exitCode: 0,
-                    stdout: `data: appended ${result.version} (${result.mutationCount} mutations).\n`,
-                  },
-          );
-          return;
-        }
-        if (target === undefined) {
-          const { appended, skipped } = await generateFromLatestRunOutputs();
-          const lines = [
-            ...appended.map(
-              (entry) =>
-                `  + ${entry.version} ${entry.source} (${entry.mutationCount} mutations)`,
-            ),
-            ...skipped.map(
-              (entry) => `  · ${entry.source} skipped (${entry.reason})`,
-            ),
-          ];
-          dependencies.setResult({
-            exitCode: 0,
-            stdout:
-              appended.length === 0
-                ? `data: nothing to append (${skipped.length} source(s) already current).\n`
-                : `data: appended ${appended.length} entrie(s):\n${lines.join("\n")}\n`,
-          });
-          return;
-        }
-        const { written, mutationCount } = await generateEntry(target);
+        const result = await generateOneSource(source, process.env);
         dependencies.setResult(
-          written === undefined
-            ? { exitCode: 0, stdout: "data: empty diff — nothing appended.\n" }
-            : {
-                exitCode: 0,
-                stdout: `data: appended ${written} (${mutationCount} mutations).\n`,
-              },
+          "error" in result
+            ? result.error
+            : result.version === undefined
+              ? {
+                  exitCode: 0,
+                  stdout: `data: ${source} — empty diff, nothing appended.\n`,
+                }
+              : {
+                  exitCode: 0,
+                  stdout: `data: appended ${result.version} (${result.mutationCount} mutations).\n`,
+                },
         );
       } catch (error) {
         dependencies.setResult(errorResult(error));
