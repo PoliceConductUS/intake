@@ -12,6 +12,7 @@ import {
   saveDocketCache,
   type Docket,
 } from "./docket-cache.js";
+import { fetchComplaintIntro } from "./complaint.js";
 
 const API = "https://www.courtlistener.com/api/rest/v4";
 // Every state/territory → its active federal district courts plus its circuit
@@ -265,6 +266,13 @@ export const acquire: SourceAcquire = async ({
           `courtlistener: ${agencyName} — search failed, skipped (${error instanceof Error ? error.message : String(error)}).`,
         );
         return;
+      }
+      // Pull each docket's operative complaint intro (verbatim from RECAP,
+      // best-effort). Cached with the docket so it is fetched once per refresh.
+      for (const docket of dockets) {
+        if (docket.id === "" || docket.complaint_intro !== undefined) continue;
+        const intro = await fetchComplaintIntro(docket.id, fetchJson);
+        if (intro !== undefined) docket.complaint_intro = intro;
       }
       cache.agencies[slug] = { lastSearchedAt: nowIso, dockets };
       await saveDocketCache(state, cache);

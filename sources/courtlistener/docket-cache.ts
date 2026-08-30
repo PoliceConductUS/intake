@@ -14,6 +14,9 @@ export type Docket = {
   cause: string;
   absolute_url: string;
   parties: string[];
+  // The operative complaint's introduction, pulled verbatim from RECAP when the
+  // document is available (else absent — the transform falls back to `cause`).
+  complaint_intro?: string;
 };
 
 export type AgencyCacheEntry = {

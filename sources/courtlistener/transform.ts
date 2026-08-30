@@ -33,6 +33,7 @@ type Docket = {
   cause?: string;
   absolute_url?: string;
   parties?: string[];
+  complaint_intro?: string;
 };
 
 type AgencyDockets = {
@@ -116,7 +117,10 @@ export const transform: SourceTransform = async ({
           cause_number: docketNumber || caseId,
           court: courtToken || null,
           filed_date: filed.slice(0, 10),
-          claims_summary: text(docket.cause) || title,
+          // The operative complaint's intro (verbatim from RECAP) when available,
+          // else the PACER cause code, else the title.
+          claims_summary:
+            text(docket.complaint_intro) || text(docket.cause) || title,
           slug: slugify(`${title}-${caseId}`),
           outcome: null,
           primary_source_url: url || null,
