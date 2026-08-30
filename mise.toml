@@ -9,3 +9,7 @@ SUPABASE_TELEMETRY_DISABLED = "1"
 TMPDIR = ".cache/tmp"
 UV_CACHE_DIR = ".cache/uv"
 UV_TOOL_DIR = ".cache/uv-tools"
+# Root intake workspace (holds intake/{state,commands,sources}); relative to the
+# repo root, so run intake commands from the repo root. Defaults to the dev
+# environment; override for preview/prod.
+INTAKE_WORKSPACE = "../intake-workspace/dev"

@@ -2,7 +2,12 @@
 
 ## Status
 
-Proposed
+Accepted
+
+> Clarified by [ADR 0015](0015-isolate-namespaces-and-own-cross-source-identity-at-root.md):
+> a source refers to a shared `location_path` by a namespace-local value (e.g. a
+> state) that the intake root resolves against an existing location row; the
+> source never emits a canonical id or names another namespace.
 
 ## Context
 

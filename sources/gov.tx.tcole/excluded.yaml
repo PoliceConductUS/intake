@@ -1,0 +1,24 @@
+# Records intentionally excluded from import for sources/gov.tx.tcole.
+#
+# The import FAILS LOUDLY on any record it cannot resolve. A record only avoids
+# that hard failure by appearing here, with a documented reason. These are ACTIVE
+# TCOLE agencies that are either not law-enforcement agencies or have no resolvable
+# location in the 2025-02-10 export. (Inactive agencies are filtered by the source,
+# so they are not listed here.)
+excluded:
+  - kind: Agency
+    key: "10"
+    name: "Carroll Troberman, PLLC"
+    reason: "not a law-enforcement agency (private law firm)"
+  - kind: Agency
+    key: "51600"
+    name: "STATE OF TEXAS - Authorized Service Time"
+    reason: "administrative placeholder, not an agency"
+  - kind: Agency
+    key: "999888"
+    name: "NOT APPOINTED"
+    reason: "placeholder record, not an agency"
+  - kind: Agency
+    key: "515014"
+    name: "STATE OF INDIANA"
+    reason: "out-of-jurisdiction placeholder (a US state, not a TX agency) with no address, city, or zip in the source — not geocodable and no location data available"

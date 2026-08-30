@@ -1,0 +1,12 @@
+apiVersion: policeconduct.org/intake/v1alpha1
+kind: ResolvedProperty
+metadata:
+  name: policeconduct.org/intake/v1alpha1:Agency:cm7a0bgoi02a9ewvgkbro2fze:latitude
+  namespace: intake
+spec:
+  subject:
+    apiVersion: policeconduct.org/intake/v1alpha1
+    kind: Agency
+    name: cm7a0bgoi02a9ewvgkbro2fze
+  targetProperty: latitude
+  value: 31.5032387

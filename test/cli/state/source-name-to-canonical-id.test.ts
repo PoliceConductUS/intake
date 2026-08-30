@@ -1,18 +1,11 @@
-import { mkdir, mkdtemp, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
-import type {
-  ImportArtifactKind,
-  ArtifactsEnvelope,
-} from "../../../src/shared/io/Artifacts.js";
 import { INTAKE_API_VERSION } from "../../../src/shared/io/import-types.js";
 import { yamlResourceFileName } from "../../../src/shared/io/resource.js";
 import {
-  assertCanonicalMappingFields,
-  loadSourceNameToCanonicalIds,
-  persistSourceNameToCanonicalIds,
-  resolveArtifactsSourceNameToCanonicalIds,
+  createSourceNameToCanonicalIdLedger,
   resolveSourceNameToCanonicalIdPath,
 } from "../../../src/cli/state/source-name-to-canonical-id/index.js";
 
@@ -37,39 +30,12 @@ async function writeMappingRecord(
   return mappingPath;
 }
 
-type EntityMaps = {
-  locationPaths?: Record<string, unknown>;
-  agencies?: Record<string, unknown>;
-  personnel?: Record<string, unknown>;
-  agencyPersonnel?: Record<string, unknown>;
-};
-
-function artifactsWithEntities(entities: EntityMaps): ArtifactsEnvelope {
-  const kindByEntityName = {
-    locationPaths: "LocationPaths",
-    agencies: "Agencies",
-    personnel: "Personnel",
-    agencyPersonnel: "AgencyPersonnel",
-  } satisfies Record<keyof EntityMaps, ImportArtifactKind>;
-  return {
-    apiVersion: "policeconduct.org/intake/v1alpha1",
-    kind: "Artifacts",
-    metadata: { name: "test-run", namespace: "mn-post" },
-    spec: {
-      artifacts: Object.entries(entities).map(([entityName, records]) => ({
-        kind: kindByEntityName[entityName as keyof EntityMaps],
-        spec: { records },
-      })),
-    },
-  };
-}
-
 describe("SourceNameToCanonicalId records", () => {
   test("resolves namespace mn-post to the intake-owned SourceNameToCanonicalId directory", () => {
     const rootDir = "/tmp/intake-test-root";
 
     expect(resolveSourceNameToCanonicalIdPath("mn-post", { rootDir })).toBe(
-      path.join(rootDir, "intake", "state", "namespaces", "mn-post"),
+      path.join(rootDir, "state", "intake", "namespaces", "mn-post"),
     );
   });
 
@@ -91,47 +57,57 @@ describe("SourceNameToCanonicalId records", () => {
     }
   });
 
-  test("creates a missing intake-owned namespace mapping directory", async () => {
+  test("read returns undefined for a source key with no record file", async () => {
     const rootDir = await createTempRoot();
-    const mappingPath = resolveSourceNameToCanonicalIdPath("mn-post", {
-      rootDir,
-    });
+    const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
 
-    await expect(
-      loadSourceNameToCanonicalIds("mn-post", { rootDir }),
-    ).resolves.toEqual({
-      locationPaths: {},
-      agencies: {},
-      personnel: {},
-      agencyPersonnel: {},
-    });
-    expect((await stat(mappingPath)).isDirectory()).toBe(true);
+    await expect(ledger.read("mn-post", "Agency", "agency-1")).resolves.toBe(
+      undefined,
+    );
   });
 
-  test("loads entity-scoped per-record mapping files", async () => {
+  test("findOrCreate mints a stable cuid2 that a later read and findOrCreate reuse", async () => {
     const rootDir = await createTempRoot();
-    const mappings = await loadSourceNameToCanonicalIds("mn-post", { rootDir });
-    mappings.locationPaths["/mn/ramsey-county/saint-paul/"] = {
-      canonicalId: "saint-paul-location-path",
-    };
-    mappings.agencies["agency-1"] = { canonicalId: "agency-canonical-1" };
-    await persistSourceNameToCanonicalIds("mn-post", mappings, { rootDir });
+    const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
+
+    const minted = await ledger.findOrCreate("mn-post", "Agency", "agency-1");
+    expect(minted).toMatch(/^[a-z][a-z0-9]+$/);
+
+    // durably persisted: a fresh accessor over the same root reads it back
+    const reopened = createSourceNameToCanonicalIdLedger({ rootDir });
+    await expect(reopened.read("mn-post", "Agency", "agency-1")).resolves.toBe(
+      minted,
+    );
+    await expect(
+      reopened.findOrCreate("mn-post", "Agency", "agency-1"),
+    ).resolves.toBe(minted);
+  });
+
+  test("keys identity by namespace: the same source id in two namespaces is distinct", async () => {
+    const rootDir = await createTempRoot();
+    const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
+
+    const mnId = await ledger.findOrCreate("mn-post", "Agency", "101100");
+    const txId = await ledger.findOrCreate("gov.tx.tcole", "Agency", "101100");
+
+    expect(mnId).not.toBe(txId);
+    await expect(ledger.read("mn-post", "Agency", "101100")).resolves.toBe(
+      mnId,
+    );
+    await expect(ledger.read("gov.tx.tcole", "Agency", "101100")).resolves.toBe(
+      txId,
+    );
+  });
+
+  test("keys identity by kind: a record is not found under a different kind", async () => {
+    const rootDir = await createTempRoot();
+    const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
+
+    await ledger.findOrCreate("mn-post", "Agency", "shared-key");
 
     await expect(
-      loadSourceNameToCanonicalIds("mn-post", { rootDir }),
-    ).resolves.toEqual({
-      locationPaths: {
-        "/mn/ramsey-county/saint-paul/": {
-          kind: "LocationPath",
-          canonicalId: "saint-paul-location-path",
-        },
-      },
-      agencies: {
-        "agency-1": { kind: "Agency", canonicalId: "agency-canonical-1" },
-      },
-      personnel: {},
-      agencyPersonnel: {},
-    });
+      ledger.read("mn-post", "Personnel", "shared-key"),
+    ).resolves.toBe(undefined);
   });
 
   test("rejects malformed per-record mapping YAML", async () => {
@@ -143,10 +119,9 @@ describe("SourceNameToCanonicalId records", () => {
       "agency-1",
       "canonicalId: [\n",
     );
+    const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
 
-    await expect(
-      loadSourceNameToCanonicalIds("mn-post", { rootDir }),
-    ).rejects.toThrow(
+    await expect(ledger.read("mn-post", "Agency", "agency-1")).rejects.toThrow(
       `SourceNameToCanonicalId YAML is malformed: ${mappingPath}`,
     );
   });
@@ -170,88 +145,10 @@ describe("SourceNameToCanonicalId records", () => {
         "  slug: agency-one",
       ].join("\n"),
     );
+    const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
 
-    await expect(
-      loadSourceNameToCanonicalIds("mn-post", { rootDir }),
-    ).rejects.toThrow("SourceNameToCanonicalId is malformed at spec.slug.");
-  });
-
-  test("location path mappings use full path source names and require canonicalId", () => {
-    const artifacts = artifactsWithEntities({
-      locationPaths: { "/mn/ramsey-county/saint-paul/": {} },
-    });
-
-    expect(() =>
-      assertCanonicalMappingFields(artifacts, {
-        locationPaths: { "/mn/ramsey-county/saint-paul/": {} },
-        agencies: {},
-        personnel: {},
-        agencyPersonnel: {},
-      }),
-    ).toThrow(
-      "Location path source name /mn/ramsey-county/saint-paul/ is missing required field canonicalId.",
-    );
-  });
-
-  test("canonical mapping validation reports all incomplete mapping records", () => {
-    const artifacts = artifactsWithEntities({
-      locationPaths: { "/mn/ramsey-county/saint-paul/": {} },
-      agencies: { "agency-1": {} },
-      personnel: { "person-1": {} },
-      agencyPersonnel: { "roster-1": {} },
-    });
-
-    expect(() =>
-      assertCanonicalMappingFields(artifacts, {
-        locationPaths: { "/mn/ramsey-county/saint-paul/": {} },
-        agencies: { "agency-1": {} },
-        personnel: { "person-1": {} },
-        agencyPersonnel: { "roster-1": {} },
-      }),
-    ).toThrow(
-      [
-        "SourceNameToCanonicalId records are incomplete.",
-        "Location path source name /mn/ramsey-county/saint-paul/ is missing required field canonicalId.",
-        "Agency source name agency-1 is missing required field canonicalId.",
-        "Personnel source name person-1 is missing required field canonicalId.",
-        "Agency-personnel source name roster-1 is missing required field canonicalId.",
-      ].join("\n"),
-    );
-  });
-
-  test("creates and persists a cuid2 canonicalId for each missing source entity mapping", async () => {
-    const rootDir = await createTempRoot();
-    const mappingDirectory = resolveSourceNameToCanonicalIdPath("mn-post", {
-      rootDir,
-    });
-    await mkdir(mappingDirectory, { recursive: true });
-    const mappings = await loadSourceNameToCanonicalIds("mn-post", { rootDir });
-    const artifacts = artifactsWithEntities({
-      locationPaths: { "/mn/ramsey-county/saint-paul/": {} },
-      agencies: { "agency-1": {} },
-      personnel: { "person-1": {} },
-      agencyPersonnel: { "roster-1": {} },
-    });
-
-    const resolved = await resolveArtifactsSourceNameToCanonicalIds(
-      artifacts,
-      mappings,
-      {
-        rootDir,
-      },
-    );
-
-    expect(resolved.locationPaths["/mn/ramsey-county/saint-paul/"]).toEqual({
-      kind: "LocationPath",
-      canonicalId: expect.stringMatching(/^[a-z][a-z0-9]+$/),
-    });
-    expect(resolved.agencies["agency-1"]).toEqual({
-      kind: "Agency",
-      canonicalId: expect.stringMatching(/^[a-z][a-z0-9]+$/),
-    });
-    const reloaded = await loadSourceNameToCanonicalIds("mn-post", { rootDir });
-    expect(reloaded.locationPaths["/mn/ramsey-county/saint-paul/"]).toEqual(
-      resolved.locationPaths["/mn/ramsey-county/saint-paul/"],
+    await expect(ledger.read("mn-post", "Agency", "agency-1")).rejects.toThrow(
+      "SourceNameToCanonicalId is malformed at spec.slug.",
     );
   });
 
@@ -273,11 +170,79 @@ describe("SourceNameToCanonicalId records", () => {
         "  canonicalId: agency-canonical-1",
       ].join("\n"),
     );
+    const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
 
-    await expect(
-      loadSourceNameToCanonicalIds("mn-post", { rootDir }),
-    ).rejects.toThrow(
+    await expect(ledger.read("mn-post", "Agency", "agency-1")).rejects.toThrow(
       `SourceNameToCanonicalId namespace other-source does not match expected namespace mn-post: ${mappingPath}`,
+    );
+  });
+});
+
+describe("CanonicalIdToSourceName reverse lookup (ADR 0023)", () => {
+  test("sourceIdFor mints a stable source id that persists and resolves forward to the canonical", async () => {
+    const rootDir = await createTempRoot();
+    const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
+
+    const canonicalId = "agency-canonical-42";
+    const sourceId = await ledger.sourceIdFor(
+      "courtlistener",
+      "Agency",
+      canonicalId,
+    );
+    expect(sourceId).toMatch(/^[a-z][a-z0-9]+$/);
+
+    // a fresh accessor over the same root returns the same source id...
+    const reopened = createSourceNameToCanonicalIdLedger({ rootDir });
+    await expect(
+      reopened.sourceIdFor("courtlistener", "Agency", canonicalId),
+    ).resolves.toBe(sourceId);
+    // ...and the minted source id resolves forward to the canonical it came from
+    await expect(
+      reopened.read("courtlistener", "Agency", sourceId),
+    ).resolves.toBe(canonicalId);
+  });
+
+  test("round-trips a created entity: sourceIdFor returns the id findOrCreate was given", async () => {
+    const rootDir = await createTempRoot();
+    const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
+
+    const canonicalId = await ledger.findOrCreate(
+      "mn-post",
+      "Agency",
+      "agency-1",
+    );
+
+    // the reverse of a mapping created forward hands back the source's own id,
+    // not a fresh mint — across a reopened ledger (no in-memory cache to lean on)
+    const reopened = createSourceNameToCanonicalIdLedger({ rootDir });
+    await expect(
+      reopened.sourceIdFor("mn-post", "Agency", canonicalId),
+    ).resolves.toBe("agency-1");
+  });
+
+  test("keys the reverse by namespace and kind", async () => {
+    const rootDir = await createTempRoot();
+    const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
+
+    const canonicalId = "shared-canonical";
+    const courtlistenerId = await ledger.sourceIdFor(
+      "courtlistener",
+      "Agency",
+      canonicalId,
+    );
+    const clearinghouseId = await ledger.sourceIdFor(
+      "clearinghouse-api",
+      "Agency",
+      canonicalId,
+    );
+    const personnelId = await ledger.sourceIdFor(
+      "courtlistener",
+      "AgencyPersonnel",
+      canonicalId,
+    );
+
+    expect(new Set([courtlistenerId, clearinghouseId, personnelId]).size).toBe(
+      3,
     );
   });
 });

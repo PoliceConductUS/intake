@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -61,12 +61,20 @@ explicitly.
 
 Source-produced data is split this way:
 
-- `Artifacts`: root source-produced envelope for a source artifact set.
+- `Artifacts`: root source-produced envelope for a source artifact set. Its
+  `spec.artifacts` lists the typed artifact collections **in dependency order** —
+  a referenced kind precedes any kind that references it — so an importer resolves
+  same-namespace references as finds, with no forward references (ADR 0016 #9).
 - Typed artifact envelopes such as `Agencies`, `Personnel`, and
-  `LocationPaths`: one record collection per kind.
+  `LocationPaths`: a record **collection grouped by kind**, records written
+  **inline** as a list. A collection that grows large is split across **multiple
+  chunk files of the same kind** — each a full collection envelope listed in
+  `spec.artifacts` and merged on read — **not** one file per record. Per-record
+  file granularity is a ledger/state concern (ADR 0008), never the artifact model.
 - `spec.records`: object keyed by the source-local stable record name.
-- `spec.records.<source-name>`: either an inline source record object or a
-  `ref` to a single-record envelope.
+- `spec.records.<source-name>`: an inline source record object. A `ref` to a
+  single-record envelope is reserved for an individually oversized item (e.g. a
+  large geometry), not routine per-record externalization.
 
 For a typed artifact collection, every inline `spec.records.<source-name>.spec`
 single-record item and every referenced single-record envelope `spec` must validate against

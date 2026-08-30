@@ -72,19 +72,40 @@ export const specSchema = z
       })
       .strict(),
     targetProperty: z.string().trim().min(1),
-    sources: z
-      .record(
-        z.string().trim().min(1),
+    // The cache holds N `(input → value)` entries per (subject, property): a
+    // derived property re-resolves only when its input fingerprint changes, and
+    // an unchanged (or previously seen) input is a hit (ADR 0019).
+    entries: z
+      .array(
         z
           .object({
-            kind: z.string().trim().min(1),
-            name: z.string().trim().min(1),
             inputFingerprint: z.string().trim().min(1),
+            value: z.unknown(),
+            // Provenance: the source record(s) that resolved this input to this
+            // value, keyed by namespace. Traceability back to the source and a
+            // hook for spotting cross-source disagreement.
+            sources: z
+              .record(
+                z.string().trim().min(1),
+                z
+                  .object({
+                    kind: z.string().trim().min(1),
+                    name: z.string().trim().min(1),
+                  })
+                  .strict(),
+              )
+              .optional(),
           })
           .strict(),
       )
       .optional(),
-    value: z.unknown(),
+    // Legacy single-value shape (seeds with no fingerprint). Read-only: adopted
+    // into an `entries` file under the current fingerprint on first resolve.
+    value: z.unknown().optional(),
+    // Legacy provenance, retained only so pre-`entries` files still parse.
+    sources: z
+      .record(z.string().trim().min(1), z.record(z.string(), z.unknown()))
+      .optional(),
   })
   .strict();
 

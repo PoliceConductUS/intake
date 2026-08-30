@@ -7,7 +7,9 @@ function timestampForPath(date: Date): string {
   return date.toISOString().replace(/[:.]/g, "-");
 }
 
-function intakeWorkspace(env: Record<string, string | undefined>): string {
+export function intakeWorkspace(
+  env: Record<string, string | undefined>,
+): string {
   const workspace = env.INTAKE_WORKSPACE_TEST ?? env.INTAKE_WORKSPACE;
   if (workspace === undefined || workspace.trim().length === 0) {
     throw new Error("INTAKE_WORKSPACE is required to create command output.");
@@ -28,18 +30,20 @@ export async function createCommandDirectory(
   commandDirectory: string;
   commandName: string;
   commandPath: string;
+  outputDirectory: string;
 }> {
   const workspace = intakeWorkspace(env);
   const commandName = (options.createCommandName ?? createId)();
+  const namespace = options.namespace ?? "intake";
   const commandDirectory = path.join(
     workspace,
-    "intake",
-    "commands",
+    "command",
     `${timestampForPath(options.now ?? new Date())}-${encodeURIComponent(commandName)}`,
   );
+  const outputDirectory = commandOutputDir(commandDirectory, namespace);
 
   try {
-    await mkdir(commandDirectory, { recursive: true });
+    await mkdir(outputDirectory, { recursive: true });
   } catch {
     throw new Error(`Command directory is not writable: ${commandDirectory}`);
   }
@@ -49,12 +53,12 @@ export async function createCommandDirectory(
     Command.new({
       metadata: {
         name: commandName,
-        namespace: options.namespace ?? "intake",
+        namespace,
       },
       spec: {
         statePath: path.relative(
           commandDirectory,
-          path.join(workspace, "intake", "state"),
+          path.join(workspace, "state"),
         ),
         path: ".",
         sharedIoRoot:
@@ -66,5 +70,17 @@ export async function createCommandDirectory(
     }),
   );
 
-  return { commandDirectory, commandName, commandPath: command.path };
+  return {
+    commandDirectory,
+    commandName,
+    commandPath: command.path,
+    outputDirectory,
+  };
+}
+
+export function commandOutputDir(
+  commandDirectory: string,
+  namespace: string,
+): string {
+  return path.join(commandDirectory, namespace, "output");
 }

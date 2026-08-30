@@ -1,5 +1,7 @@
 export { yamlResourceFileName } from "./resource.js";
 export { Artifacts } from "./Artifacts.js";
+export { excludedRecordKey, loadExcludedRecords } from "./excluded-records.js";
+export type { ExcludedRecord, ExcludedRecords } from "./excluded-records.js";
 export type { ArtifactsEnvelope, ImportArtifactEnvelope } from "./Artifacts.js";
 export { Command } from "./Command.js";
 export type { CommandEnvelope, CommandInput } from "./Command.js";
@@ -21,6 +23,38 @@ export {
   LocationPaths,
   Personnel,
   PersonnelSpec,
+  LicensingAuthorities,
+  LicensingAuthority,
+  LicensingAuthoritySpec,
+  AuthorityLicenses,
+  AuthorityLicense,
+  AuthorityLicenseSpec,
+  Licenses,
+  License,
+  LicenseSpec,
+  LicenseActions,
+  LicenseAction,
+  LicenseActionSpec,
+  Disciplines,
+  DisciplineSpec,
+  DisciplineAgencyPersonnel,
+  DisciplineAgencyPersonnelSpec,
+  CoverageLinks,
+  CoverageLinkSpec,
+  CoverageLinkAgencyPersonnel,
+  CoverageLinkAgencyPersonnelSpec,
+  AgencyPhoneNumbers,
+  AgencyPhoneNumberSpec,
+  FederalAgencies,
+  FederalAgencySpec,
+  FederalAgencyBranches,
+  FederalAgencyBranchSpec,
+  CivilCases,
+  CivilCaseSpec,
+  CivilCasePersonnel,
+  CivilCasePersonnelSpec,
+  CivilCaseLinks,
+  CivilCaseLinkSpec,
 } from "./generated/index.js";
 export type {
   AgenciesEnvelope,
@@ -44,4 +78,20 @@ export type {
   LocationPathsInput,
   PersonnelEnvelope,
   PersonnelInput,
+  LicensingAuthoritiesEnvelope,
+  LicensingAuthoritiesInput,
+  LicensingAuthorityEnvelope,
+  LicensingAuthorityInput,
+  AuthorityLicensesEnvelope,
+  AuthorityLicensesInput,
+  AuthorityLicenseEnvelope,
+  AuthorityLicenseInput,
+  LicensesEnvelope,
+  LicensesInput,
+  LicenseEnvelope,
+  LicenseInput,
+  LicenseActionsEnvelope,
+  LicenseActionsInput,
+  LicenseActionEnvelope,
+  LicenseActionInput,
 } from "./generated/index.js";

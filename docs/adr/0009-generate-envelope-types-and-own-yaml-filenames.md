@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -93,8 +93,13 @@ and the command resource name:
 <created-at-sortable-utc>-<encodeURIComponent(metadata.name)>/
 ```
 
-For very large YAML resources, a collection may externalize items with
-relative `ref` values. Refs must stay within the parent directory tree and must
+A large collection is bounded by splitting it into multiple **chunk files of the
+same kind** — each a full inline collection envelope, all listed together in the
+parent `Artifacts.spec.artifacts` and merged on read. This is the primary
+size-bounding mechanism; records are inline, **not** one file per record.
+Externalizing an individual item with a relative `ref` value is reserved for an
+item that is itself very large (e.g. a geometry), not routine per-record
+splitting. Refs must stay within the parent directory tree and must
 point to another Kubernetes-style envelope with matching identity rules.
 `ref` is an explicitly modeled field, not a general underscore-prefixed escape
 hatch. Envelope schemas must reject unknown keys. Do not allow arbitrary

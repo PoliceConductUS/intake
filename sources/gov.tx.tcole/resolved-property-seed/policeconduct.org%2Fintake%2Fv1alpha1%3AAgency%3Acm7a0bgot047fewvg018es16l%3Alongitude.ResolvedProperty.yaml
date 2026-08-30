@@ -1,0 +1,12 @@
+apiVersion: policeconduct.org/intake/v1alpha1
+kind: ResolvedProperty
+metadata:
+  name: policeconduct.org/intake/v1alpha1:Agency:cm7a0bgot047fewvg018es16l:longitude
+  namespace: intake
+spec:
+  subject:
+    apiVersion: policeconduct.org/intake/v1alpha1
+    kind: Agency
+    name: cm7a0bgot047fewvg018es16l
+  targetProperty: longitude
+  value: -77.0845735

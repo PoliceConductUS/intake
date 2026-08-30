@@ -1,0 +1,877 @@
+import type {
+  IntrospectedSchema,
+  IntrospectedTable,
+} from "./schema-introspection.js";
+
+// Columns every entity spec omits — the database manages them, the source never
+// supplies them.
+const ALWAYS_EXCLUDED = new Set(["created_at", "updated_at"]);
+
+/**
+ * Per-entity nuance that is NOT derivable from the schema. Everything else —
+ * which fields exist, their types, nullability, non-blank, enums — comes from
+ * introspection and is asserted against it, so a column the spec claims that the
+ * database lacks (or a column the database has that the spec omits) fails
+ * generation.
+ */
+type EntityDescriptor = {
+  recordKind: string;
+  /** Bare table name. */
+  table: string;
+  /**
+   * Fields optional in the base spec but required in the *Create spec — minted
+   * or resolved during import rather than supplied by the source (id, slug,
+   * resolved location/coordinates).
+   */
+  createRequired?: string[];
+  /** Database column → spec field name (e.g. `boundary` → `geometry`). */
+  rename?: Record<string, string>;
+  /** Spec field → literal zod expression, replacing the generated one. */
+  override?: Record<string, string>;
+  /** Envelope-only spec fields (not columns) → literal zod expression. */
+  extras?: Record<string, string>;
+  /**
+   * `extras` that are import-resolution inputs only (never written to the
+   * database mutation), so they are dropped from the *Create spec while staying
+   * on the record spec. Extras not listed here remain on *Create (some, like a
+   * geometry's source key, are carried into the mutation).
+   */
+  createOmit?: string[];
+  /** Code appended after `.strict()` (e.g. a cross-field superRefine). */
+  superRefine?: string;
+  /**
+   * Whether nullable fields are also `.optional()` (may be omitted). Default
+   * true — sources omit absent nullable fields. Set false (strict, present-but-
+   * nullable) for entities whose source always supplies every column.
+   */
+  optionalNullable?: boolean;
+};
+
+// The path already encodes state/area/place (slugs dropped), so the only
+// level-dependent invariant left is the parent link: a state has none, an area or
+// place must have one.
+const LEVEL_SUPERREFINE = `.superRefine((row, context) => {
+    const hasParent =
+      row.parent_location_path_id !== null &&
+      row.parent_location_path_id !== undefined;
+    if (row.level === "state" && hasParent) {
+      context.addIssue({
+        code: "custom",
+        path: ["parent_location_path_id"],
+        message: "must be null for state location paths",
+      });
+    }
+    if (row.level !== "state" && !hasParent) {
+      context.addIssue({
+        code: "custom",
+        path: ["parent_location_path_id"],
+        message: "is required for non-state location paths",
+      });
+    }
+  })`;
+
+const DESCRIPTORS: EntityDescriptor[] = [
+  {
+    recordKind: "LocationPath",
+    table: "location_path",
+    // Census supplies every column (null or value), so nullable fields are
+    // present-but-nullable keys, not optional.
+    optionalNullable: false,
+    override: {
+      centroid: "LocationPathCentroidSpec.nullable().optional()",
+      bbox: "LocationPathBboxSpec.nullable().optional()",
+    },
+    superRefine: LEVEL_SUPERREFINE,
+  },
+  {
+    recordKind: "LocationPathGeometry",
+    table: "location_path_geometry",
+    rename: { boundary: "geometry" },
+    override: { geometry: "z.unknown()" },
+    extras: {
+      sourceLocationPathKey: "nonEmptyString",
+      selectedYear: "z.union([z.string(), z.number()]).optional()",
+    },
+  },
+  {
+    recordKind: "LocationPathAlias",
+    table: "location_path_alias",
+    // selectedYear is a resolution-only hint (which census year the alias came
+    // from); it is not a column, so drop it from the write mutation.
+    extras: {
+      selectedYear: "z.union([z.string(), z.number()]).optional()",
+    },
+    createOmit: ["selectedYear"],
+  },
+  {
+    recordKind: "Agency",
+    table: "agency",
+    // `address`/`city`/`zip_code` join the resolved-during-import bucket: an
+    // agency's street location can be supplied by the source OR resolved from the
+    // property cache (a committed seed) at import, so the artifact may omit them
+    // (the temporarily-absent partial model), but the *Create mutation requires
+    // them — "a valid agency has a non-empty, geocodable location" is enforced at
+    // mutation generation, not artifact read. `state` stays required at read: it
+    // is always source-provided (never seeded), so a missing state is a source
+    // defect that should fail loud immediately.
+    createRequired: [
+      "id",
+      "slug",
+      "address",
+      "city",
+      "zip_code",
+      "location_path_id",
+      "latitude",
+      "longitude",
+    ],
+    // Envelope-only geocoding hint consumed during resolution (administrative-
+    // area name/slug); not a column of public.agency, so it stays off the
+    // *Create mutation (the generic builder derives columns from the CreateSpec).
+    extras: {
+      location: "z.record(z.string(), z.unknown()).optional()",
+    },
+    createOmit: ["location"],
+  },
+  {
+    recordKind: "Personnel",
+    table: "personnel",
+    createRequired: ["id", "slug"],
+  },
+  {
+    recordKind: "AgencyPersonnel",
+    table: "agency_personnel",
+    createRequired: ["id"],
+  },
+  {
+    recordKind: "LicensingAuthority",
+    table: "licensing_authority",
+    createRequired: ["id"],
+  },
+  {
+    recordKind: "AuthorityLicense",
+    table: "authority_license",
+    createRequired: ["id"],
+  },
+  { recordKind: "License", table: "license", createRequired: ["id"] },
+  {
+    recordKind: "LicenseAction",
+    table: "license_action",
+    createRequired: ["id"],
+  },
+  { recordKind: "Discipline", table: "discipline", createRequired: ["id"] },
+  {
+    recordKind: "DisciplineAgencyPersonnel",
+    table: "discipline_agency_personnel",
+    createRequired: ["id"],
+  },
+  {
+    recordKind: "CoverageLink",
+    table: "coverage_links",
+    createRequired: ["id"],
+  },
+  {
+    recordKind: "CoverageLinkAgencyPersonnel",
+    table: "coverage_link_agency_personnel",
+    createRequired: ["id"],
+  },
+  {
+    recordKind: "AgencyPhoneNumber",
+    table: "agency_phone_numbers",
+    createRequired: ["id"],
+  },
+  {
+    recordKind: "AgencyLink",
+    table: "agency_links",
+    createRequired: ["id"],
+  },
+  {
+    recordKind: "FederalAgency",
+    table: "federal_agency",
+    createRequired: ["id"],
+  },
+  {
+    recordKind: "FederalAgencyBranch",
+    table: "federal_agency_branch",
+    createRequired: ["id"],
+  },
+  {
+    recordKind: "CivilCase",
+    table: "civil_cases",
+    createRequired: ["id", "slug", "location_path_id"],
+    // The source supplies a namespace-local state value in location_path_id
+    // (resolved-or-fail to the canonical state path at import, ADR 0006/0015).
+    override: { location_path_id: "nonEmptyString.optional()" },
+  },
+  {
+    recordKind: "CivilCasePersonnel",
+    table: "civil_case_personnel",
+    // Matches the table exactly: civil_case_id + agency_personnel_id, both source
+    // ids the courtlistener run already stamped (ADR 0023) — agency_personnel_id
+    // resolves cross-source via the ledger, civil_case_id same-source. No
+    // resolution inputs: the personnel is matched in run, not at import.
+    createRequired: ["id"],
+  },
+  {
+    recordKind: "CivilCaseLink",
+    table: "civil_case_links",
+    createRequired: ["id"],
+  },
+  {
+    recordKind: "CoverageLinkCivilCase",
+    table: "coverage_link_civil_cases",
+    createRequired: ["id"],
+  },
+  {
+    // A published user report (ADR 0029 / ADR 0030). id is the submission's natural
+    // id and slug comes from the source; location_path_id/latitude/longitude are
+    // geocoded from the report's address at import (like Agency). city/state/zip are
+    // envelope-only geocode hints (reviews has no such columns). user_id is nullable
+    // (no submitter stored) and omitted.
+    recordKind: "Review",
+    table: "reviews",
+    createRequired: ["id", "slug", "location_path_id", "latitude", "longitude"],
+    extras: {
+      city: "z.string().optional()",
+      state: "z.string().optional()",
+      zip_code: "z.string().optional()",
+    },
+    createOmit: ["city", "state", "zip_code"],
+  },
+  {
+    // A report's link to one resolved officer@agency (ADR 0030). review_id is a
+    // same-run id; agency_personnel_id resolves cross-source via the ledger.
+    recordKind: "ReviewPersonnel",
+    table: "review_personnel",
+    createRequired: ["id"],
+  },
+  {
+    recordKind: "ReviewLink",
+    table: "review_links",
+    createRequired: ["id"],
+  },
+  {
+    // A per-officer arrest profile (ADR 0032): one recomputed row per officer,
+    // keyed on the unique agency_personnel_id, holding flexible jsonb summaries.
+    // id is find-or-mint by the business key; jsonb columns pass through.
+    recordKind: "ArrestProfile",
+    table: "arrest_profile",
+    createRequired: ["id"],
+  },
+];
+
+/**
+ * The entity record kinds in database-dependency order — a topological sort of
+ * the introspected foreign-key graph, so a referenced entity precedes its
+ * referrer. This is computed at generation time from the database's own FKs (no
+ * hand-declared dependency list) and emitted as a hardcoded constant.
+ */
+function dependencyOrderedRecordKinds(schema: IntrospectedSchema): string[] {
+  const recordKindByTable = new Map(
+    DESCRIPTORS.map((descriptor) => [descriptor.table, descriptor.recordKind]),
+  );
+  const ordered: string[] = [];
+  const done = new Set<string>();
+  const onStack = new Set<string>();
+  const visit = (recordKind: string, table: string): void => {
+    if (done.has(recordKind)) {
+      return;
+    }
+    if (onStack.has(recordKind)) {
+      throw new Error(
+        `Cyclic foreign-key dependency involving ${recordKind}; the FK graph must be a DAG.`,
+      );
+    }
+    onStack.add(recordKind);
+    const introspected = schema.tables.get(table);
+    for (const referencedTable of introspected?.references ?? []) {
+      const referencedKind = recordKindByTable.get(referencedTable);
+      if (referencedKind !== undefined && referencedKind !== recordKind) {
+        visit(referencedKind, referencedTable);
+      }
+    }
+    onStack.delete(recordKind);
+    done.add(recordKind);
+    ordered.push(recordKind);
+  };
+  for (const descriptor of DESCRIPTORS) {
+    visit(descriptor.recordKind, descriptor.table);
+  }
+  return ordered;
+}
+
+/**
+ * Each record kind's foreign keys to other entity kinds, as
+ * `{ field, targetKind }` (from the introspected FK columns). Drives the
+ * exclusion cascade: a record whose FK field holds an excluded record's key is
+ * itself dropped. Foreign keys to non-entity tables are omitted.
+ */
+function foreignKeyReferences(
+  schema: IntrospectedSchema,
+): Record<string, Array<{ field: string; targetKind: string }>> {
+  const recordKindByTable = new Map(
+    DESCRIPTORS.map((descriptor) => [descriptor.table, descriptor.recordKind]),
+  );
+  const references: Record<
+    string,
+    Array<{ field: string; targetKind: string }>
+  > = {};
+  for (const descriptor of DESCRIPTORS) {
+    const table = schema.tables.get(descriptor.table);
+    const kindReferences = (table?.foreignKeys ?? [])
+      .map((fk) => ({
+        field: fk.column,
+        targetKind: recordKindByTable.get(fk.targetTable),
+      }))
+      .filter(
+        (ref): ref is { field: string; targetKind: string } =>
+          ref.targetKind !== undefined,
+      );
+    if (kindReferences.length > 0) {
+      references[descriptor.recordKind] = kindReferences;
+    }
+  }
+  return references;
+}
+
+/**
+ * Each record kind that has a foreign key to *itself* (e.g.
+ * `location_path.parent_location_path_id`), as `recordKind → self-FK column`.
+ * Drives root-down ordering of that kind's own rows at plan time so a row's
+ * own-kind parent is created before it (ADR 0033). Kinds without a self-FK are
+ * absent. Self-references are excluded from `foreignKeyReferences` (they are not
+ * a cross-kind dependency), so they are surfaced separately here.
+ */
+function selfReferences(schema: IntrospectedSchema): Record<string, string> {
+  const references: Record<string, string> = {};
+  for (const descriptor of DESCRIPTORS) {
+    const selfReferenceColumn = schema.tables.get(
+      descriptor.table,
+    )?.selfReferenceColumn;
+    if (selfReferenceColumn !== undefined) {
+      references[descriptor.recordKind] = selfReferenceColumn;
+    }
+  }
+  return references;
+}
+
+/**
+ * Each record kind's primary-key column — the column a mutation keys existing
+ * rows on (its identity in WHERE clauses). `id` for most tables; a natural key
+ * for a few (location_path.location_path_id, location_path_alias.alias_path).
+ */
+function primaryKeyColumns(schema: IntrospectedSchema): Record<string, string> {
+  const columns: Record<string, string> = {};
+  for (const descriptor of DESCRIPTORS) {
+    const table = schema.tables.get(descriptor.table);
+    if (table !== undefined) {
+      columns[descriptor.recordKind] = table.primaryKeyColumn;
+    }
+  }
+  return columns;
+}
+
+// Each record kind's business key = the columns of its single (non-PK) unique
+// constraint. A kind with none keeps ledger/source-id minting; a kind with more
+// than one is ambiguous and fails loud (the model must declare one natural key).
+function businessKeys(
+  schema: IntrospectedSchema,
+): Record<string, readonly string[]> {
+  const keys: Record<string, readonly string[]> = {};
+  for (const descriptor of DESCRIPTORS) {
+    const uniqueKeys = schema.tables.get(descriptor.table)?.uniqueKeys ?? [];
+    if (uniqueKeys.length > 1) {
+      throw new Error(
+        `${descriptor.table} has ${uniqueKeys.length} unique constraints; a business key must be a single natural key.`,
+      );
+    }
+    if (uniqueKeys.length === 1) {
+      keys[descriptor.recordKind] = uniqueKeys[0]!;
+    }
+  }
+  return keys;
+}
+
+// The camelCase plural each record kind is addressed by in the import pipeline
+// and the source-module API (e.g. `agencies`, `agencyPersonnel`). English
+// pluralization is irregular, so it is declared, not derived — but this is
+// naming only, NEVER a dependency: the dependency graph is the database's FKs.
+const ENTITY_NAME_BY_RECORD_KIND: Record<string, string> = {
+  LocationPath: "locationPaths",
+  LocationPathGeometry: "locationPathGeometries",
+  LocationPathAlias: "locationPathAliases",
+  Agency: "agencies",
+  Personnel: "personnel",
+  AgencyPersonnel: "agencyPersonnel",
+  LicensingAuthority: "licensingAuthorities",
+  AuthorityLicense: "authorityLicenses",
+  License: "licenses",
+  LicenseAction: "licenseActions",
+  Discipline: "disciplines",
+  DisciplineAgencyPersonnel: "disciplineAgencyPersonnel",
+  CoverageLink: "coverageLinks",
+  CoverageLinkAgencyPersonnel: "coverageLinkAgencyPersonnel",
+  AgencyPhoneNumber: "agencyPhoneNumbers",
+  AgencyLink: "agencyLinks",
+  FederalAgency: "federalAgencies",
+  FederalAgencyBranch: "federalAgencyBranches",
+  CivilCase: "civilCases",
+  CivilCasePersonnel: "civilCasePersonnel",
+  CivilCaseLink: "civilCaseLinks",
+  CoverageLinkCivilCase: "coverageLinkCivilCases",
+  Review: "reviews",
+  ReviewPersonnel: "reviewPersonnel",
+  ReviewLink: "reviewLinks",
+  ArrestProfile: "arrestProfiles",
+};
+
+function capitalizeFirst(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+/** The plural import-artifact kind for a record kind (e.g. `Agency` → `Agencies`). */
+function artifactKindFor(recordKind: string): string {
+  const entityName = ENTITY_NAME_BY_RECORD_KIND[recordKind];
+  if (entityName === undefined) {
+    throw new Error(`No entityName declared for record kind ${recordKind}.`);
+  }
+  return capitalizeFirst(entityName);
+}
+
+/**
+ * Import metadata per artifact kind, fully derived: `kind`/`entityName` from the
+ * naming map, `targetTable` from the descriptor, and `dependsOn` from the
+ * database's own foreign-key graph — no hand-maintained dependency edges. Keys
+ * are in descriptor order (the emitted `IMPORT_ARTIFACT_KINDS` order).
+ */
+function buildImportTypeMetadata(schema: IntrospectedSchema): Record<
+  string,
+  {
+    kind: string;
+    recordKind: string;
+    entityName: string;
+    targetTable: string;
+    dependsOn: string[];
+  }
+> {
+  const references = foreignKeyReferences(schema);
+  const descriptorOrder = new Map(
+    DESCRIPTORS.map((descriptor, index) => [descriptor.recordKind, index]),
+  );
+  return Object.fromEntries(
+    DESCRIPTORS.map((descriptor) => {
+      const { recordKind } = descriptor;
+      const dependsOn = [
+        ...new Set((references[recordKind] ?? []).map((ref) => ref.targetKind)),
+      ]
+        .filter((target) => target !== recordKind)
+        .sort(
+          (a, b) =>
+            (descriptorOrder.get(a) ?? 0) - (descriptorOrder.get(b) ?? 0),
+        )
+        .map(artifactKindFor);
+      return [
+        artifactKindFor(recordKind),
+        {
+          kind: artifactKindFor(recordKind),
+          recordKind,
+          entityName: ENTITY_NAME_BY_RECORD_KIND[recordKind],
+          targetTable: `public.${descriptor.table}`,
+          dependsOn,
+        },
+      ];
+    }),
+  );
+}
+
+// The importable artifact kinds in descriptor order, and each kind's record
+// kind — both static (naming only), so the generator sources them from the
+// descriptors rather than from its own generated output (no bootstrapping cycle).
+export const IMPORT_ARTIFACT_KINDS = DESCRIPTORS.map((descriptor) =>
+  artifactKindFor(descriptor.recordKind),
+);
+
+export const RECORD_KIND_BY_ARTIFACT_KIND: Record<string, string> =
+  Object.fromEntries(
+    DESCRIPTORS.map((descriptor) => [
+      artifactKindFor(descriptor.recordKind),
+      descriptor.recordKind,
+    ]),
+  );
+
+type Column = IntrospectedTable["columns"][number];
+
+/** The base zod type for a column, from its database type + non-blank/enum. */
+function baseType(column: Column, table: IntrospectedTable): string {
+  const enumValues = table.enums.get(column.name);
+  if (enumValues !== undefined) {
+    return `z.enum([${enumValues.map((v) => JSON.stringify(v)).join(", ")}])`;
+  }
+  const nonBlank = table.nonBlankColumns.has(column.name);
+  switch (column.udtName) {
+    case "text":
+    case "varchar":
+    case "bpchar":
+      return nonBlank ? "nonEmptyString" : "z.string()";
+    // A uuid column carries a source id string; it is never blank.
+    case "uuid":
+      return "nonEmptyString";
+    // Dates/times travel as ISO strings in the envelope; the value is never blank.
+    case "date":
+    case "timestamptz":
+    case "timestamp":
+    case "time":
+    case "timetz":
+      return "nonEmptyString";
+    case "float8":
+    case "float4":
+    case "numeric":
+      return "z.number().finite()";
+    case "int2":
+    case "int4":
+    case "int8":
+      return "z.number().int()";
+    case "bool":
+      return "z.boolean()";
+    case "jsonb":
+    case "json":
+      return "z.record(z.string(), z.unknown())";
+    default:
+      throw new Error(
+        `No zod mapping for ${table.table}.${column.name} of type ${column.udtName}; add an override to its descriptor.`,
+      );
+  }
+}
+
+function scalarTsType(udtName: string): string | undefined {
+  switch (udtName) {
+    case "text":
+    case "varchar":
+    case "bpchar":
+    case "uuid":
+    case "date":
+    case "timestamptz":
+    case "timestamp":
+    case "time":
+    case "timetz":
+      return "string";
+    case "float8":
+    case "float4":
+    case "numeric":
+    case "int2":
+    case "int4":
+    case "int8":
+      return "number";
+    case "bool":
+      return "boolean";
+    case "jsonb":
+    case "json":
+    case "geography":
+    case "geometry":
+      return "unknown";
+    default:
+      return undefined;
+  }
+}
+
+// The TypeScript type of a database column as it appears in a persisted row —
+// present, and nullable-as-`| null` (never optional). This is the DB row, not
+// the source-input spec. A `_x` udt is a Postgres array of `x`.
+function columnTsType(column: Column, table: IntrospectedTable): string {
+  const enumValues = table.enums.get(column.name);
+  if (enumValues !== undefined) {
+    return enumValues.map((value) => JSON.stringify(value)).join(" | ");
+  }
+  const isArray = column.udtName.startsWith("_");
+  const scalar = scalarTsType(
+    isArray ? column.udtName.slice(1) : column.udtName,
+  );
+  if (scalar === undefined) {
+    throw new Error(
+      `No TypeScript row type for ${table.table}.${column.name} of type ${column.udtName}.`,
+    );
+  }
+  return isArray ? `${scalar}[]` : scalar;
+}
+
+function renderEntity(
+  descriptor: EntityDescriptor,
+  table: IntrospectedTable,
+): string {
+  const rename = descriptor.rename ?? {};
+  const override = descriptor.override ?? {};
+  const extras = descriptor.extras ?? {};
+  const createRequired = new Set(descriptor.createRequired ?? []);
+  const columnNames = new Set(table.columns.map((column) => column.name));
+
+  // Assert the descriptor only references real columns / declared fields.
+  for (const source of Object.keys(rename)) {
+    if (!columnNames.has(source)) {
+      throw new Error(
+        `${descriptor.recordKind}: rename source '${source}' is not a column of public.${table.table}.`,
+      );
+    }
+  }
+  const specFieldNames = new Set<string>([
+    ...table.columns
+      .filter((column) => !ALWAYS_EXCLUDED.has(column.name))
+      .map((column) => rename[column.name] ?? column.name),
+    ...Object.keys(extras),
+  ]);
+  for (const overridden of Object.keys(override)) {
+    if (!specFieldNames.has(overridden)) {
+      throw new Error(
+        `${descriptor.recordKind}: override '${overridden}' matches no generated field.`,
+      );
+    }
+  }
+  for (const required of createRequired) {
+    if (!specFieldNames.has(required)) {
+      throw new Error(
+        `${descriptor.recordKind}: createRequired '${required}' matches no field.`,
+      );
+    }
+  }
+
+  const baseFields: string[] = [];
+  for (const column of table.columns) {
+    if (ALWAYS_EXCLUDED.has(column.name)) {
+      continue;
+    }
+    const fieldName = rename[column.name] ?? column.name;
+    if (override[fieldName] !== undefined) {
+      baseFields.push(`    ${fieldName}: ${override[fieldName]},`);
+      continue;
+    }
+    let expression = baseType(column, table);
+    if (createRequired.has(fieldName)) {
+      // Optional in the base spec (resolved/minted later), required in *Create.
+      expression = `${expression}.optional()`;
+    } else if (column.nullable) {
+      const optionalSuffix =
+        descriptor.optionalNullable === false ? "" : ".optional()";
+      expression =
+        expression === "nonEmptyString"
+          ? `nullableNonEmptyString${optionalSuffix}`
+          : `${expression}.nullable()${optionalSuffix}`;
+    }
+    baseFields.push(`    ${fieldName}: ${expression},`);
+  }
+  for (const [name, expression] of Object.entries(extras)) {
+    baseFields.push(`    ${name}: ${expression},`);
+  }
+
+  const specName = `${descriptor.recordKind}Spec`;
+  const base = `export const ${specName} = z
+  .object({
+${baseFields.join("\n")}
+  })
+  .strict()${descriptor.superRefine ?? ""};`;
+
+  // *Create spec: the mutation carries only database columns, so drop the
+  // source-record/envelope-only `extras` (resolution inputs like the defendant's
+  // agency/officer name, never written as columns), then re-require the
+  // resolved/minted fields.
+  const createName = `${descriptor.recordKind}CreateSpec`;
+  const omitKeys = descriptor.createOmit ?? [];
+  for (const key of omitKeys) {
+    if (extras[key] === undefined) {
+      throw new Error(
+        `${descriptor.recordKind}: createOmit '${key}' is not one of its extras.`,
+      );
+    }
+  }
+  const omitClause =
+    omitKeys.length === 0
+      ? ""
+      : `.omit({ ${omitKeys.map((name) => `${name}: true`).join(", ")} })`;
+  if (createRequired.size === 0) {
+    return `${base}\n\nexport const ${createName} = ${specName}${omitClause};`;
+  }
+  const createExtends = [...createRequired]
+    .map((fieldName) => {
+      const column = table.columns.find(
+        (candidate) => (rename[candidate.name] ?? candidate.name) === fieldName,
+      );
+      const type =
+        override[fieldName] ??
+        (column === undefined ? "z.string()" : baseType(column, table));
+      return `  ${fieldName}: ${type},`;
+    })
+    .join("\n");
+  return `${base}
+
+export const ${createName} = ${specName}${omitClause}.extend({
+${createExtends}
+});`;
+}
+
+/**
+ * Renders `generated/entity-specs.ts` from the introspected schema. Column-backed
+ * fields are generated and asserted against the database; descriptors add only
+ * the non-schema nuance. The applied-migration fingerprint is embedded so the
+ * runtime can refuse to run stale specs.
+ */
+export function generateEntitySpecsModule(
+  schema: IntrospectedSchema,
+  header: string,
+): string {
+  const preamble = `${header}import { z } from "zod";
+
+// Fingerprint of the applied database migrations these specs were generated
+// against. The importer refuses to run when the live database's migrations
+// differ (see assertGeneratedSchemaCurrent).
+export const GENERATED_MIGRATION_VERSIONS = ${JSON.stringify(
+    schema.migrations.versions,
+  )} as const;
+export const GENERATED_MIGRATION_FINGERPRINT = ${JSON.stringify(
+    schema.migrations.fingerprint,
+  )};
+
+// Entity record kinds in database-dependency order (topological sort of the
+// foreign-key graph): a referenced entity precedes its referrer, so mutations
+// emitted/applied in this order never violate a foreign key.
+export const RECORD_KINDS_IN_DEPENDENCY_ORDER = ${JSON.stringify(
+    dependencyOrderedRecordKinds(schema),
+  )} as const;
+
+// Each record kind's foreign keys to other entity kinds (field → target kind),
+// from the database's own FKs. Drives the exclusion cascade: a record whose FK
+// field holds an excluded record's key is dropped too.
+export const FK_REFERENCES: Record<
+  string,
+  ReadonlyArray<{ field: string; targetKind: string }>
+> = ${JSON.stringify(foreignKeyReferences(schema))};
+
+// Each record kind that has a foreign key to itself (field name), e.g.
+// location_path.parent_location_path_id. A self-referential kind's create run is
+// re-ordered root-down over this column at plan time so a row's own-kind parent is
+// created before it (ADR 0033). Kinds without a self-FK are absent.
+export const SELF_REFERENCES: Record<string, string> = ${JSON.stringify(
+    selfReferences(schema),
+  )};
+
+// Each record kind's business/natural key — the columns of its (non-PK) unique
+// constraint. Identity resolution finds-or-mints the row's canonical id by these
+// columns, so records with the same business key converge (a cuid id, minted on
+// first sight). Kinds keyed only by a source id (no unique constraint) are absent
+// and mint via the source-name ledger instead.
+export const BUSINESS_KEYS: Record<string, readonly string[]> = ${JSON.stringify(
+    businessKeys(schema),
+  )};
+
+// Each record kind's properties resolved during import rather than supplied by
+// the source (\`createRequired\`): optional in the base spec, required in the
+// *Create mutation. The facade caches every one of these except \`id\` (which the
+// ledger mints) through the property cache — so a resolved field becomes
+// cache-backed and seedable automatically, with no per-resolver wiring.
+export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = ${JSON.stringify(
+    Object.fromEntries(
+      DESCRIPTORS.map((descriptor) => [
+        descriptor.recordKind,
+        descriptor.createRequired ?? [],
+      ]),
+    ),
+  )};
+
+// Each record kind's schema-qualified database table.
+export const TABLE_BY_KIND: Record<string, string> = ${JSON.stringify(
+    Object.fromEntries(
+      DESCRIPTORS.map((descriptor) => [
+        descriptor.recordKind,
+        `public.${descriptor.table}`,
+      ]),
+    ),
+  )};
+
+// Every entity table the database layer may read or write — the compile-time
+// whitelist that keeps ad-hoc SQL off arbitrary tables (see the database-boundary
+// test). Derived from TABLE_BY_KIND so the two never drift.
+export type SupportedTableName =
+${DESCRIPTORS.map((descriptor) => `  | "public.${descriptor.table}"`).join(
+  "\n",
+)};
+
+// Each record kind's primary-key column — the column a mutation keys existing
+// rows on (its identity in WHERE clauses). \`id\` for most tables; a natural key
+// for a few (location_path.location_path_id, location_path_alias.alias_path).
+export const PRIMARY_KEY_BY_KIND: Record<string, string> = ${JSON.stringify(
+    primaryKeyColumns(schema),
+  )};
+
+// Import artifact metadata per kind: kind/entityName naming plus the FK-derived
+// dependency graph (dependsOn), with no hand-maintained edges. This is the single
+// source of truth for what is importable — it can never drift from the entity
+// specs because it is generated from the same descriptors.
+export const importTypeMetadata = ${JSON.stringify(
+    buildImportTypeMetadata(schema),
+  )} as const;
+
+export type ImportArtifactKind = keyof typeof importTypeMetadata;
+
+// The artifact kinds in descriptor order (a referenced entity's source can still
+// run in any order a source declares; run-order is derived from dependsOn).
+export const IMPORT_ARTIFACT_KINDS = ${JSON.stringify(
+    DESCRIPTORS.map((descriptor) => artifactKindFor(descriptor.recordKind)),
+  )} as const satisfies readonly ImportArtifactKind[];
+
+export type ImportEntityName =
+  (typeof importTypeMetadata)[ImportArtifactKind]["entityName"];
+
+const nonEmptyString = z.string().trim().min(1);
+const nullableNonEmptyString = nonEmptyString.nullable();
+
+const LocationPathCentroidSpec = z
+  .object({
+    type: z.literal("Point"),
+    coordinates: z.tuple([
+      z.coerce.number().finite(),
+      z.coerce.number().finite(),
+    ]),
+  })
+  .strict();
+
+const LocationPathBboxSpec = z
+  .object({
+    type: z.literal("Polygon"),
+    coordinates: z.tuple([
+      z.tuple([
+        z.tuple([z.coerce.number().finite(), z.coerce.number().finite()]),
+        z.tuple([z.coerce.number().finite(), z.coerce.number().finite()]),
+        z.tuple([z.coerce.number().finite(), z.coerce.number().finite()]),
+        z.tuple([z.coerce.number().finite(), z.coerce.number().finite()]),
+        z.tuple([z.coerce.number().finite(), z.coerce.number().finite()]),
+      ]),
+    ]),
+  })
+  .strict()
+  .superRefine((bbox, context) => {
+    const ring = bbox.coordinates[0];
+    const [firstLng, firstLat] = ring[0];
+    const [lastLng, lastLat] = ring[4];
+    if (firstLng !== lastLng || firstLat !== lastLat) {
+      context.addIssue({
+        code: "custom",
+        path: ["coordinates", 0, 4],
+        message: "must close the polygon ring",
+      });
+    }
+  });
+`;
+
+  const entities = DESCRIPTORS.map((descriptor) => {
+    const table = schema.tables.get(descriptor.table);
+    if (table === undefined) {
+      throw new Error(
+        `Descriptor references public.${descriptor.table}, which was not introspected.`,
+      );
+    }
+    return renderEntity(descriptor, table);
+  });
+
+  return `${preamble}\n${entities.join("\n\n")}\n`;
+}
+
+/** Schema-qualified tables the generator introspects, in dependency order. */
+export const ENTITY_TABLES = DESCRIPTORS.map(
+  (descriptor) => `public.${descriptor.table}`,
+);

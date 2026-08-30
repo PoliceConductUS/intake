@@ -26,8 +26,8 @@ describe("database mutation envelopes", () => {
           name: "Minnesota State Patrol",
           city: "Saint Paul",
           state: "MN",
-          address: null,
-          zip_code: null,
+          address: "444 Cedar Street",
+          zip_code: "55101",
           contact_name: null,
           contact_email: null,
           slug: "minnesota-state-patrol",
@@ -68,6 +68,78 @@ describe("database mutation envelopes", () => {
         ],
       },
     });
+  });
+
+  test("DatabaseMutations chunks a large mutation set and reads it back whole", async () => {
+    const directory = await tempDir();
+    // Over MUTATIONS_PER_FILE (5000) so the writer splits into chunk files. Reads
+    // have empty specs, so this stays cheap.
+    const total = 5001;
+    const mutations = Array.from({ length: total }, (_, index) => ({
+      kind: "AgencyRead" as const,
+      name: `agency-${index}`,
+      spec: {},
+    }));
+
+    const written = await DatabaseMutations.write(
+      directory,
+      DatabaseMutations.new({
+        metadata: { name: "command-name", namespace: "gov.tx.tcole" },
+        spec: { mutations },
+      }),
+    );
+
+    // The top-level envelope holds only chunk refs — never all mutations inline.
+    const raw = await DatabaseMutations.read(written.path, { raw: true });
+    expect(raw.spec.mutations).toHaveLength(2);
+    expect(
+      raw.spec.mutations.every(
+        (item) => "ref" in item && item.ref.kind === "DatabaseMutations",
+      ),
+    ).toBe(true);
+
+    // The ref-expanding read flattens the chunks back to every mutation, in order.
+    const expanded = await DatabaseMutations.read(written.path);
+    expect(expanded.spec.mutations).toHaveLength(total);
+    expect(expanded.spec.mutations[0]).toMatchObject({
+      kind: "AgencyRead",
+      name: "agency-0",
+    });
+    expect(expanded.spec.mutations[total - 1]).toMatchObject({
+      kind: "AgencyRead",
+      name: `agency-${total - 1}`,
+    });
+  });
+
+  test("DatabaseMutations.write fails loud on a malformed mutation in a chunked (build) set", async () => {
+    const directory = await tempDir();
+    // The production path builds the top-level envelope unvalidated (build, not
+    // new) because validating hundreds of thousands of rows at once exhausts the
+    // heap; write validates per chunk. A malformed mutation buried in a >5000-row
+    // set must still be rejected there — validation moved, it did not disappear.
+    const mutations = Array.from({ length: 5001 }, (_, index) =>
+      index === 4999
+        ? {
+            kind: "AgencyCreate" as const,
+            name: "agency-source-name",
+            spec: {
+              id: "agency-canonical-id",
+              name: "Minnesota State Patrol",
+              not_a_column: "bad",
+            },
+          }
+        : { kind: "AgencyRead" as const, name: `agency-${index}`, spec: {} },
+    );
+
+    await expect(
+      DatabaseMutations.write(
+        directory,
+        DatabaseMutations.build({
+          metadata: { name: "command-name", namespace: "gov.tx.tcole" },
+          spec: { mutations },
+        }),
+      ),
+    ).rejects.toThrow("DatabaseMutations is malformed");
   });
 
   test("DatabaseMutations rejects inline mutations with malformed generated specs", () => {
@@ -270,7 +342,7 @@ describe("database mutation envelopes", () => {
                 badge_number: "49112",
                 start_date: "2020-01-01",
                 end_date: null,
-                license_type: "Peace Officer",
+                title: "Peace Officer",
               },
             },
           ],
@@ -298,7 +370,6 @@ describe("database mutation envelopes", () => {
       }),
     ).toThrow("DatabaseMutations is malformed");
   });
-
 
   test("LocationPathUpdate rejects nested paths", async () => {
     const filePath = path.join(
@@ -342,12 +413,7 @@ describe("database mutation envelopes", () => {
           location_path_id: "location-path-id",
           path: "/mn/ramsey-county/saint-paul/",
           level: "place",
-          state_or_territory_slug: "mn",
-          administrative_area_slug: "ramsey-county",
-          place_slug: "saint-paul",
-          state_or_territory_name: "Minnesota",
-          administrative_area_name: "Ramsey County",
-          place_name: "Saint Paul",
+          display_name: "Saint Paul",
           parent_location_path_id: "ramsey-county-location-path-id",
           centroid: {
             type: "Point",
@@ -376,12 +442,7 @@ describe("database mutation envelopes", () => {
           location_path_id: "location-path-id",
           path: "/mn/ramsey-county/saint-paul/",
           level: "place",
-          state_or_territory_slug: "mn",
-          administrative_area_slug: "ramsey-county",
-          place_slug: "saint-paul",
-          state_or_territory_name: "Minnesota",
-          administrative_area_name: "Ramsey County",
-          place_name: "Saint Paul",
+          display_name: "Saint Paul",
           parent_location_path_id: "ramsey-county-location-path-id",
           latitude: 44.9537,
         } as unknown as Parameters<typeof LocationPathCreate.new>[0]["spec"],

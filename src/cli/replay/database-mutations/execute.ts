@@ -1,5 +1,5 @@
 import {
-  createDatabaseRecord,
+  createDatabaseRecords,
   readDatabaseRecordByColumn,
   updateDatabaseRecordFields,
 } from "../../database/entities.js";
@@ -9,7 +9,17 @@ import {
   locationPathCentroidGeoJson,
 } from "../../database/location-path-spatial.js";
 import type { SupportedTableName } from "../../database/schema.js";
-import { DatabaseMutations } from "../../import/artifacts/io/DatabaseMutations.js";
+import {
+  PRIMARY_KEY_BY_KIND,
+  TABLE_BY_KIND,
+} from "../../../shared/io/generated/entity-specs.js";
+import { valuesEqual } from "../../../shared/values-equal.js";
+import path from "node:path";
+import {
+  DatabaseMutations,
+  type DatabaseMutationItem,
+  type DatabaseMutationsEnvelope,
+} from "../../import/artifacts/io/DatabaseMutations.js";
 import {
   parseDatabaseMutationKind,
   readDatabaseMutation,
@@ -28,52 +38,17 @@ type DatabaseMutationMetadata = {
   keyColumnName: string;
 };
 
-const databaseMutationMetadataByRecordKind: Record<
-  string,
-  DatabaseMutationMetadata
-> = {
-  LocationPath: {
-    tableName: "public.location_path",
-    keyColumnName: "location_path_id",
-  },
-  LocationPathGeometry: {
-    tableName: "public.location_path_geometry",
-    keyColumnName: "location_path_id",
-  },
-  LocationPathAlias: {
-    tableName: "public.location_path_alias",
-    keyColumnName: "alias_path",
-  },
-  Agency: {
-    tableName: "public.agency",
-    keyColumnName: "id",
-  },
-  Personnel: {
-    tableName: "public.officers",
-    keyColumnName: "id",
-  },
-  AgencyPersonnel: {
-    tableName: "public.agency_officers",
-    keyColumnName: "id",
-  },
-} satisfies Record<string, DatabaseMutationMetadata>;
-
+// A kind's table and primary-key column both come from the generated model
+// (TABLE_BY_KIND / PRIMARY_KEY_BY_KIND), so this can never drift from the schema.
 function databaseMutationMetadata(
   recordKind: string,
 ): DatabaseMutationMetadata {
-  const metadata = databaseMutationMetadataByRecordKind[recordKind];
-  if (metadata === undefined) {
+  const tableName = TABLE_BY_KIND[recordKind];
+  const keyColumnName = PRIMARY_KEY_BY_KIND[recordKind];
+  if (tableName === undefined || keyColumnName === undefined) {
     throw new Error(`Unsupported DatabaseMutation record kind: ${recordKind}`);
   }
-  return metadata;
-}
-
-function mutationKeyValue(
-  mutationName: string,
-  spec: Record<string, unknown>,
-  keyColumnName: string,
-): unknown {
-  return spec[keyColumnName] ?? mutationName;
+  return { tableName: tableName as SupportedTableName, keyColumnName };
 }
 
 function assertExpectedValue(
@@ -82,7 +57,7 @@ function assertExpectedValue(
   expected: unknown,
   actual: unknown,
 ): void {
-  if (!Object.is(expected, actual)) {
+  if (!valuesEqual(expected, actual)) {
     throw new Error(
       `DatabaseMutation ${mutationName} expected ${fieldName} to be ${String(expected)} but found ${String(actual)}.`,
     );
@@ -111,26 +86,18 @@ function databaseSpecForMutation(
       selectedYear: _selectedYear,
       ...databaseSpec
     } = spec;
+    // geometry is a pre-serialized GeoJSON string (opaque blob), fed straight to
+    // ST_GeomFromGeoJSON.
     return {
       ...databaseSpec,
-      ...(geometry === undefined ? {} : { boundary: JSON.stringify(geometry) }),
+      ...(geometry === undefined ? {} : { boundary: geometry }),
     };
   }
 
-  if (recordKind !== "AgencyPersonnel") {
-    return spec;
-  }
-
-  const { personnel_id, ...databaseSpec } = spec;
-  return personnel_id === undefined
-    ? databaseSpec
-    : { ...databaseSpec, officer_id: personnel_id };
+  return spec;
 }
 
 function databaseFieldName(recordKind: string, fieldName: string): string {
-  if (recordKind === "AgencyPersonnel" && fieldName === "personnel_id") {
-    return "officer_id";
-  }
   if (recordKind === "LocationPathGeometry" && fieldName === "geometry") {
     return "boundary";
   }
@@ -142,9 +109,6 @@ function databaseFieldValue(
   fieldName: string,
   value: unknown,
 ): unknown {
-  if (recordKind === "LocationPathGeometry" && fieldName === "boundary") {
-    return JSON.stringify(value);
-  }
   if (recordKind !== "LocationPath") {
     return value;
   }
@@ -157,31 +121,43 @@ function databaseFieldValue(
   return value;
 }
 
-async function executeCreate(
+type PendingCreate = {
+  mutationName: string;
+  databaseSpec: Record<string, unknown>;
+};
+
+// Postgres caps a statement at 65535 bind parameters; keep a margin.
+const MAX_INSERT_PARAMETERS = 60000;
+
+function definedColumns(spec: Record<string, unknown>): string[] {
+  return Object.entries(spec)
+    .filter(([, value]) => value !== undefined)
+    .map(([columnName]) => columnName);
+}
+
+async function executeCreateBatch(
   client: DatabaseClient,
-  mutationName: string,
   recordKind: string,
-  spec: Record<string, unknown>,
+  creates: readonly PendingCreate[],
 ): Promise<void> {
+  if (creates.length === 0) {
+    return;
+  }
   const metadata = databaseMutationMetadata(recordKind);
-  const databaseSpec = databaseSpecForMutation(recordKind, spec);
-  const keyValue = mutationKeyValue(
-    mutationName,
-    databaseSpec,
-    metadata.keyColumnName,
-  );
-  const current = await readDatabaseRecordByColumn(
+  const insertedKeys = await createDatabaseRecords(
     client,
     metadata.tableName,
+    creates.map((create) => create.databaseSpec),
     metadata.keyColumnName,
-    keyValue,
   );
-  if (current !== undefined) {
-    throw new Error(
-      `DatabaseMutation ${mutationName} cannot create existing ${recordKind}.`,
-    );
+  for (const create of creates) {
+    const keyValue = String(create.databaseSpec[metadata.keyColumnName]);
+    if (!insertedKeys.has(keyValue)) {
+      throw new Error(
+        `DatabaseMutation ${create.mutationName} cannot create existing ${recordKind}.`,
+      );
+    }
   }
-  await createDatabaseRecord(client, metadata.tableName, databaseSpec);
 }
 
 async function executeUpdate(
@@ -261,6 +237,43 @@ async function executeUpdate(
   );
 }
 
+// Yield each individual mutation (with its item, for counting), expanding
+// "DatabaseMutations" chunk refs recursively so a chunked envelope replays the
+// same as an inline one — one mutation resident at a time.
+async function* iterateMutations(
+  databaseMutations: DatabaseMutationsEnvelope,
+  databaseMutationsPath: string,
+): AsyncGenerator<{
+  mutation: DatabaseMutationEnvelope;
+  item: DatabaseMutationItem;
+}> {
+  const namespace = databaseMutations.metadata.namespace;
+  for (const item of databaseMutations.spec.mutations) {
+    if ("ref" in item && item.ref.kind === "DatabaseMutations") {
+      const chunkPath = path.resolve(
+        path.dirname(databaseMutationsPath),
+        item.ref.path,
+      );
+      const chunk = await DatabaseMutations.read(chunkPath, { raw: true });
+      yield* iterateMutations(chunk, chunkPath);
+      continue;
+    }
+    const mutation: DatabaseMutationEnvelope =
+      "ref" in item
+        ? await readDatabaseMutation(item.ref, {
+            relativeTo: databaseMutationsPath,
+            expectedNamespace: namespace,
+          })
+        : {
+            apiVersion: databaseMutations.apiVersion,
+            kind: item.kind,
+            metadata: { name: item.name, namespace },
+            spec: item.spec,
+          };
+    yield { mutation, item };
+  }
+}
+
 export async function executeDatabaseMutations(
   client: DatabaseClient,
   databaseMutationsPath: string,
@@ -273,44 +286,64 @@ export async function executeDatabaseMutations(
   );
   const counts = emptyDatabaseMutationCounts();
 
-  for (const mutationItem of databaseMutations.spec.mutations) {
-    const mutation: DatabaseMutationEnvelope =
-      "ref" in mutationItem
-        ? await readDatabaseMutation(mutationItem.ref, {
-            relativeTo: databaseMutationsPath,
-            expectedNamespace: databaseMutations.metadata.namespace,
-          })
-        : {
-            apiVersion: databaseMutations.apiVersion,
-            kind: mutationItem.kind,
-            metadata: {
-              name: mutationItem.name,
-              namespace: databaseMutations.metadata.namespace,
-            },
-            spec: mutationItem.spec,
-          };
+  // Creates are emitted contiguously and ahead of every update (ADR 0020), so
+  // buffer a run of same-kind, same-column creates and flush it as one multi-row
+  // insert — on a kind/column change, the parameter cap, or the first non-create.
+  let pending:
+    | { recordKind: string; signature: string; creates: PendingCreate[] }
+    | undefined;
+  const flushPending = async (): Promise<void> => {
+    if (pending !== undefined) {
+      const batch = pending;
+      pending = undefined;
+      await executeCreateBatch(client, batch.recordKind, batch.creates);
+    }
+  };
+
+  for await (const { mutation, item } of iterateMutations(
+    databaseMutations,
+    databaseMutationsPath,
+  )) {
     const { operation, recordKind } = parseDatabaseMutationKind(mutation.kind);
     if (operation === "create") {
-      await executeCreate(
-        client,
-        mutation.metadata.name,
-        recordKind,
-        mutation.spec,
+      const databaseSpec = databaseSpecForMutation(recordKind, mutation.spec);
+      const columns = definedColumns(databaseSpec);
+      const signature = `${recordKind}(${columns.join(",")})`;
+      const rowCap = Math.max(
+        1,
+        Math.floor(MAX_INSERT_PARAMETERS / columns.length),
       );
-    } else if (operation === "update") {
-      await executeUpdate(
-        client,
-        mutation.metadata.name,
-        recordKind,
-        mutation.spec,
-      );
-    } else if (operation !== "read") {
-      throw new Error(
-        `DatabaseMutation operation ${operation} is not supported.`,
-      );
+      if (
+        pending !== undefined &&
+        (pending.signature !== signature || pending.creates.length >= rowCap)
+      ) {
+        await flushPending();
+      }
+      if (pending === undefined) {
+        pending = { recordKind, signature, creates: [] };
+      }
+      pending.creates.push({
+        mutationName: mutation.metadata.name,
+        databaseSpec,
+      });
+    } else {
+      await flushPending();
+      if (operation === "update") {
+        await executeUpdate(
+          client,
+          mutation.metadata.name,
+          recordKind,
+          mutation.spec,
+        );
+      } else if (operation !== "read") {
+        throw new Error(
+          `DatabaseMutation operation ${operation} is not supported.`,
+        );
+      }
     }
-    incrementDatabaseMutationCounts(counts, mutationItem);
+    incrementDatabaseMutationCounts(counts, item);
   }
+  await flushPending();
 
   return counts;
 }

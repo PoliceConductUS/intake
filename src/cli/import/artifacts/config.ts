@@ -1,30 +1,24 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import {
-  createCensusAgencyCoordinateResolver,
-  createCensusLocationAdministrativeAreaResolver,
-} from "./agency-coordinate-resolver.js";
-import type { PlanDatabaseMutationsResult } from "./plan-database-mutations.js";
-import {
-  type AgencyCoordinateRequest,
-  type AgencyCoordinateResolution,
-  planDatabaseMutations,
-  DatabaseMutationPlanningError,
-} from "./plan-database-mutations.js";
+import { createCensusAgencyCoordinateResolver } from "./agency-coordinate-resolver.js";
+import { resolveImportAddress } from "./agency-address-resolution.js";
+import type {
+  AgencyCoordinateRequest,
+  AgencyCoordinateResolution,
+} from "./agency-coordinate-types.js";
+import { assertGeneratedSchemaCurrent } from "./assert-schema-current.js";
+import { validateArtifactRecords } from "./validate-artifact-records.js";
+import { loadDatabaseSchemaMetadata } from "../../database/schema.js";
 import {
   defaultDatabaseClientFactory,
   type DatabaseClient,
   type DatabaseClientFactory,
 } from "../../database/index.js";
 import { readDatabaseRecordByColumn } from "../../database/entities.js";
-import type {
-  LocationAdministrativeAreaRequest,
-  LocationAdministrativeAreaResolution,
-} from "./data-context.js";
-import { writeAgencyCoordinateResolutionCache } from "./agency-coordinate-cache.js";
 import { DataContext } from "./data-context.js";
+import { isRegistryKind } from "./facades/resolver-registry.js";
 import type { ApplyArtifactMutationResult } from "./artifact-mutation.js";
-import { applyOptionalArtifactMutation } from "./artifact-mutation.js";
+import { readImportArtifacts } from "./artifacts-reader.js";
 import {
   Artifacts,
   type ArtifactsEnvelope,
@@ -45,35 +39,29 @@ import {
   type DatabaseMutationCounts,
 } from "./io/DatabaseMutationCounts.js";
 import {
-  DatabaseMutationsDebug,
-  type DatabaseMutationsDebugInput,
-} from "./io/DatabaseMutationsDebug.js";
-import {
-  assertCanonicalMappingFields,
-  loadSourceNameToCanonicalIds,
-  resolveArtifactsSourceNameToCanonicalIds,
-  type SourceNameToCanonicalIds,
+  createSourceNameToCanonicalIdLedger,
+  type SourceNameToCanonicalIdLedger,
 } from "../../state/source-name-to-canonical-id/index.js";
 import {
   readResolvedProperty,
   type ResolvedPropertyCacheInput,
-  typedInputFingerprint,
+  type ResolvedPropertySource,
   writeResolvedProperty,
 } from "../../state/resolved-property/index.js";
 import { replayDatabaseMutations } from "../../replay/database-mutations/config.js";
-import type { ImportRows, ResolvedProperties } from "./transform.js";
-import { transformArtifacts } from "./transform.js";
 import {
   IMPORT_ARTIFACT_KINDS,
   INTAKE_API_VERSION,
   sourceNameForImportRecord,
 } from "../../../shared/io/import-types.js";
 import { importTypeMetadata } from "../../../shared/io/import-type-metadata.js";
+import type { ExcludedRecords } from "../../../shared/io/excluded-records.js";
 
 type ImportLogger = {
   debug(object: Record<string, unknown>, message: string): void;
   info(message: string): void;
   info(object: Record<string, unknown>, message: string): void;
+  warn?(object: Record<string, unknown>, message: string): void;
   error?(object: Record<string, unknown>, message: string): void;
 };
 
@@ -89,9 +77,7 @@ export type ImportArtifactsCommandInput = {
   resolveAgencyCoordinates?: (
     requests: AgencyCoordinateRequest[],
   ) => Promise<AgencyCoordinateResolution[]>;
-  resolveLocationAdministrativeArea?: (
-    request: LocationAdministrativeAreaRequest,
-  ) => Promise<LocationAdministrativeAreaResolution | undefined>;
+  excludedRecords?: ExcludedRecords;
   commandDirectory?: string;
   commandName?: string;
   clientFactory?: DatabaseClientFactory;
@@ -112,316 +98,46 @@ function valueAsRecord(value: unknown): Record<string, unknown> {
     return value as Record<string, unknown>;
   }
 
-  throw new Error("Artifacts agency record must be an object.");
+  throw new Error("Artifacts record must be an object.");
 }
 
-function valueAsString(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0
-    ? value
-    : undefined;
-}
-
-function valueAsFiniteNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value)
-    ? value
-    : undefined;
-}
-
-function slugSourceInput(
-  kind: "Agency" | "Personnel",
-  record: unknown,
-): Record<string, unknown> {
-  const spec = valueAsRecord(record);
-  if (kind === "Agency") {
-    return {
-      name: valueAsString(spec.name) ?? null,
-    };
-  }
-
-  return {
-    firstName: valueAsString(spec.first_name) ?? null,
-    middleName: valueAsString(spec.middle_name) ?? null,
-    lastName: valueAsString(spec.last_name) ?? null,
-    prefix: valueAsString(spec.prefix) ?? null,
-    suffix: valueAsString(spec.suffix) ?? null,
-  };
-}
-
-function preparedPersonnelSpec(
-  personnel: ImportRows["officers"][number],
-): Record<string, unknown> {
-  const { id: _id, ...spec } = personnel;
-  return Object.fromEntries(
-    Object.entries(spec).filter(([, value]) => value !== undefined),
-  );
-}
-
-function preparedAgencyPersonnelSpec(
-  agencyPersonnel: ImportRows["agencyOfficers"][number],
-): Record<string, unknown> {
-  const { id: _id, ...spec } = agencyPersonnel;
-  return Object.fromEntries(
-    Object.entries(spec).filter(([, value]) => value !== undefined),
-  );
-}
-
-function slugCacheInput(input: {
-  namespace: string;
-  kind: "Agency" | "Personnel";
-  sourceName: string;
-  canonicalId: string;
-  sourceInput: Record<string, unknown>;
-}): ResolvedPropertyCacheInput {
-  return {
-    subject: {
-      apiVersion: INTAKE_API_VERSION,
-      kind: input.kind,
-      name: input.canonicalId,
-    },
-    targetProperty: "slug",
-    source: {
-      namespace: input.namespace,
-      kind: input.kind,
-      name: input.sourceName,
-      inputFingerprint: typedInputFingerprint(input.sourceInput),
-    },
-  };
-}
-
-async function hydrateResolvedSlug(
-  context: ImportArtifactsPipelineContext,
-  input: {
-    resolvedProperties: ResolvedProperties;
-    collection: "agencies" | "personnel";
-    kind: "Agency" | "Personnel";
-    sourceName: string;
-    canonicalId: string;
-    sourceInput: Record<string, unknown>;
-  },
-): Promise<void> {
-  if (context.artifacts === undefined) {
-    throw new Error("Artifacts must be read before hydrating resolved slugs.");
-  }
-
-  const slug = await readResolvedProperty({
-    ...slugCacheInput({
-      namespace: context.artifacts.metadata.namespace,
-      kind: input.kind,
-      sourceName: input.sourceName,
-      canonicalId: input.canonicalId,
-      sourceInput: input.sourceInput,
-    }),
-    rootDir: context.workspaceRoot,
-  });
-  if (typeof slug !== "string" || slug.trim().length === 0) {
-    return;
-  }
-
-  input.resolvedProperties[input.collection][input.canonicalId] ??= {};
-  input.resolvedProperties[input.collection][input.canonicalId]!.slug = slug;
-}
-
-async function hydrateResolvedSlugs(
-  context: ImportArtifactsPipelineContext,
-): Promise<ResolvedProperties> {
-  if (
-    context.artifacts === undefined ||
-    context.resolvedMappings === undefined
-  ) {
-    throw new Error(
-      "Artifacts and source names must be loaded before hydrating resolved slugs.",
-    );
-  }
-
-  const resolvedProperties: ResolvedProperties = {
-    agencies: {},
-    personnel: {},
-  };
-  for (const artifact of context.artifacts.spec.artifacts) {
-    if (artifact.kind !== "Agencies" && artifact.kind !== "Personnel") {
+function addSourceFacades(
+  dataContext: DataContext,
+  artifacts: ArtifactsEnvelope,
+): void {
+  const namespace = artifacts.metadata.namespace;
+  for (const artifactKind of IMPORT_ARTIFACT_KINDS) {
+    const recordKind = importTypeMetadata[artifactKind].recordKind;
+    // Stream-only kinds (LocationPathGeometry) have no facade; every other kind
+    // resolves through the registry (see STREAM_ONLY_KINDS in resolver-registry).
+    if (!isRegistryKind(recordKind)) {
       continue;
     }
-    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
-      const sourceName = sourceNameForImportRecord(recordName, record);
-      if (artifact.kind === "Agencies") {
-        const canonicalId =
-          context.resolvedMappings.agencies[sourceName]?.canonicalId;
-        if (canonicalId !== undefined) {
-          await hydrateResolvedSlug(context, {
-            resolvedProperties,
-            collection: "agencies",
-            kind: "Agency",
-            sourceName,
-            canonicalId,
-            sourceInput: slugSourceInput("Agency", record),
-          });
-        }
-        continue;
-      }
-
-      const canonicalId =
-        context.resolvedMappings.personnel[sourceName]?.canonicalId;
-      if (canonicalId !== undefined) {
-        await hydrateResolvedSlug(context, {
-          resolvedProperties,
-          collection: "personnel",
-          kind: "Personnel",
-          sourceName,
-          canonicalId,
-          sourceInput: slugSourceInput("Personnel", record),
+    for (const artifact of artifacts.spec.artifacts.filter(
+      (item) => item.kind === artifactKind,
+    )) {
+      for (const [recordName, rawRecord] of Object.entries(
+        artifact.spec.records,
+      )) {
+        // A record is an envelope (ADR 0034): its metadata (action/selector) rides
+        // with it through the pipeline, never folded into the spec (the payload).
+        const record = rawRecord as {
+          metadata?: {
+            action?: "PUT" | "PATCH" | "POST";
+            selector?: Record<string, unknown>;
+          };
+          spec: Record<string, unknown>;
+        };
+        dataContext.facadeFromSource(recordKind, {
+          apiVersion: INTAKE_API_VERSION,
+          namespace,
+          name: sourceNameForImportRecord(recordName, record.spec),
+          spec: valueAsRecord(record.spec),
+          action: record.metadata?.action,
+          selector: record.metadata?.selector,
+          sourceFile: artifact.recordSources?.[recordName],
         });
       }
-    }
-  }
-
-  return resolvedProperties;
-}
-
-async function persistResolvedSlugs(
-  context: ImportArtifactsPipelineContext,
-): Promise<void> {
-  if (
-    context.artifacts === undefined ||
-    context.resolvedMappings === undefined ||
-    context.rows === undefined
-  ) {
-    throw new Error(
-      "Artifacts, source names, and rows must be available before persisting resolved slugs.",
-    );
-  }
-
-  const agencyById = new Map(
-    context.rows.agencies.map((agency) => [agency.id, agency]),
-  );
-  const personnelById = new Map(
-    context.rows.officers.map((personnel) => [personnel.id, personnel]),
-  );
-  let cachedSlugs = 0;
-  for (const artifact of context.artifacts.spec.artifacts) {
-    if (artifact.kind !== "Agencies" && artifact.kind !== "Personnel") {
-      continue;
-    }
-    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
-      const sourceName = sourceNameForImportRecord(recordName, record);
-      const kind = artifact.kind === "Agencies" ? "Agency" : "Personnel";
-      const canonicalId =
-        kind === "Agency"
-          ? context.resolvedMappings.agencies[sourceName]?.canonicalId
-          : context.resolvedMappings.personnel[sourceName]?.canonicalId;
-      const slug =
-        canonicalId === undefined
-          ? undefined
-          : kind === "Agency"
-            ? agencyById.get(canonicalId)?.slug
-            : personnelById.get(canonicalId)?.slug;
-      if (
-        canonicalId === undefined ||
-        typeof slug !== "string" ||
-        slug.trim().length === 0
-      ) {
-        continue;
-      }
-
-      await writeResolvedProperty({
-        ...slugCacheInput({
-          namespace: context.artifacts.metadata.namespace,
-          kind,
-          sourceName,
-          canonicalId,
-          sourceInput: slugSourceInput(kind, record),
-        }),
-        rootDir: context.workspaceRoot,
-        value: slug,
-      });
-      cachedSlugs += 1;
-    }
-  }
-
-  if (cachedSlugs > 0) {
-    context.commandInput.logger?.info(
-      { cachedSlugs },
-      `Cached ${cachedSlugs} agency/personnel slug ${cachedSlugs === 1 ? "resolution" : "resolutions"}.`,
-    );
-  }
-}
-
-function addPersonnelSourceFacades(
-  dataContext: DataContext,
-  artifacts: ArtifactsEnvelope,
-  rows: ImportRows,
-  sourceNameToCanonicalIds: SourceNameToCanonicalIds,
-): void {
-  const preparedPersonnelByCanonicalId = new Map(
-    rows.officers.map((personnel) => [personnel.id, personnel]),
-  );
-
-  for (const artifact of artifacts.spec.artifacts.filter(
-    (item) => item.kind === "Personnel",
-  )) {
-    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
-      const sourceName = sourceNameForImportRecord(recordName, record);
-      const canonicalId =
-        sourceNameToCanonicalIds.personnel[sourceName]?.canonicalId;
-      const personnel =
-        canonicalId === undefined
-          ? undefined
-          : preparedPersonnelByCanonicalId.get(canonicalId);
-      if (personnel === undefined) {
-        throw new Error(
-          `Prepared personnel row is missing for source personnel ${sourceName}.`,
-        );
-      }
-
-      const source = valueAsRecord(record);
-      const facade = dataContext.personnelFromSource({
-        apiVersion: INTAKE_API_VERSION,
-        namespace: artifacts.metadata.namespace,
-        name: sourceName,
-        spec: source,
-      });
-      facade.merge(preparedPersonnelSpec(personnel));
-    }
-  }
-}
-
-function addAgencyPersonnelSourceFacades(
-  dataContext: DataContext,
-  artifacts: ArtifactsEnvelope,
-  rows: ImportRows,
-  sourceNameToCanonicalIds: SourceNameToCanonicalIds,
-): void {
-  const preparedAgencyPersonnelByCanonicalId = new Map(
-    rows.agencyOfficers.map((agencyPersonnel) => [
-      agencyPersonnel.id,
-      agencyPersonnel,
-    ]),
-  );
-
-  for (const artifact of artifacts.spec.artifacts.filter(
-    (item) => item.kind === "AgencyPersonnel",
-  )) {
-    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
-      const sourceName = sourceNameForImportRecord(recordName, record);
-      const canonicalId =
-        sourceNameToCanonicalIds.agencyPersonnel[sourceName]?.canonicalId;
-      const agencyPersonnel =
-        canonicalId === undefined
-          ? undefined
-          : preparedAgencyPersonnelByCanonicalId.get(canonicalId);
-      if (agencyPersonnel === undefined) {
-        throw new Error(
-          `Prepared agency-personnel row is missing for source agency-personnel ${sourceName}.`,
-        );
-      }
-
-      const source = valueAsRecord(record);
-      const facade = dataContext.agencyPersonnelFromSource({
-        apiVersion: INTAKE_API_VERSION,
-        namespace: artifacts.metadata.namespace,
-        name: sourceName,
-        spec: source,
-      });
-      facade.merge(preparedAgencyPersonnelSpec(agencyPersonnel));
     }
   }
 }
@@ -433,11 +149,7 @@ type ImportArtifactsPipelineContext = {
   workspaceRoot?: string;
   artifacts?: ArtifactsEnvelope;
   artifactMutation?: ApplyArtifactMutationResult;
-  resolvedMappings?: SourceNameToCanonicalIds;
-  resolvedProperties?: ResolvedProperties;
-  rows?: ImportRows;
-  preparationError?: DatabaseMutationPlanningError;
-  databaseResult?: PlanDatabaseMutationsResult;
+  ledger: SourceNameToCanonicalIdLedger;
   databaseMutationCounts?: DatabaseMutationCounts;
 };
 
@@ -459,9 +171,12 @@ async function readArtifactsStage(
   context: ImportArtifactsPipelineContext,
 ): Promise<ImportArtifactsPipelineContext> {
   context.commandInput.logger?.info("Reading Artifacts.");
-  const artifacts = await Artifacts.read(context.artifactsPath, {
-    includeKinds: initialReadArtifactKinds,
-  });
+  // Reading applies the phase's mutations (corrections + ADR 0012 command-local
+  // mutations) via the reader delegate — no separate apply stage to remember.
+  const { artifacts, artifactMutation } = await readImportArtifacts(
+    context.artifactsPath,
+    { includeKinds: initialReadArtifactKinds },
+  );
   context.commandInput.logger?.debug(
     {
       artifactsPath: context.artifactsPath,
@@ -493,7 +208,13 @@ async function readArtifactsStage(
   context.commandInput.logger?.info(
     `Artifacts namespace: ${artifacts.metadata.namespace}.`,
   );
-  return { ...context, artifacts };
+  if (artifactMutation.applied) {
+    context.commandInput.logger?.info(
+      { artifactMutationPath: artifactMutation.reference.path },
+      "Artifact mutations applied.",
+    );
+  }
+  return { ...context, artifacts, artifactMutation };
 }
 
 async function rejectExistingImportStage(
@@ -515,336 +236,65 @@ async function rejectExistingImportStage(
   return context;
 }
 
-async function applyArtifactMutationsStage(
+async function validateArtifactRecordsStage(
   context: ImportArtifactsPipelineContext,
 ): Promise<ImportArtifactsPipelineContext> {
   if (context.artifacts === undefined) {
-    throw new Error(
-      "Artifacts must be read before applying artifact mutations.",
-    );
+    throw new Error("Artifacts must be loaded before validating records.");
   }
-
-  context.commandInput.logger?.info("Checking for artifact mutations.");
-  const artifactMutation = await applyOptionalArtifactMutation(
-    context.artifacts,
-    {
-      artifactsPath: context.artifactsPath,
-    },
-  );
-  if (artifactMutation.applied) {
-    context.commandInput.logger?.info(
-      { artifactMutationPath: artifactMutation.reference.path },
-      "Artifact mutations applied.",
-    );
-  }
-  return { ...context, artifactMutation };
+  validateArtifactRecords(context.artifacts);
+  return context;
 }
 
-async function persistArtifactAgencyCoordinatesStage(
-  context: ImportArtifactsPipelineContext,
-): Promise<void> {
-  if (
-    context.artifacts === undefined ||
-    context.resolvedMappings === undefined
-  ) {
-    throw new Error(
-      "Artifacts and source names must be available before caching agency coordinates.",
-    );
-  }
-
-  let cachedCoordinates = 0;
-  for (const artifact of context.artifacts.spec.artifacts.filter(
-    (item) => item.kind === "Agencies",
-  )) {
-    for (const [recordName, record] of Object.entries(artifact.spec.records)) {
-      const sourceName = sourceNameForImportRecord(recordName, record);
-      const spec = valueAsRecord(record);
-      const latitude = valueAsFiniteNumber(spec.latitude);
-      const longitude = valueAsFiniteNumber(spec.longitude);
-      const name = valueAsString(spec.name);
-      const address = valueAsString(spec.address);
-      const city = valueAsString(spec.city);
-      const state = valueAsString(spec.state);
-      const zipCode = valueAsString(spec.zip_code);
-      const canonicalId =
-        context.resolvedMappings.agencies[sourceName]?.canonicalId;
-      if (
-        canonicalId === undefined ||
-        latitude === undefined ||
-        longitude === undefined ||
-        name === undefined ||
-        address === undefined ||
-        city === undefined ||
-        state === undefined ||
-        zipCode === undefined
-      ) {
-        continue;
-      }
-
-      await writeAgencyCoordinateResolutionCache(
-        {
-          rowId: canonicalId,
-          sourceName,
-          name,
-          address,
-          city,
-          state,
-          zipCode,
-        },
-        {
-          rowId: canonicalId,
-          latitude,
-          longitude,
-        },
-        {
-          sourceNamespace: context.artifacts.metadata.namespace,
-          resolvedPropertyCache: {
-            write: (input) =>
-              writeResolvedProperty({
-                ...input,
-                rootDir: context.workspaceRoot,
-              }),
-            read: (input) =>
-              readResolvedProperty({
-                ...input,
-                rootDir: context.workspaceRoot,
-              }),
-          },
-        },
-      );
-      cachedCoordinates += 1;
-    }
-  }
-
-  if (cachedCoordinates > 0) {
-    context.commandInput.logger?.info(
-      { entityType: "agency", cachedCoordinates },
-      `Cached ${cachedCoordinates} agency address coordinate ${cachedCoordinates === 1 ? "resolution" : "resolutions"}.`,
-    );
-  }
-}
-
-async function resolveSourceNamesStage(
-  context: ImportArtifactsPipelineContext,
-): Promise<ImportArtifactsPipelineContext> {
-  if (context.artifacts === undefined) {
-    throw new Error("Artifacts must be read before resolving source names.");
-  }
-
-  context.commandInput.logger?.info("Reading SourceNameToCanonicalId records.");
-  const mappings = await loadSourceNameToCanonicalIds(
-    context.artifacts.metadata.namespace,
-    { rootDir: context.workspaceRoot },
-  );
-  context.commandInput.logger?.info(
-    "Validating SourceNameToCanonicalId file shape.",
-  );
-  context.commandInput.logger?.debug(
-    {
-      locationPathMappings: Object.keys(mappings.locationPaths).length,
-      agencyMappings: Object.keys(mappings.agencies).length,
-      personnelMappings: Object.keys(mappings.personnel).length,
-      agencyPersonnelMappings: Object.keys(mappings.agencyPersonnel).length,
-    },
-    "SourceNameToCanonicalId records loaded.",
-  );
-
-  context.commandInput.logger?.info(
-    "Resolving canonical SourceNameToCanonicalId records.",
-  );
-  const resolvedMappings = await resolveArtifactsSourceNameToCanonicalIds(
-    context.artifacts,
-    mappings,
-    { rootDir: context.workspaceRoot },
-  );
-  context.commandInput.logger?.debug(
-    {
-      locationPathMappings: Object.keys(resolvedMappings.locationPaths).length,
-      agencyMappings: Object.keys(resolvedMappings.agencies).length,
-      personnelMappings: Object.keys(resolvedMappings.personnel).length,
-      agencyPersonnelMappings: Object.keys(resolvedMappings.agencyPersonnel)
-        .length,
-    },
-    "SourceNameToCanonicalId records resolved.",
-  );
-
-  context.commandInput.logger?.info(
-    "Validating canonical SourceNameToCanonicalId records.",
-  );
-  assertCanonicalMappingFields(context.artifacts, resolvedMappings);
-  return { ...context, resolvedMappings };
-}
-
-async function transformArtifactsStage(
-  context: ImportArtifactsPipelineContext,
-): Promise<ImportArtifactsPipelineContext> {
-  if (
-    context.artifacts === undefined ||
-    context.resolvedMappings === undefined
-  ) {
-    throw new Error(
-      "Artifacts and source names must be loaded before transforming artifacts.",
-    );
-  }
-
-  context.commandInput.logger?.info("Transforming artifact records.");
-  const resolvedProperties = await hydrateResolvedSlugs(context);
-  const rows = transformArtifacts(
-    context.artifacts,
-    context.resolvedMappings,
-    resolvedProperties,
-  );
-  context.commandInput.logger?.debug(
-    {
-      agencies: rows.agencies.length,
-      officers: rows.officers.length,
-      agencyOfficers: rows.agencyOfficers.length,
-    },
-    "Artifacts transformed.",
-  );
-  return { ...context, resolvedProperties, rows };
-}
-
-async function executeDatabaseMutationPlanningStage(
-  context: ImportArtifactsPipelineContext,
-): Promise<ImportArtifactsPipelineContext> {
-  if (
-    context.artifacts === undefined ||
-    context.artifactMutation === undefined ||
-    context.rows === undefined
-  ) {
-    throw new Error(
-      "Artifacts must be transformed before planning database mutations.",
-    );
-  }
-
-  context.commandInput.logger?.info("Planning database mutations.");
-  try {
-    const databaseResult = await planDatabaseMutations(context.rows, {
-      resolveAgencyCoordinates:
-        context.commandInput.resolveAgencyCoordinates ??
-        createCensusAgencyCoordinateResolver(undefined, {
-          onProgress: (event) => {
-            if (event.stage === "batch") {
-              context.commandInput.logger?.info(
-                {
-                  entityType: "agency",
-                  total: event.total,
-                },
-                `Resolving agency address coordinates for ${event.total} ${event.total === 1 ? "agency" : "agencies"}.`,
-              );
-              return;
-            }
-
-            context.commandInput.logger?.info(
-              {
-                entityType: "agency",
-                attempted: event.attempted,
-                total: event.total,
-                rowId: event.rowId,
-              },
-              `Resolving unresolved agency address coordinates (${event.attempted} of ${event.total}).`,
+/**
+ * The agency-resolution dependencies the envelope-writing pass reaches through: the
+ * coordinate geocoder (census, or an injected mock in tests), the administrative-area
+ * resolver, and the `ResolvedProperty` cache read/write rooted at the workspace.
+ */
+function agencyResolutionDeps(context: ImportArtifactsPipelineContext) {
+  const logger = context.commandInput.logger;
+  return {
+    resolveAgencyCoordinates:
+      context.commandInput.resolveAgencyCoordinates ??
+      createCensusAgencyCoordinateResolver(undefined, {
+        onProgress: (event) => {
+          if (event.stage === "batch") {
+            logger?.info(
+              { entityType: "agency", total: event.total },
+              `Resolving agency address coordinates for ${event.total} ${event.total === 1 ? "agency" : "agencies"}.`,
             );
-          },
-        }),
-      resolveLocationAdministrativeArea:
-        context.commandInput.resolveLocationAdministrativeArea ??
-        createCensusLocationAdministrativeAreaResolver(),
-      sourceNamespace: context.artifacts.metadata.namespace,
-      sourceNameToCanonicalIds: context.resolvedMappings,
-      resolvedProperties: context.resolvedProperties,
-      resolvedPropertyCache: {
-        read: (input) =>
-          readResolvedProperty({ ...input, rootDir: context.workspaceRoot }),
-        write: (input) =>
-          writeResolvedProperty({ ...input, rootDir: context.workspaceRoot }),
-      },
-      logger: context.commandInput.logger,
-      env: context.commandInput.env,
-      clientFactory: context.commandInput.clientFactory,
-    });
-    await persistResolvedSlugs(context);
-    return { ...context, databaseResult };
-  } catch (error) {
-    if (!(error instanceof DatabaseMutationPlanningError)) {
-      throw error;
-    }
-    return { ...context, preparationError: error };
-  }
+            return;
+          }
+          logger?.info(
+            {
+              entityType: "agency",
+              attempted: event.attempted,
+              total: event.total,
+              rowId: event.rowId,
+            },
+            `Resolving unresolved agency address coordinates (${event.attempted} of ${event.total}).`,
+          );
+        },
+      }),
+    resolvedPropertyCache: {
+      read: (input: ResolvedPropertyCacheInput) =>
+        readResolvedProperty({ ...input, rootDir: context.workspaceRoot }),
+      write: (
+        input: ResolvedPropertyCacheInput & {
+          value: unknown;
+          source?: ResolvedPropertySource;
+        },
+      ) => writeResolvedProperty({ ...input, rootDir: context.workspaceRoot }),
+    },
+  };
 }
 
-async function writeDatabaseMutationsDebugStage(
-  context: ImportArtifactsPipelineContext,
-): Promise<ImportArtifactsPipelineContext> {
-  if (context.preparationError === undefined) {
-    return context;
+async function closeClient(client: DatabaseClient): Promise<void> {
+  try {
+    await client.end();
+  } catch {
+    // The original connection or write error is the actionable failure.
   }
-  if (
-    context.artifacts === undefined ||
-    context.artifactMutation === undefined
-  ) {
-    throw new Error(
-      "Artifacts must be loaded before writing DatabaseMutationsDebug.",
-    );
-  }
-
-  context.commandInput.logger?.info(
-    "Writing debug DatabaseMutations envelope.",
-  );
-  if (context.commandInput.commandDirectory === undefined) {
-    throw new Error(
-      "Command directory is required to write DatabaseMutationsDebug.",
-    );
-  }
-  const error = context.preparationError;
-  const dataContext = new DataContext({
-    rows: error.rows,
-    operations: {
-      locationPaths: {},
-      locationPathGeometries: {},
-      locationPathAliases: {},
-      agencies: {},
-      officers: {},
-      agencyOfficers: {},
-    },
-    sourceNameToCanonicalIds: context.resolvedMappings,
-    commandName: context.commandName,
-  });
-  const envelopeInput: DatabaseMutationsDebugInput = {
-    metadata: {
-      namespace: context.artifacts.metadata.namespace,
-      name: context.commandName,
-      sourceArtifactsName: context.artifacts.metadata.name,
-      sourceArtifactsPath: context.artifactsPath,
-      sourceArtifactsDigest: await Artifacts.digest(context.artifactsPath),
-      databaseSchema: error.schema,
-      ...(context.artifactMutation.applied
-        ? { artifactMutation: context.artifactMutation.reference }
-        : {}),
-      status: "failed",
-      counts: {
-        locationPaths: error.rows.locationPaths.length,
-        locationPathGeometries: error.rows.locationPathGeometries?.length ?? 0,
-        locationPathAliases: error.rows.locationPathAliases.length,
-        agencies: error.rows.agencies.length,
-        personnel: error.rows.officers.length,
-        agencyPersonnel: error.rows.agencyOfficers.length,
-      },
-      errors: [...error.errors],
-      preparationMutations: [...error.rows.preparationMutations],
-    },
-    spec: { mutations: dataContext.toDatabaseMutationItems() },
-  };
-  await mkdir(context.commandInput.commandDirectory, { recursive: true });
-  const databaseMutationsEnvelope = await DatabaseMutationsDebug.write(
-    context.commandInput.commandDirectory,
-    DatabaseMutationsDebug.new(envelopeInput),
-  );
-  context.commandInput.logger?.info(
-    { databaseMutationsPath: databaseMutationsEnvelope.path },
-    "Debug DatabaseMutations envelope written.",
-  );
-  throw error;
 }
 
 type RawLocationPathGeometryArtifact = {
@@ -940,11 +390,12 @@ function requiredStreamingString(
   );
 }
 
-function canonicalLocationPathIdForGeometry(
+async function canonicalLocationPathIdForGeometry(
   recordKey: string,
   spec: Record<string, unknown>,
-  mappings: SourceNameToCanonicalIds,
-): { canonicalId: string; sourceLocationPathKey: string } {
+  namespace: string,
+  ledger: SourceNameToCanonicalIdLedger,
+): Promise<{ canonicalId: string; sourceLocationPathKey: string }> {
   const sourceLocationPathKey = requiredStreamingString(
     recordKey,
     "sourceLocationPathKey",
@@ -955,6 +406,8 @@ function canonicalLocationPathIdForGeometry(
     spec.location_path_id.trim().length > 0
       ? spec.location_path_id
       : undefined;
+  // A geometry must reference an already-recorded location path; try the known
+  // source-key candidates and fail loud when none resolves.
   for (const candidate of [
     sourceLocationPathKey,
     sourceLocationPathId,
@@ -963,7 +416,7 @@ function canonicalLocationPathIdForGeometry(
     if (candidate === undefined) {
       continue;
     }
-    const canonicalId = mappings.locationPaths[candidate]?.canonicalId;
+    const canonicalId = await ledger.read(namespace, "LocationPath", candidate);
     if (canonicalId !== undefined && canonicalId.trim().length > 0) {
       return { canonicalId, sourceLocationPathKey };
     }
@@ -979,12 +432,11 @@ async function writeLocationPathGeometryMutationRefs(
   client: DatabaseClient,
 ): Promise<DatabaseMutationItem[]> {
   if (
-    context.resolvedMappings === undefined ||
     context.artifacts === undefined ||
     context.commandInput.commandDirectory === undefined
   ) {
     throw new Error(
-      "Artifacts, source mappings, and command directory are required to write LocationPathGeometry mutations.",
+      "Artifacts and command directory are required to write LocationPathGeometry mutations.",
     );
   }
 
@@ -1001,10 +453,11 @@ async function writeLocationPathGeometryMutationRefs(
     context.artifacts.metadata.namespace,
   )) {
     const { canonicalId, sourceLocationPathKey } =
-      canonicalLocationPathIdForGeometry(
+      await canonicalLocationPathIdForGeometry(
         recordKey,
         spec,
-        context.resolvedMappings,
+        context.artifacts.metadata.namespace,
+        context.ledger,
       );
 
     const existing = await readDatabaseRecordByColumn(
@@ -1103,50 +556,66 @@ async function writeDatabaseMutationsStage(
 ): Promise<ImportArtifactsPipelineContext> {
   if (
     context.artifacts === undefined ||
-    context.artifactMutation === undefined ||
-    context.rows === undefined ||
-    context.resolvedMappings === undefined ||
-    context.databaseResult === undefined
+    context.artifactMutation === undefined
   ) {
-    throw new Error("DatabaseMutations must be prepared before writing.");
+    throw new Error("Artifacts must be validated before writing.");
   }
+  const artifacts = context.artifacts;
+  const ledger = context.ledger;
+  const logger = context.commandInput.logger;
 
-  context.commandInput.logger?.info("Writing DatabaseMutations envelope.");
+  logger?.info("Writing DatabaseMutations envelope.");
   if (context.commandInput.commandDirectory === undefined) {
     throw new Error(
       "Command directory is required to write DatabaseMutations.",
     );
   }
-  const dataContext = new DataContext({
-    rows: context.rows,
-    operations: context.databaseResult.operations,
-    sourceNameToCanonicalIds: context.resolvedMappings,
-    commandName: context.commandName,
-  });
-  dataContext.mergeAgencyArtifacts(context.artifacts);
-  addPersonnelSourceFacades(
-    dataContext,
-    context.artifacts,
-    context.rows,
-    context.resolvedMappings,
-  );
-  addAgencyPersonnelSourceFacades(
-    dataContext,
-    context.artifacts,
-    context.rows,
-    context.resolvedMappings,
-  );
-  const databaseMutations = dataContext.toDatabaseMutations({
-    namespace: context.artifacts.metadata.namespace,
-    name: context.commandName,
-    sourceArtifactsName: context.artifacts.metadata.name,
-    sourceArtifactsPath: context.artifactsPath,
-    sourceArtifactsDigest: await Artifacts.digest(context.artifactsPath),
-    databaseSchema: context.databaseResult.schema,
-    ...(context.artifactMutation.applied
-      ? { artifactMutation: context.artifactMutation.reference }
-      : {}),
-  });
+  const databaseUrl = (context.commandInput.env ?? process.env).DATABASE_URL;
+  if (databaseUrl === undefined || databaseUrl.trim().length === 0) {
+    throw new Error("DATABASE_URL is required to write database mutations.");
+  }
+  // Read-only connection (ADR 0019): validation and every facade's lazy
+  // current-row read share it; the envelope is applied by the replay client.
+  const deps = agencyResolutionDeps(context);
+  const client = (
+    context.commandInput.clientFactory ?? defaultDatabaseClientFactory
+  )(databaseUrl);
+  try {
+    await client.connect();
+    await client.query("select 1");
+  } catch (error) {
+    await closeClient(client);
+    throw new Error(`Database connection failed: ${errorMessage(error)}`);
+  }
+
+  let databaseMutations;
+  try {
+    const { importSchema } = await loadDatabaseSchemaMetadata(client);
+    assertGeneratedSchemaCurrent(importSchema.appliedMigrations);
+    const dataContext = new DataContext({
+      client,
+      logger,
+      ledger,
+      commandName: context.commandName,
+      resolvedPropertyStore: deps.resolvedPropertyCache,
+      resolveAddress: (input) => resolveImportAddress(input, deps),
+    });
+
+    addSourceFacades(dataContext, artifacts);
+    databaseMutations = await dataContext.toDatabaseMutations({
+      namespace: artifacts.metadata.namespace,
+      name: context.commandName,
+      sourceArtifactsName: artifacts.metadata.name,
+      sourceArtifactsPath: context.artifactsPath,
+      sourceArtifactsDigest: await Artifacts.digest(context.artifactsPath),
+      databaseSchema: importSchema,
+      ...(context.artifactMutation.applied
+        ? { artifactMutation: context.artifactMutation.reference }
+        : {}),
+    });
+  } finally {
+    await closeClient(client);
+  }
   await mkdir(context.commandInput.commandDirectory, { recursive: true });
   databaseMutations.spec.mutations =
     await appendStreamingLocationPathGeometryMutations(
@@ -1189,47 +658,50 @@ async function writeDatabaseMutationsStage(
 }
 
 const importArtifactsPipelineStages: ImportArtifactsPipelineStage[] = [
+  // readArtifactsStage applies artifact mutations as part of reading (the reader
+  // delegate), so there is no separate apply-mutations stage.
   readArtifactsStage,
   rejectExistingImportStage,
-  applyArtifactMutationsStage,
-  resolveSourceNamesStage,
-  async (context) => {
-    await persistArtifactAgencyCoordinatesStage(context);
-    return context;
-  },
-  transformArtifactsStage,
-  executeDatabaseMutationPlanningStage,
-  writeDatabaseMutationsDebugStage,
+  validateArtifactRecordsStage,
+  // Prepares, validates, emits, and applies in one pass over a single DataContext.
   writeDatabaseMutationsStage,
 ];
 
 export async function importArtifacts(
   commandInput: ImportArtifactsCommandInput,
 ): Promise<ImportArtifactsResult> {
-  try {
-    if (
-      commandInput.commandName === undefined ||
-      commandInput.commandName.trim().length === 0
-    ) {
-      throw new Error("Command name is required to import artifacts.");
-    }
-
-    let context: ImportArtifactsPipelineContext = {
-      commandInput,
-      artifactsPath: commandInput.artifactsPath,
-      commandName: commandInput.commandName,
-      workspaceRoot: workspaceRootFromEnv(commandInput.env),
+  if (
+    commandInput.commandName === undefined ||
+    commandInput.commandName.trim().length === 0
+  ) {
+    return {
+      ok: false,
+      error: "Command name is required to import artifacts.",
     };
+  }
+
+  const workspaceRoot = workspaceRootFromEnv(commandInput.env);
+  let context: ImportArtifactsPipelineContext = {
+    commandInput,
+    artifactsPath: commandInput.artifactsPath,
+    commandName: commandInput.commandName,
+    workspaceRoot,
+    ledger: createSourceNameToCanonicalIdLedger(
+      workspaceRoot === undefined ? {} : { rootDir: workspaceRoot },
+    ),
+  };
+  try {
     for (const stage of importArtifactsPipelineStages) {
       context = await stage(context);
     }
-    if (context.databaseMutationCounts === undefined) {
-      throw new Error(
-        "DatabaseMutations pipeline finished without mutation counts.",
-      );
-    }
-    return { ok: true, counts: context.databaseMutationCounts };
   } catch (error) {
     return { ok: false, error: errorMessage(error) };
   }
+  if (context.databaseMutationCounts === undefined) {
+    return {
+      ok: false,
+      error: "DatabaseMutations pipeline finished without mutation counts.",
+    };
+  }
+  return { ok: true, counts: context.databaseMutationCounts };
 }
