@@ -178,13 +178,30 @@ export type ApplyResult = { version: string; mutationCount: number }[];
  */
 export async function applyPending(
   client: DatabaseClient,
-  options: { to?: string; root?: string } = {},
+  options: {
+    to?: string;
+    root?: string;
+    logger?: { info: (message: string) => void };
+  } = {},
 ): Promise<ApplyResult> {
   const entries = await listEntries(options.root);
   const applied = await readAppliedDataMutationVersions(client);
   const schema = await readCurrentSchemaVersion(client);
   const result: ApplyResult = [];
 
+  const pending = entries.filter((entry) => !applied.has(entry.version));
+  const toIndex =
+    options.to === undefined
+      ? -1
+      : pending.findIndex((entry) => entry.version === options.to);
+  const targetCount = toIndex === -1 ? pending.length : toIndex + 1;
+  options.logger?.info(
+    `data up: ${targetCount} pending entr${
+      targetCount === 1 ? "y" : "ies"
+    } to apply.`,
+  );
+
+  let index = 0;
   for (const entry of entries) {
     if (applied.has(entry.version)) {
       continue;
@@ -199,6 +216,12 @@ export async function applyPending(
         `data: ${entry.fileName} needs schema >= ${entry.minSchemaVersion}, but the database is at ${schema}.`,
       );
     }
+    index += 1;
+    // Log before executing so a large entry (tens of thousands of mutations) is
+    // not a silent stall — you see which one is running.
+    options.logger?.info(
+      `[${index}/${targetCount}] applying ${entry.version} (${entry.fileName})…`,
+    );
     const checksum = await fileChecksum(entry.filePath);
     await client.query("begin");
     try {
@@ -209,6 +232,9 @@ export async function applyPending(
         checksum,
       });
       await client.query("commit");
+      options.logger?.info(
+        `  applied ${entry.version} — ${counts.mutations} mutation(s).`,
+      );
       result.push({ version: entry.version, mutationCount: counts.mutations });
     } catch (error) {
       await client.query("rollback").catch(() => undefined);

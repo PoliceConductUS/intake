@@ -157,7 +157,7 @@ export function registerCliCommand(
     .action(async (options: { to?: string }): Promise<void> => {
       try {
         const applied = await withClient((client) =>
-          applyPending(client, { to: options.to }),
+          applyPending(client, { to: options.to, logger: consoleLogger }),
         );
         dependencies.setResult({
           exitCode: 0,
@@ -257,7 +257,9 @@ export function registerCliCommand(
             emptyDiff.push(source);
             continue;
           }
-          await withClient((client) => applyPending(client, {}));
+          await withClient((client) =>
+            applyPending(client, { logger: consoleLogger }),
+          );
           done.push(`${generated.version} ${source}`);
           consoleLogger.info(`  applied ${generated.version} ${source}`);
         }
