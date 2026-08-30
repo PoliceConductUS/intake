@@ -4,6 +4,12 @@
 
 Accepted
 
+> **Command surface superseded by [ADR 0035](0035-one-data-command-group-replaces-run-and-import.md)
+> and [ADR 0036](0036-rename-the-produce-phase-from-run-to-transform.md):** the
+> `import artifacts` pipeline described here is no longer a user command — it is the
+> internal dry-diff step of `data generate` — and the produce phase is `transform`,
+> not `run`. The ELT-pipeline design itself is unchanged.
+
 ## Context
 
 Intake commands move evidence-like data through repeatable transformations.

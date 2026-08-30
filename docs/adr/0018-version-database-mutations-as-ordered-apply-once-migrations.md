@@ -4,6 +4,13 @@
 
 Accepted
 
+> **Command surface superseded by [ADR 0033](0033-data-mutations-as-a-replayable-chain.md),
+> [ADR 0035](0035-one-data-command-group-replaces-run-and-import.md), and
+> [ADR 0036](0036-rename-the-produce-phase-from-run-to-transform.md):** the fused
+> `intake run` (produce _and_ apply) is retired — produce is `data transform` /
+> `data generate`, apply is `data up`. The apply-once, ordered-migration model this
+> ADR introduced is what those ADRs build on.
+
 ## Context
 
 Today `intake run` both **produces** a `DatabaseMutations` envelope and **applies**

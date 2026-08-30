@@ -9,6 +9,10 @@ Accepted
 > defines the acquire-phase `AcquireDataContext` (the extract phase, ADR 0014).
 > Both are narrow, read-only, injected facades over intake-owned data — never a
 > source's private handle to the database.
+>
+> **Terminology:** per [ADR 0036](0036-rename-the-produce-phase-from-run-to-transform.md)
+> the "acquire/run split" here is the **acquire/transform split** — the produce phase
+> is `transform`. The responsibilities are unchanged.
 
 ## Context
 

@@ -13,6 +13,11 @@ Proposed
 > workspace, coupled to the cache that mints its ids (superseding the "chain
 > directory is committed" consequence below). And §4's curated mutations name their
 > target by a selector resolved at generate time, not by a canonical id.
+>
+> **Command surface superseded by ADR 0035:** the `data-mutations` group of §3/§10
+> is now the `data` group — `intake data generate | up | status | verify`, with
+> `acquire` and `transform` (ADR 0036) as the phases before it. `run` and `import`
+> are gone; `down` (§9) is deferred. The generate/apply split itself is unchanged.
 
 ## Context
 
