@@ -3,7 +3,7 @@ import type {
   AcquireAgencyPage,
   AcquireDataContext,
   AcquireSearchResult,
-} from "../run/source-run.js";
+} from "../transform/source-transform.js";
 import type { SourceNameToCanonicalIdLedger } from "../state/source-name-to-canonical-id/index.js";
 
 const DEFAULT_LIMIT = 100;

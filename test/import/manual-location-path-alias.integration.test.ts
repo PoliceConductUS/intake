@@ -10,8 +10,8 @@ import {
   test,
 } from "vitest";
 import { acquire } from "../../sources/org.policeconduct.manual/acquire.js";
-import { run } from "../../sources/org.policeconduct.manual/run.js";
-import { buildArtifactsEnvelope } from "../../src/cli/run/source-run.js";
+import { transform } from "../../sources/org.policeconduct.manual/transform.js";
+import { buildArtifactsEnvelope } from "../../src/cli/transform/source-transform.js";
 import { importArtifacts } from "../../src/cli/import/artifacts/config.js";
 import { Artifacts } from "../../src/shared/io/Artifacts.js";
 import {
@@ -73,7 +73,7 @@ describeWithDocker(
         },
         data: {} as never,
       });
-      const manifest = await run({
+      const manifest = await transform({
         paths: [],
         readXlsx: async () => [],
         state,
@@ -134,7 +134,7 @@ describeWithDocker(
         },
         data: {} as never,
       });
-      const manifest = await run({
+      const manifest = await transform({
         paths: [],
         readXlsx: async () => [],
         state,

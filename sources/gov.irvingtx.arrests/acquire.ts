@@ -3,8 +3,8 @@ import path from "node:path";
 import type {
   AcquireDeps,
   SourceAcquire,
-} from "../../src/cli/run/source-run.js";
-import { readXlsx } from "../../src/cli/run/read-xlsx.js";
+} from "../../src/cli/transform/source-transform.js";
+import { readXlsx } from "../../src/cli/transform/read-xlsx.js";
 import { deriveArrest, type ArrestRow, type Charge } from "./arrest.js";
 
 // acquire owns the read half (ADR 0032): read the FOIA arrest workbook (its path

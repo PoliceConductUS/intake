@@ -3,7 +3,7 @@ import path from "node:path";
 import {
   listZipEntries,
   readZipEntryBuffer,
-} from "../../../src/cli/run/parse/zip.js";
+} from "../../../src/cli/transform/parse/zip.js";
 
 /**
  * Rewire helper for `tiger-hierarchy.ts` (Phase-2 Task 4). The original

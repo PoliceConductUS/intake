@@ -5,7 +5,10 @@ import polygonClipping, {
   type Polygon,
   type Ring,
 } from "polygon-clipping";
-import { readGeoJson, readShapefile } from "../../../src/cli/run/parse/geo.js";
+import {
+  readGeoJson,
+  readShapefile,
+} from "../../../src/cli/transform/parse/geo.js";
 import { allowedStateGeoids, allowedStateSlugs } from "./constants.js";
 import { extractShapefileFromZip } from "./extract.js";
 import {

@@ -2,7 +2,7 @@ import { createInterface, type Interface } from "node:readline/promises";
 import type {
   AcquireDeps,
   SourceAcquire,
-} from "../../src/cli/run/source-run.js";
+} from "../../src/cli/transform/source-transform.js";
 import { appendEntry } from "./chain.js";
 import { describeKind, parseRecord } from "./entity-model.js";
 import { HANDLED_RECORD_KINDS } from "./kinds.js";

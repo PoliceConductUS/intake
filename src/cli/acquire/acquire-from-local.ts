@@ -111,7 +111,7 @@ export type AcquireFromLocalDeps = {
 /**
  * Stage local files as a source's acquired inputs: copy the resolved file/folder/
  * glob into a fresh command's `<source-id>/output/` and point the `acquire`
- * command pointer at it — the same shape a real acquire produces, so `intake run`
+ * command pointer at it — the same shape a real acquire produces, so `intake data transform`
  * consumes it identically (no source `acquire.ts` module required).
  */
 export async function acquireFromLocal(

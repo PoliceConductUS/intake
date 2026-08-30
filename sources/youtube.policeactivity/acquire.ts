@@ -3,7 +3,7 @@ import path from "node:path";
 import type {
   AcquireDeps,
   SourceAcquire,
-} from "../../src/cli/run/source-run.js";
+} from "../../src/cli/transform/source-transform.js";
 import { slugify } from "../lib/civil-defendants.js";
 import {
   createYoutubeApi,

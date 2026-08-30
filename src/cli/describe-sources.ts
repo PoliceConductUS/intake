@@ -1,10 +1,10 @@
 import { access, constants, readdir } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { consumesOf } from "./run/source-order.js";
+import { consumesOf } from "./transform/source-order.js";
 import type { ImportArtifactKind } from "../shared/io/index.js";
 
-export type SourcePhase = "acquire" | "run";
+export type SourcePhase = "acquire" | "transform";
 
 export type SourceDescription = {
   id: string;
@@ -48,10 +48,10 @@ async function readPhaseProduces(
 
 /**
  * Enumerate the sources under `sourcesRoot`, deriving each one's supported
- * phases from the presence of its phase modules (run.ts is required and defines
- * a source; acquire.ts is optional) and its human description from the phase
- * module's optional `description` export — so the catalog is generated from the
- * sources themselves and cannot drift from a separate list.
+ * phases from the presence of its phase modules (transform.ts is required and
+ * defines a source; acquire.ts is optional) and its human description from the
+ * phase module's optional `description` export — so the catalog is generated
+ * from the sources themselves and cannot drift from a separate list.
  */
 export async function describeSources(
   sourcesRoot: string,
@@ -60,21 +60,21 @@ export async function describeSources(
   const sources: SourceDescription[] = [];
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-    const runPath = path.join(sourcesRoot, entry.name, "run.ts");
-    if (!(await fileExists(runPath))) continue;
+    const transformPath = path.join(sourcesRoot, entry.name, "transform.ts");
+    if (!(await fileExists(transformPath))) continue;
     const acquirePath = path.join(sourcesRoot, entry.name, "acquire.ts");
     const phases: SourcePhase[] = [];
     if (await fileExists(acquirePath)) phases.push("acquire");
-    phases.push("run");
+    phases.push("transform");
     sources.push({
       id: entry.name,
       description:
-        (await readPhaseDescription(runPath)) ??
+        (await readPhaseDescription(transformPath)) ??
         ((await fileExists(acquirePath))
           ? await readPhaseDescription(acquirePath)
           : undefined),
       phases,
-      produces: await readPhaseProduces(runPath),
+      produces: await readPhaseProduces(transformPath),
     });
   }
   sources.sort((left, right) => left.id.localeCompare(right.id));

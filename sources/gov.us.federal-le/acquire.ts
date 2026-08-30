@@ -4,7 +4,7 @@ import { stringify as stringifyYaml, parse as parseYaml } from "yaml";
 import type {
   AcquireDeps,
   SourceAcquire,
-} from "../../src/cli/run/source-run.js";
+} from "../../src/cli/transform/source-transform.js";
 import { parseFederalLeAgencies, slugify } from "./acquire/parse.js";
 import { CANDIDATES_FILE, ORGS_FILE, type Org } from "./model.js";
 

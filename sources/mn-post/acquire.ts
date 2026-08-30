@@ -5,7 +5,7 @@ import { parse as parseYaml } from "yaml";
 import type {
   AcquireDeps,
   SourceAcquire,
-} from "../../src/cli/run/source-run.js";
+} from "../../src/cli/transform/source-transform.js";
 import { collectSources, type AgencyFilters } from "./acquire/collect.js";
 import { fetchPostAgencyCsv } from "./acquire/agency-csv.js";
 import { createPostLicenseSearchClient } from "./acquire/post-client.js";

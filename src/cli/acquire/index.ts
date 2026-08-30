@@ -14,12 +14,12 @@ import type {
   AcquireDataContext,
   AcquireDeps,
   SourceAcquire,
-} from "../run/source-run.js";
+} from "../transform/source-transform.js";
 import { defaultDatabaseClientFactory } from "../database/index.js";
 import { createAcquireDataContext } from "./acquire-data-context.js";
 import { createSourceNameToCanonicalIdLedger } from "../state/source-name-to-canonical-id/index.js";
-import { loadSourceAcquire } from "../run/load-source-module.js";
-import { sourceStateDir } from "../run/state.js";
+import { loadSourceAcquire } from "../transform/load-source-module.js";
+import { sourceStateDir } from "../transform/state.js";
 import { matchSourceIds } from "../source-glob.js";
 import {
   readCommandPointer,
@@ -114,7 +114,7 @@ export const registerAcquireCommand: RegisterCliCommand = (
     .description(
       "Run the acquire (download/scrape) phase of every source folder matching " +
         "<glob>, writing raw inputs (html/csv/json, no transforms) into a fresh " +
-        "command's <source>/output/ for a later `intake run`. " +
+        "command's <source>/output/ for a later `intake data transform`. " +
         "Only sources that export an acquire function are supported.",
     )
     .argument(
@@ -126,7 +126,7 @@ export const registerAcquireCommand: RegisterCliCommand = (
       "--from-local <path...>",
       "acquire a single source from local file(s), folder(s), or glob(s) instead " +
         "of running its acquire module — copies them into the source's command " +
-        "output so `intake run` consumes them like any acquired input",
+        "output so `intake data transform` consumes them like any acquired input",
     )
     .addHelpText(
       "after",

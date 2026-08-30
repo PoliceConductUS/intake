@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { acquireSource } from "../../../src/cli/acquire/index.js";
-import { loadSourceAcquire } from "../../../src/cli/run/load-source-module.js";
+import { loadSourceAcquire } from "../../../src/cli/transform/load-source-module.js";
 import { parse as parseYaml } from "yaml";
 
 const fixtureSourcesRoot = path.join(

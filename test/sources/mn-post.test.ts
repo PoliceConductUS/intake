@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { run } from "../../sources/mn-post/run.js";
+import { transform } from "../../sources/mn-post/transform.js";
 import {
   AgencySpec,
   PersonnelSpec,
@@ -15,12 +15,12 @@ import {
   CoverageLinkSpec,
   CoverageLinkAgencyPersonnelSpec,
 } from "../../src/shared/io/index.js";
-import type { SourceManifest } from "../../src/cli/run/source-run.js";
+import type { SourceManifest } from "../../src/cli/transform/source-transform.js";
 
 // The mn-post source reads its inputs from files under the source folder (an
 // `agency-ids.yaml` name→id map, an `agencies.csv` address list, and one raw
 // `*.roster.json` officer list per agency), so the fixture writes those files to
-// a temp dir and drives `run()` with their paths. Two agencies: "Alpha Police
+// a temp dir and drives `transform()` with their paths. Two agencies: "Alpha Police
 // Dept." (in the CSV, with an address) and "Beta County Sheriff" (absent from
 // the CSV, so it falls back to state "MN" with no address). Officer 0031 works
 // at both.
@@ -148,7 +148,7 @@ afterAll(async () => {
 
 async function runFixture(): Promise<SourceManifest> {
   const files = await readdir(sourceDir);
-  return run({
+  return transform({
     paths: files.map((f) => path.join(sourceDir, f)),
     readXlsx: async () => [],
     state: "/unused",
@@ -359,7 +359,7 @@ describe("mn-post run — unmapped agencies", () => {
     }
     const paths = Object.keys(files).map((f) => path.join(dir, f));
     try {
-      return await run({
+      return await transform({
         paths,
         readXlsx: async () => [],
         state: "/unused",

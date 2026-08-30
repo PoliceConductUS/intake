@@ -3,16 +3,16 @@ import { readdir, stat } from "node:fs/promises";
 import type { CommandResult } from "../../shared/cli/types.js";
 import { intakeWorkspace } from "../command-directory.js";
 import {
-  buildRunSourceDeps,
+  buildTransformSourceDeps,
   sourceInputDir,
   sourceInputPaths,
   transformSource,
-} from "../run/index.js";
+} from "../transform/index.js";
 import {
   loadSourceProduces,
   loadSourceStandalone,
-} from "../run/load-source-module.js";
-import { planSourceOrder } from "../run/source-order.js";
+} from "../transform/load-source-module.js";
+import { planSourceOrder } from "../transform/source-order.js";
 import { matchSourceIds } from "../source-glob.js";
 import { runImportArtifactsCommand } from "../import/artifacts/index.js";
 import { generateEntry } from "./chain.js";
@@ -46,7 +46,7 @@ async function newestSourceOutput(
 }
 
 /**
- * `data transform <ns>`: run a source's run.ts against its latest acquired input to
+ * `data transform <source>`: run a source's transform.ts against its latest acquired input to
  * produce and write its Artifacts (no chain, no apply). Returns the Artifacts path.
  */
 export async function transformOneSource(
@@ -59,7 +59,7 @@ export async function transformOneSource(
   const paths = standalone
     ? []
     : await sourceInputPaths(await sourceInputDir(workspace, sourceId));
-  const deps = await buildRunSourceDeps(sourceId, paths, env, {
+  const deps = await buildTransformSourceDeps(sourceId, paths, env, {
     commandArgs: ["data", "transform", sourceId, ...paths],
     logger,
   });
@@ -67,7 +67,7 @@ export async function transformOneSource(
 }
 
 /**
- * `data generate <ns>`: import the source's latest transform Artifacts against the
+ * `data generate <source>`: import the source's latest transform Artifacts against the
  * database at head (a dry import → DatabaseMutations delta) and append it as the next
  * chain entry. Returns the appended entry, or a zero-mutation result for an empty diff.
  */

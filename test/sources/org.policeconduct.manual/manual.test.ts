@@ -8,7 +8,7 @@ import {
   readLatest,
 } from "../../../sources/org.policeconduct.manual/chain.js";
 import { acquire } from "../../../sources/org.policeconduct.manual/acquire.js";
-import { run } from "../../../sources/org.policeconduct.manual/run.js";
+import { transform } from "../../../sources/org.policeconduct.manual/transform.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {
@@ -75,7 +75,7 @@ describe("acquire -> run (env-driven, non-interactive)", () => {
 
     expect((await readLatest(state)).entries).toHaveLength(1);
 
-    const manifest = await run({
+    const manifest = await transform({
       paths: [],
       readXlsx: async () => [],
       state,

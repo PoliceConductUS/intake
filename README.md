@@ -50,19 +50,26 @@ spec:
 The `Artifacts` envelope can point to local files, S3 objects, or URLs. It must not reference
 the intake archive directly; archive layout and storage are owned by this repo.
 
-Initial CLI vocabulary:
+CLI vocabulary (the data pipeline, ADR 0033/0034):
 
 ```bash
-intake run <source-id> <path...> [--dry-run]
-intake import artifacts [--dry-run] <artifacts-ref>
+intake data acquire   <source-id>            # download/scrape a source's raw inputs
+intake data transform <source-id>            # run its transform.ts to produce Artifacts
+intake data generate  <source-id>            # diff those Artifacts against the DB head → next chain entry
+intake data up        [--to <version>]       # apply pending chain entries in order
+intake data status                           # applied vs pending chain entries
+intake data verify                           # recompute applied-entry checksums; fail on drift
+intake data rebuild                          # transform → generate → up for every source, in dependency order
 intake replay database-mutations <database-mutations-ref>
 ```
 
-- `run` runs a source's `config.ts`, which returns an `Artifacts` manifest, and
-  imports it via the existing pipeline.
-- `import artifacts` reads and validates a source-produced `Artifacts` envelope,
-  resolves intake-owned mappings, writes a `DatabaseMutations` envelope, and
-  applies the database mutations unless `--dry-run` is set.
+- `data transform` runs a source's `transform.ts`, which returns an `Artifacts`
+  manifest, and writes the envelope — resolving intake-owned mappings against the
+  live database — but stops before the import.
+- `data generate` imports a source's latest transform Artifacts as a dry run
+  (diffing against the database at chain head), then appends the resulting
+  `DatabaseMutations` delta as the next entry in the replayable chain. It does not
+  apply it — `data up` does.
 - `replay database-mutations` reads an existing `DatabaseMutations` envelope and
   re-applies the database mutations without reading SourceNameToCanonicalId records or source
   artifacts.

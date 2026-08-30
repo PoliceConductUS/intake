@@ -61,7 +61,7 @@ export function registerCliCommand(
   group
     .command("transform")
     .description(
-      "Run a source's run.ts against its latest acquired input to produce its Artifacts (no chain, no apply).",
+      "Run a source's transform.ts against its latest acquired input to produce its Artifacts (no chain, no apply).",
     )
     .argument("<source>", "source id under sources/")
     .action(async (source: string): Promise<void> => {

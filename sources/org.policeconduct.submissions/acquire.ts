@@ -3,7 +3,7 @@ import { promisify } from "node:util";
 import type {
   AcquireDeps,
   SourceAcquire,
-} from "../../src/cli/run/source-run.js";
+} from "../../src/cli/transform/source-transform.js";
 
 const run = promisify(execFile);
 

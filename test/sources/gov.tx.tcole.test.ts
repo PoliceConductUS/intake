@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { run } from "../../sources/gov.tx.tcole/run.js";
+import { transform } from "../../sources/gov.tx.tcole/transform.js";
 import {
   AgencySpec,
   PersonnelSpec,
@@ -207,7 +207,7 @@ const deps = {
 
 describe("gov.tx.tcole run", () => {
   it("emits the licensing kinds in dependency order", async () => {
-    const manifest = await run(deps);
+    const manifest = await transform(deps);
     expect(manifest.artifacts.map((a) => a.kind)).toEqual([
       "LicensingAuthorities",
       "AuthorityLicenses",
@@ -221,7 +221,7 @@ describe("gov.tx.tcole run", () => {
   });
 
   it("emits one AgencyPhoneNumber per non-blank PHONE/FAX on an active agency", async () => {
-    const { records } = (await run(deps)).artifacts.find(
+    const { records } = (await transform(deps)).artifacts.find(
       (a) => a.kind === "AgencyPhoneNumbers",
     )!;
     // 471100 (ACTIVE) has both PHONE and FAX -> two records; 201217 (ACTIVE)
@@ -243,7 +243,7 @@ describe("gov.tx.tcole run", () => {
   });
 
   it("maps Officers to valid Personnel keyed by PUBLIC_GUID, skipping nameless rows", async () => {
-    const { records } = (await run(deps)).artifacts.find(
+    const { records } = (await transform(deps)).artifacts.find(
       (a) => a.kind === "Personnel",
     )!;
     expect(Object.keys(records).sort()).toEqual(["1000033", "1000038"]);
@@ -264,7 +264,7 @@ describe("gov.tx.tcole run", () => {
   });
 
   it("maps Departments to valid Agencies with addresses (no slug/location/lat/lng)", async () => {
-    const { records } = (await run(deps)).artifacts.find(
+    const { records } = (await transform(deps)).artifacts.find(
       (a) => a.kind === "Agencies",
     )!;
     expect(Object.keys(records).sort()).toEqual(["201217", "471100"]);
@@ -292,7 +292,7 @@ describe("gov.tx.tcole run", () => {
   });
 
   it("drops inactive agencies and personnel only attached to them (active cascade)", async () => {
-    const manifest = await run(deps);
+    const manifest = await transform(deps);
     const agencies = manifest.artifacts.find((a) => a.kind === "Agencies")!;
     const personnel = manifest.artifacts.find((a) => a.kind === "Personnel")!;
     // 555555 is INACTIVE -> not emitted
@@ -307,7 +307,7 @@ describe("gov.tx.tcole run", () => {
   });
 
   it("keys AgencyPersonnel by the identity tuple with title=APPOINTMENT", async () => {
-    const { records } = (await run(deps)).artifacts.find(
+    const { records } = (await transform(deps)).artifacts.find(
       (a) => a.kind === "AgencyPersonnel",
     )!;
     // the inactive-agency (555555) service is dropped by the active cascade
@@ -338,7 +338,7 @@ describe("gov.tx.tcole run", () => {
   });
 
   it("retains a blank APPOINTMENT as title 'Unknown', keeping the empty key segment", async () => {
-    const { records } = (await run(deps)).artifacts.find(
+    const { records } = (await transform(deps)).artifacts.find(
       (a) => a.kind === "AgencyPersonnel",
     )!;
     const unknown = records["1000038|471100|||2020-01-01|"];
@@ -359,7 +359,7 @@ describe("gov.tx.tcole run", () => {
   });
 
   it("emits a valid TCOLE LicensingAuthority with the namespace-local state value", async () => {
-    const { records } = (await run(deps)).artifacts.find(
+    const { records } = (await transform(deps)).artifacts.find(
       (a) => a.kind === "LicensingAuthorities",
     )!;
     expect(records["tcole"].spec).toEqual({
@@ -374,7 +374,7 @@ describe("gov.tx.tcole run", () => {
   });
 
   it("emits AuthorityLicenses keyed by authority|canonical-name", async () => {
-    const { records } = (await run(deps)).artifacts.find(
+    const { records } = (await transform(deps)).artifacts.find(
       (a) => a.kind === "AuthorityLicenses",
     )!;
     // one per distinct license type held by an emitted officer, canonicalized
@@ -393,7 +393,7 @@ describe("gov.tx.tcole run", () => {
   });
 
   it("emits Licenses (holdings) keyed by PUBLIC_GUID|canonical-type", async () => {
-    const { records } = (await run(deps)).artifacts.find(
+    const { records } = (await transform(deps)).artifacts.find(
       (a) => a.kind === "Licenses",
     )!;
     // only licenses for emitted (active) officers with a non-blank LICENSE
@@ -423,7 +423,7 @@ describe("gov.tx.tcole run", () => {
   });
 
   it("emits LicenseActions keyed by the 4-tuple, skipping dropped officers", async () => {
-    const { records } = (await run(deps)).artifacts.find(
+    const { records } = (await transform(deps)).artifacts.find(
       (a) => a.kind === "LicenseActions",
     )!;
     expect(Object.keys(records).sort()).toEqual([
@@ -457,7 +457,7 @@ describe("gov.tx.tcole run", () => {
   });
 
   it("links AgencyPersonnel to its License, or null when LICENSE is blank", async () => {
-    const { records } = (await run(deps)).artifacts.find(
+    const { records } = (await transform(deps)).artifacts.find(
       (a) => a.kind === "AgencyPersonnel",
     )!;
     // licensed assignment -> license_id points at the emitted License holding key
@@ -476,6 +476,6 @@ describe("gov.tx.tcole run", () => {
   });
 
   it("is deterministic", async () => {
-    expect(await run(deps)).toEqual(await run(deps));
+    expect(await transform(deps)).toEqual(await transform(deps));
   });
 });

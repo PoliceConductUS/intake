@@ -3,7 +3,7 @@ import path from "node:path";
 
 async function isSourceDir(dir: string): Promise<boolean> {
   try {
-    await access(path.join(dir, "run.ts"), constants.R_OK);
+    await access(path.join(dir, "transform.ts"), constants.R_OK);
     return true;
   } catch {
     return false;
@@ -24,7 +24,7 @@ export function globToRegExp(glob: string): RegExp {
   return new RegExp(`^${pattern}$`);
 }
 
-// Glob-matched source folders (those with run.ts, so sources/lib/ is not one),
+// Glob-matched source folders (those with transform.ts, so sources/lib/ is not one),
 // sorted by id. Run order is applied separately via planSourceOrder (ADR 0021).
 export async function matchSourceIds(
   sourcesRoot: string,

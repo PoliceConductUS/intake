@@ -1,7 +1,4 @@
-import { constants } from "node:fs";
-import { access, stat } from "node:fs/promises";
 import path from "node:path";
-import { Command } from "commander";
 import { importArtifacts, type ImportArtifactsResult } from "./config.js";
 import { formatDatabaseMutationCountLines } from "./io/DatabaseMutationCounts.js";
 import { createIntakeLog } from "../../../logging.js";
@@ -11,10 +8,7 @@ import {
 } from "../../command-directory.js";
 import { writeCommandPointer } from "../../state/command-pointer.js";
 import { Artifacts } from "../../../shared/io/index.js";
-import type {
-  CliCommandDependencies,
-  CommandResult,
-} from "../../../shared/cli/types.js";
+import type { CommandResult } from "../../../shared/cli/types.js";
 import type { ExcludedRecords } from "../../../shared/io/excluded-records.js";
 
 async function artifactsNamespace(
@@ -28,61 +22,8 @@ async function artifactsNamespace(
   }
 }
 
-async function readableArtifactsFileResult(
-  artifactsRef: string,
-): Promise<CommandResult | undefined> {
-  try {
-    await access(artifactsRef, constants.R_OK);
-    const artifactsStat = await stat(artifactsRef);
-
-    if (!artifactsStat.isFile()) {
-      return {
-        exitCode: 1,
-        stderr: `Artifacts is not a file: ${artifactsRef}\n`,
-      };
-    }
-
-    return undefined;
-  } catch {
-    return {
-      exitCode: 1,
-      stderr: `Artifacts is not readable: ${artifactsRef}\n`,
-    };
-  }
-}
-
-export function registerCliCommand(
-  importCommand: Command,
-  dependencies: CliCommandDependencies,
-): void {
-  importCommand
-    .command("artifacts")
-    .description("Import a source-produced Artifacts file into DATABASE_URL.")
-    .argument("<artifacts-ref>", "source-produced Artifacts file")
-    .option(
-      "--dry-run",
-      "Write the DatabaseMutations envelope without applying database mutations",
-    )
-    .action(
-      async (
-        artifactsRef: string,
-        options: { dryRun?: boolean },
-      ): Promise<void> => {
-        const fileResult = await readableArtifactsFileResult(artifactsRef);
-        if (fileResult) {
-          dependencies.setResult(fileResult);
-          return;
-        }
-
-        const runImport =
-          dependencies.runImportArtifactsCommand ?? runImportArtifactsCommand;
-        dependencies.setResult(
-          await runImport(artifactsRef, { dryImport: options.dryRun }),
-        );
-      },
-    );
-}
-
+// The import phase is not its own CLI command: `data generate` calls this
+// directly (dry) to diff a source's Artifacts into a DatabaseMutations delta.
 export async function runImportArtifactsCommand(
   artifactsRef: string,
   dependencies: {
