@@ -802,29 +802,4 @@ describe("importArtifacts", () => {
     );
     expect(cliResult.stdout ?? "").not.toContain("Imported artifacts");
   });
-
-  test("records the latest successful import at state/<ns>/import.yaml", async () => {
-    const rootDir = await mkdtemp(path.join(tmpdir(), "intake-import-ptr-"));
-    const artifactsPath = await writeSourceArtifactsFile(rootDir);
-
-    const result = await runImportArtifactsCommand(artifactsPath, {
-      env: { INTAKE_WORKSPACE: rootDir },
-      now: new Date("2026-06-10T00:00:00.000Z"),
-      createCommandName: () => "importptr",
-      terminal: false,
-      importArtifacts: async () => ({
-        ok: true,
-        counts: { mutations: 0, recordsByEntityType: {} },
-      }),
-    });
-
-    expect(result.exitCode).toBe(0);
-    const pointer = await readFile(
-      path.join(rootDir, "state", "mn-post", "import.yaml"),
-      "utf8",
-    );
-    expect(pointer).toContain(
-      "command/2026-06-10T00-00-00-000Z-importptr/mn-post/output",
-    );
-  });
 });

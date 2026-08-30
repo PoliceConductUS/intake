@@ -134,6 +134,51 @@ export function createAcquireDataContext(
           })),
         );
       }
+      if (kind === "AgencyPersonnel") {
+        return Promise.all(
+          rowsFromResult(
+            await client.query(
+              `select ap.id as id, p.first_name as first_name, p.last_name as last_name,
+                      a.name as agency, a.state as state, ap.badge_number as badge_number
+                 from agency_personnel ap
+                 join personnel p on p.id = ap.personnel_id
+                 join agency a on a.id = ap.agency_id
+                where (p.first_name || ' ' || p.last_name) ilike $1
+                   or p.last_name ilike $1
+                order by p.last_name, p.first_name limit ${SEARCH_LIMIT}`,
+              [like],
+            ),
+          ).map(async (row) => {
+            const badge = String(row.badge_number ?? "").trim();
+            return {
+              sourceId: await ledger.sourceIdFor(
+                namespace,
+                "AgencyPersonnel",
+                String(row.id),
+              ),
+              label: `${String(row.first_name)} ${String(row.last_name)} — ${String(row.agency)}, ${String(row.state)}${badge === "" ? "" : ` (#${badge})`}`,
+            };
+          }),
+        );
+      }
+      if (kind === "CivilCase") {
+        // CivilCase is natural-key, not ledger-mapped (ADR 0028): its `id` (court:
+        // docket) IS the reference the import resolves by — like LocationPath's path.
+        return rowsFromResult(
+          await client.query(
+            `select id, title, cause_number, court from civil_cases
+              where title ilike $1 or cause_number ilike $1
+              order by filed_date desc nulls last limit ${SEARCH_LIMIT}`,
+            [like],
+          ),
+        ).map((row) => {
+          const court = String(row.court ?? "").trim();
+          return {
+            sourceId: String(row.id),
+            label: `${String(row.title)} — ${String(row.cause_number)}${court === "" ? "" : ` [${court}]`}`,
+          };
+        });
+      }
       throw new Error(
         `AcquireDataContext.search does not support kind ${kind} yet.`,
       );

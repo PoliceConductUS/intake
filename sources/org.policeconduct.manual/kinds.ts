@@ -11,6 +11,9 @@ import {
 export const HANDLED_RECORD_KINDS = [
   "LocationPathAlias",
   "AgencyLink",
+  "CivilCase",
+  "CivilCasePersonnel",
+  "CivilCaseLink",
 ] as const;
 
 /** The import artifact kind (plural) that carries a given record kind. */
