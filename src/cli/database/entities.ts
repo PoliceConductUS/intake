@@ -1,18 +1,5 @@
-import type { DatabaseClient } from "./index.js";
+import { rowsFromResult, type DatabaseClient } from "./index.js";
 import type { SupportedTableName } from "./schema.js";
-
-export type DatabaseRecord = Record<string, unknown> & { id: unknown };
-
-function rowsFromResult(
-  result: { rows?: Record<string, unknown>[] } | unknown,
-): Record<string, unknown>[] {
-  return typeof result === "object" &&
-    result !== null &&
-    "rows" in result &&
-    Array.isArray(result.rows)
-    ? result.rows
-    : [];
-}
 
 export async function readDatabaseRecordByColumn(
   client: DatabaseClient,

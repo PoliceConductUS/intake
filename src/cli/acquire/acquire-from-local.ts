@@ -12,7 +12,7 @@ function isGlob(pattern: string): boolean {
 }
 
 // Recurse a directory into copy items, preserving each file's path relative to
-// `base` and skipping dotfiles (mirrors how the run collects source inputs).
+// `base` and skipping dotfiles (mirrors how transform collects source inputs).
 async function collectDirectory(
   directory: string,
   base: string,

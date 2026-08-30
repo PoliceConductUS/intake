@@ -19,61 +19,16 @@ import {
   readDatabaseMutation,
 } from "./DatabaseMutation.js";
 import { importMutationEnvelopeTypes } from "./generated-mutations/index.js";
-
-type EnvelopeReadRef =
-  | { path: string; kind?: string; sha256?: string }
-  | { ref: { path: string; kind?: string; sha256?: string } };
-
-type EnvelopeReadOptions = {
-  expectedNamespace?: string;
-  relativeTo?: string;
-};
+import {
+  type EnvelopeReadOptions,
+  type EnvelopeReadRef,
+  refValue,
+  resolveReadPath,
+} from "./envelope-ref.js";
 
 type MutationEnvelopeType = {
   schema: z.ZodType<DatabaseMutationEnvelope>;
 };
-
-function refValue(pathOrRef: string | EnvelopeReadRef): {
-  path: string;
-  kind?: string;
-  sha256?: string;
-} {
-  if (typeof pathOrRef === "string") {
-    return { path: pathOrRef };
-  }
-  if ("ref" in pathOrRef) {
-    return pathOrRef.ref;
-  }
-  return pathOrRef;
-}
-
-function resolveReadPath(
-  pathOrRef: string | EnvelopeReadRef,
-  options: EnvelopeReadOptions,
-): { filePath: string; kind?: string; sha256?: string } {
-  const ref = refValue(pathOrRef);
-  if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
-    return { ...ref, filePath: ref.path };
-  }
-  if (
-    options.relativeTo === undefined ||
-    options.relativeTo.trim().length === 0
-  ) {
-    throw new Error(
-      `Relative ${ref.kind ?? "DatabaseMutations"} ref requires relativeTo.`,
-    );
-  }
-
-  const baseDirectory = path.dirname(options.relativeTo);
-  const resolvedPath = path.resolve(baseDirectory, ref.path);
-  const relativePath = path.relative(baseDirectory, resolvedPath);
-  if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(
-      `${ref.kind ?? "DatabaseMutations"} ref.path escapes its directory: ${ref.path}`,
-    );
-  }
-  return { ...ref, filePath: resolvedPath };
-}
 
 const metadataSchema = z
   .object({
@@ -247,7 +202,7 @@ async function readDatabaseMutations(
   filePath: string,
   options: EnvelopeReadOptions & { raw?: boolean } = {},
 ): Promise<DatabaseMutationsEnvelope> {
-  const ref = resolveReadPath(filePath, options);
+  const ref = resolveReadPath(filePath, options, "DatabaseMutations");
   const { contents, document } = await readYamlDocumentFile(
     ref.filePath,
     "DatabaseMutations",

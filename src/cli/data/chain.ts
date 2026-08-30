@@ -64,9 +64,21 @@ function minSchemaVersion(envelope: DatabaseMutationsEnvelope): string {
   return versions[versions.length - 1] ?? "";
 }
 
+// A missing chain directory is a legitimately empty chain; any other readdir
+// failure (permissions, IO) must surface — swallowing it would read as an empty
+// chain and let `generateEntry` renumber from 000001 over an unreadable one.
+async function readChainDir(dir: string): Promise<string[]> {
+  try {
+    return await readdir(dir);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+}
+
 export async function listEntries(root?: string): Promise<ChainEntry[]> {
   const dir = chainDir(root);
-  const files = (await readdir(dir).catch(() => []))
+  const files = (await readChainDir(dir))
     .filter((file) => file.endsWith(".DatabaseMutations.yaml"))
     .sort();
   const entries: ChainEntry[] = [];
@@ -92,10 +104,10 @@ async function fileChecksum(filePath: string): Promise<string> {
 }
 
 /**
- * Turn a run's DatabaseMutations envelope (produced by `run --dry-run`) into the
- * next chain entry: skip an empty diff, else stamp its version + predecessor and
- * write it to the workspace chain dir. Returns the written path, or undefined when the
- * diff was empty.
+ * Turn the DatabaseMutations envelope `data generate` produced (the dry import's
+ * diff) into the next chain entry: skip an empty diff, else stamp its version +
+ * predecessor and write it to the workspace chain dir. Returns the written path, or
+ * undefined when the diff was empty.
  */
 export async function generateEntry(
   mutationsEnvelopePath: string,

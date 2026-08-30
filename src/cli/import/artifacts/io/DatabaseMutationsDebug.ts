@@ -1,4 +1,3 @@
-import path from "node:path";
 import { z } from "zod";
 import { databaseMutationReferenceSchema } from "./DatabaseMutations.js";
 import {
@@ -14,57 +13,11 @@ import {
   readYamlDocumentFile,
   writeYamlDocumentFile,
 } from "../../../../shared/io/internal/yaml-document.js";
-
-type EnvelopeReadRef =
-  | { path: string; kind?: string; sha256?: string }
-  | { ref: { path: string; kind?: string; sha256?: string } };
-
-type EnvelopeReadOptions = {
-  expectedNamespace?: string;
-  relativeTo?: string;
-};
-
-function refValue(pathOrRef: string | EnvelopeReadRef): {
-  path: string;
-  kind?: string;
-  sha256?: string;
-} {
-  if (typeof pathOrRef === "string") {
-    return { path: pathOrRef };
-  }
-  if ("ref" in pathOrRef) {
-    return pathOrRef.ref;
-  }
-  return pathOrRef;
-}
-
-function resolveReadPath(
-  pathOrRef: string | EnvelopeReadRef,
-  options: EnvelopeReadOptions,
-): { filePath: string; kind?: string; sha256?: string } {
-  const ref = refValue(pathOrRef);
-  if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
-    return { ...ref, filePath: ref.path };
-  }
-  if (
-    options.relativeTo === undefined ||
-    options.relativeTo.trim().length === 0
-  ) {
-    throw new Error(
-      `Relative ${ref.kind ?? "DatabaseMutationsDebug"} ref requires relativeTo.`,
-    );
-  }
-
-  const baseDirectory = path.dirname(options.relativeTo);
-  const resolvedPath = path.resolve(baseDirectory, ref.path);
-  const relativePath = path.relative(baseDirectory, resolvedPath);
-  if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(
-      `${ref.kind ?? "DatabaseMutationsDebug"} ref.path escapes its directory: ${ref.path}`,
-    );
-  }
-  return { ...ref, filePath: resolvedPath };
-}
+import {
+  type EnvelopeReadOptions,
+  type EnvelopeReadRef,
+  resolveReadPath,
+} from "./envelope-ref.js";
 
 const metadataSchema = z
   .object({
@@ -160,7 +113,7 @@ async function readDatabaseMutationsDebug(
   pathOrRef: string | EnvelopeReadRef,
   options: EnvelopeReadOptions = {},
 ): Promise<DatabaseMutationsDebugEnvelope> {
-  const ref = resolveReadPath(pathOrRef, options);
+  const ref = resolveReadPath(pathOrRef, options, "DatabaseMutationsDebug");
   if (ref.kind !== undefined && ref.kind !== "DatabaseMutationsDebug") {
     throw new Error(
       `DatabaseMutationsDebug ref.kind ${ref.kind} does not match expected kind DatabaseMutationsDebug: ${ref.filePath}`,

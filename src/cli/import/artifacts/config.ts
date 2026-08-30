@@ -98,7 +98,7 @@ function valueAsRecord(value: unknown): Record<string, unknown> {
     return value as Record<string, unknown>;
   }
 
-  throw new Error("Artifacts agency record must be an object.");
+  throw new Error("Artifacts record must be an object.");
 }
 
 function addSourceFacades(
@@ -254,7 +254,6 @@ async function validateArtifactRecordsStage(
 function agencyResolutionDeps(context: ImportArtifactsPipelineContext) {
   const logger = context.commandInput.logger;
   return {
-    sourceNamespace: context.artifacts?.metadata.namespace ?? "",
     resolveAgencyCoordinates:
       context.commandInput.resolveAgencyCoordinates ??
       createCensusAgencyCoordinateResolver(undefined, {

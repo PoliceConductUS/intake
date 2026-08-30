@@ -185,7 +185,12 @@ export function registerCliCommand(
     .action(async (): Promise<void> => {
       try {
         const done: string[] = [];
-        const skipped: string[] = [];
+        // An empty diff is a legitimate no-op (a source unchanged since it was last
+        // applied, or one with no acquired input); an error is a broken source. They
+        // must not be conflated — a rebuild that hides an errored source behind a
+        // green exit defeats the reconstruction gate.
+        const emptyDiff: string[] = [];
+        const errored: string[] = [];
         for (const source of await orderedSourceIds()) {
           consoleLogger.info(`${source}: transform`);
           const transformed = await transformOneSource(
@@ -194,34 +199,45 @@ export function registerCliCommand(
             consoleLogger,
           );
           if ("error" in transformed) {
-            skipped.push(`${source} (transform)`);
+            errored.push(
+              `${source} (transform: ${transformed.error.stderr?.trim() ?? "failed"})`,
+            );
             consoleLogger.info(
-              `  ${source} skipped: ${transformed.error.stderr?.trim() ?? "transform failed"}`,
+              `  ${source} errored: ${transformed.error.stderr?.trim() ?? "transform failed"}`,
             );
             continue;
           }
           await withClient((client) => assertAtHead(client));
           const generated = await generateOneSource(source, process.env);
           if ("error" in generated) {
-            skipped.push(`${source} (generate)`);
+            errored.push(
+              `${source} (generate: ${generated.error.stderr?.trim() ?? "failed"})`,
+            );
             continue;
           }
           if (generated.version === undefined) {
-            skipped.push(`${source} (empty)`);
+            emptyDiff.push(source);
             continue;
           }
           await withClient((client) => applyPending(client, {}));
           done.push(`${generated.version} ${source}`);
           consoleLogger.info(`  applied ${generated.version} ${source}`);
         }
-        dependencies.setResult({
-          exitCode: 0,
-          stdout:
-            `data: rebuilt ${done.length} entrie(s):\n` +
-            done.map((entry) => `  + ${entry}`).join("\n") +
-            (skipped.length > 0 ? `\nskipped: ${skipped.join(", ")}` : "") +
-            "\n",
-        });
+        const summary =
+          `data: rebuilt ${done.length} entrie(s):\n` +
+          done.map((entry) => `  + ${entry}`).join("\n") +
+          (emptyDiff.length > 0
+            ? `\nempty diff (nothing to apply): ${emptyDiff.join(", ")}`
+            : "") +
+          (errored.length > 0 ? `\nerrored: ${errored.join(", ")}` : "") +
+          "\n";
+        // Any errored source fails the whole rebuild loud (non-zero); empty diffs
+        // are fine.
+        dependencies.setResult(
+          errored.length > 0
+            ? { exitCode: 1, stderr: summary }
+            : { exitCode: 0, stdout: summary },
+        );
       } catch (error) {
         dependencies.setResult(errorResult(error));
       }

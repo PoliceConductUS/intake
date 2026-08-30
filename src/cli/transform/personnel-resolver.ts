@@ -1,4 +1,4 @@
-import type { DatabaseClient } from "../database/index.js";
+import { rowsFromResult, type DatabaseClient } from "../database/index.js";
 import type { SourceNameToCanonicalIdLedger } from "../state/source-name-to-canonical-id/index.js";
 import type {
   TransformDataContext,
@@ -17,15 +17,6 @@ const NAME_FLOOR = 0.85;
 // the fuller-name variant (lower uncertainty) cannot separate — are an
 // unresolvable tie: attach to neither rather than guess wrong.
 const AMBIGUITY_BAND = 0.03;
-
-function resultRows(result: unknown): Record<string, unknown>[] {
-  return typeof result === "object" &&
-    result !== null &&
-    "rows" in result &&
-    Array.isArray((result as { rows?: unknown[] }).rows)
-    ? (result as { rows: Record<string, unknown>[] }).rows
-    : [];
-}
 
 // An agency's address for a report's geocode fallback — only when every field is
 // present (a partial address cannot anchor a point).
@@ -74,7 +65,7 @@ export function createTransformDataContext(
          where ao.agency_id = $1`,
         [canonicalAgencyId],
       )
-      .then(resultRows);
+      .then(rowsFromResult);
     rosterCache.set(canonicalAgencyId, loaded);
     return loaded;
   };
@@ -162,7 +153,7 @@ export function createTransformDataContext(
         .replace(/[^a-z0-9]+/g, " ")
         .trim();
       if (normalized.length < 3) return null;
-      const rows = resultRows(
+      const rows = rowsFromResult(
         await client.query(
           `select id, address, city, state, zip_code
              from agency
@@ -185,7 +176,7 @@ export function createTransformDataContext(
       // case's natural key (court:docket, ADR 0028); anything else is null.
       const normalized = docket.replace(/[^a-z0-9]/gi, "").toUpperCase();
       if (normalized.length < 4) return null;
-      const rows = resultRows(
+      const rows = rowsFromResult(
         await client.query(
           `select id from civil_cases
             where regexp_replace(upper(cause_number), '[^A-Z0-9]', '', 'g') = $1`,

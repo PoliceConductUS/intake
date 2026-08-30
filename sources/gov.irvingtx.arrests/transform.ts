@@ -14,9 +14,11 @@ import {
 
 export const produces: readonly ImportArtifactKind[] = ["ArrestProfiles"];
 
-// Standalone (ADR 0032): the per-officer summary depends on the fully imported
-// roster (name → officer), so it runs on its own after the reconstruction.
-export const standalone = true;
+// The per-officer summary resolves names against the imported roster, so it must
+// run after AgencyPersonnel is applied. That ordering falls out of the FK
+// dependency (ArrestProfile → agency_personnel, ADR 0021/0032) — no standalone flag.
+// Its input is a local-only, PII-bearing acquire output, so a rebuild that has not
+// acquired it simply skips it (it never runs unattended without the file).
 
 const AGENCY_NAME = "Irving Police Department";
 

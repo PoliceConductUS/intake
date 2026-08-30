@@ -1,4 +1,4 @@
-import type { DatabaseClient } from "../database/index.js";
+import { rowsFromResult, type DatabaseClient } from "../database/index.js";
 import type {
   AcquireAgencyPage,
   AcquireDataContext,
@@ -8,15 +8,6 @@ import type { SourceNameToCanonicalIdLedger } from "../state/source-name-to-cano
 
 const DEFAULT_LIMIT = 100;
 const SEARCH_LIMIT = 20;
-
-function resultRows(result: unknown): Record<string, unknown>[] {
-  return typeof result === "object" &&
-    result !== null &&
-    "rows" in result &&
-    Array.isArray((result as { rows?: unknown[] }).rows)
-    ? (result as { rows: Record<string, unknown>[] }).rows
-    : [];
-}
 
 function encodeCursor(officerCount: number, id: string): string {
   return Buffer.from(`${officerCount}:${id}`, "utf8").toString("base64");
@@ -64,7 +55,7 @@ export function createAcquireDataContext(
       params.push(pageSize + 1);
       const limitParam = `$${params.length}`;
 
-      const rows = resultRows(
+      const rows = rowsFromResult(
         await client.query(
           `select a.id as id, a.name as name, a.state as state,
                   parent.display_name as county, lp.display_name as place,
@@ -113,7 +104,7 @@ export function createAcquireDataContext(
       // resolves by (ADR 0031). Every other kind exchanges its canonical id for a
       // namespace-local source id via the ledger, so no canonical id leaves.
       if (kind === "LocationPath") {
-        return resultRows(
+        return rowsFromResult(
           await client.query(
             `select path, display_name, level from location_path
               where display_name ilike $1 or path ilike $1
@@ -127,7 +118,7 @@ export function createAcquireDataContext(
       }
       if (kind === "Agency") {
         return Promise.all(
-          resultRows(
+          rowsFromResult(
             await client.query(
               `select id, name, state from agency where name ilike $1
                 order by name limit ${SEARCH_LIMIT}`,

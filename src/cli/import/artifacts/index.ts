@@ -53,12 +53,10 @@ export async function runImportArtifactsCommand(
       now: dependencies.now,
       createCommandName: dependencies.createCommandName,
       namespace,
-      args: dependencies.args ?? [
-        "import",
-        "artifacts",
-        ...(dependencies.dryImport === true ? ["--dry-run"] : []),
-        artifactsRef,
-      ],
+      // The import is not its own command (ADR 0035): `data generate` calls this
+      // and passes explicit args. This default names that caller for the audit
+      // trail when a programmatic caller omits them.
+      args: dependencies.args ?? ["data", "generate", artifactsRef],
     });
   } catch (error) {
     return {

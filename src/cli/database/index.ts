@@ -17,6 +17,17 @@ export type DatabaseClient = {
 
 export type DatabaseClientFactory = (databaseUrl: string) => DatabaseClient;
 
+// `DatabaseClient.query` returns an opaque driver result; this narrows it to its
+// `rows` (empty when absent). The single reader every caller shares.
+export function rowsFromResult(result: unknown): Record<string, unknown>[] {
+  return typeof result === "object" &&
+    result !== null &&
+    "rows" in result &&
+    Array.isArray((result as { rows?: unknown[] }).rows)
+    ? (result as { rows: Record<string, unknown>[] }).rows
+    : [];
+}
+
 export function defaultDatabaseClientFactory(
   databaseUrl: string,
 ): DatabaseClient {

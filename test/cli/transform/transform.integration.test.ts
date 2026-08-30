@@ -43,7 +43,7 @@ describe("data transform / source ordering", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr ?? "").toMatch(
-      /gov\.tx\.tcole has no acquired input.*intake acquire gov\.tx\.tcole/s,
+      /gov\.tx\.tcole has no acquired input.*intake data acquire gov\.tx\.tcole/s,
     );
   });
 });

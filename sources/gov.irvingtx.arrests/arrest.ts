@@ -1,6 +1,6 @@
 // The per-arrest record the source keeps (ADR 0032): the arresting officer's
-// name (resolved to an officer in run) plus derived breakdown dimensions. No
-// arrestee identifier (booking name/address) is ever kept.
+// name (resolved to an officer in transform) plus derived breakdown dimensions.
+// No arrestee identifier (booking name/address) is ever kept.
 export type NormalizedArrest = {
   officerNames: string[];
   year: string;

@@ -51,7 +51,6 @@ export type ResolveAddressInput = {
   longitude?: number;
   name?: string;
   sourceName?: string;
-  preferredLocationPathId?: string;
 };
 
 function normalizeAddressToken(value: string): string {
@@ -167,29 +166,21 @@ function addressResolutionRequest(
     );
   }
 
+  const sourceName = valueAsString(input.sourceName);
+  const name = valueAsString(input.name);
+  const administrativeAreaName = valueAsString(input.administrativeAreaName);
+  const administrativeAreaSlug = valueAsString(input.administrativeAreaSlug);
   return {
     entityType: input.entityType,
     entityId: input.entityId,
-    ...(valueAsString(input.sourceName) === undefined
-      ? {}
-      : { sourceName: valueAsString(input.sourceName)! }),
-    ...(valueAsString(input.name) === undefined
-      ? {}
-      : { name: valueAsString(input.name)! }),
+    ...(sourceName === undefined ? {} : { sourceName }),
+    ...(name === undefined ? {} : { name }),
     address: input.address!,
     place: input.place!,
     state: input.state!,
     zipCode: input.zipCode!,
-    ...(valueAsString(input.administrativeAreaName) === undefined
-      ? {}
-      : {
-          administrativeAreaName: valueAsString(input.administrativeAreaName)!,
-        }),
-    ...(valueAsString(input.administrativeAreaSlug) === undefined
-      ? {}
-      : {
-          administrativeAreaSlug: valueAsString(input.administrativeAreaSlug)!,
-        }),
+    ...(administrativeAreaName === undefined ? {} : { administrativeAreaName }),
+    ...(administrativeAreaSlug === undefined ? {} : { administrativeAreaSlug }),
     ...(Number.isFinite(input.latitude) ? { latitude: input.latitude } : {}),
     ...(Number.isFinite(input.longitude) ? { longitude: input.longitude } : {}),
   };

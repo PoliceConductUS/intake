@@ -212,7 +212,7 @@ export const registerAcquireCommand: RegisterCliCommand = (
               if (result.exitCode !== 0) {
                 dependencies.setResult({
                   exitCode: result.exitCode,
-                  stderr: `${result.stderr ?? ""}intake acquire failed on source ${sourceId}\n`,
+                  stderr: `${result.stderr ?? ""}intake data acquire failed on source ${sourceId}\n`,
                 });
                 return;
               }

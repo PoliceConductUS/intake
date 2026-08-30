@@ -275,7 +275,7 @@ export type SelectorBackend = {
  * or by a scalar `name`, and never mints. The disposition lives in metadata; the
  * spec is only the payload.
  */
-export function facadeSelectorOrIdResolver<Row, B extends SelectorBackend>(
+export function facadeSelectorOrIdResolver<Row, B extends ReferenceBackend>(
   kind: string,
   identity: keyof Row & string,
   fallback: Resolver<string, ResolverContext<Row, B>>,
@@ -284,11 +284,7 @@ export function facadeSelectorOrIdResolver<Row, B extends SelectorBackend>(
     const { source } = context;
     const action = source.action ?? "PUT";
     if (action === "PATCH" && source.selector !== undefined) {
-      return resolveReference(
-        kind,
-        source.selector as Selector,
-        context as unknown as ResolverContext<Row, ReferenceBackend>,
-      );
+      return resolveReference(kind, source.selector as Selector, context);
     }
     if (action === "PATCH" || action === "POST") {
       throw new Error(

@@ -656,7 +656,7 @@ describe("importArtifacts", () => {
         path: ".",
         statePath: "../../state",
         sharedIoRoot: path.join(process.cwd(), "dist", "shared", "io"),
-        args: ["import", "artifacts", artifactsPath],
+        args: ["data", "generate", artifactsPath],
       },
     });
     expect(terminalOutput).toContain(`Writing logs to ${logPath}`);

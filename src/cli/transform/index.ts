@@ -77,16 +77,16 @@ export async function sourceInputDir(
 ): Promise<string> {
   // A source's inputs are its latest acquire output — there is no fallback. A
   // source that has never been acquired cannot run; acquire it first, either by
-  // running its module (`intake acquire <source-id>`) or from local files
-  // (`intake acquire <source-id> --from-local <path>`).
+  // running its module (`intake data acquire <source-id>`) or from local files
+  // (`intake data acquire <source-id> --from-local <path>`).
   const { latest } = await readCommandPointer(
     path.join(workspace, "state", sourceId),
     "acquire",
   );
   if (latest === undefined) {
     throw new Error(
-      `${sourceId} has no acquired input. Run \`intake acquire ${sourceId}\` ` +
-        `(or \`intake acquire ${sourceId} --from-local <path>\`) before running it.`,
+      `${sourceId} has no acquired input. Run \`intake data acquire ${sourceId}\` ` +
+        `(or \`intake data acquire ${sourceId} --from-local <path>\`) before running it.`,
     );
   }
   return path.join(workspace, latest);

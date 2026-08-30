@@ -25,18 +25,30 @@ export const acquire: SourceAcquire = async ({
   }
 
   // Primary charge per booking (the first charge row wins): booking → offense.
+  // readXlsx fails loud if any declared column is missing (a renamed FOIA header),
+  // and coerces every cell to a trimmed string, so an empty cell is "".
   const chargeByBooking = new Map<string, Charge>();
-  for (const charge of await readXlsx(file, "Charges")) {
-    const booking = (charge.Booking_No ?? "").trim();
+  for (const charge of await readXlsx(file, "Charges", [
+    "Booking_No",
+    "Charge_Literal",
+    "Level",
+  ])) {
+    const booking = charge.Booking_No;
     if (booking !== "" && !chargeByBooking.has(booking)) {
       chargeByBooking.set(booking, {
-        offense: (charge.Charge_Literal ?? "").trim() || "unknown",
-        level: (charge.Level ?? "").trim() || "unknown",
+        offense: charge.Charge_Literal || "unknown",
+        level: charge.Level || "unknown",
       });
     }
   }
 
-  const arrestRows = (await readXlsx(file, "Arrest Data")) as ArrestRow[];
+  const arrestRows = (await readXlsx(file, "Arrest Data", [
+    "Arrest_Officer_Name",
+    "Arrest_Date",
+    "Arrest_Time",
+    "Booking_No",
+    "District",
+  ])) as ArrestRow[];
   const normalized = arrestRows
     .map((row) => deriveArrest(row, (booking) => chargeByBooking.get(booking)))
     .filter((arrest) => arrest.officerNames.length > 0);

@@ -65,12 +65,16 @@ with the default `update` upsert: a re-run replaces the officer's summary in pla
 Unlike a report (immutable), an arrest profile is a derived rollup that refreshes as
 the underlying export grows.
 
-**5. acquire owns the read; the source is standalone.** The workbook path is
-`IRVING_ARRESTS_FILE` (never committed — it carries PII); the parse/scrub happens in
-`acquire`, so `run` is deterministic. The source is **standalone**
-([ADR 0031](0031-curated-location-aliases-source.md)): excluded from group runs and
-run on its own after the reconstruction, since name resolution needs the full
-roster.
+**5. acquire owns the read; ordering is FK-derived, not standalone.** The workbook
+path is `IRVING_ARRESTS_FILE` (never committed — it carries PII); the parse/scrub
+happens in `acquire`, so `transform` is deterministic. Name resolution needs the full
+roster, so the source must run after `AgencyPersonnel` is applied — but that ordering
+already falls out of the FK dependency (`ArrestProfile → agency_personnel`, ADR 0021),
+so **no `standalone` flag is used**. `standalone` means "reads its records from state
+and runs alone" (the manual-curation sources, ADR 0031); this source instead reads a
+normal acquire-produced file from `paths`, and marking it standalone would starve it
+of that input. It stays out of unattended rebuilds naturally: its input is a
+local-only PII file, so a rebuild that has not acquired it simply skips it.
 
 ## Consequences
 

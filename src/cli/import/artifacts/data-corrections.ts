@@ -71,8 +71,8 @@ function isRecord(value: unknown): value is { spec: Record<string, unknown> } {
 // left untouched.
 export function applyCorrections(artifacts: ArtifactsEnvelope): void {
   if (CORRECTION_RULES.length === 0) return;
+  const kinds = new Set(CORRECTION_RULES.map((rule) => rule.kind));
   for (const artifact of artifacts.spec.artifacts) {
-    const kinds = new Set(CORRECTION_RULES.map((rule) => rule.kind));
     if (!kinds.has(artifact.kind)) continue;
     const records = artifact.spec.records as Record<string, unknown>;
     for (const [key, record] of Object.entries(records)) {

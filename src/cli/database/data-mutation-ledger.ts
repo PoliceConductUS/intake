@@ -1,17 +1,8 @@
-import type { DatabaseClient } from "./index.js";
+import { rowsFromResult, type DatabaseClient } from "./index.js";
 
 // The data-mutation chain ledger (ADR 0033). All access to
 // public.data_mutation_applied and the schema-version read lives here, inside the
 // database package (architecture boundary).
-
-function resultRows(result: unknown): Record<string, unknown>[] {
-  return typeof result === "object" &&
-    result !== null &&
-    "rows" in result &&
-    Array.isArray((result as { rows?: unknown[] }).rows)
-    ? (result as { rows: Record<string, unknown>[] }).rows
-    : [];
-}
 
 /** The highest applied schema-migration version (a data mutation gates on ≥ this). */
 export async function readCurrentSchemaVersion(
@@ -20,7 +11,7 @@ export async function readCurrentSchemaVersion(
   const result = await client.query(
     "select max(version) as version from supabase_migrations.schema_migrations",
   );
-  const version = resultRows(result)[0]?.version;
+  const version = rowsFromResult(result)[0]?.version;
   return typeof version === "string" ? version : "";
 }
 
@@ -30,7 +21,7 @@ export async function readAppliedDataMutationVersions(
   const result = await client.query(
     "select version from public.data_mutation_applied",
   );
-  return new Set(resultRows(result).map((row) => String(row.version)));
+  return new Set(rowsFromResult(result).map((row) => String(row.version)));
 }
 
 export async function readAppliedDataMutationChecksums(
@@ -40,7 +31,7 @@ export async function readAppliedDataMutationChecksums(
     "select version, checksum from public.data_mutation_applied",
   );
   return new Map(
-    resultRows(result).map((row) => [
+    rowsFromResult(result).map((row) => [
       String(row.version),
       String(row.checksum),
     ]),
