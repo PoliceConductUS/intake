@@ -261,16 +261,20 @@ export function registerCliCommand(
             applyPending(client, { logger: consoleLogger }),
           );
           done.push(`${generated.version} ${source}`);
-          consoleLogger.info(`  applied ${generated.version} ${source}`);
         }
+        const total = done.length + emptyDiff.length + errored.length;
         const summary =
-          `data: appended ${done.length} entrie(s):\n` +
-          done.map((entry) => `  + ${entry}`).join("\n") +
-          (emptyDiff.length > 0
-            ? `\nempty diff (nothing to apply): ${emptyDiff.join(", ")}`
+          `data update: ${total} source(s) — ${done.length} appended, ` +
+          `${emptyDiff.length} already up to date` +
+          (errored.length > 0 ? `, ${errored.length} errored` : "") +
+          ".\n" +
+          (done.length > 0
+            ? `appended:\n${done.map((entry) => `  + ${entry}`).join("\n")}\n`
             : "") +
-          (errored.length > 0 ? `\nerrored: ${errored.join(", ")}` : "") +
-          "\n";
+          (emptyDiff.length > 0
+            ? `already up to date (no change): ${emptyDiff.join(", ")}\n`
+            : "") +
+          (errored.length > 0 ? `errored: ${errored.join(", ")}\n` : "");
         // Any errored source fails the whole update loud (non-zero); empty diffs
         // are fine.
         dependencies.setResult(
