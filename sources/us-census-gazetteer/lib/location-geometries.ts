@@ -89,16 +89,6 @@ export interface BuildLocationPathGeometryPackageResult {
   locationPathGeometryCount: number;
 }
 
-export interface BuildLocationPathGeometriesOptions {
-  locationPaths: Record<string, LocationPathRow>;
-  locationPathSources?: Record<string, LocationPathSourceEvidence>;
-  stateGeometryPath: string;
-  countyGeometryPath: string;
-  placeGeometryPaths: string[];
-  selectedYear: number | string;
-  state: string;
-}
-
 export async function buildLocationPathGeometryPackage({
   locationPaths,
   locationPathSources = {},

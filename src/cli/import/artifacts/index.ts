@@ -2,11 +2,7 @@ import path from "node:path";
 import { importArtifacts, type ImportArtifactsResult } from "./config.js";
 import { formatDatabaseMutationCountLines } from "./io/DatabaseMutationCounts.js";
 import { createIntakeLog } from "../../../logging.js";
-import {
-  createCommandDirectory,
-  intakeWorkspace,
-} from "../../command-directory.js";
-import { writeCommandPointer } from "../../state/command-pointer.js";
+import { createCommandDirectory } from "../../command-directory.js";
 import { Artifacts } from "../../../shared/io/index.js";
 import type { CommandResult } from "../../../shared/cli/types.js";
 import type { ExcludedRecords } from "../../../shared/io/excluded-records.js";
@@ -108,17 +104,6 @@ export async function runImportArtifactsCommand(
     },
     "Artifacts import succeeded.",
   );
-
-  if (namespace !== undefined && dependencies.dryImport !== true) {
-    const workspace = intakeWorkspace(env);
-    await writeCommandPointer(
-      path.join(workspace, "state", namespace),
-      "import",
-      {
-        latest: path.relative(workspace, command.outputDirectory),
-      },
-    );
-  }
 
   return {
     exitCode: 0,
