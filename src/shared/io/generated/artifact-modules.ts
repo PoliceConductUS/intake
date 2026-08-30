@@ -145,6 +145,12 @@ import {
   write as writeReviewPersonnel,
 } from "./ReviewPersonnel.js";
 import {
+  ReviewLinks,
+  ReviewLinkSpec,
+  read as readReviewLinks,
+  write as writeReviewLinks,
+} from "./ReviewLinks.js";
+import {
   ArrestProfiles,
   ArrestProfileSpec,
   read as readArrestProfiles,
@@ -295,6 +301,12 @@ export const ARTIFACT_MODULES = {
     recordSpec: ReviewPersonnelSpec,
     read: readReviewPersonnel,
     write: writeReviewPersonnel,
+  },
+  ReviewLinks: {
+    envelope: ReviewLinks,
+    recordSpec: ReviewLinkSpec,
+    read: readReviewLinks,
+    write: writeReviewLinks,
   },
   ArrestProfiles: {
     envelope: ArrestProfiles,

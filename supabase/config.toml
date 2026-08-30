@@ -55,7 +55,13 @@ schema_paths = []
 enabled = true
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
-sql_paths = ["./seed.sql"]
+#
+# seed.sql is RETIRED: the database is now built from migrations alone, then
+# populated by the config-driven intake sources / the data-mutation chain
+# (ADR 0033). The file is kept (supabase/seed.sql) as the record of the legacy
+# website data for migrating the remaining hand-curated gaps — it is no longer
+# loaded on `db reset`.
+sql_paths = []
 
 [realtime]
 enabled = true

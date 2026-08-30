@@ -161,6 +161,29 @@ export function createAcquireDataContext(
           }),
         );
       }
+      if (kind === "Review") {
+        // Review is natural-key, not ledger-mapped (ADR 0028/0030): its `id` IS the
+        // reference the import resolves by — like CivilCase and LocationPath.
+        return rowsFromResult(
+          await client.query(
+            `select id, title, city, state from reviews
+              where title ilike $1
+              order by title limit ${SEARCH_LIMIT}`,
+            [like],
+          ),
+        ).map((row) => {
+          const place = [
+            String(row.city ?? "").trim(),
+            String(row.state ?? "").trim(),
+          ]
+            .filter((part) => part !== "")
+            .join(", ");
+          return {
+            sourceId: String(row.id),
+            label: `${String(row.title)}${place === "" ? "" : ` — ${place}`}`,
+          };
+        });
+      }
       if (kind === "CivilCase") {
         // CivilCase is natural-key, not ledger-mapped (ADR 0028): its `id` (court:
         // docket) IS the reference the import resolves by — like LocationPath's path.

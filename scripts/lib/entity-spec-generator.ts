@@ -245,6 +245,11 @@ const DESCRIPTORS: EntityDescriptor[] = [
     createRequired: ["id"],
   },
   {
+    recordKind: "ReviewLink",
+    table: "review_links",
+    createRequired: ["id"],
+  },
+  {
     // A per-officer arrest profile (ADR 0032): one recomputed row per officer,
     // keyed on the unique agency_personnel_id, holding flexible jsonb summaries.
     // id is find-or-mint by the business key; jsonb columns pass through.
@@ -415,6 +420,7 @@ const ENTITY_NAME_BY_RECORD_KIND: Record<string, string> = {
   CoverageLinkCivilCase: "coverageLinkCivilCases",
   Review: "reviews",
   ReviewPersonnel: "reviewPersonnel",
+  ReviewLink: "reviewLinks",
   ArrestProfile: "arrestProfiles",
 };
 

@@ -176,6 +176,8 @@ export type {
   ReviewPersonnelEnvelope,
   ReviewPersonnelInput,
 } from "./ReviewPersonnel.js";
+export { ReviewLinks, ReviewLinkSpec } from "./ReviewLinks.js";
+export type { ReviewLinksEnvelope, ReviewLinksInput } from "./ReviewLinks.js";
 export { ArrestProfiles, ArrestProfileSpec } from "./ArrestProfiles.js";
 export type {
   ArrestProfilesEnvelope,

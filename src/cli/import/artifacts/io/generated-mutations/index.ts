@@ -72,6 +72,9 @@ import { ReviewUpdate } from "./ReviewUpdate.js";
 import { ReviewPersonnelCreate } from "./ReviewPersonnelCreate.js";
 import { ReviewPersonnelRead } from "./ReviewPersonnelRead.js";
 import { ReviewPersonnelUpdate } from "./ReviewPersonnelUpdate.js";
+import { ReviewLinkCreate } from "./ReviewLinkCreate.js";
+import { ReviewLinkRead } from "./ReviewLinkRead.js";
+import { ReviewLinkUpdate } from "./ReviewLinkUpdate.js";
 import { ArrestProfileCreate } from "./ArrestProfileCreate.js";
 import { ArrestProfileRead } from "./ArrestProfileRead.js";
 import { ArrestProfileUpdate } from "./ArrestProfileUpdate.js";
@@ -149,6 +152,9 @@ export const importMutationEnvelopeTypes = {
   ReviewPersonnelCreate,
   ReviewPersonnelRead,
   ReviewPersonnelUpdate,
+  ReviewLinkCreate,
+  ReviewLinkRead,
+  ReviewLinkUpdate,
   ArrestProfileCreate,
   ArrestProfileRead,
   ArrestProfileUpdate,

@@ -50,6 +50,14 @@ function context() {
           court: "txwd",
         },
       ],
+      reviews: [
+        {
+          id: "review-9",
+          title: "Traffic stop escalation",
+          city: "Austin",
+          state: "TX",
+        },
+      ],
     }),
     fakeLedger(),
     "org.policeconduct.manual",
@@ -68,6 +76,13 @@ describe("createAcquireDataContext.search", () => {
     // Natural-key identity (ADR 0028): the id IS the reference; no ledger prefix.
     expect(hit.sourceId).toBe("txwd:1:20-cv-00042");
     expect(hit.label).toBe("Reyes v. City of Austin — 1:20-cv-00042 [txwd]");
+  });
+
+  it("returns a Review's natural-key id directly, NOT through the ledger", async () => {
+    const [hit] = await context().search!("Review", "traffic");
+    // Natural-key identity (ADR 0028/0030): the id IS the reference; no ledger prefix.
+    expect(hit.sourceId).toBe("review-9");
+    expect(hit.label).toBe("Traffic stop escalation — Austin, TX");
   });
 
   it("still throws for a kind it does not support", async () => {
