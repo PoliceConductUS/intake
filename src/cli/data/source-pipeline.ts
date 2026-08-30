@@ -113,7 +113,7 @@ export async function generateOneSource(
 
 /**
  * Every source that produces something, in dependency order (ADR 0021) — the order
- * `rebuild` walks, transforming/generating/applying each so a producer is applied
+ * `update` walks, transforming/generating/applying each so a producer is applied
  * before a consumer transforms against it.
  */
 export async function orderedSourceIds(): Promise<string[]> {

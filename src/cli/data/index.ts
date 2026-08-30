@@ -216,16 +216,16 @@ export function registerCliCommand(
     });
 
   group
-    .command("rebuild")
+    .command("update")
     .description(
-      "Rebuild the chain from sources: for each source in dependency order, transform → generate → up. Assumes an externally-migrated database (typically blank); a producer is applied before a consumer transforms against it.",
+      "Update the database from all sources: for each source in dependency order, transform → generate → up, appending and applying only the deltas (never deletes). On a blank/externally-migrated database this authors the genesis chain; on an existing one it applies whatever each source's acquired data has changed.",
     )
     .action(async (): Promise<void> => {
       try {
         const done: string[] = [];
         // An empty diff is a legitimate no-op (a source unchanged since it was last
         // applied, or one with no acquired input); an error is a broken source. They
-        // must not be conflated — a rebuild that hides an errored source behind a
+        // must not be conflated — an update that hides an errored source behind a
         // green exit defeats the reconstruction gate.
         const emptyDiff: string[] = [];
         const errored: string[] = [];
@@ -264,14 +264,14 @@ export function registerCliCommand(
           consoleLogger.info(`  applied ${generated.version} ${source}`);
         }
         const summary =
-          `data: rebuilt ${done.length} entrie(s):\n` +
+          `data: appended ${done.length} entrie(s):\n` +
           done.map((entry) => `  + ${entry}`).join("\n") +
           (emptyDiff.length > 0
             ? `\nempty diff (nothing to apply): ${emptyDiff.join(", ")}`
             : "") +
           (errored.length > 0 ? `\nerrored: ${errored.join(", ")}` : "") +
           "\n";
-        // Any errored source fails the whole rebuild loud (non-zero); empty diffs
+        // Any errored source fails the whole update loud (non-zero); empty diffs
         // are fine.
         dependencies.setResult(
           errored.length > 0

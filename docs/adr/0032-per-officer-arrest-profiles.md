@@ -73,8 +73,8 @@ already falls out of the FK dependency (`ArrestProfile → agency_personnel`, AD
 so **no `standalone` flag is used**. `standalone` means "reads its records from state
 and runs alone" (the manual-curation sources, ADR 0031); this source instead reads a
 normal acquire-produced file from `paths`, and marking it standalone would starve it
-of that input. It stays out of unattended rebuilds naturally: its input is a
-local-only PII file, so a rebuild that has not acquired it simply skips it.
+of that input. It stays out of unattended `data update` runs naturally: its input is a
+local-only PII file, so an update that has not acquired it simply skips it.
 
 ## Consequences
 

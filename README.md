@@ -8,11 +8,12 @@ upstream source-specific processes, validates them, files them into an intake-ow
 archive, preserves raw and transformed artifacts, and loads deterministic derived
 state into Supabase/Postgres.
 
-The database schema and migrations currently live under `supabase/` and will
-remain there for now. The existing `supabase/seed.sql` can populate the current
-schema, but it is transitional and known to be the wrong long-term loading
-model. The target state is to move away from `seed.sql` as quickly as practical:
-database loading and reset should be driven from accepted archived artifacts.
+The database schema and migrations live under `supabase/`. `supabase/seed.sql`
+is **retired**: a `db reset` no longer loads it (see `supabase/config.toml`). The
+database is built from migrations alone, then populated by the config-driven
+sources and the replayable data-mutation chain (`intake data update` / ADR 0033).
+The `seed.sql` file is kept only as the record of the legacy website data, for
+migrating the remaining hand-curated gaps.
 
 The intake envelope contract is modeled after Kubernetes-style resources:
 
@@ -59,7 +60,7 @@ intake data generate  <source-id>            # diff those Artifacts against the 
 intake data up        [--to <version>]       # apply pending chain entries in order
 intake data status                           # applied vs pending chain entries
 intake data verify                           # recompute applied-entry checksums; fail on drift
-intake data rebuild                          # transform → generate → up for every source, in dependency order
+intake data update                           # transform → generate → up for every source, in dependency order (appends deltas)
 intake replay database-mutations <database-mutations-ref>
 ```
 

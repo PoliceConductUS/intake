@@ -27,9 +27,9 @@ describe("data transform / source ordering", () => {
     await rm(workspace, { recursive: true, force: true });
   });
 
-  it("excludes a disabled source (produces nothing) from the rebuild order", async () => {
+  it("excludes a disabled source (produces nothing) from the update order", async () => {
     // gov.azpost.roster is disabled (produces is empty), so planSourceOrder drops
-    // it — `data rebuild` never transforms it. Re-enable and rewrite once it
+    // it — `data update` never transforms it. Re-enable and rewrite once it
     // produces Agency + AgencyPersonnel (see gov.azpost.roster/transform.ts).
     const order = await orderedSourceIds();
     expect(order).not.toContain("gov.azpost.roster");

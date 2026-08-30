@@ -52,7 +52,7 @@ intake data generate  <source-id>       # diff Artifacts vs DB head → append t
 intake data up        [--to <version>]  # apply pending chain entries, in order
 intake data status                      # applied vs pending entries
 intake data verify                      # recompute applied-entry checksums; fail on drift
-intake data rebuild                     # transform → generate → up for every source, in dependency order
+intake data update                      # transform → generate → up for every source, in dependency order (appends deltas)
 ```
 
 **2. `generate` and `up` keep the Liquibase split (ADR 0033 §3), renamed onto the
@@ -69,12 +69,14 @@ delta) and appends that delta to the chain. The top-level `intake run` and `inta
 import artifacts` commands are removed. The import remains as an internal library
 (`runImportArtifactsCommand`), called only by `generate`; it has no CLI registration.
 
-**4. `rebuild` replaces "re-run every source" with per-source chain authoring.** For
-each source in dependency order (ADR 0021), `rebuild` runs transform → generate → up,
-so a producer is applied before a consumer transforms against it. This is how the
-genesis chain is authored and how a database is rebuilt against an externally-migrated
-(typically blank) schema — the concrete form of ADR 0033 §1's "reconstruction is
-replay."
+**4. `update` replaces "re-run every source" with per-source chain authoring.** For
+each source in dependency order (ADR 0021), `update` runs transform → generate → up,
+so a producer is applied before a consumer transforms against it. It appends and
+applies only each source's delta (creates/updates, never deletes): on a blank/
+externally-migrated database this authors the genesis chain, and on an existing one it
+applies whatever each source's acquired data has changed — the concrete form of ADR
+0033 §1's "reconstruction is replay." (Named `update`, not `rebuild`: it is an
+incremental sync, not a drop-and-recreate.)
 
 **5. This CLI mutates data, not schema.** `data` owns the data-mutation chain only.
 Schema migrations are applied out of band; their coupling to the chain stays the
