@@ -8,7 +8,10 @@ import {
 // entirely model-driven (ADR 0031); a source's produces must be static for run
 // ordering, so the handled set is declared here — add a kind to extend coverage,
 // no new interview code. Canonical-identity updates are out of scope for now.
-export const HANDLED_RECORD_KINDS = ["LocationPathAlias"] as const;
+export const HANDLED_RECORD_KINDS = [
+  "LocationPathAlias",
+  "AgencyLink",
+] as const;
 
 /** The import artifact kind (plural) that carries a given record kind. */
 export function artifactKindFor(recordKind: string): ImportArtifactKind {
