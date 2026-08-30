@@ -61,23 +61,61 @@ export function registerCliCommand(
   group
     .command("transform")
     .description(
-      "Run a source's transform.ts against its latest acquired input to produce its Artifacts (no chain, no apply).",
+      "Produce a source's Artifacts from its latest acquired input (no chain, no apply). With no <source>, transforms every source in dependency order, skipping any not yet acquired.",
     )
-    .argument("<source>", "source id under sources/")
-    .action(async (source: string): Promise<void> => {
+    .argument("[source]", "source id under sources/; omit to transform all")
+    .action(async (source: string | undefined): Promise<void> => {
       try {
-        const result = await transformOneSource(
-          source,
-          process.env,
-          consoleLogger,
-        );
+        if (source !== undefined) {
+          const result = await transformOneSource(
+            source,
+            process.env,
+            consoleLogger,
+          );
+          dependencies.setResult(
+            "error" in result
+              ? result.error
+              : {
+                  exitCode: 0,
+                  stdout: `data: transformed ${source} → ${result.artifactsPath}\n`,
+                },
+          );
+          return;
+        }
+        // No source given: transform every source in dependency order. A source
+        // with no acquired input is skipped (you transform what has been acquired);
+        // only a real transform failure errors the run.
+        const transformed: string[] = [];
+        const skipped: string[] = [];
+        const errored: string[] = [];
+        for (const id of await orderedSourceIds()) {
+          consoleLogger.info(`${id}: transform`);
+          let result;
+          try {
+            result = await transformOneSource(id, process.env, consoleLogger);
+          } catch (error) {
+            skipped.push(
+              `${id} (${error instanceof Error ? error.message.trim() : String(error)})`,
+            );
+            continue;
+          }
+          if ("error" in result) {
+            errored.push(`${id} (${result.error.stderr?.trim() ?? "failed"})`);
+            continue;
+          }
+          transformed.push(id);
+          consoleLogger.info(`  transformed ${id}`);
+        }
+        const summary =
+          `data: transformed ${transformed.length} source(s):\n` +
+          transformed.map((id) => `  + ${id}`).join("\n") +
+          (skipped.length > 0 ? `\nskipped: ${skipped.join(", ")}` : "") +
+          (errored.length > 0 ? `\nerrored: ${errored.join(", ")}` : "") +
+          "\n";
         dependencies.setResult(
-          "error" in result
-            ? result.error
-            : {
-                exitCode: 0,
-                stdout: `data: transformed ${source} → ${result.artifactsPath}\n`,
-              },
+          errored.length > 0
+            ? { exitCode: 1, stderr: summary }
+            : { exitCode: 0, stdout: summary },
         );
       } catch (error) {
         dependencies.setResult(errorResult(error));
