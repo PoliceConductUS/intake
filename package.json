@@ -48,6 +48,7 @@
     "vitest": "^4.1.6"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.125.0",
     "@paralleldrive/cuid2": "^3.3.0",
     "commander": "^15.0.0",
     "csv-parse": "^6.2.1",

@@ -248,7 +248,7 @@ async function writeJson(filePath: string, value: unknown): Promise<void> {
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-function artifactStem(value: string): string {
+export function artifactStem(value: string): string {
   const slug =
     value
       .toLowerCase()

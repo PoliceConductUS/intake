@@ -22,6 +22,7 @@ import type {
   SourceTransform,
   EmittedRecords,
 } from "../../src/cli/transform/source-transform.js";
+import type { OrderAnalysis } from "./acquire/collect-documents.js";
 
 /**
  * MN POST — reconstructs the Minnesota rows from the scraped POST License Search
@@ -40,6 +41,10 @@ import type {
  *                          `licenseType`, `status`, and `originalLicenseIssueDate`.
  *   - `*.detail.json`    — one per-officer detail (the raw officer JSON), whose
  *                          `disciplinaryActions` drives the discipline records.
+ *   - `*.document.json`  — one per disciplinary order document (the PDF the
+ *                          action links to): its extracted text and the
+ *                          analysis of what it says (allegation, violation,
+ *                          finding, chief's action, sanction), keyed by URL.
  *
  * Entities (TCOLE-shaped): a single `LicensingAuthorities` (MN POST), `Agencies`
  * (keyed by the a2j id), `Personnel` (keyed by `contactId`), `Licenses` (keyed by
@@ -262,6 +267,20 @@ export const transform: SourceTransform = async ({ paths }) => {
   const coverageLinks: EmittedRecords = {};
   const coverageLinkAgencyPersonnel: EmittedRecords = {};
 
+  // What each order document says, by the URL the action links to. An action
+  // whose document the site no longer serves (see acquire's skip report) has no
+  // entry and leaves the order fields null.
+  const analysisByUrl = new Map<string, OrderAnalysis>();
+  for (const jsonPath of paths.filter((p) =>
+    p.toLowerCase().endsWith(".document.json"),
+  )) {
+    const document = JSON.parse(await readFile(jsonPath, "utf8")) as {
+      url: string;
+      analysis: OrderAnalysis;
+    };
+    analysisByUrl.set(document.url, document.analysis);
+  }
+
   for (const jsonPath of paths.filter((p) =>
     p.toLowerCase().endsWith(".detail.json"),
   )) {
@@ -298,12 +317,19 @@ export const transform: SourceTransform = async ({ paths }) => {
       // each officer's disciplinary record distinct and collision-free.
       const disciplineKey = `${contactId}|${caseNumber}`;
 
+      const order =
+        documentUrl === null ? undefined : analysisByUrl.get(documentUrl);
       discipline[disciplineKey] = {
         spec: {
           action: documentName ?? "POST Disciplinary Action",
           effective_date: effectiveDate,
           expiration_date: toDate(asString(action.expirationDate)),
           case_number: caseNumber,
+          allegation: order?.allegation ?? null,
+          violation: order?.violation ?? null,
+          finding: order?.finding ?? null,
+          chief_action: order?.chief_action ?? null,
+          sanction: order?.sanction ?? null,
         },
       };
       // The order document as a coverage link (when the order URL is present).

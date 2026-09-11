@@ -6,9 +6,20 @@ import type {
   AcquireDeps,
   SourceAcquire,
 } from "../../src/cli/transform/source-transform.js";
-import { collectSources, type AgencyFilters } from "./acquire/collect.js";
+import {
+  collectSources,
+  type AgencyFilters,
+  type PostClient,
+} from "./acquire/collect.js";
+import { collectDocuments } from "./acquire/collect-documents.js";
+import { createDocumentFetcher } from "./acquire/document-fetch.js";
+import { extractDocumentText } from "./acquire/document-text.js";
+import { createLazyOrderAnalyzer } from "./acquire/order-analysis.js";
 import { fetchPostAgencyCsv } from "./acquire/agency-csv.js";
-import { createPostLicenseSearchClient } from "./acquire/post-client.js";
+import {
+  createPostLicenseSearchClient,
+  type PostClientHandle,
+} from "./acquire/post-client.js";
 import {
   openAgencyIdCache,
   writeAgencyIds,
@@ -45,6 +56,26 @@ async function loadExcludedAgencyNames(statePath: string): Promise<string[]> {
     );
 }
 
+// The license search is opened on first use: a resumed run whose rosters and
+// details are all on disk never has to reach the (human-verified) search app.
+function createLazyPostClient(
+  open: () => Promise<PostClientHandle>,
+): PostClient & { close(): Promise<void> } {
+  let handle: Promise<PostClientHandle> | undefined;
+  const client = (): Promise<PostClientHandle> => (handle ??= open());
+  return {
+    searchAgency: async (agencyName) =>
+      (await client()).searchAgency(agencyName),
+    fetchOfficerList: async (agencyId) =>
+      (await client()).fetchOfficerList(agencyId),
+    fetchOfficerDetails: async (officers) =>
+      (await client()).fetchOfficerDetails(officers),
+    close: async () => {
+      if (handle !== undefined) await (await handle).close();
+    },
+  };
+}
+
 export const acquire: SourceAcquire = async ({
   sourceDir,
   state,
@@ -67,11 +98,10 @@ export const acquire: SourceAcquire = async ({
       acceptDownloads: true,
     },
   );
+  const client = createLazyPostClient(() =>
+    createPostLicenseSearchClient({ context, logger: log }),
+  );
   try {
-    const client = await createPostLicenseSearchClient({
-      context,
-      logger: log,
-    });
     const cache = await openAgencyIdCache({
       statePath: state,
       searchAgency: (agencyName) => client.searchAgency(agencyName),
@@ -89,9 +119,25 @@ export const acquire: SourceAcquire = async ({
       client,
       logger: log,
     });
-    await writeSkipReport(sourceDir, skippedAgencies, skippedOfficers, log);
+    const { skippedDocuments } = await collectDocuments({
+      sourceDir,
+      statePath: state,
+      fetchDocument: createDocumentFetcher({ context, logger: log }),
+      extractText: extractDocumentText,
+      analyzer: createLazyOrderAnalyzer(env.ANTHROPIC_API_KEY),
+      now: () => new Date().toISOString(),
+      logger: log,
+    });
+    await writeSkipReport(
+      sourceDir,
+      skippedAgencies,
+      skippedOfficers,
+      skippedDocuments,
+      log,
+    );
     await writeAgencyIds(sourceDir, cache.entries());
   } finally {
+    await client.close();
     await context.close();
   }
 };

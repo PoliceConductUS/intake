@@ -114,6 +114,42 @@ const detail0031 = JSON.stringify({
 const detail0032 = JSON.stringify({
   disciplinaryActions: "No POST Disciplinary Actions found",
 });
+// 0099's order links to a document the site no longer serves, so acquire wrote
+// no document record for it: its order fields stay null.
+const detail0099 = JSON.stringify({
+  disciplinaryActions: [
+    {
+      contactId: "0099",
+      caseNumber: "PB20-1-09",
+      documentName: "SACO",
+      documentURL: "https://example.mn/orders/PB20-1-09.pdf",
+      effectiveDate: "2020-06-01",
+      expirationDate: null,
+    },
+  ],
+});
+
+// The acquired record of what 0031's order document says (acquire's
+// `documents/<stem>.document.json`), keyed by the action's document URL.
+const document0031 = JSON.stringify({
+  url: "https://example.mn/orders/PB24-1-01.pdf",
+  documentName: "SACO",
+  actions: [{ contactId: "0031", caseNumber: "PB24-1-01" }],
+  sha256: "abc",
+  bytes: 3,
+  fetchedAt: "2026-09-10T12:00:00.000Z",
+  pages: [{ page: 1, method: "ocr", text: "STIPULATION AND CONSENT ORDER" }],
+  text: "STIPULATION AND CONSENT ORDER",
+  analysis: {
+    allegation: "engaging in sexual harassment",
+    violation: "Minn. R. 6700.1600, subp. 1.A(4) (2023)",
+    finding:
+      "Smith engaged in sexual harassment as defined by Minn. Stat. § 363A.03",
+    chief_action: "placed on unpaid leave for 6 days",
+    sanction: "license REVOKED, stayed 6 years; SUSPENDED 25 days; CENSURED",
+  },
+  analyzedWith: { model: "test-model", promptVersion: 1 },
+});
 
 let sourceDir: string;
 let workspace: string;
@@ -139,6 +175,14 @@ beforeAll(async () => {
   await writeFile(
     path.join(sourceDir, "a2jofficer0032.detail.json"),
     detail0032,
+  );
+  await writeFile(
+    path.join(sourceDir, "a2jofficer0099.detail.json"),
+    detail0099,
+  );
+  await writeFile(
+    path.join(sourceDir, "pb24-1-01-abcdef012345.document.json"),
+    document0031,
   );
 });
 
@@ -295,19 +339,42 @@ describe("mn-post run", () => {
     const coverage = recordsOf(manifest, "CoverageLinks");
     const coverageAttr = recordsOf(manifest, "CoverageLinkAgencyPersonnel");
 
-    // 0031 has one order; 0032's sentinel string yields nothing.
-    expect(Object.keys(discipline)).toEqual(["0031|PB24-1-01"]);
+    // 0031 and 0099 have one order each; 0032's sentinel string yields nothing.
+    expect(Object.keys(discipline).sort()).toEqual([
+      "0031|PB24-1-01",
+      "0099|PB20-1-09",
+    ]);
+    // 0031's order document was acquired and analyzed: its fields come through.
     expect(discipline["0031|PB24-1-01"].spec).toEqual({
       action: "SACO",
       effective_date: "2024-03-01",
       expiration_date: "2026-03-01",
       case_number: "PB24-1-01",
+      allegation: "engaging in sexual harassment",
+      violation: "Minn. R. 6700.1600, subp. 1.A(4) (2023)",
+      finding:
+        "Smith engaged in sexual harassment as defined by Minn. Stat. § 363A.03",
+      chief_action: "placed on unpaid leave for 6 days",
+      sanction: "license REVOKED, stayed 6 years; SUSPENDED 25 days; CENSURED",
+    });
+    // 0099's document is unavailable (no document record): order fields null.
+    expect(discipline["0099|PB20-1-09"].spec).toEqual({
+      action: "SACO",
+      effective_date: "2020-06-01",
+      expiration_date: null,
+      case_number: "PB20-1-09",
+      allegation: null,
+      violation: null,
+      finding: null,
+      chief_action: null,
+      sanction: null,
     });
 
     // 0031 is at both agencies → the order attributes to both assignments.
     expect(Object.keys(attributions).sort()).toEqual([
       "0031|PB24-1-01|a2jALPHA",
       "0031|PB24-1-01|a2jBETA",
+      "0099|PB20-1-09|a2jALPHA",
     ]);
     expect(attributions["0031|PB24-1-01|a2jALPHA"].spec).toEqual({
       discipline_id: "0031|PB24-1-01",
@@ -323,6 +390,7 @@ describe("mn-post run", () => {
     expect(Object.keys(coverageAttr).sort()).toEqual([
       "0031|PB24-1-01|a2jALPHA",
       "0031|PB24-1-01|a2jBETA",
+      "0099|PB20-1-09|a2jALPHA",
     ]);
     expect(coverageAttr["0031|PB24-1-01|a2jBETA"].spec).toMatchObject({
       coverage_link_id: "0031|PB24-1-01",

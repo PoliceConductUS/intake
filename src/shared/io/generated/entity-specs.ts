@@ -35,9 +35,10 @@ export const GENERATED_MIGRATION_VERSIONS = [
   "20260904000000",
   "20260905000000",
   "20260906000000",
+  "20260910000000",
 ] as const;
 export const GENERATED_MIGRATION_FINGERPRINT =
-  "b1b5f7b0cee45e1f168b875e613a88d072be7f28f2eb7b44793763299b8fbbb4";
+  "53b9b95f6e3cbc84fc49e4980f39cdd7135e466fb7d9ae4262f1d25685a6e542";
 
 // Entity record kinds in database-dependency order (topological sort of the
 // foreign-key graph): a referenced entity precedes its referrer, so mutations
@@ -743,6 +744,11 @@ export const DisciplineSpec = z
     effective_date: nullableNonEmptyString.optional(),
     expiration_date: nullableNonEmptyString.optional(),
     case_number: nullableNonEmptyString.optional(),
+    allegation: nullableNonEmptyString.optional(),
+    violation: nullableNonEmptyString.optional(),
+    finding: nullableNonEmptyString.optional(),
+    chief_action: nullableNonEmptyString.optional(),
+    sanction: nullableNonEmptyString.optional(),
   })
   .strict();
 
