@@ -28,10 +28,18 @@ export function rowsFromResult(result: unknown): Record<string, unknown>[] {
     : [];
 }
 
+// Read float8 columns at full round-trip precision. The Supabase Postgres image
+// ships `extra_float_digits = 0`, which sends a double as 15 significant digits,
+// so a stored 46.518012160222426 arrived as 46.5180121602224 and every diff saw
+// a coordinate "change" that was only the connection's text encoding.
+const SESSION_OPTIONS = "-c extra_float_digits=3";
+
 export function defaultDatabaseClientFactory(
   databaseUrl: string,
 ): DatabaseClient {
-  return serializeQueries(new pg.Client({ connectionString: databaseUrl }));
+  return serializeQueries(
+    new pg.Client({ connectionString: databaseUrl, options: SESSION_OPTIONS }),
+  );
 }
 
 // A single pg.Client cannot run overlapping queries; facades drain concurrently
