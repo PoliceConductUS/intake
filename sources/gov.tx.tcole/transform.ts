@@ -307,6 +307,16 @@ function buildAgencies(rows: Array<Record<string, string>>): EmittedRecords {
         zip_code: nullIfBlank(row[DEPARTMENT.zip]),
         contact_name: nullIfBlank(row[DEPARTMENT.headName]),
         contact_email: nullIfBlank(row[DEPARTMENT.email]),
+        // User-approved physical address, 2026-09-21. The acquired workbook
+        // retains the mailing address: P.O. Box 952, Elkhart, TX 75839.
+        ...(departmentNumber === "1101"
+          ? {
+              address: "240 W Main St",
+              city: "Frankston",
+              state: "TX",
+              zip_code: "75763",
+            }
+          : {}),
       },
     };
   }
