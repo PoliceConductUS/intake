@@ -81,6 +81,50 @@ type ClassifiedLinks = {
   consolidatedCityTigerUrls: string[];
 };
 
+export function selectPublishedGazetteerPage(
+  html: string,
+  pageUrl: string,
+  tigerIndexHtml: string,
+  tigerIndexUrl: string,
+): { year: string; pageUrl: string } {
+  const current = discoverLatestGazetteerLinks(html, pageUrl);
+  const pages = new Map<string, string>([[current.year, pageUrl]]);
+  for (const link of extractLinks(html, pageUrl)) {
+    const url = new URL(link.url);
+    const year = url.pathname.match(/gazetteer-files\.(20\d{2})\.html$/)?.[1];
+    if (year && Number(year) < Number(current.year)) {
+      url.hash = "";
+      pages.set(year, url.href);
+    }
+  }
+  const years = extractLinks(tigerIndexHtml, tigerIndexUrl)
+    .map((link) => link.url.match(/\/TIGER(20\d{2})\/$/)?.[1])
+    .filter((year): year is string => year !== undefined && pages.has(year))
+    .sort((a, b) => Number(b) - Number(a));
+  if (!years.length) {
+    throw new Error(
+      "census: no shared published Gazetteer/TIGER shapefile year",
+    );
+  }
+  return { year: years[0], pageUrl: pages.get(years[0])! };
+}
+
+export function assertPublishedSourceLinks(
+  html: string,
+  directoryUrl: string,
+  expectedUrls: readonly string[],
+): void {
+  const published = new Set(
+    extractLinks(html, directoryUrl).map((link) => link.url),
+  );
+  const missing = expectedUrls.filter((url) => !published.has(url));
+  if (missing.length) {
+    throw new Error(
+      `census: required TIGER files are not published: ${missing.join(", ")}`,
+    );
+  }
+}
+
 export function discoverLatestGazetteerLinks(
   html: string,
   pageUrl: string,
