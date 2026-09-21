@@ -1,0 +1,173 @@
+{
+  "year": 2025,
+  "files": [
+    {
+      "workspace_path": "command/2026-08-22T07-38-16-990Z-alprnve2ra3xikdv758bkcz3/us-census-gazetteer/output/2025_Gaz_place_national.zip",
+      "sha256": "49644173a453469d9bd77fb7a493b027f87567e209edaf2078aac7543ac2ee29"
+    },
+    {
+      "workspace_path": "command/2026-08-22T07-38-16-990Z-alprnve2ra3xikdv758bkcz3/us-census-gazetteer/output/2025_Gaz_counties_national.zip",
+      "sha256": "4c90d0f805779923b5958ab13d0c1e9b99fe4932b786bfcf75dd739bb2dcb4ea"
+    },
+    {
+      "workspace_path": "command/2026-08-22T07-38-16-990Z-alprnve2ra3xikdv758bkcz3/us-census-gazetteer/output/tl_2025_48_place.zip",
+      "sha256": "5a0c4d49641f69028ee9f5c343bf09936ec00a378e5e6393115b106bab935e13"
+    },
+    {
+      "workspace_path": "command/2026-08-22T07-38-16-990Z-alprnve2ra3xikdv758bkcz3/us-census-gazetteer/output/tl_2025_us_county.zip",
+      "sha256": "9c6e9d9076abce2670d1de255de3710c35ecca00a7005d88e012dec52d95f763"
+    }
+  ],
+  "gazetteer_records": [
+    {
+      "USPS": "TX",
+      "GEOID": "4837112",
+      "GEOIDFQ": "1600000US4837112",
+      "ANSICODE": "02575704",
+      "NAME": "Ivanhoe city",
+      "LSAD": "25",
+      "FUNCSTAT": "A",
+      "ALAND": "8243038",
+      "AWATER": "1165777",
+      "ALAND_SQMI": "3.183",
+      "AWATER_SQMI": "0.45",
+      "INTPTLAT": "30.679601",
+      "INTPTLONG": "-94.414021"
+    },
+    {
+      "USPS": "TX",
+      "GEOID": "4847406",
+      "GEOIDFQ": "1600000US4847406",
+      "ANSICODE": "02408812",
+      "NAME": "Medina CDP",
+      "LSAD": "57",
+      "FUNCSTAT": "S",
+      "ALAND": "4593332",
+      "AWATER": "10872",
+      "ALAND_SQMI": "1.773",
+      "AWATER_SQMI": "0.004",
+      "INTPTLAT": "26.935079",
+      "INTPTLONG": "-99.264419"
+    },
+    {
+      "USPS": "TX",
+      "GEOID": "48019",
+      "GEOIDFQ": "0500000US48019",
+      "ANSICODE": "01383795",
+      "NAME": "Bandera County",
+      "ALAND": "2048663907",
+      "AWATER": "17291422",
+      "ALAND_SQMI": "790.994",
+      "AWATER_SQMI": "6.676",
+      "INTPTLAT": "29.756389",
+      "INTPTLONG": "-99.248285"
+    },
+    {
+      "USPS": "TX",
+      "GEOID": "48147",
+      "GEOIDFQ": "0500000US48147",
+      "ANSICODE": "01383859",
+      "NAME": "Fannin County",
+      "ALAND": "2273850350",
+      "AWATER": "54247784",
+      "ALAND_SQMI": "877.939",
+      "AWATER_SQMI": "20.945",
+      "INTPTLAT": "33.591161",
+      "INTPTLONG": "-96.104988"
+    },
+    {
+      "USPS": "TX",
+      "GEOID": "48457",
+      "GEOIDFQ": "0500000US48457",
+      "ANSICODE": "01384014",
+      "NAME": "Tyler County",
+      "ALAND": "2394158677",
+      "AWATER": "29093514",
+      "ALAND_SQMI": "924.39",
+      "AWATER_SQMI": "11.233",
+      "INTPTLAT": "30.769295",
+      "INTPTLONG": "-94.375656"
+    },
+    {
+      "USPS": "TX",
+      "GEOID": "48505",
+      "GEOIDFQ": "0500000US48505",
+      "ANSICODE": "01384038",
+      "NAME": "Zapata County",
+      "ALAND": "2585883702",
+      "AWATER": "154363496",
+      "ALAND_SQMI": "998.415",
+      "AWATER_SQMI": "59.6",
+      "INTPTLAT": "26.996981",
+      "INTPTLONG": "-99.182603"
+    }
+  ],
+  "hierarchy_records": [
+    {
+      "stateGeoid": "48",
+      "administrativeAreaGeoid": "48457",
+      "placeGeoid": "4837112",
+      "overlapTotalArea": 885688077,
+      "sourceKey": "us-census-tiger:overlap:2025:48:48457:4837112",
+      "placeName": "Ivanhoe",
+      "placeLabel": "Ivanhoe city"
+    },
+    {
+      "stateGeoid": "48",
+      "administrativeAreaGeoid": "48505",
+      "placeGeoid": "4847406",
+      "overlapTotalArea": 418389554,
+      "sourceKey": "us-census-tiger:overlap:2025:48:48505:4847406",
+      "placeName": "Medina",
+      "placeLabel": "Medina CDP"
+    }
+  ],
+  "current_locations": [
+    {
+      "location_path_id": "fbdnj6b9swid8265n7gl1mdh",
+      "path": "/tx/zapata-county/medina/",
+      "level": "place",
+      "display_name": "Medina",
+      "parent_location_path_id": "cle4pwqd6gyu6klvpltwnlv4"
+    },
+    {
+      "location_path_id": "rkbjrfg5o2shw8s4j2i55yu3",
+      "path": "/tx/tyler-county/ivanhoe/",
+      "level": "place",
+      "display_name": "Ivanhoe",
+      "parent_location_path_id": "clmnujhndtlo3w1asf12gwur"
+    }
+  ],
+  "current_agencies": [
+    {
+      "id": "cm76wpxaz007lvrvg6utatpx0",
+      "name": "Bandera Co. Const. PCT. 3",
+      "city": "Medina",
+      "state": "TX",
+      "address": "P.O. Box 1557",
+      "zip_code": "78055",
+      "location_path_id": "fbdnj6b9swid8265n7gl1mdh",
+      "path": "/tx/zapata-county/medina/"
+    },
+    {
+      "id": "cm76wpxb0007tvrvgxic15mnx",
+      "name": "Medina ISD Police Department",
+      "city": "Medina",
+      "state": "TX",
+      "address": "1 Bobcat Lane",
+      "zip_code": "78055",
+      "location_path_id": "fbdnj6b9swid8265n7gl1mdh",
+      "path": "/tx/zapata-county/medina/"
+    },
+    {
+      "id": "cm76wpxbc022dvrvge8ks2pyl",
+      "name": "Sam Rayburn ISD Police Department",
+      "city": "Ivanhoe",
+      "state": "TX",
+      "address": "9363 E. FM 273",
+      "zip_code": "75447",
+      "location_path_id": "rkbjrfg5o2shw8s4j2i55yu3",
+      "path": "/tx/tyler-county/ivanhoe/"
+    }
+  ]
+}

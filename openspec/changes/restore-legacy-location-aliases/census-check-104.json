@@ -1,0 +1,3582 @@
+{
+  "checked_at": "2026-09-21",
+  "census_year": 2025,
+  "raw_input_directory": "/Users/dalelotts/dev/PoliceConductUS/intake-workspace/dev-copy/command/2026-08-22T07-38-16-990Z-alprnve2ra3xikdv758bkcz3/us-census-gazetteer/output",
+  "audit_rows": 104,
+  "reconstructed_paths": 35249,
+  "current_paths": 35249,
+  "path_mismatches": [],
+  "extra_current_paths": [],
+  "raw_tiger_places_verified": 96,
+  "raw_tiger_states": ["09", "27", "48", "36", "11", "15", "16", "18", "47"],
+  "results": [
+    {
+      "audit_row": 1,
+      "legacy_path": "/ct/new-haven-county/",
+      "disposition": "historical-administrative-area",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": []
+    },
+    {
+      "audit_row": 2,
+      "legacy_path": "/ct/new-haven-county/new-haven/",
+      "disposition": "changed-parent-candidate",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [
+        "/ct/south-central-connecticut-planning-region/new-haven/"
+      ],
+      "checked_current_locations": [
+        {
+          "path": "/ct/south-central-connecticut-planning-region/new-haven/",
+          "sourceKeys": ["place:GEOID:0952000"],
+          "parentSourceKeys": ["administrative_area:GEOID:09170"],
+          "census_places": [
+            {
+              "geoid": "0952000",
+              "name": "New Haven",
+              "label": "New Haven city",
+              "counties": [
+                {
+                  "county_geoid": "09170",
+                  "county_name": "South Central Connecticut",
+                  "overlapTotalArea": 5606986610
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 3,
+      "legacy_path": "/mn/jackson-county/alba-township/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": []
+    },
+    {
+      "audit_row": 4,
+      "legacy_path": "/mn/ramsey-county/saint-paul/",
+      "disposition": "alias-added",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/mn/ramsey-county/st-paul/",
+          "sourceKeys": ["place:GEOID:2758000"],
+          "parentSourceKeys": ["administrative_area:GEOID:27123"],
+          "census_places": [
+            {
+              "geoid": "2758000",
+              "name": "St. Paul",
+              "label": "St. Paul city",
+              "counties": [
+                {
+                  "county_geoid": "27123",
+                  "county_name": "Ramsey",
+                  "overlapTotalArea": 16568461073
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        },
+        {
+          "path": "/tx/hill-county/abbott/",
+          "sourceKeys": ["place:GEOID:4800100"],
+          "parentSourceKeys": ["administrative_area:GEOID:48217"],
+          "census_places": [
+            {
+              "geoid": "4800100",
+              "name": "Abbott",
+              "label": "Abbott city",
+              "counties": [
+                {
+                  "county_geoid": "48217",
+                  "county_name": "Hill",
+                  "overlapTotalArea": 146410030
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 5,
+      "legacy_path": "/ny/new-york-county/new-york/",
+      "disposition": "alias-already-present",
+      "exact_census_path": false,
+      "census_generated_alias_target": "/ny/queens-county/new-york/",
+      "same_name_paths_in_state": ["/ny/queens-county/new-york/"],
+      "checked_current_locations": [
+        {
+          "path": "/ny/queens-county/new-york/",
+          "sourceKeys": ["place:GEOID:3651000"],
+          "parentSourceKeys": ["administrative_area:GEOID:36081"],
+          "census_places": [
+            {
+              "geoid": "3651000",
+              "name": "New York",
+              "label": "New York city",
+              "counties": [
+                {
+                  "county_geoid": "36081",
+                  "county_name": "Queens",
+                  "overlapTotalArea": 50049129232
+                },
+                {
+                  "county_geoid": "36085",
+                  "county_name": "Richmond",
+                  "overlapTotalArea": 28329728571
+                },
+                {
+                  "county_geoid": "36047",
+                  "county_name": "Kings",
+                  "overlapTotalArea": 26701499087
+                },
+                {
+                  "county_geoid": "36005",
+                  "county_name": "Bronx",
+                  "overlapTotalArea": 15867165504
+                },
+                {
+                  "county_geoid": "36061",
+                  "county_name": "New York",
+                  "overlapTotalArea": 9354050406
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 6,
+      "legacy_path": "/tx/anderson-county/tennessee-colony/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/henderson-county/trinidad/",
+          "sourceKeys": ["place:GEOID:4873652"],
+          "parentSourceKeys": ["administrative_area:GEOID:48213"],
+          "census_places": [
+            {
+              "geoid": "4873652",
+              "name": "Trinidad",
+              "label": "Trinidad city",
+              "counties": [
+                {
+                  "county_geoid": "48213",
+                  "county_name": "Henderson",
+                  "overlapTotalArea": 3744882235
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 7,
+      "legacy_path": "/tx/angelina-county/pollok/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/angelina-county/hudson/",
+          "sourceKeys": ["place:GEOID:4835228"],
+          "parentSourceKeys": ["administrative_area:GEOID:48005"],
+          "census_places": [
+            {
+              "geoid": "4835228",
+              "name": "Hudson",
+              "label": "Hudson city",
+              "counties": [
+                {
+                  "county_geoid": "48005",
+                  "county_name": "Angelina",
+                  "overlapTotalArea": 1253866423
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 8,
+      "legacy_path": "/tx/archer-county/archer/",
+      "disposition": "expanded-name-candidate",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/archer-county/archer-city/",
+          "sourceKeys": ["place:GEOID:4803696"],
+          "parentSourceKeys": ["administrative_area:GEOID:48009"],
+          "census_places": [
+            {
+              "geoid": "4803696",
+              "name": "Archer City",
+              "label": "Archer City city",
+              "counties": [
+                {
+                  "county_geoid": "48009",
+                  "county_name": "Archer",
+                  "overlapTotalArea": 629393210
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 9,
+      "legacy_path": "/tx/austin-county/belleville/",
+      "disposition": "alias-added",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/austin-county/bellville/",
+          "sourceKeys": ["place:GEOID:4807432"],
+          "parentSourceKeys": ["administrative_area:GEOID:48015"],
+          "census_places": [
+            {
+              "geoid": "4807432",
+              "name": "Bellville",
+              "label": "Bellville city",
+              "counties": [
+                {
+                  "county_geoid": "48015",
+                  "county_name": "Austin",
+                  "overlapTotalArea": 663678699
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 10,
+      "legacy_path": "/tx/austin-county/bleiblerville/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/austin-county/industry/",
+          "sourceKeys": ["place:GEOID:4835984"],
+          "parentSourceKeys": ["administrative_area:GEOID:48015"],
+          "census_places": [
+            {
+              "geoid": "4835984",
+              "name": "Industry",
+              "label": "Industry city",
+              "counties": [
+                {
+                  "county_geoid": "48015",
+                  "county_name": "Austin",
+                  "overlapTotalArea": 261694048
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 11,
+      "legacy_path": "/tx/bandera-county/medina/",
+      "disposition": "wrong-place-assignment",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": ["/tx/zapata-county/medina/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/zapata-county/medina/",
+          "sourceKeys": ["place:GEOID:4847406"],
+          "parentSourceKeys": ["administrative_area:GEOID:48505"],
+          "census_places": [
+            {
+              "geoid": "4847406",
+              "name": "Medina",
+              "label": "Medina CDP",
+              "counties": [
+                {
+                  "county_geoid": "48505",
+                  "county_name": "Zapata",
+                  "overlapTotalArea": 418389554
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 12,
+      "legacy_path": "/tx/bandera-county/utopia/",
+      "disposition": "county-or-mailing-conflict",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": ["/tx/uvalde-county/utopia/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/uvalde-county/utopia/",
+          "sourceKeys": ["place:GEOID:4874576"],
+          "parentSourceKeys": ["administrative_area:GEOID:48463"],
+          "census_places": [
+            {
+              "geoid": "4874576",
+              "name": "Utopia",
+              "label": "Utopia CDP",
+              "counties": [
+                {
+                  "county_geoid": "48463",
+                  "county_name": "Uvalde",
+                  "overlapTotalArea": 714598718
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 13,
+      "legacy_path": "/tx/bee-county/beevillle/",
+      "disposition": "alias-added",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/bee-county/beeville/",
+          "sourceKeys": ["place:GEOID:4807192"],
+          "parentSourceKeys": ["administrative_area:GEOID:48025"],
+          "census_places": [
+            {
+              "geoid": "4807192",
+              "name": "Beeville",
+              "label": "Beeville city",
+              "counties": [
+                {
+                  "county_geoid": "48025",
+                  "county_name": "Bee",
+                  "overlapTotalArea": 1521577293
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 14,
+      "legacy_path": "/tx/bell-county/bartlett/",
+      "disposition": "alias-already-present",
+      "exact_census_path": false,
+      "census_generated_alias_target": "/tx/williamson-county/bartlett/",
+      "same_name_paths_in_state": ["/tx/williamson-county/bartlett/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/williamson-county/bartlett/",
+          "sourceKeys": ["place:GEOID:4805732"],
+          "parentSourceKeys": ["administrative_area:GEOID:48491"],
+          "census_places": [
+            {
+              "geoid": "4805732",
+              "name": "Bartlett",
+              "label": "Bartlett city",
+              "counties": [
+                {
+                  "county_geoid": "48491",
+                  "county_name": "Williamson",
+                  "overlapTotalArea": 194555641
+                },
+                {
+                  "county_geoid": "48027",
+                  "county_name": "Bell",
+                  "overlapTotalArea": 110720992
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 15,
+      "legacy_path": "/tx/bell-county/little-river/",
+      "disposition": "expanded-name-candidate",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/bell-county/little-river-academy/",
+          "sourceKeys": ["place:GEOID:4843066"],
+          "parentSourceKeys": ["administrative_area:GEOID:48027"],
+          "census_places": [
+            {
+              "geoid": "4843066",
+              "name": "Little River-Academy",
+              "label": "Little River-Academy city",
+              "counties": [
+                {
+                  "county_geoid": "48027",
+                  "county_name": "Bell",
+                  "overlapTotalArea": 468815519
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 16,
+      "legacy_path": "/tx/bell-county/moody/",
+      "disposition": "county-or-mailing-conflict",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": ["/tx/mclennan-county/moody/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/mclennan-county/moody/",
+          "sourceKeys": ["place:GEOID:4849200"],
+          "parentSourceKeys": ["administrative_area:GEOID:48309"],
+          "census_places": [
+            {
+              "geoid": "4849200",
+              "name": "Moody",
+              "label": "Moody city",
+              "counties": [
+                {
+                  "county_geoid": "48309",
+                  "county_name": "McLennan",
+                  "overlapTotalArea": 341726080
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 17,
+      "legacy_path": "/tx/bexar-county/atascosa/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/bexar-county/macdona/",
+          "sourceKeys": ["place:GEOID:4845576"],
+          "parentSourceKeys": ["administrative_area:GEOID:48029"],
+          "census_places": [
+            {
+              "geoid": "4845576",
+              "name": "Macdona",
+              "label": "Macdona CDP",
+              "counties": [
+                {
+                  "county_geoid": "48029",
+                  "county_name": "Bexar",
+                  "overlapTotalArea": 374917011
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 18,
+      "legacy_path": "/tx/bexar-county/boerne/",
+      "disposition": "county-or-mailing-conflict",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": ["/tx/kendall-county/boerne/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/kendall-county/boerne/",
+          "sourceKeys": ["place:GEOID:4809160"],
+          "parentSourceKeys": ["administrative_area:GEOID:48259"],
+          "census_places": [
+            {
+              "geoid": "4809160",
+              "name": "Boerne",
+              "label": "Boerne city",
+              "counties": [
+                {
+                  "county_geoid": "48259",
+                  "county_name": "Kendall",
+                  "overlapTotalArea": 2913385036
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        },
+        {
+          "path": "/tx/bexar-county/fair-oaks-ranch/",
+          "sourceKeys": ["place:GEOID:4825168"],
+          "parentSourceKeys": ["administrative_area:GEOID:48029"],
+          "census_places": [
+            {
+              "geoid": "4825168",
+              "name": "Fair Oaks Ranch",
+              "label": "Fair Oaks Ranch city",
+              "counties": [
+                {
+                  "county_geoid": "48029",
+                  "county_name": "Bexar",
+                  "overlapTotalArea": 1402584412
+                },
+                {
+                  "county_geoid": "48259",
+                  "county_name": "Kendall",
+                  "overlapTotalArea": 935068702
+                },
+                {
+                  "county_geoid": "48091",
+                  "county_name": "Comal",
+                  "overlapTotalArea": 630056517
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 19,
+      "legacy_path": "/tx/bexar-county/saint-hedwig/",
+      "disposition": "alias-added",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/bexar-county/st-hedwig/",
+          "sourceKeys": ["place:GEOID:4864172"],
+          "parentSourceKeys": ["administrative_area:GEOID:48029"],
+          "census_places": [
+            {
+              "geoid": "4864172",
+              "name": "St. Hedwig",
+              "label": "St. Hedwig town",
+              "counties": [
+                {
+                  "county_geoid": "48029",
+                  "county_name": "Bexar",
+                  "overlapTotalArea": 7199989446
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 20,
+      "legacy_path": "/tx/bosque-county/meridan/",
+      "disposition": "alias-added",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/bosque-county/meridian/",
+          "sourceKeys": ["place:GEOID:4847760"],
+          "parentSourceKeys": ["administrative_area:GEOID:48035"],
+          "census_places": [
+            {
+              "geoid": "4847760",
+              "name": "Meridian",
+              "label": "Meridian city",
+              "counties": [
+                {
+                  "county_geoid": "48035",
+                  "county_name": "Bosque",
+                  "overlapTotalArea": 519756981
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 21,
+      "legacy_path": "/tx/bowie-county/avery/",
+      "disposition": "county-or-mailing-conflict",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": ["/tx/red-river-county/avery/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/red-river-county/avery/",
+          "sourceKeys": ["place:GEOID:4805072"],
+          "parentSourceKeys": ["administrative_area:GEOID:48387"],
+          "census_places": [
+            {
+              "geoid": "4805072",
+              "name": "Avery",
+              "label": "Avery town",
+              "counties": [
+                {
+                  "county_geoid": "48387",
+                  "county_name": "Red River",
+                  "overlapTotalArea": 245031194
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 22,
+      "legacy_path": "/tx/bowie-county/dekalb/",
+      "disposition": "alias-added",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/bowie-county/de-kalb/",
+          "sourceKeys": ["place:GEOID:4819648"],
+          "parentSourceKeys": ["administrative_area:GEOID:48037"],
+          "census_places": [
+            {
+              "geoid": "4819648",
+              "name": "De Kalb",
+              "label": "De Kalb city",
+              "counties": [
+                {
+                  "county_geoid": "48037",
+                  "county_name": "Bowie",
+                  "overlapTotalArea": 344059149
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 23,
+      "legacy_path": "/tx/bowie-county/simms/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/bowie-county/new-boston/",
+          "sourceKeys": ["place:GEOID:4850808"],
+          "parentSourceKeys": ["administrative_area:GEOID:48037"],
+          "census_places": [
+            {
+              "geoid": "4850808",
+              "name": "New Boston",
+              "label": "New Boston city",
+              "counties": [
+                {
+                  "county_geoid": "48037",
+                  "county_name": "Bowie",
+                  "overlapTotalArea": 1074087301
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 24,
+      "legacy_path": "/tx/caldwell-county/kyle/",
+      "disposition": "county-or-mailing-conflict",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": ["/tx/hays-county/kyle/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/hays-county/kyle/",
+          "sourceKeys": ["place:GEOID:4839952"],
+          "parentSourceKeys": ["administrative_area:GEOID:48209"],
+          "census_places": [
+            {
+              "geoid": "4839952",
+              "name": "Kyle",
+              "label": "Kyle city",
+              "counties": [
+                {
+                  "county_geoid": "48209",
+                  "county_name": "Hays",
+                  "overlapTotalArea": 7902810001
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        },
+        {
+          "path": "/tx/hays-county/uhland/",
+          "sourceKeys": ["place:GEOID:4874216"],
+          "parentSourceKeys": ["administrative_area:GEOID:48209"],
+          "census_places": [
+            {
+              "geoid": "4874216",
+              "name": "Uhland",
+              "label": "Uhland city",
+              "counties": [
+                {
+                  "county_geoid": "48209",
+                  "county_name": "Hays",
+                  "overlapTotalArea": 797130323
+                },
+                {
+                  "county_geoid": "48055",
+                  "county_name": "Caldwell",
+                  "overlapTotalArea": 128630404
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 25,
+      "legacy_path": "/tx/caldwell-county/maxwell/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/hays-county/kyle/",
+          "sourceKeys": ["place:GEOID:4839952"],
+          "parentSourceKeys": ["administrative_area:GEOID:48209"],
+          "census_places": [
+            {
+              "geoid": "4839952",
+              "name": "Kyle",
+              "label": "Kyle city",
+              "counties": [
+                {
+                  "county_geoid": "48209",
+                  "county_name": "Hays",
+                  "overlapTotalArea": 7902810001
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 26,
+      "legacy_path": "/tx/castro-county/dimmit/",
+      "disposition": "alias-added",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/castro-county/dimmitt/",
+          "sourceKeys": ["place:GEOID:4820464"],
+          "parentSourceKeys": ["administrative_area:GEOID:48069"],
+          "census_places": [
+            {
+              "geoid": "4820464",
+              "name": "Dimmitt",
+              "label": "Dimmitt city",
+              "counties": [
+                {
+                  "county_geoid": "48069",
+                  "county_name": "Castro",
+                  "overlapTotalArea": 827601537
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 27,
+      "legacy_path": "/tx/chambers-county/baytown/",
+      "disposition": "alias-already-present",
+      "exact_census_path": false,
+      "census_generated_alias_target": "/tx/harris-county/baytown/",
+      "same_name_paths_in_state": ["/tx/harris-county/baytown/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/harris-county/baytown/",
+          "sourceKeys": ["place:GEOID:4806128"],
+          "parentSourceKeys": ["administrative_area:GEOID:48201"],
+          "census_places": [
+            {
+              "geoid": "4806128",
+              "name": "Baytown",
+              "label": "Baytown city",
+              "counties": [
+                {
+                  "county_geoid": "48201",
+                  "county_name": "Harris",
+                  "overlapTotalArea": 8957068306
+                },
+                {
+                  "county_geoid": "48071",
+                  "county_name": "Chambers",
+                  "overlapTotalArea": 1025204860
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 28,
+      "legacy_path": "/tx/cherokee-county/bullard/",
+      "disposition": "alias-already-present",
+      "exact_census_path": false,
+      "census_generated_alias_target": "/tx/smith-county/bullard/",
+      "same_name_paths_in_state": ["/tx/smith-county/bullard/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/smith-county/bullard/",
+          "sourceKeys": ["place:GEOID:4811212"],
+          "parentSourceKeys": ["administrative_area:GEOID:48423"],
+          "census_places": [
+            {
+              "geoid": "4811212",
+              "name": "Bullard",
+              "label": "Bullard town",
+              "counties": [
+                {
+                  "county_geoid": "48423",
+                  "county_name": "Smith",
+                  "overlapTotalArea": 861993638
+                },
+                {
+                  "county_geoid": "48073",
+                  "county_name": "Cherokee",
+                  "overlapTotalArea": 217426752
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 29,
+      "legacy_path": "/tx/colorado-county/cat-spring/",
+      "disposition": "missing-place-wrong-county",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/austin-county/new-ulm/",
+          "sourceKeys": ["place:GEOID:4851384"],
+          "parentSourceKeys": ["administrative_area:GEOID:48015"],
+          "census_places": [
+            {
+              "geoid": "4851384",
+              "name": "New Ulm",
+              "label": "New Ulm CDP",
+              "counties": [
+                {
+                  "county_geoid": "48015",
+                  "county_name": "Austin",
+                  "overlapTotalArea": 1313223241
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 30,
+      "legacy_path": "/tx/cooke-county/gainsville/",
+      "disposition": "alias-added",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/cooke-county/gainesville/",
+          "sourceKeys": ["place:GEOID:4827984"],
+          "parentSourceKeys": ["administrative_area:GEOID:48097"],
+          "census_places": [
+            {
+              "geoid": "4827984",
+              "name": "Gainesville",
+              "label": "Gainesville city",
+              "counties": [
+                {
+                  "county_geoid": "48097",
+                  "county_name": "Cooke",
+                  "overlapTotalArea": 4865692460
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 31,
+      "legacy_path": "/tx/coryell-county/jonesboro/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/bosque-county/cranfills-gap/",
+          "sourceKeys": ["place:GEOID:4817540"],
+          "parentSourceKeys": ["administrative_area:GEOID:48035"],
+          "census_places": [
+            {
+              "geoid": "4817540",
+              "name": "Cranfills Gap",
+              "label": "Cranfills Gap city",
+              "counties": [
+                {
+                  "county_geoid": "48035",
+                  "county_name": "Bosque",
+                  "overlapTotalArea": 179025268
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 32,
+      "legacy_path": "/tx/dallas-county/dfw-airport/",
+      "disposition": "geographic-scope-conflict",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/tarrant-county/grapevine/",
+          "sourceKeys": ["place:GEOID:4830644"],
+          "parentSourceKeys": ["administrative_area:GEOID:48439"],
+          "census_places": [
+            {
+              "geoid": "4830644",
+              "name": "Grapevine",
+              "label": "Grapevine city",
+              "counties": [
+                {
+                  "county_geoid": "48439",
+                  "county_name": "Tarrant",
+                  "overlapTotalArea": 8811233866
+                },
+                {
+                  "county_geoid": "48113",
+                  "county_name": "Dallas",
+                  "overlapTotalArea": 128250893
+                },
+                {
+                  "county_geoid": "48121",
+                  "county_name": "Denton",
+                  "overlapTotalArea": 11157608
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 33,
+      "legacy_path": "/tx/denton-county/carrollton/",
+      "disposition": "alias-already-present",
+      "exact_census_path": false,
+      "census_generated_alias_target": "/tx/dallas-county/carrollton/",
+      "same_name_paths_in_state": ["/tx/dallas-county/carrollton/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/dallas-county/carrollton/",
+          "sourceKeys": ["place:GEOID:4813024"],
+          "parentSourceKeys": ["administrative_area:GEOID:48113"],
+          "census_places": [
+            {
+              "geoid": "4813024",
+              "name": "Carrollton",
+              "label": "Carrollton city",
+              "counties": [
+                {
+                  "county_geoid": "48113",
+                  "county_name": "Dallas",
+                  "overlapTotalArea": 4839382519
+                },
+                {
+                  "county_geoid": "48121",
+                  "county_name": "Denton",
+                  "overlapTotalArea": 4457127619
+                },
+                {
+                  "county_geoid": "48085",
+                  "county_name": "Collin",
+                  "overlapTotalArea": 44034337
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 34,
+      "legacy_path": "/tx/denton-county/crossroads/",
+      "disposition": "alias-added",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/denton-county/cross-roads/",
+          "sourceKeys": ["place:GEOID:4817852"],
+          "parentSourceKeys": ["administrative_area:GEOID:48121"],
+          "census_places": [
+            {
+              "geoid": "4817852",
+              "name": "Cross Roads",
+              "label": "Cross Roads town",
+              "counties": [
+                {
+                  "county_geoid": "48121",
+                  "county_name": "Denton",
+                  "overlapTotalArea": 1707913823
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 35,
+      "legacy_path": "/tx/denton-county/frisco/",
+      "disposition": "alias-already-present",
+      "exact_census_path": false,
+      "census_generated_alias_target": "/tx/collin-county/frisco/",
+      "same_name_paths_in_state": ["/tx/collin-county/frisco/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/collin-county/frisco/",
+          "sourceKeys": ["place:GEOID:4827684"],
+          "parentSourceKeys": ["administrative_area:GEOID:48085"],
+          "census_places": [
+            {
+              "geoid": "4827684",
+              "name": "Frisco",
+              "label": "Frisco city",
+              "counties": [
+                {
+                  "county_geoid": "48085",
+                  "county_name": "Collin",
+                  "overlapTotalArea": 10904881153
+                },
+                {
+                  "county_geoid": "48121",
+                  "county_name": "Denton",
+                  "overlapTotalArea": 6408968429
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 36,
+      "legacy_path": "/tx/fannin-county/ivanhoe/",
+      "disposition": "wrong-place-assignment",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": ["/tx/tyler-county/ivanhoe/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/tyler-county/ivanhoe/",
+          "sourceKeys": ["place:GEOID:4837112"],
+          "parentSourceKeys": ["administrative_area:GEOID:48457"],
+          "census_places": [
+            {
+              "geoid": "4837112",
+              "name": "Ivanhoe",
+              "label": "Ivanhoe city",
+              "counties": [
+                {
+                  "county_geoid": "48457",
+                  "county_name": "Tyler",
+                  "overlapTotalArea": 885688077
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 37,
+      "legacy_path": "/tx/fort-bend-county/katy/",
+      "disposition": "alias-already-present",
+      "exact_census_path": false,
+      "census_generated_alias_target": "/tx/waller-county/katy/",
+      "same_name_paths_in_state": ["/tx/waller-county/katy/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/waller-county/katy/",
+          "sourceKeys": ["place:GEOID:4838476"],
+          "parentSourceKeys": ["administrative_area:GEOID:48473"],
+          "census_places": [
+            {
+              "geoid": "4838476",
+              "name": "Katy",
+              "label": "Katy city",
+              "counties": [
+                {
+                  "county_geoid": "48473",
+                  "county_name": "Waller",
+                  "overlapTotalArea": 1360284721
+                },
+                {
+                  "county_geoid": "48201",
+                  "county_name": "Harris",
+                  "overlapTotalArea": 1253002882
+                },
+                {
+                  "county_geoid": "48157",
+                  "county_name": "Fort Bend",
+                  "overlapTotalArea": 1086026320
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        },
+        {
+          "path": "/tx/harris-county/houston/",
+          "sourceKeys": ["place:GEOID:4835000"],
+          "parentSourceKeys": ["administrative_area:GEOID:48201"],
+          "census_places": [
+            {
+              "geoid": "4835000",
+              "name": "Houston",
+              "label": "Houston city",
+              "counties": [
+                {
+                  "county_geoid": "48201",
+                  "county_name": "Harris",
+                  "overlapTotalArea": 156490067108
+                },
+                {
+                  "county_geoid": "48157",
+                  "county_name": "Fort Bend",
+                  "overlapTotalArea": 4331502482
+                },
+                {
+                  "county_geoid": "48339",
+                  "county_name": "Montgomery",
+                  "overlapTotalArea": 1548057589
+                },
+                {
+                  "county_geoid": "48473",
+                  "county_name": "Waller",
+                  "overlapTotalArea": 24339014
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 38,
+      "legacy_path": "/tx/fort-bend-county/sugarland/",
+      "disposition": "alias-added",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/fort-bend-county/sugar-land/",
+          "sourceKeys": ["place:GEOID:4870808"],
+          "parentSourceKeys": ["administrative_area:GEOID:48157"],
+          "census_places": [
+            {
+              "geoid": "4870808",
+              "name": "Sugar Land",
+              "label": "Sugar Land city",
+              "counties": [
+                {
+                  "county_geoid": "48157",
+                  "county_name": "Fort Bend",
+                  "overlapTotalArea": 10347633645
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 39,
+      "legacy_path": "/tx/franklin-county/mt-vernon/",
+      "disposition": "alias-added",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/franklin-county/mount-vernon/",
+          "sourceKeys": ["place:GEOID:4849860"],
+          "parentSourceKeys": ["administrative_area:GEOID:48159"],
+          "census_places": [
+            {
+              "geoid": "4849860",
+              "name": "Mount Vernon",
+              "label": "Mount Vernon town",
+              "counties": [
+                {
+                  "county_geoid": "48159",
+                  "county_name": "Franklin",
+                  "overlapTotalArea": 1102565776
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 40,
+      "legacy_path": "/tx/guadalupe-county/la-vernia/",
+      "disposition": "county-or-mailing-conflict",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": ["/tx/wilson-county/la-vernia/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/wilson-county/la-vernia/",
+          "sourceKeys": ["place:GEOID:4841764"],
+          "parentSourceKeys": ["administrative_area:GEOID:48493"],
+          "census_places": [
+            {
+              "geoid": "4841764",
+              "name": "La Vernia",
+              "label": "La Vernia city",
+              "counties": [
+                {
+                  "county_geoid": "48493",
+                  "county_name": "Wilson",
+                  "overlapTotalArea": 575860297
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        },
+        {
+          "path": "/tx/guadalupe-county/new-berlin/",
+          "sourceKeys": ["place:GEOID:4850796"],
+          "parentSourceKeys": ["administrative_area:GEOID:48187"],
+          "census_places": [
+            {
+              "geoid": "4850796",
+              "name": "New Berlin",
+              "label": "New Berlin city",
+              "counties": [
+                {
+                  "county_geoid": "48187",
+                  "county_name": "Guadalupe",
+                  "overlapTotalArea": 2320130041
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 41,
+      "legacy_path": "/tx/guadalupe-county/schertz/",
+      "disposition": "alias-already-present",
+      "exact_census_path": false,
+      "census_generated_alias_target": "/tx/bexar-county/schertz/",
+      "same_name_paths_in_state": ["/tx/bexar-county/schertz/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/bexar-county/schertz/",
+          "sourceKeys": ["place:GEOID:4866128"],
+          "parentSourceKeys": ["administrative_area:GEOID:48029"],
+          "census_places": [
+            {
+              "geoid": "4866128",
+              "name": "Schertz",
+              "label": "Schertz city",
+              "counties": [
+                {
+                  "county_geoid": "48029",
+                  "county_name": "Bexar",
+                  "overlapTotalArea": 4098383695
+                },
+                {
+                  "county_geoid": "48187",
+                  "county_name": "Guadalupe",
+                  "overlapTotalArea": 3100210799
+                },
+                {
+                  "county_geoid": "48091",
+                  "county_name": "Comal",
+                  "overlapTotalArea": 1996591865
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 42,
+      "legacy_path": "/tx/guadalupe-county/selma/",
+      "disposition": "alias-already-present",
+      "exact_census_path": false,
+      "census_generated_alias_target": "/tx/bexar-county/selma/",
+      "same_name_paths_in_state": ["/tx/bexar-county/selma/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/bexar-county/selma/",
+          "sourceKeys": ["place:GEOID:4866704"],
+          "parentSourceKeys": ["administrative_area:GEOID:48029"],
+          "census_places": [
+            {
+              "geoid": "4866704",
+              "name": "Selma",
+              "label": "Selma city",
+              "counties": [
+                {
+                  "county_geoid": "48029",
+                  "county_name": "Bexar",
+                  "overlapTotalArea": 720973806
+                },
+                {
+                  "county_geoid": "48187",
+                  "county_name": "Guadalupe",
+                  "overlapTotalArea": 372771392
+                },
+                {
+                  "county_geoid": "48091",
+                  "county_name": "Comal",
+                  "overlapTotalArea": 115441583
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 43,
+      "legacy_path": "/tx/hamilton-county/archer-city/",
+      "disposition": "county-or-mailing-conflict",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": ["/tx/archer-county/archer-city/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/archer-county/archer-city/",
+          "sourceKeys": ["place:GEOID:4803696"],
+          "parentSourceKeys": ["administrative_area:GEOID:48009"],
+          "census_places": [
+            {
+              "geoid": "4803696",
+              "name": "Archer City",
+              "label": "Archer City city",
+              "counties": [
+                {
+                  "county_geoid": "48009",
+                  "county_name": "Archer",
+                  "overlapTotalArea": 629393210
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 44,
+      "legacy_path": "/tx/hardin-county/batson/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/liberty-county/hull/",
+          "sourceKeys": ["place:GEOID:4835324"],
+          "parentSourceKeys": ["administrative_area:GEOID:48291"],
+          "census_places": [
+            {
+              "geoid": "4835324",
+              "name": "Hull",
+              "label": "Hull CDP",
+              "counties": [
+                {
+                  "county_geoid": "48291",
+                  "county_name": "Liberty",
+                  "overlapTotalArea": 488703462
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 45,
+      "legacy_path": "/tx/hardin-county/saratoga/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/liberty-county/hull/",
+          "sourceKeys": ["place:GEOID:4835324"],
+          "parentSourceKeys": ["administrative_area:GEOID:48291"],
+          "census_places": [
+            {
+              "geoid": "4835324",
+              "name": "Hull",
+              "label": "Hull CDP",
+              "counties": [
+                {
+                  "county_geoid": "48291",
+                  "county_name": "Liberty",
+                  "overlapTotalArea": 488703462
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 46,
+      "legacy_path": "/tx/harris-county/alief/",
+      "disposition": "geographic-scope-conflict",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/harris-county/houston/",
+          "sourceKeys": ["place:GEOID:4835000"],
+          "parentSourceKeys": ["administrative_area:GEOID:48201"],
+          "census_places": [
+            {
+              "geoid": "4835000",
+              "name": "Houston",
+              "label": "Houston city",
+              "counties": [
+                {
+                  "county_geoid": "48201",
+                  "county_name": "Harris",
+                  "overlapTotalArea": 156490067108
+                },
+                {
+                  "county_geoid": "48157",
+                  "county_name": "Fort Bend",
+                  "overlapTotalArea": 4331502482
+                },
+                {
+                  "county_geoid": "48339",
+                  "county_name": "Montgomery",
+                  "overlapTotalArea": 1548057589
+                },
+                {
+                  "county_geoid": "48473",
+                  "county_name": "Waller",
+                  "overlapTotalArea": 24339014
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 47,
+      "legacy_path": "/tx/harris-county/cypress/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/harris-county/houston/",
+          "sourceKeys": ["place:GEOID:4835000"],
+          "parentSourceKeys": ["administrative_area:GEOID:48201"],
+          "census_places": [
+            {
+              "geoid": "4835000",
+              "name": "Houston",
+              "label": "Houston city",
+              "counties": [
+                {
+                  "county_geoid": "48201",
+                  "county_name": "Harris",
+                  "overlapTotalArea": 156490067108
+                },
+                {
+                  "county_geoid": "48157",
+                  "county_name": "Fort Bend",
+                  "overlapTotalArea": 4331502482
+                },
+                {
+                  "county_geoid": "48339",
+                  "county_name": "Montgomery",
+                  "overlapTotalArea": 1548057589
+                },
+                {
+                  "county_geoid": "48473",
+                  "county_name": "Waller",
+                  "overlapTotalArea": 24339014
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 48,
+      "legacy_path": "/tx/harris-county/huffman/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/harris-county/houston/",
+          "sourceKeys": ["place:GEOID:4835000"],
+          "parentSourceKeys": ["administrative_area:GEOID:48201"],
+          "census_places": [
+            {
+              "geoid": "4835000",
+              "name": "Houston",
+              "label": "Houston city",
+              "counties": [
+                {
+                  "county_geoid": "48201",
+                  "county_name": "Harris",
+                  "overlapTotalArea": 156490067108
+                },
+                {
+                  "county_geoid": "48157",
+                  "county_name": "Fort Bend",
+                  "overlapTotalArea": 4331502482
+                },
+                {
+                  "county_geoid": "48339",
+                  "county_name": "Montgomery",
+                  "overlapTotalArea": 1548057589
+                },
+                {
+                  "county_geoid": "48473",
+                  "county_name": "Waller",
+                  "overlapTotalArea": 24339014
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 49,
+      "legacy_path": "/tx/harris-county/katy/",
+      "disposition": "alias-already-present",
+      "exact_census_path": false,
+      "census_generated_alias_target": "/tx/waller-county/katy/",
+      "same_name_paths_in_state": ["/tx/waller-county/katy/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/waller-county/katy/",
+          "sourceKeys": ["place:GEOID:4838476"],
+          "parentSourceKeys": ["administrative_area:GEOID:48473"],
+          "census_places": [
+            {
+              "geoid": "4838476",
+              "name": "Katy",
+              "label": "Katy city",
+              "counties": [
+                {
+                  "county_geoid": "48473",
+                  "county_name": "Waller",
+                  "overlapTotalArea": 1360284721
+                },
+                {
+                  "county_geoid": "48201",
+                  "county_name": "Harris",
+                  "overlapTotalArea": 1253002882
+                },
+                {
+                  "county_geoid": "48157",
+                  "county_name": "Fort Bend",
+                  "overlapTotalArea": 1086026320
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 50,
+      "legacy_path": "/tx/harris-county/seabrook/",
+      "disposition": "alias-already-present",
+      "exact_census_path": false,
+      "census_generated_alias_target": "/tx/chambers-county/seabrook/",
+      "same_name_paths_in_state": ["/tx/chambers-county/seabrook/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/chambers-county/seabrook/",
+          "sourceKeys": ["place:GEOID:4866392"],
+          "parentSourceKeys": ["administrative_area:GEOID:48071"],
+          "census_places": [
+            {
+              "geoid": "4866392",
+              "name": "Seabrook",
+              "label": "Seabrook city",
+              "counties": [
+                {
+                  "county_geoid": "48071",
+                  "county_name": "Chambers",
+                  "overlapTotalArea": 3599623585
+                },
+                {
+                  "county_geoid": "48201",
+                  "county_name": "Harris",
+                  "overlapTotalArea": 1410224022
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 51,
+      "legacy_path": "/tx/harrison-county/elysian-fields/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/harrison-county/waskom/",
+          "sourceKeys": ["place:GEOID:4876636"],
+          "parentSourceKeys": ["administrative_area:GEOID:48203"],
+          "census_places": [
+            {
+              "geoid": "4876636",
+              "name": "Waskom",
+              "label": "Waskom city",
+              "counties": [
+                {
+                  "county_geoid": "48203",
+                  "county_name": "Harrison",
+                  "overlapTotalArea": 665974892
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 52,
+      "legacy_path": "/tx/henderson-county/larue/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/henderson-county/poynor/",
+          "sourceKeys": ["place:GEOID:4859192"],
+          "parentSourceKeys": ["administrative_area:GEOID:48213"],
+          "census_places": [
+            {
+              "geoid": "4859192",
+              "name": "Poynor",
+              "label": "Poynor town",
+              "counties": [
+                {
+                  "county_geoid": "48213",
+                  "county_name": "Henderson",
+                  "overlapTotalArea": 584112225
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 53,
+      "legacy_path": "/tx/henderson-county/mabank/",
+      "disposition": "alias-already-present",
+      "exact_census_path": false,
+      "census_generated_alias_target": "/tx/kaufman-county/mabank/",
+      "same_name_paths_in_state": ["/tx/kaufman-county/mabank/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/kaufman-county/mabank/",
+          "sourceKeys": ["place:GEOID:4845324"],
+          "parentSourceKeys": ["administrative_area:GEOID:48257"],
+          "census_places": [
+            {
+              "geoid": "4845324",
+              "name": "Mabank",
+              "label": "Mabank town",
+              "counties": [
+                {
+                  "county_geoid": "48257",
+                  "county_name": "Kaufman",
+                  "overlapTotalArea": 1726074911
+                },
+                {
+                  "county_geoid": "48213",
+                  "county_name": "Henderson",
+                  "overlapTotalArea": 424815006
+                },
+                {
+                  "county_geoid": "48467",
+                  "county_name": "Van Zandt",
+                  "overlapTotalArea": 33980515
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 54,
+      "legacy_path": "/tx/hockley-county/witharral/",
+      "disposition": "alias-added",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/hockley-county/whitharral/",
+          "sourceKeys": ["place:GEOID:4878640"],
+          "parentSourceKeys": ["administrative_area:GEOID:48219"],
+          "census_places": [
+            {
+              "geoid": "4878640",
+              "name": "Whitharral",
+              "label": "Whitharral CDP",
+              "counties": [
+                {
+                  "county_geoid": "48219",
+                  "county_name": "Hockley",
+                  "overlapTotalArea": 279875140
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 55,
+      "legacy_path": "/tx/hopkins-county/saltillo/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/franklin-county/mount-vernon/",
+          "sourceKeys": ["place:GEOID:4849860"],
+          "parentSourceKeys": ["administrative_area:GEOID:48159"],
+          "census_places": [
+            {
+              "geoid": "4849860",
+              "name": "Mount Vernon",
+              "label": "Mount Vernon town",
+              "counties": [
+                {
+                  "county_geoid": "48159",
+                  "county_name": "Franklin",
+                  "overlapTotalArea": 1102565776
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 56,
+      "legacy_path": "/tx/hopkins-county/sulphur-bluff/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/hopkins-county/tira/",
+          "sourceKeys": ["place:GEOID:4873124"],
+          "parentSourceKeys": ["administrative_area:GEOID:48223"],
+          "census_places": [
+            {
+              "geoid": "4873124",
+              "name": "Tira",
+              "label": "Tira town",
+              "counties": [
+                {
+                  "county_geoid": "48223",
+                  "county_name": "Hopkins",
+                  "overlapTotalArea": 361586830
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 57,
+      "legacy_path": "/tx/hunt-county/merit/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/collin-county/farmersville/",
+          "sourceKeys": ["place:GEOID:4825488"],
+          "parentSourceKeys": ["administrative_area:GEOID:48085"],
+          "census_places": [
+            {
+              "geoid": "4825488",
+              "name": "Farmersville",
+              "label": "Farmersville city",
+              "counties": [
+                {
+                  "county_geoid": "48085",
+                  "county_name": "Collin",
+                  "overlapTotalArea": 1069551168
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 58,
+      "legacy_path": "/tx/jasper-county/brookeland/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/jasper-county/sam-rayburn/",
+          "sourceKeys": ["place:GEOID:4864460"],
+          "parentSourceKeys": ["administrative_area:GEOID:48241"],
+          "census_places": [
+            {
+              "geoid": "4864460",
+              "name": "Sam Rayburn",
+              "label": "Sam Rayburn CDP",
+              "counties": [
+                {
+                  "county_geoid": "48241",
+                  "county_name": "Jasper",
+                  "overlapTotalArea": 2407122157
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 59,
+      "legacy_path": "/tx/jones-county/stamford/",
+      "disposition": "alias-already-present",
+      "exact_census_path": false,
+      "census_generated_alias_target": "/tx/haskell-county/stamford/",
+      "same_name_paths_in_state": ["/tx/haskell-county/stamford/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/haskell-county/stamford/",
+          "sourceKeys": ["place:GEOID:4869980"],
+          "parentSourceKeys": ["administrative_area:GEOID:48207"],
+          "census_places": [
+            {
+              "geoid": "4869980",
+              "name": "Stamford",
+              "label": "Stamford city",
+              "counties": [
+                {
+                  "county_geoid": "48207",
+                  "county_name": "Haskell",
+                  "overlapTotalArea": 2404938653
+                },
+                {
+                  "county_geoid": "48253",
+                  "county_name": "Jones",
+                  "overlapTotalArea": 823175398
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 60,
+      "legacy_path": "/tx/kleberg-county/kinsgville/",
+      "disposition": "alias-added",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/kleberg-county/kingsville/",
+          "sourceKeys": ["place:GEOID:4839352"],
+          "parentSourceKeys": ["administrative_area:GEOID:48273"],
+          "census_places": [
+            {
+              "geoid": "4839352",
+              "name": "Kingsville",
+              "label": "Kingsville city",
+              "counties": [
+                {
+                  "county_geoid": "48273",
+                  "county_name": "Kleberg",
+                  "overlapTotalArea": 3289662938
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 61,
+      "legacy_path": "/tx/lamar-county/pattonville/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/lamar-county/deport/",
+          "sourceKeys": ["place:GEOID:4820020"],
+          "parentSourceKeys": ["administrative_area:GEOID:48277"],
+          "census_places": [
+            {
+              "geoid": "4820020",
+              "name": "Deport",
+              "label": "Deport city",
+              "counties": [
+                {
+                  "county_geoid": "48277",
+                  "county_name": "Lamar",
+                  "overlapTotalArea": 242258438
+                },
+                {
+                  "county_geoid": "48387",
+                  "county_name": "Red River",
+                  "overlapTotalArea": 37328500
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 62,
+      "legacy_path": "/tx/lee-county/dimebox/",
+      "disposition": "alias-added",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/lee-county/dime-box/",
+          "sourceKeys": ["place:GEOID:4820452"],
+          "parentSourceKeys": ["administrative_area:GEOID:48287"],
+          "census_places": [
+            {
+              "geoid": "4820452",
+              "name": "Dime Box",
+              "label": "Dime Box CDP",
+              "counties": [
+                {
+                  "county_geoid": "48287",
+                  "county_name": "Lee",
+                  "overlapTotalArea": 174752527
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 63,
+      "legacy_path": "/tx/liberty-county/liberty-hill/",
+      "disposition": "county-or-mailing-conflict",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": ["/tx/williamson-county/liberty-hill/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/williamson-county/liberty-hill/",
+          "sourceKeys": ["place:GEOID:4842664"],
+          "parentSourceKeys": ["administrative_area:GEOID:48491"],
+          "census_places": [
+            {
+              "geoid": "4842664",
+              "name": "Liberty Hill",
+              "label": "Liberty Hill city",
+              "counties": [
+                {
+                  "county_geoid": "48491",
+                  "county_name": "Williamson",
+                  "overlapTotalArea": 1130363243
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        },
+        {
+          "path": "/tx/liberty-county/liberty/",
+          "sourceKeys": ["place:GEOID:4842568"],
+          "parentSourceKeys": ["administrative_area:GEOID:48291"],
+          "census_places": [
+            {
+              "geoid": "4842568",
+              "name": "Liberty",
+              "label": "Liberty city",
+              "counties": [
+                {
+                  "county_geoid": "48291",
+                  "county_name": "Liberty",
+                  "overlapTotalArea": 11087586164
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 64,
+      "legacy_path": "/tx/live-oak-county/sandia/",
+      "disposition": "county-or-mailing-conflict",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": ["/tx/jim-wells-county/sandia/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/jim-wells-county/sandia/",
+          "sourceKeys": ["place:GEOID:4865168"],
+          "parentSourceKeys": ["administrative_area:GEOID:48249"],
+          "census_places": [
+            {
+              "geoid": "4865168",
+              "name": "Sandia",
+              "label": "Sandia CDP",
+              "counties": [
+                {
+                  "county_geoid": "48249",
+                  "county_name": "Jim Wells",
+                  "overlapTotalArea": 229664951
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 65,
+      "legacy_path": "/tx/llano-county/sunrise-beach/",
+      "disposition": "expanded-name-candidate",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/llano-county/sunrise-beach-village/",
+          "sourceKeys": ["place:GEOID:4871228"],
+          "parentSourceKeys": ["administrative_area:GEOID:48299"],
+          "census_places": [
+            {
+              "geoid": "4871228",
+              "name": "Sunrise Beach Village",
+              "label": "Sunrise Beach Village city",
+              "counties": [
+                {
+                  "county_geoid": "48299",
+                  "county_name": "Llano",
+                  "overlapTotalArea": 558375718
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 66,
+      "legacy_path": "/tx/lynn-county/odonnell/",
+      "disposition": "alias-added",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/lynn-county/o-donnell/",
+          "sourceKeys": ["place:GEOID:4853436"],
+          "parentSourceKeys": ["administrative_area:GEOID:48305"],
+          "census_places": [
+            {
+              "geoid": "4853436",
+              "name": "O'Donnell",
+              "label": "O'Donnell city",
+              "counties": [
+                {
+                  "county_geoid": "48305",
+                  "county_name": "Lynn",
+                  "overlapTotalArea": 170698062
+                },
+                {
+                  "county_geoid": "48115",
+                  "county_name": "Dawson",
+                  "overlapTotalArea": 44178266
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 67,
+      "legacy_path": "/tx/matagorda-county/el-maton/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/matagorda-county/blessing/",
+          "sourceKeys": ["place:GEOID:4808668"],
+          "parentSourceKeys": ["administrative_area:GEOID:48321"],
+          "census_places": [
+            {
+              "geoid": "4808668",
+              "name": "Blessing",
+              "label": "Blessing CDP",
+              "counties": [
+                {
+                  "county_geoid": "48321",
+                  "county_name": "Matagorda",
+                  "overlapTotalArea": 487965641
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 68,
+      "legacy_path": "/tx/mclennan-county/eddy/",
+      "disposition": "expanded-name-candidate",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/mclennan-county/bruceville-eddy/",
+          "sourceKeys": ["place:GEOID:4810828"],
+          "parentSourceKeys": ["administrative_area:GEOID:48309"],
+          "census_places": [
+            {
+              "geoid": "4810828",
+              "name": "Bruceville-Eddy",
+              "label": "Bruceville-Eddy city",
+              "counties": [
+                {
+                  "county_geoid": "48309",
+                  "county_name": "McLennan",
+                  "overlapTotalArea": 906142374
+                },
+                {
+                  "county_geoid": "48145",
+                  "county_name": "Falls",
+                  "overlapTotalArea": 107307774
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 69,
+      "legacy_path": "/tx/medina-county/la-coste/",
+      "disposition": "alias-added",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/medina-county/lacoste/",
+          "sourceKeys": ["place:GEOID:4840108"],
+          "parentSourceKeys": ["administrative_area:GEOID:48325"],
+          "census_places": [
+            {
+              "geoid": "4840108",
+              "name": "LaCoste",
+              "label": "LaCoste city",
+              "counties": [
+                {
+                  "county_geoid": "48325",
+                  "county_name": "Medina",
+                  "overlapTotalArea": 152067519
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 70,
+      "legacy_path": "/tx/montgomery-county/new-caney/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/montgomery-county/woodbranch/",
+          "sourceKeys": ["place:GEOID:4880044"],
+          "parentSourceKeys": ["administrative_area:GEOID:48339"],
+          "census_places": [
+            {
+              "geoid": "4880044",
+              "name": "Woodbranch",
+              "label": "Woodbranch city",
+              "counties": [
+                {
+                  "county_geoid": "48339",
+                  "county_name": "Montgomery",
+                  "overlapTotalArea": 487227112
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 71,
+      "legacy_path": "/tx/montgomery-county/panorama/",
+      "disposition": "expanded-name-candidate",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/montgomery-county/panorama-village/",
+          "sourceKeys": ["place:GEOID:4855008"],
+          "parentSourceKeys": ["administrative_area:GEOID:48339"],
+          "census_places": [
+            {
+              "geoid": "4855008",
+              "name": "Panorama Village",
+              "label": "Panorama Village city",
+              "counties": [
+                {
+                  "county_geoid": "48339",
+                  "county_name": "Montgomery",
+                  "overlapTotalArea": 265516669
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 72,
+      "legacy_path": "/tx/nacogdoches-county/douglass/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/nacogdoches-county/cushing/",
+          "sourceKeys": ["place:GEOID:4818224"],
+          "parentSourceKeys": ["administrative_area:GEOID:48347"],
+          "census_places": [
+            {
+              "geoid": "4818224",
+              "name": "Cushing",
+              "label": "Cushing city",
+              "counties": [
+                {
+                  "county_geoid": "48347",
+                  "county_name": "Nacogdoches",
+                  "overlapTotalArea": 338993149
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 73,
+      "legacy_path": "/tx/nacogdoches-county/woden/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/nacogdoches-county/nacogdoches/",
+          "sourceKeys": ["place:GEOID:4850256"],
+          "parentSourceKeys": ["administrative_area:GEOID:48347"],
+          "census_places": [
+            {
+              "geoid": "4850256",
+              "name": "Nacogdoches",
+              "label": "Nacogdoches city",
+              "counties": [
+                {
+                  "county_geoid": "48347",
+                  "county_name": "Nacogdoches",
+                  "overlapTotalArea": 6809130874
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 74,
+      "legacy_path": "/tx/parker-county/azle/",
+      "disposition": "alias-already-present",
+      "exact_census_path": false,
+      "census_generated_alias_target": "/tx/tarrant-county/azle/",
+      "same_name_paths_in_state": ["/tx/tarrant-county/azle/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/tarrant-county/azle/",
+          "sourceKeys": ["place:GEOID:4805168"],
+          "parentSourceKeys": ["administrative_area:GEOID:48439"],
+          "census_places": [
+            {
+              "geoid": "4805168",
+              "name": "Azle",
+              "label": "Azle city",
+              "counties": [
+                {
+                  "county_geoid": "48439",
+                  "county_name": "Tarrant",
+                  "overlapTotalArea": 1569361553
+                },
+                {
+                  "county_geoid": "48367",
+                  "county_name": "Parker",
+                  "overlapTotalArea": 631959175
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        },
+        {
+          "path": "/tx/parker-county/reno/",
+          "sourceKeys": ["place:GEOID:4861604"],
+          "parentSourceKeys": ["administrative_area:GEOID:48367"],
+          "census_places": [
+            {
+              "geoid": "4861604",
+              "name": "Reno",
+              "label": "Reno city",
+              "counties": [
+                {
+                  "county_geoid": "48367",
+                  "county_name": "Parker",
+                  "overlapTotalArea": 3269291279
+                },
+                {
+                  "county_geoid": "48439",
+                  "county_name": "Tarrant",
+                  "overlapTotalArea": 26452522
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 75,
+      "legacy_path": "/tx/pecos-county/ft-stockton/",
+      "disposition": "alias-added",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/pecos-county/fort-stockton/",
+          "sourceKeys": ["place:GEOID:4826808"],
+          "parentSourceKeys": ["administrative_area:GEOID:48371"],
+          "census_places": [
+            {
+              "geoid": "4826808",
+              "name": "Fort Stockton",
+              "label": "Fort Stockton city",
+              "counties": [
+                {
+                  "county_geoid": "48371",
+                  "county_name": "Pecos",
+                  "overlapTotalArea": 1355765136
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 76,
+      "legacy_path": "/tx/polk-county/moscow/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/polk-county/seven-oaks/",
+          "sourceKeys": ["place:GEOID:4866884"],
+          "parentSourceKeys": ["administrative_area:GEOID:48373"],
+          "census_places": [
+            {
+              "geoid": "4866884",
+              "name": "Seven Oaks",
+              "label": "Seven Oaks city",
+              "counties": [
+                {
+                  "county_geoid": "48373",
+                  "county_name": "Polk",
+                  "overlapTotalArea": 341624143
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 77,
+      "legacy_path": "/tx/randall-county/amarillo/",
+      "disposition": "alias-already-present",
+      "exact_census_path": false,
+      "census_generated_alias_target": "/tx/potter-county/amarillo/",
+      "same_name_paths_in_state": ["/tx/potter-county/amarillo/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/potter-county/amarillo/",
+          "sourceKeys": ["place:GEOID:4803000"],
+          "parentSourceKeys": ["administrative_area:GEOID:48375"],
+          "census_places": [
+            {
+              "geoid": "4803000",
+              "name": "Amarillo",
+              "label": "Amarillo city",
+              "counties": [
+                {
+                  "county_geoid": "48375",
+                  "county_name": "Potter",
+                  "overlapTotalArea": 18531440829
+                },
+                {
+                  "county_geoid": "48381",
+                  "county_name": "Randall",
+                  "overlapTotalArea": 9165809415
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        },
+        {
+          "path": "/tx/randall-county/timbercreek-canyon/",
+          "sourceKeys": ["place:GEOID:4873030"],
+          "parentSourceKeys": ["administrative_area:GEOID:48381"],
+          "census_places": [
+            {
+              "geoid": "4873030",
+              "name": "Timbercreek Canyon",
+              "label": "Timbercreek Canyon village",
+              "counties": [
+                {
+                  "county_geoid": "48381",
+                  "county_name": "Randall",
+                  "overlapTotalArea": 489275680
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 78,
+      "legacy_path": "/tx/red-river-county/kaufman/",
+      "disposition": "county-or-mailing-conflict",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": ["/tx/kaufman-county/kaufman/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/kaufman-county/kaufman/",
+          "sourceKeys": ["place:GEOID:4838488"],
+          "parentSourceKeys": ["administrative_area:GEOID:48257"],
+          "census_places": [
+            {
+              "geoid": "4838488",
+              "name": "Kaufman",
+              "label": "Kaufman city",
+              "counties": [
+                {
+                  "county_geoid": "48257",
+                  "county_name": "Kaufman",
+                  "overlapTotalArea": 2462865398
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 79,
+      "legacy_path": "/tx/reeves-county/pecos/",
+      "disposition": "expanded-name-candidate",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/reeves-county/town-of-pecos/",
+          "sourceKeys": ["place:GEOID:4873493"],
+          "parentSourceKeys": ["administrative_area:GEOID:48389"],
+          "census_places": [
+            {
+              "geoid": "4873493",
+              "name": "Town of Pecos",
+              "label": "Town of Pecos city",
+              "counties": [
+                {
+                  "county_geoid": "48389",
+                  "county_name": "Reeves",
+                  "overlapTotalArea": 7902001975
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 80,
+      "legacy_path": "/tx/runnels-county/mason/",
+      "disposition": "county-or-mailing-conflict",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": ["/tx/mason-county/mason/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/mason-county/mason/",
+          "sourceKeys": ["place:GEOID:4846968"],
+          "parentSourceKeys": ["administrative_area:GEOID:48319"],
+          "census_places": [
+            {
+              "geoid": "4846968",
+              "name": "Mason",
+              "label": "Mason city",
+              "counties": [
+                {
+                  "county_geoid": "48319",
+                  "county_name": "Mason",
+                  "overlapTotalArea": 899290111
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 81,
+      "legacy_path": "/tx/san-jacinto-county/cleveland/",
+      "disposition": "alias-already-present",
+      "exact_census_path": false,
+      "census_generated_alias_target": "/tx/liberty-county/cleveland/",
+      "same_name_paths_in_state": ["/tx/liberty-county/cleveland/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/liberty-county/cleveland/",
+          "sourceKeys": ["place:GEOID:4815436"],
+          "parentSourceKeys": ["administrative_area:GEOID:48291"],
+          "census_places": [
+            {
+              "geoid": "4815436",
+              "name": "Cleveland",
+              "label": "Cleveland city",
+              "counties": [
+                {
+                  "county_geoid": "48291",
+                  "county_name": "Liberty",
+                  "overlapTotalArea": 4014961563
+                },
+                {
+                  "county_geoid": "48339",
+                  "county_name": "Montgomery",
+                  "overlapTotalArea": 506272855
+                },
+                {
+                  "county_geoid": "48407",
+                  "county_name": "San Jacinto",
+                  "overlapTotalArea": 49379187
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 82,
+      "legacy_path": "/tx/san-jacinto-county/pointblank/",
+      "disposition": "alias-added",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/san-jacinto-county/point-blank/",
+          "sourceKeys": ["place:GEOID:4858556"],
+          "parentSourceKeys": ["administrative_area:GEOID:48407"],
+          "census_places": [
+            {
+              "geoid": "4858556",
+              "name": "Point Blank",
+              "label": "Point Blank city",
+              "counties": [
+                {
+                  "county_geoid": "48407",
+                  "county_name": "San Jacinto",
+                  "overlapTotalArea": 519762250
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 83,
+      "legacy_path": "/tx/san-patricio-county/aransas-pass/",
+      "disposition": "alias-already-present",
+      "exact_census_path": false,
+      "census_generated_alias_target": "/tx/nueces-county/aransas-pass/",
+      "same_name_paths_in_state": ["/tx/nueces-county/aransas-pass/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/nueces-county/aransas-pass/",
+          "sourceKeys": ["place:GEOID:4803600"],
+          "parentSourceKeys": ["administrative_area:GEOID:48355"],
+          "census_places": [
+            {
+              "geoid": "4803600",
+              "name": "Aransas Pass",
+              "label": "Aransas Pass city",
+              "counties": [
+                {
+                  "county_geoid": "48355",
+                  "county_name": "Nueces",
+                  "overlapTotalArea": 7847286385
+                },
+                {
+                  "county_geoid": "48007",
+                  "county_name": "Aransas",
+                  "overlapTotalArea": 3084343462
+                },
+                {
+                  "county_geoid": "48409",
+                  "county_name": "San Patricio",
+                  "overlapTotalArea": 1645663534
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 84,
+      "legacy_path": "/tx/titus-county/mt-pleasant/",
+      "disposition": "alias-added",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/titus-county/mount-pleasant/",
+          "sourceKeys": ["place:GEOID:4849800"],
+          "parentSourceKeys": ["administrative_area:GEOID:48449"],
+          "census_places": [
+            {
+              "geoid": "4849800",
+              "name": "Mount Pleasant",
+              "label": "Mount Pleasant city",
+              "counties": [
+                {
+                  "county_geoid": "48449",
+                  "county_name": "Titus",
+                  "overlapTotalArea": 5290216136
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 85,
+      "legacy_path": "/tx/travis-county/buda/",
+      "disposition": "county-or-mailing-conflict",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": ["/tx/hays-county/buda/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/hays-county/buda/",
+          "sourceKeys": ["place:GEOID:4811080"],
+          "parentSourceKeys": ["administrative_area:GEOID:48209"],
+          "census_places": [
+            {
+              "geoid": "4811080",
+              "name": "Buda",
+              "label": "Buda city",
+              "counties": [
+                {
+                  "county_geoid": "48209",
+                  "county_name": "Hays",
+                  "overlapTotalArea": 2370365367
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 86,
+      "legacy_path": "/tx/travis-county/del-valle/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/travis-county/austin/",
+          "sourceKeys": ["place:GEOID:4805000"],
+          "parentSourceKeys": ["administrative_area:GEOID:48453"],
+          "census_places": [
+            {
+              "geoid": "4805000",
+              "name": "Austin",
+              "label": "Austin city",
+              "counties": [
+                {
+                  "county_geoid": "48453",
+                  "county_name": "Travis",
+                  "overlapTotalArea": 73966850397
+                },
+                {
+                  "county_geoid": "48491",
+                  "county_name": "Williamson",
+                  "overlapTotalArea": 5112226756
+                },
+                {
+                  "county_geoid": "48209",
+                  "county_name": "Hays",
+                  "overlapTotalArea": 1448633333
+                },
+                {
+                  "county_geoid": "48021",
+                  "county_name": "Bastrop",
+                  "overlapTotalArea": 1052836
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 87,
+      "legacy_path": "/tx/trinity-county/apple-springs/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/angelina-county/hudson/",
+          "sourceKeys": ["place:GEOID:4835228"],
+          "parentSourceKeys": ["administrative_area:GEOID:48005"],
+          "census_places": [
+            {
+              "geoid": "4835228",
+              "name": "Hudson",
+              "label": "Hudson city",
+              "counties": [
+                {
+                  "county_geoid": "48005",
+                  "county_name": "Angelina",
+                  "overlapTotalArea": 1253866423
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 88,
+      "legacy_path": "/tx/upshur-county/gladewater/",
+      "disposition": "alias-already-present",
+      "exact_census_path": false,
+      "census_generated_alias_target": "/tx/gregg-county/gladewater/",
+      "same_name_paths_in_state": ["/tx/gregg-county/gladewater/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/gregg-county/gladewater/",
+          "sourceKeys": ["place:GEOID:4829660"],
+          "parentSourceKeys": ["administrative_area:GEOID:48183"],
+          "census_places": [
+            {
+              "geoid": "4829660",
+              "name": "Gladewater",
+              "label": "Gladewater city",
+              "counties": [
+                {
+                  "county_geoid": "48183",
+                  "county_name": "Gregg",
+                  "overlapTotalArea": 1806284405
+                },
+                {
+                  "county_geoid": "48459",
+                  "county_name": "Upshur",
+                  "overlapTotalArea": 1200572804
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 89,
+      "legacy_path": "/tx/uvalde-county/concan/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/real-county/leakey/",
+          "sourceKeys": ["place:GEOID:4842004"],
+          "parentSourceKeys": ["administrative_area:GEOID:48385"],
+          "census_places": [
+            {
+              "geoid": "4842004",
+              "name": "Leakey",
+              "label": "Leakey city",
+              "counties": [
+                {
+                  "county_geoid": "48385",
+                  "county_name": "Real",
+                  "overlapTotalArea": 136343157
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 90,
+      "legacy_path": "/tx/van-zandt-county/mabank/",
+      "disposition": "alias-already-present",
+      "exact_census_path": false,
+      "census_generated_alias_target": "/tx/kaufman-county/mabank/",
+      "same_name_paths_in_state": ["/tx/kaufman-county/mabank/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/kaufman-county/mabank/",
+          "sourceKeys": ["place:GEOID:4845324"],
+          "parentSourceKeys": ["administrative_area:GEOID:48257"],
+          "census_places": [
+            {
+              "geoid": "4845324",
+              "name": "Mabank",
+              "label": "Mabank town",
+              "counties": [
+                {
+                  "county_geoid": "48257",
+                  "county_name": "Kaufman",
+                  "overlapTotalArea": 1726074911
+                },
+                {
+                  "county_geoid": "48213",
+                  "county_name": "Henderson",
+                  "overlapTotalArea": 424815006
+                },
+                {
+                  "county_geoid": "48467",
+                  "county_name": "Van Zandt",
+                  "overlapTotalArea": 33980515
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 91,
+      "legacy_path": "/tx/zavala-county/lapryor/",
+      "disposition": "alias-added",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/zavala-county/la-pryor/",
+          "sourceKeys": ["place:GEOID:4841452"],
+          "parentSourceKeys": ["administrative_area:GEOID:48507"],
+          "census_places": [
+            {
+              "geoid": "4841452",
+              "name": "La Pryor",
+              "label": "La Pryor CDP",
+              "counties": [
+                {
+                  "county_geoid": "48507",
+                  "county_name": "Zavala",
+                  "overlapTotalArea": 640311830
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 92,
+      "legacy_path": "/ct/hartford-county/",
+      "disposition": "historical-administrative-area",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": []
+    },
+    {
+      "audit_row": 93,
+      "legacy_path": "/ct/hartford-county/hartford/",
+      "disposition": "changed-parent-candidate",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": ["/ct/capitol-planning-region/hartford/"],
+      "checked_current_locations": [
+        {
+          "path": "/ct/capitol-planning-region/hartford/",
+          "sourceKeys": ["place:GEOID:0937000"],
+          "parentSourceKeys": ["administrative_area:GEOID:09110"],
+          "census_places": [
+            {
+              "geoid": "0937000",
+              "name": "Hartford",
+              "label": "Hartford city",
+              "counties": [
+                {
+                  "county_geoid": "09110",
+                  "county_name": "Capitol",
+                  "overlapTotalArea": 5072165782
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        },
+        {
+          "path": "/tx/hill-county/abbott/",
+          "sourceKeys": ["place:GEOID:4800100"],
+          "parentSourceKeys": ["administrative_area:GEOID:48217"],
+          "census_places": [
+            {
+              "geoid": "4800100",
+              "name": "Abbott",
+              "label": "Abbott city",
+              "counties": [
+                {
+                  "county_geoid": "48217",
+                  "county_name": "Hill",
+                  "overlapTotalArea": 146410030
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 94,
+      "legacy_path": "/dc/district-of-columbia-county/",
+      "disposition": "administrative-name-candidate",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/dc/district-of-columbia/",
+          "sourceKeys": ["administrative_area:GEOID:11001"],
+          "parentSourceKeys": ["state:GEOID:11"],
+          "census_places": [],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 95,
+      "legacy_path": "/dc/district-of-columbia-county/n-w-washington/",
+      "disposition": "geographic-scope-conflict",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/dc/district-of-columbia/washington/",
+          "sourceKeys": ["place:GEOID:1150000"],
+          "parentSourceKeys": ["administrative_area:GEOID:11001"],
+          "census_places": [
+            {
+              "geoid": "1150000",
+              "name": "Washington",
+              "label": "Washington city",
+              "counties": [
+                {
+                  "county_geoid": "11001",
+                  "county_name": "District of Columbia",
+                  "overlapTotalArea": 18383544935
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 96,
+      "legacy_path": "/hi/honolulu-county/honolulu/",
+      "disposition": "geographic-scope-conflict",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/hi/honolulu-county/urban-honolulu/",
+          "sourceKeys": ["place:GEOID:1571550"],
+          "parentSourceKeys": ["administrative_area:GEOID:15003"],
+          "census_places": [
+            {
+              "geoid": "1571550",
+              "name": "Urban Honolulu",
+              "label": "Urban Honolulu CDP",
+              "counties": [
+                {
+                  "county_geoid": "15003",
+                  "county_name": "Honolulu",
+                  "overlapTotalArea": 15434929179
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        },
+        {
+          "path": "/hi/honolulu-county/east-honolulu/",
+          "sourceKeys": ["place:GEOID:1506290"],
+          "parentSourceKeys": ["administrative_area:GEOID:15003"],
+          "census_places": [
+            {
+              "geoid": "1506290",
+              "name": "East Honolulu",
+              "label": "East Honolulu CDP",
+              "counties": [
+                {
+                  "county_geoid": "15003",
+                  "county_name": "Honolulu",
+                  "overlapTotalArea": 7766813115
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        },
+        {
+          "path": "/tx/hill-county/abbott/",
+          "sourceKeys": ["place:GEOID:4800100"],
+          "parentSourceKeys": ["administrative_area:GEOID:48217"],
+          "census_places": [
+            {
+              "geoid": "4800100",
+              "name": "Abbott",
+              "label": "Abbott city",
+              "counties": [
+                {
+                  "county_geoid": "48217",
+                  "county_name": "Hill",
+                  "overlapTotalArea": 146410030
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 97,
+      "legacy_path": "/id/ada-county/boise/",
+      "disposition": "expanded-name-candidate",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/id/ada-county/boise-city/",
+          "sourceKeys": ["place:GEOID:1608830"],
+          "parentSourceKeys": ["administrative_area:GEOID:16001"],
+          "census_places": [
+            {
+              "geoid": "1608830",
+              "name": "Boise City",
+              "label": "Boise City city",
+              "counties": [
+                {
+                  "county_geoid": "16001",
+                  "county_name": "Ada",
+                  "overlapTotalArea": 25140431552
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        },
+        {
+          "path": "/tx/hill-county/abbott/",
+          "sourceKeys": ["place:GEOID:4800100"],
+          "parentSourceKeys": ["administrative_area:GEOID:48217"],
+          "census_places": [
+            {
+              "geoid": "4800100",
+              "name": "Abbott",
+              "label": "Abbott city",
+              "counties": [
+                {
+                  "county_geoid": "48217",
+                  "county_name": "Hill",
+                  "overlapTotalArea": 146410030
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 98,
+      "legacy_path": "/in/marion-county/indianapolis/",
+      "disposition": "geographic-scope-conflict",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/in/marion-county/indianapolis-city-balance/",
+          "sourceKeys": ["place:GEOID:1836003"],
+          "parentSourceKeys": ["administrative_area:GEOID:18097"],
+          "census_places": [
+            {
+              "geoid": "1836003",
+              "name": "Indianapolis city (balance)",
+              "label": "Indianapolis city (balance)",
+              "counties": [
+                {
+                  "county_geoid": "18097",
+                  "county_name": "Marion",
+                  "overlapTotalArea": 100182189589
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 99,
+      "legacy_path": "/tn/davidson-county/nashville/",
+      "disposition": "geographic-scope-conflict",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tn/davidson-county/nashville-davidson-metropolitan-government-balance/",
+          "sourceKeys": ["place:GEOID:4752006"],
+          "parentSourceKeys": ["administrative_area:GEOID:47037"],
+          "census_places": [
+            {
+              "geoid": "4752006",
+              "name": "Nashville-Davidson metropolitan government (balance)",
+              "label": "Nashville-Davidson metropolitan government (balance)",
+              "counties": [
+                {
+                  "county_geoid": "47037",
+                  "county_name": "Davidson",
+                  "overlapTotalArea": 128989287548
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        },
+        {
+          "path": "/tx/hill-county/abbott/",
+          "sourceKeys": ["place:GEOID:4800100"],
+          "parentSourceKeys": ["administrative_area:GEOID:48217"],
+          "census_places": [
+            {
+              "geoid": "4800100",
+              "name": "Abbott",
+              "label": "Abbott city",
+              "counties": [
+                {
+                  "county_geoid": "48217",
+                  "county_name": "Hill",
+                  "overlapTotalArea": 146410030
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 100,
+      "legacy_path": "/tx/mclennan-county/axtell/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/mclennan-county/hallsburg/",
+          "sourceKeys": ["place:GEOID:4831880"],
+          "parentSourceKeys": ["administrative_area:GEOID:48309"],
+          "census_places": [
+            {
+              "geoid": "4831880",
+              "name": "Hallsburg",
+              "label": "Hallsburg city",
+              "counties": [
+                {
+                  "county_geoid": "48309",
+                  "county_name": "McLennan",
+                  "overlapTotalArea": 681847378
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 101,
+      "legacy_path": "/tx/travis-county/abbott/",
+      "disposition": "county-or-mailing-conflict",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": ["/tx/hill-county/abbott/"],
+      "checked_current_locations": [
+        {
+          "path": "/tx/hill-county/abbott/",
+          "sourceKeys": ["place:GEOID:4800100"],
+          "parentSourceKeys": ["administrative_area:GEOID:48217"],
+          "census_places": [
+            {
+              "geoid": "4800100",
+              "name": "Abbott",
+              "label": "Abbott city",
+              "counties": [
+                {
+                  "county_geoid": "48217",
+                  "county_name": "Hill",
+                  "overlapTotalArea": 146410030
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 102,
+      "legacy_path": "/tx/upton-county/midkiff/",
+      "disposition": "missing-place",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/tx/upton-county/rankin/",
+          "sourceKeys": ["place:GEOID:4860668"],
+          "parentSourceKeys": ["administrative_area:GEOID:48461"],
+          "census_places": [
+            {
+              "geoid": "4860668",
+              "name": "Rankin",
+              "label": "Rankin city",
+              "counties": [
+                {
+                  "county_geoid": "48461",
+                  "county_name": "Upton",
+                  "overlapTotalArea": 258758537
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 103,
+      "legacy_path": "/dc/fairfax-county/",
+      "disposition": "invalid-hierarchy",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": [],
+      "checked_current_locations": [
+        {
+          "path": "/va/fairfax-county/",
+          "sourceKeys": ["administrative_area:GEOID:51059"],
+          "parentSourceKeys": ["state:GEOID:51"],
+          "census_places": [],
+          "matches_current_database": true
+        }
+      ]
+    },
+    {
+      "audit_row": 104,
+      "legacy_path": "/dc/fairfax-county/washington/",
+      "disposition": "invalid-hierarchy",
+      "exact_census_path": false,
+      "census_generated_alias_target": null,
+      "same_name_paths_in_state": ["/dc/district-of-columbia/washington/"],
+      "checked_current_locations": [
+        {
+          "path": "/dc/district-of-columbia/washington/",
+          "sourceKeys": ["place:GEOID:1150000"],
+          "parentSourceKeys": ["administrative_area:GEOID:11001"],
+          "census_places": [
+            {
+              "geoid": "1150000",
+              "name": "Washington",
+              "label": "Washington city",
+              "counties": [
+                {
+                  "county_geoid": "11001",
+                  "county_name": "District of Columbia",
+                  "overlapTotalArea": 18383544935
+                }
+              ]
+            }
+          ],
+          "matches_current_database": true
+        }
+      ]
+    }
+  ]
+}
