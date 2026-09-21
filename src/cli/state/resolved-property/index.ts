@@ -3,7 +3,10 @@ import { copyFile, mkdir, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { INTAKE_API_VERSION } from "../../../shared/io/import-types.js";
 import { yamlResourceFileName } from "../../../shared/io/resource.js";
-import { ResolvedProperty } from "./ResolvedProperty.js";
+import {
+  ResolvedProperty,
+  type ResolvedPropertyEnvelope,
+} from "./ResolvedProperty.js";
 
 export type ResolvedPropertySubject = {
   apiVersion: typeof INTAKE_API_VERSION;
@@ -142,9 +145,9 @@ export async function seedResolvedPropertyCache(
   return { seeded, skipped };
 }
 
-export async function readResolvedProperty(
+export async function inspectResolvedProperty(
   input: ResolvedPropertyCacheInput & { rootDir?: string },
-): Promise<unknown | undefined> {
+): Promise<ResolvedPropertyEnvelope | undefined> {
   if (input.rootDir === undefined) {
     return undefined;
   }
@@ -172,6 +175,15 @@ export async function readResolvedProperty(
     );
   }
 
+  return envelope;
+}
+
+export async function readResolvedProperty(
+  input: ResolvedPropertyCacheInput & { rootDir?: string },
+): Promise<unknown | undefined> {
+  const envelope = await inspectResolvedProperty(input);
+  if (envelope === undefined) return undefined;
+  if (envelope.spec.override !== undefined) return envelope.spec.override.value;
   const entries = envelopeEntries(envelope.spec);
   // No fingerprint (a property keyed by subject+property alone): the first
   // stored value wins, matching the pre-`entries` single-value behavior.
@@ -189,7 +201,7 @@ export async function readResolvedProperty(
   // under the current fingerprint (so a later input change re-resolves) and serve.
   const legacy = entries.find((entry) => entry.inputFingerprint === undefined);
   if (legacy !== undefined) {
-    await persistEntries(input.rootDir, input, [
+    await persistEntries(input.rootDir!, input, [
       ...fingerprintedEntries(entries),
       { inputFingerprint: input.inputFingerprint, value: legacy.value },
     ]);
@@ -316,6 +328,7 @@ async function persistEntries(
   input: ResolvedPropertyCacheInput,
   entries: ReadonlyArray<FingerprintedEntry>,
 ): Promise<void> {
+  const existing = await inspectResolvedProperty({ ...input, rootDir });
   await ResolvedProperty.write(
     resolvedPropertyDirectory(rootDir),
     ResolvedProperty.new({
@@ -327,6 +340,55 @@ async function persistEntries(
         subject: input.subject,
         targetProperty: input.targetProperty,
         entries: [...entries],
+        ...(existing?.spec.override === undefined
+          ? {}
+          : { override: existing.spec.override }),
+        ...(existing?.spec.overrideHistory === undefined
+          ? {}
+          : { overrideHistory: existing.spec.overrideHistory }),
+      },
+    }),
+  );
+}
+
+/** Explicit operator correction. Preserve automatic values and prior overrides. */
+export async function setManualResolvedProperty(
+  input: ResolvedPropertyCacheInput & {
+    rootDir: string;
+    value: unknown;
+    source: ResolvedPropertySource;
+    force: boolean;
+  },
+): Promise<void> {
+  const existing = await inspectResolvedProperty(input);
+  if (existing !== undefined && !input.force) {
+    throw new Error(
+      `Cache already has a value. Use --force to overwrite. Current cache: ${JSON.stringify(existing.spec)}`,
+    );
+  }
+  await ResolvedProperty.write(
+    resolvedPropertyDirectory(input.rootDir),
+    ResolvedProperty.new({
+      metadata: existing?.metadata ?? {
+        namespace: "intake",
+        name: resolvedPropertyCacheName(input),
+      },
+      spec: {
+        ...(existing?.spec ?? {
+          subject: input.subject,
+          targetProperty: input.targetProperty,
+        }),
+        override: {
+          value: input.value,
+          source: input.source,
+          recordedAt: new Date().toISOString(),
+        },
+        overrideHistory: [
+          ...(existing?.spec.overrideHistory ?? []),
+          ...(existing?.spec.override === undefined
+            ? []
+            : [existing.spec.override]),
+        ],
       },
     }),
   );

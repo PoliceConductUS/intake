@@ -62,6 +62,20 @@ function resolveReadPath(
   return { ...ref, filePath: resolvedPath };
 }
 
+const manualOverrideSchema = z
+  .object({
+    value: z.unknown(),
+    source: z
+      .object({
+        namespace: z.string().min(1),
+        kind: z.string().min(1),
+        name: z.string().min(1),
+      })
+      .strict(),
+    recordedAt: z.string().datetime(),
+  })
+  .strict();
+
 export const specSchema = z
   .object({
     subject: z
@@ -72,6 +86,8 @@ export const specSchema = z
       })
       .strict(),
     targetProperty: z.string().trim().min(1),
+    override: manualOverrideSchema.optional(),
+    overrideHistory: z.array(manualOverrideSchema).optional(),
     // The cache holds N `(input → value)` entries per (subject, property): a
     // derived property re-resolves only when its input fingerprint changes, and
     // an unchanged (or previously seen) input is a hit (ADR 0019).

@@ -16,6 +16,7 @@ import { planSourceOrder } from "../transform/source-order.js";
 import { matchSourceIds } from "../source-glob.js";
 import { runImportArtifactsCommand } from "../import/artifacts/index.js";
 import { generateEntry } from "./chain.js";
+import type { ImportArtifactKind } from "../../shared/io/index.js";
 
 const SOURCES_ROOT = path.join(process.cwd(), "sources");
 const SILENT = { info: () => {} };
@@ -53,6 +54,7 @@ export async function transformOneSource(
   sourceId: string,
   env: Record<string, string | undefined>,
   logger: { info: (message: string) => void } = SILENT,
+  kinds?: readonly ImportArtifactKind[],
 ): Promise<{ artifactsPath: string } | { error: CommandResult }> {
   const standalone = await loadSourceStandalone(sourceId, SOURCES_ROOT);
   const workspace = intakeWorkspace(env);
@@ -63,6 +65,21 @@ export async function transformOneSource(
     commandArgs: ["data", "transform", sourceId, ...paths],
     logger,
   });
+  if (kinds !== undefined) {
+    const load = deps.loadSourceModule;
+    deps.loadSourceModule = async (...args) => {
+      const transform = await load(...args);
+      return async (input) => {
+        const manifest = await transform(input);
+        return {
+          ...manifest,
+          artifacts: manifest.artifacts.filter((artifact) =>
+            kinds.includes(artifact.kind),
+          ),
+        };
+      };
+    };
+  }
   return transformSource(sourceId, paths, { standalone }, deps);
 }
 

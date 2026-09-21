@@ -14,6 +14,7 @@ import {
   transformOneSource,
 } from "./source-pipeline.js";
 import { registerAcquireCommand } from "../acquire/index.js";
+import { resetData } from "./reset.js";
 
 const consoleLogger = {
   info: (message: string) => process.stderr.write(`${message}\n`),
@@ -57,6 +58,18 @@ export function registerCliCommand(
   // acquire → transform → generate → up: the phases, in order. acquire lives in its
   // own module; the rest are below.
   registerAcquireCommand(group, dependencies);
+
+  group
+    .command("reset")
+    .description(
+      "Reset the configured database to current migrations and rebuild from sources, preserving IDs, slugs, and manual records.",
+    )
+    .option("--no-acquire", "reuse existing acquired files without downloading")
+    .action(async (options: { acquire: boolean }): Promise<void> => {
+      dependencies.setResult(
+        await resetData(options, { env: process.env, logger: consoleLogger }),
+      );
+    });
 
   group
     .command("transform")

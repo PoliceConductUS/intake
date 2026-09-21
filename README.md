@@ -61,6 +61,7 @@ intake data up        [--to <version>]       # apply pending chain entries in or
 intake data status                           # applied vs pending chain entries
 intake data verify                           # recompute applied-entry checksums; fail on drift
 intake data update                           # transform → generate → up for every source, in dependency order (appends deltas)
+intake data reset [--no-acquire]              # reset schema and regenerate all source imports, then manual records
 intake replay database-mutations <database-mutations-ref>
 ```
 
@@ -74,6 +75,38 @@ intake replay database-mutations <database-mutations-ref>
 - `replay database-mutations` reads an existing `DatabaseMutations` envelope and
   re-applies the database mutations without reading SourceNameToCanonicalId records or source
   artifacts.
+
+To rebuild the configured database from already acquired files using the current
+transforms and resolution rules, run:
+
+```bash
+npm run cli -- data reset --no-acquire
+```
+
+This resets the database identified by `DATABASE_URL` to current migrations,
+moves the old mutation chain into the reset command's output, and runs transform
+→ generate → apply for each source in dependency order. Manual locations and
+aliases load immediately after Census; the complete manual source runs at the
+end. It preserves acquired files, canonical identity mappings, slug caches,
+and durable manual records. A failed phase stops the command with a nonzero exit
+status and an incomplete-rebuild message. Plain `data reset` also acquires each
+automatic source before transforming it. `data up` only replays previously
+generated mutations; it does not regenerate imports.
+
+Inspect or correct a resolved property using its source identity:
+
+```bash
+npm run cli -- cache get <namespace> <kind> <source-id> <property>
+npm run cli -- cache set <namespace> <kind> <source-id> <property> <value>
+npm run cli -- cache set <namespace> <kind> <source-id> <property> <value> --force
+```
+
+`set` refuses an existing value and displays the current cache unless `--force`
+is supplied. Explicit manual overrides take precedence over automatic cache
+entries. Previous values and source provenance remain inspectable with `get`.
+Use a canonical location ID for `location_path_id`; numeric values such as
+latitude are parsed as numbers. Cache changes affect subsequent generation, not
+already-applied database rows.
 
 Core invariants:
 

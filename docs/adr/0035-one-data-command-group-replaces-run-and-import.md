@@ -53,6 +53,7 @@ intake data up        [--to <version>]  # apply pending chain entries, in order
 intake data status                      # applied vs pending entries
 intake data verify                      # recompute applied-entry checksums; fail on drift
 intake data update                      # transform → generate → up for every source, in dependency order (appends deltas)
+intake data reset [--no-acquire]         # reset schema, regenerate sources in order, then manual records
 ```
 
 **2. `generate` and `up` keep the Liquibase split (ADR 0033 §3), renamed onto the
@@ -78,9 +79,20 @@ applies whatever each source's acquired data has changed — the concrete form o
 0033 §1's "reconstruction is replay." (Named `update`, not `rebuild`: it is an
 incremental sync, not a drop-and-recreate.)
 
-**5. This CLI mutates data, not schema.** `data` owns the data-mutation chain only.
-Schema migrations are applied out of band; their coupling to the chain stays the
-min-version gate of ADR 0033 §7. `data up` never runs a schema migration.
+**5. `reset` rebuilds from sources; `up` replays existing mutations.**
+`data reset` resets the database named by `DATABASE_URL` through Supabase's schema
+reset command, applying current migrations without the retired seed. It retains
+the old mutation chain in the reset command output, then acquires, transforms,
+generates, and applies each automatic source in dependency order. Finally it
+transforms, generates, and applies existing manual records without starting a
+manual acquisition interview. Manual locations and aliases are also generated
+and applied immediately after Census, before agency imports. `--no-acquire` skips acquisition and reuses existing
+inputs. Identity mappings, canonical slug caches, and durable manual state remain
+in place. A failure stops the rebuild with a nonzero exit status; no old mutation
+is replayed in place of failed regeneration. This adds an explicit source rebuild
+alongside ADR 0033's deterministic replay. `data up` never runs schema migrations
+or source transforms; its schema coupling remains the min-version gate of ADR
+0033 §7.
 
 **6. `down` is deferred.** ADR 0033 §9's downgrade is still the plan, but it is not
 built; there is no `data down` yet. A correction today is a new forward entry.

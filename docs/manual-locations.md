@@ -38,11 +38,24 @@ workspace's data chain. Rebuilding from schema migrations and that chain restore
 the same location IDs, paths, parents, and aliases. Preserve the workspace,
 including its mappings and manual state.
 
-The manual source runs explicitly, using the commands above, and is excluded
-from automatic multi-source updates. Its already generated mutations are still
-included when replaying the full data chain.
+The manual source runs explicitly using the commands above and is excluded from
+`data update`. `data reset --no-acquire` loads manual locations and aliases after
+Census, before agency imports, then applies the complete manual source after the
+automatic sources. Its generated mutations are included when replaying the chain.
 
 This creates the location; it does not infer an agency's membership in a
-boundary-free community. Such agency assignments still require the existing
-explicit manual resolved-property mechanism. No boundary, nearest-place rule,
-or postal-name fallback is added.
+boundary-free community. Such agency assignments require an explicit cached
+resolution. Inspect the agency's current cache and set its location by canonical
+ID, using its namespace and source ID:
+
+```bash
+npm run cli -- cache get <namespace> Agency <source-id> location_path_id
+npm run cli -- cache set <namespace> Agency <source-id> location_path_id <canonical-location-id>
+```
+
+If a value already exists, set reports an error and shows the current cache.
+Add `--force` to replace it explicitly. `get` shows the manual override, prior
+overrides, and automatic values. A manual override remains authoritative until
+changed; it is retained across database resets. Source-supplied fields retain
+their existing precedence over resolver values. Generation must run afterward
+to update the database. No community boundary is invented.
