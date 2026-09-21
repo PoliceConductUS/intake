@@ -94,6 +94,11 @@ Core invariants:
 
 See `docs/adr/` for the durable architecture decisions behind this scope.
 
+Source module authors should follow the
+[Source Producer Guide](docs/source-producer-guide.md) for the current data
+commands, source interfaces, workspace ownership, stable identity, shared IO,
+and resolved-officer requirement for civil-case imports.
+
 ## Candidate Upstream Producers
 
 The first upstream producer to explore is Tempe's Police Transparency
