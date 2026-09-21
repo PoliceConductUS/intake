@@ -286,9 +286,22 @@ export class LocationPathDataContext {
       { latitude: input.latitude, longitude: input.longitude, level },
     );
     if (matches.length === 0) return undefined;
+    const resolutionClasses = [
+      "primary",
+      "county_subdivision",
+      "consolidated_city",
+    ];
+    const winningClass = resolutionClasses.find((kind) =>
+      matches.some((row) => row.resolution_class === kind),
+    );
+    if (winningClass === undefined)
+      throw new Error(`Missing location resolution class for ${input.subject}`);
+    const preferredMatches = matches.filter(
+      (row) => row.resolution_class === winningClass,
+    );
     const uniqueMatches = [
       ...new Map(
-        matches.map((locationPath) => [
+        preferredMatches.map((locationPath) => [
           locationPath.location_path_id,
           locationPath,
         ]),

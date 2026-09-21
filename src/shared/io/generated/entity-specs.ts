@@ -36,9 +36,10 @@ export const GENERATED_MIGRATION_VERSIONS = [
   "20260905000000",
   "20260906000000",
   "20260910000000",
+  "20260921000000",
 ] as const;
 export const GENERATED_MIGRATION_FINGERPRINT =
-  "53b9b95f6e3cbc84fc49e4980f39cdd7135e466fb7d9ae4262f1d25685a6e542";
+  "e9945494f3d8bb8bba5d16d4b76af5dced144c3c4fcca69b74a8d2891f7c2891";
 
 // Entity record kinds in database-dependency order (topological sort of the
 // foreign-key graph): a referenced entity precedes its referrer, so mutations
@@ -88,8 +89,8 @@ export const FK_REFERENCES: Record<
   Agency: [{ field: "location_path_id", targetKind: "LocationPath" }],
   AgencyPersonnel: [
     { field: "agency_id", targetKind: "Agency" },
-    { field: "license_id", targetKind: "License" },
     { field: "personnel_id", targetKind: "Personnel" },
+    { field: "license_id", targetKind: "License" },
   ],
   LicensingAuthority: [
     { field: "location_path_id", targetKind: "LocationPath" },
@@ -98,38 +99,38 @@ export const FK_REFERENCES: Record<
     { field: "licensing_authority_id", targetKind: "LicensingAuthority" },
   ],
   License: [
-    { field: "authority_license_id", targetKind: "AuthorityLicense" },
     { field: "personnel_id", targetKind: "Personnel" },
+    { field: "authority_license_id", targetKind: "AuthorityLicense" },
   ],
   LicenseAction: [{ field: "license_id", targetKind: "License" }],
   DisciplineAgencyPersonnel: [
-    { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
     { field: "discipline_id", targetKind: "Discipline" },
+    { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
   ],
   CoverageLinkAgencyPersonnel: [
-    { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
     { field: "coverage_link_id", targetKind: "CoverageLink" },
+    { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
   ],
   AgencyPhoneNumber: [{ field: "agency_id", targetKind: "Agency" }],
   AgencyLink: [{ field: "agency_id", targetKind: "Agency" }],
   FederalAgencyBranch: [
-    { field: "agency_id", targetKind: "Agency" },
     { field: "federal_agency_id", targetKind: "FederalAgency" },
+    { field: "agency_id", targetKind: "Agency" },
   ],
   CivilCase: [{ field: "location_path_id", targetKind: "LocationPath" }],
   CivilCasePersonnel: [
-    { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
     { field: "civil_case_id", targetKind: "CivilCase" },
+    { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
   ],
   CivilCaseLink: [{ field: "civil_case_id", targetKind: "CivilCase" }],
   CoverageLinkCivilCase: [
-    { field: "civil_case_id", targetKind: "CivilCase" },
     { field: "coverage_link_id", targetKind: "CoverageLink" },
+    { field: "civil_case_id", targetKind: "CivilCase" },
   ],
   Review: [{ field: "location_path_id", targetKind: "LocationPath" }],
   ReviewPersonnel: [
-    { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
     { field: "review_id", targetKind: "Review" },
+    { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
   ],
   ReviewLink: [{ field: "review_id", targetKind: "Review" }],
   ArrestProfile: [
@@ -570,6 +571,9 @@ export const LocationPathSpec = z
     centroid: LocationPathCentroidSpec.nullable().optional(),
     bbox: LocationPathBboxSpec.nullable().optional(),
     display_name: z.string(),
+    resolution_class: z
+      .enum(["primary", "county_subdivision", "consolidated_city"])
+      .default("primary"),
   })
   .strict()
   .superRefine((row, context) => {

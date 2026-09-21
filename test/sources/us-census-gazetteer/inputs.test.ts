@@ -9,6 +9,8 @@ const validPaths = [
   "/data/tl_2025_us_county.zip",
   "/data/tl_2025_48_place.zip",
   "/data/tl_2025_06_place.zip",
+  "/data/tl_2025_48_cousub.zip",
+  "/data/tl_2025_06_cousub.zip",
 ];
 
 describe("matchInputs", () => {
@@ -24,6 +26,11 @@ describe("matchInputs", () => {
         "/data/tl_2025_48_place.zip",
         "/data/tl_2025_06_place.zip",
       ],
+      countySubdivisionTigerZips: [
+        "/data/tl_2025_48_cousub.zip",
+        "/data/tl_2025_06_cousub.zip",
+      ],
+      consolidatedCityTigerZips: [],
       hierarchyFile: undefined,
       year: "2025",
     });
@@ -67,3 +74,16 @@ describe("matchInputs", () => {
     expect(result.year).toBe("2025");
   });
 });
+
+it("rejects missing subdivision coverage", () =>
+  expect(() =>
+    matchInputs(validPaths.filter((p) => !p.includes("_cousub.zip"))),
+  ).toThrow(/countySubdivisionTigerZips/));
+it("requires consolidated city data for states that contain them", () =>
+  expect(() =>
+    matchInputs([
+      ...validPaths,
+      "/data/tl_2025_18_place.zip",
+      "/data/tl_2025_18_cousub.zip",
+    ]),
+  ).toThrow(/consolidatedCityTigerZips/));

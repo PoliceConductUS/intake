@@ -41,6 +41,7 @@ export interface LocationPathRow {
   path: string;
   level: "state" | "administrative_area" | "place";
   display_name: string;
+  resolution_class?: "primary" | "county_subdivision" | "consolidated_city";
   parent_location_path_id: string | null;
   latitude: string;
   longitude: string;

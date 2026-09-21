@@ -56,6 +56,17 @@ startup read and no path-string DB lookup**.
   exception — only to fix a data-quality error, or for a value a resolver
   genuinely cannot produce for that source record.
 
+  Census PLACE features have `resolution_class: primary`. Legal county
+  subdivisions (including townships) use `county_subdivision`; consolidated
+  municipalities use `consolidated_city`. Among boundaries covering the address,
+  select the first nonempty class in that order and require one distinct place
+  within it. Multiple matches in that class fail. Township site boundaries
+  exclude imported PLACE coverage; fully covered subdivisions are omitted. The
+  original Census geometry stays in the raw source, and the namespace reports
+  each clipped or excluded GEOID. Class precedence also handles shared polygon
+  edges without inferring a location from its name. Statistical divisions are
+  excluded. See the [Census coverage change](../../openspec/changes/import-census-local-jurisdictions/design.md).
+
   The accepted import specification permits only its explicitly listed
   postal-area exceptions when no place contains the address point. Otherwise
   resolution fails. County-local city/alias lookup, a statewide name match, and

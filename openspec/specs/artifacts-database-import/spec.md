@@ -355,7 +355,7 @@ The artifacts import pipeline MUST resolve every supported source entity key to 
 - **AND** the Fort Snelling postal-area rule maps Minnesota ZIP `55450` with postal city `Minneapolis` to the existing Minneapolis place path
 - **AND** explicit Minnesota postal-area rules map ZIP `55804` with postal city `Duluth` to the existing Duluth place path, ZIP `56270` with postal city `Morton` to the existing Morton place path, and ZIP `56241` with postal city `Granite Falls` to the existing Granite Falls place path
 - **AND** fails during import preparation if no place geometry contains the point and no explicit postal-area rule maps the agency address input to an existing place
-- **AND** fails during import preparation if multiple place geometries contain the point
+- **AND** selects the first nonempty containing class in the order primary PLACE, county subdivision, consolidated city and fails if multiple distinct place geometries in that class contain the point
 - **AND** MUST NOT resolve agency `locationPathId` by constructing a path from city, state, administrative area, label, slug, or alias text
 - **AND** MUST NOT copy location path geometry, place centroid, administrative-area centroid, or state centroid into agency `latitude` or `longitude`
 

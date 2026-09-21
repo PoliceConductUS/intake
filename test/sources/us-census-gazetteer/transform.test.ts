@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -43,6 +43,7 @@ const paths = [
   path.join(tigerDir, "tl_2025_us_state.zip"),
   path.join(tigerDir, "tl_2025_us_county.zip"),
   path.join(tigerDir, "tl_2025_27_place.zip"),
+  path.join(tigerDir, "tl_2025_27_cousub.zip"),
 ];
 
 const notUsed = async () => {
@@ -80,8 +81,24 @@ describe("us-census-gazetteer run", () => {
       "/mn/",
       "/mn/hennepin-county/",
       "/mn/hennepin-county/minneapolis/",
+      "/mn/hennepin-county/test-township/",
     ]);
 
+    expect(
+      locationPaths["/mn/hennepin-county/test-township/"].spec,
+    ).toMatchObject({
+      resolution_class: "county_subdivision",
+      display_name: "Test township",
+    });
+    const report = JSON.parse(
+      await readFile(path.join(state, "local-jurisdictions-2025.json"), "utf8"),
+    );
+    expect(report.records).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ geoid: "2705300001", status: "clipped" }),
+        expect.objectContaining({ geoid: "2705300002", status: "excluded" }),
+      ]),
+    );
     for (const record of Object.values(locationPaths)) {
       expect(LocationPathSpec.safeParse(record.spec).success).toBe(true);
     }
@@ -138,6 +155,7 @@ describe("us-census-gazetteer run", () => {
       "/mn/",
       "/mn/hennepin-county/",
       "/mn/hennepin-county/minneapolis/",
+      "/mn/hennepin-county/test-township/",
     ]);
     for (const [, key, spec] of geometryEmits) {
       const result = LocationPathGeometrySpec.safeParse(spec);

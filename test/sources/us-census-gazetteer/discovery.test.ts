@@ -45,6 +45,10 @@ describe("discoverLatestGazetteerLinks", () => {
       BASE,
     );
 
+    expect(links.countySubdivisionTigerUrls).toEqual([
+      `${W2}/geo/tiger/TIGER2024/COUSUB/tl_2024_27_cousub.zip`,
+    ]);
+    expect(links.consolidatedCityTigerUrls).toEqual([]);
     expect(links.year).toBe("2024");
     expect(links.stateUrl).toBe(
       `${W2}/geo/.../2024_Gazetteer/2024_Gaz_state_national.zip`,
@@ -66,6 +70,10 @@ describe("discoverLatestGazetteerLinks", () => {
       `${W2}/geo/tiger/TIGER2024/COUNTY/tl_2024_us_county.zip`,
     );
     expect(links.placeTigerUrls).toHaveLength(51);
+    expect(links.countySubdivisionTigerUrls).toHaveLength(51);
+    expect(links.countySubdivisionTigerUrls).toContain(
+      `${W2}/geo/tiger/TIGER2024/COUSUB/tl_2024_27_cousub.zip`,
+    );
     expect(links.placeTigerUrls[0]).toBe(
       `${W2}/geo/tiger/TIGER2024/PLACE/tl_2024_01_place.zip`,
     );

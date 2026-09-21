@@ -1,6 +1,7 @@
 import path from "node:path";
 import {
   classifyGazetteerRole,
+  CONSOLIDATED_CITY_STATES,
   GAZETTEER_SINGLETON_ROLES,
   type GazetteerRole,
 } from "./roles.js";
@@ -12,6 +13,8 @@ export interface MatchedInputs {
   stateTigerZip: string;
   countyTigerZip: string;
   placeTigerZips: string[];
+  countySubdivisionTigerZips: string[];
+  consolidatedCityTigerZips: string[];
   hierarchyFile?: string;
   year: string;
 }
@@ -42,6 +45,8 @@ export function matchInputs(paths: string[]): MatchedInputs {
     stateTigerZip: [],
     countyTigerZip: [],
     placeTigerZips: [],
+    countySubdivisionTigerZips: [],
+    consolidatedCityTigerZips: [],
     hierarchyFile: [],
   };
 
@@ -95,6 +100,8 @@ export function matchInputs(paths: string[]): MatchedInputs {
     ...matches.stateTigerZip,
     ...matches.countyTigerZip,
     ...matches.placeTigerZips,
+    ...matches.countySubdivisionTigerZips,
+    ...matches.consolidatedCityTigerZips,
     ...matches.hierarchyFile,
   ];
   const year = allMatches[0].year;
@@ -107,6 +114,32 @@ export function matchInputs(paths: string[]): MatchedInputs {
     );
   }
 
+  const stateOf = (file: RoleMatch) => path.basename(file.path).split("_")[2];
+  const placeStates = matches.placeTigerZips.map(stateOf);
+  for (const [role, requiredStates] of [
+    ["countySubdivisionTigerZips", placeStates],
+    [
+      "consolidatedCityTigerZips",
+      placeStates.filter((s) =>
+        (CONSOLIDATED_CITY_STATES as readonly string[]).includes(s),
+      ),
+    ],
+  ] as const) {
+    const found = matches[role].map(stateOf);
+    const missing = requiredStates.filter((s) => !found.includes(s));
+    if (missing.length)
+      throw new Error(
+        `us-census-gazetteer inputs: missing ${role} for states ${missing.join(", ")}; acquire the complete Census source set`,
+      );
+    if (new Set(found).size !== found.length)
+      throw new Error(`Duplicate ${role} state files`);
+    const extra = found.filter((s) => !placeStates.includes(s));
+    if (extra.length)
+      throw new Error(
+        `${role} has states without PLACE input: ${extra.join(", ")}`,
+      );
+  }
+
   return {
     statesZip: matches.statesZip[0].path,
     adminAreasZip: matches.adminAreasZip[0].path,
@@ -114,6 +147,12 @@ export function matchInputs(paths: string[]): MatchedInputs {
     stateTigerZip: matches.stateTigerZip[0].path,
     countyTigerZip: matches.countyTigerZip[0].path,
     placeTigerZips: matches.placeTigerZips.map((m) => m.path),
+    countySubdivisionTigerZips: matches.countySubdivisionTigerZips.map(
+      (m) => m.path,
+    ),
+    consolidatedCityTigerZips: matches.consolidatedCityTigerZips.map(
+      (m) => m.path,
+    ),
     hierarchyFile: matches.hierarchyFile[0]?.path,
     year,
   };

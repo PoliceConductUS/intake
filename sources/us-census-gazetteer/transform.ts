@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import type { ImportArtifactKind } from "../../src/shared/io/index.js";
 
 export const produces: readonly ImportArtifactKind[] = [
@@ -27,10 +28,15 @@ import { buildLocationPaths } from "./lib/location-paths.js";
 import type { LocationPathAliasEntry } from "./lib/location-paths.js";
 import { buildLocationPathGeometryPackage } from "./lib/location-geometries.js";
 import type { LocationPathWithGeometryExtent } from "./lib/location-geometries.js";
+import { addSupplementalPlaces } from "./lib/supplemental-places.js";
+import {
+  readFeaturesByState,
+  type TigerFeatureRow,
+} from "./lib/tiger-hierarchy.js";
 import { matchInputs } from "./lib/inputs.js";
 
 /**
- * Orchestrates the six ported `lib/` domain modules into the runtime's
+ * Orchestrates the Census `lib/` domain modules into the runtime's
  * manifest+emit contract, mirroring the stage chain in the original
  * standalone producer's `intake.us-census-gazetteer/src/run.js`
  * (`runValidatedCommand`), minus discovery/download/envelope-writing (all
@@ -46,7 +52,10 @@ import { matchInputs } from "./lib/inputs.js";
  *      zips via the bbox-prefilter + polygon-clipping intersection engine.
  *   4. `buildLocationPaths` derives the canonical location-path tree (plus
  *      any same-place alternate-administrative-area aliases).
- *   5. `buildLocationPathGeometryPackage` attaches TIGER polygon geometry,
+ *   5. Legal county subdivisions and consolidated cities add local places;
+ *      subdivision boundaries exclude existing PLACE coverage. A report
+ *      records included, clipped, fully covered and statistical features.
+ *   6. `buildLocationPathGeometryPackage` attaches source/derived geometry,
  *      bbox, and centroid to each location path, streaming each geometry
  *      row to `deps.emit` (the "LocationPathGeometries" kind is the
  *      runtime's one streamed record kind — see `emit-sink.ts`) rather than
@@ -59,7 +68,7 @@ import { matchInputs } from "./lib/inputs.js";
  * attaches. `toLocationPathSpec` below picks exactly the spec's fields.
  */
 export const description =
-  "US Census Gazetteer + TIGER — the canonical location-path tree (state/county/place) with geometry; runs first so other sources resolve against it (ADR 0015).";
+  "US Census Gazetteer + TIGER — the canonical location-path tree (state/county/place, including local jurisdictions) with geometry; runs first so other sources resolve against it (ADR 0015).";
 
 export const transform: SourceTransform = async (deps: TransformDeps) => {
   const inputs = matchInputs(deps.paths);
@@ -84,14 +93,73 @@ export const transform: SourceTransform = async (deps: TransformDeps) => {
           inputs.year,
         );
 
-  const built = buildLocationPaths({
+  const primary = buildLocationPaths({
     states,
     administrativeAreas,
     places,
     hierarchy,
   });
 
+  const readFeatures = async (
+    paths: string[],
+    type: Parameters<typeof readFeaturesByState>[1],
+  ) => {
+    const rows: TigerFeatureRow[] = [];
+    for (const file of paths)
+      rows.push(
+        ...[...(await readFeaturesByState(file, type, deps.state))].flatMap(
+          ([, values]) => values,
+        ),
+      );
+    return rows;
+  };
+  const importedPlaceGeoids = new Set(
+    Object.values(primary.locationPathSources)
+      .flatMap((e) => e.sourceKeys ?? [e.sourceKey])
+      .filter((key) => key.startsWith("place:GEOID:"))
+      .map((key) => key.split(":")[2]),
+  );
+  const supplemental = addSupplementalPlaces({
+    built: primary,
+    subdivisions: await readFeatures(
+      inputs.countySubdivisionTigerZips,
+      "county_subdivision",
+    ),
+    consolidatedCities: await readFeatures(
+      inputs.consolidatedCityTigerZips,
+      "consolidated_city",
+    ),
+    places: (await readFeatures(inputs.placeTigerZips, "place")).filter(
+      (feature) => importedPlaceGeoids.has(feature.geoid),
+    ),
+    counties: await readFeatures([inputs.countyTigerZip], "county"),
+  });
+  const { built } = supplemental;
+  await mkdir(deps.state, { recursive: true });
+  const reportPath = path.join(
+    deps.state,
+    `local-jurisdictions-${inputs.year}.json`,
+  );
+  await writeFile(
+    reportPath,
+    JSON.stringify(
+      { year: inputs.year, records: supplemental.report },
+      null,
+      2,
+    ) + "\n",
+  );
+  const counts = Object.fromEntries(
+    ["included", "clipped", "covered", "excluded"].map((status) => [
+      status,
+      supplemental.report.filter((row) => row.status === status).length,
+    ]),
+  );
+  deps.logger?.info(
+    `Census local jurisdictions: ${JSON.stringify(counts)}; report ${reportPath}`,
+  );
+
   const pkg = await buildLocationPathGeometryPackage({
+    supplementalGeometries: supplemental.geometries,
     locationPaths: built.locationPaths,
     locationPathSources: built.locationPathSources,
     stateGeometryPath: inputs.stateTigerZip,
@@ -155,6 +223,7 @@ function toLocationPathSpec(row: LocationPathWithGeometryExtent) {
     location_path_id: row.location_path_id,
     path: row.path,
     level: row.level,
+    resolution_class: row.resolution_class ?? "primary",
     display_name: row.display_name,
     parent_location_path_id: row.parent_location_path_id,
     centroid: row.centroid,

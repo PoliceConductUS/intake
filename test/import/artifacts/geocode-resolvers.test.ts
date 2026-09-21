@@ -128,7 +128,7 @@ it("keys derived locations by the corrected policy and postal ZIP", async () => 
   const b = fakeContext({ city: "Saint Paul", state: "MN", zip_code: "55101" });
   const input = await resolver.cacheInput(a.context);
   expect(input).toMatchObject({
-    policy: "place-containment-v1",
+    policy: "place-containment-v2-local-jurisdictions",
     zipCode: "55111",
   });
   expect(input).not.toEqual(await resolver.cacheInput(b.context));
@@ -150,7 +150,14 @@ it.each([true, false])(
       async query(sql = "") {
         if (sql.includes("ST_Covers"))
           return {
-            rows: hasPlace ? [{ location_path_id: "containing-place" }] : [],
+            rows: hasPlace
+              ? [
+                  {
+                    location_path_id: "containing-place",
+                    resolution_class: "primary",
+                  },
+                ]
+              : [],
           };
         return {
           rows: [{ id: "sam-rayburn", location_path_id: "wrong-ivanhoe" }],

@@ -50,7 +50,12 @@ import {
  * ported.
  */
 
-export type TigerFeatureType = "state" | "county" | "place";
+export type TigerFeatureType =
+  | "state"
+  | "county"
+  | "place"
+  | "county_subdivision"
+  | "consolidated_city";
 
 interface GeoJsonGeometry {
   type?: string;
@@ -69,6 +74,7 @@ export interface TigerFeatureRow {
   name: string;
   label: string;
   type: string;
+  properties?: Record<string, unknown>;
   geometry: GeoJsonGeometry;
   bbox: BBox;
 }
@@ -285,26 +291,7 @@ export async function readFeaturesByState(
 
   const featuresByState = new Map<string, TigerFeatureRow[]>();
   for await (const feature of readShapefile(shpPath)) {
-    const properties = feature.properties ?? {};
-    const stateGeoid = properties.STATEFP as string;
-    if (!allowedStateGeoids.has(stateGeoid)) continue;
-    const stateSlug = (properties.STUSPS as string | undefined)?.toLowerCase();
-    if (stateSlug !== undefined && !allowedStateSlugs.has(stateSlug)) continue;
-    const geoid = featureGeoid(properties, type);
-    if (typeof geoid !== "string") continue;
-
-    const records = featuresByState.get(stateGeoid) ?? [];
-    records.push({
-      geoid,
-      name: properties.NAME as string,
-      label:
-        (properties.NAMELSAD as string | undefined) ??
-        (properties.NAME as string),
-      type: properties.LSAD as string,
-      geometry: feature.geometry as GeoJsonGeometry,
-      bbox: bboxForGeometry(feature.geometry as GeoJsonGeometry),
-    });
-    featuresByState.set(stateGeoid, records);
+    addFeatureByState(featuresByState, feature, type);
   }
 
   return featuresByState;
@@ -329,6 +316,19 @@ function addFeatureByState(
 ): void {
   const properties = feature.properties ?? {};
   const stateGeoid = properties.STATEFP as string;
+  if (type === "county_subdivision" || type === "consolidated_city") {
+    const geoidPattern = type === "county_subdivision" ? /^\d{10}$/ : /^\d{7}$/;
+    if (
+      typeof stateGeoid !== "string" ||
+      !/^\d{2}$/.test(stateGeoid) ||
+      typeof properties.GEOID !== "string" ||
+      !geoidPattern.test(properties.GEOID)
+    ) {
+      throw new Error(
+        `Invalid Census ${type} source identity: STATEFP=${String(properties.STATEFP)}, GEOID=${String(properties.GEOID)}`,
+      );
+    }
+  }
   if (!allowedStateGeoids.has(stateGeoid)) return;
   const stateSlug = (properties.STUSPS as string | undefined)?.toLowerCase();
   if (stateSlug !== undefined && !allowedStateSlugs.has(stateSlug)) return;
@@ -343,6 +343,7 @@ function addFeatureByState(
       (properties.NAMELSAD as string | undefined) ??
       (properties.NAME as string),
     type: properties.LSAD as string,
+    properties,
     geometry: feature.geometry as GeoJsonGeometry,
     bbox: bboxForGeometry(feature.geometry as GeoJsonGeometry),
   });
@@ -359,7 +360,12 @@ function featureGeoid(
       (properties.STATEFP as string | undefined)
     );
   }
-  if (type === "county") return properties.GEOID as string | undefined;
+  if (
+    type === "county" ||
+    type === "county_subdivision" ||
+    type === "consolidated_city"
+  )
+    return properties.GEOID as string | undefined;
   return (
     (properties.GEOID as string | undefined) ??
     `${properties.STATEFP as string}${properties.PLACEFP as string}`
@@ -410,7 +416,7 @@ function boxesIntersect(left: BBox, right: BBox): boolean {
   );
 }
 
-function multiPolygonArea(multiPolygon: MultiPolygon): number {
+export function multiPolygonArea(multiPolygon: MultiPolygon): number {
   return multiPolygon.reduce((sum, polygon) => sum + polygonArea(polygon), 0);
 }
 

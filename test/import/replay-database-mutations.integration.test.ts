@@ -216,6 +216,7 @@ describeWithDocker("replay against a real Postgres", () => {
           location_path_id: "lp",
           path: "/mn/ramsey-county/saint-paul/",
           level: "place",
+          resolution_class: "primary",
           display_name: "Saint Paul",
           parent_location_path_id: "ramsey-county",
           centroid: { type: "Point", coordinates: [-93.09, 44.9537] },

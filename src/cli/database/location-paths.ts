@@ -33,7 +33,7 @@ export async function readLocationPathById(
 ): Promise<DatabaseLocationPathRow | undefined> {
   return firstRow<DatabaseLocationPathRow>(
     await client.query(
-      `select location_path_id, path, level, display_name,
+      `select location_path_id, path, level, display_name, resolution_class,
               parent_location_path_id, centroid, bbox
          from public.location_path
         where location_path_id = $1`,
@@ -48,7 +48,7 @@ export async function readLocationPathByPath(
 ): Promise<DatabaseLocationPathRow | undefined> {
   return firstRow<DatabaseLocationPathRow>(
     await client.query(
-      `select location_path_id, path, level, display_name,
+      `select location_path_id, path, level, display_name, resolution_class,
               parent_location_path_id, centroid, bbox
          from public.location_path
         where path = $1`,
@@ -82,6 +82,7 @@ export async function readLocationPathsContainingPoint(
       `select lp.location_path_id,
               lp.path,
               lp.level,
+              lp.resolution_class,
               lp.display_name,
               lp.parent_location_path_id,
               case

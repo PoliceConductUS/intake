@@ -22,7 +22,12 @@ function fakeContext(options: {
       }
       if (text.includes("ST_Covers")) {
         const level = values[2] as "place" | "administrative_area";
-        return { rows: options.containing[level] ?? [] };
+        return {
+          rows: (options.containing[level] ?? []).map((row) => ({
+            resolution_class: "primary",
+            ...(row as object),
+          })),
+        };
       }
       if (text.includes("split_part(path, '/', 4) = $2")) {
         return { rows: options.byStateSlug ?? [] };
@@ -255,6 +260,64 @@ describe("explicit postal-area exceptions", () => {
       },
     });
     await expect(context.resolveAddress(postalAddress)).rejects.toThrow(
+      "multiple place",
+    );
+  });
+});
+
+describe("Census containing geography precedence", () => {
+  const point = { latitude: 1, longitude: 1, subject: "Agency" };
+  it("prefers a primary place over a containing township and consolidated city", async () => {
+    const context = fakeContext({
+      containing: {
+        place: [
+          {
+            location_path_id: "township",
+            resolution_class: "county_subdivision",
+          },
+          { location_path_id: "city", resolution_class: "primary" },
+          {
+            location_path_id: "consolidated",
+            resolution_class: "consolidated_city",
+          },
+        ],
+      },
+    });
+    await expect(context.getPlaceContainingPoint(point)).resolves.toBe("city");
+  });
+  it("uses a township outside primary places before a consolidated city", async () => {
+    const context = fakeContext({
+      containing: {
+        place: [
+          {
+            location_path_id: "consolidated",
+            resolution_class: "consolidated_city",
+          },
+          {
+            location_path_id: "township",
+            resolution_class: "county_subdivision",
+          },
+        ],
+      },
+    });
+    await expect(context.getPlaceContainingPoint(point)).resolves.toBe(
+      "township",
+    );
+  });
+  it("does not hide ambiguity within the winning class", async () => {
+    const context = fakeContext({
+      containing: {
+        place: [
+          { location_path_id: "city-a", resolution_class: "primary" },
+          { location_path_id: "city-b", resolution_class: "primary" },
+          {
+            location_path_id: "township",
+            resolution_class: "county_subdivision",
+          },
+        ],
+      },
+    });
+    await expect(context.getPlaceContainingPoint(point)).rejects.toThrow(
       "multiple place",
     );
   });

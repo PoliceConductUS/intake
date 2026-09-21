@@ -1,5 +1,9 @@
 import { parse as parseHtml } from "node-html-parser";
-import { classifyGazetteerRole, type GazetteerRole } from "../lib/roles.js";
+import {
+  classifyGazetteerRole,
+  type GazetteerRole,
+  CONSOLIDATED_CITY_STATES,
+} from "../lib/roles.js";
 
 const STATE_GEOIDS = [
   "01",
@@ -63,6 +67,8 @@ export type GazetteerLinks = {
   stateTigerUrl: string;
   countyTigerUrl: string;
   placeTigerUrls: string[];
+  countySubdivisionTigerUrls: string[];
+  consolidatedCityTigerUrls: string[];
   hierarchyUrl?: string;
 };
 
@@ -71,6 +77,8 @@ type DiscoveredLink = { searchText: string; url: string };
 type ClassifiedLinks = {
   singles: Map<GazetteerRole, string>;
   placeTigerUrls: string[];
+  countySubdivisionTigerUrls: string[];
+  consolidatedCityTigerUrls: string[];
 };
 
 export function discoverLatestGazetteerLinks(
@@ -93,6 +101,11 @@ export function discoverLatestGazetteerLinks(
     );
   }
 
+  const selectedStates = classified.placeTigerUrls.length
+    ? classified.placeTigerUrls.map(
+        (url) => new URL(url).pathname.match(/tl_\d{4}_(\d{2})_place\.zip/)![1],
+      )
+    : STATE_GEOIDS;
   return {
     year: String(year),
     stateUrl: classified.singles.get("statesZip")!,
@@ -110,6 +123,22 @@ export function discoverLatestGazetteerLinks(
         : STATE_GEOIDS.map(
             (geoid) =>
               `https://www2.census.gov/geo/tiger/TIGER${year}/PLACE/tl_${year}_${geoid}_place.zip`,
+          ),
+    countySubdivisionTigerUrls:
+      classified.countySubdivisionTigerUrls.length > 0
+        ? classified.countySubdivisionTigerUrls
+        : selectedStates.map(
+            (geoid) =>
+              `https://www2.census.gov/geo/tiger/TIGER${year}/COUSUB/tl_${year}_${geoid}_cousub.zip`,
+          ),
+    consolidatedCityTigerUrls:
+      classified.consolidatedCityTigerUrls.length > 0
+        ? classified.consolidatedCityTigerUrls
+        : CONSOLIDATED_CITY_STATES.filter((geoid) =>
+            selectedStates.includes(geoid),
+          ).map(
+            (geoid) =>
+              `https://www2.census.gov/geo/tiger/TIGER${year}/CONCITY/tl_${year}_${geoid}_concity.zip`,
           ),
     hierarchyUrl: classified.singles.get("hierarchyFile"),
   };
@@ -139,16 +168,27 @@ function forYear(links: DiscoveredLink[], year: number): DiscoveredLink[] {
 function classifyLinks(links: DiscoveredLink[]): ClassifiedLinks {
   const singles = new Map<GazetteerRole, string>();
   const placeTigerUrls: string[] = [];
+  const countySubdivisionTigerUrls: string[] = [];
+  const consolidatedCityTigerUrls: string[] = [];
   for (const link of links) {
     const role = classifyGazetteerRole(link.searchText);
     if (role === undefined) continue;
     if (role === "placeTigerZips") {
       placeTigerUrls.push(link.url);
+    } else if (role === "countySubdivisionTigerZips") {
+      countySubdivisionTigerUrls.push(link.url);
+    } else if (role === "consolidatedCityTigerZips") {
+      consolidatedCityTigerUrls.push(link.url);
     } else if (!singles.has(role)) {
       singles.set(role, link.url);
     }
   }
-  return { singles, placeTigerUrls };
+  return {
+    singles,
+    placeTigerUrls,
+    countySubdivisionTigerUrls,
+    consolidatedCityTigerUrls,
+  };
 }
 
 function findLatestSourceYear(links: DiscoveredLink[]): number | undefined {

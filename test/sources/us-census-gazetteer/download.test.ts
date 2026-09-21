@@ -36,9 +36,11 @@ describe("gazetteerSourceUrls", () => {
         stateTigerUrl: "st",
         countyTigerUrl: "ct",
         placeTigerUrls: ["pt1", "pt2"],
+        countySubdivisionTigerUrls: ["cs"],
+        consolidatedCityTigerUrls: ["cc"],
         hierarchyUrl: "h",
       }),
-    ).toEqual(["s", "a", "p", "st", "ct", "pt1", "pt2", "h"]);
+    ).toEqual(["s", "a", "p", "st", "ct", "pt1", "pt2", "cs", "cc", "h"]);
   });
 
   it("omits the hierarchy url when absent", () => {
@@ -51,6 +53,8 @@ describe("gazetteerSourceUrls", () => {
         stateTigerUrl: "st",
         countyTigerUrl: "ct",
         placeTigerUrls: [],
+        countySubdivisionTigerUrls: [],
+        consolidatedCityTigerUrls: [],
       }),
     ).toEqual(["s", "a", "p", "st", "ct"]);
   });

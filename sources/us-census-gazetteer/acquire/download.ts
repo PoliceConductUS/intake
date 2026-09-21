@@ -13,6 +13,8 @@ export function gazetteerSourceUrls(links: GazetteerLinks): string[] {
     links.stateTigerUrl,
     links.countyTigerUrl,
     ...links.placeTigerUrls,
+    ...links.countySubdivisionTigerUrls,
+    ...links.consolidatedCityTigerUrls,
     ...(links.hierarchyUrl ? [links.hierarchyUrl] : []),
   ];
 }

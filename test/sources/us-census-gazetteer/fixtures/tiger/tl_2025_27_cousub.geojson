@@ -1,0 +1,53 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "STATEFP": "27",
+        "COUNTYFP": "053",
+        "GEOID": "2705300001",
+        "NAME": "Test",
+        "NAMELSAD": "Test township",
+        "LSAD": "43",
+        "CLASSFP": "T1"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [4, 4],
+            [4, 8],
+            [8, 8],
+            [8, 4],
+            [4, 4]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "STATEFP": "27",
+        "COUNTYFP": "053",
+        "GEOID": "2705300002",
+        "NAME": "Statistical",
+        "NAMELSAD": "Statistical CCD",
+        "LSAD": "22",
+        "CLASSFP": "Z5"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [0, 0],
+            [0, 10],
+            [10, 10],
+            [10, 0],
+            [0, 0]
+          ]
+        ]
+      }
+    }
+  ]
+}

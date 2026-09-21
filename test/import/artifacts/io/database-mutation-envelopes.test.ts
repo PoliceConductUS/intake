@@ -413,6 +413,7 @@ describe("database mutation envelopes", () => {
           location_path_id: "location-path-id",
           path: "/mn/ramsey-county/saint-paul/",
           level: "place",
+          resolution_class: "primary",
           display_name: "Saint Paul",
           parent_location_path_id: "ramsey-county-location-path-id",
           centroid: {
@@ -442,6 +443,7 @@ describe("database mutation envelopes", () => {
           location_path_id: "location-path-id",
           path: "/mn/ramsey-county/saint-paul/",
           level: "place",
+          resolution_class: "primary",
           display_name: "Saint Paul",
           parent_location_path_id: "ramsey-county-location-path-id",
           latitude: 44.9537,

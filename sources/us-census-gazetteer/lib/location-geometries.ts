@@ -73,6 +73,7 @@ export interface BuildLocationPathGeometryPackageOptions {
   placeGeometryPaths: string[];
   selectedYear: number | string;
   state: string;
+  supplementalGeometries?: Map<string, LocationPathGeometry>;
   onGeometryRow?: (
     path: string,
     row: LocationPathGeometryRow,
@@ -98,6 +99,7 @@ export async function buildLocationPathGeometryPackage({
   selectedYear,
   state,
   onGeometryRow,
+  supplementalGeometries,
 }: BuildLocationPathGeometryPackageOptions): Promise<BuildLocationPathGeometryPackageResult> {
   const statesByState = await readFeaturesByState(
     stateGeometryPath,
@@ -142,14 +144,16 @@ export async function buildLocationPathGeometryPackage({
     }
     const sources = sourceKeysForGeometry(sourceRecord, source);
 
-    const geometry = geometryForLocationPath({
-      locationPath,
-      source,
-      sources,
-      statesByGeoid,
-      countiesByGeoid,
-      placesByGeoid,
-    });
+    const geometry =
+      supplementalGeometries?.get(path) ??
+      geometryForLocationPath({
+        locationPath,
+        source,
+        sources,
+        statesByGeoid,
+        countiesByGeoid,
+        placesByGeoid,
+      });
     const geometryRow: LocationPathGeometryRow = {
       location_path_id: locationPath.location_path_id,
       geometry,
@@ -191,7 +195,12 @@ export async function buildLocationPathGeometryPackage({
 }
 
 interface SourceKeyParts {
-  type: "state" | "administrative_area" | "place";
+  type:
+    | "state"
+    | "administrative_area"
+    | "place"
+    | "county_subdivision"
+    | "consolidated_city";
   geoid: string;
 }
 
@@ -446,7 +455,7 @@ function sourceKeyParts(
   sourceKey: string | undefined,
 ): SourceKeyParts | undefined {
   const match =
-    /^(?<type>state|administrative_area|place):GEOID:(?<geoid>\d+)$/.exec(
+    /^(?<type>state|administrative_area|place|county_subdivision|consolidated_city):GEOID:(?<geoid>\d+)$/.exec(
       sourceKey ?? "",
     );
   return match?.groups as SourceKeyParts | undefined;

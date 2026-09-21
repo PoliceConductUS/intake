@@ -5,9 +5,13 @@ export type GazetteerRole =
   | "stateTigerZip"
   | "countyTigerZip"
   | "placeTigerZips"
+  | "countySubdivisionTigerZips"
+  | "consolidatedCityTigerZips"
   | "hierarchyFile";
 
 const ROLE_PATTERNS: Record<GazetteerRole, RegExp> = {
+  countySubdivisionTigerZips: /tl_\d{4}_\d{2}_cousub\.zip/,
+  consolidatedCityTigerZips: /tl_\d{4}_\d{2}_concity\.zip/,
   stateTigerZip: /tl_\d{4}_us_state\.zip/,
   countyTigerZip: /tl_\d{4}_us_county\.zip/,
   placeTigerZips: /tl_\d{4}_\d{2}_place\.zip/,
@@ -18,6 +22,8 @@ const ROLE_PATTERNS: Record<GazetteerRole, RegExp> = {
 };
 
 const ROLE_ORDER = [
+  "countySubdivisionTigerZips",
+  "consolidatedCityTigerZips",
   "stateTigerZip",
   "countyTigerZip",
   "placeTigerZips",
@@ -42,3 +48,14 @@ export function classifyGazetteerRole(text: string): GazetteerRole | undefined {
   }
   return undefined;
 }
+
+// States with CONCITY features in the current Census TIGER release.
+export const CONSOLIDATED_CITY_STATES = [
+  "09",
+  "13",
+  "18",
+  "20",
+  "21",
+  "30",
+  "47",
+] as const;

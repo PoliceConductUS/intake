@@ -158,7 +158,7 @@ describe("readFeaturesByState", () => {
     );
 
     expect([...featuresByState.keys()]).toEqual(["27"]);
-    expect(featuresByState.get("27")).toEqual([
+    expect(featuresByState.get("27")).toMatchObject([
       {
         geoid: "2743000",
         name: "Minneapolis",
@@ -345,3 +345,31 @@ describe("state hierarchy cache", () => {
     ).rejects.toThrow("Cached hierarchy state artifact does not match run");
   });
 });
+
+it.each([{}, { STATEFP: "27" }])(
+  "rejects a supplemental feature missing its source identity: %j",
+  async (properties) => {
+    const file = path.join(workDir, "malformed.geojson");
+    await writeFile(
+      file,
+      JSON.stringify({
+        type: "Feature",
+        properties,
+        geometry: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [0, 0],
+              [1, 0],
+              [1, 1],
+              [0, 0],
+            ],
+          ],
+        },
+      }),
+    );
+    await expect(
+      readFeaturesByState(file, "county_subdivision", workDir),
+    ).rejects.toThrow(/Census.*identity/);
+  },
+);

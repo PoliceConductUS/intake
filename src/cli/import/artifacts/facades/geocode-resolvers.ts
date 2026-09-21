@@ -204,7 +204,7 @@ export function latLngFromAddress(
       },
       {},
       async ({ facade }) => ({
-        policy: "place-containment-v1",
+        policy: "place-containment-v2-local-jurisdictions",
         zipCode: normalizeToken(valueAsString(facade.raw(config.from.zipCode))),
         latitude: valueAsFiniteNumber(await facade.value(config.set.latitude)),
         longitude: valueAsFiniteNumber(

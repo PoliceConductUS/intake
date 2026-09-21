@@ -78,6 +78,8 @@ const DESCRIPTORS: EntityDescriptor[] = [
     // present-but-nullable keys, not optional.
     optionalNullable: false,
     override: {
+      resolution_class:
+        'z.enum(["primary", "county_subdivision", "consolidated_city"]).default("primary")',
       centroid: "LocationPathCentroidSpec.nullable().optional()",
       bbox: "LocationPathBboxSpec.nullable().optional()",
     },

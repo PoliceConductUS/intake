@@ -103,6 +103,7 @@ const locationPaths: LocationPathRow[] = [
     location_path_id: "mn-location-path-id",
     path: "/mn/",
     level: "state",
+    resolution_class: "primary",
     display_name: "Minnesota",
     parent_location_path_id: null,
     centroid: null,
@@ -112,6 +113,7 @@ const locationPaths: LocationPathRow[] = [
     location_path_id: "ramsey-county-location-path-id",
     path: "/mn/ramsey-county/",
     level: "administrative_area",
+    resolution_class: "primary",
     display_name: "Ramsey County",
     parent_location_path_id: "mn-location-path-id",
     centroid: null,
@@ -121,6 +123,7 @@ const locationPaths: LocationPathRow[] = [
     location_path_id: "saint-paul-location-path-id",
     path: "/mn/ramsey-county/saint-paul/",
     level: "place",
+    resolution_class: "primary",
     display_name: "Saint Paul",
     parent_location_path_id: "ramsey-county-location-path-id",
     centroid: null,
@@ -132,6 +135,7 @@ const txLocationPath: LocationPathRow = {
   location_path_id: "tx-location-path-id",
   path: "/tx/",
   level: "state",
+  resolution_class: "primary",
   display_name: "Texas",
   parent_location_path_id: null,
   centroid: null,
@@ -1808,6 +1812,7 @@ describe("Census substrate facades", () => {
       spec: {
         path: "/mn/",
         level: "state",
+        resolution_class: "primary",
         display_name: "Minnesota",
         parent_location_path_id: null,
       },
@@ -1821,6 +1826,7 @@ describe("Census substrate facades", () => {
         location_path_id: "mn-location-path-id",
         path: "/mn/",
         level: "state",
+        resolution_class: "primary",
         parent_location_path_id: null,
       },
     });
@@ -1841,6 +1847,7 @@ describe("Census substrate facades", () => {
       spec: {
         path: "/mn/",
         level: "state",
+        resolution_class: "primary",
         display_name: "Minnesota",
         parent_location_path_id: null,
       },
@@ -1852,6 +1859,7 @@ describe("Census substrate facades", () => {
       spec: {
         path: "/mn/ramsey-county/",
         level: "administrative_area",
+        resolution_class: "primary",
         display_name: "Ramsey County",
         parent_location_path_id: "mn",
       },
@@ -1881,6 +1889,7 @@ describe("Census substrate facades", () => {
       spec: {
         path: "/mn/",
         level: "state",
+        resolution_class: "primary",
         display_name: "Minnesota",
         parent_location_path_id: null,
       },
@@ -1904,6 +1913,7 @@ describe("Census substrate facades", () => {
       spec: {
         path: "/mn/",
         level: "state",
+        resolution_class: "primary",
         display_name: "Minnesota",
         parent_location_path_id: null,
       },
@@ -1940,6 +1950,7 @@ describe("Census substrate facades", () => {
       spec: {
         path: "/mn/ramsey-county/",
         level: "administrative_area",
+        resolution_class: "primary",
         display_name: "Ramsey County",
         parent_location_path_id: "mn",
       },
