@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import ExcelJS from "exceljs";
 import { readXlsx } from "../../../src/cli/transform/read-xlsx.js";
 
 const fixture = path.join(
@@ -9,6 +12,25 @@ const fixture = path.join(
 );
 
 describe("readXlsx", () => {
+  it("reads boolean-encoded True names as text without changing source IDs", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "tcole-true-"));
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const sheet = workbook.addWorksheet("Officers");
+      sheet.addRow(["PUBLIC_GUID", "FNAME", "LNAME"]);
+      sheet.addRow([1210883, "CHRIS", true]);
+      sheet.addRow([1620020, true, "MILLER"]);
+      const file = path.join(directory, "officers.xlsx");
+      await workbook.xlsx.writeFile(file);
+      expect(await readXlsx(file, "Officers")).toEqual([
+        { PUBLIC_GUID: "1210883", FNAME: "CHRIS", LNAME: "true" },
+        { PUBLIC_GUID: "1620020", FNAME: "true", LNAME: "MILLER" },
+      ]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it("reads sheet 1 rows keyed by the header row", async () => {
     const rows = await readXlsx(fixture);
     expect(rows).toHaveLength(4);
