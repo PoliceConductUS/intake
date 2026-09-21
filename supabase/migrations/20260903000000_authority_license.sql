@@ -52,8 +52,6 @@ alter table public.license
 alter table public.license
   drop constraint if exists license_officer_id_license_type_key;
 alter table public.license
-  drop constraint if exists license_personnel_id_license_type_key;
-alter table public.license
   add constraint license_personnel_id_authority_license_id_key
     unique (personnel_id, authority_license_id);
 
