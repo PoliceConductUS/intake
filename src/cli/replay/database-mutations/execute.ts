@@ -221,11 +221,22 @@ async function executeUpdate(
       databaseFieldValue(recordKind, fieldName, typedOperation.from),
       current[fieldName],
     );
-    values[fieldName] = databaseFieldValue(
+    const nextValue = databaseFieldValue(
       recordKind,
       fieldName,
       typedOperation.to,
     );
+    if (
+      (fieldName === metadata.keyColumnName ||
+        fieldName === "slug" ||
+        (recordKind === "LocationPath" && fieldName === "path")) &&
+      !valuesEqual(current[fieldName], nextValue)
+    ) {
+      throw new Error(
+        `DatabaseMutation ${mutationName} cannot change immutable ${recordKind}.${fieldName}.`,
+      );
+    }
+    values[fieldName] = nextValue;
   }
 
   await updateDatabaseRecordFields(

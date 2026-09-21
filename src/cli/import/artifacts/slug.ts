@@ -1,30 +1,47 @@
 /**
  * Allocates slugs unique across the three resolution levels for an entity kind:
  * the current command (in-memory claims), intake-owned state, and the database.
- * A slug resolved without generation (an explicit source slug or a reused DB
+ * A slug resolved without generation (a cached slug or a reused DB
  * slug) is registered so a later generated slug disambiguates from it; a
- * generated base gets a numeric suffix appended until free. Because a
- * durably-resolved slug is persisted on import, the database is the durable
- * authority for the state level — read once per candidate and memoized.
+ * generated base gets a numeric suffix appended until free. The injected owner
+ * lookup checks both the canonical property cache and database, and is memoized
+ * once per candidate.
  */
 export class SlugAllocator {
   private readonly claimsByKind = new Map<string, Map<string, string>>();
-  private readonly databaseOwnerByKind = new Map<
+  private readonly durableOwnerByKind = new Map<
     string,
     Map<string, string | null>
   >();
 
   constructor(
-    /** The id owning `slug` for `kind` in the database, or undefined if free. */
-    private readonly lookupDatabaseOwner: (
+    /** The id owning `slug` in canonical cache or database, or undefined if free. */
+    private readonly lookupDurableOwner: (
       kind: string,
       slug: string,
     ) => Promise<string | undefined>,
   ) {}
 
   /** Register a resolved slug so a later generated slug disambiguates from it. */
-  register(kind: string, slug: string, canonicalId: string): void {
-    this.claimsFor(kind).set(slug, canonicalId);
+  async register(
+    kind: string,
+    slug: string,
+    canonicalId: string,
+  ): Promise<void> {
+    const owner = await this.durableOwnerId(kind, slug);
+    if (owner !== undefined && owner !== canonicalId) {
+      throw new Error(
+        `Canonical slug conflict for ${kind} ${canonicalId}: ${slug} belongs to ${owner}.`,
+      );
+    }
+    const claims = this.claimsFor(kind);
+    const claimant = claims.get(slug);
+    if (claimant !== undefined && claimant !== canonicalId) {
+      throw new Error(
+        `Canonical slug conflict for ${kind} ${canonicalId}: ${slug} is claimed by ${claimant}.`,
+      );
+    }
+    claims.set(slug, canonicalId);
   }
 
   async ensureUnique(
@@ -34,27 +51,14 @@ export class SlugAllocator {
     const claims = this.claimsFor(kind);
     for (let attempt = 1; ; attempt += 1) {
       const candidate = attempt === 1 ? input.base : `${input.base}-${attempt}`;
+      const owner = await this.durableOwnerId(kind, candidate);
+      if (owner !== undefined && owner !== input.canonicalId) continue;
+      // Check and assign the command claim synchronously after the durable
+      // lookup. Concurrent continuations see prior claims, while a new candidate
+      // can never temporarily claim an established entity's cached slug.
       const claimant = claims.get(candidate);
-      if (claimant !== undefined) {
-        if (claimant === input.canonicalId) {
-          return candidate;
-        }
-        continue;
-      }
-      // Claim synchronously BEFORE the async database check, so another entity
-      // resolving the same base concurrently (facades resolve via Promise.all)
-      // sees the claim and moves to the next candidate — closing the
-      // check-then-claim race that would otherwise hand two rows one slug.
+      if (claimant !== undefined && claimant !== input.canonicalId) continue;
       claims.set(candidate, input.canonicalId);
-      const databaseOwner = await this.databaseOwnerId(kind, candidate);
-      if (databaseOwner !== undefined && databaseOwner !== input.canonicalId) {
-        // The database already owns this slug for a different entity; release
-        // the optimistic claim and try the next candidate.
-        if (claims.get(candidate) === input.canonicalId) {
-          claims.delete(candidate);
-        }
-        continue;
-      }
       return candidate;
     }
   }
@@ -68,25 +72,25 @@ export class SlugAllocator {
     return claims;
   }
 
-  private databaseOwnerCacheFor(kind: string): Map<string, string | null> {
-    let owners = this.databaseOwnerByKind.get(kind);
+  private durableOwnerCacheFor(kind: string): Map<string, string | null> {
+    let owners = this.durableOwnerByKind.get(kind);
     if (owners === undefined) {
       owners = new Map();
-      this.databaseOwnerByKind.set(kind, owners);
+      this.durableOwnerByKind.set(kind, owners);
     }
     return owners;
   }
 
-  private async databaseOwnerId(
+  private async durableOwnerId(
     kind: string,
     slug: string,
   ): Promise<string | undefined> {
-    const owners = this.databaseOwnerCacheFor(kind);
+    const owners = this.durableOwnerCacheFor(kind);
     const cached = owners.get(slug);
     if (cached !== undefined) {
       return cached ?? undefined;
     }
-    const owner = await this.lookupDatabaseOwner(kind, slug);
+    const owner = await this.lookupDurableOwner(kind, slug);
     owners.set(slug, owner ?? null);
     return owner;
   }

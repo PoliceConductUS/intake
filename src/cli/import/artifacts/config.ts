@@ -44,6 +44,7 @@ import {
 } from "../../state/source-name-to-canonical-id/index.js";
 import {
   readResolvedProperty,
+  createResolvedSlugOwnerLookup,
   type ResolvedPropertyCacheInput,
   type ResolvedPropertySource,
   writeResolvedProperty,
@@ -276,6 +277,7 @@ function agencyResolutionDeps(context: ImportArtifactsPipelineContext) {
           );
         },
       }),
+    lookupCachedSlugOwner: createResolvedSlugOwnerLookup(context.workspaceRoot),
     resolvedPropertyCache: {
       read: (input: ResolvedPropertyCacheInput) =>
         readResolvedProperty({ ...input, rootDir: context.workspaceRoot }),
@@ -598,6 +600,7 @@ async function writeDatabaseMutationsStage(
       ledger,
       commandName: context.commandName,
       resolvedPropertyStore: deps.resolvedPropertyCache,
+      lookupCachedSlugOwner: deps.lookupCachedSlugOwner,
       resolveAddress: (input) => resolveImportAddress(input, deps),
     });
 

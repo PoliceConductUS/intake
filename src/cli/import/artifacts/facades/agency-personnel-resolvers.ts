@@ -25,7 +25,7 @@ export type SlugBackend = {
     kind: string;
     slug: string;
     canonicalId: string;
-  }): void;
+  }): Promise<void>;
   existingRow(id: string): Promise<Record<string, unknown> | undefined>;
 };
 
@@ -47,12 +47,7 @@ function canonicalSuffix(id: unknown): string {
   return normalized.slice(-6) || "record";
 }
 
-/**
- * The shared slug flow (ADR 0016 #4): an explicitly-supplied slug wins, else the
- * existing DB row's slug is reused (so a corrected name keeps the slug stable),
- * else a base is derived and disambiguated to be unique. `deriveBase` is the only
- * per-entity part.
- */
+/** Resolve canonical URL identity before considering a new intake-owned slug. */
 function slugResolver(
   kind: string,
   deriveBase: (
@@ -61,22 +56,60 @@ function slugResolver(
     source: FacadeSource,
   ) => string,
 ): Resolver<string, ResolverContext<Row, SlugBackend>> {
-  return new Resolver(async ({ facade, source, backend }) => {
+  return new Resolver(async ({ facade, source, backend, cache, current }) => {
     const id = String(await facade.value("id"));
-    const explicit = valueAsString(facade.raw("slug"));
-    if (explicit !== undefined) {
-      backend.registerSlug({ kind, slug: explicit, canonicalId: id });
-      return explicit;
+    const key = { kind, id, property: "slug" };
+    const cached = await cache?.read(key);
+    if (
+      cached !== undefined &&
+      (typeof cached !== "string" || cached.trim() === "")
+    ) {
+      throw new Error(`Invalid canonical slug cache for ${kind} ${id}.`);
     }
-    const current = await backend.existingRow(id);
-    const currentSlug =
-      current === undefined ? undefined : valueAsString(current.slug);
-    if (currentSlug !== undefined) {
-      backend.registerSlug({ kind, slug: currentSlug, canonicalId: id });
-      return currentSlug;
+    const row = current ?? (await backend.existingRow(id));
+    const databaseSlug =
+      row === undefined ? undefined : valueAsString(row.slug);
+    if (
+      cached !== undefined &&
+      databaseSlug !== undefined &&
+      cached !== databaseSlug
+    ) {
+      throw new Error(
+        `Canonical slug conflict for ${kind} ${id}: cache ${cached} differs from database ${databaseSlug}.`,
+      );
     }
-    const base = deriveBase(facade, id, source);
-    return backend.ensureUniqueSlug({ kind, base, canonicalId: id });
+    const established = databaseSlug ?? cached;
+    const slug =
+      established ??
+      (await backend.ensureUniqueSlug({
+        kind,
+        base: deriveBase(facade, id, source),
+        canonicalId: id,
+      }));
+    await backend.registerSlug({ kind, slug, canonicalId: id });
+    if (cached === undefined) {
+      await cache?.write(
+        { ...key, source: { namespace: source.namespace, name: source.name } },
+        slug,
+      );
+    }
+    return slug;
+  });
+}
+
+/** Other slug-bearing entities use their reader-facing title or name. */
+export function entitySlugResolver(
+  kind: string,
+  field: "title" | "name",
+): Resolver<string, ResolverContext<Row, SlugBackend>> {
+  return slugResolver(kind, (facade, _id, source) => {
+    const value = valueAsString(facade.raw(field));
+    if (value === undefined) {
+      throw new Error(
+        `Cannot generate slug for ${kind} ${source.namespace}/${source.name}; ${field} is required.`,
+      );
+    }
+    return slugify(value);
   });
 }
 

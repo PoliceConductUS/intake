@@ -191,7 +191,7 @@ export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = {
   CoverageLinkAgencyPersonnel: ["id"],
   AgencyPhoneNumber: ["id"],
   AgencyLink: ["id"],
-  FederalAgency: ["id"],
+  FederalAgency: ["id", "slug"],
   FederalAgencyBranch: ["id"],
   CivilCase: ["id", "slug", "location_path_id"],
   CivilCasePersonnel: ["id"],
@@ -831,12 +831,13 @@ export const FederalAgencySpec = z
   .object({
     id: z.string().optional(),
     name: z.string(),
-    slug: z.string(),
+    slug: z.string().optional(),
   })
   .strict();
 
 export const FederalAgencyCreateSpec = FederalAgencySpec.extend({
   id: z.string(),
+  slug: z.string(),
 });
 
 export const FederalAgencyBranchSpec = z

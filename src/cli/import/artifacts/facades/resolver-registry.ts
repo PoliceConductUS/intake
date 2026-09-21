@@ -30,6 +30,7 @@ import {
 import {
   personnelSlugResolver,
   agencySlugResolver,
+  entitySlugResolver,
 } from "./agency-personnel-resolvers.js";
 import { latLngFromAddress } from "./geocode-resolvers.js";
 import {
@@ -402,6 +403,14 @@ export function buildFacadeForKind(
   );
   const resolvers = {
     ...derivedResolvers(kind, identity, identityKind),
+    ...(columns.includes("slug")
+      ? {
+          slug: entitySlugResolver(
+            kind,
+            columns.includes("title") ? "title" : "name",
+          ),
+        }
+      : {}),
     ...config.overrides,
   } as EntityResolvers<Row>;
 

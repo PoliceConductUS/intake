@@ -116,6 +116,9 @@ export type ResolverContext<Row, Backend> = {
   facade: PropertyResolutionFacade<Row>;
   source: FacadeSource;
   backend: Backend;
+  /** Canonical property storage for resolvers that own their cache flow. */
+  cache?: PropertyCache;
+  current?: Record<string, unknown>;
 };
 
 /**

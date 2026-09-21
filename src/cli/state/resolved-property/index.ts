@@ -198,6 +198,65 @@ export async function readResolvedProperty(
   return undefined;
 }
 
+/**
+ * Snapshot established slug ownership once per command, loading only each used
+ * kind's slug envelopes. The cache remains the durable record; this index is
+ * only an in-memory lookup for allocation when the database has been reset.
+ */
+export function createResolvedSlugOwnerLookup(
+  rootDir?: string,
+): (kind: string, slug: string) => Promise<string | undefined> {
+  let files: Promise<string[]> | undefined;
+  const indexes = new Map<string, Promise<Map<string, string>>>();
+
+  async function indexKind(kind: string): Promise<Map<string, string>> {
+    if (rootDir === undefined) return new Map();
+    files ??= readdir(resolvedPropertyDirectory(rootDir)).catch(
+      (error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return [];
+        throw error;
+      },
+    );
+    const prefix = `${INTAKE_API_VERSION}:${kind}:`;
+    const suffix = ":slug";
+    const owners = new Map<string, string>();
+    for (const fileName of await files) {
+      if (!fileName.endsWith(".ResolvedProperty.yaml")) continue;
+      const cacheName = decodeURIComponent(
+        fileName.slice(0, -".ResolvedProperty.yaml".length),
+      );
+      if (!cacheName.startsWith(prefix) || !cacheName.endsWith(suffix))
+        continue;
+      const name = cacheName.slice(prefix.length, -suffix.length);
+      const value = await readResolvedProperty({
+        rootDir,
+        subject: { apiVersion: INTAKE_API_VERSION, kind, name },
+        targetProperty: "slug",
+      });
+      if (typeof value !== "string" || value.trim() === "") {
+        throw new Error(`Invalid canonical slug cache for ${kind} ${name}.`);
+      }
+      const owner = owners.get(value);
+      if (owner !== undefined && owner !== name) {
+        throw new Error(
+          `Canonical slug conflict for ${kind}: ${value} belongs to both ${owner} and ${name}.`,
+        );
+      }
+      owners.set(value, name);
+    }
+    return owners;
+  }
+
+  return async (kind, slug) => {
+    let index = indexes.get(kind);
+    if (index === undefined) {
+      index = indexKind(kind);
+      indexes.set(kind, index);
+    }
+    return (await index).get(slug);
+  };
+}
+
 type ResolvedPropertyEntry = {
   inputFingerprint?: string;
   value: unknown;

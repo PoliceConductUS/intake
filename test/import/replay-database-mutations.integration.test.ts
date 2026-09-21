@@ -177,10 +177,10 @@ describeWithDocker("replay against a real Postgres", () => {
           operations: [
             {
               action: "set",
-              path: "slug",
-              from: "old-slug",
-              to: "new-slug",
-              reason: "Set Agency slug.",
+              path: "name",
+              from: "A",
+              to: "Corrected Agency",
+              reason: "Set Agency name.",
               source,
             },
           ],
@@ -195,10 +195,10 @@ describeWithDocker("replay against a real Postgres", () => {
 
     expect(result.ok).toBe(true);
     const rows = await db.query(
-      "select id, slug from public.agency where id = 'agency-canonical-id'",
+      "select id, name, slug from public.agency where id = 'agency-canonical-id'",
     );
     expect(rows.rows).toEqual([
-      { id: "agency-canonical-id", slug: "new-slug" },
+      { id: "agency-canonical-id", name: "Corrected Agency", slug: "old-slug" },
     ]);
   });
 

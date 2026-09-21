@@ -175,9 +175,13 @@ export class EntityFacade<
         facade: this,
         source: this.source,
         backend: this.backend,
+        cache: this.cache,
+        current: this.current,
       };
       const locate = () => this.unresolvedMessage(property);
       if (
+        // Slugs own cache read, DB comparison, claim, and write as one resolver.
+        String(property) === "slug" ||
         this.cache === undefined ||
         !this.cacheableProperties.has(String(property))
       ) {

@@ -83,4 +83,21 @@ describe("SlugAllocator", () => {
       }),
     ).toBe("smith");
   });
+  it("does not let a new candidate's pending lookup block its established owner", async () => {
+    const allocator = new SlugAllocator(yieldingOwner({ published: "old-id" }));
+    const [newSlug] = await Promise.all([
+      allocator.ensureUnique("Agency", {
+        base: "published",
+        canonicalId: "new-id",
+      }),
+      allocator.register("Agency", "published", "old-id"),
+    ]);
+    expect(newSlug).toBe("published-2");
+    expect(
+      await allocator.ensureUnique("Agency", {
+        base: "published",
+        canonicalId: "old-id",
+      }),
+    ).toBe("published");
+  });
 });

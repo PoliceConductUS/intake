@@ -275,7 +275,11 @@ describe("DataContext", () => {
       namespace: "mn-post",
       name: "mn-state-patrol",
     });
-    agency.merge({ ...resolvedAgencySpec, slug: "msp" });
+    agency.merge({
+      ...resolvedAgencySpec,
+      contact_email: "chief@example.org",
+      slug: "msp",
+    });
 
     expect(await agency.toMutation()).toMatchObject({
       kind: "AgencyUpdate",
@@ -289,9 +293,9 @@ describe("DataContext", () => {
           }),
           expect.objectContaining({
             action: "set",
-            path: "slug",
-            from: "minnesota-state-patrol",
-            to: "msp",
+            path: "contact_email",
+            from: null,
+            to: "chief@example.org",
           }),
         ]),
       },
@@ -519,7 +523,11 @@ describe("DataContext", () => {
       namespace: "mn-post",
       name: "mn-state-patrol",
     });
-    agency.merge({ ...resolvedAgencySpec, slug: "msp" });
+    agency.merge({
+      ...resolvedAgencySpec,
+      contact_email: "chief@example.org",
+      slug: "msp",
+    });
 
     expect(await context.toMutations()).toMatchObject([
       {
@@ -530,9 +538,9 @@ describe("DataContext", () => {
             expect.objectContaining({ action: "check", path: "name" }),
             expect.objectContaining({
               action: "set",
-              path: "slug",
-              from: "minnesota-state-patrol",
-              to: "msp",
+              path: "contact_email",
+              from: null,
+              to: "chief@example.org",
             }),
           ]),
         },
@@ -583,7 +591,11 @@ describe("DataContext", () => {
       namespace: "mn-post",
       name: "mn-state-patrol",
     });
-    agency.merge({ ...resolvedAgencySpec, slug: "msp" });
+    agency.merge({
+      ...resolvedAgencySpec,
+      contact_email: "chief@example.org",
+      slug: "msp",
+    });
 
     const envelope = await context.toDatabaseMutations({
       namespace: "mn-post",
@@ -597,9 +609,9 @@ describe("DataContext", () => {
             expect.objectContaining({ action: "check", path: "name" }),
             expect.objectContaining({
               action: "set",
-              path: "slug",
-              from: "minnesota-state-patrol",
-              to: "msp",
+              path: "contact_email",
+              from: null,
+              to: "chief@example.org",
             }),
           ]),
         },
@@ -1414,7 +1426,7 @@ describe("PersonnelFacade", () => {
     ).toEqual(["PersonnelCreate", "PersonnelUpdate"]);
   });
 
-  test("uses an explicitly supplied slug as-is", async () => {
+  test("assigns its own canonical slug instead of accepting a producer slug", async () => {
     const context = personnelContext({
       personnel: { "1000038": { canonicalId: "personnel-canonical-id" } },
     });
@@ -1427,7 +1439,7 @@ describe("PersonnelFacade", () => {
 
     expect(await facade.toMutation()).toMatchObject({
       kind: "PersonnelCreate",
-      spec: { slug: "custom-slug" },
+      spec: { slug: "marc-denney-icalid" },
     });
   });
 

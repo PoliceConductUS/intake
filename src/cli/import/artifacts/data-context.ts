@@ -69,6 +69,11 @@ export type DataContextOptions = {
     input: AddressResolutionRequest,
   ) => Promise<AddressResolution | undefined>;
   resolvedPropertyStore?: ResolvedPropertyStore;
+  /** Established canonical cache ownership, including entities absent from this import. */
+  lookupCachedSlugOwner?: (
+    kind: string,
+    slug: string,
+  ) => Promise<string | undefined>;
   commandName?: string;
   /**
    * Durable Identity Map accessor over the SourceNameToCanonicalId ledger.
@@ -137,7 +142,7 @@ type UnifiedFacadeBackend = EntityFacadeBackend & {
     kind: string;
     slug: string;
     canonicalId: string;
-  }): void;
+  }): Promise<void>;
   resolveAgencyLocation(
     input: ResolveAddressInput,
   ): Promise<LocationResolution>;
@@ -184,8 +189,22 @@ export class DataContext {
     this.commandName = options.commandName;
     this.ledger = options.ledger;
     this.slugs = new SlugAllocator(async (kind, slug) => {
-      const row = await this.rows.getById(kind, slug, "slug");
-      return row === undefined ? undefined : valueAsString(row.id);
+      const [row, cachedOwner] = await Promise.all([
+        this.rows.getById(kind, slug, "slug"),
+        options.lookupCachedSlugOwner?.(kind, slug),
+      ]);
+      const databaseOwner =
+        row === undefined ? undefined : valueAsString(row.id);
+      if (
+        databaseOwner !== undefined &&
+        cachedOwner !== undefined &&
+        databaseOwner !== cachedOwner
+      ) {
+        throw new Error(
+          `Canonical slug conflict for ${kind}: ${slug} belongs to database ${databaseOwner} and cache ${cachedOwner}.`,
+        );
+      }
+      return databaseOwner ?? cachedOwner;
     });
     this.locations = new LocationDataContext(this);
     this.locationPaths = new LocationPathDataContext(this);
