@@ -51,85 +51,6 @@ export type ResolveAddressInput = {
   sourceName?: string;
 };
 
-function normalizeAddressToken(value: string): string {
-  return value
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/&/g, " and ")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim()
-    .replace(/\s+/g, " ");
-}
-
-function zip5(value: string): string {
-  return value.trim().slice(0, 5);
-}
-
-// STOPGAP: a hand-listed fallback for postal-only ZIPs whose geocoded point
-// lands in no place/administrative_area/state boundary. It does not generalize —
-// every new such ZIP must be added here. Replace with a general postal-area →
-// location_path mechanism (e.g. a ZCTA→place crosswalk) rather than growing this
-// table; `postalAreaPlacePaths` is the single point to swap out when that lands.
-const POSTAL_AREA_PLACE_PATHS: readonly {
-  state: string;
-  zip5: string;
-  places: readonly string[];
-  paths: readonly string[];
-}[] = [
-  {
-    state: "MN",
-    zip5: "55111",
-    places: ["st paul", "saint paul", "stpaul"],
-    paths: ["/mn/ramsey-county/st-paul/", "/mn/ramsey-county/saint-paul/"],
-  },
-  {
-    state: "MN",
-    zip5: "55450",
-    places: ["minneapolis"],
-    paths: ["/mn/hennepin-county/minneapolis/"],
-  },
-  {
-    state: "MN",
-    zip5: "55804",
-    places: ["duluth"],
-    paths: ["/mn/st-louis-county/duluth/"],
-  },
-  {
-    state: "MN",
-    zip5: "56270",
-    places: ["morton"],
-    paths: ["/mn/renville-county/morton/"],
-  },
-  {
-    state: "MN",
-    zip5: "56241",
-    places: ["granite falls"],
-    paths: ["/mn/chippewa-county/granite-falls/"],
-  },
-];
-
-function postalAreaPlacePaths(request: AddressResolutionRequest): string[] {
-  const state = request.state.trim().toUpperCase();
-  const normalizedPlace = normalizeAddressToken(request.place);
-  const postalZip = zip5(request.zipCode);
-  const rule = POSTAL_AREA_PLACE_PATHS.find(
-    (candidate) =>
-      candidate.state === state &&
-      candidate.zip5 === postalZip &&
-      candidate.places.includes(normalizedPlace),
-  );
-
-  return rule === undefined ? [] : [...rule.paths];
-}
-
-function isMissingContainingPlaceError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    error.message.includes("no place location_path_geometry boundary contains")
-  );
-}
-
 function addressResolutionRequest(
   input: ResolveAddressInput,
 ): AddressResolutionRequest {
@@ -172,19 +93,6 @@ function addressResolutionRequest(
 export class LocationDataContext {
   constructor(private readonly context: DataContext) {}
 
-  private async postalAreaLocationPathId(
-    request: AddressResolutionRequest,
-  ): Promise<string | undefined> {
-    for (const path of postalAreaPlacePaths(request)) {
-      const locationPath = await this.context.locationPaths.getByPath(path);
-      if (locationPath?.level === "place") {
-        return locationPath.location_path_id;
-      }
-    }
-
-    return undefined;
-  }
-
   async resolveAddress(
     input: ResolveAddressInput,
   ): Promise<LocationResolution> {
@@ -204,25 +112,12 @@ export class LocationDataContext {
       );
     }
 
-    let locationPathId: string;
-    try {
-      locationPathId = await this.context.locationPaths.getPlaceContainingPoint(
-        {
-          latitude: addressResolution.latitude,
-          longitude: addressResolution.longitude,
-          subject: `${request.entityType} ${request.entityId}; source ${request.sourceName ?? request.entityId}; name ${JSON.stringify(request.name)}; address ${JSON.stringify(request.address)}, ${JSON.stringify(request.place)}, ${request.state} ${request.zipCode}`,
-        },
-      );
-    } catch (error) {
-      if (!isMissingContainingPlaceError(error)) {
-        throw error;
-      }
-      const postalLocationPathId = await this.postalAreaLocationPathId(request);
-      if (postalLocationPathId === undefined) {
-        throw error;
-      }
-      locationPathId = postalLocationPathId;
-    }
+    const locationPathId =
+      await this.context.locationPaths.getPlaceContainingPoint({
+        latitude: addressResolution.latitude,
+        longitude: addressResolution.longitude,
+        subject: `${request.entityType} ${request.entityId}; source ${request.sourceName ?? request.entityId}; name ${JSON.stringify(request.name)}; address ${JSON.stringify(request.address)}, ${JSON.stringify(request.place)}, ${request.state} ${request.zipCode}`,
+      });
     const resolution = {
       locationPathId,
       addressLatitude: addressResolution.latitude,
@@ -318,8 +213,7 @@ export class LocationPathDataContext {
     return uniqueMatches[0]!.location_path_id;
   }
 
-  // ADR 0024: resolve the containing place or fail. Explicit postal exceptions
-  // are handled by LocationDataContext after a containing-place miss.
+  // ADR 0024: resolve the containing place or fail.
   async getPlaceContainingPoint(input: {
     latitude: number;
     longitude: number;

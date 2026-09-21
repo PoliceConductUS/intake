@@ -2,12 +2,11 @@
 
 ### Requirement: Address-derived places follow spatial evidence
 
-Agency location resolution SHALL use exactly one existing place boundary
-containing the resolved address point. If no place contains the point, only the
-postal-area exceptions explicitly listed in the accepted import specification
-MAY supply an existing place. Otherwise preparation SHALL fail with source key,
-canonical ID, name, address, city, state, ZIP, and point details. Multiple
-containing places SHALL fail without applying a postal exception.
+Agency location resolution SHALL use exactly one containing place in the first
+nonempty Census resolution class. If no place contains the point, preparation
+SHALL fail with source key, canonical ID, name, address, city, state, ZIP, and
+point details. No hard-coded ZIP, city, or record exceptions may supply a place.
+Multiple containing places within the preferred class SHALL fail.
 
 #### Scenario: Same name exists in another county
 
@@ -20,16 +19,16 @@ containing places SHALL fail without applying a postal exception.
 - **WHEN** no place contains the point and the county plus mailing city resolves through a path or alias
 - **THEN** that textual match does not satisfy place containment
 
-#### Scenario: Explicit postal exception
+#### Scenario: A formerly excepted postal ZIP has no containing place
 
 - **WHEN** no place contains a Saint Paul address point with Minnesota ZIP 55111
-- **THEN** the existing Saint Paul place may resolve through the specified postal rule
-- **AND** an administrative-area row cannot satisfy that exception
+- **THEN** resolution fails even if a Saint Paul place path exists
 
 ### Requirement: Previously inferred assignments do not bypass the corrected policy
 
 The derived location cache fingerprint SHALL identify the containment policy
-and all postal-rule inputs. A previous-policy cache entry or existing database
+and all resolution inputs. A cache entry from the policy that allowed postal
+exceptions, any other previous-policy cache entry, or an existing database
 assignment SHALL NOT substitute for resolution on a cache miss. Only coordinate caches produced under the corrected address-point policy
 SHALL remain reusable. Existing rows and old coordinate fingerprints SHALL NOT
 bypass address-point resolution on a cache miss. Source-provided values and explicit manual seeds
@@ -118,3 +117,15 @@ address-resolution rules remain unchanged.
 
 - **WHEN** a batch or single-address request fails
 - **THEN** all waiting callers receive the failure and no further requests start
+
+### Requirement: Imports do not rewrite specific source city names
+
+The import reader SHALL preserve source city values without hard-coded spelling
+substitutions. Explicit operator artifact mutations remain supported. Data
+corrections SHALL NOT be embedded as record-, city-, or ZIP-specific overrides
+in executable import code.
+
+#### Scenario: A Texas agency carries a formerly rewritten city
+
+- **WHEN** an agency artifact contains Meridan, Belleville, or Lapryor in Texas
+- **THEN** reading the artifact preserves that city value unless an explicit operator mutation changes it

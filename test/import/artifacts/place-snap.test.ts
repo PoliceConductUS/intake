@@ -197,35 +197,27 @@ const postalAddress = {
   state: "MN",
   zipCode: "55111",
 };
-describe("explicit postal-area exceptions", () => {
-  it("uses the specified postal rule after a containing-place miss", async () => {
-    const context = addressContext({
-      containing: {},
-      byPath: {
-        "/mn/ramsey-county/st-paul/": {
-          location_path_id: "st-paul",
-          level: "place",
+describe("address containment without ZIP exceptions", () => {
+  it.each([
+    ["55111", "Saint Paul", "/mn/ramsey-county/st-paul/"],
+    ["55450", "Minneapolis", "/mn/hennepin-county/minneapolis/"],
+    ["55804", "Duluth", "/mn/st-louis-county/duluth/"],
+    ["56270", "Morton", "/mn/renville-county/morton/"],
+    ["56241", "Granite Falls", "/mn/chippewa-county/granite-falls/"],
+  ])(
+    "rejects ZIP %s without containment even when its formerly hard-coded target exists",
+    async (zipCode, place, path) => {
+      const context = addressContext({
+        containing: {},
+        byPath: {
+          [path]: { location_path_id: "non-containing-place", level: "place" },
         },
-      },
-    });
-    await expect(context.resolveAddress(postalAddress)).resolves.toMatchObject({
-      locationPathId: "st-paul",
-    });
-  });
-  it("rejects a postal target that is not a place", async () => {
-    const context = addressContext({
-      containing: {},
-      byPath: {
-        "/mn/ramsey-county/st-paul/": {
-          location_path_id: "county",
-          level: "administrative_area",
-        },
-      },
-    });
-    await expect(context.resolveAddress(postalAddress)).rejects.toThrow(
-      "no place location_path_geometry boundary contains",
-    );
-  });
+      });
+      await expect(
+        context.resolveAddress({ ...postalAddress, zipCode, place }),
+      ).rejects.toThrow("no place location_path_geometry boundary contains");
+    },
+  );
   it("reports the unresolved source, canonical identity, address and point", async () => {
     const context = addressContext({ containing: {} });
     let message = "";
@@ -247,7 +239,7 @@ describe("explicit postal-area exceptions", () => {
     ])
       expect(message).toContain(value);
   });
-  it("does not use a postal exception when multiple places contain the point", async () => {
+  it("rejects multiple containing places", async () => {
     const context = addressContext({
       containing: {
         place: [{ location_path_id: "a" }, { location_path_id: "b" }],

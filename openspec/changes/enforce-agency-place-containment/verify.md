@@ -3,7 +3,23 @@
 Implemented on `redesign-config-driven-intake` under accepted ADR 0024 and the
 accepted `artifacts-database-import` specification.
 
-## Fixed behavior
+## Removal of hard-coded data rules — September 21, 2026
+
+At the user's direction, all three city-name rewrites and all five ZIP-to-place
+exceptions have been removed from executable code. The import reader now applies
+only explicit operator artifact mutations. Automatic address resolution requires
+place containment; manual cache overrides and exclusion/seed data are unchanged.
+The location cache uses policy `place-containment-v3-no-postal-exceptions`, so
+old automatically derived assignments are rechecked without invalidating address
+coordinates. The ADR and current OpenSpec requirements no longer permit those
+postal exceptions.
+
+Validation: 78 tests passed across artifact reading, place containment, geocode
+resolvers, DataContext, and cache CLI. Regression cases cover all three city
+spellings, all five formerly excepted ZIPs, and reuse of an old-policy location
+cache. No workspace records were changed and no rebuild ran.
+
+## Earlier verification (postal exceptions subsequently removed)
 
 - Removed county-local city/alias matching, statewide name matching, and nearest
   place selection from address-derived location resolution.
@@ -39,7 +55,7 @@ resolver rejects that point instead of assigning Ivanhoe in Tyler County. The
 existing contract requires a place; it does not authorize returning only the
 county or fabricating a place boundary.
 
-## Local data findings
+## Earlier local data findings
 
 A read-only transaction ran the corrected place resolver over all **3,352**
 local agency records using their stored points. **3,135** resolved to their

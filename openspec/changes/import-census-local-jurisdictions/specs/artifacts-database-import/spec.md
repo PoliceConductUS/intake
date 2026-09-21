@@ -35,7 +35,7 @@ The Census namespace SHALL import PLACE features, legal and nonfunctioning local
 
 ### Requirement: Containing geography precedence
 
-Address resolution MUST prefer a containing primary place (Census PLACE), then a containing county subdivision, then a containing consolidated city. It MUST select exactly one distinct canonical location in the first nonempty class, otherwise fail with ambiguity. Every candidate MUST contain the address point. Existing explicit postal-area exceptions apply only when no class contains the point. Cached resolutions from the previous policy MUST be invalidated.
+Address resolution MUST prefer a containing primary place (Census PLACE), then a containing county subdivision, then a containing consolidated city. It MUST select exactly one distinct canonical location in the first nonempty class, otherwise fail with ambiguity. Every candidate MUST contain the address point. No hard-coded ZIP or place exceptions may substitute for containment. Cached resolutions from the previous policy MUST be invalidated.
 
 #### Scenario: City inside township
 
@@ -54,7 +54,7 @@ Address resolution MUST prefer a containing primary place (Census PLACE), then a
 
 #### Scenario: No containing location
 
-- **WHEN** no imported place contains the point and no explicit postal exception applies
+- **WHEN** no imported place contains the point
 - **THEN** resolution fails without statewide-name or nearest-place substitution
 
 ## MODIFIED Requirements
@@ -119,7 +119,6 @@ The artifacts import pipeline MUST resolve every supported source entity key to 
 
 - **WHEN** a database write needs an agency `locationPathId`
 - **AND** no persisted `public.location_path_geometry` place boundary contains the resolved agency address point
-- **AND** no explicit postal-area rule maps the agency address input to an existing place
 - **THEN** intake fails during import preparation before database writes
 - **AND** reports the agency source key, canonical ID, name, city, state, ZIP, and address point
 - **AND** MUST NOT create `public.location_path` rows while resolving source agency records
@@ -129,11 +128,7 @@ The artifacts import pipeline MUST resolve every supported source entity key to 
 - **WHEN** intake resolves a missing agency `locationPathId`
 - **THEN** intake resolves the agency address point from the agency address, city, state, and ZIP when coordinates are not already present
 - **AND** resolves the `locationPathId` by finding the persisted `public.location_path_geometry` place boundary that contains that point
-- **AND** when no place geometry contains the point, intake MAY use an explicit postal-area rule that maps the agency address input to an existing place
-- **AND** the Fort Snelling postal-area rule maps Minnesota ZIP `55111` with postal city `St. Paul` or `Saint Paul` to the existing Saint Paul place path
-- **AND** the Fort Snelling postal-area rule maps Minnesota ZIP `55450` with postal city `Minneapolis` to the existing Minneapolis place path
-- **AND** explicit Minnesota postal-area rules map ZIP `55804` with postal city `Duluth` to the existing Duluth place path, ZIP `56270` with postal city `Morton` to the existing Morton place path, and ZIP `56241` with postal city `Granite Falls` to the existing Granite Falls place path
-- **AND** fails during import preparation if no place geometry contains the point and no explicit postal-area rule maps the agency address input to an existing place
+- **AND** fails during import preparation if no place geometry contains the point
 - **AND** selects the first nonempty containing class in the order primary PLACE, county subdivision, consolidated city and fails if multiple distinct place geometries in that class contain the point
 - **AND** MUST NOT resolve agency `locationPathId` by constructing a path from city, state, administrative area, label, slug, or alias text
 - **AND** MUST NOT copy location path geometry, place centroid, administrative-area centroid, or state centroid into agency `latitude` or `longitude`

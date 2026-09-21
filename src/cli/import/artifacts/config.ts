@@ -172,8 +172,7 @@ async function readArtifactsStage(
   context: ImportArtifactsPipelineContext,
 ): Promise<ImportArtifactsPipelineContext> {
   context.commandInput.logger?.info("Reading Artifacts.");
-  // Reading applies the phase's mutations (corrections + ADR 0012 command-local
-  // mutations) via the reader delegate — no separate apply stage to remember.
+  // The reader applies explicit ADR 0012 command-local mutations.
   const { artifacts, artifactMutation } = await readImportArtifacts(
     context.artifactsPath,
     { includeKinds: initialReadArtifactKinds },

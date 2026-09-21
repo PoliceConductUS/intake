@@ -67,9 +67,9 @@ startup read and no path-string DB lookup**.
   edges without inferring a location from its name. Statistical divisions are
   excluded. See the [Census coverage change](../../openspec/changes/import-census-local-jurisdictions/design.md).
 
-  The accepted import specification permits only its explicitly listed
-  postal-area exceptions when no place contains the address point. Otherwise
-  resolution fails. County-local city/alias lookup, a statewide name match, and
+  When no place contains the address point, automatic resolution fails.
+  There are no hard-coded ZIP or place exceptions. County-local city/alias
+  lookup, a statewide name match, and
   nearest-place selection are not substitutes for containment. A county-only
   result is not a place result. Address coordinates must come from the address
   point, never a city/place/ZIP centroid. See the

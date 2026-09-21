@@ -196,7 +196,7 @@ it("keys derived locations by the corrected policy and postal ZIP", async () => 
   const b = fakeContext({ city: "Saint Paul", state: "MN", zip_code: "55101" });
   const input = await resolver.cacheInput(a.context);
   expect(input).toMatchObject({
-    policy: "place-containment-v2-local-jurisdictions",
+    policy: "place-containment-v3-no-postal-exceptions",
     zipCode: "55111",
   });
   expect(input).not.toEqual(await resolver.cacheInput(b.context));
@@ -208,6 +208,8 @@ it.each([true, false])(
     const latitude = 33.76749429006,
       longitude = -96.10511487177;
     const oldFingerprint = typedInputFingerprint({
+      policy: "place-containment-v2-local-jurisdictions",
+      zipCode: "75447",
       latitude,
       longitude,
       city: "ivanhoe",

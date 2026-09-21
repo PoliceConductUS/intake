@@ -13,13 +13,13 @@ coordinate caches; explicit source coordinates and manual seeds retain their
 existing precedence. No new source acquisition or bulk live geocoding is run.
 
 Remove those three unsupported resolution paths and their unused database
-helpers. Preserve the explicitly specified postal-area exceptions, require their
-targets to be place rows, and report source identity, canonical ID, address, and
-point when resolution fails. Ensure old cached or existing-row assignments do
+helpers. Remove the hard-coded postal-area exceptions and city spelling
+rewrites. Report source identity, canonical ID, address, and point when
+resolution fails. Ensure old cached or existing-row assignments do
 not bypass the corrected resolver when a derived location is prepared again.
 
 No schema, seed, source acquisition, or production deployment is required.
 Existing immutable mutation entries are not rewritten. Records without a valid
-containing place or explicit exception must fail preparation until their source
+containing place or explicit manual resolution must fail preparation until their source
 coordinates or baseline geography are corrected; this change does not invent
 replacement locations or delete agency data.
