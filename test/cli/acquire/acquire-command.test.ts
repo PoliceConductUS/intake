@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { acquireSource } from "../../../src/cli/acquire/index.js";
+import type { AcquireDeps } from "../../../src/cli/transform/source-transform.js";
 import { loadSourceAcquire } from "../../../src/cli/transform/load-source-module.js";
 import { parse as parseYaml } from "yaml";
 
@@ -67,6 +68,51 @@ function baseDeps(workspace: string, overrides = {}) {
 }
 
 describe("acquireSource", () => {
+  it("makes completed and interrupted inputs available to a new acquisition", async () => {
+    const workspace = await makeWorkspace();
+    const state = path.join(workspace, "state", "acquire-source");
+    const latest = "command/completed/acquire-source/output";
+    const resume = "command/interrupted/acquire-source/output";
+    await mkdir(state, { recursive: true });
+    await mkdir(path.join(workspace, latest), { recursive: true });
+    await mkdir(path.join(workspace, resume), { recursive: true });
+    await writeFile(
+      path.join(workspace, latest, "existing.txt"),
+      "from completed",
+    );
+    await writeFile(
+      path.join(state, "acquire.yaml"),
+      `latest: ${latest}\nresume: ${resume}\n`,
+    );
+    const result = await acquireSource(
+      "acquire-source",
+      baseDeps(workspace, {
+        loadSourceAcquire: async () => async (deps: AcquireDeps) => {
+          // Exercise a consumer of the previous input capability.
+          for (const dir of deps.previousSourceDirs ?? []) {
+            try {
+              await writeFile(
+                path.join(deps.sourceDir, "reused.txt"),
+                await readFile(path.join(dir, "existing.txt")),
+              );
+              return;
+            } catch (error) {
+              if ((error as NodeJS.ErrnoException).code !== "ENOENT")
+                throw error;
+            }
+          }
+          throw new Error("Previous completed input unavailable");
+        },
+      }),
+    );
+    expect(result.exitCode).toBe(0);
+    expect(
+      await readFile(
+        path.join(workspace, "command/cmd-1/acquire-source/output/reused.txt"),
+        "utf8",
+      ),
+    ).toBe("from completed");
+  });
   it("writes the source's output under the command and points latest at it", async () => {
     const workspace = await makeWorkspace();
     const result = await acquireSource("acquire-source", baseDeps(workspace));

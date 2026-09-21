@@ -1,4 +1,36 @@
 import yauzl from "yauzl";
+import { crc32 } from "node:zlib";
+
+/** Verify every entry's actual contents, not just its central-directory metadata. */
+export async function verifyZipContents(zipPath: string): Promise<void> {
+  const zipfile = await openZip(zipPath);
+  await new Promise<void>((resolve, reject) => {
+    onZipError(zipfile, reject);
+    zipfile.on("end", resolve);
+    zipfile.on("entry", (entry: yauzl.Entry) => {
+      zipfile.openReadStream(entry, async (error, stream) => {
+        try {
+          if (error) throw error;
+          if (!stream) throw new Error(`No ZIP stream: ${entry.fileName}`);
+          let checksum = 0;
+          let size = 0;
+          for await (const chunk of stream) {
+            checksum = crc32(chunk, checksum);
+            size += chunk.length;
+          }
+          if (checksum !== entry.crc32 || size !== entry.uncompressedSize) {
+            throw new Error(`ZIP integrity mismatch: ${entry.fileName}`);
+          }
+          zipfile.readEntry();
+        } catch (error) {
+          zipfile.close();
+          reject(error);
+        }
+      });
+    });
+    zipfile.readEntry();
+  });
+}
 
 /**
  * The only file in the codebase permitted to import `yauzl`. Wraps its

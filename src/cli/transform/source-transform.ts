@@ -113,6 +113,8 @@ export type AcquireDataContext = {
 
 export type AcquireDeps = {
   sourceDir: string;
+  /** Read-only inputs from the preceding interrupted/completed acquisitions. */
+  previousSourceDirs?: readonly string[];
   state: string;
   env: Record<string, string | undefined>;
   data: AcquireDataContext;

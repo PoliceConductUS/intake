@@ -89,6 +89,9 @@ export async function acquireSource(
 
     const acquireDeps: AcquireDeps = {
       sourceDir: outputDir,
+      previousSourceDirs: [...new Set([pointer.resume, pointer.latest])]
+        .filter((value): value is string => value !== undefined)
+        .map((value) => path.join(deps.workspace, value)),
       state: deps.state,
       env: deps.env,
       data: deps.data,

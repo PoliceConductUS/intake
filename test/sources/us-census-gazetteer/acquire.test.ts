@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
@@ -35,6 +35,9 @@ async function run(
     omit?: string;
     status?: number;
     yearPageMismatch?: boolean;
+    previousZip?: boolean;
+    invalidRange?: boolean;
+    shortBody?: boolean;
   } = {},
 ) {
   const sourceDir = await mkdtemp(path.join(tmpdir(), "census-acquire-"));
@@ -45,8 +48,31 @@ async function run(
     discoverLatestGazetteerLinks(gazetteer(year), selectedPage),
   );
   const requested: string[] = [];
-  vi.stubGlobal("fetch", async (url: string) => {
+  const rangeRequests: string[] = [];
+  const previousSourceDirs: string[] = [];
+  const zip = await readFile(
+    new URL("../../fixtures/gazetteer/sample.zip", import.meta.url),
+  );
+  if (options.previousZip) {
+    const previous = await mkdtemp(path.join(tmpdir(), "census-previous-"));
+    directories.push(previous);
+    previousSourceDirs.push(previous);
+    await writeFile(path.join(previous, path.basename(publishedUrls[0]!)), zip);
+  }
+  vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
     requested.push(url);
+    if (new Headers(init?.headers).get("Range") === "bytes=-65557") {
+      rangeRequests.push(url);
+      return new Response(zip, {
+        status: 206,
+        headers: {
+          "Content-Range": options.invalidRange
+            ? "invalid"
+            : `bytes 0-${zip.length - 1}/${zip.length}`,
+          "Content-Length": String(zip.length),
+        },
+      });
+    }
     if (url === pageUrl)
       return new Response(
         gazetteer("2026") + anchor(pageUrl.replace(".html", ".2025.html#year")),
@@ -72,7 +98,12 @@ async function run(
           .join(""),
       );
     if (publishedUrls.includes(url) || url.includes("/2026_Gazetteer/"))
-      return new Response(`source:${url}`);
+      return new Response(
+        `source:${url}`,
+        options.shortBody
+          ? { headers: { "Content-Length": "10000" } }
+          : undefined,
+      );
     return new Response("Not published", { status: 404 });
   });
   const messages: string[] = [];
@@ -80,6 +111,7 @@ async function run(
   try {
     await acquire({
       sourceDir,
+      previousSourceDirs,
       state: sourceDir,
       env: {},
       data: {} as never,
@@ -88,7 +120,13 @@ async function run(
   } catch (caught) {
     error = caught;
   }
-  return { files: await readdir(sourceDir), error, requested, messages };
+  return {
+    files: await readdir(sourceDir),
+    error,
+    requested,
+    rangeRequests,
+    messages,
+  };
 }
 
 test("acquires a complete matching 2025 set when the Gazetteer has advanced to 2026", async () => {
@@ -109,6 +147,39 @@ test("automatically uses 2026 when both Gazetteer and TIGER publish it", async (
   expect(result.error).toBeUndefined();
   expect(result.files).toHaveLength(114);
   expect(result.files.every((file) => file.includes("2026"))).toBe(true);
+});
+
+test("checks an existing ZIP through HTTP Range while downloading missing files", async () => {
+  const result = await run({ previousZip: true });
+  expect(result.error).toBeUndefined();
+  expect(result.files).toHaveLength(114);
+  expect(result.rangeRequests).toHaveLength(1);
+  expect(result.requested.filter((url) => url.endsWith(".zip"))).toHaveLength(
+    114,
+  );
+  expect(result.messages).toContain(
+    "census: [1/114] reused verified 2025_Gaz_state_national.zip",
+  );
+});
+
+test("rejects invalid HTTP range metadata without publishing a ZIP", async () => {
+  const result = await run({ previousZip: true, invalidRange: true });
+  expect(result.error).toEqual(
+    expect.objectContaining({
+      message: expect.stringContaining("invalid range response"),
+    }),
+  );
+  expect(result.files).toEqual([]);
+});
+
+test("rejects a short download without publishing a ZIP", async () => {
+  const result = await run({ shortBody: true });
+  expect(result.error).toEqual(
+    expect.objectContaining({
+      message: expect.stringContaining("incomplete download"),
+    }),
+  );
+  expect(result.files).toEqual([]);
 });
 
 test.each([

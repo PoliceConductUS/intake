@@ -16,16 +16,26 @@ const DEFAULT_PAGE_URL =
   "https://www.census.gov/geographies/reference-files/time-series/geo/gazetteer-files.html";
 const TIGER_INDEX_URL = "https://www2.census.gov/geo/tiger/";
 
-async function fetchOk(url: string): Promise<Response> {
-  const response = await fetch(url);
+async function fetchOk(url: string, init?: RequestInit): Promise<Response> {
+  const response = await fetch(url, init);
   if (!response.ok) {
     throw new Error(`census: failed to fetch ${url}: ${response.status}`);
   }
   return response;
 }
 
+async function readBytes(response: Response): Promise<Uint8Array> {
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  const length = response.headers.get("content-length");
+  if (length !== null && bytes.length !== Number(length)) {
+    throw new Error(`census: incomplete download from ${response.url}`);
+  }
+  return bytes;
+}
+
 export const acquire: SourceAcquire = async ({
   sourceDir,
+  previousSourceDirs,
   env,
   logger,
 }: AcquireDeps) => {
@@ -78,9 +88,29 @@ export const acquire: SourceAcquire = async ({
 
   await downloadGazetteerSources({
     sourceDir,
+    previousSourceDirs,
     urls,
-    fetchBytes: async (url) =>
-      new Uint8Array(await (await fetchOk(url)).arrayBuffer()),
+    fetchBytes: async (url) => readBytes(await fetchOk(url)),
+    fetchRange: async (url) => {
+      const response = await fetchOk(url, {
+        headers: { Range: "bytes=-65557" },
+      });
+      const bytes = await readBytes(response);
+      if (response.status === 200)
+        return { bytes, totalSize: bytes.length, full: true };
+      const range = response.headers
+        .get("content-range")
+        ?.match(/^bytes (\d+)-(\d+)\/(\d+)$/);
+      if (
+        response.status !== 206 ||
+        !range ||
+        Number(range[2]) + 1 !== Number(range[3]) ||
+        Number(range[2]) - Number(range[1]) + 1 !== bytes.length
+      ) {
+        throw new Error(`census: invalid range response from ${url}`);
+      }
+      return { bytes, totalSize: Number(range[3]), full: false };
+    },
     logger: log,
   });
 };
