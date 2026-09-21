@@ -56,6 +56,20 @@ startup read and no path-string DB lookup**.
   exception — only to fix a data-quality error, or for a value a resolver
   genuinely cannot produce for that source record.
 
+  The accepted import specification permits only its explicitly listed
+  postal-area exceptions when no place contains the address point. Otherwise
+  resolution fails. County-local city/alias lookup, a statewide name match, and
+  nearest-place selection are not substitutes for containment. A county-only
+  result is not a place result. Address coordinates must come from the address
+  point, never a city/place/ZIP centroid. See the
+  [address-resolution scenarios](../../openspec/specs/artifacts-database-import/spec.md).
+
+  Derived coordinate and location fingerprints include the resolution policy.
+  Values cached under the former centroid or inferred-place policies must be
+  resolved again. An existing database row cannot bypass that policy change;
+  valid current-policy caches and explicit manual seeds retain ADR 0019's
+  precedence.
+
 - **Nothing is written that was not resolved.** A required value
   (`location_path_id`, `latitude`, `longitude`) that neither the source, the
   cache/seed, nor a live resolve can supply fails loud at the mutation boundary

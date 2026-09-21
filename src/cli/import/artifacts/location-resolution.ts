@@ -4,8 +4,6 @@ import {
   readLocationPathById,
   readLocationPathByPath,
   readLocationPathsContainingPoint,
-  readNearestPlace,
-  readPlacesByStateAndSlug,
   type DatabaseLocationPathRow as LocationPathRow,
 } from "../../database/location-paths.js";
 // Type-only (erased at runtime), so there is no import cycle with data-context,
@@ -62,17 +60,6 @@ function normalizeAddressToken(value: string): string {
     .replace(/[^a-z0-9]+/g, " ")
     .trim()
     .replace(/\s+/g, " ");
-}
-
-// A place slug matching the census `place_slug` convention, so a city name
-// composes into its place path (`/tx/bexar-county/` + `san-antonio` + `/`).
-function citySlug(value: string): string {
-  return value
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }
 
 function zip5(value: string): string {
@@ -136,11 +123,6 @@ function postalAreaPlacePaths(request: AddressResolutionRequest): string[] {
   return rule === undefined ? [] : [...rule.paths];
 }
 
-// An agency resolves to a place, or (on a place miss) the county the point falls
-// in — used only to compose the address city's place path. No state fallback: an
-// agency's location_path must be a place.
-const CONTAINING_POINT_LEVELS = ["place", "administrative_area"] as const;
-
 function isMissingContainingPlaceError(error: unknown): boolean {
   return (
     error instanceof Error &&
@@ -195,7 +177,7 @@ export class LocationDataContext {
   ): Promise<string | undefined> {
     for (const path of postalAreaPlacePaths(request)) {
       const locationPath = await this.context.locationPaths.getByPath(path);
-      if (locationPath !== undefined) {
+      if (locationPath?.level === "place") {
         return locationPath.location_path_id;
       }
     }
@@ -228,9 +210,7 @@ export class LocationDataContext {
         {
           latitude: addressResolution.latitude,
           longitude: addressResolution.longitude,
-          subject: `${request.entityType} ${request.entityId}`,
-          place: request.place,
-          stateSlug: request.state,
+          subject: `${request.entityType} ${request.entityId}; source ${request.sourceName ?? request.entityId}; name ${JSON.stringify(request.name)}; address ${JSON.stringify(request.address)}, ${JSON.stringify(request.place)}, ${request.state} ${request.zipCode}`,
         },
       );
     } catch (error) {
@@ -299,7 +279,7 @@ export class LocationPathDataContext {
 
   private async uniqueContainingLocationPath(
     input: { latitude: number; longitude: number; subject: string },
-    level: (typeof CONTAINING_POINT_LEVELS)[number],
+    level: "place",
   ): Promise<string | undefined> {
     const matches = await readLocationPathsContainingPoint(
       this.context.databaseClient(),
@@ -325,72 +305,17 @@ export class LocationPathDataContext {
     return uniqueMatches[0]!.location_path_id;
   }
 
-  // An agency's location_path must be a *place*, never a county (the website
-  // excludes county-level agencies from projections). Point-in-polygon is exact
-  // when a census place polygon contains the point, but a mailing address often
-  // geocodes just outside a city's polygon (mailing areas sprawl past city
-  // limits) — so on a place miss, snap to the place the address names inside the
-  // county the point falls in. A genuinely placeless address fails loud, to be
-  // fixed by a seeded resolved-property or the postal fallback.
+  // ADR 0024: resolve the containing place or fail. Explicit postal exceptions
+  // are handled by LocationDataContext after a containing-place miss.
   async getPlaceContainingPoint(input: {
     latitude: number;
     longitude: number;
-    /** A label for the record being resolved, for error context (e.g. "agency <id>"). */
     subject: string;
-    /** The address city and state, used to snap to a place when the point is in none. */
-    place?: string;
-    stateSlug?: string;
   }): Promise<string> {
     const placeId = await this.uniqueContainingLocationPath(input, "place");
     if (placeId !== undefined) return placeId;
-
-    const cityName = input.place?.trim() ?? "";
-    const stateSlug = input.stateSlug?.trim().toLowerCase() ?? "";
-    if (cityName !== "" && stateSlug !== "") {
-      const slug = citySlug(cityName);
-      // The county comes from the point-in-shape; the city slug from the address,
-      // which may misspell it. Resolve the exact place path at that county through
-      // path-then-alias, so the point's real county plus a seeded alias (e.g.
-      // st-paul -> saint-paul) corrects a misspelled/alternate city precisely —
-      // and this also serves the common case where the point lands just outside
-      // the city polygon but inside the right county.
-      const countyId = await this.uniqueContainingLocationPath(
-        input,
-        "administrative_area",
-      );
-      const county =
-        countyId === undefined ? undefined : await this.getById(countyId);
-      if (county !== undefined) {
-        const atCounty = await this.getByPath(`${county.path}${slug}/`);
-        if (atCounty !== undefined && atCounty.level === "place") {
-          return atCounty.location_path_id;
-        }
-      }
-      // Else, if the city names exactly one place statewide, use it (the point
-      // landed in the wrong county). Multiple same-named places, none at the
-      // point's county, stay ambiguous and fall through.
-      const candidates = await readPlacesByStateAndSlug(
-        this.context.databaseClient(),
-        stateSlug,
-        slug,
-      );
-      if (candidates.length === 1) return candidates[0]!.location_path_id;
-    }
-
-    // The address is the office building's location, so the nearest place is a
-    // valid answer when the point is in no place and its city names none (a
-    // mis-typed or unincorporated community). Jurisdiction is out of scope.
-    if (stateSlug !== "") {
-      const nearest = await readNearestPlace(this.context.databaseClient(), {
-        latitude: input.latitude,
-        longitude: input.longitude,
-        stateSlug,
-      });
-      if (nearest !== undefined) return nearest.location_path_id;
-    }
-
     throw new Error(
-      `Cannot resolve a place location_path_id for ${input.subject}: point ${input.latitude}, ${input.longitude} is in no place and ${JSON.stringify(stateSlug)} has no place at all.`,
+      `Cannot resolve location_path_id for ${input.subject}; no place location_path_geometry boundary contains point ${input.latitude}, ${input.longitude}.`,
     );
   }
 }

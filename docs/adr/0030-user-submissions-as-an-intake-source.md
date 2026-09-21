@@ -63,7 +63,7 @@ verified** submissions of the v1 form type (`reportNew`), and for each:
   claim, never a canonical link. (The `reportNew` v1 form carries no case number;
   civil-case linking via `resolveCivilCase` waits on a form field for it.)
 - resolves the incident `location` (free-text user input) by **geocoding it
-  through the shared agency location path** (address → coordinates → snapped
+  through the shared agency location path** (address → coordinates → containing
   `location_path_id` + `latitude`/`longitude`), at import via the injected
   coordinate resolver — the same infrastructure agencies use, not a brittle
   name match. A location that fails to geocode routes the report to human review.

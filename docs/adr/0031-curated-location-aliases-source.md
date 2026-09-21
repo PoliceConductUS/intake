@@ -7,7 +7,7 @@ Proposed
 ## Context
 
 Some data can only come from a human: a curated location alias that fixes a
-misspelling (so the alias-aware place snap resolves it), a hand-added link, a
+misspelling in a legacy location path, a hand-added link, a
 correction. Rather than a bespoke source per case, one **type-independent** source
 can interview a human to create a record of **any** kind, because the record model
 is already shared.
@@ -40,7 +40,8 @@ resolves FKs and identity as for any other source, so validation ("canonical
 exists," "not a duplicate") comes free from resolve-or-fail + natural-key identity.
 
 **LocationPathAlias is the first handled kind** — a curated `alias_path →
-location_path_id` that feeds the alias-aware snap.
+location_path_id` that resolves a legacy path to an existing location. Aliases
+do not replace address-point containment for agencies (ADR 0024).
 
 ## Consequences
 

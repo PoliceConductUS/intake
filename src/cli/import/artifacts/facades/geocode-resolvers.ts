@@ -17,7 +17,6 @@ export type LocationBackend = {
   resolveAgencyLocation(
     input: ResolveAddressInput,
   ): Promise<LocationResolution>;
-  existingRow(id: string): Promise<Record<string, unknown> | undefined>;
 };
 
 /**
@@ -28,7 +27,7 @@ export type LocationBackend = {
 export type GeocodeConfig = {
   /** Passed through to the backend's address resolution (branch/telemetry). */
   entityType: string;
-  /** Identity column used for existing-row stability lookups (default `id`). */
+  /** Canonical identity column used in resolution diagnostics (default `id`). */
   identity?: string;
   /** Record fields the address is read from. */
   from: {
@@ -99,7 +98,8 @@ function addressInput(
 }
 
 // The normalized geocode input the coordinate columns cache by (ADR 0019): the
-// address fields only, so an unchanged address serves the cached coordinate.
+// address fields and resolution policy, so old locality-centroid results cannot
+// satisfy the address-point policy after this correction.
 function coordinateCacheInput(
   facade: PropertyResolutionFacade<Row>,
   source: FacadeSource,
@@ -107,6 +107,7 @@ function coordinateCacheInput(
 ): Record<string, string | undefined> {
   const address = addressInput(facade, source, config);
   return {
+    policy: "address-point-v1",
     state: normalizeToken(address.state),
     city: normalizeToken(address.place),
     zipCode: normalizeToken(address.zipCode),
@@ -118,9 +119,9 @@ function coordinateCacheInput(
 
 /**
  * One geocode that sets `latitude`, `longitude`, and `location_path_id` (ADR
- * 0006/0015/0019), entity-independent. Returns a resolver per output column; each
- * is `source value > existing row (stability) > the shared geocode`, and the
- * geocode runs at most once per record — memoized on the facade — so asking for a
+ * 0006/0015/0019), entity-independent. Source values and policy-specific caches
+ * precede live resolution. The geocode runs at most once per record — memoized
+ * on the facade — so asking for a
  * second output never re-runs it. `location_path_id` rides along in the same
  * `LocationResolution` (it needs the address, not just the coordinates). A GeoJSON
  * point is layered on top with `composedResolver` over the resolved coordinates.
@@ -133,6 +134,7 @@ export function latLngFromAddress(
 
   const resolveShared = (
     context: ResolverContext<Row, LocationBackend>,
+    point?: { latitude?: number; longitude?: number },
   ): Promise<LocationResolution> => {
     const key = context.facade as object;
     const cached = shared.get(key);
@@ -142,21 +144,17 @@ export function latLngFromAddress(
     const pending = (async () => {
       const { facade, source, backend } = context;
       const id = String(await facade.value(identity));
-      const existing = await backend.existingRow(id);
-      // Reuse already-known coordinates (source, then existing row) so the path
-      // snaps to them rather than re-geocoding the address independently.
+      // A previous database row may contain a locality centroid. Only source
+      // coordinates or coordinates resolved under the current cache policy can
+      // avoid address-point geocoding.
       const latitude =
-        valueAsFiniteNumber(facade.raw(config.set.latitude)) ??
-        (existing === undefined
-          ? undefined
-          : valueAsFiniteNumber(existing[config.set.latitude]));
+        point?.latitude ?? valueAsFiniteNumber(facade.raw(config.set.latitude));
       const longitude =
-        valueAsFiniteNumber(facade.raw(config.set.longitude)) ??
-        (existing === undefined
-          ? undefined
-          : valueAsFiniteNumber(existing[config.set.longitude]));
+        point?.longitude ??
+        valueAsFiniteNumber(facade.raw(config.set.longitude));
       return backend.resolveAgencyLocation({
         ...addressInput(facade, source, config),
+        entityId: id,
         latitude,
         longitude,
       });
@@ -171,19 +169,10 @@ export function latLngFromAddress(
   ): Resolver<number, ResolverContext<Row, LocationBackend>> =>
     new Resolver(
       async (context) => {
-        const { facade, backend } = context;
+        const { facade } = context;
         const present = valueAsFiniteNumber(facade.raw(column));
         if (present !== undefined) {
           return present;
-        }
-        const id = String(await facade.value(identity));
-        const existing = await backend.existingRow(id);
-        const current =
-          existing === undefined
-            ? undefined
-            : valueAsFiniteNumber(existing[column]);
-        if (current !== undefined) {
-          return current;
         }
         return (await resolveShared(context))[field];
       },
@@ -197,24 +186,26 @@ export function latLngFromAddress(
   > =>
     new Resolver(
       async (context) => {
-        const { facade, backend } = context;
+        const { facade } = context;
         const present = valueAsString(facade.raw(config.set.locationPathId));
         if (present !== undefined) {
           return present;
         }
-        const id = String(await facade.value(identity));
-        const existing = await backend.existingRow(id);
-        const current =
-          existing === undefined
-            ? undefined
-            : valueAsString(existing[config.set.locationPathId]);
-        if (current !== undefined) {
-          return current;
-        }
-        return (await resolveShared(context)).locationPathId;
+        return (
+          await resolveShared(context, {
+            latitude: valueAsFiniteNumber(
+              await facade.value(config.set.latitude),
+            ),
+            longitude: valueAsFiniteNumber(
+              await facade.value(config.set.longitude),
+            ),
+          })
+        ).locationPathId;
       },
       {},
       async ({ facade }) => ({
+        policy: "place-containment-v1",
+        zipCode: normalizeToken(valueAsString(facade.raw(config.from.zipCode))),
         latitude: valueAsFiniteNumber(await facade.value(config.set.latitude)),
         longitude: valueAsFiniteNumber(
           await facade.value(config.set.longitude),

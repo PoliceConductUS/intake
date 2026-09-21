@@ -57,54 +57,6 @@ export async function readLocationPathByPath(
   );
 }
 
-// Place rows with a given slug in a state, across counties. An agency whose
-// geocoded point lands just outside its city's polygon snaps to the place its
-// address names; the caller disambiguates (the point's county, else a lone match).
-export async function readPlacesByStateAndSlug(
-  client: DatabaseClient,
-  stateSlug: string,
-  placeSlug: string,
-): Promise<DatabaseLocationPathRow[]> {
-  return rowsFromResult(
-    await client.query(
-      `select location_path_id, path, level, display_name,
-              parent_location_path_id, centroid, bbox
-         from public.location_path
-        where level = 'place'
-          and split_part(path, '/', 2) = $1
-          and split_part(path, '/', 4) = $2`,
-      [stateSlug, placeSlug],
-    ),
-  ) as unknown as DatabaseLocationPathRow[];
-}
-
-// The place nearest a point within a state (KNN by boundary distance). An
-// agency's address is its office building, a physical point, so when no place
-// contains it and its city names no place, the nearest place is a valid location.
-export async function readNearestPlace(
-  client: DatabaseClient,
-  input: { latitude: number; longitude: number; stateSlug: string },
-): Promise<DatabaseLocationPathRow | undefined> {
-  return firstRow<DatabaseLocationPathRow>(
-    await client.query(
-      `select lp.location_path_id, lp.path, lp.level, lp.display_name,
-              lp.parent_location_path_id,
-              case when lp.centroid is null then null
-                   else ST_AsGeoJSON(lp.centroid::geometry)::jsonb end as centroid,
-              case when lp.bbox is null then null
-                   else ST_AsGeoJSON(lp.bbox)::jsonb end as bbox
-         from public.location_path lp
-         join public.location_path_geometry lpg
-           on lpg.location_path_id = lp.location_path_id
-        where lp.level = 'place'
-          and split_part(lp.path, '/', 2) = $3
-        order by lpg.boundary <-> ST_SetSRID(ST_MakePoint($1, $2), 4326)
-        limit 1`,
-      [input.longitude, input.latitude, input.stateSlug],
-    ),
-  );
-}
-
 export async function readLocationPathAliasByPath(
   client: DatabaseClient,
   aliasPath: string,
