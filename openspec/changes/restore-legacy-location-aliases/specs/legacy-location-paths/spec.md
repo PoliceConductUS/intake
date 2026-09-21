@@ -2,7 +2,8 @@
 
 ### Requirement: Confirmed legacy spelling paths resolve to existing places
 
-The twenty reviewed legacy spelling paths in `aliases.json` SHALL be stored as
+The system SHALL store the twenty reviewed spelling paths in `aliases.json` and
+eight confirmed name or city-parent variants in `additional-aliases.json` as
 manual LocationPathAlias records referencing existing canonical locations.
 Their canonical targets SHALL retain their IDs, paths, and other properties.
 
@@ -15,7 +16,7 @@ Their canonical targets SHALL retain their IDs, paths, and other properties.
 #### Scenario: Reset and replay
 
 - **WHEN** the saved mutation chain is replayed against a migrated empty database
-- **THEN** all twenty aliases resolve to the same canonical location IDs
+- **THEN** all twenty-eight aliases resolve to the same canonical location IDs
 
 ### Requirement: Review geographic conflicts without guessing
 
@@ -29,3 +30,9 @@ region alone SHALL NOT establish geographic equivalence for an alias.
 - **AND** the existing same-name path identifies Medina in Zapata County
 - **THEN** no alias between them is added
 - **AND** the missing location and conflicting agency assignment are recorded
+
+#### Scenario: Preserve the city when its statistical parent changes
+
+- **WHEN** the old New Haven County city path is requested
+- **THEN** it resolves to New Haven under South Central Connecticut Planning Region
+- **AND** no alias equates the whole historical county with that region

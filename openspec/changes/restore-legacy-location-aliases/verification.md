@@ -1,4 +1,6 @@
-# Verification
+# First-batch verification
+
+This records the original twenty-alias batch. For the eight additional aliases and current counts, see [second-batch verification](additional-verification.md).
 
 Validated on 2026-09-21 in `redesign-config-driven-intake` against the local
 `dev-copy` workspace. No production database was changed.
@@ -34,7 +36,7 @@ it was not a Supabase seed reset.
 
 ## Review coverage
 
-[review-104.csv](review-104.csv) has exactly one row for each original audit
+At the time of this batch, [review-104.csv](review-104.csv) had exactly one row for each original audit
 record: twenty added aliases, nineteen existing aliases, and sixty-five
 individual unresolved dispositions. Every listed candidate ID/path exists in
 the current database. All 104 retired location IDs remain absent; this change
