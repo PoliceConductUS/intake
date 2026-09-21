@@ -1,21 +1,5 @@
 ## ADDED Requirements
 
-### Requirement: Department 1101 uses the approved physical address
-
-For TCOLE department `1101` (ANDERSON CO. CONST. PCT. 1), transform SHALL emit
-`240 W Main St`, `Frankston`, `TX`, `75763` as the agency address, as directed by
-the user on September 21, 2026. The original acquired workbook SHALL remain
-unchanged, preserving `P.O. Box 952, Elkhart, TX 75839` as source evidence.
-The agency model continues to have one address; this correction does not add a
-separate mailing-address field. The source identity, canonical ID, and slug
-resolution remain unchanged.
-
-#### Scenario: Rebuilding from the acquired TCOLE workbook
-
-- **WHEN** department `1101` is transformed from the workbook containing its PO-box address
-- **THEN** the emitted agency uses the approved Frankston physical address
-- **AND** the original row and other departments are unchanged
-
 ### Requirement: TCOLE source emits all six kinds from the single workbook
 
 The `sources/gov.tx.tcole/config.ts` source MUST read the single 02-10 workbook and

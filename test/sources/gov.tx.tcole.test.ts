@@ -206,41 +206,6 @@ const deps = {
 };
 
 describe("gov.tx.tcole run", () => {
-  it("uses the approved physical address for department 1101 while retaining the raw mailing address", async () => {
-    const mailing = {
-      ...sheets.Departments[0],
-      DEPARTMENT_NUMBER: "1101",
-      DEPARTMENT_NAME: "ANDERSON CO. CONST. PCT. 1",
-      ADD_LINE1: "P.O. Box 952",
-      ADD_LINE2: "",
-      CITY: "Elkhart",
-      STATE: "TX",
-      ZIP_CODE: "75839",
-    };
-    const original = { ...mailing };
-    const manifest = await transform({
-      ...deps,
-      readXlsx: async (file, sheet, required) =>
-        sheet === "Departments"
-          ? [mailing, { ...mailing, DEPARTMENT_NUMBER: "1102" }]
-          : fakeReadXlsx(file, sheet, required),
-    });
-    const { records } = manifest.artifacts.find((a) => a.kind === "Agencies")!;
-    expect(records["1101"].spec).toMatchObject({
-      name: mailing.DEPARTMENT_NAME,
-      address: "240 W Main St",
-      city: "Frankston",
-      state: "TX",
-      zip_code: "75763",
-    });
-    expect(records["1102"].spec).toMatchObject({
-      address: "P.O. Box 952",
-      city: "Elkhart",
-      zip_code: "75839",
-    });
-    expect(mailing).toEqual(original);
-  });
-
   it("emits the licensing kinds in dependency order", async () => {
     const manifest = await transform(deps);
     expect(manifest.artifacts.map((a) => a.kind)).toEqual([
