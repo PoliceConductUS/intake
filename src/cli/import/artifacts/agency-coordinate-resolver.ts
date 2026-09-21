@@ -62,27 +62,55 @@ function asRecords(value: unknown): Record<string, unknown>[] {
     : [];
 }
 
-async function fetchWithTimeout(
+function failureDetails(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const connection = error as Error & Record<string, unknown>;
+  const details = [error.message || error.name];
+  for (const key of [
+    "code",
+    "errno",
+    "syscall",
+    "hostname",
+    "address",
+    "port",
+  ]) {
+    if (connection[key] !== undefined)
+      details.push(`${key}=${String(connection[key])}`);
+  }
+  if (error.cause !== undefined)
+    details.push(`cause: ${failureDetails(error.cause)}`);
+  if (error instanceof AggregateError)
+    details.push(...error.errors.map(failureDetails));
+  return details.join("; ");
+}
+
+async function requestCensus<T>(
   fetchFn: FetchLike,
   url: string,
   init: RequestInit | undefined,
   timeoutMs: number,
-  description: string,
-): Promise<Response> {
+  requests: AgencyCoordinateRequest[],
+  readResponse: (response: Response) => Promise<T>,
+): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetchFn(url, {
+    const response = await fetchFn(url, {
       ...init,
       signal: controller.signal,
     });
+    clearTimeout(timeout);
+    if (!response.ok)
+      throw new Error(`HTTP ${response.status} ${response.statusText}`);
+    return await readResponse(response);
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error(
-        `Census geocoder request timed out after ${timeoutMs} ms while resolving ${description}.`,
-      );
-    }
-    throw error;
+    const reason = controller.signal.aborted
+      ? `timed out after ${timeoutMs} ms; ${failureDetails(error)}`
+      : failureDetails(error);
+    throw new Error(
+      `Census geocoder request failed: ${init?.method ?? "GET"} ${url}; agencies=${JSON.stringify(requests)}; ${reason}`,
+      { cause: error },
+    );
   } finally {
     clearTimeout(timeout);
   }
@@ -146,7 +174,7 @@ async function resolveBatch(
     "agencies.csv",
   );
 
-  const response = await fetchWithTimeout(
+  const body = await requestCensus(
     fetchFn,
     CENSUS_BATCH_URL,
     {
@@ -154,15 +182,11 @@ async function resolveBatch(
       method: "POST",
     },
     requestTimeoutMs,
-    `agency address coordinates for ${requests.length} ${requests.length === 1 ? "agency" : "agencies"}`,
+    requests,
+    (response) => response.text(),
   );
-  if (!response.ok) {
-    throw new Error(
-      `Census geocoder failed: ${response.status} ${response.statusText}`,
-    );
-  }
 
-  const rows = parseCsv(await response.text(), {
+  const rows = parseCsv(body, {
     relax_column_count: true,
     skip_empty_lines: true,
     trim: true,
@@ -199,22 +223,17 @@ async function resolveSingleAddress(
     format: "json",
   });
 
-  const response = await fetchWithTimeout(
+  return requestCensus(
     fetchFn,
     `${CENSUS_GEOGRAPHIES_ADDRESS_URL}?${parameters.toString()}`,
     undefined,
     requestTimeoutMs,
-    `single-address coordinates for agency ${request.rowId}`,
-  );
-  if (!response.ok) {
-    throw new Error(
-      `Census geocoder failed: ${response.status} ${response.statusText}`,
-    );
-  }
-
-  return coordinateResolutionFromCensusPayload(
-    request.rowId,
-    await response.json(),
+    [request],
+    async (response) =>
+      coordinateResolutionFromCensusPayload(
+        request.rowId,
+        await response.json(),
+      ),
   );
 }
 

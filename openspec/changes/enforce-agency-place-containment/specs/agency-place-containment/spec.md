@@ -52,3 +52,18 @@ or ZIP-area centroid when the address does not resolve.
 - **WHEN** both address-point attempts fail for Medina ISD
 - **THEN** the address remains unresolved and import preparation fails
 - **AND** no same-name locality or ZIP centroid is requested or accepted
+
+### Requirement: Geocoding failures identify the request
+
+Geocoding failures SHALL report the HTTP method and Census endpoint, every
+agency in the failed request (canonical ID, source name when available, agency
+name, and address), and the underlying failure. Network errors SHALL retain
+nested cause messages and connection error codes and details; HTTP errors SHALL
+include the status, and timeouts SHALL include the configured duration. These
+details SHALL survive conversion to the import and reset command error text.
+
+#### Scenario: Census request fails during generation
+
+- **WHEN** a batch or single-address geocoding request fails during generation
+- **THEN** the error identifies the affected request and agencies rather than only reporting `fetch failed`
+- **AND** the same request context accompanies a failure while reading its response
