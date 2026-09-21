@@ -7,6 +7,7 @@ import type {
   AgencyCoordinateResolution,
 } from "./agency-coordinate-types.js";
 import { valueAsString } from "./resolver-kit.js";
+import { UnresolvedPropertiesError } from "./property-resolution-error.js";
 
 export type AgencyAddressResolutionOptions = {
   resolveAgencyCoordinates?: (
@@ -61,8 +62,9 @@ export async function resolveImportAddress(
     !Number.isFinite(coordinateResolution.latitude) ||
     !Number.isFinite(coordinateResolution.longitude)
   ) {
-    throw new Error(
-      `Cannot resolve coordinates for ${input.entityType} ${input.entityId} from ${locationDescription(input)}.`,
+    throw new UnresolvedPropertiesError(
+      `Cannot resolve coordinates for ${input.entityType} ${input.entityId}; source-id=${JSON.stringify(input.sourceName)}; name=${JSON.stringify(input.name)}; address=${locationDescription(input)}.\nNo usable coordinates were returned for this address, and no reusable coordinate pair was available under the current address-point policy. Supply verified latitude and longitude for the physical location. Setting location_path_id alone does not supply coordinates.`,
+      ["latitude", "longitude"],
     );
   }
   return {

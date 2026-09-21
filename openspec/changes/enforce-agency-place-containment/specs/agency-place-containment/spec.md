@@ -68,6 +68,33 @@ details SHALL survive conversion to the import and reset command error text.
 - **THEN** the error identifies the affected request and agencies rather than only reporting `fetch failed`
 - **AND** the same request context accompanies a failure while reading its response
 
+#### Scenario: An agency address has no usable coordinate result
+
+- **WHEN** an agency has no reusable coordinate pair and address geocoding returns no usable coordinates
+- **THEN** the error includes its canonical ID, source namespace and source ID, agency name, and full address
+- **AND** it identifies latitude and longitude as the properties requiring verified physical-location coordinates, with concrete cache get/set command templates and overwrite instructions
+- **AND** it explains that a location_path_id correction alone cannot resolve missing agency coordinates
+- **AND** no existing cached coordinates are automatically accepted under a different policy
+
+### Requirement: Cache-correctable failures expose command arguments
+
+The shared entity property resolver SHALL attach cache get/set command templates
+to failed live resolution of any cache-backed property whose value is not
+supplied directly by the source. The templates SHALL include the source
+namespace, exact entity kind, source ID, property, and a clearly marked value
+placeholder, with shell-quoted arguments where needed. They SHALL retain the
+original error and canonical ID, explain `--force` for existing cache entries,
+and attribute dependency failures to the property that actually failed rather
+than suggesting an override of its dependent property. Cache storage failures
+and properties that cannot be corrected through the cache SHALL NOT be presented
+as correctable by setting a value.
+
+#### Scenario: A non-geocoding property fails resolution
+
+- **WHEN** a cache-backed slug or location-path property fails live resolution
+- **THEN** the error provides that record's cache command arguments through the shared resolver
+- **AND** it does not require a special error formatter for each entity type
+
 ### Requirement: Concurrent address resolutions share a bounded Census queue
 
 All callers of one import's Census coordinate resolver SHALL share a queue.

@@ -96,3 +96,29 @@ Additional checks cover late arrivals during single-address attempts, shared
 normalized addresses, failure propagation, and multi-table database coalescing.
 Type checking, build, and all 17 OpenSpec items passed. No development database
 reset or live Census load test was run.
+
+## Cache correction diagnostics
+
+The failed agency is TCOLE source `1101`, canonical Agency
+`cm76wpxay0008vrvgb79ptov8`, ANDERSON CO. CONST. PCT. 1, with address
+P.O. Box 952, Elkhart, TX 75839. Read-only cache inspection found coordinates
+31.6279683, -95.5789576 under fingerprint
+`5bfb42835a77133d31b89e72a486fbeef9f4809c1985392c3799296ddf50016e`. This exactly
+matches the address input without the address-point policy. Adding the current
+policy gives `75c101227ca6d388bae58eace303465946064e0fd3eaa7d248a3b52fedb18363`,
+so those legacy coordinates are not a reusable hit. Their physical-location
+accuracy has not been established, and no manual acceptance was written.
+
+Shared EntityFacade error handling now supplies shell-quoted cache get/set
+command templates for failed live resolution of cache-backed properties. It
+retains the original cause and canonical identity, explains existing-value
+overrides, and preserves attribution when a dependency fails. Source-supplied
+values and cache storage errors do not receive misleading override guidance.
+Unmatched-coordinate errors identify both latitude and longitude, the source
+record and agency address, and the need for verified physical coordinates.
+
+Validation: 74 tests passed across cache-correction-errors, geocode-resolvers,
+data-context, cache CLI, and reset suites. Tests cover the old-fingerprint PO-box
+case, multiple entity kinds and properties, dependency attribution, source
+precedence, and shell metacharacters in source IDs. Type checking, build, and
+all 17 OpenSpec items passed. No cache values were changed and no rebuild ran.

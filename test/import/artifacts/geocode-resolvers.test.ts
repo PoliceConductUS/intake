@@ -5,6 +5,7 @@ import { typedInputFingerprint } from "../../../src/cli/state/resolved-property/
 import { INTAKE_API_VERSION } from "../../../src/shared/io/import-types.js";
 import { fakeSourceNameLedger } from "../../cli/state/fake-source-name-ledger.js";
 import { EmptyDatabaseClient } from "../../cli/database/empty-database-client.js";
+import { resolveImportAddress } from "../../../src/cli/import/artifacts/agency-address-resolution.js";
 
 const AGENCY_CONFIG = {
   entityType: "agency",
@@ -22,6 +23,73 @@ const AGENCY_CONFIG = {
     locationPathId: "location_path_id",
   },
 } as const;
+
+it("reports source identity and usable cache correction instructions when an old coordinate entry cannot resolve a PO-box address", async () => {
+  const raw = {
+    name: "ANDERSON CO. CONST. PCT. 1",
+    address: "P.O. Box 952",
+    city: "Elkhart",
+    state: "TX",
+    zip_code: "75839",
+  };
+  const oldFingerprint = typedInputFingerprint({
+    state: "tx",
+    city: "elkhart",
+    zipCode: "75839",
+    address: "p.o. box 952",
+    administrativeAreaName: undefined,
+    administrativeAreaSlug: undefined,
+  });
+  const writes: unknown[] = [];
+  const context = new DataContext({
+    client: new EmptyDatabaseClient(),
+    ledger: fakeSourceNameLedger({
+      agencies: { "1101": { canonicalId: "cm76wpxay0008vrvgb79ptov8" } },
+      personnel: {},
+      agencyPersonnel: {},
+      locationPaths: {},
+    }),
+    resolvedPropertyStore: {
+      read: async (key) =>
+        key.inputFingerprint === oldFingerprint
+          ? key.targetProperty === "latitude"
+            ? 31.6279683
+            : -95.5789576
+          : undefined,
+      write: async (value) => {
+        writes.push(value);
+      },
+    },
+    resolveAddress: (input) =>
+      resolveImportAddress(input, { resolveAgencyCoordinates: async () => [] }),
+  });
+  const facade = context.facadeFromSource("Agency", {
+    apiVersion: INTAKE_API_VERSION,
+    namespace: "gov.tx.tcole",
+    name: "1101",
+  });
+  facade.merge(raw);
+  const result = facade.value("latitude");
+  for (const detail of [
+    "cm76wpxay0008vrvgb79ptov8",
+    "gov.tx.tcole",
+    "1101",
+    raw.name,
+    raw.address,
+    "Elkhart",
+    "TX",
+    "75839",
+    "physical",
+    "location_path_id",
+    "--force",
+    "npm run cli -- cache get gov.tx.tcole Agency 1101 latitude",
+    "npm run cli -- cache get gov.tx.tcole Agency 1101 longitude",
+    "npm run cli -- cache set gov.tx.tcole Agency 1101 latitude",
+    "npm run cli -- cache set gov.tx.tcole Agency 1101 longitude",
+  ])
+    await expect(result).rejects.toThrow(detail);
+  expect(writes).toEqual([]);
+});
 
 // A fake facade + counting geocode backend. `existing` seeds the existing-row
 // stability path; `raw` seeds source values. The geocode returns fixed values and

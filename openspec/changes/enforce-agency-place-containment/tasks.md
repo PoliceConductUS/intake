@@ -8,3 +8,4 @@
 - [x] Reproduce and fix missing Census request diagnostics for batch and single-address network errors, HTTP failures, timeouts, and response-body failures.
 - [x] Reuse CurrentRowReader coalescing through a shared batch-loader for Census addresses, retaining memoization and serializing batches and single-address attempts.
 - [x] Verify concurrent callers, late arrivals, normalized-address reuse, failure propagation, and existing database read behavior.
+- [x] Add shared cache-correction commands to property resolution failures and identify both coordinates for unmatched addresses; verify source precedence and dependency attribution.

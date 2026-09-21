@@ -12,6 +12,10 @@ import {
 } from "../resolver-kit.js";
 import { typedInputFingerprint } from "../../../state/resolved-property/index.js";
 import { valuesEqual } from "../../../../shared/values-equal.js";
+import {
+  CacheCorrectionError,
+  UnresolvedPropertiesError,
+} from "../property-resolution-error.js";
 
 /**
  * The backend a resolver-based entity facade reaches through: its own
@@ -185,7 +189,12 @@ export class EntityFacade<
         this.cache === undefined ||
         !this.cacheableProperties.has(String(property))
       ) {
-        return await resolver.resolve(context, locate);
+        return await this.resolveWithDiagnostics(
+          property,
+          resolver,
+          context,
+          locate,
+        );
       }
       return await this.resolveThroughCache(
         property,
@@ -230,7 +239,12 @@ export class EntityFacade<
     if (hit !== undefined) {
       return hit as Row[K];
     }
-    const resolved = await resolver.resolve(context, locate);
+    const resolved = await this.resolveWithDiagnostics(
+      property,
+      resolver,
+      context,
+      locate,
+    );
     if (resolved !== null && resolved !== undefined) {
       await cache.write(
         {
@@ -244,6 +258,38 @@ export class EntityFacade<
       );
     }
     return resolved;
+  }
+
+  private async resolveWithDiagnostics<K extends keyof Row>(
+    property: K,
+    resolver: Resolver<Row[K], ResolverContext<Row, Backend>>,
+    context: ResolverContext<Row, Backend>,
+    locate: () => string,
+  ): Promise<Row[K]> {
+    try {
+      return await resolver.resolve(context, locate);
+    } catch (error) {
+      if (
+        error instanceof CacheCorrectionError ||
+        this.hasSourceValue(property) ||
+        !this.cacheableProperties.has(String(property))
+      )
+        throw error;
+      const properties =
+        error instanceof UnresolvedPropertiesError
+          ? error.properties.filter((name) =>
+              this.cacheableProperties.has(name),
+            )
+          : [String(property)];
+      if (properties.length === 0) throw error;
+      throw new CacheCorrectionError(error, {
+        namespace: this.source.namespace,
+        kind: this.kind,
+        sourceId: this.source.name,
+        canonicalId: String(await this.value(this.identity)),
+        properties,
+      });
+    }
   }
 
   // True when the metadata declares PATCH (ADR 0034): resolve an existing row and
