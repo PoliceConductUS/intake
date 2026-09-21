@@ -770,7 +770,7 @@ describe("importArtifacts", () => {
     expect(agencyMutation?.kind).toBe("AgencyCreate");
   });
 
-  test("persists and reuses resolved agency and personnel slugs", async () => {
+  test.each([false, true])("caches slugs (DB: %s)", async (db) => {
     const rootDir = await mkdtemp(path.join(tmpdir(), "intake-slug-cache-"));
     await persistSourceNameToCanonicalIds(
       "mn-post",
@@ -810,12 +810,14 @@ describe("importArtifacts", () => {
                     "agency-source-id": {
                       spec: {
                         name: agencyName,
+                        slug: "producer-agency-slug",
+                        phones: { office: { number: "555-0100" } },
                         city: "Saint Paul",
                         state: "MN",
                         address: "444 Cedar Street",
                         zip_code: "55101",
                         contact_name: null,
-                        contact_email: null,
+                        ...(db ? {} : { contact_email: null }),
                         location_path_id: "saint-paul-location-path-id",
                         latitude: 44.955097,
                         longitude: -93.102211,
@@ -831,8 +833,9 @@ describe("importArtifacts", () => {
                     "personnel-source-id": {
                       spec: {
                         first_name: firstName,
+                        slug: "producer-personnel-slug",
                         last_name: lastName,
-                        middle_name: null,
+                        ...(db ? {} : { middle_name: null }),
                         prefix: null,
                         suffix: null,
                       },
@@ -850,11 +853,11 @@ describe("importArtifacts", () => {
     const firstImport = await importArtifacts({
       artifactsPath: await writeArtifacts(
         "test-run",
-        "Minnesota State Patrol",
-        "Spenser",
+        db ? "Changed Agency" : "Minnesota State Patrol",
+        db ? "Changed" : "Spenser",
         "Stockwell",
       ),
-      dryImport: true,
+      dryImport: !db,
       env: {
         INTAKE_WORKSPACE_TEST: rootDir,
         DATABASE_URL: "postgres://example/intake",
@@ -864,6 +867,33 @@ describe("importArtifacts", () => {
       commandDirectory: path.join(rootDir, "commands", "first-command"),
       clientFactory: () =>
         new RecordingClient(undefined, undefined, [
+          ...(db
+            ? [
+                {
+                  pattern: /select \* from public\.agency\b/i,
+                  rows: [
+                    {
+                      ...rows.agencies[0],
+                      slug: "published-agency-123",
+                      contact_email: "retained@example.test",
+                      contact_name: "Previous Contact",
+                      phones: { office: { number: "555-0100" } },
+                    },
+                  ],
+                },
+                {
+                  pattern: /select \* from public\.officers\b/i,
+                  rows: [
+                    {
+                      ...rows.officers[0],
+                      slug: "published-person-123",
+                      middle_name: "Retained",
+                      suffix: "Jr",
+                    },
+                  ],
+                },
+              ]
+            : []),
           {
             pattern:
               /from public\.location_path lp\s+join public\.location_path_geometry lpg/i,
@@ -880,6 +910,83 @@ describe("importArtifacts", () => {
 
     if (!firstImport.ok) {
       throw new Error(firstImport.error);
+    }
+    if (db) {
+      const firstMutations = await DatabaseMutations.read(
+        path.join(
+          rootDir,
+          "commands",
+          "first-command",
+          yamlResourceFileName("first-command", "DatabaseMutations"),
+        ),
+      );
+      const updates = firstMutations.spec.mutations.filter(
+        (mutation) =>
+          "kind" in mutation &&
+          (mutation.kind === "AgencyUpdate" ||
+            mutation.kind === "PersonnelUpdate"),
+      );
+      expect(JSON.stringify(updates)).not.toContain('"path":"contact_email"');
+      expect(JSON.stringify(updates)).not.toContain('"path":"middle_name"');
+      expect(firstMutations.spec.mutations).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            kind: "AgencyUpdate",
+            name: "agency-canonical-id",
+            spec: expect.objectContaining({
+              operations: expect.arrayContaining([
+                expect.objectContaining({
+                  action: "check",
+                  path: "phones",
+                  value: { office: { number: "555-0100" } },
+                }),
+                expect.objectContaining({
+                  action: "check",
+                  path: "slug",
+                  value: "published-agency-123",
+                }),
+                expect.objectContaining({
+                  action: "set",
+                  path: "contact_name",
+                  from: "Previous Contact",
+                  to: null,
+                }),
+                expect.objectContaining({
+                  action: "set",
+                  path: "name",
+                  from: "Minnesota State Patrol",
+                  to: "Changed Agency",
+                }),
+              ]),
+            }),
+          }),
+          expect.objectContaining({
+            kind: "PersonnelUpdate",
+            name: "personnel-canonical-id",
+            spec: expect.objectContaining({
+              operations: expect.arrayContaining([
+                expect.objectContaining({
+                  action: "check",
+                  path: "slug",
+                  value: "published-person-123",
+                }),
+                expect.objectContaining({
+                  action: "set",
+                  path: "suffix",
+                  from: "Jr",
+                  to: null,
+                }),
+                expect.objectContaining({
+                  action: "set",
+                  path: "first_name",
+                  from: "Spenser",
+                  to: "Changed",
+                }),
+              ]),
+            }),
+          }),
+        ]),
+      );
     }
     const agencyCacheInput = {
       subject: {
@@ -899,10 +1006,12 @@ describe("importArtifacts", () => {
     } satisfies ResolvedPropertyCacheInput;
     await expect(
       readResolvedProperty({ ...agencyCacheInput, rootDir }),
-    ).resolves.toBe("minnesota-state-patrol-icalid");
+    ).resolves.toBe(
+      db ? "published-agency-123" : "minnesota-state-patrol-icalid",
+    );
     await expect(
       readResolvedProperty({ ...personnelCacheInput, rootDir }),
-    ).resolves.toBe("spenser-stockwell-icalid");
+    ).resolves.toBe(db ? "published-person-123" : "spenser-stockwell-icalid");
 
     const secondImport = await importArtifacts({
       artifactsPath: await writeArtifacts(
@@ -947,8 +1056,12 @@ describe("importArtifacts", () => {
     const serializedMutations = JSON.stringify(
       databaseMutations.spec.mutations,
     );
-    expect(serializedMutations).toContain("minnesota-state-patrol-icalid");
-    expect(serializedMutations).toContain("spenser-stockwell-icalid");
+    expect(serializedMutations).toContain(
+      db ? "published-agency-123" : "minnesota-state-patrol-icalid",
+    );
+    expect(serializedMutations).toContain(
+      db ? "published-person-123" : "spenser-stockwell-icalid",
+    );
     expect(serializedMutations).not.toContain("changed-agency-name");
     expect(serializedMutations).not.toContain("changed-person");
   });
@@ -1304,6 +1417,285 @@ describe("importArtifacts", () => {
       }),
     );
   });
+
+  test.each(
+    (
+      [
+        {
+          kind: "AgencyUpdate",
+          table: "public.agency",
+          field: "name",
+          key: "id",
+          protectedFields: ["slug"],
+        },
+        {
+          kind: "PersonnelUpdate",
+          table: "public.officers",
+          field: "first_name",
+          key: "id",
+          protectedFields: ["slug"],
+        },
+        {
+          kind: "LocationPathUpdate",
+          table: "public.location_path",
+          field: "place_name",
+          key: "location_path_id",
+          protectedFields: [
+            "path",
+            "state_or_territory_slug",
+            "administrative_area_slug",
+            "place_slug",
+          ],
+        },
+      ] as const
+    ).flatMap((entry) =>
+      entry.protectedFields.map((protectedField) => ({
+        ...entry,
+        protectedField,
+      })),
+    ),
+  )(
+    "rejects replacement of $protectedField when replaying $kind",
+    async ({ kind, table, field, key, protectedField }) => {
+      const protectedFields = [protectedField];
+      const rootDir = await mkdtemp(path.join(tmpdir(), "intake-stale-slug-"));
+      const current = {
+        [key]: "canonical-id",
+        [field]: "Original",
+        ...Object.fromEntries(
+          protectedFields.map((name) => [
+            name,
+            name === "path" ? "/published/" : "published-slug",
+          ]),
+        ),
+      };
+      const written = await DatabaseMutations.write(
+        rootDir,
+        DatabaseMutations.new({
+          metadata: { name: "stale-update", namespace: "mn-post" },
+          spec: {
+            mutations: [
+              {
+                kind,
+                name: "canonical-id",
+                spec: {
+                  operations: [
+                    ...protectedFields.map((name) => ({
+                      action: "set",
+                      path: name,
+                      from: name === "path" ? "/published/" : "published-slug",
+                      to:
+                        name === "path" ? "/replacement/" : "replacement-slug",
+                      reason: "Previously prepared update",
+                      source: {
+                        namespace: "mn-post",
+                        command: { name: "old-command" },
+                        kind: "Personnel",
+                        name: "source-id",
+                      },
+                    })),
+                    {
+                      action: "set",
+                      path: field,
+                      from: "Original",
+                      to: "Changed",
+                      reason: "Source name changed",
+                      source: {
+                        namespace: "mn-post",
+                        command: { name: "old-command" },
+                        kind: "Personnel",
+                        name: "source-id",
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        }),
+      );
+      const client = new RecordingClient(undefined, undefined, [
+        {
+          pattern: new RegExp(
+            `select \\* from ${table.replace(".", "\\.")} where`,
+          ),
+          rows: [current],
+        },
+      ]);
+      const result = await replayDatabaseMutations({
+        databaseMutationsPath: written.path,
+        env: { DATABASE_URL: "postgres://example" },
+        clientFactory: () => client,
+      });
+      expect(result).toMatchObject({
+        ok: false,
+        error: expect.stringMatching(/cannot change established/),
+      });
+      expect(
+        client.queries.filter(({ text }) => /^update /i.test(text)),
+      ).toEqual([]);
+    },
+  );
+
+  test.each([
+    { kind: "AgencyUpdate", table: "public.agency", field: "name" },
+    { kind: "PersonnelUpdate", table: "public.officers", field: "first_name" },
+  ] as const)(
+    "updates non-slug fields alongside unchanged slug in $kind",
+    async ({ kind, table, field }) => {
+      const rootDir = await mkdtemp(
+        path.join(tmpdir(), "intake-unchanged-slug-"),
+      );
+      const written = await DatabaseMutations.write(
+        rootDir,
+        DatabaseMutations.new({
+          metadata: { name: "unchanged-slug", namespace: "mn-post" },
+          spec: {
+            mutations: [
+              {
+                kind,
+                name: "canonical-id",
+                spec: {
+                  operations: [
+                    {
+                      action: "set",
+                      path: "slug",
+                      from: "published-slug",
+                      to: "published-slug",
+                      reason: "Preserve published slug",
+                      source: {
+                        namespace: "mn-post",
+                        command: { name: "command" },
+                        kind: "Personnel",
+                        name: "source-id",
+                      },
+                    },
+                    {
+                      action: "set",
+                      path: field,
+                      from: "Original",
+                      to: "Changed",
+                      reason: "Source name changed",
+                      source: {
+                        namespace: "mn-post",
+                        command: { name: "command" },
+                        kind: "Personnel",
+                        name: "source-id",
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        }),
+      );
+      const client = new RecordingClient(undefined, undefined, [
+        {
+          pattern: new RegExp(
+            `select \\* from ${table.replace(".", "\\.")} where`,
+          ),
+          rows: [
+            { id: "canonical-id", slug: "published-slug", [field]: "Original" },
+          ],
+        },
+      ]);
+      const result = await replayDatabaseMutations({
+        databaseMutationsPath: written.path,
+        env: { DATABASE_URL: "postgres://example" },
+        clientFactory: () => client,
+      });
+      expect(result.ok).toBe(true);
+      expect(
+        client.queries.filter(({ text }) => /^update /i.test(text)),
+      ).toEqual([
+        {
+          text: `update ${table} set slug = $2, ${field} = $3 where id = $1`,
+          values: ["canonical-id", "published-slug", "Changed"],
+        },
+      ]);
+    },
+  );
+
+  test.each(
+    (["check", "set"] as const).flatMap((action) =>
+      [true, false].map((matches) => ({ action, matches })),
+    ),
+  )(
+    "validates JSON $action preconditions (matches: $matches)",
+    async ({ action, matches }) => {
+      const rootDir = await mkdtemp(path.join(tmpdir(), "intake-json-check-"));
+      const jsonValue = {
+        office: { city: "Saint Paul", lines: ["444 Cedar Street"] },
+      };
+      const written = await DatabaseMutations.write(
+        rootDir,
+        DatabaseMutations.new({
+          metadata: { name: "json-update", namespace: "mn-post" },
+          spec: {
+            mutations: [
+              {
+                kind: "AgencyUpdate",
+                name: "canonical-id",
+                spec: {
+                  operations: [
+                    {
+                      action,
+                      path: "addresses",
+                      reason: "Source address",
+                      source: {
+                        namespace: "mn-post",
+                        command: { name: "command" },
+                        kind: "Agency",
+                        name: "source-id",
+                      },
+                      ...(action === "check"
+                        ? { value: jsonValue }
+                        : {
+                            from: jsonValue,
+                            to: { office: { city: "Changed" } },
+                          }),
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        }),
+      );
+      const client = new RecordingClient(undefined, undefined, [
+        {
+          pattern: /select \* from public\.agency where/i,
+          rows: [
+            {
+              id: "canonical-id",
+              addresses: matches
+                ? structuredClone(jsonValue)
+                : { office: { city: "Different" } },
+            },
+          ],
+        },
+      ]);
+      const result = await replayDatabaseMutations({
+        databaseMutationsPath: written.path,
+        env: { DATABASE_URL: "postgres://example" },
+        clientFactory: () => client,
+      });
+      expect(result.ok).toBe(matches);
+      expect(
+        client.queries.filter(({ text }) => /^update /i.test(text)),
+      ).toEqual(
+        !matches || action === "check"
+          ? []
+          : [
+              {
+                text: "update public.agency set addresses = $2 where id = $1",
+                values: ["canonical-id", { office: { city: "Changed" } }],
+              },
+            ],
+      );
+    },
+  );
 
   test("replays DatabaseMutations through database CRU", async () => {
     const rootDir = await mkdtemp(path.join(tmpdir(), "intake-run-ref-"));

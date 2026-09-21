@@ -149,10 +149,17 @@ function slugSourceInput(
 
 function preparedPersonnelSpec(
   personnel: ImportRows["officers"][number],
+  ownedColumns?: readonly string[],
 ): Record<string, unknown> {
   const { id: _id, ...spec } = personnel;
   return Object.fromEntries(
-    Object.entries(spec).filter(([, value]) => value !== undefined),
+    Object.entries(spec).filter(
+      ([key, value]) =>
+        value !== undefined &&
+        (ownedColumns === undefined ||
+          key === "slug" ||
+          ownedColumns.includes(key)),
+    ),
   );
 }
 
@@ -350,7 +357,11 @@ function addPersonnelSourceFacades(
   artifacts: ArtifactsEnvelope,
   rows: ImportRows,
   sourceNameToCanonicalIds: SourceNameToCanonicalIds,
+  databasePersonnel: Record<string, unknown>[],
 ): void {
+  const currentById = new Map(
+    databasePersonnel.map((record) => [record.id, record]),
+  );
   const preparedPersonnelByCanonicalId = new Map(
     rows.officers.map((personnel) => [personnel.id, personnel]),
   );
@@ -374,12 +385,20 @@ function addPersonnelSourceFacades(
 
       const source = valueAsRecord(record);
       const facade = dataContext.personnelFromSource({
+        current: currentById.get(canonicalId),
         apiVersion: INTAKE_API_VERSION,
         namespace: artifacts.metadata.namespace,
         name: sourceName,
         spec: source,
       });
-      facade.merge(preparedPersonnelSpec(personnel));
+      facade.merge(
+        preparedPersonnelSpec(
+          personnel,
+          currentById.has(canonicalId)
+            ? (rows.ownedColumns.officers[personnel.id] ?? [])
+            : undefined,
+        ),
+      );
     }
   }
 }
@@ -1120,6 +1139,7 @@ async function writeDatabaseMutationsStage(
   const dataContext = new DataContext({
     rows: context.rows,
     operations: context.databaseResult.operations,
+    databaseAgencies: context.databaseResult.databaseAgencies,
     sourceNameToCanonicalIds: context.resolvedMappings,
     commandName: context.commandName,
   });
@@ -1129,6 +1149,7 @@ async function writeDatabaseMutationsStage(
     context.artifacts,
     context.rows,
     context.resolvedMappings,
+    context.databaseResult.databasePersonnel,
   );
   addAgencyPersonnelSourceFacades(
     dataContext,

@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import { LocationPathSpec } from "../../../shared/io/generated/entity-specs.js";
 import type { ArtifactsEnvelope } from "../../../shared/io/Artifacts.js";
 import {
@@ -222,7 +223,7 @@ export class AgencyFacade {
       .filter(([path]) => path !== "id")
       .map(([path, to]) => {
         const from = this.current?.[path];
-        if (Object.is(from, to)) {
+        if (isDeepStrictEqual(from, to)) {
           return {
             action: "check" as const,
             path,
@@ -245,7 +246,7 @@ export class AgencyFacade {
     return AgencyUpdate.new({
       metadata: {
         namespace: sourceContext.namespace,
-        name: sourceContext.name,
+        name: canonicalId,
       },
       spec: { operations },
     });
@@ -342,7 +343,7 @@ export class PersonnelFacade {
     return PersonnelUpdate.new({
       metadata: {
         namespace: sourceContext.namespace,
-        name: sourceContext.name,
+        name: canonicalId,
       },
       spec: { operations },
     });
@@ -671,10 +672,19 @@ function valueAsRecord(value: unknown): Record<string, unknown> {
   throw new Error("Artifacts agency record must be an object.");
 }
 
-function preparedAgencySpec(agency: AgencyRow): Record<string, unknown> {
+function preparedAgencySpec(
+  agency: AgencyRow,
+  ownedColumns?: readonly string[],
+): Record<string, unknown> {
   const { id: _id, sourceName: _sourceName, ...spec } = agency;
   return Object.fromEntries(
-    Object.entries(spec).filter(([, value]) => value !== undefined),
+    Object.entries(spec).filter(
+      ([key, value]) =>
+        value !== undefined &&
+        (ownedColumns === undefined ||
+          key === "slug" ||
+          ownedColumns.includes(key)),
+    ),
   );
 }
 
@@ -985,7 +995,14 @@ export class DataContext {
           namespace: artifacts.metadata.namespace,
           name: sourceName,
           spec: valueAsRecord(record),
-        }).merge(preparedAgencySpec(agency));
+        }).merge(
+          preparedAgencySpec(
+            agency,
+            this.databaseAgencyById.has(agency.id)
+              ? (this.importRows.ownedColumns.agencies[agency.id] ?? [])
+              : undefined,
+          ),
+        );
       }
     }
   }

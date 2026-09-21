@@ -20,7 +20,7 @@ import {
   type ImportDatabaseSchema,
   loadDatabaseSchemaMetadata,
 } from "../../database/schema.js";
-import type { ImportRows } from "./transform.js";
+import type { ImportRows, ResolvedProperties } from "./transform.js";
 import type { DatabaseRowOperations } from "./operations.js";
 import type { SourceNameToCanonicalIds } from "../../state/source-name-to-canonical-id/index.js";
 
@@ -43,6 +43,8 @@ export type PlanDatabaseMutationsResult = {
   counts: ImportRowCounts;
   operations: DatabaseRowOperations;
   schema: ImportDatabaseSchema;
+  databaseAgencies: Record<string, unknown>[];
+  databasePersonnel: Record<string, unknown>[];
 };
 
 function formatPlanningErrors(errors: readonly string[]): string[] {
@@ -114,6 +116,31 @@ async function closeClient(client: DatabaseClient): Promise<void> {
   }
 }
 
+function preserveDatabaseSlugs(
+  rows: { id: string; slug: string | undefined }[],
+  databaseRows: Record<string, unknown>[],
+  cached: ResolvedProperties["personnel"] | undefined,
+  kind: "Agency" | "Personnel",
+): string[] {
+  const databaseById = new Map(databaseRows.map((row) => [row.id, row]));
+  const errors: string[] = [];
+  for (const row of rows) {
+    const databaseSlug = databaseById.get(row.id)?.slug;
+    if (typeof databaseSlug !== "string") {
+      continue;
+    }
+    const cachedSlug = cached?.[row.id]?.slug;
+    if (cachedSlug !== undefined && cachedSlug !== databaseSlug) {
+      errors.push(
+        `${kind} ${row.id} cached slug ${cachedSlug} disagrees with database slug ${databaseSlug}.`,
+      );
+      continue;
+    }
+    row.slug = databaseSlug;
+  }
+  return errors;
+}
+
 export async function planDatabaseMutations(
   rows: ImportRows,
   options: PlanDatabaseMutationsOptions = {},
@@ -138,6 +165,8 @@ export async function planDatabaseMutations(
 
   let operations: DatabaseRowOperations | undefined;
   let schema: ImportDatabaseSchema | undefined;
+  let databaseAgencies: Record<string, unknown>[] = [];
+  let databasePersonnel: Record<string, unknown>[] = [];
 
   try {
     await client.query("begin");
@@ -145,11 +174,33 @@ export async function planDatabaseMutations(
     schema = importSchema;
     const databaseLocationPaths = await readLocationPaths(client);
     const databaseLocationPathAliases = await readLocationPathAliases(client);
-    const databaseAgencies = await readDatabaseRecordsByIds(
+    databaseAgencies = await readDatabaseRecordsByIds(
       client,
       "public.agency",
       rows.agencies.map((agency) => agency.id),
     );
+    databasePersonnel = await readDatabaseRecordsByIds(
+      client,
+      "public.officers",
+      rows.officers.map((personnel) => personnel.id),
+    );
+    const slugErrors = [
+      ...preserveDatabaseSlugs(
+        rows.agencies,
+        databaseAgencies,
+        options.resolvedProperties?.agencies,
+        "Agency",
+      ),
+      ...preserveDatabaseSlugs(
+        rows.officers,
+        databasePersonnel,
+        options.resolvedProperties?.personnel,
+        "Personnel",
+      ),
+    ];
+    if (slugErrors.length > 0) {
+      throw new DatabaseMutationPlanningError(rows, slugErrors, importSchema);
+    }
     const context = new DataContext({
       client,
       rows,
@@ -222,5 +273,7 @@ export async function planDatabaseMutations(
     },
     operations,
     schema,
+    databaseAgencies,
+    databasePersonnel,
   };
 }

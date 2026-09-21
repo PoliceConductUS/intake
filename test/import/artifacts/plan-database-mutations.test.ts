@@ -583,6 +583,78 @@ describe("createCensusLocationAdministrativeAreaResolver", () => {
 });
 
 describe("planDatabaseMutations", () => {
+  test("preserves established agency and personnel slugs while preparing changed names", async () => {
+    const incoming = structuredClone(rows);
+    incoming.agencies[0]!.name = "Changed Agency";
+    incoming.officers[0]!.first_name = "Changed";
+    const client = new RecordingClient(undefined, undefined, [
+      {
+        pattern: /select \* from public\.agency\b/i,
+        rows: [{ ...rows.agencies[0], slug: "published-agency-123" }],
+      },
+      {
+        pattern: /select \* from public\.officers\b/i,
+        rows: [{ ...rows.officers[0], slug: "published-person-123" }],
+      },
+    ]);
+    const result = await planDatabaseMutations(incoming, {
+      env: { DATABASE_URL: "postgres://example/intake" },
+      clientFactory: () => client,
+      resolvedProperties: { agencies: {}, personnel: {} },
+    });
+    expect(incoming.agencies[0]).toMatchObject({
+      id: "agency-canonical-id",
+      slug: "published-agency-123",
+      name: "Changed Agency",
+    });
+    expect(incoming.officers[0]).toMatchObject({
+      id: "personnel-canonical-id",
+      slug: "published-person-123",
+      first_name: "Changed",
+    });
+    expect(result.operations.agencies["agency-canonical-id"]).toBe("update");
+    expect(result.operations.officers["personnel-canonical-id"]).toBe("update");
+  });
+
+  test.each(["agencies", "personnel"] as const)(
+    "rejects %s cached slug disagreement before planning updates",
+    async (collection) => {
+      const incoming = structuredClone(rows);
+      const resolvedProperties: ResolvedProperties = {
+        agencies: {},
+        personnel: {},
+      };
+      const id =
+        collection === "agencies"
+          ? "agency-canonical-id"
+          : "personnel-canonical-id";
+      resolvedProperties[collection][id] = { slug: "conflicting-cache-slug" };
+      const client = new RecordingClient(undefined, undefined, [
+        {
+          pattern: /select \* from public\.agency\b/i,
+          rows: [{ ...rows.agencies[0], slug: "published-agency-123" }],
+        },
+        {
+          pattern: /select \* from public\.officers\b/i,
+          rows: [{ ...rows.officers[0], slug: "published-person-123" }],
+        },
+      ]);
+      await expect(
+        planDatabaseMutations(incoming, {
+          env: { DATABASE_URL: "postgres://example/intake" },
+          clientFactory: () => client,
+          resolvedProperties,
+        }),
+      ).rejects.toThrow(/cached slug.*conflicting-cache-slug.*database slug/i);
+      expect(resolvedProperties[collection][id]?.slug).toBe(
+        "conflicting-cache-slug",
+      );
+      expect(
+        client.queries.some(({ text }) => /^(insert|update) /i.test(text)),
+      ).toBe(false);
+    },
+  );
+
   test("AgencyCreate envelope rejects missing required database-create fields", () => {
     expect(() =>
       AgencyCreate.new({
@@ -652,6 +724,32 @@ describe("planDatabaseMutations", () => {
       "rollback",
     );
     expect(client.ended).toBe(true);
+  });
+
+  test("plans existing location paths as read despite changed source URL fields", async () => {
+    const incoming = structuredClone(rows);
+    incoming.locationPaths = [
+      {
+        ...locationPathSnapshot()[2]!,
+        path: "/changed/",
+        state_or_territory_slug: "changed-state",
+        administrative_area_slug: "changed-county",
+        place_slug: "changed-place",
+      },
+    ];
+    const client = new RecordingClient();
+    const result = await planDatabaseMutations(incoming, {
+      env: { DATABASE_URL: "postgres://example/intake" },
+      clientFactory: () => client,
+    });
+    expect(
+      result.operations.locationPaths[
+        incoming.locationPaths[0]!.location_path_id
+      ],
+    ).toBe("read");
+    expect(
+      client.queries.some(({ text }) => /^(insert|update) /i.test(text)),
+    ).toBe(false);
   });
 
   test("location path aliases are planned after location paths", async () => {

@@ -189,7 +189,7 @@ describe("DataContext", () => {
       }),
     ).toMatchObject({
       kind: "AgencyUpdate",
-      metadata: { namespace: "mn-post", name: "mn-state-patrol" },
+      metadata: { namespace: "mn-post", name: "agency-canonical-id" },
       spec: {
         operations: [
           {
@@ -407,7 +407,7 @@ describe("DataContext", () => {
     expect(context.toMutations()).toMatchObject([
       {
         kind: "AgencyUpdate",
-        metadata: { namespace: "mn-post", name: "mn-state-patrol" },
+        metadata: { namespace: "mn-post", name: "agency-canonical-id" },
         spec: {
           operations: [
             { action: "check", path: "name" },

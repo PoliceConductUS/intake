@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import {
   createDatabaseRecord,
   readDatabaseRecordByColumn,
@@ -82,7 +83,7 @@ function assertExpectedValue(
   expected: unknown,
   actual: unknown,
 ): void {
-  if (!Object.is(expected, actual)) {
+  if (!isDeepStrictEqual(expected, actual)) {
     throw new Error(
       `DatabaseMutation ${mutationName} expected ${fieldName} to be ${String(expected)} but found ${String(actual)}.`,
     );
@@ -237,6 +238,21 @@ async function executeUpdate(
     if (typedOperation.action !== "set") {
       throw new Error(
         `DatabaseMutation ${mutationName} operation action is unsupported.`,
+      );
+    }
+    const preservesUrl =
+      ((recordKind === "Agency" || recordKind === "Personnel") &&
+        fieldName === "slug") ||
+      (recordKind === "LocationPath" &&
+        [
+          "path",
+          "state_or_territory_slug",
+          "administrative_area_slug",
+          "place_slug",
+        ].includes(fieldName));
+    if (preservesUrl && !Object.is(typedOperation.to, current[fieldName])) {
+      throw new Error(
+        `DatabaseMutation ${mutationName} cannot change established ${recordKind} ${fieldName}.`,
       );
     }
     assertExpectedValue(
