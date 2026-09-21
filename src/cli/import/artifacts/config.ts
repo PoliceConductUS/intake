@@ -261,8 +261,8 @@ function agencyResolutionDeps(context: ImportArtifactsPipelineContext) {
         onProgress: (event) => {
           if (event.stage === "batch") {
             logger?.info(
-              { entityType: "agency", total: event.total },
-              `Resolving agency address coordinates for ${event.total} ${event.total === 1 ? "agency" : "agencies"}.`,
+              { entityType: "agency", ...event },
+              `Resolving agency address coordinates: batch ${event.batchIndex}/${event.batchCount}, ${event.batchSize} addresses (${event.total} total).`,
             );
             return;
           }

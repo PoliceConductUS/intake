@@ -73,3 +73,26 @@ The first full run hit one database-container startup timeout in an unrelated
 float-precision test. It passed alone; the final full run passed with a
 120-second hook allowance. No test assertion was weakened and no timeout change
 was committed.
+
+## Census request coalescing
+
+The failed TCOLE generation started 2,949 single-address batch requests between
+22:33:44.856Z and 22:33:47.728Z on September 21, 2026. Concurrent facade resolution
+called the geocoder separately; its existing batch splitting applied only inside
+each call.
+
+CurrentRowReader's memoized macrotask coalescing now lives in a shared BatchLoader
+used by both database reads and Census coordinates (ADR 0016 decision 10). The
+loader serializes gateway calls, including work arriving during an active batch.
+Census retains its existing 1,000-address limit and same-address retry behavior.
+Geocoding loads use the normalized request address as their key and map the
+returned coordinates back to each caller's canonical identity. A request failure
+rejects pending work and stops additional requests through that loader.
+
+Validation: 73 tests passed across agency-coordinate-resolver, current-row-reader,
+data-context, geocode-resolvers, and cache CLI suites. The 2,949-caller regression
+produces batches of 1,000, 1,000, and 949 with a maximum of one active request.
+Additional checks cover late arrivals during single-address attempts, shared
+normalized addresses, failure propagation, and multi-table database coalescing.
+Type checking, build, and all 17 OpenSpec items passed. No development database
+reset or live Census load test was run.

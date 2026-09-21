@@ -1,3 +1,4 @@
+import { BatchLoader } from "./batch-loader.js";
 import { parse as parseCsv } from "csv-parse/sync";
 import type {
   AgencyCoordinateRequest,
@@ -245,48 +246,74 @@ export function createCensusAgencyCoordinateResolver(
 ) => Promise<AgencyCoordinateResolution[]> {
   const requestTimeoutMs =
     options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
-  return async (requests) => {
-    const canonical: AgencyCoordinateResolution[] = [];
-    const batchCount = Math.ceil(requests.length / BATCH_SIZE);
-    for (let index = 0; index < requests.length; index += BATCH_SIZE) {
-      const batch = requests.slice(index, index + BATCH_SIZE);
-      options.onProgress?.({
-        stage: "batch",
-        batchIndex: Math.floor(index / BATCH_SIZE) + 1,
-        batchCount,
-        batchSize: batch.length,
-        total: requests.length,
-      });
-      const batchCoordinateResolutions = await resolveBatch(
-        batch,
-        fetchFn,
-        requestTimeoutMs,
-      );
-      canonical.push(...batchCoordinateResolutions);
-
-      const resolvedRowIds = new Set(
-        batchCoordinateResolutions.map((resolution) => resolution.rowId),
-      );
-      const unresolvedRequests = batch.filter(
-        (request) => !resolvedRowIds.has(request.rowId),
-      );
-      for (const [unresolvedIndex, request] of unresolvedRequests.entries()) {
+  const loader = new BatchLoader<
+    AgencyCoordinateRequest,
+    AgencyCoordinateResolution
+  >(
+    (request) =>
+      JSON.stringify([
+        normalizeGeocodingStreetAddress(request.address),
+        request.city,
+        request.state,
+        zip5(request.zipCode),
+      ]),
+    async (requests) => {
+      const canonical: AgencyCoordinateResolution[] = [];
+      const batchCount = Math.ceil(requests.length / BATCH_SIZE);
+      for (let index = 0; index < requests.length; index += BATCH_SIZE) {
+        const batch = requests.slice(index, index + BATCH_SIZE);
         options.onProgress?.({
-          stage: "unresolved",
-          attempted: unresolvedIndex + 1,
-          total: unresolvedRequests.length,
-          rowId: request.rowId,
+          stage: "batch",
+          batchIndex: Math.floor(index / BATCH_SIZE) + 1,
+          batchCount,
+          batchSize: batch.length,
+          total: requests.length,
         });
-        const resolution = await resolveSingleAddress(
-          request,
+        const batchCoordinateResolutions = await resolveBatch(
+          batch,
           fetchFn,
           requestTimeoutMs,
         );
-        if (resolution !== undefined) {
-          canonical.push(resolution);
+        canonical.push(...batchCoordinateResolutions);
+
+        const resolvedRowIds = new Set(
+          batchCoordinateResolutions.map((resolution) => resolution.rowId),
+        );
+        const unresolvedRequests = batch.filter(
+          (request) => !resolvedRowIds.has(request.rowId),
+        );
+        for (const [unresolvedIndex, request] of unresolvedRequests.entries()) {
+          options.onProgress?.({
+            stage: "unresolved",
+            attempted: unresolvedIndex + 1,
+            total: unresolvedRequests.length,
+            rowId: request.rowId,
+          });
+          const resolution = await resolveSingleAddress(
+            request,
+            fetchFn,
+            requestTimeoutMs,
+          );
+          if (resolution !== undefined) {
+            canonical.push(resolution);
+          }
         }
       }
-    }
-    return canonical;
+      const byId = new Map(canonical.map((result) => [result.rowId, result]));
+      return requests.map((request) => byId.get(request.rowId));
+    },
+  );
+  return async (requests) => {
+    const results = await Promise.all(
+      requests.map(async (request) => {
+        const result = await loader.load(request);
+        return result === undefined
+          ? undefined
+          : { ...result, rowId: request.rowId };
+      }),
+    );
+    return results.filter(
+      (result): result is AgencyCoordinateResolution => result !== undefined,
+    );
   };
 }

@@ -67,3 +67,27 @@ details SHALL survive conversion to the import and reset command error text.
 - **WHEN** a batch or single-address geocoding request fails during generation
 - **THEN** the error identifies the affected request and agencies rather than only reporting `fetch failed`
 - **AND** the same request context accompanies a failure while reading its response
+
+### Requirement: Concurrent address resolutions share a bounded Census queue
+
+All callers of one import's Census coordinate resolver SHALL share a queue.
+This SHALL reuse CurrentRowReader's coalescing mechanism through a shared
+batch-loader, as specified in ADR 0016 decision 10. Geocoding loads SHALL be
+memoized by normalized address, mapping results back to each caller's identity.
+Pending addresses SHALL be combined into batches of at most 1,000 addresses.
+Only one Census request SHALL run at a time, including single-address attempts
+after a batch miss. Each caller SHALL receive only its own results. A failed
+request SHALL reject pending work and stop that resolver from issuing further
+requests, preserving the original request diagnostics. Cache behavior and
+address-resolution rules remain unchanged.
+
+#### Scenario: Thousands of agencies need coordinates concurrently
+
+- **WHEN** 2,949 single-agency calls arrive before the queue starts
+- **THEN** the resolver submits three batches of 1,000, 1,000, and 949 addresses
+- **AND** requests do not overlap
+
+#### Scenario: A Census request fails with work pending
+
+- **WHEN** a batch or single-address request fails
+- **THEN** all waiting callers receive the failure and no further requests start

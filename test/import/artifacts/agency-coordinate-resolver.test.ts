@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { parse as parseCsv } from "csv-parse/sync";
 import { createCensusAgencyCoordinateResolver } from "../../../src/cli/import/artifacts/agency-coordinate-resolver.js";
 
 const request = {
@@ -11,6 +12,127 @@ const request = {
 };
 
 describe("agency address coordinates", () => {
+  it("coalesces the same normalized address and preserves each caller's agency ID", async () => {
+    const fetcher = vi.fn(
+      async () => new Response('"medina-isd","","Match","","","-99.25,29.8"'),
+    );
+    const resolver = createCensusAgencyCoordinateResolver(fetcher);
+    const first = resolver([request]);
+    const second = resolver([
+      {
+        ...request,
+        rowId: "another-agency",
+        address: "1  Bobcat Lane",
+        zipCode: "78055-1234",
+      },
+    ]);
+    await expect(first).resolves.toEqual([
+      { rowId: "medina-isd", latitude: 29.8, longitude: -99.25 },
+    ]);
+    await expect(second).resolves.toEqual([
+      { rowId: "another-agency", latitude: 29.8, longitude: -99.25 },
+    ]);
+    await resolver([request]);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("batches 2949 concurrent callers and returns each caller's coordinates with only one request active", async () => {
+    let active = 0;
+    let peak = 0;
+    const batchSizes: number[] = [];
+    const fetcher = vi.fn(
+      async (_url: string | URL | Request, init?: RequestInit) => {
+        active++;
+        peak = Math.max(peak, active);
+        const form = init!.body as FormData;
+        const rows = parseCsv(
+          await (form.get("addressFile") as Blob).text(),
+        ) as string[][];
+        batchSizes.push(rows.length);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        active--;
+        return new Response(
+          rows
+            .map(
+              ([id]) =>
+                `"${id}","","Match","","","-99.25,${Number(id) / 1000}"`,
+            )
+            .join("\n"),
+        );
+      },
+    );
+    const resolver = createCensusAgencyCoordinateResolver(fetcher);
+    const results = await Promise.all(
+      Array.from({ length: 2949 }, (_, i) =>
+        resolver([
+          { ...request, rowId: String(i), address: `${i} Main Street` },
+        ]),
+      ),
+    );
+    expect(batchSizes).toEqual([1000, 1000, 949]);
+    expect(peak).toBe(1);
+    expect(results).toEqual(
+      Array.from({ length: 2949 }, (_, i) => [
+        { rowId: String(i), latitude: i / 1000, longitude: -99.25 },
+      ]),
+    );
+  });
+
+  it("queues callers arriving during an unmatched address attempt without overlapping requests", async () => {
+    let release!: () => void;
+    let started!: () => void;
+    const singleStarted = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const calls: string[] = [];
+    const fetcher = vi.fn(async (url: string | URL | Request) => {
+      const batch = String(url).includes("addressbatch");
+      calls.push(batch ? "batch" : "single");
+      if (calls.length === 1) return new Response('"medina-isd","","No_Match"');
+      if (!batch) {
+        started();
+        await gate;
+        return Response.json({ result: { addressMatches: [] } });
+      }
+      return new Response('"second","","Match","","","-99.25,29.8"');
+    });
+    const resolver = createCensusAgencyCoordinateResolver(fetcher);
+    const first = resolver([request]);
+    await singleStarted;
+    const second = resolver([
+      { ...request, rowId: "second", address: "2 Main Street" },
+    ]);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(calls).toEqual(["batch", "single"]);
+    release();
+    await expect(first).resolves.toEqual([]);
+    await expect(second).resolves.toEqual([
+      { rowId: "second", latitude: 29.8, longitude: -99.25 },
+    ]);
+    expect(calls).toEqual(["batch", "single", "batch"]);
+  });
+
+  it("rejects every pending caller after a request failure without starting more requests", async () => {
+    const fetcher = vi.fn(async () => {
+      throw new TypeError("fetch failed");
+    });
+    const resolver = createCensusAgencyCoordinateResolver(fetcher);
+    const results = await Promise.allSettled(
+      Array.from({ length: 1001 }, (_, i) =>
+        resolver([
+          { ...request, rowId: String(i), address: `${i} Main Street` },
+        ]),
+      ),
+    );
+    expect(results.every((result) => result.status === "rejected")).toBe(true);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    await expect(resolver([request])).rejects.toThrow("fetch failed");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
   it.each(["batch", "single"])(
     "identifies the %s request and nested network cause",
     async (stage) => {
