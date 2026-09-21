@@ -76,7 +76,7 @@ export async function resetData(
     const runDataCommand =
       dependencies.runDataCommand ??
       (async (args) => {
-        const { runIntake } = await import("../index.js");
+        const { runIntake } = await import("../run-intake.js");
         return runIntake(args);
       });
 
