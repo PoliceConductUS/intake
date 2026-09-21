@@ -7,4 +7,4 @@
 
 - [x] 2.1 Exercise re-import and replay against PostgreSQL provisioned by all current migrations.
 - [x] 2.2 Run focused tests, type checking, OpenSpec validation, and independent review.
-- [ ] 2.3 Commit the fix on redesign-config-driven-intake and verify the three requested branches/worktrees are deleted.
+- [x] 2.3 Commit the fix on redesign-config-driven-intake and verify the three requested branches/worktrees are deleted.
