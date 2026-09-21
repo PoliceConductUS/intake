@@ -6,6 +6,10 @@ Twenty spelling aliases and eight further confirmed same-place aliases were adde
 
 The [complete review](review-104.csv) retains every original ID and path, candidate IDs and paths, individual findings, next actions, and the linked agencies' current addresses and locations. Candidate targets are suggestions or rejected comparisons, not approved mappings. Current agency assignments are observations, not independent proof that two places are equivalent. Every row has now been checked against the saved 2025 Census inputs. A blank external source means no separate external community-history source was used; the Census checks are recorded in the CSV and detailed evidence below.
 
+## Current classification of the remaining 57
+
+The [complete classification](remaining-57-classification.md) and [57-row CSV](remaining-57-classification.csv) supersede the preliminary unresolved findings below. **Alba Township is a legitimate site place present in Census county-subdivision data that our import does not cover.** The other rows distinguish incorrect hierarchies, missing communities, changed geographies, and uncertain legacy scope.
+
 ## Confirmed agency-resolution defect
 
 **The Census tree checks pass, but agency assignments do not consistently follow the geocoded point.** The 104 legacy location rows link to 123 agencies still present in the current database. Of those, **46 assigned place polygons do not contain the agency's stored coordinates**. [Every checked agency, address, coordinate, assigned path, and containing Census shape](agency-point-check.json) is recorded here; the CSV also identifies the affected agencies for each of the 104 rows.
@@ -18,7 +22,7 @@ No agency coordinates, agency assignments, resolver code, or resolved-property c
 
 ## Is the Census import losing locations?
 
-**No Census-import loss was found explaining these 104 differences.** Reconstructing the canonical tree from the saved 2025 Gazetteer files and hierarchy produced exactly all **35,249 current paths**, with no missing or extra paths and no display-name, level, or parent mismatch. For all 104 audit rows, the review checked the original path, any Census-generated alias, same-name places in the state, proposed targets, and the linked agencies' current locations.
+**No lost rows were found within the saved Census inputs; the selected inputs do have a coverage gap for townships such as Alba.** Reconstructing the canonical tree from the saved 2025 Gazetteer files and hierarchy produced exactly all **35,249 current paths**, with no missing or extra paths and no display-name, level, or parent mismatch. For all 104 audit rows, the review checked the original path, any Census-generated alias, same-name places in the state, proposed targets, and the linked agencies' current locations.
 
 The review independently recomputed county intersections from the saved raw TIGER polygons for **96 relevant Census places across nine states**. Every overlap and county choice agreed with the saved hierarchy. In particular, all **19 previously existing aliases** are valid same-place, multiple-county aliases. A county difference is not itself an import defect.
 
