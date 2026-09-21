@@ -112,7 +112,7 @@ export async function generateOneSource(
 }
 
 /**
- * Every source that produces something, in dependency order (ADR 0021) — the order
+ * Every automatic source that produces something, in dependency order (ADR 0021) — the order
  * `update` walks, transforming/generating/applying each so a producer is applied
  * before a consumer transforms against it.
  */
@@ -122,7 +122,8 @@ export async function orderedSourceIds(): Promise<string[]> {
     ids.map(async (id) => ({
       id,
       produces: await loadSourceProduces(id, SOURCES_ROOT),
+      standalone: await loadSourceStandalone(id, SOURCES_ROOT),
     })),
   );
-  return planSourceOrder(sources).order;
+  return planSourceOrder(sources.filter((source) => !source.standalone)).order;
 }

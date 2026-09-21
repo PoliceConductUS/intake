@@ -99,6 +99,8 @@ Source module authors should follow the
 commands, source interfaces, workspace ownership, stable identity, shared IO,
 and resolved-officer requirement for civil-case imports.
 
+To add a community missing from Census, see [Manual Locations](docs/manual-locations.md).
+
 ## Candidate Upstream Producers
 
 The first upstream producer to explore is Tempe's Police Transparency

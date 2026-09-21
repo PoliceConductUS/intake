@@ -2,7 +2,11 @@ import { describe, it, expect } from "vitest";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { matchSourceIds } from "../../../src/cli/source-glob.js";
-import { loadSourceProduces } from "../../../src/cli/transform/load-source-module.js";
+import {
+  loadSourceProduces,
+  loadSourceStandalone,
+} from "../../../src/cli/transform/load-source-module.js";
+import { orderedSourceIds } from "../../../src/cli/data/source-pipeline.js";
 import {
   consumesOf,
   planSourceOrder,
@@ -14,16 +18,25 @@ const sourcesRoot = path.join(
 );
 
 describe("source run order over the real sources", () => {
+  it("excludes standalone manual curation from the full update order", async () => {
+    const order = await orderedSourceIds();
+    expect(order).not.toContain("org.policeconduct.manual");
+    expect(order).toContain("us-census-gazetteer");
+    expect(order).toContain("gov.tx.tcole");
+  });
+
   it("runs every source after the producers of what it consumes", async () => {
     const ids = await matchSourceIds(sourcesRoot, "*");
     const sources = await Promise.all(
       ids.map(async (id) => ({
         id,
         produces: await loadSourceProduces(id, sourcesRoot),
+        standalone: await loadSourceStandalone(id, sourcesRoot),
       })),
     );
 
-    const { order, skipped } = planSourceOrder(sources);
+    const automaticSources = sources.filter((source) => !source.standalone);
+    const { order, skipped } = planSourceOrder(automaticSources);
 
     // The order is computed, never fixed: asserting one exact sequence would pin
     // the sort's arbitrary tie-break between independent sources (e.g. two sinks
@@ -32,13 +45,15 @@ describe("source run order over the real sources", () => {
     // kind a source consumes appears before it. The FK graph is the independent
     // oracle; the sort's output is checked against it.
     const positionOf = new Map(order.map((id, index) => [id, index]));
-    const producing = sources.filter((source) => source.produces.length > 0);
+    const producing = automaticSources.filter(
+      (source) => source.produces.length > 0,
+    );
 
     // Every producing source is placed exactly once; produce-nothing sources are
     // skipped, not ordered.
     expect([...order].sort()).toEqual(producing.map((s) => s.id).sort());
     expect(skipped).toEqual(
-      sources
+      automaticSources
         .filter((source) => source.produces.length === 0)
         .map((source) => source.id)
         .sort((left, right) => left.localeCompare(right)),

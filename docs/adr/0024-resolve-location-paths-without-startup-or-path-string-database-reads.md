@@ -75,6 +75,12 @@ startup read and no path-string DB lookup**.
   point, never a city/place/ZIP centroid. See the
   [address-resolution scenarios](../../openspec/specs/artifacts-database-import/spec.md).
 
+  The manual source may create a missing community as a `LocationPath` with an
+  explicitly supplied parent and no geometry. Such a record is not an automatic
+  containment candidate. Creating it does not resolve any agency address; the
+  existing manual resolved-property exception applies when needed. See
+  [manual location creation](../manual-locations.md).
+
   Derived coordinate and location fingerprints include the resolution policy.
   Values cached under the former centroid or inferred-place policies must be
   resolved again. An existing database row cannot bypass that policy change;
