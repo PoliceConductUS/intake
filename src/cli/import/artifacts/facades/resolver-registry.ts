@@ -108,7 +108,7 @@ const REGISTRY: Record<string, KindConfig> = {
       contact_email: lowerCaseEmailResolverNullable<Row, EntityFacadeBackend>(
         "contact_email",
       ) as AnyResolver,
-      // One geocode sets location_path_id + latitude + longitude (ADR 0019).
+      // Share address geocoding; resolve place containment separately (ADR 0019).
       ...(latLngFromAddress({
         entityType: "agency",
         from: {

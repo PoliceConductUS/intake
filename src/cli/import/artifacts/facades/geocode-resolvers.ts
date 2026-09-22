@@ -6,6 +6,7 @@ import {
   type ResolverContext,
 } from "../resolver-kit.js";
 import type {
+  AddressResolution,
   LocationResolution,
   ResolveAddressInput,
 } from "../location-resolution.js";
@@ -14,6 +15,9 @@ type Row = Record<string, unknown>;
 
 /** The capability the geocode resolvers reach through (entity-independent). */
 export type LocationBackend = {
+  resolveAgencyCoordinates(
+    input: ResolveAddressInput,
+  ): Promise<AddressResolution>;
   resolveAgencyLocation(
     input: ResolveAddressInput,
   ): Promise<LocationResolution>;
@@ -116,24 +120,20 @@ function coordinateCacheInput(
 }
 
 /**
- * One geocode that sets `latitude`, `longitude`, and `location_path_id` (ADR
- * 0006/0015/0019), entity-independent. Source values and address-matched coordinate caches
- * precede live resolution. The geocode runs at most once per record — memoized
- * on the facade — so asking for a
- * second output never re-runs it. `location_path_id` rides along in the same
- * `LocationResolution` (it needs the address, not just the coordinates). A GeoJSON
- * point is layered on top with `composedResolver` over the resolved coordinates.
+ * One address geocode shared by latitude and longitude (ADR 0019).
+ * Place containment runs separately, using the resolved coordinates, only when
+ * location_path_id needs resolution. A manual place override therefore does not
+ * require a Census boundary in order to resolve the agency's address point.
  */
 export function latLngFromAddress(
   config: GeocodeConfig,
 ): Record<string, Resolver<unknown, ResolverContext<Row, LocationBackend>>> {
   const identity = config.identity ?? "id";
-  const shared = new WeakMap<object, Promise<LocationResolution>>();
+  const shared = new WeakMap<object, Promise<AddressResolution>>();
 
-  const resolveShared = (
+  const resolveCoordinates = (
     context: ResolverContext<Row, LocationBackend>,
-    point?: { latitude?: number; longitude?: number },
-  ): Promise<LocationResolution> => {
+  ): Promise<AddressResolution> => {
     const key = context.facade as object;
     const cached = shared.get(key);
     if (cached !== undefined) {
@@ -144,12 +144,9 @@ export function latLngFromAddress(
       const id = String(await facade.value(identity));
       // A previous database row may contain a locality centroid. Only source
       // coordinates or cached coordinates for this address can avoid geocoding.
-      const latitude =
-        point?.latitude ?? valueAsFiniteNumber(facade.raw(config.set.latitude));
-      const longitude =
-        point?.longitude ??
-        valueAsFiniteNumber(facade.raw(config.set.longitude));
-      return backend.resolveAgencyLocation({
+      const latitude = valueAsFiniteNumber(facade.raw(config.set.latitude));
+      const longitude = valueAsFiniteNumber(facade.raw(config.set.longitude));
+      return backend.resolveAgencyCoordinates({
         ...addressInput(facade, source, config),
         entityId: id,
         latitude,
@@ -161,7 +158,7 @@ export function latLngFromAddress(
   };
 
   const coordinateResolver = (
-    field: "addressLatitude" | "addressLongitude",
+    field: "latitude" | "longitude",
     column: string,
   ): Resolver<number, ResolverContext<Row, LocationBackend>> =>
     new Resolver(
@@ -171,7 +168,7 @@ export function latLngFromAddress(
         if (present !== undefined) {
           return present;
         }
-        return (await resolveShared(context))[field];
+        return (await resolveCoordinates(context))[field];
       },
       {},
       ({ facade, source }) => coordinateCacheInput(facade, source, config),
@@ -189,7 +186,9 @@ export function latLngFromAddress(
           return present;
         }
         return (
-          await resolveShared(context, {
+          await context.backend.resolveAgencyLocation({
+            ...addressInput(facade, context.source, config),
+            entityId: String(await facade.value(identity)),
             latitude: valueAsFiniteNumber(
               await facade.value(config.set.latitude),
             ),
@@ -211,12 +210,9 @@ export function latLngFromAddress(
     );
 
   return {
-    [config.set.latitude]: coordinateResolver(
-      "addressLatitude",
-      config.set.latitude,
-    ),
+    [config.set.latitude]: coordinateResolver("latitude", config.set.latitude),
     [config.set.longitude]: coordinateResolver(
-      "addressLongitude",
+      "longitude",
       config.set.longitude,
     ),
     [config.set.locationPathId]: locationPathResolver(),

@@ -27,6 +27,106 @@ const AGENCY_CONFIG = {
   },
 } as const;
 
+it.each([
+  ["Agency", true],
+  ["Agency", false],
+  ["Review", true],
+  ["Review", false],
+] as const)(
+  "%s resolves and caches Pollok coordinates independently of place containment (override: %s)",
+  async (kind, override) => {
+    let geocodes = 0;
+    let containmentReads = 0;
+    const writes: unknown[] = [];
+    class Client extends EmptyDatabaseClient {
+      async query(sql = "") {
+        if (sql.includes("ST_Covers")) containmentReads++;
+        return { rows: [] };
+      }
+    }
+    const context = new DataContext({
+      client: new Client(),
+      ledger: fakeSourceNameLedger({
+        agencies: { "5904": { canonicalId: "cm76wpxaz003fvrvg17anj5p7" } },
+        personnel: {},
+        agencyPersonnel: {},
+        locationPaths: {},
+      }),
+      resolvedPropertyStore: {
+        read: async (key) =>
+          override && key.targetProperty === "location_path_id"
+            ? "czrvjmpgqjzd89lpb01weszr"
+            : undefined,
+        write: async (entry) => {
+          writes.push(entry);
+        },
+      },
+      resolveAddress: (input) =>
+        resolveImportAddress(input, {
+          resolveAgencyCoordinates: async () => {
+            geocodes++;
+            return [
+              {
+                rowId: input.entityId,
+                latitude: 31.427974822829,
+                longitude: -94.810627657548,
+              },
+            ];
+          },
+        }),
+    });
+    const facade = context.facadeFromSource(kind, {
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "gov.tx.tcole",
+      name: "5904",
+    });
+    facade.merge({
+      ...(kind === "Review"
+        ? { id: "pollok-report", title: "Pollok report" }
+        : {}),
+      name: "CENTRAL INDEPENDENT SCHOOL DISTRICT",
+      address: "7622 US HWY 69 N",
+      city: "POLLOK",
+      state: "TX",
+      zip_code: "75969",
+    });
+    await expect(
+      Promise.all([facade.value("latitude"), facade.value("longitude")]),
+    ).resolves.toEqual([31.427974822829, -94.810627657548]);
+    expect(writes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          targetProperty: "latitude",
+          value: 31.427974822829,
+        }),
+        expect.objectContaining({
+          targetProperty: "longitude",
+          value: -94.810627657548,
+        }),
+      ]),
+    );
+    if (override) {
+      await expect(facade.value("location_path_id")).resolves.toBe(
+        "czrvjmpgqjzd89lpb01weszr",
+      );
+      expect(containmentReads).toBe(0);
+    } else {
+      const result = facade.value("location_path_id");
+      await expect(result).rejects.toThrow(
+        "no place location_path_geometry boundary contains point",
+      );
+      await expect(result).rejects.toThrow("properties=location_path_id");
+      await expect(result).rejects.toThrow(
+        `cache set gov.tx.tcole ${kind} 5904 location_path_id`,
+      );
+      await expect(result).rejects.not.toThrow("properties=latitude");
+      expect(containmentReads).toBe(1);
+    }
+    expect(geocodes).toBe(1);
+    expect(writes).toHaveLength(2);
+  },
+);
+
 it.each(["network", "http", "timeout", "body"])(
   "does not suggest a latitude cache correction for a Census %s failure",
   async (failure) => {
@@ -176,14 +276,15 @@ function fakeContext(
     },
     source: { namespace: "n", name: "r" },
     backend: {
-      resolveAgencyLocation: async () => {
+      resolveAgencyCoordinates: async () => {
         geocodeCalls += 1;
-        return {
-          locationPathId: "lp-1",
-          addressLatitude: 30.5,
-          addressLongitude: -97.7,
-        };
+        return { latitude: 30.5, longitude: -97.7 };
       },
+      resolveAgencyLocation: async () => ({
+        locationPathId: "lp-1",
+        addressLatitude: 30.5,
+        addressLongitude: -97.7,
+      }),
       existingRow: async () => existing,
     },
   } as never;
@@ -208,8 +309,7 @@ describe("latLngFromAddress", () => {
     expect(lat).toBe(30.5);
     expect(lng).toBe(-97.7);
     expect(path).toBe("lp-1");
-    // The whole point: three outputs, one geocode — a shared resolution memoized
-    // on the facade, so the second and third reads never re-run it.
+    // Coordinates share one geocode; the place resolves separately.
     expect(geocodeCalls()).toBe(1);
   });
 
@@ -275,13 +375,9 @@ it.each([
       {
         source: { namespace: "test", name: "agency-1" },
         backend: {
-          resolveAgencyLocation: async () => {
+          resolveAgencyCoordinates: async () => {
             geocodes++;
-            return {
-              addressLatitude: 31,
-              addressLongitude: -98,
-              locationPathId: "place-1",
-            };
+            return { latitude: 31, longitude: -98 };
           },
         } as never,
         cacheableProperties: ["latitude", "longitude"],

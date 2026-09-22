@@ -1,5 +1,7 @@
 ## Tasks
 
+- [x] Separate address-point resolution from place containment; reproduce Pollok for Agency and Review with uncached coordinates and an existing place override, verify containment failure attribution without an override, and run resolver tests (245 passed), typecheck, build, and OpenSpec validation.
+
 - [x] Make Census request failures readable and prevent misleading cache-correction advice; verify batch formatting and propagation through entity resolution (33 focused tests, typecheck, build, and OpenSpec validation passed).
 
 - [x] Reproduce unsupported name, alias, nearest-place, postal-rule, and existing-row/cache behavior with failing tests.

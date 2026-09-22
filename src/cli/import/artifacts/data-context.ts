@@ -146,6 +146,9 @@ type UnifiedFacadeBackend = EntityFacadeBackend & {
   resolveAgencyLocation(
     input: ResolveAddressInput,
   ): Promise<LocationResolution>;
+  resolveAgencyCoordinates(
+    input: ResolveAddressInput,
+  ): Promise<AddressResolution>;
 };
 
 export class DataContext {
@@ -280,6 +283,8 @@ export class DataContext {
       registerSlug: (input) =>
         this.slugs.register(input.kind, input.slug, input.canonicalId),
       resolveAgencyLocation: (input) => this.locations.resolveAddress(input),
+      resolveAgencyCoordinates: (input) =>
+        this.locations.resolveCoordinates(input),
     };
   }
 

@@ -93,6 +93,19 @@ function addressResolutionRequest(
 export class LocationDataContext {
   constructor(private readonly context: DataContext) {}
 
+  async resolveCoordinates(
+    input: ResolveAddressInput,
+  ): Promise<AddressResolution> {
+    const request = addressResolutionRequest(input);
+    const coordinates = await this.context.resolveAddress(request);
+    if (coordinates === undefined) {
+      throw new Error(
+        `Cannot resolve address for ${request.entityType} ${request.entityId}.`,
+      );
+    }
+    return coordinates;
+  }
+
   async resolveAddress(
     input: ResolveAddressInput,
   ): Promise<LocationResolution> {
@@ -105,12 +118,7 @@ export class LocationDataContext {
       return cached;
     }
 
-    const addressResolution = await this.context.resolveAddress(request);
-    if (addressResolution === undefined) {
-      throw new Error(
-        `Cannot resolve address for ${request.entityType} ${request.entityId}.`,
-      );
-    }
+    const addressResolution = await this.resolveCoordinates(request);
 
     const locationPathId =
       await this.context.locationPaths.getPlaceContainingPoint({

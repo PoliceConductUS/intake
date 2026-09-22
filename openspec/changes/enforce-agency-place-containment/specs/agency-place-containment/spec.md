@@ -105,6 +105,23 @@ details SHALL survive conversion to the import and reset command error text.
 
 ### Requirement: Cache-correctable failures expose command arguments
 
+Coordinate resolution SHALL complete and cache the address point independently
+of place containment. Only an uncached location-path resolution SHALL require
+place containment; an explicit location-path override SHALL remain usable when
+no Census place contains the address point. Both coordinates SHALL share one
+geocoding request, and place resolution SHALL use the resolved coordinates.
+
+#### Scenario: Pollok has a manual place override but uncached coordinates
+
+- **WHEN** the address geocoder returns an address point outside all Census place boundaries and the agency has a location_path_id override
+- **THEN** latitude and longitude resolve and are cached, the existing location override is returned, and no place containment lookup occurs
+
+#### Scenario: An address point resolves but has no containing place or override
+
+- **WHEN** geocoding succeeds but no place boundary contains the point and no location override exists
+- **THEN** the coordinates remain resolved and cached
+- **AND** only location_path_id fails, with location_path_id cache correction commands
+
 The shared entity property resolver SHALL attach cache get/set command templates
 to failed live resolution of any cache-backed property whose value is not
 supplied directly by the source. The templates SHALL include the source
