@@ -236,27 +236,84 @@ it.each([
   },
 );
 
-it("keys derived locations by the corrected policy and postal ZIP", async () => {
-  const resolver = latLngFromAddress(AGENCY_CONFIG).location_path_id;
-  const a = fakeContext({ city: "Saint Paul", state: "MN", zip_code: "55111" });
-  const b = fakeContext({ city: "Saint Paul", state: "MN", zip_code: "55101" });
-  const input = await resolver.cacheInput(a.context);
-  expect(input).toMatchObject({
-    policy: "place-containment-v3-no-postal-exceptions",
-    zipCode: "55111",
-  });
-  expect(input).not.toEqual(await resolver.cacheInput(b.context));
-});
+it.each([
+  [
+    "unchanged",
+    31.92152071267,
+    "TENNESSEE COLONY",
+    "75861-3332",
+    "cached-place",
+    0,
+  ],
+  [
+    "ZIP-only change",
+    31.92152071267,
+    "TENNESSEE COLONY",
+    "75861",
+    "cached-place",
+    0,
+  ],
+  ["changed point", 31.922, "TENNESSEE COLONY", "75861-3332", "new-place", 1],
+  ["changed city", 31.92152071267, "OTHER CITY", "75861-3332", "new-place", 1],
+] as const)(
+  "%s determines location cache reuse",
+  async (_, latitude, city, zip, expected, calls) => {
+    const entries = new Map<string, unknown>([
+      [
+        "12f45d609ecec22b94f5e5ff20493b53758b38e4be792035c87089c695ef2c4d",
+        "cached-place",
+      ],
+    ]);
+    let resolutions = 0;
+    const facade = new EntityFacade<Record<string, unknown>, never>(
+      "Agency",
+      [],
+      {
+        id: new Resolver(async () => "agency-1"),
+        ...latLngFromAddress(AGENCY_CONFIG),
+      },
+      {} as never,
+      {
+        source: { namespace: "test", name: "agency-1" },
+        backend: {
+          resolveAgencyLocation: async () => {
+            resolutions++;
+            return {
+              locationPathId: "new-place",
+              addressLatitude: latitude,
+              addressLongitude: -95.923838477526,
+            };
+          },
+        } as never,
+        cacheableProperties: ["location_path_id"],
+        cache: {
+          read: async (key) => entries.get(key.inputFingerprint!),
+          write: async (key, value) => {
+            entries.set(key.inputFingerprint!, value);
+          },
+        },
+      },
+    );
+    facade.merge({
+      latitude,
+      longitude: -95.923838477526,
+      city,
+      state: "TX",
+      zip_code: zip,
+    });
+    expect(await facade.value("location_path_id")).toBe(expected);
+    expect(resolutions).toBe(calls);
+    expect(entries.size).toBe(calls === 0 ? 1 : 2);
+  },
+);
 
 it.each([true, false])(
-  "revalidates an old cached and persisted place using cached coordinates (containing place: %s)",
+  "resolves a changed point using cached coordinates (containing place: %s)",
   async (hasPlace) => {
     const latitude = 33.76749429006,
       longitude = -96.10511487177;
     const oldFingerprint = typedInputFingerprint({
-      policy: "place-containment-v2-local-jurisdictions",
-      zipCode: "75447",
-      latitude,
+      latitude: latitude + 1,
       longitude,
       city: "ivanhoe",
       state: "tx",
@@ -302,8 +359,7 @@ it.each([true, false])(
         },
       },
       resolveAddress: async (input) => {
-        // Existing coordinates live only in the property cache. A policy change
-        // must use them rather than silently request another geocode.
+        // A changed point must reuse its cached coordinates without geocoding again.
         expect(input).toMatchObject({
           latitude,
           longitude,

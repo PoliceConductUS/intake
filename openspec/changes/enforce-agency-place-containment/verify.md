@@ -1,6 +1,6 @@
-> Current correction: coordinate cache reuse is keyed only by normalized address.
-> The coordinate policy invalidation described in the historical sections below
-> was removed at the user's direction. See “Address-only coordinate reuse” below.
+> Current correction: coordinate and location caches use data inputs only.
+> Both policy invalidation markers described in historical sections below have
+> been removed at the user's direction. See the cache invalidation audit below.
 
 # Place-containment fix and remaining data corrections
 
@@ -173,3 +173,28 @@ user's direction.
 Rollback validation: 71 focused tests passed, along with type checking, build,
 all 17 OpenSpec items, formatting of changed TypeScript files, and diff checks.
 Read-only CLI inspection confirmed both Google-coordinate overrides remain.
+
+## Cache invalidation audit and location-marker removal
+
+Audited cache input declarations, fingerprint construction, reads/writes, and
+version/policy/salt references in `src`, `sources`, and `scripts`.
+
+- Coordinate keys previously included `address-point-v1`; removed in 70b7430.
+- Location assignment keys included `place-containment-v3-no-postal-exceptions`
+  (previously earlier containment versions); removed in this change.
+- Removed the separate location ZIP input introduced for the now-removed postal
+  rules. The restored location key contains latitude, longitude, normalized city,
+  and normalized state, matching established automatic cache entries.
+- No other policy/version markers were found in resolved-property cache keys.
+  `ResolverPolicy` controls defaults/errors, not cache identity. The migration
+  fingerprint checks generated schema freshness, not cached data reuse.
+
+The unchanged-location and ZIP-only regressions failed before implementation.
+After removal, unchanged inputs reuse the cached assignment; changed point/city
+inputs resolve again, and missing containment still fails on a cache miss.
+All 76 focused tests passed, plus type checking, build, and 17 OpenSpec items.
+
+The agency 1903 location correction was applied through the cache CLI and read
+back: `cebydviefa4lpellq0sns63h`, `/tx/anderson-county/tennessee-colony/`.
+Its original Trinidad entry remains as historical automatic data; the explicit
+manual override takes precedence. No database reset or full generation was run.

@@ -15,3 +15,5 @@
 - [x] Remove the unauthorized coordinate policy marker; restore normalized-address-only reuse, verify address changes geocode again, and audit TCOLE marked entries for removal impact.
 
 - [x] Revert the extra rejected-coordinate diagnostics from 4906018 while retaining address-only coordinate reuse and the existing cache correction commands.
+
+- [x] Remove the remaining location policy marker and obsolete postal ZIP cache input; audit other cache fingerprint paths and verify unchanged-input reuse plus changed-point containment.

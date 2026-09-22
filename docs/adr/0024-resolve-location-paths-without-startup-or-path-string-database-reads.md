@@ -88,9 +88,11 @@ startup read and no path-string DB lookup**.
   unchanged addresses. Source values and explicit manual overrides retain their
   existing precedence.
 
-  Derived location fingerprints identify the containment policy. Previously
-  inferred location assignments must be resolved again on a location-cache miss,
-  using the address-matched cached coordinates without another geocode.
+  Location-assignment fingerprints contain only latitude, longitude, normalized
+  city, and normalized state. No code-policy marker or separate postal ZIP
+  invalidates them. Unchanged inputs reuse the cached assignment; changed inputs
+  resolve containment on a cache miss using the cached address coordinates.
+  Incorrect cached assignments require explicit data corrections.
 
 - **Nothing is written that was not resolved.** A required value
   (`location_path_id`, `latitude`, `longitude`) that neither the source, the

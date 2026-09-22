@@ -24,22 +24,29 @@ Multiple containing places within the preferred class SHALL fail.
 - **WHEN** no place contains a Saint Paul address point with Minnesota ZIP 55111
 - **THEN** resolution fails even if a Saint Paul place path exists
 
-### Requirement: Previously inferred assignments do not bypass the corrected policy
+### Requirement: Cached resolutions depend on input data, not code-policy versions
 
-The derived location cache fingerprint SHALL identify the containment policy
-and all resolution inputs. A cache entry from the policy that allowed postal
-exceptions, any other previous-policy cache entry, or an existing database
-assignment SHALL NOT substitute for resolution on a cache miss. Coordinate cache
-fingerprints SHALL contain only the normalized address inputs, without a policy
-or version marker. An unchanged address SHALL reuse its cached coordinates; a
-changed address SHALL resolve again on a cache miss. Source-provided values and explicit manual seeds
-retain their existing precedence under ADR 0019.
+Coordinate cache fingerprints SHALL contain only normalized address inputs.
+Location assignment fingerprints SHALL contain latitude, longitude, normalized
+city, and normalized state. Neither fingerprint SHALL contain a policy/version
+marker. ZIP SHALL NOT be a separate location-assignment input now that postal
+exceptions have been removed. Unchanged inputs SHALL reuse cached values;
+changed inputs SHALL resolve again on a cache miss. Source-provided values and
+explicit manual overrides retain their existing precedence under ADR 0019.
+Incorrect existing assignments require explicit data corrections, not bulk
+invalidation through code-policy markers.
 
-#### Scenario: Reprepare a previously snapped agency
+#### Scenario: Reuse an existing location assignment
 
-- **WHEN** an agency has a cached or persisted inferred place from the old policy
-- **THEN** preparation uses the corrected containment policy with the resolved coordinates
-- **AND** an unresolved place fails instead of retaining the old inferred assignment
+- **WHEN** the point, normalized city, and normalized state match a cached assignment
+- **THEN** preparation reuses the assignment without another containment query
+- **AND** code-policy changes or a ZIP-only change do not invalidate it
+
+#### Scenario: Resolve a changed point
+
+- **WHEN** the point changes and the resulting input has no cached assignment
+- **THEN** preparation resolves the containing place using the coordinates
+- **AND** a missing containing place fails instead of retaining the old assignment
 
 #### Scenario: Reuse coordinates for an unchanged address
 
