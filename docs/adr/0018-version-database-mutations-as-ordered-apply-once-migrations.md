@@ -118,12 +118,11 @@ Identity Map's durable half, ADR 0017) and the resolved-property cache can be
 **rebuilt by scanning/replaying the migration history**. Workspace state is a
 rebuildable materialized view, not primary data.
 
-**8. Out-of-band and manual resolutions become committed inputs.** Anything a human
-supplies that the automated resolvers cannot (e.g. hand-assigned coordinates for
-agencies whose only address is a PO box or is missing entirely) enters as a
-committed input and is baked into the create mutation. Once in a migration it is
-recoverable forever, with no network dependency — the live geocoder never has to
-reproduce it.
+**8. Manual resolved-property corrections use the CLI.** Values supplied by a
+human enter the workspace through `cache set`, with validation and command
+provenance. Generation includes the resolved value in the database mutation;
+applying that mutation does not require the geocoder. Source checkouts do not
+seed the resolved-property cache.
 
 ## Consequences
 

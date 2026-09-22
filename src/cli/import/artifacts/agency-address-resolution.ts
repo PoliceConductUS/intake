@@ -52,7 +52,7 @@ export async function resolveImportAddress(
     return { latitude: inputLatitude, longitude: inputLongitude };
   }
 
-  // Coordinates are cached and seeded by the facade's PropertyCache (ADR 0019);
+  // Coordinates are cached and manually corrected through the CLI by the facade's PropertyCache (ADR 0019);
   // this is the live geocode on a cache miss.
   const [coordinateResolution] = await options.resolveAgencyCoordinates([
     coordinateRequest(input),

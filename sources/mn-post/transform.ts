@@ -156,7 +156,7 @@ export const transform: SourceTransform = async ({ paths }) => {
       const csv = csvByName.get(agency.name);
       // address/city/zip are OMITTED (undefined) when the Q2 sheet lacks them —
       // never null. An omitted field is the temporarily-absent partial state,
-      // resolved at import from a property-cache seed and required non-empty by
+      // resolved at import from a CLI-managed cache value and required non-empty by
       // the AgencyCreate mutation; null would instead mean "set this column to
       // null", which a required location field must never be.
       const location: Record<string, string> = {

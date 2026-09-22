@@ -9,7 +9,7 @@ Ivanhoe in Tyler County.
 The coordinate resolver also substitutes city/place/ZIP centroids after a
 failed street geocode, contrary to the accepted address-coordinate specification.
 Remove that substitution and require one-time re-resolution of old derived
-coordinate caches; explicit source coordinates and manual seeds retain their
+coordinate caches; explicit source coordinates and manual cache corrections retain their
 existing precedence. No new source acquisition or bulk live geocoding is run.
 
 Remove those three unsupported resolution paths and their unused database

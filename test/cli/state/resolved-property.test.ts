@@ -7,7 +7,6 @@ import {
   readResolvedProperty,
   type ResolvedPropertyCacheInput,
   resolvedPropertyCacheName,
-  seedResolvedPropertyCache,
   typedInputFingerprint,
   writeResolvedProperty,
 } from "../../../src/cli/state/resolved-property/index.js";
@@ -269,67 +268,5 @@ describe("ResolvedProperty state", () => {
         inputFingerprint: stPaul,
       }),
     ).resolves.toBeUndefined();
-  });
-});
-
-describe("seedResolvedPropertyCache", () => {
-  const base = { subject, targetProperty: "latitude" } as const;
-
-  async function writeSeedFile(seedDir: string, value: number): Promise<void> {
-    await ResolvedProperty.write(
-      seedDir,
-      ResolvedProperty.new({
-        metadata: {
-          name: resolvedPropertyCacheName(base),
-          namespace: "intake",
-        },
-        spec: { ...base, entries: [{ value }] },
-      }),
-    );
-  }
-
-  test("copies an absent seed so it reads as a hit for the current input", async () => {
-    const rootDir = await createTempRoot();
-    const seedDir = await mkdtemp(path.join(tmpdir(), "intake-seed-"));
-    await writeSeedFile(seedDir, 29.7110641);
-
-    const result = await seedResolvedPropertyCache(seedDir, rootDir);
-
-    expect(result.seeded).toEqual([path.basename(cacheFilePath(rootDir))]);
-    expect(result.skipped).toEqual([]);
-    await expect(
-      readResolvedProperty({ rootDir, ...base, inputFingerprint: stPaul }),
-    ).resolves.toEqual(29.7110641);
-  });
-
-  test("leaves an existing cache entry untouched — whatever is on disk wins", async () => {
-    const rootDir = await createTempRoot();
-    const seedDir = await mkdtemp(path.join(tmpdir(), "intake-seed-"));
-    await writeResolvedProperty({
-      rootDir,
-      ...base,
-      inputFingerprint: stPaul,
-      value: 1.111,
-    });
-    await writeSeedFile(seedDir, 2.222);
-
-    const result = await seedResolvedPropertyCache(seedDir, rootDir);
-
-    expect(result.seeded).toEqual([]);
-    expect(result.skipped).toEqual([path.basename(cacheFilePath(rootDir))]);
-    await expect(
-      readResolvedProperty({ rootDir, ...base, inputFingerprint: stPaul }),
-    ).resolves.toEqual(1.111);
-  });
-
-  test("is a no-op when the seed directory does not exist", async () => {
-    const rootDir = await createTempRoot();
-
-    await expect(
-      seedResolvedPropertyCache(
-        path.join(rootDir, "no-such-seed-dir"),
-        rootDir,
-      ),
-    ).resolves.toEqual({ seeded: [], skipped: [] });
   });
 });

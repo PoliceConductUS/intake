@@ -5,8 +5,8 @@
 Accepted
 
 > Applies [ADR 0016](0016-resolve-entity-properties-with-composable-resolvers.md)
-> (composable resolvers), [ADR 0019](0019-cache-and-seed-resolved-properties-validate-at-the-mutation-boundary.md)
-> (no startup DB reads; cache-and-seed resolved properties), and [ADR 0023](0023-contexts-return-mapped-source-ids-never-canonical-ids.md)
+> (composable resolvers), [ADR 0019](0019-cache-resolved-properties-validate-at-the-mutation-boundary.md)
+> (no startup DB reads; cache resolved properties), and [ADR 0023](0023-contexts-return-mapped-source-ids-never-canonical-ids.md)
 > (references resolve through source ids) to location-path resolution, and
 > retires the transform-row / `getByPath` mechanism.
 
@@ -33,7 +33,7 @@ hitting the DB).
 
 ## Decision
 
-Location-path resolution follows the resolver + cache-and-seed model, with **no
+Location-path resolution follows the resolver + cache model, with **no
 startup read and no path-string DB lookup**.
 
 - **A `location_path_id` source key is the full location-path string** (`"mn"`
@@ -52,9 +52,8 @@ startup read and no path-string DB lookup**.
   On a miss the resolver runs (geocode + point-in-boundary) and writes the result
   to the cache — this is the ordinary resolver populating its own cache, not a
   startup read; its DB access is lazy and per-reference. The `ResolvedProperty`
-  cache is **never pre-seeded**: it fills as records resolve. A manual seed is the
-  exception — only to fix a data-quality error, or for a value a resolver
-  genuinely cannot produce for that source record.
+  cache fills as records resolve. Manual corrections use `cache set`; transforms
+  do not copy cache values from source checkouts.
 
   Census PLACE features have `resolution_class: primary`. Legal county
   subdivisions (including townships) use `county_subdivision`; consolidated
@@ -96,7 +95,7 @@ startup read and no path-string DB lookup**.
 
 - **Nothing is written that was not resolved.** A required value
   (`location_path_id`, `latitude`, `longitude`) that neither the source, the
-  cache/seed, nor a live resolve can supply fails loud at the mutation boundary
+  cache, nor a live resolve can supply fails loud at the mutation boundary
   (the create spec requires it) — never silently skipped.
 
 - **The transform-row path is deleted.** `transform.ts`, `ImportRows`, the
@@ -112,9 +111,9 @@ startup read and no path-string DB lookup**.
   tables not at all.
 - State-key references resolve exactly like every other cross-source reference
   (ADR 0023), through the ledger — no bespoke path-string lookup.
-- Re-imports are stable and offline once addresses are cached/seeded; a new or
+- Re-imports are stable and offline once addresses are cached; a new or
   changed address is the only thing that triggers a live geocode.
-- An unresolvable location fails the import loudly, prompting a manual seed,
+- An unresolvable location fails the import loudly, prompting a CLI cache correction,
   rather than dropping the record.
 - `getByPath` / `LocationPathDataContext` / `transform.ts` are gone; location
   resolution lives entirely in the facade resolvers and the ledger.
@@ -127,9 +126,8 @@ startup read and no path-string DB lookup**.
   snapshot + lazy read):** rejected — the field resolver owns a single lazy
   cached query by `path`; the multi-layer orchestrator and its transform-row and
   startup-snapshot inputs are the legacy being removed.
-- **Forbid live geocoding entirely (seed everything):** rejected — a first-seen
-  address should resolve live and cache; only a genuine failure is seeded by
-  hand.
+- **Forbid live geocoding entirely (manually supply everything):** rejected — a first-seen
+  address should resolve live and cache; manual corrections use `cache set`.
 
 ## Revisit Trigger
 

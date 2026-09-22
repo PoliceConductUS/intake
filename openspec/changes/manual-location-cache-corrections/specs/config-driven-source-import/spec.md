@@ -4,6 +4,14 @@
 
 The CLI SHALL provide `cache get` and `cache set` addressed by source namespace, entity kind, source ID, and property. It SHALL resolve canonical identity from the durable ledger without minting an ID. Set SHALL validate the value against the canonical property schema and reject non-resolved properties and identity fields. Manual overrides SHALL be read before automatically fingerprinted cache entries, retain prior entries and replacement history, and record source provenance through canonical ResolvedProperty IO.
 
+Manual cache corrections SHALL be made through `cache set`. Source transforms SHALL NOT populate the workspace cache from checked-in files. Clearing a cached property SHALL leave it absent until automatic resolution or an explicit CLI correction supplies it.
+
+#### Scenario: A cleared cache stays empty during transform
+
+- **WHEN** a source transform runs with an empty workspace cache
+- **THEN** files in the source checkout do not populate the resolved-property cache
+- **AND** generation resolves missing values normally or reports the required CLI correction
+
 #### Scenario: Inspect an existing cache
 
 - **WHEN** an operator runs `cache get` for an existing source identity
@@ -36,7 +44,7 @@ The CLI SHALL provide `cache get` and `cache set` addressed by source namespace,
 
 #### Scenario: Convert existing cache state
 
-- **WHEN** existing supported cache files and checked-in cache seeds are converted to the entries-only format
+- **WHEN** existing supported cache files are converted to the entries-only format
 - **THEN** values, source evidence, metadata, and known original timestamps are retained
 - **AND** unknown historical command IDs are not invented
 

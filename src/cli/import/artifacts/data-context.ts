@@ -212,9 +212,9 @@ export class DataContext {
 
   /**
    * Adapts the workspace `ResolvedProperty` store to the facade `PropertyCache`,
-   * keyed by `(kind, canonical id, property)`. The generic resolver cache and the
-   * committed seeds share this store, so a resolved property (or a seed) is a
-   * cache hit — no source- or property-specific code (ADR 0019).
+   * keyed by `(kind, canonical id, property)`. Automatic resolutions and CLI
+   * corrections share this store and cache lookup — no source- or
+   * property-specific code (ADR 0019).
    */
   private propertyCache(): PropertyCache | undefined {
     const cache = this.resolvedPropertyStore;

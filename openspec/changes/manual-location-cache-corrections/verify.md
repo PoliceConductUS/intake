@@ -30,8 +30,7 @@ its timestamp, and source identity. Replaced entries retain these fields. Origin
 command IDs were not recorded for older corrections and were not invented during
 conversion.
 
-Converted 148,249 supported workspace cache files plus all 10 checked-in TCOLE
-cache seeds using the previous canonical IO for reading and the new canonical IO
+Converted 148,249 supported workspace cache files using the previous canonical IO for reading and the new canonical IO
 for writing. This included 466 CivilCase files with colon-containing canonical
 IDs. Every new envelope was validated before application; each source-file digest
 was checked before writing and every output was read back and compared against
@@ -53,3 +52,18 @@ and all 17 OpenSpec items passed. The user's database was not reset or regenerat
 
 A final read through canonical IO validated all 158,311 current-format workspace
 cache files; exactly three active override entries retained known timestamps.
+
+## CLI-only manual cache corrections
+
+Removed the transform cache-population hook and its filesystem-copy adapter.
+Deleted all ten checked-in TCOLE coordinate cache files and their provenance
+document. Updated the operator guide, ADRs, source and generated-code comments,
+and OpenSpec to make `cache set` the canonical manual correction path.
+
+A regression first failed because a transform copied a checkout fixture into an
+empty workspace cache (latitude became 33.4). After removal, the same transform
+succeeds and the cache remains empty. Existing cache and CLI correction tests
+continue to pass: 92 focused tests across transform, canonical cache, CLI, facade,
+DataContext, MN source and reset sequencing. Type checking, build, and all 17
+OpenSpec items passed. No database reset, migration, or workspace-cache change
+was performed for this removal.

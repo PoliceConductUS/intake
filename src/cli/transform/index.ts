@@ -14,7 +14,6 @@ import { createTransformDataContext } from "./personnel-resolver.js";
 import type { ImportArtifactKind } from "../../shared/io/index.js";
 import { readXlsx } from "./read-xlsx.js";
 import { sourceStateDir } from "./state.js";
-import { seedResolvedPropertyCache } from "../state/resolved-property/index.js";
 import { excludeManifestRecords } from "./exclude-records.js";
 import { createEmitSink } from "./emit-sink.js";
 import type { EmitRefItem, EmitSink } from "./emit-sink.js";
@@ -31,10 +30,6 @@ type TransformSourceDeps = {
   makeWorkspace: (env: Record<string, string | undefined>) => Promise<string>;
   createEmitSink: (workspaceDir: string, namespace: string) => EmitSink;
   loadExcludedRecords: (sourceDir: string) => Promise<ExcludedRecords>;
-  seedResolvedPropertyCache: (
-    seedDir: string,
-    rootDir: string,
-  ) => Promise<{ seeded: string[]; skipped: string[] }>;
   writeEnvelope: (
     directory: string,
     sourceId: string,
@@ -145,18 +140,8 @@ export async function transformSource(
   try {
     const sourceDir = path.join(deps.sourcesRoot, sourceId);
     const excludedRecords = await deps.loadExcludedRecords(sourceDir);
-    // Seed the durable ResolvedProperty cache from the source's committed
-    // resolved-property-seed/ (manual resolutions the resolvers cannot derive)
-    // before the import reads it — copy-if-absent, so anything already resolved
-    // on disk wins (ADR 0018 point 8).
     const workspaceRoot =
       deps.env.INTAKE_WORKSPACE_TEST ?? deps.env.INTAKE_WORKSPACE;
-    if (workspaceRoot !== undefined) {
-      await deps.seedResolvedPropertyCache(
-        path.join(sourceDir, "resolved-property-seed"),
-        workspaceRoot,
-      );
-    }
     const workspace = await deps.makeWorkspace(deps.env);
     const sink = deps.createEmitSink(workspace, sourceId);
     const databaseUrl = deps.env.DATABASE_URL;
@@ -258,7 +243,6 @@ export async function buildTransformSourceDeps(
       ).outputDirectory,
     createEmitSink,
     loadExcludedRecords,
-    seedResolvedPropertyCache,
     writeEnvelope: async (directory, id, digest, manifest, refItems) =>
       Artifacts.write(
         directory,

@@ -1,4 +1,4 @@
-# ADR 0019: Cache and Seed Resolved Properties; Validate at the Mutation Boundary
+# ADR 0019: Cache Resolved Properties; Validate at the Mutation Boundary
 
 ## Status
 
@@ -21,7 +21,7 @@ Two needs were left handled by bespoke, coordinate-only code
 
 1. **Reuse + manual supply.** Geocoding is expensive and some values cannot be
    derived at all (a PO-box address the geocoder can't place; an agency whose
-   source has no address). We need to cache a resolved value and to **seed** a
+   source has no address). We need to cache a resolved value and to manually supply a
    value a resolver cannot produce.
 2. **A partial model that is still guaranteed complete before the database.**
    A source record legitimately omits resolver-filled fields, so the artifact is
@@ -59,18 +59,18 @@ in `createRequired`/`RESOLVED_PROPERTIES`. The precedence for a cached property:
 - With no source value and a cache **miss** (no entry for this input), the
   resolver runs live and the result is **written through** as a new entry —
   unless it is `null`/`undefined` (an absent result is never cached, so it cannot
-  masquerade as a hit and shadow a later seed).
+  masquerade as a hit and shadow a later CLI correction).
 
 This deletes the bespoke `agency-coordinate-cache`: coordinates are just one
 cached property among several.
 
-**2. Seeds are the same cache under version control.** A `ResolvedProperty`
-envelope committed under `sources/<id>/resolved-property-seed/` is copied into
-the cache at run time (`seedResolvedPropertyCache`, ADR 0018) and read as an
-ordinary cache hit. Seeding is how a value a resolver cannot derive is supplied:
-a missing address is **seeded**; an address that will not geocode gets its
-`latitude`/`longitude` **seeded**. No per-property or per-source code is
-involved — the cache is opaque to what it holds. Every value lives in `entries`.
+**2. The CLI is the canonical method for manual cache corrections.** Use
+`npm run cli -- cache set <namespace> <kind> <source-id> <property> <value>`
+(and `--force` to replace an existing value). It resolves the canonical identity,
+validates the property's value, and writes through canonical `ResolvedProperty`
+IO. Source checkouts do not supply cache files and transforms do not populate
+cache state. A cleared entry stays absent until a resolver or an explicit CLI
+correction supplies a value. Every value lives in `entries`.
 At most one entry may omit `inputFingerprint`; this is the active override and
 wins for every input without being rewritten on reads. An override remains until
 explicitly replaced. A forced `cache set` gives the previous override a unique
@@ -95,14 +95,14 @@ allowed to be **temporarily incomplete**:
 
 Concretely for Agency: `address`/`city`/`zip_code` are `nonEmptyString.optional()`
 in `AgencySpec` and `nonEmptyString` in `AgencyCreateSpec`; a `.cached()` required
-resolver fills each from source-or-seed and fails loud at `toMutation` when
+resolver fills each from source or cache and fails loud at `toMutation` when
 neither supplies it. `state` is the exception — always source-provided, so it
 stays required at read (a missing `state` is a source defect that should fail
-immediately, not something to seed).
+immediately, not something to correct through the cache).
 
 **4. Source-config emit contract: omit an absent field; emit `null` only to set
 a column null.** A source with no value for a field **omits it** (leaves it
-`undefined`) — that is the temporarily-absent partial state a resolver/seed then
+`undefined`) — that is the temporarily-absent partial state a resolver or CLI correction then
 fills. Emitting `null` is a deliberate instruction to set the column to `null`,
 so a resolver-filled/required field must **never** be emitted `null`. (This is
 why the artifact spec for these fields accepts _omitted_ but rejects `null`.)
@@ -129,7 +129,7 @@ permanent** for two kinds of property — do not add a `cacheInput` to them:
   #4 guarantees this). Fingerprinting a slug by its name would re-derive it on
   rename, the exact opposite of the requirement.
 - **Not derived at all (`address`/`city`/`state`/`zip_code`).** These are
-  source-provided (source > cache); the cache only ever **seeds** one the source
+  source-provided (source > cache); the cache only ever supplies one the source
   lacks. There is no derivation, so there is no input to fingerprint.
 
 Each entry also records **per-entry provenance** — the source record(s) that
@@ -156,7 +156,7 @@ following are prohibited; a reviewer must reject them:
   do not cache `id` or foreign keys.
 - **No override escape hatches.** There is no per-entity, per-source, or
   per-property bypass that skips the facade/resolver/cache path or overrides a
-  resolved value out-of-band. A source supplies inputs (or a seed supplies a
+  resolved value out-of-band. A source supplies inputs (or a CLI correction supplies a
   resolved value via the cache); it never patches the resolution mechanism.
 
 New entities compose from the same kit; a kind that "needs" one of the above is a
@@ -166,11 +166,11 @@ signal the kit is missing a capability, to be added generically — never bypass
 
 - One cache mechanism for every resolved property; `agency-coordinate-cache` and
   the coordinate-only `agency-field-resolution` path are removed.
-- Adding a new seedable, resolved field is uniform: add it to the entity's
+- Adding a new resolved field is uniform: add it to the entity's
   `createRequired` (generator), attach a `.cached()` resolver on the facade, and
-  — if it can be manually supplied — commit a `ResolvedProperty` seed.
+  — if it can be manually supplied — use `cache set`.
 - An agency with no source location is a valid partial artifact; it must be
-  seeded (address) or have its coordinates seeded (un-geocodable address) before
+  corrected through `cache set` (address or coordinates) before
   it can become a mutation, else the import fails loud. It is never silently
   dropped, and its officers are never lost to exclusion.
 - The guarantee is at `toMutation`, not at artifact read; there is intentionally
@@ -180,7 +180,7 @@ signal the kit is missing a capability, to be added generically — never bypass
 
 - **Make the columns `NOT NULL` / required in the base artifact spec** (the first
   attempt): rejected — it validates the raw record at read, _before_ resolvers or
-  seeds run, so a partial artifact is rejected before it can be completed. It
+  CLI corrections are applied, so a partial artifact is rejected before it can be completed. It
   conflates "the artifact is incomplete" with "the agency is invalid."
 - **Keep caching per entity (bespoke coordinate cache):** rejected — it does not
   generalize to address/slug/location-path and duplicates the cache plumbing.

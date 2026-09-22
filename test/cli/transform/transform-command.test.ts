@@ -1,3 +1,10 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { ResolvedProperty } from "../../../src/cli/state/resolved-property/ResolvedProperty.js";
+import {
+  readResolvedProperty,
+  resolvedPropertyCacheName,
+} from "../../../src/cli/state/resolved-property/index.js";
 import path from "node:path";
 import { describe, it, expect, vi } from "vitest";
 import { transformSource } from "../../../src/cli/transform/index.js";
@@ -40,7 +47,6 @@ function makeOkDeps() {
       flush: vi.fn(async () => testRefItems),
     })),
     loadExcludedRecords: vi.fn(async () => new Map()),
-    seedResolvedPropertyCache: vi.fn(async () => ({ seeded: [], skipped: [] })),
     writeEnvelope: vi.fn(async () => ({ path: "/ws/artifacts.yaml" })),
     makeWorkspace: vi.fn(async () => "/ws"),
     env: { INTAKE_WORKSPACE: "/ws" },
@@ -75,6 +81,48 @@ describe("transformSource", () => {
       path.join("/sources", "gov.azpost.roster"),
     );
     expect(result).toEqual({ artifactsPath: "/ws/artifacts.yaml" });
+  });
+
+  it("does not refill a cleared cache from files in the source checkout", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "intake-transform-cache-"));
+    try {
+      const sourcesRoot = path.join(root, "sources");
+      const workspaceRoot = path.join(root, "workspace");
+      const input = {
+        subject: {
+          apiVersion: "policeconduct.org/intake/v1alpha1" as const,
+          kind: "Agency",
+          name: "agency-id",
+        },
+        targetProperty: "latitude",
+      };
+      await ResolvedProperty.write(
+        path.join(sourcesRoot, "gov.azpost.roster", "resolved-property-seed"),
+        ResolvedProperty.new({
+          metadata: {
+            name: resolvedPropertyCacheName(input),
+            namespace: "intake",
+          },
+          spec: { ...input, entries: [{ value: 33.4 }] },
+        }),
+      );
+      const result = await transformSource(
+        "gov.azpost.roster",
+        ["file.xlsx"],
+        {},
+        {
+          ...makeOkDeps(),
+          sourcesRoot,
+          env: { INTAKE_WORKSPACE: workspaceRoot },
+        },
+      );
+      expect(result).toEqual({ artifactsPath: "/ws/artifacts.yaml" });
+      await expect(
+        readResolvedProperty({ rootDir: workspaceRoot, ...input }),
+      ).resolves.toBeUndefined();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it("fails cleanly when no paths are given", async () => {

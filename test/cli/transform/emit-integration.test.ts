@@ -70,7 +70,6 @@ describe("emit sink integration (via transformSource)", () => {
         makeWorkspace: async () => workspace,
         createEmitSink,
         loadExcludedRecords: async () => new Map(),
-        seedResolvedPropertyCache: async () => ({ seeded: [], skipped: [] }),
         writeEnvelope: async (directory, id, digest, manifest, refItems) =>
           Artifacts.write(
             directory,

@@ -110,12 +110,12 @@ const DESCRIPTORS: EntityDescriptor[] = [
     table: "agency",
     // `address`/`city`/`zip_code` join the resolved-during-import bucket: an
     // agency's street location can be supplied by the source OR resolved from the
-    // property cache (a committed seed) at import, so the artifact may omit them
+    // property cache (a CLI correction) at import, so the artifact may omit them
     // (the temporarily-absent partial model), but the *Create mutation requires
     // them — "a valid agency has a non-empty, geocodable location" is enforced at
     // mutation generation, not artifact read. `state` stays required at read: it
-    // is always source-provided (never seeded), so a missing state is a source
-    // defect that should fail loud immediately.
+    // is always source-provided (never supplied by the cache), so a missing state
+    // is a source defect that should fail loud immediately.
     createRequired: [
       "id",
       "slug",
@@ -765,7 +765,7 @@ export const BUSINESS_KEYS: Record<string, readonly string[]> = ${JSON.stringify
 // the source (\`createRequired\`): optional in the base spec, required in the
 // *Create mutation. The facade caches every one of these except \`id\` (which the
 // ledger mints) through the property cache — so a resolved field becomes
-// cache-backed and seedable automatically, with no per-resolver wiring.
+// cache-backed automatically, with no per-resolver wiring.
 export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = ${JSON.stringify(
     Object.fromEntries(
       DESCRIPTORS.map((descriptor) => [

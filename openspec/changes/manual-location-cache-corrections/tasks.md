@@ -6,4 +6,6 @@
 - [x] Verify cache behavior, manual records, reset, type checking, build, and OpenSpec; document commands and results.
 
 - [x] Replace override/overrideHistory and legacy value storage with entries-only IO; preserve one unfingerprinted override, archive replaced entries, and record the cache-set Command ID.
-- [x] Convert existing supported cache files and checked-in seeds, verify values/provenance and tests, and document results.
+- [x] Convert existing supported cache files, verify values/provenance and tests, and document results.
+
+- [x] Remove checked-in cache seeding, its files and documentation; verify transforms do not refill a cleared cache and CLI correction behavior remains intact.

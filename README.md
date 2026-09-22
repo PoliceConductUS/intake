@@ -101,6 +101,9 @@ npm run cli -- cache set <namespace> <kind> <source-id> <property> <value>
 npm run cli -- cache set <namespace> <kind> <source-id> <property> <value> --force
 ```
 
+Use `cache set` for manual cache corrections. Source checkouts do not seed the
+cache; cleared values are resolved again or supplied explicitly through the CLI.
+
 `set` refuses an existing value and displays the current cache unless `--force`
 is supplied. Explicit manual overrides take precedence over automatic cache
 entries. Previous values and source provenance remain inspectable with `get`.

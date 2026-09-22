@@ -12,7 +12,7 @@ accepted `artifacts-database-import` specification.
 At the user's direction, all three city-name rewrites and all five ZIP-to-place
 exceptions have been removed from executable code. The import reader now applies
 only explicit operator artifact mutations. Automatic address resolution requires
-place containment; manual cache overrides and exclusion/seed data are unchanged.
+place containment; manual cache overrides and exclusion data are unchanged.
 The location cache uses policy `place-containment-v3-no-postal-exceptions`, so
 old automatically derived assignments are rechecked without invalidating address
 coordinates. The ADR and current OpenSpec requirements no longer permit those
@@ -37,7 +37,7 @@ cache. No workspace records were changed and no rebuild ran.
 - Versioned coordinate and location cache inputs by the corrected policies.
   Removed reuse of inferred values from existing database rows on cache misses.
   Derived coordinates and locations from the old policies must resolve again;
-  current-policy caches, explicit source values, and manual seeds retain their
+  current-policy caches, explicit source values, and manual cache corrections retain their
   existing precedence. ZIP is included in the location cache input because the
   permitted postal rules depend on it.
 
@@ -164,8 +164,7 @@ none required a cache rewrite. No cache or database values were changed.
 
 ## Diagnostic rollback
 
-Reverted the extra cache-state reads and rejected-value diagnostic output from
-4906018. Retained address-only coordinate reuse and its regression tests, the
+Reverted the extra cache-state reads and rejected-value diagnostic output from 4906018. Retained address-only coordinate reuse and its regression tests, the
 plain geocoding failure sentence, and the pre-existing cache get/set command
 guidance. Agency 1202 retains the Google-coordinate manual overrides at the
 user's direction.

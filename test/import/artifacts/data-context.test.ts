@@ -237,7 +237,7 @@ describe("DataContext", () => {
   test("AgencyFacade fails loud at the toMutation boundary when a required address component has no source or cached value", async () => {
     // The model may hold a partial spec; completeness is enforced only at the
     // read/write/toMutation boundary. A new agency with no city/address/zip and
-    // no seed in the property cache cannot resolve its required columns, so
+    // no correction in the property cache cannot resolve its required columns, so
     // toMutation fails loud (resolve-or-fail, ADR 0006/0015).
     const context = agencyFacadeContext();
     const agency = context.facadeFromSource("Agency", {

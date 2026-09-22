@@ -165,7 +165,7 @@ export const BUSINESS_KEYS: Record<string, readonly string[]> = {
 // the source (`createRequired`): optional in the base spec, required in the
 // *Create mutation. The facade caches every one of these except `id` (which the
 // ledger mints) through the property cache — so a resolved field becomes
-// cache-backed and seedable automatically, with no per-resolver wiring.
+// cache-backed automatically, with no per-resolver wiring.
 export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = {
   LocationPath: [],
   LocationPathGeometry: [],

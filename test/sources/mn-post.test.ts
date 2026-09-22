@@ -247,7 +247,7 @@ describe("mn-post run", () => {
     });
     // Not in the CSV -> MN fallback; the resolved-location fields (city, address,
     // zip) are OMITTED, not null — a valid partial artifact whose location is
-    // resolved from a property-cache seed at import (required by the mutation).
+    // resolved from a CLI-managed cache value at import (required by the mutation).
     expect(agencies["a2jBETA"].spec).toEqual({
       name: "Beta County Sheriff",
       state: "MN",
