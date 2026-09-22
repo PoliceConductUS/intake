@@ -1,3 +1,6 @@
+/** A Census request failure is not evidence of an invalid property value. */
+export class CensusGeocoderRequestError extends Error {}
+
 /** A shared resolution can require several properties to be supplied together. */
 export class UnresolvedPropertiesError extends Error {
   constructor(

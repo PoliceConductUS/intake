@@ -1,4 +1,5 @@
 import { BatchLoader } from "./batch-loader.js";
+import { CensusGeocoderRequestError } from "./property-resolution-error.js";
 import { parse as parseCsv } from "csv-parse/sync";
 import type {
   AgencyCoordinateRequest,
@@ -108,8 +109,17 @@ async function requestCensus<T>(
     const reason = controller.signal.aborted
       ? `timed out after ${timeoutMs} ms; ${failureDetails(error)}`
       : failureDetails(error);
-    throw new Error(
-      `Census geocoder request failed: ${init?.method ?? "GET"} ${url}; agencies=${JSON.stringify(requests)}; ${reason}`,
+    throw new CensusGeocoderRequestError(
+      [
+        `Census geocoder request failed: ${reason}`,
+        `Request: ${init?.method ?? "GET"} ${url}`,
+        "This request failure does not identify an invalid agency address or cache value. Retry the command; do not change cached coordinates based on this error.",
+        `Affected agencies (${requests.length}):`,
+        ...requests.map(
+          (request) =>
+            `  - ${request.sourceName ?? request.rowId}: ${request.name}; ${request.address}, ${request.city}, ${request.state} ${request.zipCode}; canonical-id=${request.rowId}`,
+        ),
+      ].join("\n"),
       { cause: error },
     );
   } finally {

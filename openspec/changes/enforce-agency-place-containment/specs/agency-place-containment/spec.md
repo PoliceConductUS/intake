@@ -87,6 +87,14 @@ details SHALL survive conversion to the import and reset command error text.
 - **THEN** the error identifies the affected request and agencies rather than only reporting `fetch failed`
 - **AND** the same request context accompanies a failure while reading its response
 
+#### Scenario: A failed Census batch is not an invalid cache value
+
+- **WHEN** a Census request times out or fails at the network, HTTP, or response-reading stage
+- **THEN** the diagnostic leads with the failure reason, followed by the request method, URL, and affected agency count
+- **AND** affected agencies appear on separate readable lines with their source IDs, canonical IDs, names, and addresses
+- **AND** it explains that the request failure does not identify an invalid agency address or cache value and tells the operator to retry the command
+- **AND** no property-specific cache correction commands are appended to this request failure
+
 #### Scenario: An agency address has no usable coordinate result
 
 - **WHEN** an agency has no reusable coordinate pair and address geocoding returns no usable coordinates

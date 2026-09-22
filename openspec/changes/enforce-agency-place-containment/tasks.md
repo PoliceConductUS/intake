@@ -1,5 +1,7 @@
 ## Tasks
 
+- [x] Make Census request failures readable and prevent misleading cache-correction advice; verify batch formatting and propagation through entity resolution (33 focused tests, typecheck, build, and OpenSpec validation passed).
+
 - [x] Reproduce unsupported name, alias, nearest-place, postal-rule, and existing-row/cache behavior with failing tests.
 - [x] Remove unsupported fallbacks and retain failure diagnostics.
 - [x] Prevent reuse of old inferred location assignments while retaining resolved coordinates.

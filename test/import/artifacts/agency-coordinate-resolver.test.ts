@@ -193,6 +193,12 @@ describe("agency address coordinates", () => {
       "2 Main Street",
     ])
       await expect(result).rejects.toThrow(detail);
+    await expect(result).rejects.toThrow(
+      /^Census geocoder request failed: HTTP 503 Service Unavailable\n/,
+    );
+    await expect(result).rejects.toThrow("Affected agencies (2):\n");
+    await expect(result).rejects.toThrow("\n  - medina-isd");
+    await expect(result).rejects.toThrow("\n  - second-agency");
   });
 
   it("retains request context when reading the response body fails", async () => {

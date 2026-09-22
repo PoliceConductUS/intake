@@ -8,6 +8,7 @@ import { INTAKE_API_VERSION } from "../../../src/shared/io/import-types.js";
 import { fakeSourceNameLedger } from "../../cli/state/fake-source-name-ledger.js";
 import { EmptyDatabaseClient } from "../../cli/database/empty-database-client.js";
 import { resolveImportAddress } from "../../../src/cli/import/artifacts/agency-address-resolution.js";
+import { createCensusAgencyCoordinateResolver } from "../../../src/cli/import/artifacts/agency-coordinate-resolver.js";
 
 const AGENCY_CONFIG = {
   entityType: "agency",
@@ -25,6 +26,67 @@ const AGENCY_CONFIG = {
     locationPathId: "location_path_id",
   },
 } as const;
+
+it.each(["network", "http", "timeout", "body"])(
+  "does not suggest a latitude cache correction for a Census %s failure",
+  async (failure) => {
+    const resolveAgencyCoordinates = createCensusAgencyCoordinateResolver(
+      async (_url, init) => {
+        if (failure === "http") return new Response("", { status: 503 });
+        if (failure === "timeout")
+          return new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener(
+              "abort",
+              () => reject(new DOMException("Aborted", "AbortError")),
+              { once: true },
+            );
+          });
+        if (failure === "body")
+          return new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.error(new Error("connection terminated"));
+              },
+            }),
+          );
+        throw new TypeError("fetch failed");
+      },
+      { requestTimeoutMs: 5 },
+    );
+    const context = new DataContext({
+      client: new EmptyDatabaseClient(),
+      ledger: fakeSourceNameLedger({
+        agencies: { "5904": { canonicalId: "central-isd" } },
+        personnel: {},
+        agencyPersonnel: {},
+        locationPaths: {},
+      }),
+      resolvedPropertyStore: {
+        read: async () => undefined,
+        write: async () => {},
+      },
+      resolveAddress: (input) =>
+        resolveImportAddress(input, { resolveAgencyCoordinates }),
+    });
+    const facade = context.facadeFromSource("Agency", {
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "gov.tx.tcole",
+      name: "5904",
+    });
+    facade.merge({
+      name: "CENTRAL INDEPENDENT SCHOOL DISTRICT",
+      address: "7622 US HWY 69 N",
+      city: "POLLOK",
+      state: "TX",
+      zip_code: "75969",
+    });
+    const result = facade.value("latitude");
+    await expect(result).rejects.toThrow("Census geocoder request failed:");
+    await expect(result).rejects.not.toThrow("Cache correction:");
+    await expect(result).rejects.not.toThrow("cache set");
+    await expect(result).rejects.toThrow("Retry the command");
+  },
+);
 
 it("reports source identity and usable cache correction instructions when a changed PO-box address cannot resolve", async () => {
   const raw = {

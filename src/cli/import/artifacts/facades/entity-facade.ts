@@ -14,6 +14,7 @@ import { typedInputFingerprint } from "../../../state/resolved-property/index.js
 import { valuesEqual } from "../../../../shared/values-equal.js";
 import {
   CacheCorrectionError,
+  CensusGeocoderRequestError,
   UnresolvedPropertiesError,
 } from "../property-resolution-error.js";
 
@@ -271,6 +272,7 @@ export class EntityFacade<
     } catch (error) {
       if (
         error instanceof CacheCorrectionError ||
+        error instanceof CensusGeocoderRequestError ||
         this.hasSourceValue(property) ||
         !this.cacheableProperties.has(String(property))
       )
