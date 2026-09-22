@@ -90,6 +90,12 @@ it("reports source identity and usable cache correction instructions when a chan
     "npm run cli -- cache set gov.tx.tcole Agency 1101 longitude",
   ])
     await expect(result).rejects.toThrow(detail);
+  const error = await result.catch((error: Error) => error);
+  expect(error).toBeInstanceOf(Error);
+  expect((error as Error).message).toContain(
+    "Google Maps — name: https://www.google.com/maps/search/?api=1&query=ANDERSON%20CO.%20CONST.%20PCT.%201\n" +
+      "Google Maps — address: https://www.google.com/maps/search/?api=1&query=P.O.%20Box%20952%2C%20Elkhart%2C%20TX%2075839",
+  );
   expect(writes).toEqual([]);
 });
 

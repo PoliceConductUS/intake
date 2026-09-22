@@ -48,6 +48,12 @@ Manual cache corrections SHALL be made through `cache set`. Source transforms SH
 - **THEN** values, source evidence, metadata, and known original timestamps are retained
 - **AND** unknown historical command IDs are not invented
 
+#### Scenario: Coordinate failure offers map searches
+
+- **WHEN** address geocoding returns no usable coordinates
+- **THEN** the diagnostic includes a Google Maps search link for the entity name, followed by a Google Maps search link for its full address
+- **AND** each search query is URL-encoded and the existing cache correction instructions remain available
+
 #### Scenario: Invalid identity or value
 
 - **WHEN** a source identity is unmapped, or the kind, property, or value is invalid

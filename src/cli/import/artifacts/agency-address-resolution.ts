@@ -63,7 +63,7 @@ export async function resolveImportAddress(
     !Number.isFinite(coordinateResolution.longitude)
   ) {
     throw new UnresolvedPropertiesError(
-      `Cannot resolve coordinates for ${input.entityType} ${input.entityId}; source-id=${JSON.stringify(input.sourceName)}; name=${JSON.stringify(input.name)}; address=${locationDescription(input)}.\nAddress geocoding returned no usable coordinates. Supply verified latitude and longitude for the physical location. Setting location_path_id alone does not supply coordinates.`,
+      `Cannot resolve coordinates for ${input.entityType} ${input.entityId}; source-id=${JSON.stringify(input.sourceName)}; name=${JSON.stringify(input.name)}; address=${locationDescription(input)}.\nAddress geocoding returned no usable coordinates. Supply verified latitude and longitude for the physical location. Setting location_path_id alone does not supply coordinates.\nGoogle Maps — name: https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(input.name ?? "")}\nGoogle Maps — address: https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationDescription(input))}`,
       ["latitude", "longitude"],
     );
   }
