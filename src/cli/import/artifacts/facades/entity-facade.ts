@@ -282,12 +282,43 @@ export class EntityFacade<
             )
           : [String(property)];
       if (properties.length === 0) throw error;
+      const canonicalId = String(await this.value(this.identity));
+      const cacheDiagnostics: string[] = [];
+      if (
+        error instanceof UnresolvedPropertiesError &&
+        this.cache !== undefined
+      ) {
+        for (const name of properties) {
+          const target = name as keyof Row;
+          if (this.hasSourceValue(target)) continue;
+          const input = await this.resolvers[target]?.cacheInput(context);
+          const key = { kind: this.kind, id: canonicalId, property: name };
+          const reusable = await this.cache.read({
+            ...key,
+            inputFingerprint:
+              input === undefined ? undefined : typedInputFingerprint(input),
+          });
+          if (reusable !== undefined) {
+            cacheDiagnostics.push(
+              `${name}: cached value ${JSON.stringify(reusable)} is reusable.`,
+            );
+            continue;
+          }
+          const stored = await this.cache.read(key);
+          cacheDiagnostics.push(
+            stored === undefined
+              ? `${name}: no cached value exists.`
+              : `${name}: cached value ${JSON.stringify(stored)} was not reused because the address or resolution policy changed (input fingerprint mismatch). cache get shows stored entries even when generation cannot reuse them. Use cache set --force to explicitly accept this value only after verifying the physical location, or supply corrected coordinates.`,
+          );
+        }
+      }
       throw new CacheCorrectionError(error, {
         namespace: this.source.namespace,
         kind: this.kind,
         sourceId: this.source.name,
-        canonicalId: String(await this.value(this.identity)),
+        canonicalId,
         properties,
+        cacheDiagnostics,
       });
     }
   }

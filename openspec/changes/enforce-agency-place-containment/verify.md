@@ -138,3 +138,19 @@ data-context, cache CLI, and reset suites. Tests cover the old-fingerprint PO-bo
 case, multiple entity kinds and properties, dependency attribution, source
 precedence, and shell metacharacters in source IDs. Type checking, build, and
 all 17 OpenSpec items passed. No cache values were changed and no rebuild ran.
+
+## Rejected coordinate cache diagnostics
+
+A failed address geocode now reports each required coordinate's cache state: no
+stored value, reusable value, or a stored value rejected by the current input
+fingerprint. Rejected values are displayed with the address/policy mismatch
+explanation and explicit manual acceptance instructions. `cache get` remains an
+inspection of stored entries, independent of generation's reuse decision.
+
+This changes diagnostics only. It does not change fingerprint matching, accept
+old values, alter cache state, or rebuild the database.
+
+The missing/rejected diagnostic regressions failed before implementation. All
+71 tests passed across geocode-resolvers, cache-correction-errors, data-context,
+and CLI cache tests, including a reusable longitude alongside missing latitude.
+Type checking, build, and all 17 OpenSpec items passed.

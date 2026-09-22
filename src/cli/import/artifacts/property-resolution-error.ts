@@ -24,6 +24,7 @@ export class CacheCorrectionError extends Error {
       sourceId: string;
       canonicalId: string;
       properties: readonly string[];
+      cacheDiagnostics?: readonly string[];
     },
   ) {
     const identity = [input.namespace, input.kind, input.sourceId]
@@ -37,6 +38,7 @@ export class CacheCorrectionError extends Error {
       [
         cause instanceof Error ? cause.message : String(cause),
         `Cache correction: namespace=${JSON.stringify(input.namespace)} kind=${input.kind} source-id=${JSON.stringify(input.sourceId)} canonical-id=${input.canonicalId}; properties=${input.properties.join(", ")}.`,
+        ...(input.cacheDiagnostics ?? []),
         "Inspect the current cache and replace each value placeholder with a verified value:",
         ...commands,
         "If set reports an existing value, review it and add --force to replace it.",
