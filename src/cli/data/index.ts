@@ -1,4 +1,8 @@
 import type { Command } from "commander";
+import path from "node:path";
+import { appendExcludedRecord } from "../../shared/io/excluded-records.js";
+import { importTypeMetadata } from "../../shared/io/import-type-metadata.js";
+import { loadSourceProduces } from "../transform/load-source-module.js";
 import type {
   CliCommandDependencies,
   CommandResult,
@@ -58,6 +62,54 @@ export function registerCliCommand(
   // acquire → transform → generate → up: the phases, in order. acquire lives in its
   // own module; the rest are below.
   registerAcquireCommand(group, dependencies);
+
+  group
+    .command("exclude")
+    .description(
+      "Exclude a source record and its dependents on the next transform.",
+    )
+    .argument("<source>", "source id under sources/")
+    .argument("<kind>", "singular record kind, such as Agency")
+    .argument("<source-id>", "source-local record identity")
+    .requiredOption(
+      "--reason <reason>",
+      "why this record should not be imported",
+    )
+    .action(
+      async (
+        source: string,
+        kind: string,
+        sourceId: string,
+        options: { reason: string },
+      ) => {
+        try {
+          const sourcesRoot = path.join(process.cwd(), "sources");
+          const produces = await loadSourceProduces(source, sourcesRoot);
+          if (
+            !produces.some(
+              (artifact) => importTypeMetadata[artifact].recordKind === kind,
+            )
+          )
+            throw new Error(
+              `Source ${source} does not produce record kind ${kind}. Use the singular record kind, such as Agency.`,
+            );
+          const file = await appendExcludedRecord(
+            path.join(sourcesRoot, source),
+            {
+              kind,
+              key: sourceId,
+              reason: options.reason,
+            },
+          );
+          dependencies.setResult({
+            exitCode: 0,
+            stdout: `Excluded ${source}/${kind}/${sourceId}: ${options.reason}\nSaved to ${file}\nRegenerate artifacts to apply this exclusion and its dependent-record cascade:\nnpm run cli -- data transform ${source}\nnpm run cli -- data generate ${source}\n`,
+          });
+        } catch (error) {
+          dependencies.setResult(errorResult(error));
+        }
+      },
+    );
 
   group
     .command("reset")

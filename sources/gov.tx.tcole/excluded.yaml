@@ -21,4 +21,10 @@ excluded:
   - kind: Agency
     key: "515014"
     name: "STATE OF INDIANA"
-    reason: "out-of-jurisdiction placeholder (a US state, not a TX agency) with no address, city, or zip in the source — not geocodable and no location data available"
+    reason: "out-of-jurisdiction placeholder (a US state, not a TX agency) with no
+      address, city, or zip in the source — not geocodable and no location data
+      available"
+  - kind: Agency
+    key: "515001"
+    reason: STATE OF ALABAMA is an out-of-jurisdiction administrative placeholder,
+      not a Texas agency; source address is NULL, ABBOTT, TX 00000-0000.

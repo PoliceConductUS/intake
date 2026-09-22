@@ -1,6 +1,6 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { parse } from "yaml";
+import { isMap, isSeq, parse, parseDocument } from "yaml";
 
 /**
  * One entry from a source's `excluded.yaml`: a record the import is allowed
@@ -110,4 +110,39 @@ export async function loadExcludedRecords(
   });
 
   return records;
+}
+
+/** Appends an explicit exclusion without replacing existing curation. */
+export async function appendExcludedRecord(
+  sourceDir: string,
+  record: ExcludedRecord,
+): Promise<string> {
+  for (const field of ["kind", "key", "reason"] as const) {
+    if (record[field].trim() === "")
+      throw new Error(`Exclusion ${field} must not be blank.`);
+  }
+  const existing = (await loadExcludedRecords(sourceDir)).get(
+    excludedRecordKey(record.kind, record.key),
+  );
+  if (existing !== undefined)
+    throw new Error(
+      `Already excluded ${record.kind} ${record.key}: ${existing.reason}`,
+    );
+  const filePath = path.join(sourceDir, "excluded.yaml");
+  const contents = await readFile(filePath, "utf8").catch(
+    (error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return "";
+      throw error;
+    },
+  );
+  const document = parseDocument(contents);
+  if (document.errors.length > 0) throw document.errors[0];
+  if (document.contents !== null && !isMap(document.contents))
+    throw new Error(`${filePath}: expected an exclusion mapping.`);
+  if (!document.has("excluded")) document.set("excluded", []);
+  if (!isSeq(document.get("excluded")))
+    throw new Error(`${filePath}: excluded must be a list.`);
+  document.addIn(["excluded"], record);
+  await writeFile(filePath, document.toString(), "utf8");
+  return filePath;
 }

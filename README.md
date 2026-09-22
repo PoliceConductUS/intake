@@ -111,6 +111,21 @@ Use a canonical location ID for `location_path_id`; numeric values such as
 latitude are parsed as numbers. Cache changes affect subsequent generation, not
 already-applied database rows.
 
+Exclude an invalid source record with a documented reason:
+
+```bash
+npm run cli -- data exclude <source> <kind> <source-id> --reason "Reason for exclusion"
+npm run cli -- data transform <source>
+npm run cli -- data generate <source>
+```
+
+This appends to `sources/<source>/excluded.yaml`. Use the singular record kind
+(for example, `Agency`) and the source's own ID. Existing exclusions cannot be
+overwritten by this command. The next transform removes the excluded record and
+records that reference it, such as agency assignments, while retaining independent
+personnel. Acquired inputs and previous artifacts remain unchanged. Exclusions
+do not delete records already in the database.
+
 Core invariants:
 
 - Intake is idempotent.
