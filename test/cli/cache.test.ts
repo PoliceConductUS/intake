@@ -77,6 +77,9 @@ test("requires force, shows existing values, and retains prior resolved entries 
   expect(rejected.exitCode).toBe(1);
   expect(rejected.stderr).toContain("wrong-place-id");
   expect(rejected.stderr).toContain("--force");
+  expect(rejected.stderr).toContain(
+    'Current cache:\n{\n  "subject": {\n    "apiVersion":',
+  );
   expect(await readResolvedProperty(key)).toBe("wrong-place-id");
   expect(
     (await runIntake([...args("set"), "right-place-id", "--force"])).exitCode,

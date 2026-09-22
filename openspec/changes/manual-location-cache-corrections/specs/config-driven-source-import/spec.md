@@ -20,7 +20,7 @@ Manual cache corrections SHALL be made through `cache set`. Source transforms SH
 #### Scenario: Refuse an unforced overwrite
 
 - **WHEN** an operator runs `cache set` and any cached value already exists
-- **THEN** the command returns a nonzero status, displays existing values, and leaves the cache unchanged
+- **THEN** the command returns a nonzero status, displays existing values as JSON on a new line with two-space indentation, and leaves the cache unchanged
 
 #### Scenario: Force a manual correction
 

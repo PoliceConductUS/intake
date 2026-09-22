@@ -262,7 +262,7 @@ export async function setManualResolvedProperty(
   const existing = await inspectResolvedProperty(input);
   if (existing !== undefined && !input.force) {
     throw new Error(
-      `Cache already has a value. Use --force to overwrite. Current cache: ${JSON.stringify(existing.spec)}`,
+      `Cache already has a value. Use --force to overwrite. Current cache:\n${JSON.stringify(existing.spec, null, 2)}`,
     );
   }
   const entries = [...(existing?.spec.entries ?? [])];
