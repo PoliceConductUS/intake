@@ -143,22 +143,6 @@ case, multiple entity kinds and properties, dependency attribution, source
 precedence, and shell metacharacters in source IDs. Type checking, build, and
 all 17 OpenSpec items passed. No cache values were changed and no rebuild ran.
 
-## Rejected coordinate cache diagnostics
-
-A failed address geocode now reports each required coordinate's cache state: no
-stored value, reusable value, or a stored value rejected by the current input
-fingerprint. Rejected values are displayed with the address/policy mismatch
-explanation and explicit manual acceptance instructions. `cache get` remains an
-inspection of stored entries, independent of generation's reuse decision.
-
-This changes diagnostics only. It does not change fingerprint matching, accept
-old values, alter cache state, or rebuild the database.
-
-The missing/rejected diagnostic regressions failed before implementation. All
-71 tests passed across geocode-resolvers, cache-correction-errors, data-context,
-and CLI cache tests, including a reusable longitude alongside missing latitude.
-Type checking, build, and all 17 OpenSpec items passed.
-
 ## Address-only coordinate reuse
 
 Removed `address-point-v1` from latitude/longitude cache inputs. Normalized
@@ -177,3 +161,15 @@ A read-only audit used canonical Artifacts and ResolvedProperty IO and the lates
 TCOLE source addresses. Across 8,534 coordinate cache files, two entries matched
 the removed marker for those addresses. Both had identical address-only entries;
 none required a cache rewrite. No cache or database values were changed.
+
+## Diagnostic rollback
+
+Reverted the extra cache-state reads and rejected-value diagnostic output from
+4906018. Retained address-only coordinate reuse and its regression tests, the
+plain geocoding failure sentence, and the pre-existing cache get/set command
+guidance. Agency 1202 retains the Google-coordinate manual overrides at the
+user's direction.
+
+Rollback validation: 71 focused tests passed, along with type checking, build,
+all 17 OpenSpec items, formatting of changed TypeScript files, and diff checks.
+Read-only CLI inspection confirmed both Google-coordinate overrides remain.

@@ -86,8 +86,6 @@ details SHALL survive conversion to the import and reset command error text.
 - **THEN** the error includes its canonical ID, source namespace and source ID, agency name, and full address
 - **AND** it identifies latitude and longitude as the properties requiring verified physical-location coordinates, with concrete cache get/set command templates and overwrite instructions
 - **AND** it explains that a location_path_id correction alone cannot resolve missing agency coordinates
-- **AND** for each required coordinate it distinguishes a missing cache value, a reusable value, and a stored value rejected because its input fingerprint differs from the current normalized address
-- **AND** rejected values are shown with an explanation that `cache get` displays stored entries even when generation cannot reuse them, and that `cache set --force` explicitly accepts verified coordinates
 - **AND** no existing cached coordinates are automatically accepted for a different address
 
 ### Requirement: Cache-correctable failures expose command arguments

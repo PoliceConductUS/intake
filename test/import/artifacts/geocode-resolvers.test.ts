@@ -26,102 +26,72 @@ const AGENCY_CONFIG = {
   },
 } as const;
 
-it.each(["stale", "absent", "partial"])(
-  "reports the coordinate cache state after failed PO-box resolution (%s)",
-  async (stored) => {
-    const raw = {
-      name: "ANDERSON CO. CONST. PCT. 1",
-      address: "P.O. Box 952",
-      city: "Elkhart",
-      state: "TX",
-      zip_code: "75839",
-    };
-    const oldFingerprint = typedInputFingerprint({
-      state: "tx",
-      city: "elkhart",
-      zipCode: "75839",
-      address: "p.o. box 951",
-      administrativeAreaName: undefined,
-      administrativeAreaSlug: undefined,
-    });
-    const writes: unknown[] = [];
-    const context = new DataContext({
-      client: new EmptyDatabaseClient(),
-      ledger: fakeSourceNameLedger({
-        agencies: { "1101": { canonicalId: "cm76wpxay0008vrvgb79ptov8" } },
-        personnel: {},
-        agencyPersonnel: {},
-        locationPaths: {},
-      }),
-      resolvedPropertyStore: {
-        read: async (key) =>
-          stored === "partial" && key.targetProperty === "longitude"
-            ? -95.5789576
-            : stored === "stale" &&
-                (key.inputFingerprint === undefined ||
-                  key.inputFingerprint === oldFingerprint)
-              ? key.targetProperty === "latitude"
-                ? 31.6279683
-                : -95.5789576
-              : undefined,
-        write: async (value) => {
-          writes.push(value);
-        },
+it("reports source identity and usable cache correction instructions when a changed PO-box address cannot resolve", async () => {
+  const raw = {
+    name: "ANDERSON CO. CONST. PCT. 1",
+    address: "P.O. Box 952",
+    city: "Elkhart",
+    state: "TX",
+    zip_code: "75839",
+  };
+  const oldFingerprint = typedInputFingerprint({
+    state: "tx",
+    city: "elkhart",
+    zipCode: "75839",
+    address: "p.o. box 951",
+    administrativeAreaName: undefined,
+    administrativeAreaSlug: undefined,
+  });
+  const writes: unknown[] = [];
+  const context = new DataContext({
+    client: new EmptyDatabaseClient(),
+    ledger: fakeSourceNameLedger({
+      agencies: { "1101": { canonicalId: "cm76wpxay0008vrvgb79ptov8" } },
+      personnel: {},
+      agencyPersonnel: {},
+      locationPaths: {},
+    }),
+    resolvedPropertyStore: {
+      read: async (key) =>
+        key.inputFingerprint === oldFingerprint
+          ? key.targetProperty === "latitude"
+            ? 31.6279683
+            : -95.5789576
+          : undefined,
+      write: async (value) => {
+        writes.push(value);
       },
-      resolveAddress: (input) =>
-        resolveImportAddress(input, {
-          resolveAgencyCoordinates: async () => [],
-        }),
-    });
-    const facade = context.facadeFromSource("Agency", {
-      apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
-      name: "1101",
-    });
-    facade.merge(raw);
-    const result = facade.value("latitude");
-    for (const detail of [
-      "cm76wpxay0008vrvgb79ptov8",
-      "gov.tx.tcole",
-      "1101",
-      raw.name,
-      raw.address,
-      "Elkhart",
-      "TX",
-      "75839",
-      "physical",
-      "location_path_id",
-      "--force",
-      "npm run cli -- cache get gov.tx.tcole Agency 1101 latitude",
-      "npm run cli -- cache get gov.tx.tcole Agency 1101 longitude",
-      "npm run cli -- cache set gov.tx.tcole Agency 1101 latitude",
-      "npm run cli -- cache set gov.tx.tcole Agency 1101 longitude",
-    ])
-      await expect(result).rejects.toThrow(detail);
-    if (stored === "stale") {
-      await expect(result).rejects.toThrow(
-        "latitude: cached value 31.6279683 was not reused",
-      );
-      await expect(result).rejects.toThrow(
-        "longitude: cached value -95.5789576 was not reused",
-      );
-      await expect(result).rejects.toThrow(
-        "normalized address differs from the cached input (input fingerprint mismatch)",
-      );
-      await expect(result).rejects.toThrow("cache get shows stored entries");
-      await expect(result).rejects.toThrow("cache set --force");
-    } else {
-      await expect(result).rejects.toThrow("latitude: no cached value exists");
-      await expect(result).rejects.toThrow(
-        stored === "partial"
-          ? "longitude: cached value -95.5789576 is reusable"
-          : "longitude: no cached value exists",
-      );
-      await expect(result).rejects.not.toThrow("input fingerprint mismatch");
-    }
-    expect(writes).toEqual([]);
-  },
-);
+    },
+    resolveAddress: (input) =>
+      resolveImportAddress(input, { resolveAgencyCoordinates: async () => [] }),
+  });
+  const facade = context.facadeFromSource("Agency", {
+    apiVersion: INTAKE_API_VERSION,
+    namespace: "gov.tx.tcole",
+    name: "1101",
+  });
+  facade.merge(raw);
+  const result = facade.value("latitude");
+  for (const detail of [
+    "cm76wpxay0008vrvgb79ptov8",
+    "gov.tx.tcole",
+    "1101",
+    raw.name,
+    raw.address,
+    "Elkhart",
+    "TX",
+    "75839",
+    "physical",
+    "location_path_id",
+    "--force",
+    "npm run cli -- cache get gov.tx.tcole Agency 1101 latitude",
+    "npm run cli -- cache get gov.tx.tcole Agency 1101 longitude",
+    "npm run cli -- cache set gov.tx.tcole Agency 1101 latitude",
+    "npm run cli -- cache set gov.tx.tcole Agency 1101 longitude",
+  ])
+    await expect(result).rejects.toThrow(detail);
+  expect(writes).toEqual([]);
+});
 
 // A fake facade + counting geocode backend. `existing` seeds the existing-row
 // stability path; `raw` seeds source values. The geocode returns fixed values and
