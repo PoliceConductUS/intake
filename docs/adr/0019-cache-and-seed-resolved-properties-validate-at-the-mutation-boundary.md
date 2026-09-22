@@ -70,10 +70,15 @@ the cache at run time (`seedResolvedPropertyCache`, ADR 0018) and read as an
 ordinary cache hit. Seeding is how a value a resolver cannot derive is supplied:
 a missing address is **seeded**; an address that will not geocode gets its
 `latitude`/`longitude` **seeded**. No per-property or per-source code is
-involved — the cache is opaque to what it holds. A seed committed in the legacy
-single-`value` shape (no fingerprint) is **adopted** under the current input's
-fingerprint on first read — the seed corresponds to the committed source data,
-so that data is the value's input — after which point 5's invalidation applies.
+involved — the cache is opaque to what it holds. Every value lives in `entries`.
+At most one entry may omit `inputFingerprint`; this is the active override and
+wins for every input without being rewritten on reads. An override remains until
+explicitly replaced. A forced `cache set` gives the previous override a unique
+`previous-override-N` fingerprint and appends the new unfingerprinted entry.
+Each new CLI override records `recordedAt`, its source identity, and `commandId`
+linking it to the canonical Command envelope for that invocation. Previous entries
+retain this evidence. There are no separate `override` or `overrideHistory`
+fields and no top-level `value`.
 
 **3. Resolver-filled fields are optional in the artifact spec and required in
 the mutation spec.** Validation is explicit (Zod `.safeParse`), and the model is

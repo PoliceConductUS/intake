@@ -7,7 +7,7 @@ The CLI SHALL provide `cache get` and `cache set` addressed by source namespace,
 #### Scenario: Inspect an existing cache
 
 - **WHEN** an operator runs `cache get` for an existing source identity
-- **THEN** the command displays the canonical identity, target property, manual override if any, and stored automatic entries
+- **THEN** the command displays the canonical identity, target property, entries, including the active override and stored automatic/previous values
 
 #### Scenario: Refuse an unforced overwrite
 
@@ -19,6 +19,26 @@ The CLI SHALL provide `cache get` and `cache set` addressed by source namespace,
 - **WHEN** an operator supplies `--force`
 - **THEN** set records the validated override and source identity, retaining previous values for audit
 - **AND** subsequent cache reads use the override regardless of the automatic resolver input fingerprint
+
+#### Scenario: One entries collection for all cached values
+
+- **WHEN** a ResolvedProperty is read or written
+- **THEN** all values are stored in required `spec.entries`; `spec.override`, `spec.overrideHistory`, and top-level `spec.value` are rejected
+- **AND** at most one entry has no `inputFingerprint`; that entry is the active override and takes precedence over fingerprinted entries without being rewritten on reads
+- **AND** without an override, only the matching fingerprint is returned
+
+#### Scenario: Replace an override
+
+- **WHEN** a valid forced cache set replaces an existing override
+- **THEN** the old entry receives a unique `previous-override-N` fingerprint while retaining its value and provenance
+- **AND** the new entry has no fingerprint and records `recordedAt`, source identity, and the ID of the canonical Command envelope for this cache-set invocation
+- **AND** all automatic entries remain intact
+
+#### Scenario: Convert existing cache state
+
+- **WHEN** existing supported cache files and checked-in cache seeds are converted to the entries-only format
+- **THEN** values, source evidence, metadata, and known original timestamps are retained
+- **AND** unknown historical command IDs are not invented
 
 #### Scenario: Invalid identity or value
 

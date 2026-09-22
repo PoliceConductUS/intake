@@ -62,20 +62,6 @@ function resolveReadPath(
   return { ...ref, filePath: resolvedPath };
 }
 
-const manualOverrideSchema = z
-  .object({
-    value: z.unknown(),
-    source: z
-      .object({
-        namespace: z.string().min(1),
-        kind: z.string().min(1),
-        name: z.string().min(1),
-      })
-      .strict(),
-    recordedAt: z.string().datetime(),
-  })
-  .strict();
-
 export const specSchema = z
   .object({
     subject: z
@@ -86,8 +72,6 @@ export const specSchema = z
       })
       .strict(),
     targetProperty: z.string().trim().min(1),
-    override: manualOverrideSchema.optional(),
-    overrideHistory: z.array(manualOverrideSchema).optional(),
     // The cache holds N `(input → value)` entries per (subject, property): a
     // derived property re-resolves only when its input fingerprint changes, and
     // an unchanged (or previously seen) input is a hit (ADR 0019).
@@ -95,8 +79,10 @@ export const specSchema = z
       .array(
         z
           .object({
-            inputFingerprint: z.string().trim().min(1),
+            inputFingerprint: z.string().trim().min(1).optional(),
             value: z.unknown(),
+            recordedAt: z.string().datetime().optional(),
+            commandId: z.string().trim().min(1).optional(),
             // Provenance: the source record(s) that resolved this input to this
             // value, keyed by namespace. Traceability back to the source and a
             // hook for spotting cross-source disagreement.
@@ -107,6 +93,7 @@ export const specSchema = z
                   .object({
                     kind: z.string().trim().min(1),
                     name: z.string().trim().min(1),
+                    inputFingerprint: z.string().trim().min(1).optional(),
                   })
                   .strict(),
               )
@@ -114,14 +101,12 @@ export const specSchema = z
           })
           .strict(),
       )
-      .optional(),
-    // Legacy single-value shape (seeds with no fingerprint). Read-only: adopted
-    // into an `entries` file under the current fingerprint on first resolve.
-    value: z.unknown().optional(),
-    // Legacy provenance, retained only so pre-`entries` files still parse.
-    sources: z
-      .record(z.string().trim().min(1), z.record(z.string(), z.unknown()))
-      .optional(),
+      .refine(
+        (entries) =>
+          entries.filter((entry) => entry.inputFingerprint === undefined)
+            .length <= 1,
+        "Only one entry may omit inputFingerprint.",
+      ),
   })
   .strict();
 

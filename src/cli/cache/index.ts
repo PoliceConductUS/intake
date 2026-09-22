@@ -2,7 +2,10 @@ import { z } from "zod";
 import type { RegisterCliCommand } from "../../shared/cli/types.js";
 import * as entitySpecs from "../../shared/io/generated/entity-specs.js";
 import { INTAKE_API_VERSION } from "../../shared/io/import-types.js";
-import { intakeWorkspace } from "../command-directory.js";
+import {
+  createCommandDirectory,
+  intakeWorkspace,
+} from "../command-directory.js";
 import {
   createSourceNameToCanonicalIdLedger,
   type LedgerEntityKind,
@@ -108,9 +111,23 @@ export const registerCliCommand: RegisterCliCommand = (
             targetProperty: property,
           };
           if (action === "set") {
+            const value = parseValue(schema, String(valueOrOptions));
+            const { commandName } = await createCommandDirectory(process.env, {
+              args: [
+                "cache",
+                "set",
+                namespace,
+                kind,
+                sourceId,
+                property,
+                String(valueOrOptions),
+                ...(options?.force ? ["--force"] : []),
+              ],
+            });
             await setManualResolvedProperty({
               ...input,
-              value: parseValue(schema, String(valueOrOptions)),
+              value,
+              commandId: commandName,
               source: { namespace, kind, name: sourceId },
               force: options?.force === true,
             });

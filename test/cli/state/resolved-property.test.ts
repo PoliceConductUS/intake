@@ -129,7 +129,7 @@ describe("ResolvedProperty state", () => {
       { inputFingerprint: stPaul, value: 44.955097 },
       { inputFingerprint: duluth, value: 46.783329 },
     ]);
-    expect(envelope.spec.value).toBeUndefined();
+    expect(envelope.spec).not.toHaveProperty("value");
   });
 
   test("records per-entry provenance and merges a second source that agrees", async () => {
@@ -184,10 +184,18 @@ describe("ResolvedProperty state", () => {
     ).rejects.toThrow("already has a different value for the same input");
   });
 
-  test("adopts a legacy value under the current fingerprint on first read, then honors it", async () => {
+  test("an unfingerprinted override wins without rewriting or discarding other entries", async () => {
     const rootDir = await createTempRoot();
     const base = { subject, targetProperty: "latitude" } as const;
-    // A pre-`entries` seed: a bare value with no fingerprint.
+    const entries = [
+      { inputFingerprint: stPaul, value: 1 },
+      {
+        value: 44.955097,
+        recordedAt: "2026-09-22T01:40:20.505Z",
+        commandId: "command-one",
+      },
+      { inputFingerprint: "previous-override-1", value: 2 },
+    ];
     await ResolvedProperty.write(
       path.dirname(cacheFilePath(rootDir)),
       ResolvedProperty.new({
@@ -195,24 +203,59 @@ describe("ResolvedProperty state", () => {
           name: resolvedPropertyCacheName(base),
           namespace: "intake",
         },
-        spec: { ...base, value: 44.955097 },
+        spec: { ...base, entries },
       }),
     );
-
-    // First read under the current input serves the legacy value...
-    await expect(
-      readResolvedProperty({ rootDir, ...base, inputFingerprint: stPaul }),
-    ).resolves.toEqual(44.955097);
-    // ...and migrates the file so the value is now keyed by that fingerprint.
-    const migrated = await ResolvedProperty.read(cacheFilePath(rootDir));
-    expect(migrated.spec.entries).toEqual([
-      { inputFingerprint: stPaul, value: 44.955097 },
+    for (const inputFingerprint of [stPaul, duluth, undefined])
+      expect(
+        await readResolvedProperty({ rootDir, ...base, inputFingerprint }),
+      ).toBe(44.955097);
+    await writeResolvedProperty({
+      rootDir,
+      ...base,
+      inputFingerprint: duluth,
+      value: 46.783329,
+    });
+    const stored = await ResolvedProperty.read(cacheFilePath(rootDir));
+    expect(stored.spec.entries).toEqual([
+      ...entries,
+      { inputFingerprint: duluth, value: 46.783329 },
     ]);
-    expect(migrated.spec.value).toBeUndefined();
-    // A later, changed input now misses (the invariant holds post-adoption).
-    await expect(
-      readResolvedProperty({ rootDir, ...base, inputFingerprint: duluth }),
-    ).resolves.toBeUndefined();
+    expect(
+      await readResolvedProperty({
+        rootDir,
+        ...base,
+        inputFingerprint: duluth,
+      }),
+    ).toBe(44.955097);
+  });
+
+  test("rejects multiple unfingerprinted entries and the old value/override fields", () => {
+    const base = { subject, targetProperty: "latitude" };
+    for (const spec of [
+      { ...base, entries: [{ value: 1 }, { value: 2 }] },
+      { ...base, value: 1 },
+      { ...base, entries: [], overrideHistory: [] },
+      { ...base, entries: [], override: { value: 1 } },
+    ])
+      expect(() =>
+        ResolvedProperty.new({
+          metadata: { namespace: "intake", name: "test" },
+          spec,
+        } as never),
+      ).toThrow("ResolvedProperty is malformed");
+  });
+
+  test("an unkeyed read does not select a fingerprinted entry or previous override", async () => {
+    const rootDir = await createTempRoot();
+    const base = { subject, targetProperty: "latitude" };
+    await writeResolvedProperty({
+      rootDir,
+      ...base,
+      inputFingerprint: "previous-override-1",
+      value: 1,
+    });
+    expect(await readResolvedProperty({ rootDir, ...base })).toBeUndefined();
   });
 
   test("returns undefined when no ResolvedProperty file exists", async () => {
@@ -240,12 +283,12 @@ describe("seedResolvedPropertyCache", () => {
           name: resolvedPropertyCacheName(base),
           namespace: "intake",
         },
-        spec: { ...base, value },
+        spec: { ...base, entries: [{ value }] },
       }),
     );
   }
 
-  test("copies an absent legacy seed so it reads as a hit for the current input", async () => {
+  test("copies an absent seed so it reads as a hit for the current input", async () => {
     const rootDir = await createTempRoot();
     const seedDir = await mkdtemp(path.join(tmpdir(), "intake-seed-"));
     await writeSeedFile(seedDir, 29.7110641);

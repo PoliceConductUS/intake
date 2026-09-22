@@ -1,7 +1,8 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { Command } from "../../src/shared/io/Command.js";
 import { runIntake } from "../../src/cli/index.js";
 import { persistSourceNameToCanonicalIds } from "../../src/cli/state/source-name-to-canonical-id/index.js";
 import {
@@ -88,6 +89,65 @@ test("requires force, shows existing values, and retains prior resolved entries 
   expect(read.stdout).toContain("wrong-place-id");
   expect(read.stdout).toContain("right-place-id");
   expect(read.stdout).toContain("another-place-id");
+  const spec = JSON.parse(read.stdout!).entries;
+  expect(JSON.parse(read.stdout!)).not.toHaveProperty("override");
+  expect(JSON.parse(read.stdout!)).not.toHaveProperty("overrideHistory");
+  expect(
+    spec.filter(
+      (entry: { inputFingerprint?: string }) =>
+        entry.inputFingerprint === undefined,
+    ),
+  ).toHaveLength(1);
+  const current = spec.find(
+    (entry: { inputFingerprint?: string }) =>
+      entry.inputFingerprint === undefined,
+  );
+  expect(current).toMatchObject({
+    value: "another-place-id",
+    recordedAt: expect.any(String),
+    commandId: expect.any(String),
+  });
+  const previous = spec.find(
+    (entry: { value: string }) => entry.value === "right-place-id",
+  );
+  expect(previous).toMatchObject({
+    inputFingerprint: "previous-override-1",
+    recordedAt: expect.any(String),
+    commandId: expect.any(String),
+  });
+  expect(previous.commandId).not.toBe(current.commandId);
+  const commandDir = (await readdir(path.join(workspace, "command"))).find(
+    (name) => name.endsWith(current.commandId),
+  )!;
+  const directory = path.join(workspace, "command", commandDir);
+  const commandFile = (await readdir(directory)).find((name) =>
+    name.endsWith(".Command.yaml"),
+  )!;
+  const command = await Command.read(path.join(directory, commandFile));
+  expect(command.metadata.name).toBe(current.commandId);
+  expect(command.spec.args).toEqual([
+    ...args("set"),
+    "another-place-id",
+    "--force",
+  ]);
+  expect(
+    (await runIntake([...args("set"), "final-place-id", "--force"])).exitCode,
+  ).toBe(0);
+  const finalEntries = JSON.parse(
+    (await runIntake(args("get"))).stdout!,
+  ).entries;
+  expect(
+    finalEntries.find(
+      (entry: { inputFingerprint?: string }) =>
+        entry.inputFingerprint === "previous-override-2",
+    ),
+  ).toEqual({ ...current, inputFingerprint: "previous-override-2" });
+  expect(
+    finalEntries.find(
+      (entry: { inputFingerprint?: string }) =>
+        entry.inputFingerprint === "previous-override-1",
+    ),
+  ).toEqual(previous);
 });
 
 test("validates property values without converting a string True into a boolean", async () => {

@@ -54,8 +54,12 @@ npm run cli -- cache set <namespace> Agency <source-id> location_path_id <canoni
 ```
 
 If a value already exists, set reports an error and shows the current cache.
-Add `--force` to replace it explicitly. `get` shows the manual override, prior
-overrides, and automatic values. A manual override remains authoritative until
+Add `--force` to replace it explicitly. `get` shows one `entries` array. Its
+single entry without an `inputFingerprint` is the active override. Replaced
+overrides have unique `previous-override-N` fingerprints. New CLI overrides
+record `recordedAt`, source identity, and `commandId`; the command's envelope
+under the workspace's `command/` directory records its arguments. Previous
+entries keep this evidence. A manual override remains authoritative until
 changed; it is retained across database resets. Source-supplied fields retain
 their existing precedence over resolver values. Generation must run afterward
 to update the database. No community boundary is invented.

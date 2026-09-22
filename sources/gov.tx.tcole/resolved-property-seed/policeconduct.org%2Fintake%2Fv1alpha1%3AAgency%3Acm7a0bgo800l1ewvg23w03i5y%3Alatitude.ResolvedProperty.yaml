@@ -9,4 +9,5 @@ spec:
     kind: Agency
     name: cm7a0bgo800l1ewvg23w03i5y
   targetProperty: latitude
-  value: 29.7110641
+  entries:
+    - value: 29.7110641

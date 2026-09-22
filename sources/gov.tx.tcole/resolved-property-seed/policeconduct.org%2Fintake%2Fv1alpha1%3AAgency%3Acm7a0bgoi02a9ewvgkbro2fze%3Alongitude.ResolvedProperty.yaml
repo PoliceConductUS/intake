@@ -9,4 +9,5 @@ spec:
     kind: Agency
     name: cm7a0bgoi02a9ewvgkbro2fze
   targetProperty: longitude
-  value: -94.5265962
+  entries:
+    - value: -94.5265962
