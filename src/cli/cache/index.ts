@@ -27,6 +27,18 @@ function propertySchema(kind: string, property: string): z.ZodType {
   return field;
 }
 
+function valueError(error: z.ZodError): Error {
+  return new Error(
+    error.issues
+      .map((issue) => {
+        if (issue.code !== "invalid_type") return issue.message;
+        const article = /^[aeiou]/.test(issue.expected) ? "an" : "a";
+        return `Value must be ${article} ${issue.expected}.`;
+      })
+      .join("; "),
+  );
+}
+
 function parseValue(schema: z.ZodType, text: string): unknown {
   const direct = schema.safeParse(text);
   if (direct.success) return direct.data;
@@ -34,11 +46,11 @@ function parseValue(schema: z.ZodType, text: string): unknown {
   try {
     value = JSON.parse(text);
   } catch {
-    throw new Error(
-      "Value does not match the property's type; use JSON for numbers, booleans, arrays, or objects.",
-    );
+    throw valueError(direct.error);
   }
-  return schema.parse(value);
+  const parsed = schema.safeParse(value);
+  if (!parsed.success) throw valueError(parsed.error);
+  return parsed.data;
 }
 
 export const registerCliCommand: RegisterCliCommand = (

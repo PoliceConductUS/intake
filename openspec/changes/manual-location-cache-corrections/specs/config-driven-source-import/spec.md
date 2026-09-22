@@ -25,6 +25,12 @@ The CLI SHALL provide `cache get` and `cache set` addressed by source namespace,
 - **WHEN** a source identity is unmapped, or the kind, property, or value is invalid
 - **THEN** the command fails without modifying cache state or assigning an identity
 
+#### Scenario: Wrong value type
+
+- **WHEN** an operator supplies a nonnumeric value such as `fred` for latitude or longitude
+- **THEN** the command reports `Value must be a number.` and leaves the cache unchanged
+- **AND** type errors name the expected type from the canonical property schema instead of listing unrelated JSON types
+
 ### Requirement: Load manual communities before agency resolution during reset
 
 Reset SHALL apply manual LocationPath and LocationPathAlias records after Census locations and before dependent agency imports. The complete manual source SHALL still run after automatic sources to apply records that depend on agencies and personnel. The confirmed 29 missing Texas community records SHALL retain their published paths and original canonical IDs. No artificial boundaries or inferred agency assignments SHALL be created.

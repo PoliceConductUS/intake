@@ -160,3 +160,23 @@ test("rejects unmapped identities, unknown kinds/properties, and ID changes", as
   ])
     expect((await runIntake(invalid)).exitCode).toBe(1);
 });
+
+test.each(["latitude", "longitude"])(
+  "reports the expected number type for invalid %s without changing the cache",
+  async (property) => {
+    const key = { rootDir: workspace, subject, targetProperty: property };
+    await writeResolvedProperty({ ...key, value: 32 });
+    for (const value of ["fred", "true", '"fred"', "{}", "[]"]) {
+      const result = await runIntake([
+        ...args("set", property),
+        value,
+        "--force",
+      ]);
+      expect(result).toMatchObject({
+        exitCode: 1,
+        stderr: "Value must be a number.\n",
+      });
+      expect(await readResolvedProperty(key)).toBe(32);
+    }
+  },
+);
