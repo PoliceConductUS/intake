@@ -29,9 +29,10 @@ Multiple containing places within the preferred class SHALL fail.
 The derived location cache fingerprint SHALL identify the containment policy
 and all resolution inputs. A cache entry from the policy that allowed postal
 exceptions, any other previous-policy cache entry, or an existing database
-assignment SHALL NOT substitute for resolution on a cache miss. Only coordinate caches produced under the corrected address-point policy
-SHALL remain reusable. Existing rows and old coordinate fingerprints SHALL NOT
-bypass address-point resolution on a cache miss. Source-provided values and explicit manual seeds
+assignment SHALL NOT substitute for resolution on a cache miss. Coordinate cache
+fingerprints SHALL contain only the normalized address inputs, without a policy
+or version marker. An unchanged address SHALL reuse its cached coordinates; a
+changed address SHALL resolve again on a cache miss. Source-provided values and explicit manual seeds
 retain their existing precedence under ADR 0019.
 
 #### Scenario: Reprepare a previously snapped agency
@@ -39,6 +40,18 @@ retain their existing precedence under ADR 0019.
 - **WHEN** an agency has a cached or persisted inferred place from the old policy
 - **THEN** preparation uses the corrected containment policy with the resolved coordinates
 - **AND** an unresolved place fails instead of retaining the old inferred assignment
+
+#### Scenario: Reuse coordinates for an unchanged address
+
+- **WHEN** normalized address inputs match a stored coordinate pair
+- **THEN** preparation reuses that pair without calling the geocoder
+- **AND** code-policy version changes do not invalidate the coordinate cache
+
+#### Scenario: An agency address changes
+
+- **WHEN** normalized address inputs change and the new address has no cached coordinates
+- **THEN** preparation geocodes the new address and caches its coordinates under the new address fingerprint
+- **AND** it preserves the earlier address entry
 
 ### Requirement: Coordinates represent the agency address
 
@@ -73,9 +86,9 @@ details SHALL survive conversion to the import and reset command error text.
 - **THEN** the error includes its canonical ID, source namespace and source ID, agency name, and full address
 - **AND** it identifies latitude and longitude as the properties requiring verified physical-location coordinates, with concrete cache get/set command templates and overwrite instructions
 - **AND** it explains that a location_path_id correction alone cannot resolve missing agency coordinates
-- **AND** for each required coordinate it distinguishes a missing cache value, a reusable value, and a stored value rejected because its input fingerprint differs from the current address/resolution policy
+- **AND** for each required coordinate it distinguishes a missing cache value, a reusable value, and a stored value rejected because its input fingerprint differs from the current normalized address
 - **AND** rejected values are shown with an explanation that `cache get` displays stored entries even when generation cannot reuse them, and that `cache set --force` explicitly accepts verified coordinates
-- **AND** no existing cached coordinates are automatically accepted under a different policy
+- **AND** no existing cached coordinates are automatically accepted for a different address
 
 ### Requirement: Cache-correctable failures expose command arguments
 

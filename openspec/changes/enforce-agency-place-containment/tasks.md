@@ -12,3 +12,5 @@
 - [x] Remove the three code-defined Texas city rewrites and five Minnesota ZIP exceptions; invalidate derived locations from the previous policy and verify explicit manual cache support remains.
 
 - [x] Explain rejected coordinate cache entries in failed geocoding diagnostics, including stored values, fingerprint mismatch, missing/reusable counterparts, and manual correction instructions.
+
+- [x] Remove the unauthorized coordinate policy marker; restore normalized-address-only reuse, verify address changes geocode again, and audit TCOLE marked entries for removal impact.

@@ -98,8 +98,7 @@ function addressInput(
 }
 
 // The normalized geocode input the coordinate columns cache by (ADR 0019): the
-// address fields and resolution policy, so old locality-centroid results cannot
-// satisfy the address-point policy after this correction.
+// address fields only. An unchanged normalized address reuses its coordinates.
 function coordinateCacheInput(
   facade: PropertyResolutionFacade<Row>,
   source: FacadeSource,
@@ -107,7 +106,6 @@ function coordinateCacheInput(
 ): Record<string, string | undefined> {
   const address = addressInput(facade, source, config);
   return {
-    policy: "address-point-v1",
     state: normalizeToken(address.state),
     city: normalizeToken(address.place),
     zipCode: normalizeToken(address.zipCode),
@@ -119,7 +117,7 @@ function coordinateCacheInput(
 
 /**
  * One geocode that sets `latitude`, `longitude`, and `location_path_id` (ADR
- * 0006/0015/0019), entity-independent. Source values and policy-specific caches
+ * 0006/0015/0019), entity-independent. Source values and address-matched coordinate caches
  * precede live resolution. The geocode runs at most once per record — memoized
  * on the facade — so asking for a
  * second output never re-runs it. `location_path_id` rides along in the same
@@ -145,8 +143,7 @@ export function latLngFromAddress(
       const { facade, source, backend } = context;
       const id = String(await facade.value(identity));
       // A previous database row may contain a locality centroid. Only source
-      // coordinates or coordinates resolved under the current cache policy can
-      // avoid address-point geocoding.
+      // coordinates or cached coordinates for this address can avoid geocoding.
       const latitude =
         point?.latitude ?? valueAsFiniteNumber(facade.raw(config.set.latitude));
       const longitude =

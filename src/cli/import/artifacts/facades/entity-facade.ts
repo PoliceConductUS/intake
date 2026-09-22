@@ -308,7 +308,7 @@ export class EntityFacade<
           cacheDiagnostics.push(
             stored === undefined
               ? `${name}: no cached value exists.`
-              : `${name}: cached value ${JSON.stringify(stored)} was not reused because the address or resolution policy changed (input fingerprint mismatch). cache get shows stored entries even when generation cannot reuse them. Use cache set --force to explicitly accept this value only after verifying the physical location, or supply corrected coordinates.`,
+              : `${name}: cached value ${JSON.stringify(stored)} was not reused because the normalized address differs from the cached input (input fingerprint mismatch). cache get shows stored entries even when generation cannot reuse them. Use cache set --force to explicitly accept this value only after verifying the physical location, or supply corrected coordinates.`,
           );
         }
       }

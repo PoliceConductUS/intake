@@ -1,3 +1,7 @@
+> Current correction: coordinate cache reuse is keyed only by normalized address.
+> The coordinate policy invalidation described in the historical sections below
+> was removed at the user's direction. See “Address-only coordinate reuse” below.
+
 # Place-containment fix and remaining data corrections
 
 Implemented on `redesign-config-driven-intake` under accepted ADR 0024 and the
@@ -154,3 +158,22 @@ The missing/rejected diagnostic regressions failed before implementation. All
 71 tests passed across geocode-resolvers, cache-correction-errors, data-context,
 and CLI cache tests, including a reusable longitude alongside missing latitude.
 Type checking, build, and all 17 OpenSpec items passed.
+
+## Address-only coordinate reuse
+
+Removed `address-point-v1` from latitude/longitude cache inputs. Normalized
+address inputs alone determine automatic coordinate reuse: unchanged addresses,
+including case/spacing changes, use existing values; changed addresses resolve
+again on a cache miss and preserve the prior address entries. Explicit manual
+overrides retain their existing behavior. Location-path containment matching is
+separate and this correction does not change it.
+
+The unchanged-address and formatting-only regressions both failed before the
+fix by calling live resolution and returning new coordinates. After the fix,
+73 focused tests passed (geocode-resolvers, cache-correction-errors, data-context,
+CLI cache), plus type checking, build, and all 17 OpenSpec items.
+
+A read-only audit used canonical Artifacts and ResolvedProperty IO and the latest
+TCOLE source addresses. Across 8,534 coordinate cache files, two entries matched
+the removed marker for those addresses. Both had identical address-only entries;
+none required a cache rewrite. No cache or database values were changed.

@@ -81,11 +81,16 @@ startup read and no path-string DB lookup**.
   existing manual resolved-property exception applies when needed. See
   [manual location creation](../manual-locations.md).
 
-  Derived coordinate and location fingerprints include the resolution policy.
-  Values cached under the former centroid or inferred-place policies must be
-  resolved again. An existing database row cannot bypass that policy change;
-  valid current-policy caches and explicit manual seeds retain ADR 0019's
-  precedence.
+  Coordinate fingerprints contain only normalized address inputs, without a
+  policy or version marker. An unchanged address reuses its cached coordinates;
+  a changed address resolves again on a cache miss. The former `address-point-v1`
+  coordinate marker was removed because code-policy changes must not invalidate
+  unchanged addresses. Source values and explicit manual overrides retain their
+  existing precedence.
+
+  Derived location fingerprints identify the containment policy. Previously
+  inferred location assignments must be resolved again on a location-cache miss,
+  using the address-matched cached coordinates without another geocode.
 
 - **Nothing is written that was not resolved.** A required value
   (`location_path_id`, `latitude`, `longitude`) that neither the source, the

@@ -1,3 +1,5 @@
+import { EntityFacade } from "../../../src/cli/import/artifacts/facades/entity-facade.js";
+import { Resolver } from "../../../src/cli/import/artifacts/resolver-kit.js";
 import { describe, it, expect } from "vitest";
 import { latLngFromAddress } from "../../../src/cli/import/artifacts/facades/geocode-resolvers.js";
 import { DataContext } from "../../../src/cli/import/artifacts/data-context.js";
@@ -38,7 +40,7 @@ it.each(["stale", "absent", "partial"])(
       state: "tx",
       city: "elkhart",
       zipCode: "75839",
-      address: "p.o. box 952",
+      address: "p.o. box 951",
       administrativeAreaName: undefined,
       administrativeAreaSlug: undefined,
     });
@@ -104,7 +106,7 @@ it.each(["stale", "absent", "partial"])(
         "longitude: cached value -95.5789576 was not reused",
       );
       await expect(result).rejects.toThrow(
-        "address or resolution policy changed (input fingerprint mismatch)",
+        "normalized address differs from the cached input (input fingerprint mismatch)",
       );
       await expect(result).rejects.toThrow("cache get shows stored entries");
       await expect(result).rejects.toThrow("cache set --force");
@@ -204,21 +206,65 @@ describe("latLngFromAddress", () => {
   });
 });
 
-it("invalidates coordinate caches produced by the former centroid fallback policy", async () => {
-  const resolvers = latLngFromAddress(AGENCY_CONFIG);
-  const { context } = fakeContext({
-    address: "1 Bobcat Lane",
-    city: "Medina",
-    state: "TX",
-    zip_code: "78055",
-  });
-  expect(await resolvers.latitude.cacheInput(context)).toMatchObject({
-    policy: "address-point-v1",
-  });
-  expect(await resolvers.longitude.cacheInput(context)).toMatchObject({
-    policy: "address-point-v1",
-  });
-});
+it.each([
+  ["unchanged", "1 Main St", 30.5, -97.7, 0],
+  ["formatting only", "  1 MAIN  ST  ", 30.5, -97.7, 0],
+  ["changed", "2 Main St", 31, -98, 1],
+] as const)(
+  "%s address determines coordinate reuse",
+  async (_, address, latitude, longitude, calls) => {
+    const fingerprint = typedInputFingerprint({
+      state: "tx",
+      city: "austin",
+      zipCode: "78701",
+      address: "1 main st",
+      administrativeAreaName: undefined,
+      administrativeAreaSlug: undefined,
+    });
+    const entries = new Map<string, unknown>([
+      [`latitude:${fingerprint}`, 30.5],
+      [`longitude:${fingerprint}`, -97.7],
+    ]);
+    let geocodes = 0;
+    const facade = new EntityFacade<Record<string, unknown>, never>(
+      "Agency",
+      [],
+      {
+        id: new Resolver(async () => "agency-1"),
+        ...latLngFromAddress(AGENCY_CONFIG),
+      },
+      {} as never,
+      {
+        source: { namespace: "test", name: "agency-1" },
+        backend: {
+          resolveAgencyLocation: async () => {
+            geocodes++;
+            return {
+              addressLatitude: 31,
+              addressLongitude: -98,
+              locationPathId: "place-1",
+            };
+          },
+        } as never,
+        cacheableProperties: ["latitude", "longitude"],
+        cache: {
+          read: async (key) =>
+            entries.get(`${key.property}:${key.inputFingerprint}`),
+          write: async (key, value) => {
+            entries.set(`${key.property}:${key.inputFingerprint}`, value);
+          },
+        },
+      },
+    );
+    facade.merge({ address, city: "Austin", state: "TX", zip_code: "78701" });
+    expect(await facade.value("latitude")).toBe(latitude);
+    expect(await facade.value("longitude")).toBe(longitude);
+    expect(geocodes).toBe(calls);
+    expect(entries.get(`latitude:${fingerprint}`)).toBe(30.5);
+    expect(entries.get(`longitude:${fingerprint}`)).toBe(-97.7);
+    expect(entries.size).toBe(calls === 0 ? 2 : 4);
+  },
+);
 
 it("keys derived locations by the corrected policy and postal ZIP", async () => {
   const resolver = latLngFromAddress(AGENCY_CONFIG).location_path_id;
