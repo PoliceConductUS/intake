@@ -1,5 +1,10 @@
 import { normalizeTextWhitespace } from "../../../shared/text.js";
-import { lowerCaseEmail, nameCase, titleCase } from "./case-normalization.js";
+import {
+  lowerCaseEmail,
+  nameCase,
+  nameSuffix,
+  titleCase,
+} from "./case-normalization.js";
 import {
   resolveIdBySelector,
   type Selector,
@@ -669,6 +674,16 @@ export function nameCaseResolverNullable<Row, Backend>(
 ): Resolver<string | null, ResolverContext<Row, Backend>> {
   return new Resolver<string | null, ResolverContext<Row, Backend>>(
     casingResolveFn<Row, Backend>(property, nameCase),
+    { defaultValue: null },
+  );
+}
+
+/** Normalize a nullable personnel suffix consistently across sources. */
+export function nameSuffixResolverNullable<Row, Backend>(
+  property: keyof Row & string,
+): Resolver<string | null, ResolverContext<Row, Backend>> {
+  return new Resolver<string | null, ResolverContext<Row, Backend>>(
+    casingResolveFn<Row, Backend>(property, nameSuffix),
     { defaultValue: null },
   );
 }

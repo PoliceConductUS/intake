@@ -22,6 +22,7 @@ import {
   titleCaseResolverNullable,
   nameCaseResolver,
   nameCaseResolverNullable,
+  nameSuffixResolverNullable,
   lowerCaseEmailResolverNullable,
   facadeSelectorOrIdResolver,
   type FacadeSource,
@@ -108,7 +109,7 @@ const REGISTRY: Record<string, KindConfig> = {
       prefix: nameCaseResolverNullable<Row, EntityFacadeBackend>(
         "prefix",
       ) as AnyResolver,
-      suffix: nameCaseResolverNullable<Row, EntityFacadeBackend>(
+      suffix: nameSuffixResolverNullable<Row, EntityFacadeBackend>(
         "suffix",
       ) as AnyResolver,
     },

@@ -6,9 +6,9 @@ import nameCaseLib from "namecase";
  * idempotent string functions applied through facade property resolvers (never a
  * pre-DB transform pass — the forbidden pattern in this codebase).
  *
- * Organization/address casing is our own heuristic; person-name casing delegates
- * to the `namecase` library. All three are best-effort heuristics — the named
- * const sets below (and the library's own rules) are the extension points.
+ * Organization/address casing is our own heuristic. Personal names preserve
+ * mixed-case source spelling; uniformly cased names use the `namecase` library's
+ * display heuristics. Neither heuristic verifies a person's preferred spelling.
  */
 
 /**
@@ -168,16 +168,27 @@ export function titleCase(input: string): string {
 }
 
 /**
- * Name-case a person name or name part by delegating to the `namecase`
- * library (Mc/Mac, O'/D' particles, hyphenates, roman-numeral suffixes). Casing
- * is heuristic and owned by the library; the library is the extension point.
- * Idempotent (namecase lowercases before re-casing).
+ * Preserve mixed-case source spelling. Only uniformly cased names need the
+ * library's display-casing heuristics; those guesses are not spelling evidence.
  */
 export function nameCase(input: string): string {
   const trimmed = normalizeTextWhitespace(input);
   if (trimmed.length === 0) {
     return "";
   }
+  if (trimmed !== trimmed.toUpperCase() && trimmed !== trimmed.toLowerCase()) {
+    return trimmed;
+  }
+  // namecase 1.1.2 consumes one separator after abbreviations such as ST and
+  // the particle Y. Give it two; its final whitespace collapse leaves one.
+  return nameCaseLib(trimmed.replaceAll(" ", "  "));
+}
+
+/** Use one spelling for junior/senior suffixes, regardless of source punctuation. */
+export function nameSuffix(input: string): string {
+  const trimmed = normalizeTextWhitespace(input);
+  if (/^jr\.?$/i.test(trimmed)) return "Jr.";
+  if (/^sr\.?$/i.test(trimmed)) return "Sr.";
   return nameCaseLib(trimmed);
 }
 
