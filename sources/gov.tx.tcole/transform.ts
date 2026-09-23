@@ -1,3 +1,4 @@
+import { normalizeTextWhitespace } from "../../src/shared/text.js";
 import type {
   SourceTransform,
   EmittedRecords,
@@ -347,13 +348,14 @@ function buildAgencyPersonnel(
     // Synthetic identity key — matches the prior identity map's `id_field`
     // byte-for-byte (empty segment when a field is blank) so seed IDs are
     // preserved: PUBLIC_GUID|DEPARTMENT_NUMBER|APPOINTMENT|LICENSE|ST_DATE|END_DATE.
-    // The raw APPOINTMENT segment is used here even when blank — the "Unknown"
+    // Role/license text uses normalized whitespace; a blank role stays blank.
+    // The APPOINTMENT segment is used here even when blank — the "Unknown"
     // fallback applies to the `title` value only, never to the key.
     const key = [
       publicGuid,
       departmentNumber,
-      appointment,
-      license,
+      normalizeTextWhitespace(appointment),
+      normalizeTextWhitespace(license),
       startDate,
       endDate,
     ].join("|");

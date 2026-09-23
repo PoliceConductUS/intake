@@ -17,6 +17,7 @@ import {
   facadeNullableForeignKeyResolver,
   facadeLedgerForeignKeyResolver,
   facadeStateLocationPathResolver,
+  textWhitespaceResolver,
   titleCaseResolver,
   titleCaseResolverNullable,
   nameCaseResolver,
@@ -69,6 +70,27 @@ type KindConfig = {
    */
   overrides?: Record<string, AnyResolver>;
 };
+
+// Structured text only: identifiers, URLs, slugs, prose, and JSON pass through.
+const STRUCTURED_TEXT_PROPERTIES = new Set([
+  "name",
+  "first_name",
+  "middle_name",
+  "last_name",
+  "prefix",
+  "suffix",
+  "title",
+  "address",
+  "city",
+  "contact_name",
+  "display_name",
+  "abbreviation",
+  "source_name",
+  "phone_number",
+  "status",
+  "court",
+  "action",
+]);
 
 const REGISTRY: Record<string, KindConfig> = {
   Personnel: {
@@ -402,6 +424,14 @@ export function buildFacadeForKind(
     (column) => column !== identity,
   );
   const resolvers = {
+    ...Object.fromEntries(
+      columns
+        .filter((column) => STRUCTURED_TEXT_PROPERTIES.has(column))
+        .map((column) => [
+          column,
+          textWhitespaceResolver<Row, EntityFacadeBackend>(column),
+        ]),
+    ),
     ...derivedResolvers(kind, identity, identityKind),
     ...(columns.includes("slug")
       ? {

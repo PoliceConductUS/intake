@@ -1,3 +1,4 @@
+import { normalizeTextWhitespace } from "../../../shared/text.js";
 import nameCaseLib from "namecase";
 
 /**
@@ -156,7 +157,7 @@ function processOrganizationToken(token: string, isFirstWord: boolean): string {
  * ordinal suffixes. Idempotent. Heuristic — see the const sets above to extend.
  */
 export function titleCase(input: string): string {
-  const trimmed = input.trim();
+  const trimmed = normalizeTextWhitespace(input);
   if (trimmed.length === 0) {
     return "";
   }
@@ -173,7 +174,7 @@ export function titleCase(input: string): string {
  * Idempotent (namecase lowercases before re-casing).
  */
 export function nameCase(input: string): string {
-  const trimmed = input.trim();
+  const trimmed = normalizeTextWhitespace(input);
   if (trimmed.length === 0) {
     return "";
   }

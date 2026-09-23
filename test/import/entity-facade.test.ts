@@ -247,3 +247,48 @@ describe("registry coverage and identity", () => {
     expect(identityColumnForKind("Agency")).toBe("id");
   });
 });
+
+describe("shared structured-text whitespace resolution", () => {
+  it.each(["mn-post", "gov.tx.tcole"])(
+    "normalizes assignment titles for %s without changing raw input",
+    async (namespace) => {
+      const facade = buildFacadeForKind("AgencyPersonnel", {
+        source: { namespace, name: "source-id" },
+        ...backend(),
+      });
+      facade.merge({ title: "  Peace   Officer\t II  " });
+      expect(await facade.value("title")).toBe("Peace Officer II");
+      expect(facade.raw("title")).toBe("  Peace   Officer\t II  ");
+    },
+  );
+
+  it("normalizes labels while preserving narrative, identifiers, explicit null, and omission", async () => {
+    const facade = buildFacadeForKind("CivilCase", { source, ...backend() });
+    const narrative = "  Quoted  text\n\nSecond paragraph.  ";
+    facade.merge({
+      id: "court:case  id",
+      title: " A   Case ",
+      claims_summary: narrative,
+      court: null,
+    });
+    expect(await facade.value("title")).toBe("A Case");
+    expect(await facade.value("claims_summary")).toBe(narrative);
+    expect(await facade.value("id")).toBe("court:case  id");
+    expect(await facade.value("court")).toBeNull();
+    const empty = buildFacadeForKind("AgencyPersonnel", {
+      source,
+      ...backend(),
+    });
+    expect(await empty.value("title")).toBeUndefined();
+  });
+
+  it("normalizes names and addresses through their existing casing resolvers", async () => {
+    const person = buildFacadeForKind("Personnel", { source, ...backend() });
+    person.merge({ first_name: " MARY   JANE " });
+    expect(await person.value("first_name")).toBe("Mary Jane");
+    const agency = buildFacadeForKind("Agency", { source, ...backend() });
+    agency.merge({ address: " 100   MAIN ST ", city: "  FORT   WORTH " });
+    expect(await agency.value("address")).toBe("100 Main St");
+    expect(await agency.value("city")).toBe("Fort Worth");
+  });
+});

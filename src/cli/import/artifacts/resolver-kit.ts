@@ -1,3 +1,4 @@
+import { normalizeTextWhitespace } from "../../../shared/text.js";
 import { lowerCaseEmail, nameCase, titleCase } from "./case-normalization.js";
 import {
   resolveIdBySelector,
@@ -619,6 +620,19 @@ function casingResolveFn<Row, Backend>(
     const raw = valueAsString(facade.raw(property));
     return raw === undefined ? undefined : transform(raw);
   };
+}
+
+/** Normalize structured text from any source, preserving explicit null and omission. */
+export function textWhitespaceResolver<Row, Backend>(
+  property: keyof Row & string,
+): Resolver<unknown, ResolverContext<Row, Backend>> {
+  return new Resolver(
+    async ({ facade }) => {
+      const raw = facade.raw(property);
+      return typeof raw === "string" ? normalizeTextWhitespace(raw) : raw;
+    },
+    { defaultValue: undefined },
+  );
 }
 
 /** Title-case an organization/address string property (REQUIRED column). */

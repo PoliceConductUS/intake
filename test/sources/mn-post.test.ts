@@ -109,14 +109,34 @@ const detail0031 = JSON.stringify({
       complaintId: "cmp-001",
     },
   ],
-  activeEmployment: [],
+  licenses: { POSTLicenseList: [{ contactId: "0031" }] },
+  activeEmployment: [
+    {
+      rosterId: "a2m31ALPHA",
+      agencyName: "Alpha Police Dept.",
+      agencyStatus: "Primary",
+    },
+    {
+      rosterId: "a2m31BETA",
+      agencyName: "Beta County Sheriff",
+      agencyStatus: "Secondary",
+    },
+  ],
 });
 const detail0032 = JSON.stringify({
+  licenses: { POSTLicenseList: [{ contactId: "0032" }] },
+  activeEmployment: [
+    { rosterId: "a2m32ALPHA", agencyName: "Alpha Police Dept." },
+  ],
   disciplinaryActions: "No POST Disciplinary Actions found",
 });
 // 0099's order links to a document the site no longer serves, so acquire wrote
 // no document record for it: its order fields stay null.
 const detail0099 = JSON.stringify({
+  licenses: { POSTLicenseList: [{ contactId: "0099" }] },
+  activeEmployment: [
+    { rosterId: "a2m99ALPHA", agencyName: "Alpha Police Dept." },
+  ],
   disciplinaryActions: [
     {
       contactId: "0099",
@@ -309,17 +329,17 @@ describe("mn-post run", () => {
     }
   });
 
-  it("maps one assignment per (officer, agency) with title=licenseType and license_id", async () => {
+  it("preserves POST rosterIds as assignment source names and retains the assignment fields", async () => {
     const assignments = recordsOf(await runFixture(), "AgencyPersonnel");
     // Officer 0031 at both agencies -> two assignments; 0032 and the disciplined
     // 0099 at Alpha only.
     expect(Object.keys(assignments).sort()).toEqual([
-      "0031|a2jALPHA",
-      "0031|a2jBETA",
-      "0032|a2jALPHA",
-      "0099|a2jALPHA",
+      "a2m31ALPHA",
+      "a2m31BETA",
+      "a2m32ALPHA",
+      "a2m99ALPHA",
     ]);
-    expect(assignments["0031|a2jBETA"].spec).toEqual({
+    expect(assignments["a2m31BETA"].spec).toEqual({
       agency_id: "a2jBETA",
       personnel_id: "0031",
       start_date: "2010-05-01",
@@ -330,6 +350,65 @@ describe("mn-post run", () => {
     for (const record of Object.values(assignments)) {
       expect(AgencyPersonnelSpec.safeParse(record.spec).success).toBe(true);
     }
+  });
+
+  it("preserves two distinct POST assignments at one agency and attributes orders to both", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "mn-post-dual-"));
+    try {
+      const detail = JSON.parse(detail0031);
+      detail.activeEmployment.push({
+        rosterId: "a2m31SECONDARY",
+        agencyName: "Alpha Police Dept.",
+        agencyStatus: "Secondary",
+      });
+      const file = path.join(dir, "duplicate.detail.json");
+      await writeFile(file, JSON.stringify(detail));
+      const paths = (await readdir(sourceDir))
+        .filter((f) => f !== "a2jofficer0031.detail.json")
+        .map((f) => path.join(sourceDir, f));
+      const result = await transform({
+        paths: [...paths, file],
+        readXlsx: async () => [],
+        state: "/unused",
+        emit: async () => {},
+      });
+      const assignments = recordsOf(result, "AgencyPersonnel");
+      expect(assignments.a2m31ALPHA.spec).toEqual(
+        assignments.a2m31SECONDARY.spec,
+      );
+      for (const kind of [
+        "DisciplineAgencyPersonnel",
+        "CoverageLinkAgencyPersonnel",
+      ]) {
+        const refs = Object.values(recordsOf(result, kind)).map((r) =>
+          kind === "DisciplineAgencyPersonnel"
+            ? DisciplineAgencyPersonnelSpec.parse(r.spec).agency_personnel_id
+            : CoverageLinkAgencyPersonnelSpec.parse(r.spec).agency_personnel_id,
+        );
+        expect(refs.sort()).toEqual([
+          "a2m31ALPHA",
+          "a2m31BETA",
+          "a2m31SECONDARY",
+          "a2m99ALPHA",
+        ]);
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails with the contact and agency when POST assignment identity is missing", async () => {
+    const paths = (await readdir(sourceDir))
+      .filter((f) => f !== "a2jofficer0032.detail.json")
+      .map((f) => path.join(sourceDir, f));
+    await expect(
+      transform({
+        paths,
+        readXlsx: async () => [],
+        state: "/unused",
+        emit: async () => {},
+      }),
+    ).rejects.toThrow(/0032.*Alpha Police Dept/);
   });
 
   it("emits a discipline event per order, with a coverage link and multi-agency attribution", async () => {
@@ -378,7 +457,7 @@ describe("mn-post run", () => {
     ]);
     expect(attributions["0031|PB24-1-01|a2jALPHA"].spec).toEqual({
       discipline_id: "0031|PB24-1-01",
-      agency_personnel_id: "0031|a2jALPHA",
+      agency_personnel_id: "a2m31ALPHA",
     });
 
     expect(coverage["0031|PB24-1-01"].spec).toMatchObject({
@@ -394,7 +473,7 @@ describe("mn-post run", () => {
     ]);
     expect(coverageAttr["0031|PB24-1-01|a2jBETA"].spec).toMatchObject({
       coverage_link_id: "0031|PB24-1-01",
-      agency_personnel_id: "0031|a2jBETA",
+      agency_personnel_id: "a2m31BETA",
       confidence: "documented",
     });
 

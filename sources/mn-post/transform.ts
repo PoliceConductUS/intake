@@ -39,8 +39,10 @@ import type { OrderAnalysis } from "./acquire/collect-documents.js";
  *                          row carries `contactId` (person), `licenseId`
  *                          (license), `name` ("Last, First Middle"),
  *                          `licenseType`, `status`, and `originalLicenseIssueDate`.
- *   - `*.detail.json`    — one per-officer detail (the raw officer JSON), whose
- *                          `disciplinaryActions` drives the discipline records.
+ *   - `*.detail.json`    — per-officer detail: `activeEmployment[].rosterId`
+ *                          identifies assignments; `licenses.POSTLicenseList`
+ *                          identifies their contact, and `disciplinaryActions`
+ *                          drives the discipline records.
  *   - `*.document.json`  — one per disciplinary order document (the PDF the
  *                          action links to): its extracted text and the
  *                          analysis of what it says (allegation, violation,
@@ -70,6 +72,12 @@ const AGENCY_CSV = {
   chief: "Chief Law Enforcement Officer",
   email: "Organization Email",
 } as const;
+
+type OfficerDetail = {
+  licenses?: { POSTLicenseList?: Array<{ contactId?: string }> };
+  activeEmployment?: Array<{ rosterId?: string; agencyName?: string }>;
+  disciplinaryActions?: unknown;
+};
 
 export const transform: SourceTransform = async ({ paths }) => {
   const rosterPaths = paths.filter((p) => p.endsWith(".roster.json")).sort();
@@ -113,6 +121,31 @@ export const transform: SourceTransform = async ({ paths }) => {
     }
   }
 
+  const details: OfficerDetail[] = [];
+  const assignmentsByContact = new Map<string, Map<string, Set<string>>>();
+  for (const file of paths.filter((p) =>
+    p.toLowerCase().endsWith(".detail.json"),
+  )) {
+    const detail = JSON.parse(await readFile(file, "utf8")) as OfficerDetail;
+    details.push(detail);
+    for (const license of detail.licenses?.POSTLicenseList ?? []) {
+      const contactId = nullIfBlank(license.contactId);
+      if (contactId === null) continue;
+      const agencies =
+        assignmentsByContact.get(contactId) ?? new Map<string, Set<string>>();
+      for (const employment of detail.activeEmployment ?? []) {
+        const rosterId = nullIfBlank(employment.rosterId);
+        const name = nullIfBlank(employment.agencyName);
+        if (rosterId === null || name === null) continue;
+        const key = slugify(name);
+        const assignments = agencies.get(key) ?? new Set<string>();
+        assignments.add(rosterId);
+        agencies.set(key, assignments);
+      }
+      assignmentsByContact.set(contactId, agencies);
+    }
+  }
+
   const licensingAuthorities: EmittedRecords = {
     "mn-post": {
       spec: {
@@ -131,7 +164,10 @@ export const transform: SourceTransform = async ({ paths }) => {
   // Officer (contactId) → the agency ids they hold an emitted assignment at. A
   // disciplinary action attributes to every one of them (an officer active at
   // several agencies implicates all of them).
-  const assignmentAgenciesByContact = new Map<string, Set<string>>();
+  const assignmentAgenciesByContact = new Map<
+    string,
+    Map<string, Set<string>>
+  >();
 
   for (const rosterPath of rosterPaths) {
     const fileSlug = path
@@ -232,27 +268,37 @@ export const transform: SourceTransform = async ({ paths }) => {
         };
       }
 
-      // Assignment at this roster's agency. title = licenseType (the closest role
-      // MN provides); start_date = the license issue date (no assignment dates in
-      // the snapshot). Keyed by (officer, agency) — one current assignment each.
+      // Preserve POST's assignment identity; multiple jobs at one agency are distinct.
+      // The existing role and license-issue-date interpretation is unchanged.
       if (startDate !== null && licenseType !== null) {
-        agencyPersonnel[`${contactId}|${agency.id}`] = {
-          spec: {
-            agency_id: agency.id,
-            personnel_id: contactId,
-            start_date: startDate,
-            end_date: null,
-            title: licenseType,
-            license_id:
-              licenseHoldingKey !== null &&
-              licenses[licenseHoldingKey] !== undefined
-                ? licenseHoldingKey
-                : null,
-          },
-        };
+        const rosterIds = assignmentsByContact
+          .get(contactId)
+          ?.get(slugify(agency.name));
+        if (rosterIds === undefined || rosterIds.size === 0) {
+          throw new Error(
+            `mn-post: no activeEmployment rosterId for contact ${contactId} at ${agency.name} (${agency.id}); check the acquired officer details.`,
+          );
+        }
+        for (const rosterId of rosterIds) {
+          agencyPersonnel[rosterId] = {
+            spec: {
+              agency_id: agency.id,
+              personnel_id: contactId,
+              start_date: startDate,
+              end_date: null,
+              title: licenseType,
+              license_id:
+                licenseHoldingKey !== null &&
+                licenses[licenseHoldingKey] !== undefined
+                  ? licenseHoldingKey
+                  : null,
+            },
+          };
+        }
         const held =
-          assignmentAgenciesByContact.get(contactId) ?? new Set<string>();
-        held.add(agency.id);
+          assignmentAgenciesByContact.get(contactId) ??
+          new Map<string, Set<string>>();
+        held.set(agency.id, rosterIds);
         assignmentAgenciesByContact.set(contactId, held);
       }
     }
@@ -281,17 +327,8 @@ export const transform: SourceTransform = async ({ paths }) => {
     analysisByUrl.set(document.url, document.analysis);
   }
 
-  for (const jsonPath of paths.filter((p) =>
-    p.toLowerCase().endsWith(".detail.json"),
-  )) {
-    let detail: unknown;
-    try {
-      detail = JSON.parse(await readFile(jsonPath, "utf8"));
-    } catch {
-      continue;
-    }
-    const actions = (detail as { disciplinaryActions?: unknown })
-      .disciplinaryActions;
+  for (const detail of details) {
+    const actions = detail.disciplinaryActions;
     if (!Array.isArray(actions)) {
       continue;
     }
@@ -348,22 +385,25 @@ export const transform: SourceTransform = async ({ paths }) => {
       }
       // Attribute the event (and its document) to every assignment the officer
       // held — all implicated agencies, per the multi-agency rule.
-      for (const agencyId of heldAgencies) {
-        const assignmentKey = `${contactId}|${agencyId}`;
-        disciplineAgencyPersonnel[`${disciplineKey}|${agencyId}`] = {
-          spec: {
-            discipline_id: disciplineKey,
-            agency_personnel_id: assignmentKey,
-          },
-        };
-        if (documentUrl !== null) {
-          coverageLinkAgencyPersonnel[`${disciplineKey}|${agencyId}`] = {
+      for (const [agencyId, rosterIds] of heldAgencies) {
+        for (const assignmentKey of rosterIds) {
+          // Preserve existing attribution keys unless separate assignments need separate links.
+          const attributionKey = `${disciplineKey}|${rosterIds.size === 1 ? agencyId : assignmentKey}`;
+          disciplineAgencyPersonnel[attributionKey] = {
             spec: {
-              coverage_link_id: disciplineKey,
+              discipline_id: disciplineKey,
               agency_personnel_id: assignmentKey,
-              confidence: "documented",
             },
           };
+          if (documentUrl !== null) {
+            coverageLinkAgencyPersonnel[attributionKey] = {
+              spec: {
+                coverage_link_id: disciplineKey,
+                agency_personnel_id: assignmentKey,
+                confidence: "documented",
+              },
+            };
+          }
         }
       }
     }

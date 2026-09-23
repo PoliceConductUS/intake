@@ -206,6 +206,29 @@ const deps = {
 };
 
 describe("gov.tx.tcole run", () => {
+  it("normalizes role and license whitespace in assignment keys without altering raw evidence", async () => {
+    const service = {
+      PUBLIC_GUID: "1000038",
+      DEPARTMENT_NUMBER: "201217",
+      APPOINTMENT: "  Telecommunications   Operator ",
+      LICENSE: " Telecommunications  Operator ",
+      ST_DATE: "2018-08-16",
+      END_DATE: "",
+    };
+    const result = await transform({
+      ...deps,
+      readXlsx: async (file, sheet, columns) =>
+        sheet === "Services" ? [service] : fakeReadXlsx(file, sheet, columns),
+    });
+    const assignments = result.artifacts.find(
+      (a) => a.kind === "AgencyPersonnel",
+    )!.records;
+    expect(Object.keys(assignments)).toEqual([
+      "1000038|201217|Telecommunications Operator|Telecommunications Operator|2018-08-16|",
+    ]);
+    expect(service.LICENSE).toBe(" Telecommunications  Operator ");
+  });
+
   it("emits the licensing kinds in dependency order", async () => {
     const manifest = await transform(deps);
     expect(manifest.artifacts.map((a) => a.kind)).toEqual([
