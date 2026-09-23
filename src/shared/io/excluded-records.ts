@@ -3,7 +3,7 @@ import path from "node:path";
 import { isMap, isSeq, parse, parseDocument } from "yaml";
 
 /**
- * One entry from a source's `excluded.yaml`: a record the import is allowed
+ * One entry from a source's workspace `excluded.yaml`: a record the import is allowed
  * to drop instead of failing loud, because someone has documented why it has
  * no usable location/identity.
  */
@@ -61,16 +61,16 @@ function optionalStringField(
 }
 
 /**
- * Reads a source's `excluded.yaml` (if present) into a set of records keyed
+ * Reads a source's workspace `excluded.yaml` (if present) into a set of records keyed
  * by `(kind, sourceKey)`, each carrying the documented reason it is exempt
  * from the import's fail-loud-on-unresolvable rule. A source with no
  * `excluded.yaml` yields an empty set, so every unresolvable record in that
  * source aborts the import.
  */
 export async function loadExcludedRecords(
-  sourceDir: string,
+  stateDir: string,
 ): Promise<ExcludedRecords> {
-  const filePath = path.join(sourceDir, "excluded.yaml");
+  const filePath = path.join(stateDir, "excluded.yaml");
   let contents: string;
   try {
     contents = await readFile(filePath, "utf8");
@@ -114,21 +114,21 @@ export async function loadExcludedRecords(
 
 /** Appends an explicit exclusion without replacing existing curation. */
 export async function appendExcludedRecord(
-  sourceDir: string,
+  stateDir: string,
   record: ExcludedRecord,
 ): Promise<string> {
   for (const field of ["kind", "key", "reason"] as const) {
     if (record[field].trim() === "")
       throw new Error(`Exclusion ${field} must not be blank.`);
   }
-  const existing = (await loadExcludedRecords(sourceDir)).get(
+  const existing = (await loadExcludedRecords(stateDir)).get(
     excludedRecordKey(record.kind, record.key),
   );
   if (existing !== undefined)
     throw new Error(
       `Already excluded ${record.kind} ${record.key}: ${existing.reason}`,
     );
-  const filePath = path.join(sourceDir, "excluded.yaml");
+  const filePath = path.join(stateDir, "excluded.yaml");
   const contents = await readFile(filePath, "utf8").catch(
     (error: NodeJS.ErrnoException) => {
       if (error.code === "ENOENT") return "";

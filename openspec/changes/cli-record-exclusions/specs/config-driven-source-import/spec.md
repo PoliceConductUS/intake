@@ -2,7 +2,7 @@
 
 ### Requirement: CLI authors source record exclusions
 
-The CLI SHALL support `data exclude <source> <kind> <source-id> --reason <reason>` using the singular record kind and source-local identity. It SHALL append the entry to the existing source `excluded.yaml` through shared exclusion IO, preserving existing entries and comments. The source must exist, the kind must be produced by that source, and the source ID and reason must be nonblank. An already excluded identity SHALL fail with its existing reason instead of overwriting it.
+The CLI SHALL support `data exclude <source> <kind> <source-id> --reason <reason>` using the singular record kind and source-local identity. It SHALL append the entry to `$INTAKE_WORKSPACE/state/<source>/excluded.yaml` through shared exclusion IO, preserving existing entries and comments. The source must exist, the kind must be produced by that source, and the source ID and reason must be nonblank. An already excluded identity SHALL fail with its existing reason instead of overwriting it.
 
 The command SHALL report the saved file and the transform and generate commands needed to use the exclusion. The existing transform exclusion cascade SHALL remove dependent records referencing an excluded record. Excluding an agency does not remove independent Personnel records. Raw inputs, previous artifacts, cache values, and existing database rows SHALL remain unchanged.
 
@@ -17,3 +17,13 @@ The command SHALL report the saved file and the transform and generate commands 
 
 - **WHEN** the source or kind is unknown, the source ID or reason is blank, or that identity is already excluded
 - **THEN** the command fails and leaves the exclusion file unchanged
+
+#### Scenario: Workspace-owned exclusions
+
+- **WHEN** the operator excludes a record in a configured workspace
+- **THEN** the CLI writes the source exclusion list in that workspace and transform reads that same list
+- **AND** the source checkout is unchanged and repository exclusion files are not read
+- **AND** switching workspaces uses the selected workspace's own exclusions
+- **AND** existing entries, comments, and reasons are preserved when moving the current exclusion list into the workspace
+
+Correction audit files and the manual-place audit list SHALL reside under the workspace `audits/` directory. Manual records themselves remain in the existing manual source state; relocating audit files SHALL NOT modify those records, cached corrections, or pending database mutations.

@@ -2,7 +2,7 @@
 
 ## Development workspace changes
 
-Applied the 29 records listed in [manual-locations.csv](manual-locations.csv) to `/Users/dalelotts/dev/PoliceConductUS/intake-workspace/dev-copy` through `org.policeconduct.manual`. Checked each original canonical ID against the existing ledger, retained that ID in the manual source mapping, and recorded each place through the manual acquire command. No conflicting mappings or missing parents were found.
+Applied the 29 records listed in `$INTAKE_WORKSPACE/audits/tcole-location-corrections-20260922/manual-locations.csv` to `/Users/dalelotts/dev/PoliceConductUS/intake-workspace/dev-copy` through `org.policeconduct.manual`. Checked each original canonical ID against the existing ledger, retained that ID in the manual source mapping, and recorded each place through the manual acquire command. No conflicting mappings or missing parents were found.
 
 Transformed the manual source, generated `000011-org.policeconduct.manual.DatabaseMutations.yaml` with 29 effective mutations, and applied it. The envelope also contains 28 existing-record reads. A read-only database check found all 29 places with the expected published IDs, paths, display names, and parent counties, and no geometry rows. No agency assignment was guessed or changed. Alba Township remains Census-owned and was not added manually.
 

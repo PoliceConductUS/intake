@@ -29,7 +29,7 @@ type TransformSourceDeps = {
   digest: (paths: string[]) => Promise<string>;
   makeWorkspace: (env: Record<string, string | undefined>) => Promise<string>;
   createEmitSink: (workspaceDir: string, namespace: string) => EmitSink;
-  loadExcludedRecords: (sourceDir: string) => Promise<ExcludedRecords>;
+  loadExcludedRecords: (stateDir: string) => Promise<ExcludedRecords>;
   writeEnvelope: (
     directory: string,
     sourceId: string,
@@ -138,8 +138,7 @@ export async function transformSource(
   }
 
   try {
-    const sourceDir = path.join(deps.sourcesRoot, sourceId);
-    const excludedRecords = await deps.loadExcludedRecords(sourceDir);
+    const excludedRecords = await deps.loadExcludedRecords(deps.state);
     const workspaceRoot =
       deps.env.INTAKE_WORKSPACE_TEST ?? deps.env.INTAKE_WORKSPACE;
     const workspace = await deps.makeWorkspace(deps.env);

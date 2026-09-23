@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { ResolvedProperty } from "../../../src/cli/state/resolved-property/ResolvedProperty.js";
 import {
@@ -7,6 +7,7 @@ import {
 } from "../../../src/cli/state/resolved-property/index.js";
 import path from "node:path";
 import { describe, it, expect, vi } from "vitest";
+import { loadExcludedRecords } from "../../../src/shared/io/excluded-records.js";
 import { transformSource } from "../../../src/cli/transform/index.js";
 
 const testRefItems = [
@@ -40,7 +41,7 @@ function makeOkDeps() {
       ],
     })),
     readXlsx: vi.fn(async () => []),
-    state: "/ws/intake/state/sources/gov.azpost.roster",
+    state: "/ws/state/gov.azpost.roster",
     digest: vi.fn(async () => "testdigest"),
     createEmitSink: vi.fn(() => ({
       emit: vi.fn(async () => {}),
@@ -77,10 +78,37 @@ describe("transformSource", () => {
       "/ws",
       "gov.azpost.roster",
     );
-    expect(okDeps.loadExcludedRecords).toHaveBeenCalledWith(
-      path.join("/sources", "gov.azpost.roster"),
-    );
+    expect(okDeps.loadExcludedRecords).toHaveBeenCalledWith(okDeps.state);
     expect(result).toEqual({ artifactsPath: "/ws/artifacts.yaml" });
+  });
+
+  it("filters using workspace exclusions and ignores a different list in the checkout", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "transform-exclusions-"));
+    try {
+      const state = path.join(root, "workspace", "state", "gov.azpost.roster");
+      const sourcesRoot = path.join(root, "sources");
+      const sourceDir = path.join(sourcesRoot, "gov.azpost.roster");
+      await mkdir(state, { recursive: true });
+      await mkdir(sourceDir, { recursive: true });
+      await writeFile(
+        path.join(state, "excluded.yaml"),
+        'excluded:\n  - kind: Personnel\n    key: "1001"\n    reason: workspace exclusion\n',
+      );
+      await writeFile(path.join(sourceDir, "excluded.yaml"), "excluded: []\n");
+      const deps = { ...makeOkDeps(), state, sourcesRoot, loadExcludedRecords };
+      expect(
+        await transformSource("gov.azpost.roster", ["file.xlsx"], {}, deps),
+      ).toEqual({ artifactsPath: "/ws/artifacts.yaml" });
+      expect(deps.writeEnvelope).toHaveBeenCalledWith(
+        "/ws",
+        "gov.azpost.roster",
+        "testdigest",
+        { artifacts: [{ kind: "Personnel", records: {} }] },
+        testRefItems,
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it("does not refill a cleared cache from files in the source checkout", async () => {

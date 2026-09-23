@@ -119,7 +119,10 @@ npm run cli -- data transform <source>
 npm run cli -- data generate <source>
 ```
 
-This appends to `sources/<source>/excluded.yaml`. Use the singular record kind
+This appends to `$INTAKE_WORKSPACE/state/<source>/excluded.yaml`. Exclusions
+belong to the selected workspace and are shared across checkouts using it.
+Operator correction lists and audits belong under `$INTAKE_WORKSPACE/audits/`;
+manual records remain in the manual source’s workspace state. Use the singular record kind
 (for example, `Agency`) and the source's own ID. Existing exclusions cannot be
 overwritten by this command. The next transform removes the excluded record and
 records that reference it, such as agency assignments, while retaining independent

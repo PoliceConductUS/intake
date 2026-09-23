@@ -3,6 +3,7 @@ import path from "node:path";
 import { appendExcludedRecord } from "../../shared/io/excluded-records.js";
 import { importTypeMetadata } from "../../shared/io/import-type-metadata.js";
 import { loadSourceProduces } from "../transform/load-source-module.js";
+import { sourceStateDir } from "../transform/state.js";
 import type {
   CliCommandDependencies,
   CommandResult,
@@ -94,7 +95,7 @@ export function registerCliCommand(
               `Source ${source} does not produce record kind ${kind}. Use the singular record kind, such as Agency.`,
             );
           const file = await appendExcludedRecord(
-            path.join(sourcesRoot, source),
+            await sourceStateDir(process.env, source),
             {
               kind,
               key: sourceId,
