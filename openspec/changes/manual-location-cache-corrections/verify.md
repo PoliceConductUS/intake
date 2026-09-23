@@ -67,3 +67,22 @@ continue to pass: 92 focused tests across transform, canonical cache, CLI, facad
 DataContext, MN source and reset sequencing. Type checking, build, and all 17
 OpenSpec items passed. No database reset, migration, or workspace-cache change
 was performed for this removal.
+
+## Cat Spring manual addition — 2026-09-22
+
+Added Cat Spring under Colorado County at the user's request. The county's
+[constable directory](https://www.co.colorado.tx.us/page/colorado.constable)
+confirms 1053 Constable Lane, Cat Spring, TX 78933; the supplied agency point
+falls within the imported Colorado County boundary. The
+[community website](https://catspringtexas.com/moving-here/) describes the
+Cat Spring area as spanning Austin and Colorado counties.
+
+Recorded the place through `data acquire org.policeconduct.manual`, transformed
+and generated the manual source, then applied
+`000003-org.policeconduct.manual.DatabaseMutations.yaml` to the local development
+database. Generation reported one effective mutation; the envelope also includes
+57 existing-record reads. Verified the resulting place has ID
+`k49oqsixfl80fct8m2qb9ctr`, path `/tx/colorado-county/cat-spring/`, display name
+`Cat Spring`, parent `/tx/colorado-county/`, and no boundary. The database is at
+the data-chain head. The durable manual source retains the record for rebuilds.
+No agency cache assignment was changed.
