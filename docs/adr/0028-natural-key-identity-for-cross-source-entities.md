@@ -37,6 +37,20 @@ still carries duplicate children.
 
 ## Decision
 
+### Established identities take precedence
+
+A published case's original canonical ID is preserved through the existing
+source-name ledger. CivilCase resolves that mapping before using the natural
+key below. Both case-producing sources must map a confirmed shared docket to
+the same original ID. Its published slug is preserved in the normal resolved
+property cache. Natural keys remain source record names; related records resolve
+the parent's canonical ID through the existing reference chain. These mappings
+are durable workspace corrections, never case-specific importer rules.
+
+The natural-key rule below applies to cases without an established mapping; it
+must not replace an existing canonical ID. This supersedes the earlier claim
+that every CivilCase bypasses the ledger. No new registry is introduced.
+
 For entity kinds that are produced by multiple sources and have a universal
 natural key, **the canonical id _is_ the normalized natural key** — a
 deterministic function of the entity's identifying attributes, not a minted cuid

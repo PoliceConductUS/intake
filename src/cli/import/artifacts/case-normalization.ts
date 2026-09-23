@@ -187,8 +187,8 @@ export function nameCase(input: string): string {
 /** Use one spelling for junior/senior suffixes, regardless of source punctuation. */
 export function nameSuffix(input: string): string {
   const trimmed = normalizeTextWhitespace(input);
-  if (/^jr\.?$/i.test(trimmed)) return "Jr.";
-  if (/^sr\.?$/i.test(trimmed)) return "Sr.";
+  if (/^jr\.*$/i.test(trimmed)) return "Jr.";
+  if (/^sr\.*$/i.test(trimmed)) return "Sr.";
   return nameCaseLib(trimmed);
 }
 

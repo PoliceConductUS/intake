@@ -2,19 +2,20 @@
 
 ### Requirement: Consistent generational suffix display
 
-Every source's Personnel suffix resolver SHALL normalize case-insensitive JR and
-JR. to Jr., and SR and SR. to Sr., after trimming whitespace. Blank or absent
+Every source's Personnel suffix resolver SHALL normalize case-insensitive JR with
+zero or more trailing periods to Jr., and SR with zero or more trailing periods
+to Sr., after trimming whitespace. Blank or absent
 suffixes SHALL remain null. Other suffixes SHALL retain existing normalization.
 Raw acquired data, canonical IDs and established slugs SHALL remain unchanged.
 
 #### Scenario: Junior variants converge
 
-- **WHEN** a source supplies JR, JR., jr, jr., Jr, or Jr.
+- **WHEN** a source supplies JR, JR., Jr.., jr, jr., Jr, or Jr.
 - **THEN** the resolved suffix is Jr.
 
 #### Scenario: Senior variants converge
 
-- **WHEN** a source supplies SR, SR., sr, sr., Sr, or Sr.
+- **WHEN** a source supplies SR, SR., Sr.., sr, sr., Sr, or Sr.
 - **THEN** the resolved suffix is Sr.
 
 #### Scenario: Other suffixes and missing values

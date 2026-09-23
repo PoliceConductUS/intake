@@ -8,6 +8,8 @@ import type { DatabaseLocationPathRow as LocationPathRow } from "../../../src/cl
 import { mkdtemp } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { SourceNameToCanonicalId } from "../../../src/cli/state/source-name-to-canonical-id/SourceNameToCanonicalId.js";
+import { resolveSourceNameToCanonicalIdPath } from "../../../src/cli/state/source-name-to-canonical-id/index.js";
 import { INTAKE_API_VERSION } from "../../../src/shared/io/import-types.js";
 import { countDatabaseMutations } from "../../../src/cli/import/artifacts/io/DatabaseMutationCounts.js";
 import {
@@ -2081,6 +2083,118 @@ describe("CivilCase cross-source convergence (ADR 0028)", () => {
       }),
     });
   }
+
+  test.each(["courtlistener", "clearinghouse-api"])(
+    "%s preserves a mapped production case ID, slug and dependent references after reset",
+    async (namespace) => {
+      const rootDir = await mkdtemp(path.join(os.tmpdir(), "case-identity-"));
+      const originalId = "original-case-id";
+      await SourceNameToCanonicalId.write(
+        path.join(
+          resolveSourceNameToCanonicalIdPath(namespace, { rootDir }),
+          "CivilCase",
+        ),
+        SourceNameToCanonicalId.new({
+          metadata: { namespace, name: caseId },
+          spec: { kind: "CivilCase", canonicalId: originalId },
+        }),
+      );
+      await SourceNameToCanonicalId.write(
+        path.join(
+          resolveSourceNameToCanonicalIdPath(namespace, { rootDir }),
+          "AgencyPersonnel",
+        ),
+        SourceNameToCanonicalId.new({
+          metadata: { namespace, name: "assignment" },
+          spec: {
+            kind: "AgencyPersonnel",
+            canonicalId: "canonical-assignment",
+          },
+        }),
+      );
+      const context = new DataContext({
+        client: new CurrentRowClient({}, { locationPaths: [txLocationPath] }),
+        commandName: "command-name",
+        ledger: createSourceNameToCanonicalIdLedger({ rootDir }),
+        resolvedPropertyStore: {
+          read: async ({ subject, targetProperty }) =>
+            subject.name === originalId && targetProperty === "slug"
+              ? "original-published-slug"
+              : undefined,
+          write: async () => {},
+        },
+      });
+      const source = { apiVersion: INTAKE_API_VERSION, namespace } as const;
+      context
+        .facadeFromSource("CivilCase", { ...source, name: caseId })
+        .merge(civilCaseSpec);
+      context
+        .facadeFromSource("CivilCasePersonnel", {
+          ...source,
+          name: "case-personnel",
+        })
+        .merge({ civil_case_id: caseId, agency_personnel_id: "assignment" });
+      context
+        .facadeFromSource("CivilCaseLink", { ...source, name: "case-link" })
+        .merge({
+          civil_case_id: caseId,
+          url: "https://example.com/docket",
+          title: "Docket",
+        });
+      const otherNamespace =
+        namespace === "courtlistener" ? "clearinghouse-api" : "courtlistener";
+      await SourceNameToCanonicalId.write(
+        path.join(
+          resolveSourceNameToCanonicalIdPath(otherNamespace, { rootDir }),
+          "CivilCase",
+        ),
+        SourceNameToCanonicalId.new({
+          metadata: { namespace: otherNamespace, name: caseId },
+          spec: { kind: "CivilCase", canonicalId: originalId },
+        }),
+      );
+      context
+        .facadeFromSource("CivilCase", {
+          ...source,
+          namespace: otherNamespace,
+          name: caseId,
+        })
+        .merge({ ...civilCaseSpec, claims_summary: "Second source summary." });
+      const mutations = await context.toMutations();
+      expect(
+        mutations.filter((m) => m.kind === "CivilCaseCreate"),
+      ).toHaveLength(1);
+      expect(mutations.find((m) => m.kind === "CivilCaseUpdate")).toMatchObject(
+        {
+          metadata: { name: originalId },
+          spec: {
+            operations: expect.arrayContaining([
+              expect.objectContaining({
+                path: "claims_summary",
+                from: "Original summary.",
+                to: "Second source summary.",
+              }),
+            ]),
+          },
+        },
+      );
+      expect(mutations.find((m) => m.kind === "CivilCaseCreate")).toMatchObject(
+        { spec: { id: originalId, slug: "original-published-slug" } },
+      );
+      expect(
+        mutations.find((m) => m.kind === "CivilCasePersonnelCreate"),
+      ).toMatchObject({
+        spec: {
+          id: `${originalId}|canonical-assignment`,
+          civil_case_id: originalId,
+          agency_personnel_id: "canonical-assignment",
+        },
+      });
+      expect(
+        mutations.find((m) => m.kind === "CivilCaseLinkCreate"),
+      ).toMatchObject({ spec: { civil_case_id: originalId } });
+    },
+  );
 
   test("the first source creates the CivilCase keyed by its natural id, not a cuid", async () => {
     const context = civilCaseContext();

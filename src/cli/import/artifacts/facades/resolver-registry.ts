@@ -10,6 +10,7 @@ import {
 import { importMutationEnvelopeTypes } from "../io/generated-mutations/index.js";
 import {
   Resolver,
+  valueAsString,
   facadeCanonicalIdResolver,
   facadeComposedIdResolver,
   facadeBusinessKeyIdResolver,
@@ -213,11 +214,18 @@ const REGISTRY: Record<string, KindConfig> = {
     },
   },
   CivilCase: {
-    // Identity is the source-provided natural key `court:docket` (ADR 0028), not a
-    // minted canonical, so the Clearinghouse and CourtListener converge on one row
-    // for the same docket. The source sets `spec.id`; there is no ledger mint.
+    // An established ledger identity wins; otherwise retain the source's natural
+    // key (ADR 0028). Never mint a replacement for an existing case.
     identityKind: "natural",
     overrides: {
+      id: new Resolver<string, ResolverContext<Row, EntityFacadeBackend>>(
+        async ({ source, facade, backend }) =>
+          (await backend.findCanonicalId({
+            namespace: source.namespace,
+            kind: "CivilCase",
+            sourceId: source.name,
+          })) ?? valueAsString(facade.raw("id")),
+      ) as AnyResolver,
       location_path_id: facadeStateLocationPathResolver<Row>(
         "CivilCase",
       ) as AnyResolver,
@@ -226,7 +234,7 @@ const REGISTRY: Record<string, KindConfig> = {
   CivilCasePersonnel: {
     // Identity is composed from the two resolved FKs (ADR 0028), so the same
     // officer named in the same case by two sources converges on one row. Both
-    // halves are canonical: civil_case_id resolves to the case's natural key,
+    // halves are canonical: civil_case_id resolves to the case's established ID,
     // agency_personnel_id through the ledger to the roster's canonical id.
     identityKind: "natural",
     overrides: {

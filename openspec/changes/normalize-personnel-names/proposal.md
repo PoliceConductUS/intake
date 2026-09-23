@@ -12,8 +12,9 @@ produce inconsistent display punctuation, as do SR and SR.
 Preserve mixed-case personal-name spelling after whitespace normalization. Work
 around the library's space consumption while retaining its existing display-case
 heuristics for uniformly cased inputs. Those guesses do not verify preferred
-personal spelling. Normalize case-insensitive JR/JR. to Jr. and SR/SR. to Sr.
-through the shared Personnel suffix property resolver for every source. Preserve
+personal spelling. Normalize case-insensitive JR and SR with any number of
+trailing periods to Jr. and Sr., respectively, through the shared Personnel
+suffix property resolver for every source. Preserve
 nullable suffix behavior and existing handling for other suffixes.
 
 Raw acquired inputs remain unchanged. No per-person or per-source exceptions.
