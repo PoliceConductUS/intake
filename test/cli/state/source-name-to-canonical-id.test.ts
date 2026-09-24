@@ -66,6 +66,64 @@ describe("SourceNameToCanonicalId records", () => {
     );
   });
 
+  test("findOrCreate persists a recovered ID in both directions and does not resolve it again", async () => {
+    const rootDir = await createTempRoot();
+    const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
+    expect(
+      await ledger.findOrCreate(
+        "intake",
+        "License",
+        "holding",
+        async () => "existing-license-id",
+      ),
+    ).toBe("existing-license-id");
+    const reopened = createSourceNameToCanonicalIdLedger({ rootDir });
+    expect(
+      await reopened.findOrCreate("intake", "License", "holding", async () => {
+        throw new Error("must reuse mapping");
+      }),
+    ).toBe("existing-license-id");
+    expect(
+      await reopened.sourceIdFor("intake", "License", "existing-license-id"),
+    ).toBe("holding");
+  });
+
+  test("failed ID recovery leaves no mapping", async () => {
+    const rootDir = await createTempRoot();
+    const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
+    await expect(
+      ledger.findOrCreate("intake", "License", "holding", async () => {
+        throw new Error("lookup failed");
+      }),
+    ).rejects.toThrow("lookup failed");
+    expect(await ledger.read("intake", "License", "holding")).toBeUndefined();
+  });
+
+  test("findOrCreate rejects instead of returning an ID when mapping persistence fails", async () => {
+    const rootDir = await createTempRoot();
+    const directory = path.join(
+      resolveSourceNameToCanonicalIdPath("intake", { rootDir }),
+      "License",
+    );
+    await mkdir(directory, { recursive: true });
+    // A directory at the reverse record's file path makes the real writer fail.
+    await mkdir(
+      path.join(
+        directory,
+        yamlResourceFileName("existing-license-id", "CanonicalIdToSourceName"),
+      ),
+    );
+    const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
+    await expect(
+      ledger.findOrCreate(
+        "intake",
+        "License",
+        "holding",
+        async () => "existing-license-id",
+      ),
+    ).rejects.toThrow();
+  });
+
   test("findOrCreate mints a stable cuid2 that a later read and findOrCreate reuse", async () => {
     const rootDir = await createTempRoot();
     const ledger = createSourceNameToCanonicalIdLedger({ rootDir });

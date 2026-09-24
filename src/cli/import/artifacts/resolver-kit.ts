@@ -177,7 +177,7 @@ export type CanonicalIdBackend = {
 
 /** The atomic tiers a business-key identity stacks over (the backend is per-kind). */
 export type BusinessKeyIdBackend = {
-  /** Cache / same-run: get-or-compute a stable id per business key (concurrency-safe). */
+  /** Same-run memoization over durable identity lookup/persistence. */
   businessKeyId(key: string, resolve: () => Promise<string>): Promise<string>;
   /** Db: the existing row's id whose columns hold these values, or undefined. */
   findIdByBusinessKey(
@@ -200,8 +200,8 @@ type BusinessKeyIdLink = (
 ) => Promise<string>;
 
 // The standard identity chain, in order. cache/same-run wraps the rest (memoize via
-// `next`) so concurrent same-key facades converge; db handles-or-defers; mint is the
-// terminal that always resolves.
+// `next`) and durable mappings so same-key facades converge across resets;
+// db handles-or-defers; mint is the terminal that always resolves.
 const CACHE_LINK: BusinessKeyIdLink = (context, next) =>
   context.backend.businessKeyId(context.key, next);
 const DB_LINK: BusinessKeyIdLink = async (context, next) =>
@@ -228,7 +228,8 @@ function runBusinessKeyIdChain(
 /**
  * An entity's own id, keyed by its business key (its unique columns from the
  * model): resolve the key columns, then walk the identity chain (cache/same-run →
- * db → mint) so two records with the same business key converge on one id.
+ * durable mapping → db → mint) so records with the same business key converge
+ * on one persisted id across commands and resets.
  */
 export function facadeBusinessKeyIdResolver<Row>(
   kind: string,

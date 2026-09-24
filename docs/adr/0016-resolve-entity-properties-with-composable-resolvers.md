@@ -80,6 +80,14 @@ in the database. The property kinds and their resolvers:
   DB but not yet in the cache is preserved (its existing id is _recovered_, not
   duplicated); else mint a new `cuid2` and persist. An ambiguous natural-key match
   fails fast and loud. (ADR 0008's assignment, now the "id" property's resolver.)
+- **Business-key identity** (`AuthorityLicense`, `License`, `ArrestProfile`):
+  the root intake resolver derives the source name from the entity kind and its
+  resolved business-key columns. Store that name in the existing identity ledger
+  under namespace `intake`, shared across producer namespaces and source-name
+  variants. Command memoization wraps durable lookup, then database recovery,
+  then minting. Persist recovered or minted IDs before returning them. The
+  command-local map alone is not identity storage; a reset must reuse the durable
+  mapping even when every database table is empty.
 - **Foreign key to another entity (same source):** because a source emits no
   forward references (#9), the target was already emitted, so this is a **find** —
   locate the target's facade by `(target kind, namespace, target source-id)` and

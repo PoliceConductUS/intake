@@ -1048,6 +1048,42 @@ describe("DataContext", () => {
     });
   }
 
+  test("license and authority-type foreign keys survive reset together", async () => {
+    const rootDir = await mkdtemp(
+      path.join(os.tmpdir(), "license-cluster-reset-"),
+    );
+    const resolve = async () => {
+      const context = licenseClusterContext({
+        ledger: createSourceNameToCanonicalIdLedger({ rootDir }),
+      });
+      registerLicenseCluster(context);
+      const source = {
+        apiVersion: INTAKE_API_VERSION,
+        namespace: "gov.tx.tcole",
+      } as const;
+      const type = context.facadeFromSource("AuthorityLicense", {
+        ...source,
+        name: "tcole|Peace Officer",
+      });
+      const license = context.facadeFromSource("License", {
+        ...source,
+        name: "1000038|Peace Officer",
+      });
+      return {
+        typeId: await type.value("id"),
+        mutation: await license.toMutation(),
+      };
+    };
+    const before = await resolve();
+    const after = await resolve();
+    expect(after.typeId).toBe(before.typeId);
+    expect(after.mutation).toEqual(before.mutation);
+    expect(after.mutation).toMatchObject({
+      kind: "LicenseCreate",
+      spec: { authority_license_id: before.typeId },
+    });
+  });
+
   test("LicenseFacade emits a LicenseCreate resolving its officer and authority foreign keys", async () => {
     // The authority_license exists (its id is known); the license itself does not,
     // so its business-key identity mints a fresh cuid and it emits a Create.
@@ -2240,4 +2276,119 @@ describe("CivilCase cross-source convergence (ADR 0028)", () => {
       },
     ]);
   });
+});
+
+describe("durable business-key identities", () => {
+  const cases = [
+    {
+      kind: "AuthorityLicense",
+      table: "public.authority_license",
+      spec: { licensing_authority_id: "authority", name: "Peace Officer" },
+      row: {
+        id: "original-type-id",
+        licensing_authority_id: "authority-id",
+        name: "Peace Officer",
+      },
+    },
+    {
+      kind: "License",
+      table: "public.license",
+      spec: { personnel_id: "person", authority_license_id: "type" },
+      row: {
+        id: "original-license-id",
+        personnel_id: "person-id",
+        authority_license_id: "type-id",
+      },
+    },
+    {
+      kind: "ArrestProfile",
+      table: "public.arrest_profile",
+      spec: { agency_personnel_id: "assignment" },
+      row: { id: "original-profile-id", agency_personnel_id: "assignment-id" },
+    },
+  ];
+
+  async function workspace(): Promise<string> {
+    const rootDir = await mkdtemp(
+      path.join(os.tmpdir(), "business-key-reset-"),
+    );
+    for (const namespace of ["source-a", "source-b"]) {
+      for (const [kind, name, canonicalId] of [
+        ["LicensingAuthority", "authority", "authority-id"],
+        ["Personnel", "person", "person-id"],
+        ["AuthorityLicense", "type", "type-id"],
+        ["AgencyPersonnel", "assignment", "assignment-id"],
+      ]) {
+        await SourceNameToCanonicalId.write(
+          path.join(
+            resolveSourceNameToCanonicalIdPath(namespace, { rootDir }),
+            kind,
+          ),
+          SourceNameToCanonicalId.new({
+            metadata: { namespace, name },
+            spec: { kind, canonicalId },
+          }),
+        );
+      }
+    }
+    return rootDir;
+  }
+
+  for (const fixture of cases) {
+    for (const recoverExisting of [false, true]) {
+      test(`${fixture.kind} preserves ${recoverExisting ? "recovered" : "minted"} identity across a fresh context and empty database`, async () => {
+        const rootDir = await workspace();
+        const first = new DataContext({
+          ledger: createSourceNameToCanonicalIdLedger({ rootDir }),
+          client: new CurrentRowClient(
+            recoverExisting ? { [fixture.table]: [fixture.row] } : {},
+          ),
+        });
+        const source = {
+          apiVersion: INTAKE_API_VERSION,
+          namespace: "source-a",
+          name: "first-record",
+          spec: fixture.spec,
+        } as const;
+        const ids = await Promise.all([
+          first.facadeFromSource(fixture.kind, source).value("id"),
+          first
+            .facadeFromSource(fixture.kind, {
+              ...source,
+              name: "same-key-variant",
+            })
+            .value("id"),
+        ]);
+        expect(ids[1]).toBe(ids[0]);
+        if (recoverExisting) expect(ids[0]).toBe(fixture.row.id);
+
+        // Reopen the actual on-disk ledger, discard all command memory and DB rows.
+        const second = new DataContext({
+          ledger: createSourceNameToCanonicalIdLedger({ rootDir }),
+          client: new EmptyDatabaseClient(),
+        });
+        expect(
+          await second
+            .facadeFromSource(fixture.kind, {
+              ...source,
+              namespace: "source-b",
+              name: "another-source-record",
+            })
+            .value("id"),
+        ).toBe(ids[0]);
+
+        const staleDatabase = new DataContext({
+          ledger: createSourceNameToCanonicalIdLedger({ rootDir }),
+          client: new CurrentRowClient({
+            [fixture.table]: [{ ...fixture.row, id: "replacement-id" }],
+          }),
+        });
+        expect(
+          await staleDatabase
+            .facadeFromSource(fixture.kind, source)
+            .value("id"),
+        ).toBe(ids[0]);
+      });
+    }
+  }
 });

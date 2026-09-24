@@ -262,7 +262,7 @@ export class DataContext {
     return {
       findCanonicalId: (input) => this.findCanonicalId(input),
       findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
-      businessKeyId: (key, resolve) => this.businessKeyId(key, resolve),
+      businessKeyId: (key, resolve) => this.businessKeyId(kind, key, resolve),
       findIdByBusinessKey: (values) => this.findIdByBusinessKey(kind, values),
       mintId: () => createId(),
       existingRow: (id) => {
@@ -354,6 +354,7 @@ export class DataContext {
   // Cache / same-run tier: memoize the id per business key so concurrent same-key
   // facades share one pending find-or-mint and converge (ADR 0016).
   private businessKeyId(
+    kind: string,
     key: string,
     resolve: () => Promise<string>,
   ): Promise<string> {
@@ -361,7 +362,17 @@ export class DataContext {
     if (existing !== undefined) {
       return existing;
     }
-    const pending = resolve();
+    // Intake owns the derived business-key name, shared across source variants.
+    // Persist both recovered and minted IDs before releasing the result.
+    const pending =
+      this.ledger === undefined
+        ? resolve()
+        : this.ledger.findOrCreate(
+            "intake",
+            kind as LedgerEntityKind,
+            key,
+            resolve,
+          );
     this.businessKeyIds.set(key, pending);
     return pending;
   }
