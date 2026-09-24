@@ -108,3 +108,58 @@ describe("acquire -> run (env-driven, non-interactive)", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("manual review restoration", () => {
+  it("acquires and emits a report and its personnel relationship unchanged", async () => {
+    const state = await tempDir();
+    const entries = [
+      {
+        kind: "Review",
+        record: {
+          id: "published-review",
+          title: "Original title",
+          description: "Original prose.\n\nSecond paragraph.",
+          slug: "original-published-slug",
+          incident_date: "2023-12-04",
+          location_path_id: "place-id",
+          latitude: 32.89,
+          longitude: -96.96,
+        },
+      },
+      {
+        kind: "ReviewPersonnel",
+        record: {
+          id: "published-link",
+          review_id: "published-review",
+          agency_personnel_id: "roster-source-id",
+        },
+      },
+    ];
+    for (const entry of entries)
+      await acquire({
+        sourceDir: state,
+        state,
+        env: {
+          MANUAL_KIND: entry.kind,
+          MANUAL_RECORD: JSON.stringify(entry.record),
+        },
+        data: {} as never,
+      });
+    const manifest = await transform({
+      paths: [],
+      readXlsx: async () => [],
+      state,
+      emit: async () => {},
+    } as never);
+    expect(
+      manifest.artifacts.find((a) => a.kind === "Reviews")?.records[
+        "published-review"
+      ],
+    ).toEqual({ spec: entries[0].record });
+    expect(
+      manifest.artifacts.find((a) => a.kind === "ReviewPersonnel")?.records[
+        "published-link"
+      ],
+    ).toEqual({ spec: entries[1].record });
+  });
+});

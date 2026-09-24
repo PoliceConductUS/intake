@@ -305,16 +305,28 @@ const REGISTRY: Record<string, KindConfig> = {
   },
   ReviewPersonnel: {
     // The report's link to one resolved officer@agency (ADR 0030). Composed natural
-    // id from (review_id, agency_personnel_id); the officer resolves through the
+    // id from (review_id, agency_personnel_id), unless a historical identity is
+    // recorded in the ledger. The officer resolves through the
     // ledger (run matched it against a roster). review_id resolves same-run. Like
     // the report, an existing link is a no-op read on re-import.
     identityKind: "natural",
     upsert: "read",
     overrides: {
-      id: facadeComposedIdResolver<Row>([
-        "review_id",
-        "agency_personnel_id",
-      ]) as AnyResolver,
+      id: new Resolver(
+        async (context: ResolverContext<Row, EntityFacadeBackend>) =>
+          (await context.backend.findCanonicalId({
+            namespace: context.source.namespace,
+            kind: "ReviewPersonnel",
+            sourceId: context.source.name,
+          })) ??
+          (await facadeComposedIdResolver<Row>([
+            "review_id",
+            "agency_personnel_id",
+          ]).resolve(
+            context,
+            () => "Cannot resolve ReviewPersonnel identity.",
+          )),
+      ) as AnyResolver,
       agency_personnel_id: facadeLedgerForeignKeyResolver<Row>(
         "ReviewPersonnel",
         "agency_personnel_id",

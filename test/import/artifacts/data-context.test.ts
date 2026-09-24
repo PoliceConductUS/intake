@@ -2392,3 +2392,48 @@ describe("durable business-key identities", () => {
     }
   }
 });
+
+test("ReviewPersonnel preserves a mapped historical identity and its resolved references", async () => {
+  const rootDir = await mkdtemp(path.join(os.tmpdir(), "manual-review-link-"));
+  const namespace = "org.policeconduct.manual";
+  for (const [kind, name, canonicalId] of [
+    ["ReviewPersonnel", "legacy-link", "original-link-id"],
+    ["AgencyPersonnel", "assignment", "original-assignment-id"],
+  ]) {
+    await SourceNameToCanonicalId.write(
+      path.join(
+        resolveSourceNameToCanonicalIdPath(namespace, { rootDir }),
+        kind,
+      ),
+      SourceNameToCanonicalId.new({
+        metadata: { namespace, name },
+        spec: { kind, canonicalId },
+      }),
+    );
+  }
+  const context = new DataContext({
+    client: new EmptyDatabaseClient(),
+    ledger: createSourceNameToCanonicalIdLedger({ rootDir }),
+  });
+  context.facadeFromSource("Review", {
+    apiVersion: INTAKE_API_VERSION,
+    namespace,
+    name: "published-review",
+    spec: { id: "published-review", title: "Original report" },
+  });
+  const link = context.facadeFromSource("ReviewPersonnel", {
+    apiVersion: INTAKE_API_VERSION,
+    namespace,
+    name: "legacy-link",
+    spec: { review_id: "published-review", agency_personnel_id: "assignment" },
+  });
+  expect(await link.toMutation()).toMatchObject({
+    kind: "ReviewPersonnelCreate",
+    metadata: { name: "original-link-id" },
+    spec: {
+      id: "original-link-id",
+      review_id: "published-review",
+      agency_personnel_id: "original-assignment-id",
+    },
+  });
+});

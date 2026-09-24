@@ -15,6 +15,8 @@ export const HANDLED_RECORD_KINDS = [
   "CivilCase",
   "CivilCasePersonnel",
   "CivilCaseLink",
+  "Review",
+  "ReviewPersonnel",
   "ReviewLink",
 ] as const;
 

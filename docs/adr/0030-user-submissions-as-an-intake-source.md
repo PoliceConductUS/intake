@@ -147,3 +147,11 @@ runs — the same manual-intervention shape as `org.policeconduct.manual`.
 
 The bucket layout or verification signal changes; the AI gate needs to move; or a
 second form type is brought in (adds edit/merge semantics).
+
+## Curated restoration of existing reviews
+
+The manual source may restore an operator-approved historical Review and its
+ReviewPersonnel/ReviewLink associations. Historical content stays in workspace
+state, with IDs and slugs preserved through ordinary mappings/cache. An existing
+ReviewPersonnel mapping precedes its default composed ID; unmapped links keep the
+composed-ID rule. This does not approve or import other third-party summaries.
