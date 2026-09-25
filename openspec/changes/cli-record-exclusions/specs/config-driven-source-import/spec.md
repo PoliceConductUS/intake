@@ -27,3 +27,18 @@ The command SHALL report the saved file and the transform and generate commands 
 - **AND** existing entries, comments, and reasons are preserved when moving the current exclusion list into the workspace
 
 Correction audit files and the manual-place audit list SHALL reside under the workspace `audits/` directory. Manual records themselves remain in the existing manual source state; relocating audit files SHALL NOT modify those records, cached corrections, or pending database mutations.
+
+### Requirement: Applied exclusions are visible during transform
+
+Transform SHALL log each explicitly excluded record present in its source manifest,
+including source namespace, record kind, source ID, and recorded reason. It SHALL
+also log counts removed by kind, including dependent records removed by the existing
+cascade. Exclusion entries absent from the source manifest SHALL NOT be reported
+as removed records.
+
+#### Scenario: Explicit exclusion with a recorded reason
+
+- **WHEN** transform removes a source record listed in workspace exclusions
+- **THEN** its source identity and recorded reason appear in the command log
+- **AND** removal counts by kind include dependent records
+- **AND** transform with no removed records prints no removal summary

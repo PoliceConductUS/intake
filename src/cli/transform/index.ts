@@ -12,6 +12,7 @@ import { defaultDatabaseClientFactory } from "../database/index.js";
 import { createSourceNameToCanonicalIdLedger } from "../state/source-name-to-canonical-id/index.js";
 import { createTransformDataContext } from "./personnel-resolver.js";
 import type { ImportArtifactKind } from "../../shared/io/index.js";
+import { importTypeMetadata } from "../../shared/io/import-type-metadata.js";
 import { readXlsx } from "./read-xlsx.js";
 import { sourceStateDir } from "./state.js";
 import { excludeManifestRecords } from "./exclude-records.js";
@@ -176,10 +177,32 @@ export async function transformSource(
     // Apply excluded.yaml at Artifacts generation (with FK cascade) so an
     // excluded record never enters the Artifacts — the import then sees a clean
     // envelope and needs no exclusion of its own.
-    const { manifest: filteredManifest } = excludeManifestRecords(
+    const { manifest: filteredManifest, removed } = excludeManifestRecords(
       manifest,
       excludedRecords,
     );
+    for (const exclusion of excludedRecords.values()) {
+      if (
+        manifest.artifacts.some(
+          (artifact) =>
+            importTypeMetadata[artifact.kind].recordKind === exclusion.kind &&
+            Object.hasOwn(artifact.records, exclusion.key),
+        )
+      ) {
+        deps.logger?.info(
+          `${sourceId}: excluded ${exclusion.kind} ${exclusion.key}: ${exclusion.reason}`,
+        );
+      }
+    }
+    if (Object.keys(removed).length > 0) {
+      deps.logger?.info(
+        `${sourceId}: exclusion totals (including dependents): ${Object.entries(
+          removed,
+        )
+          .map(([kind, count]) => `${kind}=${count}`)
+          .join(", ")}`,
+      );
+    }
     const digest = await deps.digest(paths);
     const refItems = await sink.flush();
     // Emitted kinds (manifest + sink) must be declared: produces drives run

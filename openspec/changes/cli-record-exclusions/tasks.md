@@ -1,3 +1,4 @@
+- [x] Log applied exclusion identities, reasons, and removal counts; verify focused tests (20 passed), typecheck, build, and OpenSpec validation (23 items passed).
 - [x] Add regression tests for CLI persistence, existing-entry preservation, validation, duplicates, and the existing dependency cascade.
 - [x] Implement the command with shared exclusion IO and document its transform requirement.
 - [x] Run focused tests (18 passed), typecheck, build, and OpenSpec validation (18 items passed).

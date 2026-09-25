@@ -51,6 +51,7 @@ function makeOkDeps() {
     writeEnvelope: vi.fn(async () => ({ path: "/ws/artifacts.yaml" })),
     makeWorkspace: vi.fn(async () => "/ws"),
     env: { INTAKE_WORKSPACE: "/ws" },
+    logger: { info: vi.fn() },
   };
 }
 
@@ -80,6 +81,7 @@ describe("transformSource", () => {
     );
     expect(okDeps.loadExcludedRecords).toHaveBeenCalledWith(okDeps.state);
     expect(result).toEqual({ artifactsPath: "/ws/artifacts.yaml" });
+    expect(okDeps.logger.info).not.toHaveBeenCalled();
   });
 
   it("filters using workspace exclusions and ignores a different list in the checkout", async () => {
@@ -92,10 +94,17 @@ describe("transformSource", () => {
       await mkdir(sourceDir, { recursive: true });
       await writeFile(
         path.join(state, "excluded.yaml"),
-        'excluded:\n  - kind: Personnel\n    key: "1001"\n    reason: workspace exclusion\n',
+        'excluded:\n  - kind: Personnel\n    key: "1001"\n    reason: workspace exclusion\n  - kind: Personnel\n    key: "9999"\n    reason: absent from source\n',
       );
       await writeFile(path.join(sourceDir, "excluded.yaml"), "excluded: []\n");
-      const deps = { ...makeOkDeps(), state, sourcesRoot, loadExcludedRecords };
+      const logger = { info: vi.fn() };
+      const deps = {
+        ...makeOkDeps(),
+        state,
+        sourcesRoot,
+        loadExcludedRecords,
+        logger,
+      };
       expect(
         await transformSource("gov.azpost.roster", ["file.xlsx"], {}, deps),
       ).toEqual({ artifactsPath: "/ws/artifacts.yaml" });
@@ -106,6 +115,13 @@ describe("transformSource", () => {
         { artifacts: [{ kind: "Personnel", records: {} }] },
         testRefItems,
       );
+      expect(logger.info).toHaveBeenCalledWith(
+        "gov.azpost.roster: excluded Personnel 1001: workspace exclusion",
+      );
+      expect(logger.info).toHaveBeenCalledWith(
+        "gov.azpost.roster: exclusion totals (including dependents): Personnel=1",
+      );
+      expect(logger.info).toHaveBeenCalledTimes(2);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
