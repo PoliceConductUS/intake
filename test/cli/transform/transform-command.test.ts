@@ -28,18 +28,20 @@ function makeOkDeps() {
     // The manifest emits Personnel; the emit sink (flush) emits
     // LocationPathGeometries via testRefItems — both must be declared.
     produces: ["Personnel", "LocationPathGeometries"] as const,
-    loadSourceModule: vi.fn(async () => async () => ({
-      artifacts: [
-        {
-          kind: "Personnel" as const,
-          records: {
-            "1001": {
-              spec: { id: "1001", first_name: "Skip", last_name: "Woodward" },
+    loadSourceModule: vi.fn(async () =>
+      vi.fn(async (_deps: unknown) => ({
+        artifacts: [
+          {
+            kind: "Personnel" as const,
+            records: {
+              "1001": {
+                spec: { id: "1001", first_name: "Skip", last_name: "Woodward" },
+              },
             },
           },
-        },
-      ],
-    })),
+        ],
+      })),
+    ),
     readXlsx: vi.fn(async () => []),
     state: "/ws/state/gov.azpost.roster",
     digest: vi.fn(async () => "testdigest"),
@@ -82,6 +84,11 @@ describe("transformSource", () => {
     expect(okDeps.loadExcludedRecords).toHaveBeenCalledWith(okDeps.state);
     expect(result).toEqual({ artifactsPath: "/ws/artifacts.yaml" });
     expect(okDeps.logger.info).not.toHaveBeenCalled();
+    const sourceTransform =
+      await okDeps.loadSourceModule.mock.results[0]!.value;
+    expect(sourceTransform.mock.calls[0]![0]).not.toHaveProperty(
+      "applyPropertyCorrections",
+    );
   });
 
   it("filters using workspace exclusions and ignores a different list in the checkout", async () => {

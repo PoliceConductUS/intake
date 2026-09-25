@@ -78,14 +78,14 @@ describe("us-census-gazetteer run", () => {
     ]);
     const locationPaths = manifest.artifacts[0].records;
     expect(Object.keys(locationPaths).sort()).toEqual([
-      "/mn/",
-      "/mn/hennepin-county/",
-      "/mn/hennepin-county/minneapolis/",
-      "/mn/hennepin-county/test-township/",
+      "administrative_area:GEOID:27053",
+      "county_subdivision:GEOID:2705300001",
+      "place:GEOID:2743000",
+      "state:GEOID:27",
     ]);
 
     expect(
-      locationPaths["/mn/hennepin-county/test-township/"].spec,
+      locationPaths["county_subdivision:GEOID:2705300001"].spec,
     ).toMatchObject({
       resolution_class: "county_subdivision",
       display_name: "Test township",
@@ -95,7 +95,7 @@ describe("us-census-gazetteer run", () => {
     );
     expect(report.records).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ geoid: "2705300001", status: "clipped" }),
+        expect.objectContaining({ geoid: "2705300001", status: "included" }),
         expect.objectContaining({ geoid: "2705300002", status: "excluded" }),
       ]),
     );
@@ -103,8 +103,8 @@ describe("us-census-gazetteer run", () => {
       expect(LocationPathSpec.safeParse(record.spec).success).toBe(true);
     }
 
-    expect(locationPaths["/mn/"].spec).toMatchObject({
-      location_path_id: "/mn/",
+    expect(locationPaths["state:GEOID:27"].spec).toMatchObject({
+      location_path_id: "state:GEOID:27",
       path: "/mn/",
       level: "state",
       display_name: "Minnesota",
@@ -125,37 +125,42 @@ describe("us-census-gazetteer run", () => {
     });
     // latitude/longitude are on the ported LocationPathRow shape but are not
     // part of the target LocationPathSpec — assert they were stripped.
-    expect(locationPaths["/mn/"].spec).not.toHaveProperty("latitude");
-    expect(locationPaths["/mn/"].spec).not.toHaveProperty("longitude");
+    expect(locationPaths["state:GEOID:27"].spec).not.toHaveProperty("latitude");
+    expect(locationPaths["state:GEOID:27"].spec).not.toHaveProperty(
+      "longitude",
+    );
 
-    expect(locationPaths["/mn/hennepin-county/"].spec).toMatchObject({
-      location_path_id: "/mn/hennepin-county/",
-      level: "administrative_area",
-      display_name: "Hennepin County",
-      parent_location_path_id: "/mn/",
-      centroid: { type: "Point", coordinates: [5, 5] },
-    });
+    expect(locationPaths["administrative_area:GEOID:27053"].spec).toMatchObject(
+      {
+        location_path_id: "administrative_area:GEOID:27053",
+        level: "administrative_area",
+        display_name: "Hennepin County",
+        parent_location_path_id: "state:GEOID:27",
+        centroid: { type: "Point", coordinates: [5, 5] },
+      },
+    );
 
-    expect(
-      locationPaths["/mn/hennepin-county/minneapolis/"].spec,
-    ).toMatchObject({
-      location_path_id: "/mn/hennepin-county/minneapolis/",
+    expect(locationPaths["place:GEOID:2743000"].spec).toMatchObject({
+      location_path_id: "place:GEOID:2743000",
       level: "place",
       display_name: "Minneapolis",
-      parent_location_path_id: "/mn/hennepin-county/",
+      parent_location_path_id: "administrative_area:GEOID:27053",
       centroid: { type: "Point", coordinates: [4, 4] },
     });
 
+    expect(locationPaths["place:GEOID:2743000"].spec).not.toHaveProperty(
+      "path",
+    );
     // --- emitted LocationPathGeometries: one per location path, streamed
     // in lexical path order ---
     const geometryEmits = emitted.filter(
       ([kind]) => kind === "LocationPathGeometries",
     );
     expect(geometryEmits.map(([, key]) => key)).toEqual([
-      "/mn/",
-      "/mn/hennepin-county/",
-      "/mn/hennepin-county/minneapolis/",
-      "/mn/hennepin-county/test-township/",
+      "administrative_area:GEOID:27053",
+      "county_subdivision:GEOID:2705300001",
+      "place:GEOID:2743000",
+      "state:GEOID:27",
     ]);
     for (const [, key, spec] of geometryEmits) {
       const result = LocationPathGeometrySpec.safeParse(spec);
@@ -172,8 +177,11 @@ describe("us-census-gazetteer run", () => {
     }
     // Geometry is emitted as an opaque JSON string (parsed once as a scalar on
     // import, not a deep coordinate tree); it round-trips to the source GeoJSON.
-    const emittedGeometry = (geometryEmits[0][2] as { geometry: unknown })
-      .geometry;
+    const emittedGeometry = (
+      geometryEmits.find(([, key]) => key === "state:GEOID:27")![2] as {
+        geometry: unknown;
+      }
+    ).geometry;
     expect(typeof emittedGeometry).toBe("string");
     expect(JSON.parse(emittedGeometry as string)).toEqual({
       type: "MultiPolygon",

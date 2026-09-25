@@ -1,6 +1,10 @@
 import { z } from "zod";
+import {
+  correctionPropertySchema,
+  inspectPropertyCorrection,
+  setPropertyCorrection,
+} from "../../shared/io/property-corrections.js";
 import type { RegisterCliCommand } from "../../shared/cli/types.js";
-import * as entitySpecs from "../../shared/io/generated/entity-specs.js";
 import { INTAKE_API_VERSION } from "../../shared/io/import-types.js";
 import {
   createCommandDirectory,
@@ -12,23 +16,8 @@ import {
 } from "../state/source-name-to-canonical-id/index.js";
 import {
   inspectResolvedProperty,
-  setManualResolvedProperty,
+  retireManualResolvedProperty,
 } from "../state/resolved-property/index.js";
-
-function propertySchema(kind: string, property: string): z.ZodType {
-  const spec = (entitySpecs as Record<string, unknown>)[`${kind}Spec`];
-  if (
-    !(spec instanceof z.ZodObject) ||
-    property === "id" ||
-    !entitySpecs.RESOLVED_PROPERTIES[kind]?.includes(property)
-  ) {
-    throw new Error(`Not a resolved cache property: ${kind}.${property}`);
-  }
-  const field = spec.shape[property];
-  if (!(field instanceof z.ZodType))
-    throw new Error(`Unknown property ${kind}.${property}`);
-  return field;
-}
 
 function valueError(error: z.ZodError): Error {
   return new Error(
@@ -43,6 +32,7 @@ function valueError(error: z.ZodError): Error {
 }
 
 function parseValue(schema: z.ZodType, text: string): unknown {
+  if (text === "null" && schema.safeParse(null).success) return null;
   const direct = schema.safeParse(text);
   if (direct.success) return direct.data;
   let value: unknown;
@@ -63,7 +53,7 @@ export const registerCliCommand: RegisterCliCommand = (
   const cache = program
     .command("cache")
     .description(
-      "Inspect or manually correct resolved properties by source identity.",
+      "Inspect or correct any record property by source identity. --from replaces matching input; otherwise fills absent/null input.",
     );
   for (const action of ["get", "set"] as const) {
     const command = cache
@@ -76,8 +66,16 @@ export const registerCliCommand: RegisterCliCommand = (
       command
         .argument("<value>")
         .option(
+          "--from <existing-value>",
+          "replace only this exact typed input value; default: absent/null",
+        )
+        .option(
           "--force",
           "overwrite an existing cache value, retaining its history",
+        )
+        .addHelpText(
+          "after",
+          "\nOne active manual rule per source property. --from and no --from replace the same rule with --force; rules never chain. A nonmatching rule leaves normal source/cache/resolver behavior unchanged.\nRun data generate <namespace> to use record corrections. Corrections apply before dependent property resolution; transforms do not read corrections.\n",
         );
     command.action(
       async (
@@ -86,10 +84,10 @@ export const registerCliCommand: RegisterCliCommand = (
         sourceId: string,
         property: string,
         valueOrOptions: string | object,
-        options?: { force?: boolean },
+        options?: { force?: boolean; from?: string },
       ) => {
         try {
-          const schema = propertySchema(kind, property);
+          const schema = correctionPropertySchema(kind, property);
           const rootDir = intakeWorkspace(process.env);
           const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
           const id = await ledger.read(
@@ -97,41 +95,109 @@ export const registerCliCommand: RegisterCliCommand = (
             kind as LedgerEntityKind,
             sourceId,
           );
-          if (id === undefined)
-            throw new Error(
-              `No canonical mapping for ${namespace}/${kind}/${sourceId}.`,
+          const correction = await inspectPropertyCorrection(
+            rootDir,
+            namespace,
+            kind,
+            sourceId,
+            property,
+          );
+          const conditional =
+            action === "set" || correction !== undefined || id === undefined;
+          if (conditional) {
+            if (action === "set") {
+              const value = parseValue(schema, String(valueOrOptions));
+              let from: unknown = null;
+              if (options?.from !== undefined && options.from !== "null") {
+                if (schema.safeParse(options.from).success) from = options.from;
+                else {
+                  try {
+                    from = JSON.parse(options.from);
+                  } catch {
+                    from = options.from;
+                  }
+                }
+              }
+              // Preserve the existing explicit-overwrite protection even when switching
+              // a resolved property from an unconditional value to an input condition.
+              const resolved =
+                id === undefined
+                  ? undefined
+                  : await inspectResolvedProperty({
+                      rootDir,
+                      subject: {
+                        apiVersion: INTAKE_API_VERSION,
+                        kind,
+                        name: id,
+                      },
+                      targetProperty: property,
+                    });
+              if (resolved !== undefined && !options?.force)
+                throw new Error(
+                  `Cache already has a value. Use --force to overwrite. Current cache:\n${JSON.stringify(resolved.spec, null, 2)}`,
+                );
+              const { commandName } = await createCommandDirectory(
+                process.env,
+                {
+                  args: [
+                    "cache",
+                    "set",
+                    namespace,
+                    kind,
+                    sourceId,
+                    property,
+                    String(valueOrOptions),
+                    ...(options?.from === undefined
+                      ? []
+                      : ["--from", options.from]),
+                    ...(options?.force ? ["--force"] : []),
+                  ],
+                },
+              );
+              await setPropertyCorrection({
+                rootDir,
+                namespace,
+                kind,
+                sourceId,
+                property,
+                value,
+                from,
+                commandId: commandName,
+                force: options?.force === true,
+              });
+              if (id !== undefined)
+                await retireManualResolvedProperty({
+                  rootDir,
+                  subject: { apiVersion: INTAKE_API_VERSION, kind, name: id },
+                  targetProperty: property,
+                });
+            }
+            const current = await inspectPropertyCorrection(
+              rootDir,
+              namespace,
+              kind,
+              sourceId,
+              property,
             );
+            if (current === undefined)
+              throw new Error(
+                `No cached value for ${namespace}/${kind}/${sourceId}.${property}.`,
+              );
+            dependencies.setResult({
+              exitCode: 0,
+              stdout: `${JSON.stringify(current.spec, null, 2)}\n`,
+            });
+            return;
+          }
           const input = {
             rootDir,
             subject: {
               apiVersion: INTAKE_API_VERSION,
               kind,
-              name: id,
+              name: id!,
             } as const,
             targetProperty: property,
           };
-          if (action === "set") {
-            const value = parseValue(schema, String(valueOrOptions));
-            const { commandName } = await createCommandDirectory(process.env, {
-              args: [
-                "cache",
-                "set",
-                namespace,
-                kind,
-                sourceId,
-                property,
-                String(valueOrOptions),
-                ...(options?.force ? ["--force"] : []),
-              ],
-            });
-            await setManualResolvedProperty({
-              ...input,
-              value,
-              commandId: commandName,
-              source: { namespace, kind, name: sourceId },
-              force: options?.force === true,
-            });
-          }
           const current = await inspectResolvedProperty(input);
           if (current === undefined)
             throw new Error(

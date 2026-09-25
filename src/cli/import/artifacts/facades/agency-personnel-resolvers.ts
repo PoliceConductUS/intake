@@ -79,8 +79,19 @@ function slugResolver(
       );
     }
     const established = databaseSlug ?? cached;
+    const correction = facade.correction?.("slug");
+    if (
+      correction !== undefined &&
+      established !== undefined &&
+      correction !== established
+    ) {
+      throw new Error(
+        `Canonical slug conflict for ${kind} ${id}: correction ${String(correction)} differs from established slug ${String(established)}.`,
+      );
+    }
     const slug =
       established ??
+      valueAsString(correction) ??
       (await backend.ensureUniqueSlug({
         kind,
         base: deriveBase(facade, id, source),

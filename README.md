@@ -93,23 +93,48 @@ status and an incomplete-rebuild message. Plain `data reset` also acquires each
 automatic source before transforming it. `data up` only replays previously
 generated mutations; it does not regenerate imports.
 
-Inspect or correct a resolved property using its source identity:
+Inspect or correct any declared record property using its source identity:
 
 ```bash
 npm run cli -- cache get <namespace> <kind> <source-id> <property>
 npm run cli -- cache set <namespace> <kind> <source-id> <property> <value>
+npm run cli -- cache set <namespace> <kind> <source-id> <property> <value> --from <existing-value>
 npm run cli -- cache set <namespace> <kind> <source-id> <property> <value> --force
 ```
 
 Use `cache set` for manual cache corrections. Source checkouts do not seed the
 cache; cleared values are resolved again or supplied explicitly through the CLI.
 
-`set` refuses an existing value and displays the current cache unless `--force`
-is supplied. Explicit manual overrides take precedence over automatic cache
-entries. Previous values and source provenance remain inspectable with `get`.
-Use a canonical location ID for `location_path_id`; numeric values such as
-latitude are parsed as numbers. Cache changes affect subsequent generation, not
-already-applied database rows.
+`set` refuses an existing value and displays it unless `--force` is supplied.
+There is one active manual rule per namespace/kind/source-ID/property:
+
+- With `--from X`, replace input X with the supplied value; other inputs are unchanged.
+- Without `--from` (or with `--from null`), fill only absent/null input. Empty strings require `--from ''`.
+- The forms replace the same rule with `--force`; they do not coexist or chain.
+- A matching rule supplies the property directly before dependent resolution. If it does not match, normal source/resolver/cache behavior continues. Archived rules are never evaluated.
+
+Corrections live in `$INTAKE_WORKSPACE/state/intake/namespaces/<namespace>/PropertyCorrection/`,
+written through canonical IO with command ID, timestamp, and previous entries. They
+can be set before a canonical mapping exists. All declared properties are eligible;
+normal type, canonical identity, slug ownership, and mutation constraints still apply.
+The acquired files remain unchanged. Existing canonical `ResolvedProperty` caches
+remain available; replacing an old manual cache entry archives that override.
+
+All input corrections apply during `data generate`, before property resolution.
+Census records use geography type plus GEOID as source keys, for example
+`state:GEOID:27`, `administrative_area:GEOID:27053`, `place:GEOID:2743000`,
+`county_subdivision:GEOID:2706300604`, and `consolidated_city:GEOID:<GEOID>`.
+Paths and alternate-county aliases are derived from corrected names during generation.
+For example:
+
+```bash
+npm run cli -- cache set us-census-gazetteer LocationPath place:GEOID:2416620 display_name 'Chevy Chase town' --from 'Chevy Chase'
+npm run cli -- data generate us-census-gazetteer
+```
+
+Each Census GEOID keeps its own boundary. Unresolved path collisions fail with both
+source identities; they never merge records or select a name by processing order.
+Neither cache edits nor generation modify already-applied database rows.
 
 Exclude an invalid source record with a documented reason:
 

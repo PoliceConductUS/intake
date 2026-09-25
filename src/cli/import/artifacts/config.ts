@@ -1,3 +1,4 @@
+import { loadPropertyCorrections } from "../../../shared/io/property-corrections.js";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { createCensusAgencyCoordinateResolver } from "./agency-coordinate-resolver.js";
@@ -449,10 +450,23 @@ async function writeLocationPathGeometryMutationRefs(
 
   const mutations: DatabaseMutationItem[] = [];
   let processed = 0;
-  for await (const { recordKey, spec } of readLocationPathGeometryRecords(
+  const correctGeometry = await loadPropertyCorrections(
+    context.workspaceRoot,
+    context.artifacts.metadata.namespace,
+    (message) => context.commandInput.logger?.info(message),
+  );
+  for await (const {
+    recordKey,
+    spec: originalSpec,
+  } of readLocationPathGeometryRecords(
     context.artifactsPath,
     context.artifacts.metadata.namespace,
   )) {
+    const spec = correctGeometry(
+      "LocationPathGeometry",
+      recordKey,
+      originalSpec,
+    );
     const { canonicalId, sourceLocationPathKey } =
       await canonicalLocationPathIdForGeometry(
         recordKey,
@@ -594,6 +608,12 @@ async function writeDatabaseMutationsStage(
     const { importSchema } = await loadDatabaseSchemaMetadata(client);
     assertGeneratedSchemaCurrent(importSchema.appliedMigrations);
     const dataContext = new DataContext({
+      propertyCorrectionNamespace: artifacts.metadata.namespace,
+      applyPropertyCorrections: await loadPropertyCorrections(
+        context.workspaceRoot,
+        context.artifacts!.metadata.namespace,
+        (message) => context.commandInput.logger?.info(message),
+      ),
       client,
       logger,
       ledger,

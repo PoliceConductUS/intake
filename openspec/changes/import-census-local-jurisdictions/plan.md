@@ -9,7 +9,7 @@
 - [x] Extend test/sources/us-census-gazetteer/{discovery,inputs,transform}.test.ts to assert COUSUB and CONCITY source coverage. Run `npx vitest run test/sources/us-census-gazetteer` and observe missing behavior.
 - [x] Add supplemental-places.test.ts for Alba, exclusions, polygon subtraction, full coverage by a union, missing county, and same-name distinct city/township.
 - [x] Extend roles.ts, inputs.ts, acquire/{discovery,download}.ts for same-vintage COUSUB and CONCITY paths. Use the seven-state CONCITY inventory verified against the Census directory rather than assuming every state has a file.
-- [x] Implement lib/supplemental-places.ts using canonical geometry reader, class codes, COUNTYFP parent and polygon difference. Append paths and geometry using the existing geometry packaging stage; write an inspectable JSON report with original source identity and clipping outcome.
+- [x] Implement lib/supplemental-places.ts using canonical geometry reader, class codes, COUNTYFP parent and polygon difference. Append paths and geometry using the existing geometry packaging stage; write an inspectable JSON report with original source identity and inclusion or exclusion outcome. Use polygon difference only to detect full coverage; emit original boundaries for retained subdivisions.
 
 ## Resolution
 

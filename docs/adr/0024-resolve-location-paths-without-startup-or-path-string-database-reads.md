@@ -55,16 +55,9 @@ startup read and no path-string DB lookup**.
   cache fills as records resolve. Manual corrections use `cache set`; transforms
   do not copy cache values from source checkouts.
 
-  Census PLACE features have `resolution_class: primary`. Legal county
-  subdivisions (including townships) use `county_subdivision`; consolidated
-  municipalities use `consolidated_city`. Among boundaries covering the address,
-  select the first nonempty class in that order and require one distinct place
-  within it. Multiple matches in that class fail. Township site boundaries
-  exclude imported PLACE coverage; fully covered subdivisions are omitted. The
-  original Census geometry stays in the raw source, and the namespace reports
-  each clipped or excluded GEOID. Class precedence also handles shared polygon
-  edges without inferring a location from its name. Statistical divisions are
-  excluded. See the [Census coverage change](../../openspec/changes/import-census-local-jurisdictions/design.md).
+  Census geography classes, overlap precedence, and township coverage follow the
+  boundary rules below. See also the
+  [Census coverage change](../../openspec/changes/import-census-local-jurisdictions/design.md).
 
   When no place contains the address point, automatic resolution fails.
   There are no hard-coded ZIP or place exceptions. County-local city/alias
@@ -103,6 +96,57 @@ startup read and no path-string DB lookup**.
   reads and their pre-loaded snapshots are removed. The census dataset is reached
   only through the two resolvers above.
 
+### Census boundaries and overlapping places
+
+This decision was updated on 2026-09-25 to remove township clipping. It supersedes
+the earlier requirement to emit only a township's area outside Census PLACE
+boundaries.
+
+For automatic address resolution, consider only boundaries containing the agency
+point and use the first nonempty class in this order:
+
+1. **City/CDP:** Census PLACE, `resolution_class: primary`.
+2. **Township or other imported local county subdivision:** Census COUSUB,
+   `resolution_class: county_subdivision`.
+3. **Consolidated municipality:** Census CONCITY,
+   `resolution_class: consolidated_city`.
+
+Exactly one distinct canonical place must match in the winning class. Multiple
+matches in that class fail loudly; a lower-priority class does not break a tie.
+A point inside both a city/CDP and a township resolves to the city/CDP. A point
+outside every city/CDP but inside one imported township resolves to the township.
+This precedence handles overlapping boundaries without altering them.
+
+Retained townships use their **full original Census boundaries**. The importer
+does not subtract city/CDP coverage from the emitted geometry. If the union of
+one or more imported PLACE polygons covers **all** of a township, the importer
+omits that township and records its GEOID and exclusion reason. For example, two
+cities covering opposite halves of a township can jointly cover it completely.
+Such a township would never win address resolution because a city/CDP would
+always take precedence. The importer does not invent an alias from the omitted
+township to one of those cities.
+
+If any township area remains outside PLACE coverage, import the township with
+its entire original boundary, including the overlapping portions. Polygon
+difference may be used to test complete coverage; its result must never replace
+the imported township boundary. Statistical divisions remain excluded under the
+Census class-code rules.
+
+**Consolidated municipalities are source geographies, not importer-created
+merges.** CONCITY includes entities such as Nashville-Davidson metropolitan
+government and Louisville/Jefferson County metro government. These remain
+separate from their Census PLACE balance areas and retain their own boundaries
+and the third resolution priority above.
+
+Distinct Census GEOIDs must not be combined merely because their common names
+produce the same website path. Each retained entity keeps its own record and
+boundary. An unresolved path collision fails visibly. For the confirmed
+same-name collisions, the entity with greater Census land area (`ALAND`) retains
+the common name, and the smaller entity uses its Census label through a
+persistent CLI property correction. These are explicit workspace corrections,
+not processing-order choices or record-specific code exceptions. See
+[ADR 0019](0019-cache-resolved-properties-validate-at-the-mutation-boundary.md).
+
 ## Consequences
 
 - No location-path database access at import startup; the address resolver's
@@ -115,6 +159,10 @@ startup read and no path-string DB lookup**.
   changed address is the only thing that triggers a live geocode.
 - An unresolvable location fails the import loudly, prompting a CLI cache correction,
   rather than dropping the record.
+- Removing township clipping preserves Census geometry and avoids polygon defects
+  introduced by subtraction. It does not repair defects already present in a raw
+  Census boundary. Updated boundaries require transformation and generation;
+  existing generated artifacts are not rewritten by the code change.
 - `getByPath` / `LocationPathDataContext` / `transform.ts` are gone; location
   resolution lives entirely in the facade resolvers and the ledger.
 
@@ -134,3 +182,23 @@ startup read and no path-string DB lookup**.
 Revisit if the point-in-boundary query needs to leave import (e.g. moves to
 acquire), if location paths gain a non-census producer, or if state-key seeding
 proves too costly to maintain.
+
+## Census source identity and generated paths
+
+Census source records are keyed by geography type plus GEOID: `state`,
+`administrative_area`, `place`, `county_subdivision`, or `consolidated_city`,
+followed by `:GEOID:<value>`. Parent and geometry references use these keys.
+An alternate-county alias key combines its place key and alternate county key.
+A URL or display name is not a source identity.
+
+Transforms preserve distinct Census entities and boundaries even when names
+collide. They do not load manual corrections. During generation the shared
+correction stage runs before ordinary configured property resolvers derive
+child paths from the resolved parent path and corrected display name. Alternate
+county URLs use that same corrected name. Unresolved unique-path collisions
+fail with both source identities rather than merging polygons.
+
+Changing the source-key contract requires an explicit migration of existing
+workspace identity mappings and path-addressed corrections. Canonical website
+IDs are retained; the importer does not contain an old-path lookup or
+record-specific identity exception. Acquired source files remain read-only.

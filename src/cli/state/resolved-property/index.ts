@@ -334,3 +334,34 @@ export async function writeResolvedProperty(
     },
   ]);
 }
+
+/** Retire a replaced manual value; retain automatic entries and the full audit record. */
+export async function retireManualResolvedProperty(
+  input: ResolvedPropertyCacheInput & { rootDir: string },
+): Promise<void> {
+  const existing = await inspectResolvedProperty(input);
+  if (
+    existing === undefined ||
+    !existing.spec.entries.some(
+      (entry) =>
+        entry.inputFingerprint === undefined && entry.commandId !== undefined,
+    )
+  )
+    return;
+  let sequence = 1;
+  while (
+    existing.spec.entries.some(
+      (entry) => entry.inputFingerprint === `previous-override-${sequence}`,
+    )
+  )
+    sequence++;
+  await persistEntries(
+    input.rootDir,
+    input,
+    existing.spec.entries.map((entry) =>
+      entry.inputFingerprint === undefined && entry.commandId !== undefined
+        ? { ...entry, inputFingerprint: `previous-override-${sequence}` }
+        : entry,
+    ),
+  );
+}

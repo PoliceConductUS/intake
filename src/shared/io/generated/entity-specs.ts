@@ -89,8 +89,8 @@ export const FK_REFERENCES: Record<
   Agency: [{ field: "location_path_id", targetKind: "LocationPath" }],
   AgencyPersonnel: [
     { field: "agency_id", targetKind: "Agency" },
-    { field: "personnel_id", targetKind: "Personnel" },
     { field: "license_id", targetKind: "License" },
+    { field: "personnel_id", targetKind: "Personnel" },
   ],
   LicensingAuthority: [
     { field: "location_path_id", targetKind: "LocationPath" },
@@ -99,38 +99,38 @@ export const FK_REFERENCES: Record<
     { field: "licensing_authority_id", targetKind: "LicensingAuthority" },
   ],
   License: [
-    { field: "personnel_id", targetKind: "Personnel" },
     { field: "authority_license_id", targetKind: "AuthorityLicense" },
+    { field: "personnel_id", targetKind: "Personnel" },
   ],
   LicenseAction: [{ field: "license_id", targetKind: "License" }],
   DisciplineAgencyPersonnel: [
-    { field: "discipline_id", targetKind: "Discipline" },
     { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
+    { field: "discipline_id", targetKind: "Discipline" },
   ],
   CoverageLinkAgencyPersonnel: [
-    { field: "coverage_link_id", targetKind: "CoverageLink" },
     { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
+    { field: "coverage_link_id", targetKind: "CoverageLink" },
   ],
   AgencyPhoneNumber: [{ field: "agency_id", targetKind: "Agency" }],
   AgencyLink: [{ field: "agency_id", targetKind: "Agency" }],
   FederalAgencyBranch: [
-    { field: "federal_agency_id", targetKind: "FederalAgency" },
     { field: "agency_id", targetKind: "Agency" },
+    { field: "federal_agency_id", targetKind: "FederalAgency" },
   ],
   CivilCase: [{ field: "location_path_id", targetKind: "LocationPath" }],
   CivilCasePersonnel: [
-    { field: "civil_case_id", targetKind: "CivilCase" },
     { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
+    { field: "civil_case_id", targetKind: "CivilCase" },
   ],
   CivilCaseLink: [{ field: "civil_case_id", targetKind: "CivilCase" }],
   CoverageLinkCivilCase: [
-    { field: "coverage_link_id", targetKind: "CoverageLink" },
     { field: "civil_case_id", targetKind: "CivilCase" },
+    { field: "coverage_link_id", targetKind: "CoverageLink" },
   ],
   Review: [{ field: "location_path_id", targetKind: "LocationPath" }],
   ReviewPersonnel: [
-    { field: "review_id", targetKind: "Review" },
     { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
+    { field: "review_id", targetKind: "Review" },
   ],
   ReviewLink: [{ field: "review_id", targetKind: "Review" }],
   ArrestProfile: [
@@ -167,9 +167,9 @@ export const BUSINESS_KEYS: Record<string, readonly string[]> = {
 // ledger mints) through the property cache — so a resolved field becomes
 // cache-backed automatically, with no per-resolver wiring.
 export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = {
-  LocationPath: [],
+  LocationPath: ["path"],
   LocationPathGeometry: [],
-  LocationPathAlias: [],
+  LocationPathAlias: ["alias_path"],
   Agency: [
     "id",
     "slug",
@@ -565,7 +565,7 @@ const LocationPathBboxSpec = z
 export const LocationPathSpec = z
   .object({
     location_path_id: nonEmptyString,
-    path: nonEmptyString,
+    path: nonEmptyString.optional(),
     level: z.enum(["state", "administrative_area", "place"]),
     parent_location_path_id: nullableNonEmptyString,
     centroid: LocationPathCentroidSpec.nullable().optional(),
@@ -596,7 +596,9 @@ export const LocationPathSpec = z
     }
   });
 
-export const LocationPathCreateSpec = LocationPathSpec;
+export const LocationPathCreateSpec = LocationPathSpec.safeExtend({
+  path: nonEmptyString,
+});
 
 export const LocationPathGeometrySpec = z
   .object({
@@ -611,14 +613,18 @@ export const LocationPathGeometryCreateSpec = LocationPathGeometrySpec;
 
 export const LocationPathAliasSpec = z
   .object({
-    alias_path: nonEmptyString,
+    alias_path: nonEmptyString.optional(),
     location_path_id: nonEmptyString,
+    parent_location_path_id: nonEmptyString.optional(),
     selectedYear: z.union([z.string(), z.number()]).optional(),
   })
   .strict();
 
 export const LocationPathAliasCreateSpec = LocationPathAliasSpec.omit({
   selectedYear: true,
+  parent_location_path_id: true,
+}).safeExtend({
+  alias_path: nonEmptyString,
 });
 
 export const AgencySpec = z
@@ -639,7 +645,7 @@ export const AgencySpec = z
   })
   .strict();
 
-export const AgencyCreateSpec = AgencySpec.omit({ location: true }).extend({
+export const AgencyCreateSpec = AgencySpec.omit({ location: true }).safeExtend({
   id: nonEmptyString,
   slug: nonEmptyString,
   address: nonEmptyString,
@@ -665,7 +671,7 @@ export const PersonnelSpec = z
   })
   .strict();
 
-export const PersonnelCreateSpec = PersonnelSpec.extend({
+export const PersonnelCreateSpec = PersonnelSpec.safeExtend({
   id: nonEmptyString,
   slug: nonEmptyString,
 });
@@ -683,7 +689,7 @@ export const AgencyPersonnelSpec = z
   })
   .strict();
 
-export const AgencyPersonnelCreateSpec = AgencyPersonnelSpec.extend({
+export const AgencyPersonnelCreateSpec = AgencyPersonnelSpec.safeExtend({
   id: nonEmptyString,
 });
 
@@ -697,7 +703,7 @@ export const LicensingAuthoritySpec = z
   })
   .strict();
 
-export const LicensingAuthorityCreateSpec = LicensingAuthoritySpec.extend({
+export const LicensingAuthorityCreateSpec = LicensingAuthoritySpec.safeExtend({
   id: nonEmptyString,
 });
 
@@ -709,7 +715,7 @@ export const AuthorityLicenseSpec = z
   })
   .strict();
 
-export const AuthorityLicenseCreateSpec = AuthorityLicenseSpec.extend({
+export const AuthorityLicenseCreateSpec = AuthorityLicenseSpec.safeExtend({
   id: z.string(),
 });
 
@@ -723,7 +729,7 @@ export const LicenseSpec = z
   })
   .strict();
 
-export const LicenseCreateSpec = LicenseSpec.extend({
+export const LicenseCreateSpec = LicenseSpec.safeExtend({
   id: nonEmptyString,
 });
 
@@ -737,7 +743,7 @@ export const LicenseActionSpec = z
   })
   .strict();
 
-export const LicenseActionCreateSpec = LicenseActionSpec.extend({
+export const LicenseActionCreateSpec = LicenseActionSpec.safeExtend({
   id: nonEmptyString,
 });
 
@@ -756,7 +762,7 @@ export const DisciplineSpec = z
   })
   .strict();
 
-export const DisciplineCreateSpec = DisciplineSpec.extend({
+export const DisciplineCreateSpec = DisciplineSpec.safeExtend({
   id: z.string(),
 });
 
@@ -769,7 +775,7 @@ export const DisciplineAgencyPersonnelSpec = z
   .strict();
 
 export const DisciplineAgencyPersonnelCreateSpec =
-  DisciplineAgencyPersonnelSpec.extend({
+  DisciplineAgencyPersonnelSpec.safeExtend({
     id: z.string(),
   });
 
@@ -785,7 +791,7 @@ export const CoverageLinkSpec = z
   })
   .strict();
 
-export const CoverageLinkCreateSpec = CoverageLinkSpec.extend({
+export const CoverageLinkCreateSpec = CoverageLinkSpec.safeExtend({
   id: z.string(),
 });
 
@@ -800,7 +806,7 @@ export const CoverageLinkAgencyPersonnelSpec = z
   .strict();
 
 export const CoverageLinkAgencyPersonnelCreateSpec =
-  CoverageLinkAgencyPersonnelSpec.extend({
+  CoverageLinkAgencyPersonnelSpec.safeExtend({
     id: z.string(),
   });
 
@@ -813,7 +819,7 @@ export const AgencyPhoneNumberSpec = z
   })
   .strict();
 
-export const AgencyPhoneNumberCreateSpec = AgencyPhoneNumberSpec.extend({
+export const AgencyPhoneNumberCreateSpec = AgencyPhoneNumberSpec.safeExtend({
   id: z.string(),
 });
 
@@ -827,7 +833,7 @@ export const AgencyLinkSpec = z
   })
   .strict();
 
-export const AgencyLinkCreateSpec = AgencyLinkSpec.extend({
+export const AgencyLinkCreateSpec = AgencyLinkSpec.safeExtend({
   id: z.string(),
 });
 
@@ -839,7 +845,7 @@ export const FederalAgencySpec = z
   })
   .strict();
 
-export const FederalAgencyCreateSpec = FederalAgencySpec.extend({
+export const FederalAgencyCreateSpec = FederalAgencySpec.safeExtend({
   id: z.string(),
   slug: z.string(),
 });
@@ -852,9 +858,11 @@ export const FederalAgencyBranchSpec = z
   })
   .strict();
 
-export const FederalAgencyBranchCreateSpec = FederalAgencyBranchSpec.extend({
-  id: z.string(),
-});
+export const FederalAgencyBranchCreateSpec = FederalAgencyBranchSpec.safeExtend(
+  {
+    id: z.string(),
+  },
+);
 
 export const CivilCaseSpec = z
   .object({
@@ -872,7 +880,7 @@ export const CivilCaseSpec = z
   })
   .strict();
 
-export const CivilCaseCreateSpec = CivilCaseSpec.extend({
+export const CivilCaseCreateSpec = CivilCaseSpec.safeExtend({
   id: z.string(),
   slug: z.string(),
   location_path_id: nonEmptyString.optional(),
@@ -886,7 +894,7 @@ export const CivilCasePersonnelSpec = z
   })
   .strict();
 
-export const CivilCasePersonnelCreateSpec = CivilCasePersonnelSpec.extend({
+export const CivilCasePersonnelCreateSpec = CivilCasePersonnelSpec.safeExtend({
   id: z.string(),
 });
 
@@ -899,7 +907,7 @@ export const CivilCaseLinkSpec = z
   })
   .strict();
 
-export const CivilCaseLinkCreateSpec = CivilCaseLinkSpec.extend({
+export const CivilCaseLinkCreateSpec = CivilCaseLinkSpec.safeExtend({
   id: z.string(),
 });
 
@@ -912,11 +920,10 @@ export const CoverageLinkCivilCaseSpec = z
   })
   .strict();
 
-export const CoverageLinkCivilCaseCreateSpec = CoverageLinkCivilCaseSpec.extend(
-  {
+export const CoverageLinkCivilCaseCreateSpec =
+  CoverageLinkCivilCaseSpec.safeExtend({
     id: z.string(),
-  },
-);
+  });
 
 export const ReviewSpec = z
   .object({
@@ -953,7 +960,7 @@ export const ReviewCreateSpec = ReviewSpec.omit({
   city: true,
   state: true,
   zip_code: true,
-}).extend({
+}).safeExtend({
   id: z.string(),
   slug: z.string(),
   location_path_id: z.string(),
@@ -972,7 +979,7 @@ export const ReviewPersonnelSpec = z
   })
   .strict();
 
-export const ReviewPersonnelCreateSpec = ReviewPersonnelSpec.extend({
+export const ReviewPersonnelCreateSpec = ReviewPersonnelSpec.safeExtend({
   id: z.string(),
 });
 
@@ -987,7 +994,7 @@ export const ReviewLinkSpec = z
   })
   .strict();
 
-export const ReviewLinkCreateSpec = ReviewLinkSpec.extend({
+export const ReviewLinkCreateSpec = ReviewLinkSpec.safeExtend({
   id: z.string(),
 });
 
@@ -1000,6 +1007,6 @@ export const ArrestProfileSpec = z
   })
   .strict();
 
-export const ArrestProfileCreateSpec = ArrestProfileSpec.extend({
+export const ArrestProfileCreateSpec = ArrestProfileSpec.safeExtend({
   id: z.string(),
 });

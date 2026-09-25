@@ -2189,13 +2189,17 @@ describe("CivilCase cross-source convergence (ADR 0028)", () => {
           spec: { kind: "CivilCase", canonicalId: originalId },
         }),
       );
-      context
-        .facadeFromSource("CivilCase", {
-          ...source,
-          namespace: otherNamespace,
-          name: caseId,
-        })
-        .merge({ ...civilCaseSpec, claims_summary: "Second source summary." });
+      const secondCase = context.facadeFromSource("CivilCase", {
+        ...source,
+        namespace: otherNamespace,
+        name: caseId,
+      });
+      secondCase.merge({
+        ...civilCaseSpec,
+        claims_summary: "Second source summary.",
+      });
+      // ID lookup completion must not change which source is applied last.
+      await secondCase.value("id");
       const mutations = await context.toMutations();
       expect(
         mutations.filter((m) => m.kind === "CivilCaseCreate"),

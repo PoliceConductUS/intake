@@ -6,7 +6,7 @@ The Census namespace currently imports only PLACE features and loses legitimate 
 
 ## What Changes
 
-Import legal/local county subdivisions and consolidated cities in the existing 50-state-plus-DC scope. Exclude statistical divisions. Skip subdivisions whose full polygon is covered by the union of existing PLACE polygons. Retain only the uncovered subdivision geometry, existing canonical paths and IDs, and distinguish geography resolution classes. Prefer a containing PLACE, then county subdivision, then consolidated city; reject ambiguity within the winning class.
+Import legal/local county subdivisions and consolidated cities in the existing 50-state-plus-DC scope. Exclude statistical divisions. Skip subdivisions whose full polygon is covered by the union of existing PLACE polygons. Retain the full original Census boundary for each remaining subdivision, preserve existing canonical paths and IDs, and distinguish geography resolution classes. Prefer a containing PLACE, then county subdivision, then consolidated city; reject ambiguity within the winning class.
 
 ## Capabilities
 

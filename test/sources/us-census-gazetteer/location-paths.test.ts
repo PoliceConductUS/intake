@@ -4,13 +4,6 @@ import {
   slugFromSourceName,
 } from "../../../sources/us-census-gazetteer/lib/location-paths.js";
 
-/**
- * Ported from `intake.us-census-gazetteer/test/location-paths.test.js`.
- * `buildLocationPaths` is pure and unchanged from the original — this test
- * is a byte-for-byte port (assertions translated from node:assert to
- * vitest's expect) and should pass unmodified against the ported logic.
- */
-
 const mnState = {
   USPS: "MN",
   GEOID: "27",
@@ -70,17 +63,19 @@ describe("buildLocationPaths", () => {
       ],
     });
 
-    const state = result.locationPaths["/mn/"];
-    const admin = result.locationPaths["/mn/hennepin-county/"];
-    const place = result.locationPaths["/mn/hennepin-county/minneapolis/"];
+    const state = result.locationPaths["state:GEOID:27"];
+    const admin = result.locationPaths["administrative_area:GEOID:27053"];
+    const place = result.locationPaths["place:GEOID:2743000"];
 
-    expect(state.location_path_id).toBe("/mn/");
+    expect(state.location_path_id).toBe("state:GEOID:27");
     expect(state.path).toBe("/mn/");
     expect(state.parent_location_path_id).toBe(null);
     expect(state.latitude).toBe("+46.3159573");
     expect(state.longitude).toBe("-094.1996043");
-    expect(admin.parent_location_path_id).toBe("/mn/");
-    expect(place.parent_location_path_id).toBe("/mn/hennepin-county/");
+    expect(admin.parent_location_path_id).toBe("state:GEOID:27");
+    expect(place.parent_location_path_id).toBe(
+      "administrative_area:GEOID:27053",
+    );
     expect(place.path).toBe("/mn/hennepin-county/minneapolis/");
     expect(place.display_name).toBe("Minneapolis");
     expect((state as unknown as Record<string, unknown>)._metadata).toBe(
@@ -92,30 +87,31 @@ describe("buildLocationPaths", () => {
     expect((place as unknown as Record<string, unknown>)._metadata).toBe(
       undefined,
     );
-    expect(result.locationPathSources["/mn/"]).toEqual({
+    expect(result.locationPathSources["state:GEOID:27"]).toEqual({
       sourceKey: "state:GEOID:27",
     });
-    expect(result.locationPathSources["/mn/hennepin-county/"]).toEqual({
+    expect(
+      result.locationPathSources["administrative_area:GEOID:27053"],
+    ).toEqual({
       sourceKey: "administrative_area:GEOID:27053",
       parentSourceKey: "state:GEOID:27",
     });
+    expect(result.locationPathSources["place:GEOID:2743000"].sourceKey).toBe(
+      "place:GEOID:2743000",
+    );
     expect(
-      result.locationPathSources["/mn/hennepin-county/minneapolis/"].sourceKey,
-    ).toBe("place:GEOID:2743000");
-    expect(
-      result.locationPathSources["/mn/hennepin-county/minneapolis/"]
-        .parentSourceKey,
+      result.locationPathSources["place:GEOID:2743000"].parentSourceKey,
     ).toBe("administrative_area:GEOID:27053");
     expect(
       (
-        result.locationPathSources[
-          "/mn/hennepin-county/minneapolis/"
-        ] as unknown as Record<string, unknown>
+        result.locationPathSources["place:GEOID:2743000"] as unknown as Record<
+          string,
+          unknown
+        >
       ).sourceGeographyNamespace,
     ).toBe(undefined);
     expect(
-      result.locationPathSources["/mn/hennepin-county/minneapolis/"]
-        .hierarchySelection,
+      result.locationPathSources["place:GEOID:2743000"].hierarchySelection,
     ).toBe(undefined);
     expect(result.locationPathAlias).toEqual({});
     expect(result.warnings).toEqual([]);
@@ -164,31 +160,32 @@ describe("buildLocationPaths", () => {
       ],
     });
 
+    expect(result.locationPaths["place:GEOID:2743000"]).toBeTruthy();
     expect(
-      result.locationPaths["/mn/hennepin-county/minneapolis/"],
-    ).toBeTruthy();
+      result.locationPathAlias[
+        "place:GEOID:2743000:administrative_area:GEOID:27123"
+      ].location_path_id,
+    ).toBe("place:GEOID:2743000");
     expect(
-      result.locationPathAlias["/mn/ramsey-county/minneapolis/"]
-        .location_path_id,
-    ).toBe("/mn/hennepin-county/minneapolis/");
-    expect(
-      result.locationPathAlias["/mn/ramsey-county/minneapolis/"].alias_path,
+      result.locationPathAlias[
+        "place:GEOID:2743000:administrative_area:GEOID:27123"
+      ].alias_path,
     ).toBe("/mn/ramsey-county/minneapolis/");
     expect(
-      result.locationPathAliasSources["/mn/ramsey-county/minneapolis/"]
-        .sourceKey,
-    ).toBe("census:overlap:2025:27:27123:2743000");
+      result.locationPathAliasSources[
+        "place:GEOID:2743000:administrative_area:GEOID:27123"
+      ].sourceKey,
+    ).toBe("place:GEOID:2743000:administrative_area:GEOID:27123");
     expect(
       (
         result.locationPathAlias[
-          "/mn/ramsey-county/minneapolis/"
+          "place:GEOID:2743000:administrative_area:GEOID:27123"
         ] as unknown as Record<string, unknown>
       )._metadata,
     ).toBe(undefined);
 
     expect(
-      result.locationPathSources["/mn/hennepin-county/minneapolis/"]
-        .hierarchySelection,
+      result.locationPathSources["place:GEOID:2743000"].hierarchySelection,
     ).toEqual({
       note: "Minneapolis spans Hennepin County and Ramsey County. Hennepin County is used for all PoliceConduct.org purposes because it has the largest total-area overlap with Minneapolis.",
       reason: "largest_total_area_overlap",
@@ -264,34 +261,25 @@ describe("buildLocationPaths", () => {
       ],
     });
 
-    expect(
-      result.locationPaths["/md/montgomery-county/chevy-chase-town/"],
-    ).toBeTruthy();
-    expect(
-      result.locationPaths["/md/montgomery-county/chevy-chase-cdp/"],
-    ).toBeTruthy();
-    expect(
-      result.locationPaths["/md/montgomery-county/chevy-chase-village-town/"],
-    ).toBeTruthy();
-    expect(
-      result.locationPaths["/md/montgomery-county/chevy-chase-town/"]
-        .display_name,
-    ).toBe("Chevy Chase town");
-    expect(
-      result.locationPaths["/md/montgomery-county/chevy-chase-cdp/"].path,
-    ).toBe("/md/montgomery-county/chevy-chase-cdp/");
-    expect(
-      result.locationPaths["/md/montgomery-county/chevy-chase-village-town/"]
-        .display_name,
-    ).toBe("Chevy Chase Village town");
-    expect(
-      result.locationPaths["/md/montgomery-county/chevy-chase-village-town/"]
-        .path,
-    ).toBe("/md/montgomery-county/chevy-chase-village-town/");
+    expect(result.locationPaths["place:GEOID:2416620"]).toBeTruthy();
+    expect(result.locationPaths["place:GEOID:2416625"]).toBeTruthy();
+    expect(result.locationPaths["place:GEOID:2416787"]).toBeTruthy();
+    expect(result.locationPaths["place:GEOID:2416620"].display_name).toBe(
+      "Chevy Chase town",
+    );
+    expect(result.locationPaths["place:GEOID:2416625"].path).toBe(
+      "/md/montgomery-county/chevy-chase-cdp/",
+    );
+    expect(result.locationPaths["place:GEOID:2416787"].display_name).toBe(
+      "Chevy Chase Village town",
+    );
+    expect(result.locationPaths["place:GEOID:2416787"].path).toBe(
+      "/md/montgomery-county/chevy-chase-village-town/",
+    );
     expect(result.locationPathAlias).toEqual({});
   });
 
-  it("groups same-parent Census places by TIGER NAME", () => {
+  it("keeps different GEOIDs separate when their common-name paths collide", () => {
     const result = buildLocationPaths({
       states: [{ ...mnState, USPS: "MD", GEOID: "24", NAME: "Maryland" }],
       administrativeAreas: [
@@ -335,17 +323,19 @@ describe("buildLocationPaths", () => {
         },
       ],
     });
-
-    expect(
-      result.locationPaths["/md/montgomery-county/chevy-chase/"],
-    ).toBeTruthy();
-    expect(
-      result.locationPaths["/md/montgomery-county/chevy-chase/"].display_name,
-    ).toBe("Chevy Chase");
-    expect(
-      result.locationPathSources["/md/montgomery-county/chevy-chase/"]
-        .sourceKeys,
-    ).toEqual(["place:GEOID:2416620", "place:GEOID:2416625"]);
+    expect(Object.keys(result.locationPaths)).toEqual([
+      "administrative_area:GEOID:24031",
+      "place:GEOID:2416620",
+      "place:GEOID:2416625",
+      "state:GEOID:24",
+    ]);
+    for (const key of ["place:GEOID:2416620", "place:GEOID:2416625"]) {
+      expect(result.locationPaths[key]).toMatchObject({
+        location_path_id: key,
+        display_name: "Chevy Chase",
+        parent_location_path_id: "administrative_area:GEOID:24031",
+      });
+    }
   });
 
   it("breaks equal-overlap default path ties by lexical path", () => {
@@ -373,37 +363,33 @@ describe("buildLocationPaths", () => {
       ],
     });
 
+    expect(result.locationPaths["place:GEOID:2743000"]).toBeTruthy();
     expect(
-      result.locationPaths["/mn/hennepin-county/minneapolis/"],
-    ).toBeTruthy();
+      result.locationPathAlias[
+        "place:GEOID:2743000:administrative_area:GEOID:27123"
+      ].location_path_id,
+    ).toBe("place:GEOID:2743000");
     expect(
-      result.locationPathAlias["/mn/ramsey-county/minneapolis/"]
-        .location_path_id,
-    ).toBe("/mn/hennepin-county/minneapolis/");
-    expect(
-      result.locationPathSources["/mn/hennepin-county/minneapolis/"]
-        .hierarchySelection?.reason,
+      result.locationPathSources["place:GEOID:2743000"].hierarchySelection
+        ?.reason,
     ).toBe("largest_total_area_overlap_then_lexical_path");
     expect(
-      result.locationPathSources["/mn/hennepin-county/minneapolis/"]
-        .hierarchySelection?.note,
+      result.locationPathSources["place:GEOID:2743000"].hierarchySelection
+        ?.note,
     ).toBe(
       "Minneapolis spans Hennepin County and Ramsey County. Hennepin County is used for all PoliceConduct.org purposes because it ties for the largest total-area overlap with Minneapolis and has the first path in lexical order.",
     );
   });
 
-  it("fails on duplicate generated paths", () => {
+  it("fails on duplicate Census source keys", () => {
     expect(() =>
       buildLocationPaths({
         states: [mnState],
-        administrativeAreas: [
-          hennepinCounty,
-          { ...hennepinCounty, GEOID: "27001" },
-        ],
+        administrativeAreas: [hennepinCounty, { ...hennepinCounty }],
         places: [],
         hierarchy: [],
       }),
-    ).toThrow(/Duplicate generated location path \/mn\/hennepin-county\//);
+    ).toThrow(/Duplicate Census source key administrative_area:GEOID:27053/);
   });
 
   it("reports skipped non-required geographies", () => {

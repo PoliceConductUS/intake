@@ -18,6 +18,12 @@ published slugs SHALL be durable workspace state, not importer exceptions.
 - **WHEN** CourtListener and Clearinghouse mappings identify the same original case
 - **THEN** both resolve to the same canonical ID and established slug
 
+#### Scenario: Identity lookups finish out of order
+
+- **WHEN** records for the same canonical case are registered in order and the later record's identity lookup finishes first
+- **THEN** mutation generation still applies those records in registration order
+- **AND** the later record updates the earlier record's values regardless of lookup timing
+
 #### Scenario: An unmapped case already uses a natural ID
 
 - **WHEN** no historical mapping exists for a case source name

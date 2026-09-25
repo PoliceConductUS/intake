@@ -7,7 +7,7 @@ The Census namespace SHALL import PLACE features, legal and nonfunctioning local
 #### Scenario: Alba township
 
 - **WHEN** Minnesota COUSUB contains Alba township, GEOID 2706300604
-- **THEN** intake emits a place under Jackson County with its Census polygon minus imported PLACE coverage and readable township name
+- **THEN** intake emits a place under Jackson County with its full original Census polygon and readable township name
 - **AND** county parent comes from COUSUB STATEFP/COUNTYFP, not a name match
 
 #### Scenario: Statistical divisions
@@ -20,6 +20,12 @@ The Census namespace SHALL import PLACE features, legal and nonfunctioning local
 - **WHEN** one or more imported PLACE polygons fully cover a county subdivision
 - **THEN** intake skips that subdivision and records the reason
 - **AND** does not alias a whole subdivision to one constituent place
+
+#### Scenario: Partially covered subdivision
+
+- **WHEN** imported PLACE polygons cover only part of a county subdivision
+- **THEN** intake emits the subdivision's full original Census boundary without clipping
+- **AND** overlapping city/CDP boundaries are handled by containing geography precedence
 
 #### Scenario: Existing identity and distinct geography
 

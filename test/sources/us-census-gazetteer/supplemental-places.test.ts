@@ -37,6 +37,11 @@ function feature(
   };
 }
 function baseline(): BuildLocationPathsResult {
+  const keys: Record<string, string> = {
+    "/mn/": "state:GEOID:27",
+    "/mn/jackson-county/": "administrative_area:GEOID:27063",
+    "/mn/jackson-county/alba/": "place:GEOID:2700001",
+  };
   return {
     locationPaths: Object.fromEntries(
       [
@@ -49,22 +54,24 @@ function baseline(): BuildLocationPathsResult {
         ],
         ["/mn/jackson-county/alba/", "place", "Alba", "/mn/jackson-county/"],
       ].map(([p, level, name, parent]) => [
-        p,
+        keys[p!],
         {
-          location_path_id: p,
+          location_path_id: keys[p!],
           path: p,
           level,
           display_name: name,
-          parent_location_path_id: parent,
+          parent_location_path_id: parent === null ? null : keys[parent!],
           latitude: "0",
           longitude: "0",
         },
       ]),
     ),
     locationPathSources: {
-      "/mn/": { sourceKey: "state:GEOID:27" },
-      "/mn/jackson-county/": { sourceKey: "administrative_area:GEOID:27063" },
-      "/mn/jackson-county/alba/": { sourceKey: "place:GEOID:2700001" },
+      "state:GEOID:27": { sourceKey: "state:GEOID:27" },
+      "administrative_area:GEOID:27063": {
+        sourceKey: "administrative_area:GEOID:27063",
+      },
+      "place:GEOID:2700001": { sourceKey: "place:GEOID:2700001" },
     },
     locationPathAlias: {},
     locationPathAliasSources: {},
@@ -90,33 +97,31 @@ describe("Census supplemental places", () => {
     const input = baseline();
     const result = run([feature("2706300604", "Alba township", [0, 0, 4, 4])]);
     expect(
-      result.built.locationPaths["/mn/jackson-county/alba-township/"],
+      result.built.locationPaths["county_subdivision:GEOID:2706300604"],
     ).toMatchObject({
       level: "place",
       display_name: "Alba township",
-      parent_location_path_id: "/mn/jackson-county/",
+      parent_location_path_id: "administrative_area:GEOID:27063",
       resolution_class: "county_subdivision",
     });
-    expect(result.built.locationPaths["/mn/jackson-county/alba/"]).toEqual(
-      input.locationPaths["/mn/jackson-county/alba/"],
+    expect(result.built.locationPaths["place:GEOID:2700001"]).toEqual(
+      input.locationPaths["place:GEOID:2700001"],
     );
     expect(
-      result.built.locationPathSources["/mn/jackson-county/alba-township/"]
+      result.built.locationPathSources["county_subdivision:GEOID:2706300604"]
         .sourceKey,
     ).toBe("county_subdivision:GEOID:2706300604");
   });
-  it("subtracts primary PLACE coverage and retains only the uncovered township geometry", () => {
-    const result = run(
-      [feature("2706300604", "Alba township", [0, 0, 4, 4])],
-      [feature("2700001", "Alba", [0, 0, 2, 4])],
-    );
+  it("retains the original township geometry when primary PLACE coverage overlaps it", () => {
+    const township = feature("2706300604", "Alba township", [0, 0, 4, 4]);
+    const result = run([township], [feature("2700001", "Alba", [0, 0, 2, 4])]);
     const geometry = result.geometries.get(
-      "/mn/jackson-county/alba-township/",
+      "county_subdivision:GEOID:2706300604",
     )!;
-    expect(geometry.coordinates.flat(2).every(([x]) => x >= 2)).toBe(true);
+    expect(geometry.coordinates).toEqual([township.geometry.coordinates]);
     expect(result.report[0]).toMatchObject({
       geoid: "2706300604",
-      status: "clipped",
+      status: "included",
     });
   });
   it("skips a township fully covered by the union of two places without inventing an alias", () => {
@@ -128,7 +133,7 @@ describe("Census supplemental places", () => {
       ],
     );
     expect(
-      result.built.locationPaths["/mn/jackson-county/alba-township/"],
+      result.built.locationPaths["county_subdivision:GEOID:2706300604"],
     ).toBeUndefined();
     expect(result.built.locationPathAlias).toEqual({});
     expect(result.report[0]).toMatchObject({ status: "covered" });
@@ -169,9 +174,7 @@ describe("Census supplemental places", () => {
       ],
     );
     expect(
-      result.built.locationPaths[
-        "/mn/jackson-county/alba-consolidated-government/"
-      ],
+      result.built.locationPaths["consolidated_city:GEOID:2700002"],
     ).toMatchObject({ resolution_class: "consolidated_city" });
   });
 });

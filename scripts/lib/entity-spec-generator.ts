@@ -74,6 +74,7 @@ const DESCRIPTORS: EntityDescriptor[] = [
   {
     recordKind: "LocationPath",
     table: "location_path",
+    createRequired: ["path"],
     // Census supplies every column (null or value), so nullable fields are
     // present-but-nullable keys, not optional.
     optionalNullable: false,
@@ -98,12 +99,15 @@ const DESCRIPTORS: EntityDescriptor[] = [
   {
     recordKind: "LocationPathAlias",
     table: "location_path_alias",
+    createRequired: ["alias_path"],
+    // Parent reference is used only while deriving an alternate path.
     // selectedYear is a resolution-only hint (which census year the alias came
     // from); it is not a column, so drop it from the write mutation.
     extras: {
+      parent_location_path_id: "nonEmptyString.optional()",
       selectedYear: "z.union([z.string(), z.number()]).optional()",
     },
-    createOmit: ["selectedYear"],
+    createOmit: ["selectedYear", "parent_location_path_id"],
   },
   {
     recordKind: "Agency",
@@ -702,7 +706,7 @@ ${baseFields.join("\n")}
     .join("\n");
   return `${base}
 
-export const ${createName} = ${specName}${omitClause}.extend({
+export const ${createName} = ${specName}${omitClause}.safeExtend({
 ${createExtends}
 });`;
 }

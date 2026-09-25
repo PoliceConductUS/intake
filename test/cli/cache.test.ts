@@ -1,3 +1,7 @@
+import {
+  loadPropertyCorrections,
+  inspectPropertyCorrection,
+} from "../../src/shared/io/property-corrections.js";
 import { mkdtemp, rm, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -53,15 +57,14 @@ test("sets and reads a manual resolution by source identity, including new resol
   });
   const result = await runIntake(args("get"));
   expect(result.exitCode).toBe(0);
-  expect(result.stdout).toContain(subject.name);
+  expect(result.stdout).toContain("source-one");
   expect(result.stdout).toContain("manual-place-id");
   expect(
-    await readResolvedProperty({
-      rootDir: workspace,
-      subject,
-      targetProperty: "location_path_id",
-      inputFingerprint: "new-input",
-    }),
+    (await loadPropertyCorrections(workspace, "test.source"))(
+      "Agency",
+      "source-one",
+      {},
+    ).location_path_id,
   ).toBe("manual-place-id");
 });
 
@@ -84,12 +87,19 @@ test("requires force, shows existing values, and retains prior resolved entries 
   expect(
     (await runIntake([...args("set"), "right-place-id", "--force"])).exitCode,
   ).toBe(0);
-  expect(await readResolvedProperty(key)).toBe("right-place-id");
+  expect(
+    (await loadPropertyCorrections(workspace, "test.source"))(
+      "Agency",
+      "source-one",
+      {},
+    ).location_path_id,
+  ).toBe("right-place-id");
+  expect(await readResolvedProperty(key)).toBe("wrong-place-id");
   expect(
     (await runIntake([...args("set"), "another-place-id", "--force"])).exitCode,
   ).toBe(0);
   const read = await runIntake(args("get"));
-  expect(read.stdout).toContain("wrong-place-id");
+  expect(await readResolvedProperty(key)).toBe("wrong-place-id");
   expect(read.stdout).toContain("right-place-id");
   expect(read.stdout).toContain("another-place-id");
   const spec = JSON.parse(read.stdout!).entries;
@@ -156,21 +166,21 @@ test("requires force, shows existing values, and retains prior resolved entries 
 test("validates property values without converting a string True into a boolean", async () => {
   expect((await runIntake([...args("set", "city"), "True"])).exitCode).toBe(0);
   expect(
-    await readResolvedProperty({
-      rootDir: workspace,
-      subject,
-      targetProperty: "city",
-    }),
+    (await loadPropertyCorrections(workspace, "test.source"))(
+      "Agency",
+      "source-one",
+      {},
+    ).city,
   ).toBe("True");
   expect(
     (await runIntake([...args("set", "latitude"), "33.767"])).exitCode,
   ).toBe(0);
   expect(
-    await readResolvedProperty({
-      rootDir: workspace,
-      subject,
-      targetProperty: "latitude",
-    }),
+    (await loadPropertyCorrections(workspace, "test.source"))(
+      "Agency",
+      "source-one",
+      {},
+    ).latitude,
   ).toBe(33.767);
   expect(
     (await runIntake([...args("set", "longitude"), "not-a-number"])).exitCode,
@@ -185,6 +195,10 @@ test("an agency mutation uses the CLI override when its address has no available
     throw new Error("No boundary available");
   });
   const context = new DataContext({
+    applyPropertyCorrections: await loadPropertyCorrections(
+      workspace,
+      "test.source",
+    ),
     client: new EmptyDatabaseClient(),
     ledger: createSourceNameToCanonicalIdLedger({ rootDir: workspace }),
     resolvedPropertyStore: {
@@ -214,12 +228,10 @@ test("an agency mutation uses the CLI override when its address has no available
   expect(resolveAddress).not.toHaveBeenCalled();
 });
 
-test("rejects unmapped identities, unknown kinds/properties, and ID changes", async () => {
+test("rejects unknown kinds and properties", async () => {
   for (const invalid of [
-    ["cache", "set", "test.source", "Agency", "missing", "city", "Test"],
     ["cache", "get", "test.source", "Unknown", "source-one", "city"],
     [...args("set", "not_a_property"), "Test"],
-    [...args("set", "id"), "new-id"],
   ])
     expect((await runIntake(invalid)).exitCode).toBe(1);
 });
@@ -241,5 +253,389 @@ test.each(["latitude", "longitude"])(
       });
       expect(await readResolvedProperty(key)).toBe(32);
     }
+  },
+);
+
+test("accepts a conditional correction for a source property before a canonical mapping exists", async () => {
+  const base = [
+    "cache",
+    "set",
+    "new.source",
+    "Agency",
+    "new-one",
+    "name",
+    "Correct Name",
+    "--from",
+    "Wrong Name",
+  ];
+  expect(await runIntake(base)).toMatchObject({ exitCode: 0 });
+  const read = await runIntake([
+    "cache",
+    "get",
+    "new.source",
+    "Agency",
+    "new-one",
+    "name",
+  ]);
+  expect(read.exitCode).toBe(0);
+  expect(read.stdout).toContain("Wrong Name");
+  expect(read.stdout).toContain("Correct Name");
+  expect((await runIntake(base)).stderr).toContain("--force");
+});
+
+test("--from and no-from replace one rule, never chain, and distinguish blank from missing", async () => {
+  expect(
+    (await runIntake([...args("set", "name"), "A", "--from", ""])).exitCode,
+  ).toBe(0);
+  const first = await loadPropertyCorrections(workspace, "test.source");
+  expect(first("Agency", "source-one", { name: "" }).name).toBe("A");
+  expect(first("Agency", "source-one", {}).name).toBeUndefined();
+  expect((await runIntake([...args("set", "name"), "B"])).exitCode).toBe(1);
+  expect(
+    (await runIntake([...args("set", "name"), "B", "--force"])).exitCode,
+  ).toBe(0);
+  const second = await loadPropertyCorrections(workspace, "test.source");
+  expect(second("Agency", "source-one", { name: "" }).name).toBe("");
+  expect(second("Agency", "source-one", {}).name).toBe("B");
+  expect(second("Agency", "source-one", { name: "A" }).name).toBe("A");
+});
+
+test("generation applies a source correction before dependent address resolution", async () => {
+  expect(
+    (
+      await runIntake([
+        ...args("set", "address"),
+        "2 Main St",
+        "--from",
+        "PO BOX 1",
+      ])
+    ).exitCode,
+  ).toBe(0);
+  const resolveAddress = vi.fn(async (_input: unknown) => ({
+    latitude: 32,
+    longitude: -96,
+  }));
+  const context = new DataContext({
+    client: new EmptyDatabaseClient(),
+    ledger: createSourceNameToCanonicalIdLedger({ rootDir: workspace }),
+    applyPropertyCorrections: await loadPropertyCorrections(
+      workspace,
+      "test.source",
+    ),
+    resolveAddress,
+  });
+  const facade = context.facadeFromSource("Agency", {
+    apiVersion: INTAKE_API_VERSION,
+    namespace: "test.source",
+    name: "source-one",
+    spec: {
+      name: "Test",
+      address: "PO BOX 1",
+      city: "Town",
+      state: "TX",
+      zip_code: "12345",
+    },
+  });
+  expect(await facade.value("latitude")).toBe(32);
+  expect(resolveAddress.mock.calls[0]?.[0]).toMatchObject({
+    address: "2 Main St",
+  });
+});
+
+test("a forced conditional rule retires the old unconditional correction", async () => {
+  const { setManualResolvedProperty } =
+    await import("../../src/cli/state/resolved-property/index.js");
+  await setManualResolvedProperty({
+    rootDir: workspace,
+    subject,
+    targetProperty: "latitude",
+    value: 30,
+    source: { namespace: "test.source", kind: "Agency", name: "source-one" },
+    force: false,
+    commandId: "old-command",
+  });
+  expect(
+    (
+      await runIntake([
+        ...args("set", "latitude"),
+        "32",
+        "--from",
+        "31",
+        "--force",
+      ])
+    ).exitCode,
+  ).toBe(0);
+  expect(
+    await readResolvedProperty({
+      rootDir: workspace,
+      subject,
+      targetProperty: "latitude",
+      inputFingerprint: "changed",
+    }),
+  ).toBeUndefined();
+  const apply = await loadPropertyCorrections(workspace, "test.source");
+  expect(apply("Agency", "source-one", { latitude: 31 }).latitude).toBe(32);
+  expect(apply("Agency", "source-one", {}).latitude).toBeUndefined();
+});
+
+test("explicit identity changes fail instead of silently bypassing the durable mapping", async () => {
+  expect((await runIntake([...args("set", "id"), "another-id"])).exitCode).toBe(
+    0,
+  );
+  const context = new DataContext({
+    client: new EmptyDatabaseClient(),
+    ledger: createSourceNameToCanonicalIdLedger({ rootDir: workspace }),
+    applyPropertyCorrections: await loadPropertyCorrections(
+      workspace,
+      "test.source",
+    ),
+  });
+  const facade = context.facadeFromSource("Agency", {
+    apiVersion: INTAKE_API_VERSION,
+    namespace: "test.source",
+    name: "source-one",
+    spec: {},
+  });
+  await expect(facade.value("id")).rejects.toThrow(
+    "conflicts with durable identity",
+  );
+});
+
+test("accepts an explicit null replacement for a nullable property", async () => {
+  expect(
+    (
+      await runIntake([
+        ...args("set", "contact_name"),
+        "null",
+        "--from",
+        "Unknown",
+      ])
+    ).exitCode,
+  ).toBe(0);
+  const apply = await loadPropertyCorrections(workspace, "test.source");
+  expect(
+    apply("Agency", "source-one", { contact_name: "Unknown" }).contact_name,
+  ).toBeNull();
+});
+
+test("a CLI name correction is applied before a location path is derived during generation", async () => {
+  const key = "place:GEOID:2416620";
+  const result = await runIntake([
+    "cache",
+    "set",
+    "test.source",
+    "LocationPath",
+    key,
+    "display_name",
+    "Chevy Chase town",
+    "--from",
+    "Chevy Chase",
+  ]);
+  expect(result.exitCode).toBe(0);
+  const ledger = createSourceNameToCanonicalIdLedger({ rootDir: workspace });
+  await ledger.findOrCreate(
+    "test.source",
+    "LocationPath",
+    key,
+    async () => "existing-town-id",
+  );
+  const context = new DataContext({
+    client: new EmptyDatabaseClient(),
+    ledger,
+    resolvedPropertyStore: {
+      read: (input) => readResolvedProperty({ ...input, rootDir: workspace }),
+      write: (input) => writeResolvedProperty({ ...input, rootDir: workspace }),
+    },
+    applyPropertyCorrections: await loadPropertyCorrections(
+      workspace,
+      "test.source",
+    ),
+  });
+  const source = {
+    apiVersion: INTAKE_API_VERSION,
+    namespace: "test.source",
+  } as const;
+  context.facadeFromSource("LocationPath", {
+    ...source,
+    name: "/md/",
+    spec: {
+      location_path_id: "/md/",
+      path: "/md/",
+      display_name: "Maryland",
+      level: "state",
+      parent_location_path_id: null,
+    },
+  });
+  context.facadeFromSource("LocationPath", {
+    ...source,
+    name: "/md/montgomery-county/",
+    spec: {
+      location_path_id: "/md/montgomery-county/",
+      path: "/md/montgomery-county/",
+      display_name: "Montgomery County",
+      level: "administrative_area",
+      parent_location_path_id: "/md/",
+    },
+  });
+  const common = {
+    level: "place",
+    display_name: "Chevy Chase",
+    parent_location_path_id: "/md/montgomery-county/",
+  };
+  const town = context.facadeFromSource("LocationPath", {
+    ...source,
+    name: key,
+    spec: { ...common, location_path_id: key },
+  });
+  const cdp = context.facadeFromSource("LocationPath", {
+    ...source,
+    name: "place:GEOID:2416625",
+    spec: { ...common, location_path_id: "place:GEOID:2416625" },
+  });
+  expect(await town.value("path")).toBe(
+    "/md/montgomery-county/chevy-chase-town/",
+  );
+  expect(await cdp.value("path")).toBe("/md/montgomery-county/chevy-chase/");
+  expect(await town.value("location_path_id")).toBe("existing-town-id");
+  context.facadeFromSource("LocationPath", {
+    ...source,
+    name: "administrative_area:GEOID:24033",
+    spec: {
+      location_path_id: "administrative_area:GEOID:24033",
+      display_name: "Prince George's County",
+      level: "administrative_area",
+      parent_location_path_id: "/md/",
+    },
+  });
+  const alias = context.facadeFromSource("LocationPathAlias", {
+    ...source,
+    name: `${key}:administrative_area:GEOID:24033`,
+    spec: {
+      location_path_id: key,
+      parent_location_path_id: "administrative_area:GEOID:24033",
+    },
+  });
+  expect(await alias.toMutation()).toMatchObject({
+    kind: "LocationPathAliasCreate",
+    spec: {
+      alias_path: "/md/prince-george-s-county/chevy-chase-town/",
+      location_path_id: "existing-town-id",
+    },
+  });
+  const mutations = await context.toMutations();
+  expect(mutations.filter((m) => m.kind === "LocationPathCreate")).toHaveLength(
+    5,
+  );
+});
+
+test("generation rejects equal derived paths for distinct source identities", async () => {
+  const context = new DataContext({
+    client: new EmptyDatabaseClient(),
+    ledger: createSourceNameToCanonicalIdLedger({ rootDir: workspace }),
+  });
+  for (const name of ["state:GEOID:01", "state:GEOID:02"]) {
+    context.facadeFromSource("LocationPath", {
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "test.source",
+      name,
+      spec: {
+        location_path_id: name,
+        path: "/same/",
+        level: "state",
+        display_name: "Same",
+        parent_location_path_id: null,
+      },
+    });
+  }
+  await expect(context.toMutations()).rejects.toThrow(
+    /Duplicate.*LocationPath.*path.*state:GEOID:01.*state:GEOID:02/,
+  );
+});
+
+test("corrected source references resolve to canonical parent IDs", async () => {
+  const context = new DataContext({
+    client: new EmptyDatabaseClient(),
+    ledger: {
+      read: async (_namespace, _kind, key) => `canonical-${key}`,
+      findOrCreate: async (_namespace, _kind, key) => `canonical-${key}`,
+      sourceIdFor: async (_namespace, _kind, id) => id,
+    },
+    applyPropertyCorrections: (_kind, key, spec, applied) => {
+      if (key !== "child") return spec;
+      applied?.("parent_location_path_id");
+      return { ...spec, parent_location_path_id: "b" };
+    },
+  });
+  const source = {
+    apiVersion: INTAKE_API_VERSION,
+    namespace: "test.source",
+  } as const;
+  context.facadeFromSource("LocationPath", {
+    ...source,
+    name: "b",
+    spec: {
+      location_path_id: "b",
+      path: "/b/",
+      level: "state",
+      display_name: "B",
+      parent_location_path_id: null,
+    },
+  });
+  const child = context.facadeFromSource("LocationPath", {
+    ...source,
+    name: "child",
+    spec: {
+      location_path_id: "child",
+      level: "administrative_area",
+      display_name: "Child",
+      parent_location_path_id: "a",
+    },
+  });
+  expect(await child.toMutation()).toMatchObject({
+    spec: { path: "/b/child/", parent_location_path_id: "canonical-b" },
+  });
+});
+
+test.each(["alias", "canonical"])(
+  "a conflicting %s URL fails before aliases can converge",
+  async (collision) => {
+    const context = new DataContext({
+      client: new EmptyDatabaseClient(),
+      ledger: createSourceNameToCanonicalIdLedger({ rootDir: workspace }),
+    });
+    const source = {
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "test.source",
+    } as const;
+    for (const [key, url] of [
+      ["a", "/a/"],
+      ["b", "/b/"],
+    ])
+      context.facadeFromSource("LocationPath", {
+        ...source,
+        name: key,
+        spec: {
+          location_path_id: key,
+          path: url,
+          display_name: key,
+          level: "state",
+          parent_location_path_id: null,
+        },
+      });
+    context.facadeFromSource("LocationPathAlias", {
+      ...source,
+      name: "alias-a",
+      spec: {
+        alias_path: collision === "canonical" ? "/b/" : "/shared/",
+        location_path_id: "a",
+      },
+    });
+    if (collision === "alias")
+      context.facadeFromSource("LocationPathAlias", {
+        ...source,
+        name: "alias-b",
+        spec: { alias_path: "/shared/", location_path_id: "b" },
+      });
+    await expect(context.toMutations()).rejects.toThrow(/URL.*already.*owned/);
   },
 );

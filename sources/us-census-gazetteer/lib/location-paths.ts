@@ -5,13 +5,7 @@ import type {
   GazetteerStateRecord,
 } from "./schemas.js";
 
-/**
- * Ported verbatim from `intake.us-census-gazetteer/src/location-paths.js`.
- * PURE — no I/O. The algorithm, including the `sortedObject()` lexical
- * sorting and `warnings.sort()`, is unchanged from the original; only types
- * were added and the `address-location-evidence` import was replaced with
- * `./constants.js`.
- */
+/** Pure Census records keyed by geography type and GEOID; paths are descriptive output. */
 
 const sourceContextSymbol: unique symbol = Symbol("sourceContext");
 
@@ -76,18 +70,16 @@ export interface LocationPathSourceEvidence {
   sourceHierarchyKey?: string;
   sourceHierarchyOverlapTotalArea?: number;
   hierarchySelection?: HierarchySelection;
-  sourceKeys?: string[];
-  parentSourceKeys?: string[];
 }
 
 export interface LocationPathAliasEntry {
   alias_path: string;
   location_path_id: string;
+  parent_location_path_id: string;
 }
 
 export interface LocationPathAliasSourceEvidence {
   sourceKey: string;
-  sourceKeys?: string[];
 }
 
 export interface BuildLocationPathsResult {
@@ -163,11 +155,11 @@ export function buildLocationPaths({
     statesByGeoid.set(state.GEOID, state);
     addLocationPath(
       locationPaths,
-      statePath,
+      sourceKey("state", state.GEOID),
       stateLocationPath(state, statePath),
       sourceContext(state),
     );
-    locationPathSources.set(statePath, {
+    locationPathSources.set(sourceKey("state", state.GEOID), {
       sourceKey: sourceKey("state", state.GEOID),
     });
   }
@@ -202,7 +194,7 @@ export function buildLocationPaths({
     });
     addLocationPath(
       locationPaths,
-      administrativeAreaPath,
+      sourceKey("administrative_area", administrativeArea.GEOID),
       administrativeAreaLocationPath({
         state,
         administrativeArea,
@@ -210,10 +202,13 @@ export function buildLocationPaths({
       }),
       sourceContext(administrativeArea),
     );
-    locationPathSources.set(administrativeAreaPath, {
-      sourceKey: sourceKey("administrative_area", administrativeArea.GEOID),
-      parentSourceKey: sourceKey("state", state.GEOID),
-    });
+    locationPathSources.set(
+      sourceKey("administrative_area", administrativeArea.GEOID),
+      {
+        sourceKey: sourceKey("administrative_area", administrativeArea.GEOID),
+        parentSourceKey: sourceKey("state", state.GEOID),
+      },
+    );
   }
 
   const hierarchyByPlaceGeoid = groupHierarchyByPlaceGeoid(hierarchy);
@@ -261,52 +256,37 @@ export function buildLocationPaths({
   for (const plan of plannedPlaces) {
     const candidates = plan.candidates.map(assignPlacePath);
     const defaultCandidate = chooseDefaultPlaceCandidate(candidates);
-    const placePathExists = locationPaths.has(defaultCandidate.placePath);
     addLocationPath(
       locationPaths,
-      defaultCandidate.placePath,
+      sourceKey("place", defaultCandidate.place.GEOID),
       placeLocationPath(defaultCandidate),
       sourceContext(defaultCandidate.place),
-      { mergePlace: true },
     );
-    const currentEvidence = locationPathSources.get(defaultCandidate.placePath);
     locationPathSources.set(
-      defaultCandidate.placePath,
-      mergeLocationPathEvidence(
-        currentEvidence,
-        placeLocationPathEvidence(defaultCandidate, candidates),
-      ),
+      sourceKey("place", defaultCandidate.place.GEOID),
+      placeLocationPathEvidence(defaultCandidate, candidates),
     );
 
     for (const candidate of candidates) {
-      if (candidate.placePath === defaultCandidate.placePath) continue;
       if (
-        !isSamePlaceAlternateAdminPath(
-          candidate.placePath,
-          defaultCandidate.placePath,
-        )
-      ) {
+        candidate.administrativeArea.GEOID ===
+        defaultCandidate.administrativeArea.GEOID
+      )
         continue;
-      }
-
-      if (locationPaths.has(candidate.placePath)) continue;
-      if (placePathExists && locationPathAlias.has(candidate.placePath)) {
-        locationPathAliasSources.set(
-          candidate.placePath,
-          mergeAliasSourceEvidence(
-            locationPathAliasSources.get(candidate.placePath),
-            { sourceKey: candidate.match.sourceKey },
-          ),
-        );
-        continue;
-      }
-      locationPathAlias.set(candidate.placePath, {
+      const placeKey = sourceKey("place", candidate.place.GEOID);
+      const parentKey = sourceKey(
+        "administrative_area",
+        candidate.administrativeArea.GEOID,
+      );
+      const aliasKey = `${placeKey}:${parentKey}`;
+      if (locationPathAlias.has(aliasKey))
+        throw new Error(`Duplicate Census alias ${aliasKey}`);
+      locationPathAlias.set(aliasKey, {
         alias_path: candidate.placePath,
-        location_path_id: defaultCandidate.placePath,
+        location_path_id: placeKey,
+        parent_location_path_id: parentKey,
       });
-      locationPathAliasSources.set(candidate.placePath, {
-        sourceKey: candidate.match.sourceKey,
-      });
+      locationPathAliasSources.set(aliasKey, { sourceKey: aliasKey });
     }
   }
 
@@ -332,7 +312,7 @@ function stateLocationPath(
   statePath: string,
 ): LocationPathRow {
   return {
-    location_path_id: statePath,
+    location_path_id: sourceKey("state", state.GEOID),
     path: statePath,
     level: "state",
     display_name: state.NAME,
@@ -352,11 +332,14 @@ function administrativeAreaLocationPath({
   administrativeAreaPath: string;
 }): LocationPathRow {
   return {
-    location_path_id: administrativeAreaPath,
+    location_path_id: sourceKey(
+      "administrative_area",
+      administrativeArea.GEOID,
+    ),
     path: administrativeAreaPath,
     level: "administrative_area",
     display_name: administrativeArea.NAME,
-    parent_location_path_id: `/${state.USPS.toLowerCase()}/`,
+    parent_location_path_id: sourceKey("state", state.GEOID),
     latitude: administrativeArea.INTPTLAT,
     longitude: administrativeArea.INTPTLONG,
   };
@@ -364,11 +347,14 @@ function administrativeAreaLocationPath({
 
 function placeLocationPath(candidate: AssignedPlaceCandidate): LocationPathRow {
   return {
-    location_path_id: candidate.placePath,
+    location_path_id: sourceKey("place", candidate.place.GEOID),
     path: candidate.placePath,
     level: "place",
     display_name: candidate.placeName,
-    parent_location_path_id: candidate.administrativeAreaPath,
+    parent_location_path_id: sourceKey(
+      "administrative_area",
+      candidate.administrativeArea.GEOID,
+    ),
     latitude: candidate.place.INTPTLAT,
     longitude: candidate.place.INTPTLONG,
   };
@@ -397,61 +383,15 @@ function placeLocationPathEvidence(
   return metadata;
 }
 
-function mergeLocationPathEvidence(
-  existing: LocationPathSourceEvidence | undefined,
-  next: LocationPathSourceEvidence,
-): LocationPathSourceEvidence {
-  if (existing === undefined) {
-    return {
-      ...next,
-      sourceKeys: [next.sourceKey],
-      parentSourceKeys:
-        next.parentSourceKey === undefined ? undefined : [next.parentSourceKey],
-    };
-  }
-
-  const sourceKeys = uniqueSorted([
-    ...(existing.sourceKeys ?? [existing.sourceKey]),
-    next.sourceKey,
-  ]);
-  const parentSourceKeys = uniqueSorted(
-    [
-      ...(existing.parentSourceKeys ??
-        [existing.parentSourceKey].filter((value): value is string =>
-          Boolean(value),
-        )),
-      next.parentSourceKey,
-    ].filter((value): value is string => Boolean(value)),
-  );
-  return {
-    ...existing,
-    sourceKeys,
-    parentSourceKeys:
-      parentSourceKeys.length === 0 ? undefined : parentSourceKeys,
-  };
-}
-
-function mergeAliasSourceEvidence(
-  existing: LocationPathAliasSourceEvidence | undefined,
-  next: LocationPathAliasSourceEvidence,
-): LocationPathAliasSourceEvidence {
-  if (existing === undefined) return next;
-  return {
-    ...existing,
-    sourceKeys: uniqueSorted([
-      ...(existing.sourceKeys ?? [existing.sourceKey]),
-      next.sourceKey,
-    ]),
-  };
-}
-
 function hierarchySelectionForPlace(
   defaultCandidate: AssignedPlaceCandidate,
   candidates: AssignedPlaceCandidate[],
 ): HierarchySelection {
   const alternates = sortedPlaceCandidates(
     candidates.filter(
-      (candidate) => candidate.placePath !== defaultCandidate.placePath,
+      (candidate) =>
+        candidate.administrativeArea.GEOID !==
+        defaultCandidate.administrativeArea.GEOID,
     ),
   );
   const reason = hierarchySelectionReason(defaultCandidate, candidates);
@@ -569,11 +509,10 @@ function administrativeAreaPathFor({
 
 function assignPlacePath(candidate: PlaceCandidate): AssignedPlaceCandidate {
   const placeName = placePreferredName(candidate);
-  const placeSlug = slugFromSourceName(placeName);
   return {
     ...candidate,
     placeName,
-    placeSlug,
+    placeSlug: slugFromSourceName(placeName),
     placePath: placeCandidatePath(candidate, placeName),
   };
 }
@@ -619,18 +558,10 @@ function addLocationPath(
   path: string,
   row: LocationPathRow,
   context: SourceContext | undefined,
-  options: { mergePlace?: boolean } = {},
 ): void {
   if (locationPaths.has(path)) {
-    if (
-      options.mergePlace === true &&
-      locationPaths.get(path)?.level === "place" &&
-      row.level === "place"
-    ) {
-      return;
-    }
     throw new Error(
-      `Duplicate generated location path ${path}${duplicateSourceDetails(
+      `Duplicate Census source key ${path}${duplicateSourceDetails(
         locationPaths.get(path)?.[sourceContextSymbol],
         context,
       )}`,
@@ -668,25 +599,6 @@ function duplicateSourceDetails(
   return ` (${details.join("; ")})`;
 }
 
-function pathSegments(path: string): string[] {
-  return path.split("/").filter(Boolean);
-}
-
-function isSamePlaceAlternateAdminPath(
-  aliasPath: string,
-  targetPath: string,
-): boolean {
-  const aliasSegments = pathSegments(aliasPath);
-  const targetSegments = pathSegments(targetPath);
-  return (
-    aliasSegments.length === 3 &&
-    targetSegments.length === 3 &&
-    aliasSegments[0] === targetSegments[0] &&
-    aliasSegments[1] !== targetSegments[1] &&
-    aliasSegments[2] === targetSegments[2]
-  );
-}
-
 function sortedObject<T>(map: Map<string, T>): Record<string, T> {
   return Object.fromEntries(
     [...map.entries()].sort(([left], [right]) => left.localeCompare(right)),
@@ -695,10 +607,6 @@ function sortedObject<T>(map: Map<string, T>): Record<string, T> {
 
 function sourceKey(type: string, geoid: string): string {
   return `${type}:GEOID:${geoid}`;
-}
-
-function uniqueSorted(values: string[]): string[] {
-  return [...new Set(values)].sort();
 }
 
 function skippedWarning({

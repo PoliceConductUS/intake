@@ -59,9 +59,7 @@ export type LocationPathWithGeometryExtent = LocationPathRow & {
 export interface LocationPathGeometrySourceEvidence {
   sourceKey: string;
   sourceLocationPathKey: string;
-  sourceLocationPathKeys?: string[];
   sourceGeometryKey: string;
-  sourceGeometryKeys?: string[];
   selectedYear: number | string;
 }
 
@@ -142,14 +140,12 @@ export async function buildLocationPathGeometryPackage({
     if (source === undefined) {
       throw new Error(`Missing source key for location path geometry ${path}`);
     }
-    const sources = sourceKeysForGeometry(sourceRecord, source);
 
     const geometry =
       supplementalGeometries?.get(path) ??
       geometryForLocationPath({
         locationPath,
         source,
-        sources,
         statesByGeoid,
         countiesByGeoid,
         placesByGeoid,
@@ -159,17 +155,9 @@ export async function buildLocationPathGeometryPackage({
       geometry,
     };
     geometrySourceRows.set(path, {
-      sourceKey:
-        sources.length === 1
-          ? `geometry:${source.type}:GEOID:${source.geoid}`
-          : `geometry:${source.type}:GEOID:${sources.map((item) => item.geoid).join("+")}`,
+      sourceKey: `geometry:${source.type}:GEOID:${source.geoid}`,
       sourceLocationPathKey: path,
-      sourceLocationPathKeys: sources.length === 1 ? undefined : [path],
       sourceGeometryKey: sourceRecord!.sourceKey,
-      sourceGeometryKeys:
-        sources.length === 1
-          ? undefined
-          : sources.map((item) => `${item.type}:GEOID:${item.geoid}`),
       selectedYear,
     });
     if (onGeometryRow === undefined) {
@@ -207,14 +195,12 @@ interface SourceKeyParts {
 function geometryForLocationPath({
   locationPath,
   source,
-  sources,
   statesByGeoid,
   countiesByGeoid,
   placesByGeoid,
 }: {
   locationPath: LocationPathRow;
   source: SourceKeyParts;
-  sources: SourceKeyParts[];
   statesByGeoid: Map<string, TigerFeatureRow>;
   countiesByGeoid: Map<string, TigerFeatureRow>;
   placesByGeoid: Map<string, TigerFeatureRow>;
@@ -240,19 +226,12 @@ function geometryForLocationPath({
   }
 
   if (locationPath.level === "place") {
-    const geometries = sources.map((item) => {
-      const feature = placesByGeoid.get(item.geoid);
-      if (feature === undefined) {
-        throw new Error(
-          `Missing TIGER place geometry for ${locationPath.location_path_id}`,
-        );
-      }
-      return toMultiPolygonGeometry(feature.geometry).coordinates;
-    });
-    return {
-      type: "MultiPolygon",
-      coordinates: geometries.flat(),
-    };
+    const feature = placesByGeoid.get(source.geoid);
+    if (feature === undefined)
+      throw new Error(
+        `Missing TIGER place geometry for ${locationPath.location_path_id}`,
+      );
+    return toMultiPolygonGeometry(feature.geometry);
   }
 
   throw new Error(
@@ -459,15 +438,4 @@ function sourceKeyParts(
       sourceKey ?? "",
     );
   return match?.groups as SourceKeyParts | undefined;
-}
-
-function sourceKeysForGeometry(
-  sourceRecord: LocationPathSourceEvidence | undefined,
-  fallbackSource: SourceKeyParts,
-): SourceKeyParts[] {
-  if (!Array.isArray(sourceRecord?.sourceKeys)) return [fallbackSource];
-  const sources = sourceRecord.sourceKeys
-    .map(sourceKeyParts)
-    .filter((value): value is SourceKeyParts => value !== undefined);
-  return sources.length === 0 ? [fallbackSource] : sources;
 }

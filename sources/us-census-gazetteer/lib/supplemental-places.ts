@@ -30,7 +30,7 @@ export interface SupplementalPlaceReport {
   name: string;
   classCode: string;
   sourceType: "county_subdivision" | "consolidated_city";
-  status: "included" | "clipped" | "covered" | "excluded";
+  status: "included" | "covered" | "excluded";
   reason: string;
   path?: string;
 }
@@ -127,7 +127,7 @@ export function addSupplementalPlaces(input: {
       const stateGeoid = String(feature.properties?.STATEFP ?? "");
       if (stateGeoid !== feature.geoid.slice(0, 2))
         throw new Error(`Mismatched Census state for ${sourceKey}`);
-      let coordinates = polygon(feature);
+      const coordinates = polygon(feature);
       let parents: { path: string; overlap: number }[];
       if (sourceType === "county_subdivision") {
         const countyGeoid = `${stateGeoid}${String(feature.properties?.COUNTYFP ?? "")}`;
@@ -154,12 +154,6 @@ export function addSupplementalPlaces(input: {
               "Fully covered by the union of Census PLACE boundaries";
             continue;
           }
-          if (multiPolygonArea(uncovered) < multiPolygonArea(coordinates)) {
-            entry.status = "clipped";
-            entry.reason =
-              "Site boundary excludes Census PLACE coverage; original TIGER source retained";
-          }
-          coordinates = uncovered;
         }
       } else {
         parents = input.counties
@@ -190,14 +184,14 @@ export function addSupplementalPlaces(input: {
       if (!name) throw new Error(`Missing Census name for ${sourceKey}`);
       const suffix = slugFromSourceName(name);
       const parent = parents[0].path;
-      const path = `${parent}${suffix}/`;
-      if (built.locationPaths[path] || built.locationPathAlias[path])
+      const path = `${built.locationPaths[parent].path}${suffix}/`;
+      if (built.locationPaths[sourceKey])
         throw new Error(
-          `Supplemental Census path collision ${path} (${sourceKey})`,
+          `Duplicate Census source key ${sourceKey} (${sourceKey})`,
         );
       entry.path = path;
-      built.locationPaths[path] = {
-        location_path_id: path,
+      built.locationPaths[sourceKey] = {
+        location_path_id: sourceKey,
         path,
         level: "place",
         display_name: name,
@@ -206,20 +200,22 @@ export function addSupplementalPlaces(input: {
         longitude: "0",
         resolution_class: sourceType,
       };
-      built.locationPathSources[path] = {
+      built.locationPathSources[sourceKey] = {
         sourceKey,
         parentSourceKey: built.locationPathSources[parent].sourceKey,
       };
-      geometries.set(path, { type: "MultiPolygon", coordinates });
+      geometries.set(sourceKey, { type: "MultiPolygon", coordinates });
       for (const alternate of parents.slice(1)) {
-        const alias = `${alternate.path}${suffix}/`;
-        if (built.locationPaths[alias] || built.locationPathAlias[alias])
+        const aliasKey = `${sourceKey}:${alternate.path}`;
+        const alias = `${built.locationPaths[alternate.path].path}${suffix}/`;
+        if (built.locationPathAlias[aliasKey])
           throw new Error(`Supplemental Census alias collision ${alias}`);
-        built.locationPathAlias[alias] = {
+        built.locationPathAlias[aliasKey] = {
           alias_path: alias,
-          location_path_id: path,
+          location_path_id: sourceKey,
+          parent_location_path_id: alternate.path,
         };
-        built.locationPathAliasSources[alias] = { sourceKey };
+        built.locationPathAliasSources[aliasKey] = { sourceKey: aliasKey };
       }
     }
   }

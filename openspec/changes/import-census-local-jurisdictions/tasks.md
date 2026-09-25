@@ -1,7 +1,7 @@
 ## 1. Source coverage
 
 - [x] 1.1 Add failing acquisition/input and transform tests for subdivisions, consolidated cities, exclusions and full coverage.
-- [x] 1.2 Implement same-vintage source discovery, required inputs, supplemental paths, uncovered boundaries and visible exclusion report.
+- [x] 1.2 Implement same-vintage source discovery, required inputs, supplemental paths, original Census boundaries and visible exclusion report.
 
 ## 2. Resolution
 

@@ -1,3 +1,4 @@
+import type { ApplyPropertyCorrections } from "../../../shared/io/property-corrections.js";
 import { createId } from "@paralleldrive/cuid2";
 import {
   valueAsString,
@@ -11,8 +12,12 @@ import type {
 import {
   buildFacadeForKind,
   identityColumnForKind,
+  urlOwnershipForKind,
 } from "./facades/resolver-registry.js";
-import { RECORD_KINDS_IN_DEPENDENCY_ORDER } from "../../../shared/io/generated/entity-specs.js";
+import {
+  BUSINESS_KEYS,
+  RECORD_KINDS_IN_DEPENDENCY_ORDER,
+} from "../../../shared/io/generated/entity-specs.js";
 import { INTAKE_API_VERSION } from "../../../shared/io/import-types.js";
 import type { DatabaseClient } from "../../database/index.js";
 import { SlugAllocator } from "./slug.js";
@@ -63,6 +68,8 @@ type DataContextLogger = {
 };
 
 export type DataContextOptions = {
+  applyPropertyCorrections?: ApplyPropertyCorrections;
+  propertyCorrectionNamespace?: string;
   client?: DatabaseClient;
   logger?: DataContextLogger;
   resolveAddress?: (
@@ -154,6 +161,8 @@ type UnifiedFacadeBackend = EntityFacadeBackend & {
 export class DataContext {
   readonly locations: LocationDataContext;
   readonly locationPaths: LocationPathDataContext;
+  private readonly applyPropertyCorrections?: ApplyPropertyCorrections;
+  private readonly propertyCorrectionNamespace?: string;
   private readonly client?: DatabaseClient;
   private readonly rows: CurrentRowReader;
   readonly logger?: DataContextLogger;
@@ -184,6 +193,8 @@ export class DataContext {
   private readonly businessKeyIds = new Map<string, Promise<string>>();
 
   constructor(options: DataContextOptions) {
+    this.applyPropertyCorrections = options.applyPropertyCorrections;
+    this.propertyCorrectionNamespace = options.propertyCorrectionNamespace;
     this.client = options.client;
     this.rows = new CurrentRowReader(options.client);
     this.logger = options.logger;
@@ -303,12 +314,29 @@ export class DataContext {
 
   facadeFromSource(kind: string, input: SourceRecordContext): RegistryFacade {
     validateSourceRecordContext(input);
+    const correctedProperties: string[] = [];
+    if (
+      input.spec !== undefined &&
+      this.applyPropertyCorrections !== undefined &&
+      (this.propertyCorrectionNamespace === undefined ||
+        this.propertyCorrectionNamespace === input.namespace)
+    ) {
+      input = {
+        ...input,
+        spec: this.applyPropertyCorrections(
+          kind,
+          input.name,
+          input.spec,
+          (property) => correctedProperties.push(property),
+        ),
+      };
+    }
     const facades = this.facadesFor(kind);
     const key = [input.apiVersion, input.namespace, kind, input.name].join(":");
     const existing = facades.get(key);
     if (existing !== undefined) {
       if (input.spec !== undefined) {
-        existing.merge(input.spec);
+        existing.merge(input.spec, correctedProperties);
       }
       return existing;
     }
@@ -328,7 +356,7 @@ export class DataContext {
       cache: this.propertyCache(),
     }) as RegistryFacade;
     if (input.spec !== undefined) {
-      facade.merge(input.spec);
+      facade.merge(input.spec, correctedProperties);
     }
     facades.set(key, facade);
     return facade;
@@ -429,7 +457,12 @@ export class DataContext {
     // Registry facades resolve toward an erased row, so bridge `value("id")` to
     // the target's identity column (LocationPath keys on `location_path_id`).
     const identityColumn = identityColumnForKind(input.kind);
-    return { value: () => facade.value(identityColumn) as Promise<string> };
+    return {
+      value: (property) =>
+        facade.value(
+          property === "id" ? identityColumn : property,
+        ) as Promise<string>,
+    };
   }
 
   async toMutations(): Promise<DatabaseMutationEnvelope[]> {
@@ -438,6 +471,7 @@ export class DataContext {
     // the FK-derived topological sort in toDatabaseMutationItems. Draining in the
     // generated dependency order keeps the pre-sort output stable and legible.
     const mutations: DatabaseMutationEnvelope[] = [];
+    const urlOwners = new Map<string, { owner: string; sourceKey: string }>();
     for (const kind of RECORD_KINDS_IN_DEPENDENCY_ORDER) {
       const facades = this.facadesByKind.get(kind);
       if (facades === undefined) {
@@ -448,17 +482,59 @@ export class DataContext {
       // converge in order, each recording its row so the next reads it (create, then
       // update|read, last-wins).
       const groups = new Map<string, RegistryFacade[]>();
-      await Promise.all(
-        [...facades.values()].map(async (facade) => {
+      const identifiedFacades = await Promise.all(
+        [...facades.entries()].map(async ([sourceKey, facade]) => {
           const identity = String(await facade.value(identityColumn));
-          const group = groups.get(identity);
-          if (group === undefined) {
-            groups.set(identity, [facade]);
-          } else {
-            group.push(facade);
-          }
+          return { identity, facade, sourceKey };
         }),
       );
+      const columns = BUSINESS_KEYS[kind];
+      if (columns !== undefined) {
+        const owners = new Map<
+          string,
+          { identity: string; sourceKey: string }
+        >();
+        for (const item of identifiedFacades) {
+          const values = await Promise.all(
+            columns.map((column) => item.facade.value(column)),
+          );
+          // SQL unique constraints permit multiple rows with NULL key values.
+          if (values.some((value) => value === null || value === undefined))
+            continue;
+          const key = JSON.stringify(values);
+          const owner = owners.get(key);
+          if (owner !== undefined && owner.identity !== item.identity) {
+            throw new Error(
+              `Duplicate ${kind} ${columns.join(", ")} ${key}: ${owner.sourceKey} and ${item.sourceKey}.`,
+            );
+          }
+          owners.set(key, item);
+        }
+      }
+      const urlOwnership = urlOwnershipForKind(kind);
+      if (urlOwnership !== undefined) {
+        for (const item of identifiedFacades) {
+          const url = String(await item.facade.value(urlOwnership.property));
+          const owner = String(await item.facade.value(urlOwnership.owner));
+          const existing = urlOwners.get(url);
+          if (existing !== undefined && existing.owner !== owner) {
+            throw new Error(
+              `URL ${url} is already owned by ${existing.sourceKey}; conflicting owner ${item.sourceKey}.`,
+            );
+          }
+          urlOwners.set(url, { owner, sourceKey: item.sourceKey });
+        }
+      }
+      // Promise.all preserves registration order; lookup completion order must
+      // not decide which source's values win for a shared identity.
+      for (const { identity, facade } of identifiedFacades) {
+        const group = groups.get(identity);
+        if (group === undefined) {
+          groups.set(identity, [facade]);
+        } else {
+          group.push(facade);
+        }
+      }
 
       const singles: RegistryFacade[] = [];
       const recurring: RegistryFacade[][] = [];

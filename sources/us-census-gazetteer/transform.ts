@@ -53,8 +53,8 @@ import { matchInputs } from "./lib/inputs.js";
  *   4. `buildLocationPaths` derives the canonical location-path tree (plus
  *      any same-place alternate-administrative-area aliases).
  *   5. Legal county subdivisions and consolidated cities add local places;
- *      subdivision boundaries exclude existing PLACE coverage. A report
- *      records included, clipped, fully covered and statistical features.
+ *      retained subdivisions keep their original Census boundaries. A report
+ *      records included, fully covered and statistical features.
  *   6. `buildLocationPathGeometryPackage` attaches source/derived geometry,
  *      bbox, and centroid to each location path, streaming each geometry
  *      row to `deps.emit` (the "LocationPathGeometries" kind is the
@@ -115,7 +115,7 @@ export const transform: SourceTransform = async (deps: TransformDeps) => {
   };
   const importedPlaceGeoids = new Set(
     Object.values(primary.locationPathSources)
-      .flatMap((e) => e.sourceKeys ?? [e.sourceKey])
+      .map((e) => e.sourceKey)
       .filter((key) => key.startsWith("place:GEOID:"))
       .map((key) => key.split(":")[2]),
   );
@@ -149,7 +149,7 @@ export const transform: SourceTransform = async (deps: TransformDeps) => {
     ) + "\n",
   );
   const counts = Object.fromEntries(
-    ["included", "clipped", "covered", "excluded"].map((status) => [
+    ["included", "covered", "excluded"].map((status) => [
       status,
       supplemental.report.filter((row) => row.status === status).length,
     ]),
@@ -221,7 +221,7 @@ async function readGazetteerZip<T extends GazetteerRecordType>(
 function toLocationPathSpec(row: LocationPathWithGeometryExtent) {
   return {
     location_path_id: row.location_path_id,
-    path: row.path,
+    ...(row.level === "state" ? { path: row.path } : {}),
     level: row.level,
     resolution_class: row.resolution_class ?? "primary",
     display_name: row.display_name,
@@ -250,8 +250,8 @@ function wrapAliases(
       key,
       {
         spec: {
-          alias_path: entry.alias_path,
           location_path_id: entry.location_path_id,
+          parent_location_path_id: entry.parent_location_path_id,
         },
       },
     ]),

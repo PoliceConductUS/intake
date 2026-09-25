@@ -111,6 +111,7 @@ export class EntityFacade<
   Backend extends EntityFacadeBackend = EntityFacadeBackend,
 > implements PropertyResolutionFacade<Row> {
   private readonly spec: Record<string, unknown> = {};
+  private readonly correctedProperties = new Set<string>();
   private readonly memo = new Map<keyof Row, Promise<unknown>>();
   private readonly inProgress = new Set<keyof Row>();
   private readonly current?: Record<string, unknown>;
@@ -142,8 +143,21 @@ export class EntityFacade<
     );
   }
 
-  merge(spec: Record<string, unknown>): void {
+  merge(
+    spec: Record<string, unknown>,
+    correctedProperties: readonly string[] = [],
+  ): void {
     Object.assign(this.spec, spec);
+    for (const property of Object.keys(spec))
+      this.correctedProperties.delete(property);
+    for (const property of correctedProperties)
+      this.correctedProperties.add(property);
+  }
+
+  correction(property: keyof Row): unknown {
+    return this.correctedProperties.has(String(property))
+      ? this.raw(property)
+      : undefined;
   }
 
   raw(property: keyof Row): unknown {
@@ -156,8 +170,19 @@ export class EntityFacade<
       return cached as Promise<Row[K]>;
     }
     const pending = this.computeValue(property);
-    this.memo.set(property, pending);
-    return pending;
+    const checked =
+      property === this.identity &&
+      this.correctedProperties.has(String(property))
+        ? pending.then((value) => {
+            if (value !== this.raw(property))
+              throw new Error(
+                `Cache correction for ${this.kind}.${String(property)} conflicts with durable identity ${String(value)} for ${this.source.namespace}/${this.source.name}.`,
+              );
+            return value;
+          })
+        : pending;
+    this.memo.set(property, checked);
+    return checked;
   }
 
   private async computeValue<K extends keyof Row>(

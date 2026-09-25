@@ -95,3 +95,7 @@ export type {
   LicenseActionEnvelope,
   LicenseActionInput,
 } from "./generated/index.js";
+
+export { PropertyCorrection } from "./PropertyCorrection.js";
+export { loadPropertyCorrections } from "./property-corrections.js";
+export type { ApplyPropertyCorrections } from "./property-corrections.js";

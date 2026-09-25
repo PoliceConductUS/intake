@@ -1,3 +1,4 @@
+import { childPathResolver } from "./path-resolver.js";
 import { z } from "zod";
 import * as entitySpecs from "../../../../shared/io/generated/entity-specs.js";
 import {
@@ -71,6 +72,8 @@ type KindConfig = {
    * rather than a same-run find, a cross-source ledger FK, a nullable FK.
    */
   overrides?: Record<string, AnyResolver>;
+  /** A public URL must belong to one resolved entity across canonical and alias records. */
+  urlOwnership?: { property: string; owner: string };
 };
 
 // Structured text only: identifiers, URLs, slugs, prose, and JSON pass through.
@@ -153,7 +156,17 @@ const REGISTRY: Record<string, KindConfig> = {
   },
   LocationPath: {
     upsert: "read",
+    urlOwnership: { property: "path", owner: "location_path_id" },
     overrides: {
+      path: childPathResolver({
+        property: "path",
+        parent: {
+          kind: "LocationPath",
+          reference: "parent_location_path_id",
+          property: "path",
+        },
+        label: "display_name",
+      }),
       parent_location_path_id: facadeNullableForeignKeyResolver<Row>(
         "LocationPath",
         "parent_location_path_id",
@@ -162,8 +175,24 @@ const REGISTRY: Record<string, KindConfig> = {
     },
   },
   LocationPathAlias: {
+    urlOwnership: { property: "alias_path", owner: "location_path_id" },
     identityKind: "natural",
     upsert: "read",
+    overrides: {
+      alias_path: childPathResolver({
+        property: "alias_path",
+        parent: {
+          kind: "LocationPath",
+          reference: "parent_location_path_id",
+          property: "path",
+        },
+        label: {
+          kind: "LocationPath",
+          reference: "location_path_id",
+          property: "display_name",
+        },
+      }),
+    },
     // location_path_id needs no override: the derived FK chain resolves a
     // LocationPath reference same-run (census emits the path + alias together) or,
     // when only the alias is emitted (a curated manual alias), by the target's path
@@ -354,6 +383,10 @@ const REGISTRY: Record<string, KindConfig> = {
     },
   },
 };
+
+export function urlOwnershipForKind(kind: string) {
+  return REGISTRY[kind]?.urlOwnership;
+}
 
 /** The identity/primary-key column a kind resolves and keys existing rows on. */
 export function identityColumnForKind(kind: string): string {

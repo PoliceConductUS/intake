@@ -15,3 +15,16 @@
 - Existing applied mutation history is unchanged. Replaying that old history alone
   is not regeneration and will not incorporate the corrected mappings.
 - Workspace evidence: `audits/rebuild-followup-20260923/civil-cases/`.
+
+## 2026-09-25: Asynchronous identity lookup ordering
+
+The grouping step appended facades as their identity lookups completed, reversing
+same-case updates when an earlier registered record resolved later. The existing
+two-producer regression now resolves the later case identity first; both producer
+variants failed before the fix with the summary update reversed.
+
+Identity lookups remain concurrent. Grouping consumes their results in registration
+order, preserving the existing create-then-update behavior. Both regression
+variants now pass. The broader targeted suite passed 487 tests across 50 files;
+typecheck, build, all 24 OpenSpec items, and diff checks passed. No database changes
+or reset were performed.

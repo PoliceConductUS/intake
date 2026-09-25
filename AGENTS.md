@@ -29,9 +29,10 @@ Use outcomes-driven development with an outside-in approach: start from the user
 or system outcome, define the observable behavior, then work inward to the
 smallest implementation that satisfies it.
 
-Do not optimize for imagined future needs. Do not preserve old behavior unless it
-is explicitly required. Do not add fallback behavior unless it is explicitly
-required and tested. Do not invent requirements or hide uncertainty.
+Do not optimize for imagined future needs. No fallbacks. No backward
+compatibility. No namespace-specific, type-specific, or source-ID-specific
+special cases in code. No exceptions. Do not invent requirements or hide
+uncertainty.
 
 When requirements are ambiguous, prefer the smallest safe interpretation, state
 the assumption plainly, and keep the change reversible. Ask the user only when a
@@ -99,14 +100,15 @@ This is a fail-fast-and-loudly project. Do not guess, silently recover, report
 partial success as success, skip invalid records without visibility, or continue
 after a failed write as though the operation succeeded.
 
-Fallback behavior must be explicitly required, visible, tested, documented, and
-removable.
+Fallback behavior and backward-compatibility paths are prohibited. When a
+contract, file shape, command behavior, schema, or data meaning changes, require
+the new contract and fail loudly on the old one.
 
-Backward compatibility is not the default for implementation changes. When a
-contract, file shape, command behavior, schema, or data meaning changes, update
-the implementation to require the new contract and fail loudly on the old one.
-Add compatibility paths only when the user explicitly requires them, and cover
-those paths with tests.
+Do not branch, dispatch a custom hook, or embed correction rules in code based
+on a namespace, entity type, source ID, or any combination of them. Corrections
+must use the shared CLI and persist as workspace data. The shared pipeline must
+apply them uniformly. Do not add source-specific correction stages, checked-in
+cache seeds, or hidden exceptions. These prohibitions have no exceptions.
 
 If project context, OpenSpec, existing code, and this file conflict, stop and
 call out the conflict instead of guessing.

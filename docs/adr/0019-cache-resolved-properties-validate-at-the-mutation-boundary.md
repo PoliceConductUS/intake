@@ -64,21 +64,59 @@ in `createRequired`/`RESOLVED_PROPERTIES`. The precedence for a cached property:
 This deletes the bespoke `agency-coordinate-cache`: coordinates are just one
 cached property among several.
 
-**2. The CLI is the canonical method for manual cache corrections.** Use
-`npm run cli -- cache set <namespace> <kind> <source-id> <property> <value>`
-(and `--force` to replace an existing value). It resolves the canonical identity,
-validates the property's value, and writes through canonical `ResolvedProperty`
-IO. Source checkouts do not supply cache files and transforms do not populate
-cache state. A cleared entry stays absent until a resolver or an explicit CLI
-correction supplies a value. Every value lives in `entries`.
-At most one entry may omit `inputFingerprint`; this is the active override and
-wins for every input without being rewritten on reads. An override remains until
-explicitly replaced. A forced `cache set` gives the previous override a unique
-`previous-override-N` fingerprint and appends the new unfingerprinted entry.
-Each new CLI override records `recordedAt`, its source identity, and `commandId`
-linking it to the canonical Command envelope for that invocation. Previous entries
-retain this evidence. There are no separate `override` or `overrideHistory`
-fields and no top-level `value`.
+**2. The CLI is the canonical method for manual property corrections.**
+`cache set <namespace> <kind> <source-id> <property> <value> [--from <input>]`
+accepts every declared property. Source-addressed rules use canonical
+`PropertyCorrection` IO in namespace workspace state and need no canonical mapping.
+There is exactly one active manual rule per
+**namespace / kind / source ID / property**. The command forms have these meanings:
+
+| Command option | When the rule applies                             |
+| -------------- | ------------------------------------------------- |
+| `--from X`     | The incoming typed property value equals X.       |
+| No `--from`    | The incoming property is absent or `null`.        |
+| `--from null`  | Same as omitting `--from`: absent or `null`.      |
+| `--from ''`    | The incoming property is exactly an empty string. |
+
+Matching uses the incoming property at the correction stage, **not a previously
+cached resolver result**. Comparison is exact typed equality, without additional
+case folding, whitespace normalization, or type coercion. A missing value and an
+empty string are distinct. The replacement must satisfy the property's schema.
+
+Evaluation order is:
+
+1. Evaluate the one active manual rule against the incoming property.
+2. If it matches, supply the replacement before dependent resolution and stop
+   evaluating corrections/cache/resolution for that property. Canonical identity,
+   slug ownership, and mutation validation constraints still apply.
+3. If it does not match, leave the input unchanged and continue normal processing:
+   source value, then reusable cache value, then live resolution on a cache miss.
+
+Rules do not chain: a replacement is not evaluated against another manual rule.
+The `--from` and no-`--from` forms **do not coexist** for the same source property.
+There is no sequence of conditional rules followed by a default. Setting either
+form when a rule exists requires `--force`; it replaces the active rule and
+archives the previous entry with a unique `previous-override-N` fingerprint.
+Archived entries are history only and are never evaluated. Each entry records
+its command ID and timestamp.
+
+For example, a no-`--from` rule supplying latitude fills a missing source latitude
+before the coordinate resolver runs. Replacing it with `--from 32 --force`
+changes the rule to apply only when the incoming latitude is the number `32`.
+A missing latitude no longer matches, and the archived default is not a fallback.
+
+These manual source rules are distinct from reusable automatic resolver outputs,
+which remain canonical-entity `ResolvedProperty` cache entries. Existing manual
+resolved entries remain effective until explicitly replaced; a forced CLI
+replacement retires the old manual entry, preserving its provenance and automatic
+entries. Source checkouts never seed either store. Neither mechanism bypasses
+canonical identity, slug ownership, or mutation constraints.
+
+Generation applies corrections to source facades before resolving dependent
+properties. Transforms do not read corrections or receive a correction hook.
+Census records use geography type plus GEOID as source keys; generation derives
+paths and aliases from the corrected names and resolved parent records. Original
+acquired source bytes are unchanged.
 
 **3. Resolver-filled fields are optional in the artifact spec and required in
 the mutation spec.** Validation is explicit (Zod `.safeParse`), and the model is

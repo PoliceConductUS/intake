@@ -36,3 +36,29 @@ See [summary](national-audit.json) and [complete 35,496-row coverage audit](nati
 ## Result
 
 PASS for the namespace implementation and the approved containment behavior. The new places are verified transform output, **not yet loaded into the user's existing development database**. That requires applying the migration and running Census acquisition/produce/import as described above.
+
+## 2026-09-25: Remove township clipping
+
+This supersedes the earlier clipping behavior documented above. Retained townships
+now emit their full original Census boundaries. Polygon difference is used only
+to decide whether PLACE coverage is complete; fully covered subdivisions are still
+skipped. City/CDP precedence and consolidated-city support remain unchanged.
+
+- The partial-overlap geometry test and transform report test failed before the
+  change and passed afterward. Fully covered subdivision exclusion still passes.
+- All 147 targeted Census and data-context tests passed across 13 files. Typecheck,
+  build, all 24 OpenSpec validation items, and diff checks passed.
+- Ran the updated supplemental-place importer against saved 2025 COUSUB and PLACE
+  shapefiles for Whitestone Hill (3808185740) and Township 1 Harrisburg (3702593284).
+  Both emitted coordinate arrays exactly match their original Census geometry;
+  read-only PostGIS checks report both as valid.
+- No acquisition, full transform, reset, or database mutation was performed.
+  Existing generated artifacts still need regeneration to incorporate this change.
+- Buckeye's raw Census polygon is invalid independently of township clipping.
+  A subsequent `cache set --from` correction supplies its verified repaired
+  geometry during generation, conditional on the exact current geometry string.
+  The raw source and database remain unchanged. The workspace receipt is
+  `audits/census-place-corrections-20260925/buckeye-cache-correction.json`;
+  command ID `mc4vjxe4btjb56u4gpa6irt9`. The repaired polygon is valid, retains
+  8,158 vertices and 56 parts, and has the same extent. The persisted correction
+  matches the current artifact and does not match changed geometry.

@@ -23,6 +23,7 @@ import {
 export interface PropertyResolutionFacade<Row> {
   value<K extends keyof Row>(property: K): Promise<Row[K]>;
   raw(property: keyof Row): unknown;
+  correction?(property: keyof Row): unknown;
 }
 
 /**
@@ -32,7 +33,7 @@ export interface PropertyResolutionFacade<Row> {
  * violation that fails fast and loud (never a minted stub).
  */
 export interface ForeignKeyIdSource {
-  value(property: "id"): Promise<string>;
+  value(property: string): Promise<string>;
 }
 
 type ResolverPolicy<T> =
@@ -624,7 +625,11 @@ function casingResolveFn<Row, Backend>(
 ): (context: ResolverContext<Row, Backend>) => Promise<string | undefined> {
   return async ({ facade }) => {
     const raw = valueAsString(facade.raw(property));
-    return raw === undefined ? undefined : transform(raw);
+    return raw === undefined
+      ? undefined
+      : facade.correction?.(property) !== undefined
+        ? raw
+        : transform(raw);
   };
 }
 
