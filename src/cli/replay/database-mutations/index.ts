@@ -9,10 +9,22 @@ import {
 import { formatDatabaseMutationCountLines } from "../../import/artifacts/io/DatabaseMutationCounts.js";
 import { createIntakeLog } from "../../../logging.js";
 import { createCommandDirectory } from "../../command-directory.js";
+import { DatabaseMutations } from "../../import/artifacts/io/DatabaseMutations.js";
 import type {
   CliCommandDependencies,
   CommandResult,
 } from "../../../shared/cli/types.js";
+
+async function databaseMutationsNamespace(
+  databaseMutationsRef: string,
+): Promise<string | undefined> {
+  try {
+    return (await DatabaseMutations.read(databaseMutationsRef, { raw: true }))
+      .metadata.namespace;
+  } catch {
+    return undefined;
+  }
+}
 
 async function readableDatabaseMutationsFileResult(
   databaseMutationsRef: string,
@@ -82,6 +94,7 @@ export async function runReplayDatabaseMutationsCommand(
     command = await createCommandDirectory(env, {
       now: dependencies.now,
       createCommandName: dependencies.createCommandName,
+      namespace: await databaseMutationsNamespace(databaseMutationsRef),
       args: dependencies.args ?? [
         "replay",
         "database-mutations",

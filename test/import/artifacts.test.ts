@@ -65,8 +65,7 @@ describe("canonical import artifact reader and writer", () => {
       spec: {
         records: {
           "agency-source-id": {
-            name: "Baxter Police Dept.",
-            state: "MN",
+            spec: { name: "Baxter Police Dept.", state: "MN" },
           },
         },
       },
@@ -190,8 +189,7 @@ describe("canonical import artifact reader and writer", () => {
       spec: {
         records: {
           "agency-source-id": {
-            name: "Baxter Police Dept.",
-            state: "MN",
+            spec: { name: "Baxter Police Dept.", state: "MN" },
           },
         },
       },
@@ -284,8 +282,7 @@ describe("canonical import artifact reader and writer", () => {
       spec: {
         records: {
           "agency-source-id": {
-            name: "Baxter Police Dept.",
-            state: "MN",
+            spec: { name: "Baxter Police Dept.", state: "MN" },
           },
         },
       },

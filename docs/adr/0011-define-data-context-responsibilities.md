@@ -2,7 +2,26 @@
 
 ## Status
 
-Proposed
+Accepted
+
+> Referenced by [ADR 0015](0015-isolate-namespaces-and-own-cross-source-identity-at-root.md):
+> `DataContext` is "the backend" through which isolated sources' namespace-local
+> reference values resolve to canonical ids, via the 3-step property resolution
+> below (current envelope / intake-owned state / database) — never by reading a
+> source's namespace.
+>
+> Superseded in part by [ADR 0016](0016-resolve-entity-properties-with-composable-resolvers.md):
+> `canonicalIdFromProperty` and `canonicalIdFor` are replaced by one general
+> `resolveProperty(facade, property)` dispatch over composable per-property
+> resolvers (find-or-create, resolve-or-fail, generate-unique, derived, constant).
+>
+> Framed by [ADR 0017](0017-intake-persistence-is-a-bespoke-orm.md): `DataContext`
+> is the ORM's Unit of Work + Identity Map (the mutation-_builder_); the
+> transaction/IO/aggregate-reporting live in a thin flush script, not here.
+>
+> Peer of [ADR 0022](0022-define-acquire-data-context-responsibilities.md): this
+> ADR defines the import-planning `DataContext`; ADR 0022 defines the read-only
+> acquire-phase `AcquireDataContext`. Distinct contexts for distinct phases.
 
 ## Context
 
@@ -59,11 +78,14 @@ The record facade returned by `fromSource(...)` gives callers the same public AP
 whether the underlying record will be read, created, or updated. Internally it
 tracks the current database state, the desired state, and the backing mutation.
 If a caller sets a field to the same value already present in the database,
-that is not a database mutation, but it is still meaningful replay state. The
-facade records an expected-state check so replay refuses to continue if that
+that is not a database mutation; the facade records an expected-state check so
+that, when it rides alongside a real change, replay refuses to continue if that
 field no longer has the planned value. If a caller sets a field to a different
 value, the facade records an update operation with the expected prior value. If
-the row does not exist, the facade records create state.
+the row does not exist, the facade records create state. An update whose
+operations end up being _only_ checks changes nothing and is dropped from the
+emitted plan (see below), so a check is retained only where it guards a
+co-occurring set.
 
 The source facade may be complete or incomplete when a processor passes source
 data to it. Completeness is determined by `DataContext` and the facade, not by
@@ -96,9 +118,13 @@ per-property operations because create means "insert this complete record." If a
 canonical database record does exist, `toMutation()` emits an entity-specific
 `*Update` envelope whose `spec.operations` is an ordered list of property checks
 and sets. Every update `set` operation records `from` and `to`; every
-same-value assignment records a `check` operation with the expected value. If
-create-required fields cannot be resolved, `toMutation()` must not emit a partial
-create.
+same-value assignment records a `check` operation with the expected value. An
+update whose operations are _all_ checks mutates nothing, so it is not a
+mutation and is omitted from the emitted plan — a `check` survives only
+alongside a `set`, where it guards the row being changed. A re-import of an
+already-matching dataset therefore yields an empty, no-op plan rather than a
+wall of check-only updates. If create-required fields cannot be resolved,
+`toMutation()` must not emit a partial create.
 
 `canonicalIdFor(...)` is an undefined-symbol check. It may return a canonical ID
 for an existing database row or for a create mutation already planned in the

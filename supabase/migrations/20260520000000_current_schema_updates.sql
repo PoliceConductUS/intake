@@ -2,27 +2,6 @@
 
 set check_function_bodies = off;
 
-CREATE OR REPLACE FUNCTION public.audit_trigger_func()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
-BEGIN
-    IF TG_OP = 'INSERT' THEN
-        INSERT INTO audit_logs (table_name, record_id, action, new_values, created_by)
-        VALUES (TG_TABLE_NAME, NEW.id, 'INSERT', row_to_json(NEW), auth.uid());
-    ELSIF TG_OP = 'UPDATE' THEN
-        INSERT INTO audit_logs (table_name, record_id, action, old_values, new_values, created_by)
-        VALUES (TG_TABLE_NAME, NEW.id, 'UPDATE', row_to_json(OLD), row_to_json(NEW), auth.uid());
-    ELSIF TG_OP = 'DELETE' THEN
-        INSERT INTO audit_logs (table_name, record_id, action, old_values, created_by)
-        VALUES (TG_TABLE_NAME, OLD.id, 'DELETE', row_to_json(OLD), auth.uid());
-    END IF;
-    RETURN NULL;
-END;
-$function$
-;
-
 CREATE OR REPLACE FUNCTION public.calculate_agency_officer_stats(agency_officer_id text)
  RETURNS void
  LANGUAGE plpgsql
@@ -296,19 +275,6 @@ END;
 $function$
 ;
 
-CREATE OR REPLACE FUNCTION public.officers_audit_trigger()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
-BEGIN
-    NEW.updated_at = timezone('utc'::text, now());
-    NEW.updated_by = auth.uid();
-    RETURN NEW;
-END;
-$function$
-;
-
 CREATE OR REPLACE FUNCTION public.prevent_trait_deletion()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -331,19 +297,6 @@ BEGIN
        AND (OLD.label != NEW.label) THEN
         RAISE EXCEPTION 'Cannot modify trait with existing ratings';
     END IF;
-    RETURN NEW;
-END;
-$function$
-;
-
-CREATE OR REPLACE FUNCTION public.review_links_audit_trigger()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
-BEGIN
-    NEW.updated_at = timezone('utc'::text, now());
-    NEW.updated_by = auth.uid();
     RETURN NEW;
 END;
 $function$
@@ -622,48 +575,6 @@ drop trigger if exists "update_agency_overall_stats" on "public"."agency";
 
 drop trigger if exists "update_officers_overall_stats" on "public"."officers";
 
-revoke delete on table "public"."rating_values" from "anon";
-
-revoke insert on table "public"."rating_values" from "anon";
-
-revoke references on table "public"."rating_values" from "anon";
-
-revoke select on table "public"."rating_values" from "anon";
-
-revoke trigger on table "public"."rating_values" from "anon";
-
-revoke truncate on table "public"."rating_values" from "anon";
-
-revoke update on table "public"."rating_values" from "anon";
-
-revoke delete on table "public"."rating_values" from "authenticated";
-
-revoke insert on table "public"."rating_values" from "authenticated";
-
-revoke references on table "public"."rating_values" from "authenticated";
-
-revoke select on table "public"."rating_values" from "authenticated";
-
-revoke trigger on table "public"."rating_values" from "authenticated";
-
-revoke truncate on table "public"."rating_values" from "authenticated";
-
-revoke update on table "public"."rating_values" from "authenticated";
-
-revoke delete on table "public"."rating_values" from "service_role";
-
-revoke insert on table "public"."rating_values" from "service_role";
-
-revoke references on table "public"."rating_values" from "service_role";
-
-revoke select on table "public"."rating_values" from "service_role";
-
-revoke trigger on table "public"."rating_values" from "service_role";
-
-revoke truncate on table "public"."rating_values" from "service_role";
-
-revoke update on table "public"."rating_values" from "service_role";
-
 alter table "public"."rating_values" drop constraint "rating_values_pkey";
 
 drop table "public"."rating_values";
@@ -871,174 +782,6 @@ BEGIN
 END;
 $function$
 ;
-
-grant delete on table "public"."agency_officers_stats" to "anon";
-
-grant insert on table "public"."agency_officers_stats" to "anon";
-
-grant references on table "public"."agency_officers_stats" to "anon";
-
-grant select on table "public"."agency_officers_stats" to "anon";
-
-grant trigger on table "public"."agency_officers_stats" to "anon";
-
-grant truncate on table "public"."agency_officers_stats" to "anon";
-
-grant update on table "public"."agency_officers_stats" to "anon";
-
-grant delete on table "public"."agency_officers_stats" to "authenticated";
-
-grant insert on table "public"."agency_officers_stats" to "authenticated";
-
-grant references on table "public"."agency_officers_stats" to "authenticated";
-
-grant select on table "public"."agency_officers_stats" to "authenticated";
-
-grant trigger on table "public"."agency_officers_stats" to "authenticated";
-
-grant truncate on table "public"."agency_officers_stats" to "authenticated";
-
-grant update on table "public"."agency_officers_stats" to "authenticated";
-
-grant delete on table "public"."agency_officers_stats" to "service_role";
-
-grant insert on table "public"."agency_officers_stats" to "service_role";
-
-grant references on table "public"."agency_officers_stats" to "service_role";
-
-grant select on table "public"."agency_officers_stats" to "service_role";
-
-grant trigger on table "public"."agency_officers_stats" to "service_role";
-
-grant truncate on table "public"."agency_officers_stats" to "service_role";
-
-grant update on table "public"."agency_officers_stats" to "service_role";
-
-grant delete on table "public"."agency_stats" to "anon";
-
-grant insert on table "public"."agency_stats" to "anon";
-
-grant references on table "public"."agency_stats" to "anon";
-
-grant select on table "public"."agency_stats" to "anon";
-
-grant trigger on table "public"."agency_stats" to "anon";
-
-grant truncate on table "public"."agency_stats" to "anon";
-
-grant update on table "public"."agency_stats" to "anon";
-
-grant delete on table "public"."agency_stats" to "authenticated";
-
-grant insert on table "public"."agency_stats" to "authenticated";
-
-grant references on table "public"."agency_stats" to "authenticated";
-
-grant select on table "public"."agency_stats" to "authenticated";
-
-grant trigger on table "public"."agency_stats" to "authenticated";
-
-grant truncate on table "public"."agency_stats" to "authenticated";
-
-grant update on table "public"."agency_stats" to "authenticated";
-
-grant delete on table "public"."agency_stats" to "service_role";
-
-grant insert on table "public"."agency_stats" to "service_role";
-
-grant references on table "public"."agency_stats" to "service_role";
-
-grant select on table "public"."agency_stats" to "service_role";
-
-grant trigger on table "public"."agency_stats" to "service_role";
-
-grant truncate on table "public"."agency_stats" to "service_role";
-
-grant update on table "public"."agency_stats" to "service_role";
-
-grant delete on table "public"."officers_stats" to "anon";
-
-grant insert on table "public"."officers_stats" to "anon";
-
-grant references on table "public"."officers_stats" to "anon";
-
-grant select on table "public"."officers_stats" to "anon";
-
-grant trigger on table "public"."officers_stats" to "anon";
-
-grant truncate on table "public"."officers_stats" to "anon";
-
-grant update on table "public"."officers_stats" to "anon";
-
-grant delete on table "public"."officers_stats" to "authenticated";
-
-grant insert on table "public"."officers_stats" to "authenticated";
-
-grant references on table "public"."officers_stats" to "authenticated";
-
-grant select on table "public"."officers_stats" to "authenticated";
-
-grant trigger on table "public"."officers_stats" to "authenticated";
-
-grant truncate on table "public"."officers_stats" to "authenticated";
-
-grant update on table "public"."officers_stats" to "authenticated";
-
-grant delete on table "public"."officers_stats" to "service_role";
-
-grant insert on table "public"."officers_stats" to "service_role";
-
-grant references on table "public"."officers_stats" to "service_role";
-
-grant select on table "public"."officers_stats" to "service_role";
-
-grant trigger on table "public"."officers_stats" to "service_role";
-
-grant truncate on table "public"."officers_stats" to "service_role";
-
-grant update on table "public"."officers_stats" to "service_role";
-
-grant delete on table "public"."rubric_labels" to "anon";
-
-grant insert on table "public"."rubric_labels" to "anon";
-
-grant references on table "public"."rubric_labels" to "anon";
-
-grant select on table "public"."rubric_labels" to "anon";
-
-grant trigger on table "public"."rubric_labels" to "anon";
-
-grant truncate on table "public"."rubric_labels" to "anon";
-
-grant update on table "public"."rubric_labels" to "anon";
-
-grant delete on table "public"."rubric_labels" to "authenticated";
-
-grant insert on table "public"."rubric_labels" to "authenticated";
-
-grant references on table "public"."rubric_labels" to "authenticated";
-
-grant select on table "public"."rubric_labels" to "authenticated";
-
-grant trigger on table "public"."rubric_labels" to "authenticated";
-
-grant truncate on table "public"."rubric_labels" to "authenticated";
-
-grant update on table "public"."rubric_labels" to "authenticated";
-
-grant delete on table "public"."rubric_labels" to "service_role";
-
-grant insert on table "public"."rubric_labels" to "service_role";
-
-grant references on table "public"."rubric_labels" to "service_role";
-
-grant select on table "public"."rubric_labels" to "service_role";
-
-grant trigger on table "public"."rubric_labels" to "service_role";
-
-grant truncate on table "public"."rubric_labels" to "service_role";
-
-grant update on table "public"."rubric_labels" to "service_role";
 
 CREATE TRIGGER update_agency_stats_overall_stats BEFORE UPDATE ON public.agency_stats FOR EACH ROW EXECUTE FUNCTION update_overall_stats();
 

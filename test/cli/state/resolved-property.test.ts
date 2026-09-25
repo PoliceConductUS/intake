@@ -16,30 +16,45 @@ async function createTempRoot(): Promise<string> {
   return mkdtemp(path.join(tmpdir(), "intake-resolved-property-"));
 }
 
-describe("ResolvedProperty state", () => {
-  test("derives cache name from canonical subject identity and target property", () => {
-    const inputFingerprint = typedInputFingerprint({
-      address: "444 Cedar Street",
-      city: "Saint Paul",
-      state: "MN",
-      zipCode: "55101",
-    });
+const subject = {
+  apiVersion: INTAKE_API_VERSION,
+  kind: "Agency",
+  name: "agency-canonical-id",
+} as const;
 
+const stPaul = typedInputFingerprint({
+  address: "444 Cedar Street",
+  city: "Saint Paul",
+  state: "MN",
+  zipCode: "55101",
+});
+const duluth = typedInputFingerprint({
+  address: "411 West First Street",
+  city: "Duluth",
+  state: "MN",
+  zipCode: "55802",
+});
+
+function cacheFilePath(rootDir: string): string {
+  return path.join(
+    rootDir,
+    "state",
+    "intake",
+    "namespaces",
+    "intake",
+    "ResolvedProperty",
+    `${encodeURIComponent(
+      resolvedPropertyCacheName({ subject, targetProperty: "latitude" }),
+    )}.ResolvedProperty.yaml`,
+  );
+}
+
+describe("ResolvedProperty state", () => {
+  test("derives cache name from canonical subject identity and target property (not the input)", () => {
+    // The file is one per (subject, property); the fingerprint keys entries
+    // inside it, so it must NOT appear in the name.
     expect(
-      resolvedPropertyCacheName({
-        subject: {
-          apiVersion: INTAKE_API_VERSION,
-          kind: "Agency",
-          name: "agency-canonical-id",
-        },
-        targetProperty: "latitude",
-        source: {
-          namespace: "mn-post",
-          kind: "Agency",
-          name: "agency-source-id",
-          inputFingerprint,
-        },
-      }),
+      resolvedPropertyCacheName({ subject, targetProperty: "latitude" }),
     ).toBe(
       [INTAKE_API_VERSION, "Agency", "agency-canonical-id", "latitude"].join(
         ":",
@@ -47,148 +62,210 @@ describe("ResolvedProperty state", () => {
     );
   });
 
-  test("writes and reads a ResolvedProperty envelope from intake-owned state", async () => {
+  test("reads back the value written for a given input fingerprint", async () => {
     const rootDir = await createTempRoot();
-    const inputFingerprint = typedInputFingerprint({
-      address: "444 Cedar Street",
-      city: "Saint Paul",
-      state: "MN",
-      zipCode: "55101",
-    });
-    const cacheInput = {
-      subject: {
-        apiVersion: INTAKE_API_VERSION,
-        kind: "Agency",
-        name: "agency-canonical-id",
-      },
+    const input = {
+      subject,
       targetProperty: "latitude",
-      source: {
-        namespace: "mn-post",
-        kind: "Agency",
-        name: "agency-source-id",
-        inputFingerprint,
-      },
+      inputFingerprint: stPaul,
     } satisfies ResolvedPropertyCacheInput;
 
-    await writeResolvedProperty({
-      rootDir,
-      ...cacheInput,
-      value: 44.955097,
-    });
+    await writeResolvedProperty({ rootDir, ...input, value: 44.955097 });
 
-    await expect(
-      readResolvedProperty({
-        rootDir,
-        ...cacheInput,
-      }),
-    ).resolves.toEqual(44.955097);
-
-    const fileNames = await readdir(
-      path.join(
-        rootDir,
-        "intake",
-        "state",
-        "namespaces",
-        "intake",
-        "ResolvedProperty",
-      ),
+    await expect(readResolvedProperty({ rootDir, ...input })).resolves.toEqual(
+      44.955097,
     );
-    expect(fileNames).toEqual([
-      `${encodeURIComponent(
-        resolvedPropertyCacheName(cacheInput),
-      )}.ResolvedProperty.yaml`,
+    expect(await readdir(path.dirname(cacheFilePath(rootDir)))).toEqual([
+      path.basename(cacheFilePath(rootDir)),
     ]);
   });
 
-  test("merges source evidence by source namespace and rejects conflicting values", async () => {
+  test("a different input fingerprint misses (re-resolve); the original still hits", async () => {
     const rootDir = await createTempRoot();
-    const cacheInput = {
-      subject: {
-        apiVersion: INTAKE_API_VERSION,
-        kind: "Personnel",
-        name: "personnel-canonical-id",
-      },
-      targetProperty: "slug",
-    } satisfies ResolvedPropertyCacheInput;
-
+    const base = { subject, targetProperty: "latitude" } as const;
     await writeResolvedProperty({
       rootDir,
-      ...cacheInput,
-      source: {
-        namespace: "mn-post",
-        kind: "Personnel",
-        name: "mn-source-personnel-id",
-        inputFingerprint: typedInputFingerprint({ firstName: "Ada" }),
-      },
-      value: "ada-lovelace-icalid",
+      ...base,
+      inputFingerprint: stPaul,
+      value: 44.955097,
+    });
+
+    // The address changed → new fingerprint → no entry → miss.
+    await expect(
+      readResolvedProperty({ rootDir, ...base, inputFingerprint: duluth }),
+    ).resolves.toBeUndefined();
+    // The unchanged address still hits.
+    await expect(
+      readResolvedProperty({ rootDir, ...base, inputFingerprint: stPaul }),
+    ).resolves.toEqual(44.955097);
+  });
+
+  test("keeps N entries — one value per distinct input — in a single file", async () => {
+    const rootDir = await createTempRoot();
+    const base = { subject, targetProperty: "latitude" } as const;
+    await writeResolvedProperty({
+      rootDir,
+      ...base,
+      inputFingerprint: stPaul,
+      value: 44.955097,
     });
     await writeResolvedProperty({
       rootDir,
-      ...cacheInput,
-      source: {
-        namespace: "city-payroll",
-        kind: "Personnel",
-        name: "payroll-source-personnel-id",
-        inputFingerprint: typedInputFingerprint({ firstName: "Ada" }),
-      },
-      value: "ada-lovelace-icalid",
-    });
-
-    const envelope = await ResolvedProperty.read(
-      path.join(
-        rootDir,
-        "intake",
-        "state",
-        "namespaces",
-        "intake",
-        "ResolvedProperty",
-        `${encodeURIComponent(
-          resolvedPropertyCacheName(cacheInput),
-        )}.ResolvedProperty.yaml`,
-      ),
-    );
-    expect(envelope.spec.sources).toEqual({
-      "city-payroll": {
-        kind: "Personnel",
-        name: "payroll-source-personnel-id",
-        inputFingerprint: typedInputFingerprint({ firstName: "Ada" }),
-      },
-      "mn-post": {
-        kind: "Personnel",
-        name: "mn-source-personnel-id",
-        inputFingerprint: typedInputFingerprint({ firstName: "Ada" }),
-      },
+      ...base,
+      inputFingerprint: duluth,
+      value: 46.783329,
     });
 
     await expect(
-      writeResolvedProperty({
-        rootDir,
-        ...cacheInput,
-        source: {
-          namespace: "state-certification",
-          kind: "Personnel",
-          name: "certification-source-personnel-id",
-          inputFingerprint: typedInputFingerprint({ firstName: "Ada" }),
-        },
-        value: "ada-lovelace-other",
-      }),
-    ).rejects.toThrow(
-      "ResolvedProperty policeconduct.org/intake/v1alpha1:Personnel:personnel-canonical-id:slug already has a different value.",
-    );
+      readResolvedProperty({ rootDir, ...base, inputFingerprint: stPaul }),
+    ).resolves.toEqual(44.955097);
+    await expect(
+      readResolvedProperty({ rootDir, ...base, inputFingerprint: duluth }),
+    ).resolves.toEqual(46.783329);
+
+    const envelope = await ResolvedProperty.read(cacheFilePath(rootDir));
+    expect(envelope.spec.entries).toEqual([
+      { inputFingerprint: stPaul, value: 44.955097 },
+      { inputFingerprint: duluth, value: 46.783329 },
+    ]);
+    expect(envelope.spec).not.toHaveProperty("value");
   });
 
-  test("returns undefined when no matching ResolvedProperty envelope exists", async () => {
+  test("records per-entry provenance and merges a second source that agrees", async () => {
+    const rootDir = await createTempRoot();
+    const base = {
+      subject,
+      targetProperty: "latitude",
+      inputFingerprint: stPaul,
+    } as const;
+
+    await writeResolvedProperty({
+      rootDir,
+      ...base,
+      value: 44.955097,
+      source: { namespace: "mn-post", kind: "Agency", name: "mn-source-id" },
+    });
+    await writeResolvedProperty({
+      rootDir,
+      ...base,
+      value: 44.955097,
+      source: {
+        namespace: "city-payroll",
+        kind: "Agency",
+        name: "payroll-source-id",
+      },
+    });
+
+    const envelope = await ResolvedProperty.read(cacheFilePath(rootDir));
+    expect(envelope.spec.entries).toEqual([
+      {
+        inputFingerprint: stPaul,
+        value: 44.955097,
+        sources: {
+          "mn-post": { kind: "Agency", name: "mn-source-id" },
+          "city-payroll": { kind: "Agency", name: "payroll-source-id" },
+        },
+      },
+    ]);
+  });
+
+  test("rejects a different value for the same input (a resolver must be deterministic)", async () => {
+    const rootDir = await createTempRoot();
+    const base = {
+      subject,
+      targetProperty: "latitude",
+      inputFingerprint: stPaul,
+    } as const;
+    await writeResolvedProperty({ rootDir, ...base, value: 44.955097 });
+
+    await expect(
+      writeResolvedProperty({ rootDir, ...base, value: 44.955098 }),
+    ).rejects.toThrow("already has a different value for the same input");
+  });
+
+  test("an unfingerprinted override wins without rewriting or discarding other entries", async () => {
+    const rootDir = await createTempRoot();
+    const base = { subject, targetProperty: "latitude" } as const;
+    const entries = [
+      { inputFingerprint: stPaul, value: 1 },
+      {
+        value: 44.955097,
+        recordedAt: "2026-09-22T01:40:20.505Z",
+        commandId: "command-one",
+      },
+      { inputFingerprint: "previous-override-1", value: 2 },
+    ];
+    await ResolvedProperty.write(
+      path.dirname(cacheFilePath(rootDir)),
+      ResolvedProperty.new({
+        metadata: {
+          name: resolvedPropertyCacheName(base),
+          namespace: "intake",
+        },
+        spec: { ...base, entries },
+      }),
+    );
+    for (const inputFingerprint of [stPaul, duluth, undefined])
+      expect(
+        await readResolvedProperty({ rootDir, ...base, inputFingerprint }),
+      ).toBe(44.955097);
+    await writeResolvedProperty({
+      rootDir,
+      ...base,
+      inputFingerprint: duluth,
+      value: 46.783329,
+    });
+    const stored = await ResolvedProperty.read(cacheFilePath(rootDir));
+    expect(stored.spec.entries).toEqual([
+      ...entries,
+      { inputFingerprint: duluth, value: 46.783329 },
+    ]);
+    expect(
+      await readResolvedProperty({
+        rootDir,
+        ...base,
+        inputFingerprint: duluth,
+      }),
+    ).toBe(44.955097);
+  });
+
+  test("rejects multiple unfingerprinted entries and the old value/override fields", () => {
+    const base = { subject, targetProperty: "latitude" };
+    for (const spec of [
+      { ...base, entries: [{ value: 1 }, { value: 2 }] },
+      { ...base, value: 1 },
+      { ...base, entries: [], overrideHistory: [] },
+      { ...base, entries: [], override: { value: 1 } },
+    ])
+      expect(() =>
+        ResolvedProperty.new({
+          metadata: { namespace: "intake", name: "test" },
+          spec,
+        } as never),
+      ).toThrow("ResolvedProperty is malformed");
+  });
+
+  test("an unkeyed read does not select a fingerprinted entry or previous override", async () => {
+    const rootDir = await createTempRoot();
+    const base = { subject, targetProperty: "latitude" };
+    await writeResolvedProperty({
+      rootDir,
+      ...base,
+      inputFingerprint: "previous-override-1",
+      value: 1,
+    });
+    expect(await readResolvedProperty({ rootDir, ...base })).toBeUndefined();
+  });
+
+  test("returns undefined when no ResolvedProperty file exists", async () => {
     const rootDir = await createTempRoot();
 
     await expect(
       readResolvedProperty({
         rootDir,
-        subject: {
-          apiVersion: INTAKE_API_VERSION,
-          kind: "Agency",
-          name: "agency-canonical-id",
-        },
+        subject,
         targetProperty: "longitude",
+        inputFingerprint: stPaul,
       }),
     ).resolves.toBeUndefined();
   });

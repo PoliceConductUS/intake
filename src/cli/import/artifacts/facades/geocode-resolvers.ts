@@ -1,0 +1,220 @@
+import {
+  Resolver,
+  valueAsString,
+  type FacadeSource,
+  type PropertyResolutionFacade,
+  type ResolverContext,
+} from "../resolver-kit.js";
+import type {
+  AddressResolution,
+  LocationResolution,
+  ResolveAddressInput,
+} from "../location-resolution.js";
+
+type Row = Record<string, unknown>;
+
+/** The capability the geocode resolvers reach through (entity-independent). */
+export type LocationBackend = {
+  resolveAgencyCoordinates(
+    input: ResolveAddressInput,
+  ): Promise<AddressResolution>;
+  resolveAgencyLocation(
+    input: ResolveAddressInput,
+  ): Promise<LocationResolution>;
+};
+
+/**
+ * Entity-independent geocode configuration: the fields to READ off the record to
+ * build the address, and the columns to SET from one geocode. See
+ * `latLngFromAddress`.
+ */
+export type GeocodeConfig = {
+  /** Passed through to the backend's address resolution (branch/telemetry). */
+  entityType: string;
+  /** Canonical identity column used in resolution diagnostics (default `id`). */
+  identity?: string;
+  /** Record fields the address is read from. */
+  from: {
+    state: string;
+    place: string;
+    zipCode: string;
+    address: string;
+    /** Optional display name field, and an optional nested location object with
+     * `administrativeAreaName`/`administrativeAreaSlug`. */
+    name?: string;
+    location?: string;
+  };
+  /** Columns this one geocode sets. */
+  set: {
+    latitude: string;
+    longitude: string;
+    locationPathId: string;
+  };
+};
+
+function valueAsFiniteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
+}
+
+function valueAsRecordOrUndefined(
+  value: unknown,
+): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function normalizeToken(value: string | undefined): string | undefined {
+  return value === undefined
+    ? undefined
+    : value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function addressInput(
+  facade: PropertyResolutionFacade<Row>,
+  source: FacadeSource,
+  config: GeocodeConfig,
+): ResolveAddressInput {
+  const location =
+    config.from.location === undefined
+      ? {}
+      : (valueAsRecordOrUndefined(facade.raw(config.from.location)) ?? {});
+  return {
+    entityType: config.entityType,
+    entityId: source.name,
+    state: valueAsString(facade.raw(config.from.state)),
+    place: valueAsString(facade.raw(config.from.place)),
+    zipCode: valueAsString(facade.raw(config.from.zipCode)),
+    address: valueAsString(facade.raw(config.from.address)),
+    administrativeAreaName: valueAsString(location.administrativeAreaName),
+    administrativeAreaSlug: valueAsString(location.administrativeAreaSlug),
+    // No latitude/longitude here: reading them raw would bypass the cache. The
+    // shared resolve passes resolved coordinates explicitly; the backend geocodes
+    // when they are absent.
+    name:
+      config.from.name === undefined
+        ? undefined
+        : valueAsString(facade.raw(config.from.name)),
+    sourceName: source.name,
+  };
+}
+
+// The normalized geocode input the coordinate columns cache by (ADR 0019): the
+// address fields only. An unchanged normalized address reuses its coordinates.
+function coordinateCacheInput(
+  facade: PropertyResolutionFacade<Row>,
+  source: FacadeSource,
+  config: GeocodeConfig,
+): Record<string, string | undefined> {
+  const address = addressInput(facade, source, config);
+  return {
+    state: normalizeToken(address.state),
+    city: normalizeToken(address.place),
+    zipCode: normalizeToken(address.zipCode),
+    address: normalizeToken(address.address),
+    administrativeAreaName: normalizeToken(address.administrativeAreaName),
+    administrativeAreaSlug: normalizeToken(address.administrativeAreaSlug),
+  };
+}
+
+/**
+ * One address geocode shared by latitude and longitude (ADR 0019).
+ * Place containment runs separately, using the resolved coordinates, only when
+ * location_path_id needs resolution. A manual place override therefore does not
+ * require a Census boundary in order to resolve the agency's address point.
+ */
+export function latLngFromAddress(
+  config: GeocodeConfig,
+): Record<string, Resolver<unknown, ResolverContext<Row, LocationBackend>>> {
+  const identity = config.identity ?? "id";
+  const shared = new WeakMap<object, Promise<AddressResolution>>();
+
+  const resolveCoordinates = (
+    context: ResolverContext<Row, LocationBackend>,
+  ): Promise<AddressResolution> => {
+    const key = context.facade as object;
+    const cached = shared.get(key);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const pending = (async () => {
+      const { facade, source, backend } = context;
+      const id = String(await facade.value(identity));
+      // A previous database row may contain a locality centroid. Only source
+      // coordinates or cached coordinates for this address can avoid geocoding.
+      const latitude = valueAsFiniteNumber(facade.raw(config.set.latitude));
+      const longitude = valueAsFiniteNumber(facade.raw(config.set.longitude));
+      return backend.resolveAgencyCoordinates({
+        ...addressInput(facade, source, config),
+        entityId: id,
+        latitude,
+        longitude,
+      });
+    })();
+    shared.set(key, pending);
+    return pending;
+  };
+
+  const coordinateResolver = (
+    field: "latitude" | "longitude",
+    column: string,
+  ): Resolver<number, ResolverContext<Row, LocationBackend>> =>
+    new Resolver(
+      async (context) => {
+        const { facade } = context;
+        const present = valueAsFiniteNumber(facade.raw(column));
+        if (present !== undefined) {
+          return present;
+        }
+        return (await resolveCoordinates(context))[field];
+      },
+      {},
+      ({ facade, source }) => coordinateCacheInput(facade, source, config),
+    );
+
+  const locationPathResolver = (): Resolver<
+    string,
+    ResolverContext<Row, LocationBackend>
+  > =>
+    new Resolver(
+      async (context) => {
+        const { facade } = context;
+        const present = valueAsString(facade.raw(config.set.locationPathId));
+        if (present !== undefined) {
+          return present;
+        }
+        return (
+          await context.backend.resolveAgencyLocation({
+            ...addressInput(facade, context.source, config),
+            entityId: String(await facade.value(identity)),
+            latitude: valueAsFiniteNumber(
+              await facade.value(config.set.latitude),
+            ),
+            longitude: valueAsFiniteNumber(
+              await facade.value(config.set.longitude),
+            ),
+          })
+        ).locationPathId;
+      },
+      {},
+      async ({ facade }) => ({
+        latitude: valueAsFiniteNumber(await facade.value(config.set.latitude)),
+        longitude: valueAsFiniteNumber(
+          await facade.value(config.set.longitude),
+        ),
+        city: normalizeToken(valueAsString(facade.raw(config.from.place))),
+        state: normalizeToken(valueAsString(facade.raw(config.from.state))),
+      }),
+    );
+
+  return {
+    [config.set.latitude]: coordinateResolver("latitude", config.set.latitude),
+    [config.set.longitude]: coordinateResolver(
+      "longitude",
+      config.set.longitude,
+    ),
+    [config.set.locationPathId]: locationPathResolver(),
+  } as Record<string, Resolver<unknown, ResolverContext<Row, LocationBackend>>>;
+}

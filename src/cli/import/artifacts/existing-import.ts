@@ -11,7 +11,7 @@ function intakeCommandRoot(
     return undefined;
   }
 
-  return path.join(workspace, "intake", "commands");
+  return path.join(workspace, "command");
 }
 
 export async function assertNoExistingImport(

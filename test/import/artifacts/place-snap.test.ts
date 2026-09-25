@@ -1,0 +1,316 @@
+import { describe, it, expect } from "vitest";
+import {
+  LocationPathDataContext,
+  LocationDataContext,
+} from "../../../src/cli/import/artifacts/location-resolution.js";
+
+// A fake DB client that answers the three query shapes getPlaceContainingPoint
+// issues, driven by a per-level point-in-polygon map, a place-by-id map, and a
+// place-by-(state,slug) map.
+function fakeContext(options: {
+  containing: Partial<Record<"place" | "administrative_area", unknown[]>>;
+  byId?: Record<string, unknown>;
+  byPath?: Record<string, unknown>;
+  byAlias?: Record<string, string>;
+  byStateSlug?: unknown[];
+  nearest?: unknown;
+}) {
+  const client = {
+    query: async (text: string, values: readonly unknown[] = []) => {
+      if (text.includes("<->")) {
+        return { rows: options.nearest === undefined ? [] : [options.nearest] };
+      }
+      if (text.includes("ST_Covers")) {
+        const level = values[2] as "place" | "administrative_area";
+        return {
+          rows: (options.containing[level] ?? []).map((row) => ({
+            resolution_class: "primary",
+            ...(row as object),
+          })),
+        };
+      }
+      if (text.includes("split_part(path, '/', 4) = $2")) {
+        return { rows: options.byStateSlug ?? [] };
+      }
+      if (text.includes("where path = $1")) {
+        const row = options.byPath?.[values[0] as string];
+        return { rows: row === undefined ? [] : [row] };
+      }
+      if (text.includes("where alias_path = $1")) {
+        const id = options.byAlias?.[values[0] as string];
+        return {
+          rows:
+            id === undefined
+              ? []
+              : [{ alias_path: values[0], location_path_id: id }],
+        };
+      }
+      if (text.includes("where location_path_id = $1")) {
+        const row = options.byId?.[values[0] as string];
+        return { rows: row === undefined ? [] : [row] };
+      }
+      return { rows: [] };
+    },
+  };
+  return new LocationPathDataContext({
+    databaseClient: () => client,
+  } as never);
+}
+
+const county = {
+  location_path_id: "bexar",
+  path: "/tx/bexar-county/",
+  level: "administrative_area",
+};
+
+describe("ADR 0024 place containment", () => {
+  it("returns the containing place when the point is inside a place polygon", async () => {
+    const context = fakeContext({
+      containing: {
+        place: [
+          { location_path_id: "sa", path: "/tx/bexar-county/san-antonio/" },
+        ],
+      },
+    });
+    await expect(
+      context.getPlaceContainingPoint({
+        latitude: 29.4,
+        longitude: -98.5,
+        subject: "Agency a",
+      }),
+    ).resolves.toBe("sa");
+  });
+
+  it("rejects a county-local city match outside its place boundary", async () => {
+    const context = fakeContext({
+      containing: { place: [], administrative_area: [county] },
+      byId: { bexar: county },
+      // The point's county (from point-in-shape) plus the address city slug
+      // resolve the exact place path.
+      byPath: {
+        "/tx/bexar-county/san-antonio/": {
+          location_path_id: "sa",
+          path: "/tx/bexar-county/san-antonio/",
+          level: "place",
+        },
+      },
+    });
+    await expect(
+      context.getPlaceContainingPoint({
+        latitude: 29.4,
+        longitude: -98.5,
+        subject: "Agency a",
+      }),
+    ).rejects.toThrow("no place location_path_geometry boundary contains");
+  });
+
+  it("rejects a city alias outside its place boundary", async () => {
+    const ramsey = {
+      location_path_id: "ramsey",
+      path: "/mn/ramsey-county/",
+      level: "administrative_area",
+    };
+    const saintPaul = {
+      location_path_id: "saint-paul",
+      path: "/mn/ramsey-county/saint-paul/",
+      level: "place",
+    };
+    const context = fakeContext({
+      containing: { place: [], administrative_area: [ramsey] },
+      byId: { ramsey, "saint-paul": saintPaul },
+      // "Saint Pual" (typo) → slug saint-pual: no real place at that path, but a
+      // seeded alias maps it to the canonical Saint Paul in the point's county.
+      byAlias: { "/mn/ramsey-county/saint-pual/": "saint-paul" },
+    });
+    await expect(
+      context.getPlaceContainingPoint({
+        latitude: 44.95,
+        longitude: -93.1,
+        subject: "Agency a",
+      }),
+    ).rejects.toThrow("no place location_path_geometry boundary contains");
+  });
+
+  it("rejects the lone statewide match outside its place boundary", async () => {
+    const randall = {
+      location_path_id: "randall",
+      path: "/tx/randall-county/",
+      level: "administrative_area",
+    };
+    const context = fakeContext({
+      containing: { place: [], administrative_area: [randall] },
+      byId: { randall },
+      // Amarillo's place lives under potter-county, not the point's randall-county.
+      byStateSlug: [
+        {
+          location_path_id: "amarillo",
+          path: "/tx/potter-county/amarillo/",
+          level: "place",
+        },
+      ],
+    });
+    await expect(
+      context.getPlaceContainingPoint({
+        latitude: 35,
+        longitude: -101.9,
+        subject: "Agency a",
+      }),
+    ).rejects.toThrow("no place location_path_geometry boundary contains");
+  });
+
+  it("rejects a nearest place that does not contain the point", async () => {
+    // A nearby place is not evidence that its polygon contains the address.
+    const context = fakeContext({
+      containing: { place: [], administrative_area: [county] },
+      byId: { bexar: county },
+      byStateSlug: [],
+      nearest: {
+        location_path_id: "nearest-town",
+        path: "/tx/austin-county/some-town/",
+      },
+    });
+    await expect(
+      context.getPlaceContainingPoint({
+        latitude: 1,
+        longitude: 1,
+        subject: "Agency a",
+      }),
+    ).rejects.toThrow("no place location_path_geometry boundary contains");
+  });
+});
+
+function addressContext(options: Parameters<typeof fakeContext>[0]) {
+  return new LocationDataContext({
+    locationPaths: fakeContext(options),
+    getCachedLocation: () => undefined,
+    cacheLocation: () => {},
+    resolveAddress: async () => ({ latitude: 44.88, longitude: -93.2 }),
+  } as never);
+}
+const postalAddress = {
+  entityType: "agency",
+  entityId: "agency-canonical-id",
+  sourceName: "source-agency",
+  name: "Airport Police",
+  address: "1 Airport Road",
+  place: "Saint Paul",
+  state: "MN",
+  zipCode: "55111",
+};
+describe("address containment without ZIP exceptions", () => {
+  it.each([
+    ["55111", "Saint Paul", "/mn/ramsey-county/st-paul/"],
+    ["55450", "Minneapolis", "/mn/hennepin-county/minneapolis/"],
+    ["55804", "Duluth", "/mn/st-louis-county/duluth/"],
+    ["56270", "Morton", "/mn/renville-county/morton/"],
+    ["56241", "Granite Falls", "/mn/chippewa-county/granite-falls/"],
+  ])(
+    "rejects ZIP %s without containment even when its formerly hard-coded target exists",
+    async (zipCode, place, path) => {
+      const context = addressContext({
+        containing: {},
+        byPath: {
+          [path]: { location_path_id: "non-containing-place", level: "place" },
+        },
+      });
+      await expect(
+        context.resolveAddress({ ...postalAddress, zipCode, place }),
+      ).rejects.toThrow("no place location_path_geometry boundary contains");
+    },
+  );
+  it("reports the unresolved source, canonical identity, address and point", async () => {
+    const context = addressContext({ containing: {} });
+    let message = "";
+    try {
+      await context.resolveAddress(postalAddress);
+    } catch (error) {
+      message = String(error);
+    }
+    for (const value of [
+      "source-agency",
+      "agency-canonical-id",
+      "Airport Police",
+      "1 Airport Road",
+      "Saint Paul",
+      "MN",
+      "55111",
+      "44.88",
+      "-93.2",
+    ])
+      expect(message).toContain(value);
+  });
+  it("rejects multiple containing places", async () => {
+    const context = addressContext({
+      containing: {
+        place: [{ location_path_id: "a" }, { location_path_id: "b" }],
+      },
+      byPath: {
+        "/mn/ramsey-county/st-paul/": {
+          location_path_id: "st-paul",
+          level: "place",
+        },
+      },
+    });
+    await expect(context.resolveAddress(postalAddress)).rejects.toThrow(
+      "multiple place",
+    );
+  });
+});
+
+describe("Census containing geography precedence", () => {
+  const point = { latitude: 1, longitude: 1, subject: "Agency" };
+  it("prefers a primary place over a containing township and consolidated city", async () => {
+    const context = fakeContext({
+      containing: {
+        place: [
+          {
+            location_path_id: "township",
+            resolution_class: "county_subdivision",
+          },
+          { location_path_id: "city", resolution_class: "primary" },
+          {
+            location_path_id: "consolidated",
+            resolution_class: "consolidated_city",
+          },
+        ],
+      },
+    });
+    await expect(context.getPlaceContainingPoint(point)).resolves.toBe("city");
+  });
+  it("uses a township outside primary places before a consolidated city", async () => {
+    const context = fakeContext({
+      containing: {
+        place: [
+          {
+            location_path_id: "consolidated",
+            resolution_class: "consolidated_city",
+          },
+          {
+            location_path_id: "township",
+            resolution_class: "county_subdivision",
+          },
+        ],
+      },
+    });
+    await expect(context.getPlaceContainingPoint(point)).resolves.toBe(
+      "township",
+    );
+  });
+  it("does not hide ambiguity within the winning class", async () => {
+    const context = fakeContext({
+      containing: {
+        place: [
+          { location_path_id: "city-a", resolution_class: "primary" },
+          { location_path_id: "city-b", resolution_class: "primary" },
+          {
+            location_path_id: "township",
+            resolution_class: "county_subdivision",
+          },
+        ],
+      },
+    });
+    await expect(context.getPlaceContainingPoint(point)).rejects.toThrow(
+      "multiple place",
+    );
+  });
+});

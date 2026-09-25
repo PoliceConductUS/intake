@@ -1,9 +1,12 @@
 import { createHash } from "node:crypto";
-import { stat } from "node:fs/promises";
+import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { INTAKE_API_VERSION } from "../../../shared/io/import-types.js";
 import { yamlResourceFileName } from "../../../shared/io/resource.js";
-import { ResolvedProperty } from "./ResolvedProperty.js";
+import {
+  ResolvedProperty,
+  type ResolvedPropertyEnvelope,
+} from "./ResolvedProperty.js";
 
 export type ResolvedPropertySubject = {
   apiVersion: typeof INTAKE_API_VERSION;
@@ -11,19 +14,28 @@ export type ResolvedPropertySubject = {
   name: string;
 };
 
+/** The source record that resolved a value (per-entry provenance). */
 export type ResolvedPropertySource = {
   namespace: string;
   kind: string;
   name: string;
-  inputFingerprint: string;
 };
 
-type ResolvedPropertySourceEvidence = Omit<ResolvedPropertySource, "namespace">;
+type EntrySources = Record<
+  string,
+  { kind: string; name: string; inputFingerprint?: string }
+>;
 
 export type ResolvedPropertyCacheInput = {
   subject: ResolvedPropertySubject;
   targetProperty: string;
-  source?: ResolvedPropertySource;
+  /**
+   * Fingerprint of the resolver's normalized input (ADR 0019). The cache stores
+   * one entry per fingerprint; a read hits only the entry with the matching
+   * fingerprint. Absent ⇒ the property is keyed by `(subject, property)` alone
+   * (the unfingerprinted entry overrides any fingerprint).
+   */
+  inputFingerprint?: string;
 };
 
 function stableJson(value: unknown): string {
@@ -57,8 +69,8 @@ export function resolvedPropertyCacheName(
 function resolvedPropertyDirectory(rootDir: string): string {
   return path.join(
     rootDir,
-    "intake",
     "state",
+    "intake",
     "namespaces",
     "intake",
     "ResolvedProperty",
@@ -73,22 +85,6 @@ function resolvedPropertyPath(
     resolvedPropertyDirectory(rootDir),
     yamlResourceFileName(resolvedPropertyCacheName(input), "ResolvedProperty"),
   );
-}
-
-function resolvedPropertySources(
-  source: ResolvedPropertySource | undefined,
-): Record<string, ResolvedPropertySourceEvidence> | undefined {
-  if (source === undefined) {
-    return undefined;
-  }
-
-  return {
-    [source.namespace]: {
-      kind: source.kind,
-      name: source.name,
-      inputFingerprint: source.inputFingerprint,
-    },
-  };
 }
 
 async function readableResolvedPropertyFile(
@@ -108,9 +104,9 @@ async function readableResolvedPropertyFile(
   }
 }
 
-export async function readResolvedProperty(
+export async function inspectResolvedProperty(
   input: ResolvedPropertyCacheInput & { rootDir?: string },
-): Promise<unknown | undefined> {
+): Promise<ResolvedPropertyEnvelope | undefined> {
   if (input.rootDir === undefined) {
     return undefined;
   }
@@ -137,11 +133,170 @@ export async function readResolvedProperty(
       `ResolvedProperty spec identity does not match cache name ${resolvedPropertyCacheName(input)}.`,
     );
   }
-  return envelope.spec.value;
+
+  return envelope;
+}
+
+export async function readResolvedProperty(
+  input: ResolvedPropertyCacheInput & { rootDir?: string },
+): Promise<unknown | undefined> {
+  const envelope = await inspectResolvedProperty(input);
+  if (envelope === undefined) return undefined;
+  const entries = envelope.spec.entries;
+  const override = entries.find(
+    (entry) => entry.inputFingerprint === undefined,
+  );
+  if (override !== undefined) return override.value;
+  return entries.find(
+    (entry) => entry.inputFingerprint === input.inputFingerprint,
+  )?.value;
+}
+
+/**
+ * Snapshot established slug ownership once per command, loading only each used
+ * kind's slug envelopes. The cache remains the durable record; this index is
+ * only an in-memory lookup for allocation when the database has been reset.
+ */
+export function createResolvedSlugOwnerLookup(
+  rootDir?: string,
+): (kind: string, slug: string) => Promise<string | undefined> {
+  let files: Promise<string[]> | undefined;
+  const indexes = new Map<string, Promise<Map<string, string>>>();
+
+  async function indexKind(kind: string): Promise<Map<string, string>> {
+    if (rootDir === undefined) return new Map();
+    files ??= readdir(resolvedPropertyDirectory(rootDir)).catch(
+      (error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return [];
+        throw error;
+      },
+    );
+    const prefix = `${INTAKE_API_VERSION}:${kind}:`;
+    const suffix = ":slug";
+    const owners = new Map<string, string>();
+    for (const fileName of await files) {
+      if (!fileName.endsWith(".ResolvedProperty.yaml")) continue;
+      const cacheName = decodeURIComponent(
+        fileName.slice(0, -".ResolvedProperty.yaml".length),
+      );
+      if (!cacheName.startsWith(prefix) || !cacheName.endsWith(suffix))
+        continue;
+      const name = cacheName.slice(prefix.length, -suffix.length);
+      const value = await readResolvedProperty({
+        rootDir,
+        subject: { apiVersion: INTAKE_API_VERSION, kind, name },
+        targetProperty: "slug",
+      });
+      if (typeof value !== "string" || value.trim() === "") {
+        throw new Error(`Invalid canonical slug cache for ${kind} ${name}.`);
+      }
+      const owner = owners.get(value);
+      if (owner !== undefined && owner !== name) {
+        throw new Error(
+          `Canonical slug conflict for ${kind}: ${value} belongs to both ${owner} and ${name}.`,
+        );
+      }
+      owners.set(value, name);
+    }
+    return owners;
+  }
+
+  return async (kind, slug) => {
+    let index = indexes.get(kind);
+    if (index === undefined) {
+      index = indexKind(kind);
+      indexes.set(kind, index);
+    }
+    return (await index).get(slug);
+  };
+}
+
+type ResolvedPropertyEntry =
+  ResolvedPropertyEnvelope["spec"]["entries"][number];
+
+function mergedSources(
+  existing: EntrySources | undefined,
+  source: ResolvedPropertySource | undefined,
+): EntrySources | undefined {
+  if (source === undefined) {
+    return existing;
+  }
+  return {
+    ...(existing ?? {}),
+    [source.namespace]: { kind: source.kind, name: source.name },
+  };
+}
+
+async function persistEntries(
+  rootDir: string,
+  input: ResolvedPropertyCacheInput,
+  entries: ReadonlyArray<ResolvedPropertyEntry>,
+): Promise<void> {
+  const existing = await inspectResolvedProperty({ ...input, rootDir });
+  await ResolvedProperty.write(
+    resolvedPropertyDirectory(rootDir),
+    ResolvedProperty.new({
+      metadata: existing?.metadata ?? {
+        name: resolvedPropertyCacheName(input),
+        namespace: "intake",
+      },
+      spec: {
+        subject: input.subject,
+        targetProperty: input.targetProperty,
+        entries: [...entries],
+      },
+    }),
+  );
+}
+
+/** Explicit operator correction. Preserve automatic values and prior overrides. */
+export async function setManualResolvedProperty(
+  input: ResolvedPropertyCacheInput & {
+    rootDir: string;
+    value: unknown;
+    source: ResolvedPropertySource;
+    force: boolean;
+    commandId: string;
+  },
+): Promise<void> {
+  const existing = await inspectResolvedProperty(input);
+  if (existing !== undefined && !input.force) {
+    throw new Error(
+      `Cache already has a value. Use --force to overwrite. Current cache:\n${JSON.stringify(existing.spec, null, 2)}`,
+    );
+  }
+  const entries = [...(existing?.spec.entries ?? [])];
+  const currentIndex = entries.findIndex(
+    (entry) => entry.inputFingerprint === undefined,
+  );
+  if (currentIndex !== -1) {
+    let sequence = 1;
+    while (
+      entries.some(
+        (entry) => entry.inputFingerprint === `previous-override-${sequence}`,
+      )
+    )
+      sequence++;
+    entries[currentIndex] = {
+      ...entries[currentIndex],
+      inputFingerprint: `previous-override-${sequence}`,
+    };
+  }
+  entries.push({
+    value: input.value,
+    sources: mergedSources(undefined, input.source),
+    recordedAt: new Date().toISOString(),
+    commandId: input.commandId,
+  });
+  await persistEntries(input.rootDir, input, entries);
 }
 
 export async function writeResolvedProperty(
-  input: ResolvedPropertyCacheInput & { rootDir?: string; value: unknown },
+  input: ResolvedPropertyCacheInput & {
+    rootDir?: string;
+    value: unknown;
+    source?: ResolvedPropertySource;
+  },
 ): Promise<void> {
   if (input.rootDir === undefined) {
     return;
@@ -149,36 +304,64 @@ export async function writeResolvedProperty(
 
   const filePath = resolvedPropertyPath(input.rootDir, input);
   const existingEnvelope = (await readableResolvedPropertyFile(filePath))
-    ? await ResolvedProperty.read(filePath, {
-        expectedNamespace: "intake",
-      })
+    ? await ResolvedProperty.read(filePath, { expectedNamespace: "intake" })
     : undefined;
+  const existing = existingEnvelope?.spec.entries ?? [];
+  const fingerprint = input.inputFingerprint;
+  const others = existing.filter(
+    (entry) => entry.inputFingerprint !== fingerprint,
+  );
+  const priorSameInput = existing.find(
+    (entry) => entry.inputFingerprint === fingerprint,
+  );
   if (
-    existingEnvelope !== undefined &&
-    stableJson(existingEnvelope.spec.value) !== stableJson(input.value)
+    priorSameInput !== undefined &&
+    stableJson(priorSameInput.value) !== stableJson(input.value)
   ) {
     throw new Error(
-      `ResolvedProperty ${resolvedPropertyCacheName(input)} already has a different value.`,
+      `ResolvedProperty ${resolvedPropertyCacheName(input)} already has a different value for the same input.`,
     );
   }
-  const sources = {
-    ...(existingEnvelope?.spec.sources ?? {}),
-    ...(resolvedPropertySources(input.source) ?? {}),
-  };
+  if (fingerprint === undefined && priorSameInput !== undefined) return;
+  const sources = mergedSources(priorSameInput?.sources, input.source);
+  await persistEntries(input.rootDir, input, [
+    ...others,
+    {
+      ...priorSameInput,
+      ...(fingerprint === undefined ? {} : { inputFingerprint: fingerprint }),
+      value: input.value,
+      ...(sources === undefined ? {} : { sources }),
+    },
+  ]);
+}
 
-  await ResolvedProperty.write(
-    resolvedPropertyDirectory(input.rootDir),
-    ResolvedProperty.new({
-      metadata: {
-        name: resolvedPropertyCacheName(input),
-        namespace: "intake",
-      },
-      spec: {
-        subject: input.subject,
-        targetProperty: input.targetProperty,
-        ...(Object.keys(sources).length === 0 ? {} : { sources }),
-        value: input.value,
-      },
-    }),
+/** Retire a replaced manual value; retain automatic entries and the full audit record. */
+export async function retireManualResolvedProperty(
+  input: ResolvedPropertyCacheInput & { rootDir: string },
+): Promise<void> {
+  const existing = await inspectResolvedProperty(input);
+  if (
+    existing === undefined ||
+    !existing.spec.entries.some(
+      (entry) =>
+        entry.inputFingerprint === undefined && entry.commandId !== undefined,
+    )
+  )
+    return;
+  let sequence = 1;
+  while (
+    existing.spec.entries.some(
+      (entry) => entry.inputFingerprint === `previous-override-${sequence}`,
+    )
+  )
+    sequence++;
+  await persistEntries(
+    input.rootDir,
+    input,
+    existing.spec.entries.map((entry) =>
+      entry.inputFingerprint === undefined && entry.commandId !== undefined
+        ? { ...entry, inputFingerprint: `previous-override-${sequence}` }
+        : entry,
+    ),
   );
 }

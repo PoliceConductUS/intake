@@ -3,63 +3,159 @@
 import { LocationPathCreate } from "./LocationPathCreate.js";
 import { LocationPathRead } from "./LocationPathRead.js";
 import { LocationPathUpdate } from "./LocationPathUpdate.js";
-import { LocationPathDelete } from "./LocationPathDelete.js";
-import { LocationPathList } from "./LocationPathList.js";
 import { LocationPathGeometryCreate } from "./LocationPathGeometryCreate.js";
 import { LocationPathGeometryRead } from "./LocationPathGeometryRead.js";
 import { LocationPathGeometryUpdate } from "./LocationPathGeometryUpdate.js";
-import { LocationPathGeometryDelete } from "./LocationPathGeometryDelete.js";
-import { LocationPathGeometryList } from "./LocationPathGeometryList.js";
 import { LocationPathAliasCreate } from "./LocationPathAliasCreate.js";
 import { LocationPathAliasRead } from "./LocationPathAliasRead.js";
 import { LocationPathAliasUpdate } from "./LocationPathAliasUpdate.js";
-import { LocationPathAliasDelete } from "./LocationPathAliasDelete.js";
-import { LocationPathAliasList } from "./LocationPathAliasList.js";
 import { AgencyCreate } from "./AgencyCreate.js";
 import { AgencyRead } from "./AgencyRead.js";
 import { AgencyUpdate } from "./AgencyUpdate.js";
-import { AgencyDelete } from "./AgencyDelete.js";
-import { AgencyList } from "./AgencyList.js";
 import { PersonnelCreate } from "./PersonnelCreate.js";
 import { PersonnelRead } from "./PersonnelRead.js";
 import { PersonnelUpdate } from "./PersonnelUpdate.js";
-import { PersonnelDelete } from "./PersonnelDelete.js";
-import { PersonnelList } from "./PersonnelList.js";
 import { AgencyPersonnelCreate } from "./AgencyPersonnelCreate.js";
 import { AgencyPersonnelRead } from "./AgencyPersonnelRead.js";
 import { AgencyPersonnelUpdate } from "./AgencyPersonnelUpdate.js";
-import { AgencyPersonnelDelete } from "./AgencyPersonnelDelete.js";
-import { AgencyPersonnelList } from "./AgencyPersonnelList.js";
+import { LicensingAuthorityCreate } from "./LicensingAuthorityCreate.js";
+import { LicensingAuthorityRead } from "./LicensingAuthorityRead.js";
+import { LicensingAuthorityUpdate } from "./LicensingAuthorityUpdate.js";
+import { AuthorityLicenseCreate } from "./AuthorityLicenseCreate.js";
+import { AuthorityLicenseRead } from "./AuthorityLicenseRead.js";
+import { AuthorityLicenseUpdate } from "./AuthorityLicenseUpdate.js";
+import { LicenseCreate } from "./LicenseCreate.js";
+import { LicenseRead } from "./LicenseRead.js";
+import { LicenseUpdate } from "./LicenseUpdate.js";
+import { LicenseActionCreate } from "./LicenseActionCreate.js";
+import { LicenseActionRead } from "./LicenseActionRead.js";
+import { LicenseActionUpdate } from "./LicenseActionUpdate.js";
+import { DisciplineCreate } from "./DisciplineCreate.js";
+import { DisciplineRead } from "./DisciplineRead.js";
+import { DisciplineUpdate } from "./DisciplineUpdate.js";
+import { DisciplineAgencyPersonnelCreate } from "./DisciplineAgencyPersonnelCreate.js";
+import { DisciplineAgencyPersonnelRead } from "./DisciplineAgencyPersonnelRead.js";
+import { DisciplineAgencyPersonnelUpdate } from "./DisciplineAgencyPersonnelUpdate.js";
+import { CoverageLinkCreate } from "./CoverageLinkCreate.js";
+import { CoverageLinkRead } from "./CoverageLinkRead.js";
+import { CoverageLinkUpdate } from "./CoverageLinkUpdate.js";
+import { CoverageLinkAgencyPersonnelCreate } from "./CoverageLinkAgencyPersonnelCreate.js";
+import { CoverageLinkAgencyPersonnelRead } from "./CoverageLinkAgencyPersonnelRead.js";
+import { CoverageLinkAgencyPersonnelUpdate } from "./CoverageLinkAgencyPersonnelUpdate.js";
+import { AgencyPhoneNumberCreate } from "./AgencyPhoneNumberCreate.js";
+import { AgencyPhoneNumberRead } from "./AgencyPhoneNumberRead.js";
+import { AgencyPhoneNumberUpdate } from "./AgencyPhoneNumberUpdate.js";
+import { AgencyLinkCreate } from "./AgencyLinkCreate.js";
+import { AgencyLinkRead } from "./AgencyLinkRead.js";
+import { AgencyLinkUpdate } from "./AgencyLinkUpdate.js";
+import { FederalAgencyCreate } from "./FederalAgencyCreate.js";
+import { FederalAgencyRead } from "./FederalAgencyRead.js";
+import { FederalAgencyUpdate } from "./FederalAgencyUpdate.js";
+import { FederalAgencyBranchCreate } from "./FederalAgencyBranchCreate.js";
+import { FederalAgencyBranchRead } from "./FederalAgencyBranchRead.js";
+import { FederalAgencyBranchUpdate } from "./FederalAgencyBranchUpdate.js";
+import { CivilCaseCreate } from "./CivilCaseCreate.js";
+import { CivilCaseRead } from "./CivilCaseRead.js";
+import { CivilCaseUpdate } from "./CivilCaseUpdate.js";
+import { CivilCasePersonnelCreate } from "./CivilCasePersonnelCreate.js";
+import { CivilCasePersonnelRead } from "./CivilCasePersonnelRead.js";
+import { CivilCasePersonnelUpdate } from "./CivilCasePersonnelUpdate.js";
+import { CivilCaseLinkCreate } from "./CivilCaseLinkCreate.js";
+import { CivilCaseLinkRead } from "./CivilCaseLinkRead.js";
+import { CivilCaseLinkUpdate } from "./CivilCaseLinkUpdate.js";
+import { CoverageLinkCivilCaseCreate } from "./CoverageLinkCivilCaseCreate.js";
+import { CoverageLinkCivilCaseRead } from "./CoverageLinkCivilCaseRead.js";
+import { CoverageLinkCivilCaseUpdate } from "./CoverageLinkCivilCaseUpdate.js";
+import { ReviewCreate } from "./ReviewCreate.js";
+import { ReviewRead } from "./ReviewRead.js";
+import { ReviewUpdate } from "./ReviewUpdate.js";
+import { ReviewPersonnelCreate } from "./ReviewPersonnelCreate.js";
+import { ReviewPersonnelRead } from "./ReviewPersonnelRead.js";
+import { ReviewPersonnelUpdate } from "./ReviewPersonnelUpdate.js";
+import { ReviewLinkCreate } from "./ReviewLinkCreate.js";
+import { ReviewLinkRead } from "./ReviewLinkRead.js";
+import { ReviewLinkUpdate } from "./ReviewLinkUpdate.js";
+import { ArrestProfileCreate } from "./ArrestProfileCreate.js";
+import { ArrestProfileRead } from "./ArrestProfileRead.js";
+import { ArrestProfileUpdate } from "./ArrestProfileUpdate.js";
 
 export const importMutationEnvelopeTypes = {
   LocationPathCreate,
   LocationPathRead,
   LocationPathUpdate,
-  LocationPathDelete,
-  LocationPathList,
   LocationPathGeometryCreate,
   LocationPathGeometryRead,
   LocationPathGeometryUpdate,
-  LocationPathGeometryDelete,
-  LocationPathGeometryList,
   LocationPathAliasCreate,
   LocationPathAliasRead,
   LocationPathAliasUpdate,
-  LocationPathAliasDelete,
-  LocationPathAliasList,
   AgencyCreate,
   AgencyRead,
   AgencyUpdate,
-  AgencyDelete,
-  AgencyList,
   PersonnelCreate,
   PersonnelRead,
   PersonnelUpdate,
-  PersonnelDelete,
-  PersonnelList,
   AgencyPersonnelCreate,
   AgencyPersonnelRead,
   AgencyPersonnelUpdate,
-  AgencyPersonnelDelete,
-  AgencyPersonnelList,
+  LicensingAuthorityCreate,
+  LicensingAuthorityRead,
+  LicensingAuthorityUpdate,
+  AuthorityLicenseCreate,
+  AuthorityLicenseRead,
+  AuthorityLicenseUpdate,
+  LicenseCreate,
+  LicenseRead,
+  LicenseUpdate,
+  LicenseActionCreate,
+  LicenseActionRead,
+  LicenseActionUpdate,
+  DisciplineCreate,
+  DisciplineRead,
+  DisciplineUpdate,
+  DisciplineAgencyPersonnelCreate,
+  DisciplineAgencyPersonnelRead,
+  DisciplineAgencyPersonnelUpdate,
+  CoverageLinkCreate,
+  CoverageLinkRead,
+  CoverageLinkUpdate,
+  CoverageLinkAgencyPersonnelCreate,
+  CoverageLinkAgencyPersonnelRead,
+  CoverageLinkAgencyPersonnelUpdate,
+  AgencyPhoneNumberCreate,
+  AgencyPhoneNumberRead,
+  AgencyPhoneNumberUpdate,
+  AgencyLinkCreate,
+  AgencyLinkRead,
+  AgencyLinkUpdate,
+  FederalAgencyCreate,
+  FederalAgencyRead,
+  FederalAgencyUpdate,
+  FederalAgencyBranchCreate,
+  FederalAgencyBranchRead,
+  FederalAgencyBranchUpdate,
+  CivilCaseCreate,
+  CivilCaseRead,
+  CivilCaseUpdate,
+  CivilCasePersonnelCreate,
+  CivilCasePersonnelRead,
+  CivilCasePersonnelUpdate,
+  CivilCaseLinkCreate,
+  CivilCaseLinkRead,
+  CivilCaseLinkUpdate,
+  CoverageLinkCivilCaseCreate,
+  CoverageLinkCivilCaseRead,
+  CoverageLinkCivilCaseUpdate,
+  ReviewCreate,
+  ReviewRead,
+  ReviewUpdate,
+  ReviewPersonnelCreate,
+  ReviewPersonnelRead,
+  ReviewPersonnelUpdate,
+  ReviewLinkCreate,
+  ReviewLinkRead,
+  ReviewLinkUpdate,
+  ArrestProfileCreate,
+  ArrestProfileRead,
+  ArrestProfileUpdate,
 };

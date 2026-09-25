@@ -1,0 +1,3 @@
+stateGeoid|administrativeAreaGeoid|placeGeoid|overlapTotalArea|placeName|placeLabel|sourceKey
+27|27053|2743000|16000000000000|Minneapolis|Minneapolis city|us-census-relationship:2025:27:27053:2743000
+27|27053|2701000|4000000000000|Anytown|Anytown city|us-census-relationship:2025:27:27053:2701000

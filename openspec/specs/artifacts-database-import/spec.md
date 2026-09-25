@@ -340,7 +340,6 @@ The artifacts import pipeline MUST resolve every supported source entity key to 
 
 - **WHEN** a database write needs an agency `locationPathId`
 - **AND** no persisted `public.location_path_geometry` place boundary contains the resolved agency address point
-- **AND** no explicit postal-area rule maps the agency address input to an existing place
 - **THEN** intake fails during import preparation before database writes
 - **AND** reports the agency source key, canonical ID, name, city, state, ZIP, and address point
 - **AND** MUST NOT create `public.location_path` rows while resolving source agency records
@@ -350,12 +349,8 @@ The artifacts import pipeline MUST resolve every supported source entity key to 
 - **WHEN** intake resolves a missing agency `locationPathId`
 - **THEN** intake resolves the agency address point from the agency address, city, state, and ZIP when coordinates are not already present
 - **AND** resolves the `locationPathId` by finding the persisted `public.location_path_geometry` place boundary that contains that point
-- **AND** when no place geometry contains the point, intake MAY use an explicit postal-area rule that maps the agency address input to an existing place
-- **AND** the Fort Snelling postal-area rule maps Minnesota ZIP `55111` with postal city `St. Paul` or `Saint Paul` to the existing Saint Paul place path
-- **AND** the Fort Snelling postal-area rule maps Minnesota ZIP `55450` with postal city `Minneapolis` to the existing Minneapolis place path
-- **AND** explicit Minnesota postal-area rules map ZIP `55804` with postal city `Duluth` to the existing Duluth place path, ZIP `56270` with postal city `Morton` to the existing Morton place path, and ZIP `56241` with postal city `Granite Falls` to the existing Granite Falls place path
-- **AND** fails during import preparation if no place geometry contains the point and no explicit postal-area rule maps the agency address input to an existing place
-- **AND** fails during import preparation if multiple place geometries contain the point
+- **AND** fails during import preparation if no place geometry contains the point
+- **AND** selects the first nonempty containing class in the order primary PLACE, county subdivision, consolidated city and fails if multiple distinct place geometries in that class contain the point
 - **AND** MUST NOT resolve agency `locationPathId` by constructing a path from city, state, administrative area, label, slug, or alias text
 - **AND** MUST NOT copy location path geometry, place centroid, administrative-area centroid, or state centroid into agency `latitude` or `longitude`
 
@@ -816,7 +811,6 @@ The artifacts import pipeline MUST write an intake-owned `ImportArtifacts` artif
 - **WHEN** a baseline location import has loaded canonical location paths for an area
 - **THEN** later source imports resolve agency location paths from persisted `public.location_path_geometry` place containment against the resolved agency address point
 - **AND** the containing boundary's `location_path_id` must identify an existing `public.location_path` place row
-- **AND** explicit postal-area rules may map address input to an existing place only after place containment finds no match
 - **AND** a missing source location fails as not found instead of dynamically creating a new place
 - **AND** the operator can fix the miss by running an earlier baseline import that writes the correct location path geometry boundary and referenced canonical location path before the source import
 
@@ -857,3 +851,49 @@ The implementation MUST seed the initial MN POST SourceNameToCanonicalId records
 
 - **WHEN** the initial MN POST mapping file is created
 - **THEN** intake does not add a user-facing CLI command for generating mapping files
+
+### Requirement: Intake preserves canonical identities and established slugs
+
+Intake SHALL preserve canonical IDs from durable source-name mappings and established slug values when loading any slug-bearing record. Import SHALL NOT regenerate an established slug from a changed name, ID suffix, source value, or stale prepared update.
+
+#### Scenario: Producer includes a slug
+
+- **WHEN** a personnel or agency source record supplies a slug
+- **THEN** that field does not control the canonical system slug
+- **AND** intake preserves its established slug or assigns a unique slug for a genuinely new canonical record
+
+#### Scenario: Same-ID row already has a published slug
+
+- **WHEN** an import loads an existing canonical record
+- **THEN** its database slug is preserved while source-owned non-identity fields may update
+- **AND** a conflicting cached slug causes a visible failure until explicitly corrected
+
+#### Scenario: Reset or source name change
+
+- **WHEN** the database row is absent but the canonical slug cache exists
+- **THEN** the new row reuses the cached slug and mapped ID
+
+#### Scenario: New record has no established slug
+
+- **WHEN** a genuinely new canonical record has no database or cached slug
+- **THEN** intake generates and caches a slug using its existing rule
+
+#### Scenario: Previously prepared update contains a replacement slug
+
+- **WHEN** intake replays that update against an existing row
+- **THEN** replay fails visibly before committing a change to the established database slug
+
+#### Scenario: Existing location path is imported again
+
+- **WHEN** intake encounters the same canonical location-path ID
+- **THEN** it preserves the existing path and slug components
+
+### Requirement: Recover verified historical slugs by exact canonical identity
+
+The slug correction SHALL match reference and current records by exact canonical ID, retain source digests and before/after evidence, update only slug fields, and preserve all IDs and relationships. Corrected cache envelopes SHALL use canonical IO and retain provenance.
+
+#### Scenario: Known same-ID personnel slug regression
+
+- **WHEN** reference and current rows share an ID but their slugs differ
+- **THEN** explicit correction restores the reference slug in the database and canonical property cache
+- **AND** verification reports remaining mismatches and preserves the original correction evidence

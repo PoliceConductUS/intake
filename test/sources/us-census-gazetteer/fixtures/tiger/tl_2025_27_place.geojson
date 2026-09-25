@@ -1,0 +1,53 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "STATEFP": "27",
+        "STUSPS": "MN",
+        "GEOID": "2743000",
+        "NAME": "Minneapolis",
+        "NAMELSAD": "Minneapolis city",
+        "LSAD": "25",
+        "PLACEFP": "43000"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [2, 2],
+            [2, 6],
+            [6, 6],
+            [6, 2],
+            [2, 2]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "STATEFP": "72",
+        "STUSPS": "PR",
+        "GEOID": "7200000",
+        "NAME": "Excluded",
+        "NAMELSAD": "Excluded place",
+        "LSAD": "25",
+        "PLACEFP": "00000"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [20, 20],
+            [20, 24],
+            [24, 24],
+            [24, 20],
+            [20, 20]
+          ]
+        ]
+      }
+    }
+  ]
+}

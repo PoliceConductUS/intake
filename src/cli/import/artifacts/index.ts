@@ -1,71 +1,25 @@
-import { constants } from "node:fs";
-import { access, stat } from "node:fs/promises";
 import path from "node:path";
-import { Command } from "commander";
 import { importArtifacts, type ImportArtifactsResult } from "./config.js";
 import { formatDatabaseMutationCountLines } from "./io/DatabaseMutationCounts.js";
 import { createIntakeLog } from "../../../logging.js";
 import { createCommandDirectory } from "../../command-directory.js";
-import type {
-  CliCommandDependencies,
-  CommandResult,
-} from "../../../shared/cli/types.js";
+import { Artifacts } from "../../../shared/io/index.js";
+import type { CommandResult } from "../../../shared/cli/types.js";
+import type { ExcludedRecords } from "../../../shared/io/excluded-records.js";
 
-async function readableArtifactsFileResult(
+async function artifactsNamespace(
   artifactsRef: string,
-): Promise<CommandResult | undefined> {
+): Promise<string | undefined> {
   try {
-    await access(artifactsRef, constants.R_OK);
-    const artifactsStat = await stat(artifactsRef);
-
-    if (!artifactsStat.isFile()) {
-      return {
-        exitCode: 1,
-        stderr: `Artifacts is not a file: ${artifactsRef}\n`,
-      };
-    }
-
-    return undefined;
+    return (await Artifacts.read(artifactsRef, { raw: true })).metadata
+      .namespace;
   } catch {
-    return {
-      exitCode: 1,
-      stderr: `Artifacts is not readable: ${artifactsRef}\n`,
-    };
+    return undefined;
   }
 }
 
-export function registerCliCommand(
-  importCommand: Command,
-  dependencies: CliCommandDependencies,
-): void {
-  importCommand
-    .command("artifacts")
-    .description("Import a source-produced Artifacts file into DATABASE_URL.")
-    .argument("<artifacts-ref>", "source-produced Artifacts file")
-    .option(
-      "--dry-run",
-      "Write the DatabaseMutations envelope without applying database mutations",
-    )
-    .action(
-      async (
-        artifactsRef: string,
-        options: { dryRun?: boolean },
-      ): Promise<void> => {
-        const fileResult = await readableArtifactsFileResult(artifactsRef);
-        if (fileResult) {
-          dependencies.setResult(fileResult);
-          return;
-        }
-
-        const runImport =
-          dependencies.runImportArtifactsCommand ?? runImportArtifactsCommand;
-        dependencies.setResult(
-          await runImport(artifactsRef, { dryImport: options.dryRun }),
-        );
-      },
-    );
-}
-
+// The import phase is not its own CLI command: `data generate` calls this
+// directly (dry) to diff a source's Artifacts into a DatabaseMutations delta.
 export async function runImportArtifactsCommand(
   artifactsRef: string,
   dependencies: {
@@ -76,27 +30,29 @@ export async function runImportArtifactsCommand(
       env?: Record<string, string | undefined>;
       commandDirectory?: string;
       commandName?: string;
+      excludedRecords?: ExcludedRecords;
     }) => Promise<ImportArtifactsResult>;
     env?: Record<string, string | undefined>;
     terminal?: { write(text: string): unknown } | false;
     dryImport?: boolean;
+    excludedRecords?: ExcludedRecords;
     args?: readonly string[];
     now?: Date;
     createCommandName?: () => string;
   } = {},
 ): Promise<CommandResult> {
   const env = dependencies.env ?? process.env;
+  const namespace = await artifactsNamespace(artifactsRef);
   let command;
   try {
     command = await createCommandDirectory(env, {
       now: dependencies.now,
       createCommandName: dependencies.createCommandName,
-      args: dependencies.args ?? [
-        "import",
-        "artifacts",
-        ...(dependencies.dryImport === true ? ["--dry-run"] : []),
-        artifactsRef,
-      ],
+      namespace,
+      // The import is not its own command (ADR 0035): `data generate` calls this
+      // and passes explicit args. This default names that caller for the audit
+      // trail when a programmatic caller omits them.
+      args: dependencies.args ?? ["data", "generate", artifactsRef],
     });
   } catch (error) {
     return {
@@ -124,8 +80,9 @@ export async function runImportArtifactsCommand(
     logger,
     dryImport: dependencies.dryImport,
     env,
-    commandDirectory: command.commandDirectory,
+    commandDirectory: command.outputDirectory,
     commandName: command.commandName,
+    excludedRecords: dependencies.excludedRecords,
   });
 
   if (!result.ok) {

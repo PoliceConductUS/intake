@@ -1,0 +1,23 @@
+const INSTITUTION =
+  /county|city|department|dept|police|sheriff|state|univ|correction|bureau|office|division|commission|board|district|authority|jail|prison|town|village|dps|patrol|marshal|constable|agency|department of/i;
+
+// Anonymous placeholder parties ("John Doe", "Jane Roe", "Does 1-10"): never a
+// resolvable officer, so excluded from person-name candidates.
+const PLACEHOLDER = /\b(john|jane)\s+(doe|roe)\b|\bdoes?\b|\broes?\b/i;
+
+export function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+export function isPersonName(name: string): boolean {
+  const trimmed = name.trim();
+  return (
+    trimmed !== "" &&
+    !INSTITUTION.test(trimmed) &&
+    !PLACEHOLDER.test(trimmed) &&
+    /^[A-Z][a-z]+ [A-Z]/.test(trimmed)
+  );
+}

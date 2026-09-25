@@ -72,19 +72,41 @@ export const specSchema = z
       })
       .strict(),
     targetProperty: z.string().trim().min(1),
-    sources: z
-      .record(
-        z.string().trim().min(1),
+    // The cache holds N `(input → value)` entries per (subject, property): a
+    // derived property re-resolves only when its input fingerprint changes, and
+    // an unchanged (or previously seen) input is a hit (ADR 0019).
+    entries: z
+      .array(
         z
           .object({
-            kind: z.string().trim().min(1),
-            name: z.string().trim().min(1),
-            inputFingerprint: z.string().trim().min(1),
+            inputFingerprint: z.string().trim().min(1).optional(),
+            value: z.unknown(),
+            recordedAt: z.string().datetime().optional(),
+            commandId: z.string().trim().min(1).optional(),
+            // Provenance: the source record(s) that resolved this input to this
+            // value, keyed by namespace. Traceability back to the source and a
+            // hook for spotting cross-source disagreement.
+            sources: z
+              .record(
+                z.string().trim().min(1),
+                z
+                  .object({
+                    kind: z.string().trim().min(1),
+                    name: z.string().trim().min(1),
+                    inputFingerprint: z.string().trim().min(1).optional(),
+                  })
+                  .strict(),
+              )
+              .optional(),
           })
           .strict(),
       )
-      .optional(),
-    value: z.unknown(),
+      .refine(
+        (entries) =>
+          entries.filter((entry) => entry.inputFingerprint === undefined)
+            .length <= 1,
+        "Only one entry may omit inputFingerprint.",
+      ),
   })
   .strict();
 
