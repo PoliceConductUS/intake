@@ -25,7 +25,7 @@ Both columns nullable. Use the approved DATE_OFFICIAL interpretation. Preserve i
 
 ## 3. Local application and verification
 
-- [ ] Apply the additive migration locally without reset; regenerate TCOLE Artifacts and the mutation delta.
-- [ ] Inspect the delta: status/status_date updates only, no ID/slug changes or deletions. Apply the reviewed entry.
-- [ ] Confirm department 141134 has INACTIVE and 2004-01-07; verify records/URLs/FKs and applied entries.
-- [ ] Record verification and retrospective, sync the spec, and archive. Do not touch the viewer.
+- [x] Apply the additive migration locally without reset; regenerate TCOLE Artifacts and the mutation delta.
+- [x] Inspect the delta: status/status_date updates only, no ID/slug changes or deletions. Apply the reviewed entry.
+- [x] Confirm department 141134 has INACTIVE and 2004-01-07; verify records/URLs/FKs and applied entries.
+- [x] Record verification and retrospective, sync the spec, and archive. Do not touch the viewer.
