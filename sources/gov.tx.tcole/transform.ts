@@ -79,6 +79,7 @@ const DEPARTMENT = {
   name: "DEPARTMENT_NAME",
   state: "STATE",
   status: "STATUS",
+  statusDate: "DATE_OFFICIAL",
   addressLine1: "ADD_LINE1",
   addressLine2: "ADD_LINE2",
   city: "CITY",
@@ -291,6 +292,8 @@ function buildAgencies(
       zip_code: nullIfBlank(row[DEPARTMENT.zip]),
       contact_name: nullIfBlank(row[DEPARTMENT.headName]),
       contact_email: nullIfBlank(row[DEPARTMENT.email]),
+      status: nullIfBlank(row[DEPARTMENT.status]),
+      status_date: nullIfBlank(toDate(row[DEPARTMENT.statusDate])),
     });
     if (!candidate.success) {
       log.info(

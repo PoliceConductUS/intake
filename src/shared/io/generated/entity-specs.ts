@@ -42,9 +42,10 @@ export const GENERATED_MIGRATION_VERSIONS = [
   "20260906000000",
   "20260910000000",
   "20260921000000",
+  "20260927000000",
 ] as const;
 export const GENERATED_MIGRATION_FINGERPRINT =
-  "e9945494f3d8bb8bba5d16d4b76af5dced144c3c4fcca69b74a8d2891f7c2891";
+  "84104b7705d4f8c2c1bbfa7997f19aa628d49c1328179ef009f7661af4478e92";
 
 // Entity record kinds in database-dependency order (topological sort of the
 // foreign-key graph): a referenced entity precedes its referrer, so mutations
@@ -94,8 +95,8 @@ export const FK_REFERENCES: Record<
   Agency: [{ field: "location_path_id", targetKind: "LocationPath" }],
   AgencyPersonnel: [
     { field: "agency_id", targetKind: "Agency" },
-    { field: "license_id", targetKind: "License" },
     { field: "personnel_id", targetKind: "Personnel" },
+    { field: "license_id", targetKind: "License" },
   ],
   LicensingAuthority: [
     { field: "location_path_id", targetKind: "LocationPath" },
@@ -104,38 +105,38 @@ export const FK_REFERENCES: Record<
     { field: "licensing_authority_id", targetKind: "LicensingAuthority" },
   ],
   License: [
-    { field: "authority_license_id", targetKind: "AuthorityLicense" },
     { field: "personnel_id", targetKind: "Personnel" },
+    { field: "authority_license_id", targetKind: "AuthorityLicense" },
   ],
   LicenseAction: [{ field: "license_id", targetKind: "License" }],
   DisciplineAgencyPersonnel: [
-    { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
     { field: "discipline_id", targetKind: "Discipline" },
+    { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
   ],
   CoverageLinkAgencyPersonnel: [
-    { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
     { field: "coverage_link_id", targetKind: "CoverageLink" },
+    { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
   ],
   AgencyPhoneNumber: [{ field: "agency_id", targetKind: "Agency" }],
   AgencyLink: [{ field: "agency_id", targetKind: "Agency" }],
   FederalAgencyBranch: [
-    { field: "agency_id", targetKind: "Agency" },
     { field: "federal_agency_id", targetKind: "FederalAgency" },
+    { field: "agency_id", targetKind: "Agency" },
   ],
   CivilCase: [{ field: "location_path_id", targetKind: "LocationPath" }],
   CivilCasePersonnel: [
-    { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
     { field: "civil_case_id", targetKind: "CivilCase" },
+    { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
   ],
   CivilCaseLink: [{ field: "civil_case_id", targetKind: "CivilCase" }],
   CoverageLinkCivilCase: [
-    { field: "civil_case_id", targetKind: "CivilCase" },
     { field: "coverage_link_id", targetKind: "CoverageLink" },
+    { field: "civil_case_id", targetKind: "CivilCase" },
   ],
   Review: [{ field: "location_path_id", targetKind: "LocationPath" }],
   ReviewPersonnel: [
-    { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
     { field: "review_id", targetKind: "Review" },
+    { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
   ],
   ReviewLink: [{ field: "review_id", targetKind: "Review" }],
   ArrestProfile: [
@@ -652,6 +653,8 @@ export const AgencySpec = z
     location_path_id: nonEmptyString.optional(),
     latitude: z.number().finite().optional(),
     longitude: z.number().finite().optional(),
+    status: nullableNonEmptyString.optional(),
+    status_date: nullableNonEmptyString.optional(),
     location: z.record(z.string(), z.unknown()).optional(),
   })
   .strict();

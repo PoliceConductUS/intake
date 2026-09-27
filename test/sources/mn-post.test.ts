@@ -276,6 +276,9 @@ describe("mn-post run", () => {
     });
     for (const record of Object.values(agencies)) {
       expect(AgencySpec.safeParse(record.spec).success).toBe(true);
+      // Primary/Secondary employment and license status are not agency status.
+      expect(record.spec).not.toHaveProperty("status");
+      expect(record.spec).not.toHaveProperty("status_date");
     }
   });
 

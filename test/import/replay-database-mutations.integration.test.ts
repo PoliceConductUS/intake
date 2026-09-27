@@ -124,6 +124,98 @@ describeWithDocker("replay against a real Postgres", () => {
     ]);
   });
 
+  test("persists nullable agency status and date through create and update mutations", async () => {
+    const rootDir = await mkdtemp(path.join(tmpdir(), "intake-status-"));
+    const envelopePath = await writeEnvelope(rootDir, [
+      {
+        kind: "AgencyCreate",
+        name: "agency-1",
+        spec: {
+          ...agencySpec("agency-1", "agency-1"),
+          status: "ACTIVE",
+          status_date: "2005-03-14",
+        },
+      },
+      {
+        kind: "AgencyCreate",
+        name: "agency-2",
+        spec: {
+          ...agencySpec("agency-2", "agency-2"),
+          status: "INACTIVE",
+          status_date: null,
+        },
+      },
+      {
+        kind: "AgencyCreate",
+        name: "agency-3",
+        spec: agencySpec("agency-3", "agency-3"),
+      },
+    ]);
+    expect(
+      await replayDatabaseMutations({
+        databaseMutationsPath: envelopePath,
+        env: { DATABASE_URL: db.connectionString },
+      }),
+    ).toMatchObject({ ok: true });
+    expect(
+      (
+        await db.query(
+          "select id, status, status_date::text from public.agency order by id",
+        )
+      ).rows,
+    ).toEqual([
+      { id: "agency-1", status: "ACTIVE", status_date: "2005-03-14" },
+      { id: "agency-2", status: "INACTIVE", status_date: null },
+      { id: "agency-3", status: null, status_date: null },
+    ]);
+
+    const source = {
+      namespace: "mn-post",
+      command: { name: "import" },
+      kind: "Agency",
+      name: "agency-1",
+    };
+    const updatePath = await writeEnvelope(rootDir, [
+      {
+        kind: "AgencyUpdate",
+        name: "agency-1",
+        spec: {
+          operations: [
+            {
+              action: "set",
+              path: "status",
+              from: "ACTIVE",
+              to: "INACTIVE",
+              reason: "Source status changed.",
+              source,
+            },
+            {
+              action: "set",
+              path: "status_date",
+              from: "2005-03-14",
+              to: null,
+              reason: "Source status date is unknown.",
+              source,
+            },
+          ],
+        },
+      },
+    ]);
+    expect(
+      await replayDatabaseMutations({
+        databaseMutationsPath: updatePath,
+        env: { DATABASE_URL: db.connectionString },
+      }),
+    ).toMatchObject({ ok: true });
+    expect(
+      (
+        await db.query(
+          "select status, status_date from public.agency where id = 'agency-1'",
+        )
+      ).rows,
+    ).toEqual([{ status: "INACTIVE", status_date: null }]);
+  });
+
   test("fails loud when a create targets an already-existing row", async () => {
     await db.query(
       `insert into public.agency (id, name, city, state, address, zip_code, slug, location_path_id, latitude, longitude)

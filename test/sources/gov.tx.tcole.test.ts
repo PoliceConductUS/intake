@@ -51,6 +51,7 @@ const sheets: Record<string, Array<Record<string, string>>> = {
       DEPARTMENT_NUMBER: "471100",
       DEPARTMENT_NAME: "Example County Jail",
       STATUS: "ACTIVE",
+      DATE_OFFICIAL: "2005-03-14T00:00:00.000Z",
       STATE: "TX",
       CITY: "Austin",
       ADD_LINE1: "1400 West 6th St",
@@ -308,10 +309,14 @@ describe("gov.tx.tcole run", () => {
       zip_code: "78703",
       contact_name: "Robert Carroll",
       contact_email: "chief@example.tx",
+      status: "ACTIVE",
+      status_date: "2005-03-14",
     });
     // second agency: empty email/phone become null/absent
     expect(records["201217"].spec).toMatchObject({
       contact_email: null,
+      status: "ACTIVE",
+      status_date: null,
     });
     expect(records["201217"].spec).not.toHaveProperty("phones");
     for (const record of Object.values(records)) {
@@ -331,6 +336,8 @@ describe("gov.tx.tcole run", () => {
     )!;
     expect(agencies.records["555555"].spec).toMatchObject({
       name: "Defunct Marshal Office",
+      status: "INACTIVE",
+      status_date: null,
     });
     expect(
       assignments.records["2000001|555555|Jailer|Jailer License|2010-01-01|"]
