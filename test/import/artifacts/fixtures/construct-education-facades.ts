@@ -13,7 +13,7 @@ const context = new DataContext({
     },
   },
 });
-const count = 50_000;
+const count = 100_000;
 for (let index = 0; index < count; index++) {
   context.facadeFromSource("PersonnelEducation", {
     apiVersion: INTAKE_API_VERSION,
@@ -40,7 +40,7 @@ console.log(
       .facadeFromSource("PersonnelEducation", {
         apiVersion: INTAKE_API_VERSION,
         namespace: "memory-test",
-        name: "course-49999",
+        name: "course-99999",
       })
       .raw("name"),
   }),

@@ -445,21 +445,21 @@ function derivedResolvers(
   return resolvers;
 }
 
-/**
- * Build the facade for a registry-owned kind: derive its columns from the
- * generated CreateSpec, its create/update constructors by naming
- * convention, its id + FK resolvers from the schema, and layer the registry's
- * per-column overrides on top. Everything else passes through.
- */
-export function buildFacadeForKind(
-  kind: string,
-  options: {
-    current?: Record<string, unknown>;
-    source: FacadeSource;
-    backend: EntityFacadeBackend;
-    cache?: PropertyCache;
-  },
-): EntityFacade<Row, unknown> {
+type FacadeConfiguration = {
+  identity: string;
+  columns: readonly string[];
+  resolvers: EntityResolvers<Row>;
+  mutations: MutationConstructors<unknown>;
+};
+
+// Generated columns, stateless resolvers, and mutation constructors depend only
+// on the kind. Source records and their resolution state belong to each facade.
+const CONFIGURATIONS = new Map<string, FacadeConfiguration>();
+
+function configurationForKind(kind: string): FacadeConfiguration {
+  const existing = CONFIGURATIONS.get(kind);
+  if (existing !== undefined) return existing;
+
   const config = REGISTRY[kind] ?? {};
   const identity = identityColumnForKind(kind);
   const identityKind = config.identityKind ?? "canonical";
@@ -507,18 +507,34 @@ export function buildFacadeForKind(
     ) as AnyResolver;
   }
 
-  return new EntityFacade<Row, unknown>(
-    kind,
+  const configuration = {
+    identity,
     columns,
     resolvers,
-    mutationsForKind(kind),
-    {
-      current: options.current,
-      source: options.source,
-      backend: options.backend,
-      identity,
-      cache: options.cache,
-      cacheableProperties: RESOLVED_PROPERTIES[kind],
-    },
-  );
+    mutations: mutationsForKind(kind),
+  };
+  CONFIGURATIONS.set(kind, configuration);
+  return configuration;
+}
+
+/** Build a fresh facade over the immutable registry-derived kind configuration. */
+export function buildFacadeForKind(
+  kind: string,
+  options: {
+    current?: Record<string, unknown>;
+    source: FacadeSource;
+    backend: EntityFacadeBackend;
+    cache?: PropertyCache;
+  },
+): EntityFacade<Row, unknown> {
+  const { identity, columns, resolvers, mutations } =
+    configurationForKind(kind);
+  return new EntityFacade<Row, unknown>(kind, columns, resolvers, mutations, {
+    current: options.current,
+    source: options.source,
+    backend: options.backend,
+    identity,
+    cache: options.cache,
+    cacheableProperties: RESOLVED_PROPERTIES[kind],
+  });
 }

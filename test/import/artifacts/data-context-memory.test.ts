@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 
-test("retains 50,000 unresolved education facades within a 384 MiB heap", () => {
+test("retains 100,000 unresolved education facades within a 384 MiB heap", () => {
   const result = spawnSync(
     process.execPath,
     [
@@ -23,7 +23,7 @@ test("retains 50,000 unresolved education facades within a 384 MiB heap", () => 
     `${result.signal ?? ""}\n${result.stderr.slice(0, 1_000)}`,
   ).toBe(0);
   expect(JSON.parse(result.stdout)).toMatchObject({
-    count: 50_000,
-    lastName: "Training 49999",
+    count: 100_000,
+    lastName: "Training 99999",
   });
 }, 60_000);
