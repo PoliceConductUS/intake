@@ -266,3 +266,36 @@ test("explicit roots traverse historical descendants, union ordinary roots, and 
     "Personnel:past-person",
   ]);
 });
+
+test("person-level discipline and education follow an included person without another agency", () => {
+  expect(
+    selected([
+      node("Agency", "a"),
+      node("Agency", "b"),
+      node("AgencyPersonnel", "open", {
+        agency_id: "a",
+        personnel_id: "p",
+        end_date: null,
+      }),
+      node("AgencyPersonnel", "past", {
+        agency_id: "b",
+        personnel_id: "p",
+        end_date: "2020-01-01",
+      }),
+      node("Personnel", "p"),
+      node("Personnel", "unassigned"),
+      node("Discipline", "action", { personnel_id: "p" }),
+      node("Discipline", "excluded-action", { personnel_id: "unassigned" }),
+      node("PersonnelEducation", "course", { personnel_id: "p" }),
+      node("PersonnelEducation", "excluded-course", {
+        personnel_id: "unassigned",
+      }),
+    ]),
+  ).toEqual([
+    "Agency:a",
+    "AgencyPersonnel:open",
+    "Discipline:action",
+    "Personnel:p",
+    "PersonnelEducation:course",
+  ]);
+});

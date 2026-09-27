@@ -30,6 +30,9 @@ import { LicenseUpdate } from "./LicenseUpdate.js";
 import { LicenseActionCreate } from "./LicenseActionCreate.js";
 import { LicenseActionRead } from "./LicenseActionRead.js";
 import { LicenseActionUpdate } from "./LicenseActionUpdate.js";
+import { PersonnelEducationCreate } from "./PersonnelEducationCreate.js";
+import { PersonnelEducationRead } from "./PersonnelEducationRead.js";
+import { PersonnelEducationUpdate } from "./PersonnelEducationUpdate.js";
 import { DisciplineCreate } from "./DisciplineCreate.js";
 import { DisciplineRead } from "./DisciplineRead.js";
 import { DisciplineUpdate } from "./DisciplineUpdate.js";
@@ -110,6 +113,9 @@ export const importMutationEnvelopeTypes = {
   LicenseActionCreate,
   LicenseActionRead,
   LicenseActionUpdate,
+  PersonnelEducationCreate,
+  PersonnelEducationRead,
+  PersonnelEducationUpdate,
   DisciplineCreate,
   DisciplineRead,
   DisciplineUpdate,

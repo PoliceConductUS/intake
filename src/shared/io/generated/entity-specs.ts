@@ -43,9 +43,10 @@ export const GENERATED_MIGRATION_VERSIONS = [
   "20260910000000",
   "20260921000000",
   "20260927000000",
+  "20260927000001",
 ] as const;
 export const GENERATED_MIGRATION_FINGERPRINT =
-  "84104b7705d4f8c2c1bbfa7997f19aa628d49c1328179ef009f7661af4478e92";
+  "c3a514e1d302740d3114f083e9264d915c02a4e2f3bfd1d2619d45562bbec0e1";
 
 // Entity record kinds in database-dependency order (topological sort of the
 // foreign-key graph): a referenced entity precedes its referrer, so mutations
@@ -61,6 +62,7 @@ export const RECORD_KINDS_IN_DEPENDENCY_ORDER = [
   "License",
   "AgencyPersonnel",
   "LicenseAction",
+  "PersonnelEducation",
   "Discipline",
   "DisciplineAgencyPersonnel",
   "CoverageLink",
@@ -109,6 +111,11 @@ export const FK_REFERENCES: Record<
     { field: "authority_license_id", targetKind: "AuthorityLicense" },
   ],
   LicenseAction: [{ field: "license_id", targetKind: "License" }],
+  PersonnelEducation: [{ field: "personnel_id", targetKind: "Personnel" }],
+  Discipline: [
+    { field: "personnel_id", targetKind: "Personnel" },
+    { field: "licensing_authority_id", targetKind: "LicensingAuthority" },
+  ],
   DisciplineAgencyPersonnel: [
     { field: "discipline_id", targetKind: "Discipline" },
     { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
@@ -192,6 +199,7 @@ export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = {
   AuthorityLicense: ["id"],
   License: ["id"],
   LicenseAction: ["id"],
+  PersonnelEducation: ["id"],
   Discipline: ["id"],
   DisciplineAgencyPersonnel: ["id"],
   CoverageLink: ["id"],
@@ -228,6 +236,7 @@ export const TABLE_BY_KIND: Record<string, string> = {
   AuthorityLicense: "public.authority_license",
   License: "public.license",
   LicenseAction: "public.license_action",
+  PersonnelEducation: "public.personnel_education",
   Discipline: "public.discipline",
   DisciplineAgencyPersonnel: "public.discipline_agency_personnel",
   CoverageLink: "public.coverage_links",
@@ -260,6 +269,7 @@ export type SupportedTableName =
   | "public.authority_license"
   | "public.license"
   | "public.license_action"
+  | "public.personnel_education"
   | "public.discipline"
   | "public.discipline_agency_personnel"
   | "public.coverage_links"
@@ -291,6 +301,7 @@ export const PRIMARY_KEY_BY_KIND: Record<string, string> = {
   AuthorityLicense: "id",
   License: "id",
   LicenseAction: "id",
+  PersonnelEducation: "id",
   Discipline: "id",
   DisciplineAgencyPersonnel: "id",
   CoverageLink: "id",
@@ -384,12 +395,19 @@ export const importTypeMetadata = {
     targetTable: "public.license_action",
     dependsOn: ["Licenses"],
   },
+  PersonnelEducations: {
+    kind: "PersonnelEducations",
+    recordKind: "PersonnelEducation",
+    entityName: "personnelEducations",
+    targetTable: "public.personnel_education",
+    dependsOn: ["Personnel"],
+  },
   Disciplines: {
     kind: "Disciplines",
     recordKind: "Discipline",
     entityName: "disciplines",
     targetTable: "public.discipline",
-    dependsOn: [],
+    dependsOn: ["Personnel", "LicensingAuthorities"],
   },
   DisciplineAgencyPersonnel: {
     kind: "DisciplineAgencyPersonnel",
@@ -513,6 +531,7 @@ export const IMPORT_ARTIFACT_KINDS = [
   "AuthorityLicenses",
   "Licenses",
   "LicenseActions",
+  "PersonnelEducations",
   "Disciplines",
   "DisciplineAgencyPersonnel",
   "CoverageLinks",
@@ -761,6 +780,22 @@ export const LicenseActionCreateSpec = LicenseActionSpec.safeExtend({
   id: nonEmptyString,
 });
 
+export const PersonnelEducationSpec = z
+  .object({
+    id: z.string().optional(),
+    personnel_id: z.string(),
+    name: nonEmptyString,
+    completion_date: nullableNonEmptyString.optional(),
+    credits: z.number().finite().nullable().optional(),
+    sponsor_name: z.string().nullable().optional(),
+    sponsor_instructor: z.string().nullable().optional(),
+  })
+  .strict();
+
+export const PersonnelEducationCreateSpec = PersonnelEducationSpec.safeExtend({
+  id: z.string(),
+});
+
 export const DisciplineSpec = z
   .object({
     id: z.string().optional(),
@@ -773,6 +808,9 @@ export const DisciplineSpec = z
     finding: nullableNonEmptyString.optional(),
     chief_action: nullableNonEmptyString.optional(),
     sanction: nullableNonEmptyString.optional(),
+    personnel_id: z.string(),
+    licensing_authority_id: z.string(),
+    document_url: nullableNonEmptyString.optional(),
   })
   .strict();
 

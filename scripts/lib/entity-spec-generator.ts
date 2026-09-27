@@ -171,6 +171,11 @@ const DESCRIPTORS: EntityDescriptor[] = [
     table: "license_action",
     createRequired: ["id"],
   },
+  {
+    recordKind: "PersonnelEducation",
+    table: "personnel_education",
+    createRequired: ["id"],
+  },
   { recordKind: "Discipline", table: "discipline", createRequired: ["id"] },
   {
     recordKind: "DisciplineAgencyPersonnel",
@@ -419,6 +424,7 @@ const ENTITY_NAME_BY_RECORD_KIND: Record<string, string> = {
   AuthorityLicense: "authorityLicenses",
   License: "licenses",
   LicenseAction: "licenseActions",
+  PersonnelEducation: "personnelEducations",
   Discipline: "disciplines",
   DisciplineAgencyPersonnel: "disciplineAgencyPersonnel",
   CoverageLink: "coverageLinks",

@@ -100,6 +100,14 @@ export type {
   LicenseActionEnvelope,
   LicenseActionInput,
 } from "./LicenseActions.js";
+export {
+  PersonnelEducations,
+  PersonnelEducationSpec,
+} from "./PersonnelEducations.js";
+export type {
+  PersonnelEducationsEnvelope,
+  PersonnelEducationsInput,
+} from "./PersonnelEducations.js";
 export { Disciplines, DisciplineSpec } from "./Disciplines.js";
 export type { DisciplinesEnvelope, DisciplinesInput } from "./Disciplines.js";
 export {

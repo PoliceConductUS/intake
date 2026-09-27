@@ -24,6 +24,18 @@ export type InclusionEdge = {
 
 export const AGENCY_GRAPH_EDGES: readonly InclusionEdge[] = [
   {
+    parent: "Personnel",
+    child: "Discipline",
+    holder: "child",
+    field: "personnel_id",
+  },
+  {
+    parent: "Personnel",
+    child: "PersonnelEducation",
+    holder: "child",
+    field: "personnel_id",
+  },
+  {
     parent: "Agency",
     child: "AgencyPersonnel",
     holder: "child",

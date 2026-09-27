@@ -61,6 +61,12 @@ import {
   write as writeLicenseActions,
 } from "./LicenseActions.js";
 import {
+  PersonnelEducations,
+  PersonnelEducationSpec,
+  read as readPersonnelEducations,
+  write as writePersonnelEducations,
+} from "./PersonnelEducations.js";
+import {
   Disciplines,
   DisciplineSpec,
   read as readDisciplines,
@@ -217,6 +223,12 @@ export const ARTIFACT_MODULES = {
     recordSpec: LicenseActionSpec,
     read: readLicenseActions,
     write: writeLicenseActions,
+  },
+  PersonnelEducations: {
+    envelope: PersonnelEducations,
+    recordSpec: PersonnelEducationSpec,
+    read: readPersonnelEducations,
+    write: writePersonnelEducations,
   },
   Disciplines: {
     envelope: Disciplines,
