@@ -57,3 +57,18 @@
 - [ ] Apply reviewed migration incrementally to local; run normal transform/generate/up. Resumed acquisition education inventory is 1,769,993 records (1,769,990 after the three approved omissions); reconcile actual retained/imported counts and explain graph exclusions.
 - [ ] Verify all previous durable IDs/slugs remain; new FKs resolve; updated source fields were compared/applied; document detail counts and unavailable cases are reported. Check repeat generation is a no-op after comparison.
 - [ ] Run focused tests, typecheck/build, OpenSpec validation, independent review, and record actual results. Do not mark live task complete while blocked on document analysis or import.
+
+### Task 4: Reuse context-owned resolver backends after measured construction failure
+
+**Evidence:** The full-source diagnostic constructed 1,803,134 facades and retained about 15.3 GiB heap before any BatchLoader load/flush or graph identity resolution. Allocation sampling attributed about 7.9 GiB to `DataContext.resolverBackend`. In an isolated 100,000-record experiment, retaining the existing backend once per context/kind reduced post-GC heap from 801 MiB to 397 MiB. The previous fixed-size admission change was reverted.
+
+**Files:** `src/cli/import/artifacts/data-context.ts` and focused regression coverage.
+
+**Scope:** Internal allocation only. Reuse the context-owned backend for each kind/identity-column combination. Preserve per-record facade state, existing same-tick BatchLoader scheduling (ADR 0016 section 10; ADR 0017 section 3), IO laziness, ordering, comparison and failure behavior. Do not introduce a concurrency limit, new scheduler, new resolver path, or source-specific behavior.
+
+- [x] Reproduce facade-construction memory exhaustion in an isolated process with a fixed heap and realistic record count. No database or durable identity writes.
+- [x] Reuse backend objects within one DataContext, isolated by kind/identity column and context; preserve all source-specific arguments at call time.
+- [x] Prove the memory regression passes and existing identity/convergence/current-row/coalescing tests remain green; run typecheck/build and independent review.
+- [x] Repeat full-source measured construction and identify any remaining allocation failure before resuming import.
+
+**Remaining measured failure:** Subsequent full-source generation still exhausts 12 GiB in graph identity resolution. The real graph resolver with 100,000 deferred in-memory ledger reads adds approximately 409 MiB of pending promise work. A separate fix to that stage is required; no scheduling change has been implemented or declared successful. See the operational memory diagnosis.

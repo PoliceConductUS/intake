@@ -30,8 +30,25 @@
 - Full test rerun passed: 123 files, 933 tests. The five old discipline
   fixtures were updated for required references; the isolated PostgreSQL test
   now follows the existing 60-second setup timeout and cleanup convention.
-- Initial live generation exhausted the 12 GB CLI heap before data apply.
-  Same CLI pipeline restarted with an explicit 32 GB heap; result pending.
+- Initial live generation exhausted the 12 GiB CLI heap before data apply.
+  Full-source instrumentation located 15.3 GiB heap during construction of
+  1,803,134 facades, before any BatchLoader load or flush. Allocation sampling
+  attributed about 7.9 GiB to duplicated resolver backends.
+- The fixed-size resolution grouping experiment was reverted in `5f19cd2`.
+  `874edd5` instead reuses context-owned backends by kind/identity column,
+  preserving ADR 0016/0017 same-tick coalescing. Independent review approved.
+- A 50,000-facade regression failed with heap exhaustion at 384 MiB before the
+  correction and passes at about 226 MiB afterward. The full-source construction
+  probe now completes at 8.2 GiB under the normal 12 GiB heap limit. It stopped
+  intentionally before graph identity resolution; complete generation remains
+  a separate verification.
+- Full test run after backend reuse: 124 files, 936 tests passed. Typecheck,
+  build, and all 30 current OpenSpec items passed. The subsequent full-source run
+  failed at 12 GiB during graph identity resolution, after successful 8.2 GiB
+  construction. A controlled 100,000-record probe measured about 409 MiB of
+  additional pending identity work. No education identity files or database
+  mutations were written. This remaining failure is unresolved; the live
+  import is not complete.
 - Live data generate/up and post-import identity/count/rerun audit remain pending.
 - No full legacy linked seed load was performed. Migration history and dedicated
   real-database fixtures were exercised; no seed records were added or edited.

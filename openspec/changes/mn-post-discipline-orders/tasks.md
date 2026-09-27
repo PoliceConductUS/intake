@@ -45,3 +45,9 @@
       assignment links. Prove behavior with focused tests.
 - [ ] 5.3 Validate local migration/import, preserve identity snapshots, and audit
       actual education totals, discipline fields, document omissions, and reruns.
+
+- [x] 5.4 Diagnose construction memory failure and reuse context-owned resolver
+      backends; preserve existing tick-based coalescing. Verify the fixed-heap
+      regression, full-source construction, and full test suite.
+- [ ] 5.5 Resolve the separately measured graph identity-resolution memory
+      failure before completing generation and the live import audit.
