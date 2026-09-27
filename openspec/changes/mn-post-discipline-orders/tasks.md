@@ -45,7 +45,3 @@
       assignment links. Prove behavior with focused tests.
 - [ ] 5.3 Validate local migration/import, preserve identity snapshots, and audit
       actual education totals, discipline fields, document omissions, and reruns.
-- [ ] 5.4 Bound shared graph/mutation resolution concurrency after the observed
-      whole-kind Promise.all memory exhaustion, preserving ordering and failures.
-      Admit ordered groups of 64 into the existing BatchLoader/CurrentRowReader
-      coalescing path and prove grouped reads coalesce.

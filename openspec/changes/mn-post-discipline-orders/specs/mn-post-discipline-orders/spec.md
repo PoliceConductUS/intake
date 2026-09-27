@@ -51,23 +51,6 @@ report every omitted courseId and reason, preserving their raw source records.
 - **WHEN** a completion contactId does not identify source personnel
 - **THEN** transform fails naming the completion and missing person
 
-### Requirement: Large imports bound concurrent record resolution
-
-Shared graph selection and mutation generation MUST resolve records with bounded
-concurrency, rather than starting an asynchronous operation for every record at
-once. This MUST apply uniformly across record kinds and preserve registration
-order, identity convergence, field comparison, and fail-loud behavior. Producers
-MUST admit ordered groups of at most 64 and await each group before admitting the
-next, reusing the existing BatchLoader through CurrentRowReader for same-tick
-read coalescing without a competing scheduler or cache.
-
-#### Scenario: Education import contains more records than the concurrency bound
-
-- **WHEN** a kind contains more records than the active-resolution bound
-- **THEN** only a bounded subset resolves concurrently
-- **AND** the resulting identities and mutations retain registration order
-- **AND** any failed resolution fails the import without partial success
-
 ### Requirement: Acquire preserves and reads every disciplinary order document
 
 The `sources/mn-post/acquire.ts` phase MUST download the document behind every
