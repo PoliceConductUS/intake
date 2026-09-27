@@ -519,11 +519,18 @@ describe("gov.tx.tcole run", () => {
   });
 });
 
-it.each(["CITY", "ADD_LINE1", "ZIP_CODE"])(
-  "omits an agency with invalid %s and its dependent records without changing raw input",
-  async (field) => {
+it.each([
+  ["CITY", ""],
+  ["ADD_LINE1", ""],
+  ["ZIP_CODE", ""],
+  ["CITY", " x "],
+  ["ADD_LINE1", " NuLl "],
+  ["ZIP_CODE", "00000-0000"],
+])(
+  "omits an agency with invalid %s=%s and its dependent records without changing raw input",
+  async (field, value) => {
     const departments = sheets.Departments!.map((row) =>
-      row.DEPARTMENT_NUMBER === "555555" ? { ...row, [field]: "" } : row,
+      row.DEPARTMENT_NUMBER === "555555" ? { ...row, [field]: value } : row,
     );
     const messages: string[] = [];
     const manifest = await transform({
@@ -550,6 +557,6 @@ it.each(["CITY", "ADD_LINE1", "ZIP_CODE"])(
       }
     }
     expect(messages.join("\n")).toContain("omitted invalid agency 555555");
-    expect(departments[2]![field]).toBe("");
+    expect(departments[2]![field]).toBe(value);
   },
 );

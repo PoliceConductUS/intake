@@ -6,7 +6,7 @@ Live regeneration fails because newly exposed inactive departments emit city nul
 
 ## What Changes
 
-Validate each TCOLE agency candidate against the canonical Agency spec. Report and omit invalid agency records. Existing source filtering of assignment and contact references removes dependents of omitted agencies. Preserve the raw workbook. Shared eligibility still handles valid candidates across sources.
+Validate each TCOLE agency candidate against the canonical Agency spec. Report and omit invalid agency records. Existing source filtering of assignment and contact references removes dependents of omitted agencies. Preserve the raw workbook. Reject the user-approved placeholder address/city values and malformed or all-zero-prefix ZIPs in the shared schema across sources. Shared eligibility still handles valid candidates across sources.
 
 ## Capabilities
 
@@ -16,4 +16,4 @@ Validate each TCOLE agency candidate against the canonical Agency spec. Report a
 
 ## Impact
 
-Only the TCOLE producer and regression tests change. No schema, seed, generated type, dependency, database deletion, or reset changes.
+The canonical shared Agency field schemas, their generator metadata, TCOLE producer, and regression tests change. The generated envelope contract becomes stricter for agency address fields. No database schema migration, seed change, dependency, database deletion, or reset is needed.

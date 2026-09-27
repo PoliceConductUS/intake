@@ -28,6 +28,8 @@ type EntityDescriptor = {
   rename?: Record<string, string>;
   /** Spec field → literal zod expression, replacing the generated one. */
   override?: Record<string, string>;
+  /** Spec field → base zod expression before generated optionality/nullability. */
+  fieldTypes?: Record<string, string>;
   /** Envelope-only spec fields (not columns) → literal zod expression. */
   extras?: Record<string, string>;
   /**
@@ -130,6 +132,11 @@ const DESCRIPTORS: EntityDescriptor[] = [
       "latitude",
       "longitude",
     ],
+    fieldTypes: {
+      city: "agencyAddressText",
+      address: "agencyAddressText",
+      zip_code: "agencyZipCode",
+    },
     // Envelope-only geocoding hint consumed during resolution (administrative-
     // area name/slug); not a column of public.agency, so it stays off the
     // *Create mutation (the generic builder derives columns from the CreateSpec).
@@ -606,6 +613,7 @@ function renderEntity(
 ): string {
   const rename = descriptor.rename ?? {};
   const override = descriptor.override ?? {};
+  const fieldTypes = descriptor.fieldTypes ?? {};
   const extras = descriptor.extras ?? {};
   const createRequired = new Set(descriptor.createRequired ?? []);
   const columnNames = new Set(table.columns.map((column) => column.name));
@@ -624,7 +632,10 @@ function renderEntity(
       .map((column) => rename[column.name] ?? column.name),
     ...Object.keys(extras),
   ]);
-  for (const overridden of Object.keys(override)) {
+  for (const overridden of [
+    ...Object.keys(override),
+    ...Object.keys(fieldTypes),
+  ]) {
     if (!specFieldNames.has(overridden)) {
       throw new Error(
         `${descriptor.recordKind}: override '${overridden}' matches no generated field.`,
@@ -649,7 +660,7 @@ function renderEntity(
       baseFields.push(`    ${fieldName}: ${override[fieldName]},`);
       continue;
     }
-    let expression = baseType(column, table);
+    let expression = fieldTypes[fieldName] ?? baseType(column, table);
     if (createRequired.has(fieldName)) {
       // Optional in the base spec (resolved/minted later), required in *Create.
       expression = `${expression}.optional()`;
@@ -701,6 +712,7 @@ ${baseFields.join("\n")}
       );
       const type =
         override[fieldName] ??
+        fieldTypes[fieldName] ??
         (column === undefined ? "z.string()" : baseType(column, table));
       return `  ${fieldName}: ${type},`;
     })
@@ -724,6 +736,7 @@ export function generateEntitySpecsModule(
 ): string {
   const preamble = `${header}import { z } from "zod";
 import { timestampWithTimezone } from "../../timestamp-schema.js";
+import { agencyAddressText, agencyZipCode } from "../../agency-address-schema.js";
 
 // Fingerprint of the applied database migrations these specs were generated
 // against. The importer refuses to run when the live database's migrations
