@@ -3,7 +3,10 @@ import type {
   SourceTransform,
   EmittedRecords,
 } from "../../src/cli/transform/source-transform.js";
-import type { ImportArtifactKind } from "../../src/shared/io/index.js";
+import {
+  AgencySpec,
+  type ImportArtifactKind,
+} from "../../src/shared/io/index.js";
 import { canonicalLicenseType } from "../../src/shared/license.js";
 
 export const produces: readonly ImportArtifactKind[] = [
@@ -127,7 +130,7 @@ export const transform: SourceTransform = async ({
     "Departments",
     Object.values(DEPARTMENT),
   );
-  const agencies = buildAgencies(departmentRows);
+  const agencies = buildAgencies(departmentRows, log);
   log.info(`tcole: ${Object.keys(agencies).length} agency candidates`);
   const agencyPhoneNumbers = buildAgencyPhoneNumbers(departmentRows, agencies);
 
@@ -262,7 +265,10 @@ function buildPersonnel(rows: Array<Record<string, string>>): EmittedRecords {
   return records;
 }
 
-function buildAgencies(rows: Array<Record<string, string>>): EmittedRecords {
+function buildAgencies(
+  rows: Array<Record<string, string>>,
+  log: { info: (message: string) => void },
+): EmittedRecords {
   const records: EmittedRecords = {};
   for (const row of rows) {
     const departmentNumber = (row[DEPARTMENT.number] ?? "").trim();
@@ -277,17 +283,22 @@ function buildAgencies(rows: Array<Record<string, string>>): EmittedRecords {
       .join(", ");
     // Phone/fax are not columns of public.agency (they belong to
     // agency_phone_numbers, out of scope here), so they are not emitted.
-    records[departmentNumber] = {
-      spec: {
-        name,
-        state,
-        city: nullIfBlank(row[DEPARTMENT.city]),
-        address: address === "" ? null : address,
-        zip_code: nullIfBlank(row[DEPARTMENT.zip]),
-        contact_name: nullIfBlank(row[DEPARTMENT.headName]),
-        contact_email: nullIfBlank(row[DEPARTMENT.email]),
-      },
-    };
+    const candidate = AgencySpec.safeParse({
+      name,
+      state,
+      city: nullIfBlank(row[DEPARTMENT.city]),
+      address: address === "" ? null : address,
+      zip_code: nullIfBlank(row[DEPARTMENT.zip]),
+      contact_name: nullIfBlank(row[DEPARTMENT.headName]),
+      contact_email: nullIfBlank(row[DEPARTMENT.email]),
+    });
+    if (!candidate.success) {
+      log.info(
+        `tcole: omitted invalid agency ${departmentNumber}: ${candidate.error.issues.map((issue) => issue.path.join(".")).join(", ")}`,
+      );
+      continue;
+    }
+    records[departmentNumber] = { spec: candidate.data };
   }
   return records;
 }

@@ -1,3 +1,4 @@
+import { buildArtifactsEnvelope } from "../../src/cli/transform/source-transform.js";
 import { describe, it, expect } from "vitest";
 import { transform } from "../../sources/gov.tx.tcole/transform.js";
 import {
@@ -517,3 +518,38 @@ describe("gov.tx.tcole run", () => {
     expect(await transform(deps)).toEqual(await transform(deps));
   });
 });
+
+it.each(["CITY", "ADD_LINE1", "ZIP_CODE"])(
+  "omits an agency with invalid %s and its dependent records without changing raw input",
+  async (field) => {
+    const departments = sheets.Departments!.map((row) =>
+      row.DEPARTMENT_NUMBER === "555555" ? { ...row, [field]: "" } : row,
+    );
+    const messages: string[] = [];
+    const manifest = await transform({
+      ...deps,
+      logger: { info: (message: string) => messages.push(message) },
+      readXlsx: async (file, sheet, columns) =>
+        sheet === "Departments"
+          ? departments
+          : fakeReadXlsx(file, sheet, columns),
+    });
+    expect(() =>
+      buildArtifactsEnvelope("gov.tx.tcole", "invalid-address", manifest),
+    ).not.toThrow();
+    const agencies = manifest.artifacts.find(
+      (artifact) => artifact.kind === "Agencies",
+    )!.records;
+    expect(Object.keys(agencies).sort()).toEqual(["201217", "471100"]);
+    for (const kind of ["AgencyPersonnel", "AgencyPhoneNumbers"]) {
+      const records = manifest.artifacts.find(
+        (artifact) => artifact.kind === kind,
+      )!.records;
+      for (const record of Object.values(records)) {
+        expect(record).not.toMatchObject({ spec: { agency_id: "555555" } });
+      }
+    }
+    expect(messages.join("\n")).toContain("omitted invalid agency 555555");
+    expect(departments[2]![field]).toBe("");
+  },
+);
