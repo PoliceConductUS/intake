@@ -1,5 +1,54 @@
 ## ADDED Requirements
 
+### Requirement: Discipline identifies its person and issuing authority
+
+Every Discipline MUST carry required personnel_id and licensing_authority_id
+foreign keys and MAY carry document_url. MN POST MUST use the action contactId
+and MN POST authority identity. It MUST NOT require or infer a license or
+assignment attachment. Missing or unknown person identity MUST fail loudly.
+Existing canonical discipline IDs and source names MUST remain unchanged.
+Existing stored relationship rows MUST NOT be deleted.
+
+#### Scenario: Person with two licenses has one disciplinary action
+
+- **WHEN** an action identifies a known contact with two licenses
+- **THEN** one action identifies the person and issuer without choosing a license
+  or linking every current assignment
+
+#### Scenario: Existing action receives its subject and issuer
+
+- **WHEN** migration encounters an action with exactly one person and issuer
+  through its existing assignment/license relationships
+- **THEN** it fills the required foreign keys without replacing its ID
+- **AND** an ambiguous or missing relationship fails migration
+
+#### Scenario: Duplicate source entries describe one existing case
+
+- **WHEN** entries share contactId and caseNumber and agree on substantive fields
+- **THEN** the existing source name identifies one action and all raw entries
+  and documents remain inspectable
+- **AND** conflicting substantive fields or available document contents fail
+
+### Requirement: Education completions attach to personnel
+
+PersonnelEducation MUST store id, personnel_id, name, completion_date, credits,
+sponsor_name, and sponsor_instructor. ID MUST resolve through the source-name
+ledger using courseId. Personnel MUST resolve from contactId. Missing identity
+or conflicting duplicate source IDs MUST fail loudly. Nullable source values
+remain null. Education and discipline MUST be included when their personnel
+is reached through an included agency, without pulling in another agency.
+
+#### Scenario: Education survives repeat import
+
+- **WHEN** the same completion is imported again
+- **THEN** its canonical ID is unchanged and supplied fields are compared
+- **AND** changed fields update through the normal mutation pipeline
+
+#### Scenario: Completion belongs to an unknown person
+
+- **WHEN** a completion contactId does not identify source personnel
+- **THEN** transform fails naming the completion and missing person
+
 ### Requirement: Acquire preserves and reads every disciplinary order document
 
 The `sources/mn-post/acquire.ts` phase MUST download the document behind every

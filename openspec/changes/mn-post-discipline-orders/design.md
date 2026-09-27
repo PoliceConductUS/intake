@@ -55,6 +55,32 @@ findings in free prose, so a deterministic parser cannot pull it out.
 
 ## Risks / Trade-offs
 
+## Approved relationship and education update (2026-09-27)
+
+Discipline has required personnel_id and licensing_authority_id foreign keys.
+Its optional document_url records the source link directly. New MN POST records
+do not infer an affected license or assignment from current employment. The
+existing person-and-case source name remains unchanged, preserving canonical
+action IDs. Multiple source entries for that person/case must agree on action,
+dates, and available order content; conflicting entries fail visibly. Raw
+complaint IDs and every document URL remain in the acquisition evidence.
+
+Migration backfills existing discipline subjects/issuers only when existing
+relationships identify exactly one person and one authority; otherwise it
+fails. Existing relationship rows are retained under the no-deletion invariant.
+This migration does not add new inferred assignment relationships.
+
+PersonnelEducation maps courseId to an explicit canonical ID through the shared
+ledger and stores personnel_id, name, completion_date, credits, sponsor_name,
+and sponsor_instructor. Nullable source fields stay nullable. This models the
+source completion record, without inventing a shared course catalog. Both
+education and discipline are reached from Personnel in the inclusion graph.
+
+The local import uses the normal transform/generate/up pipeline. Preserve raw
+PDFs and analysis provenance. Unavailable documents retain source action/date/
+URL with null unavailable details and a visible skip report. Analysis errors
+other than document unavailability remain failures.
+
 - The analysis is model output. It is constrained to the document's language,
   every field is nullable, and the full text plus the PDF are preserved beside
   it, so a reader can check any field against the source.

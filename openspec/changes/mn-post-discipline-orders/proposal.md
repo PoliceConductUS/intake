@@ -37,6 +37,18 @@ a discipline row is a date and a link.
 
 ## Capabilities
 
+**Approved person-level model and education import (2026-09-27)**
+
+- Add required `personnel_id` and `licensing_authority_id` to discipline, plus
+  nullable `document_url`. Existing IDs and stored assignment links survive;
+  MN POST stops inferring new assignment links from current employment.
+- Add `personnel_education` for the supplied completion records: person, course
+  name, completion date, credits, sponsor name, and sponsor instructor. Use the
+  source `courseId` as its durable source name.
+- Regenerate contracts and include discipline and education in agency-rooted
+  traversal through personnel. Apply an additive local migration, not a reset.
+- No viewer changes or production migration execution in this work.
+
 ### New Capabilities
 
 - `mn-post-discipline-orders`: acquiring, reading, and analyzing MN POST
