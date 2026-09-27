@@ -2021,9 +2021,26 @@ describe("Census substrate facades", () => {
 
   test("resolves a discipline attribution's FKs to the discipline and assignment ids", async () => {
     const ledger = fakeSourceNameLedger({
+      personnel: { "0031": { canonicalId: "person-canonical-id" } },
+      licensingAuthorities: {
+        "mn-post": { canonicalId: "issuer-canonical-id" },
+      },
       agencyPersonnel: { "0031|a2jALPHA": { canonicalId: "ao-canonical-id" } },
     });
     const context = licensingContext(ledger);
+
+    context.facadeFromSource("Personnel", {
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: "0031",
+      spec: { first_name: "Officer" },
+    });
+    context.facadeFromSource("LicensingAuthority", {
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "mn-post",
+      name: "mn-post",
+      spec: { name: "Minnesota POST", location_path_id: "mn" },
+    });
 
     // Register the assignment so the attribution's agency_personnel_id FK resolves.
     context.facadeFromSource("AgencyPersonnel", {
@@ -2043,6 +2060,8 @@ describe("Census substrate facades", () => {
       namespace: "mn-post",
       name: "0031|PB24-1-01",
       spec: {
+        personnel_id: "0031",
+        licensing_authority_id: "mn-post",
         action: "SACO",
         effective_date: "2024-03-01",
         expiration_date: "2026-03-01",
@@ -2064,6 +2083,8 @@ describe("Census substrate facades", () => {
       kind: "DisciplineCreate",
       spec: {
         id: disciplineId,
+        personnel_id: "person-canonical-id",
+        licensing_authority_id: "issuer-canonical-id",
         action: "SACO",
         effective_date: "2024-03-01",
         expiration_date: "2026-03-01",

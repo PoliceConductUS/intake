@@ -119,6 +119,8 @@ describe("EntityFacade via the discipline facades", () => {
   it("emits a create envelope with resolved id and passthrough columns", async () => {
     const facade = buildFacadeForKind("Discipline", { source, ...backend() });
     facade.merge({
+      personnel_id: "0031",
+      licensing_authority_id: "mn-post",
       action: "SACO",
       effective_date: "2024-03-01",
       expiration_date: "2026-03-01",
@@ -132,6 +134,8 @@ describe("EntityFacade via the discipline facades", () => {
     expect(mutation.kind).toBe("DisciplineCreate");
     expect(mutation.spec).toMatchObject({
       id: "canon:0031|PB24-1-01",
+      personnel_id: "fk:Personnel:0031",
+      licensing_authority_id: "fk:LicensingAuthority:mn-post",
       action: "SACO",
       effective_date: "2024-03-01",
       expiration_date: "2026-03-01",
@@ -144,6 +148,8 @@ describe("EntityFacade via the discipline facades", () => {
       source: { ...source, commandName: "cmd-1" },
       ...backend({
         "canon:0031|PB24-1-01": {
+          personnel_id: "fk:Personnel:0031",
+          licensing_authority_id: "fk:LicensingAuthority:mn-post",
           action: "SACO",
           effective_date: "2020-01-01",
           expiration_date: null,
@@ -152,6 +158,8 @@ describe("EntityFacade via the discipline facades", () => {
       }),
     });
     facade.merge({
+      personnel_id: "0031",
+      licensing_authority_id: "mn-post",
       action: "SACO",
       effective_date: "2024-03-01",
       expiration_date: "2026-03-01",
@@ -178,6 +186,8 @@ describe("EntityFacade via the discipline facades", () => {
       source: { ...source, commandName: "cmd-1" },
       ...backend({
         "canon:0031|PB24-1-01": {
+          personnel_id: "fk:Personnel:0031",
+          licensing_authority_id: "fk:LicensingAuthority:mn-post",
           action: "SACO",
           effective_date: "2024-03-01",
           expiration_date: "2026-03-01",
@@ -188,6 +198,8 @@ describe("EntityFacade via the discipline facades", () => {
     // expiration_date is absent — this source does not manage it, so it must not
     // appear in the update (the existing value is left untouched).
     facade.merge({
+      personnel_id: "0031",
+      licensing_authority_id: "mn-post",
       action: "SACO",
       effective_date: "2024-03-01",
       case_number: "PB24-1-01",
@@ -205,6 +217,8 @@ describe("EntityFacade via the discipline facades", () => {
       source: { ...source, commandName: "cmd-1" },
       ...backend({
         "canon:0031|PB24-1-01": {
+          personnel_id: "fk:Personnel:0031",
+          licensing_authority_id: "fk:LicensingAuthority:mn-post",
           action: "SACO",
           effective_date: "2024-03-01",
           expiration_date: "2026-03-01",
@@ -213,6 +227,8 @@ describe("EntityFacade via the discipline facades", () => {
       }),
     });
     facade.merge({
+      personnel_id: "0031",
+      licensing_authority_id: "mn-post",
       action: "SACO",
       effective_date: "2024-03-01",
       expiration_date: null,

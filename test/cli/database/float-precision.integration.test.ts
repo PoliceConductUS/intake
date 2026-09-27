@@ -19,9 +19,9 @@ describeWithDocker("database client float8 precision (real Postgres)", () => {
   let db: IntakeDatabase;
   beforeAll(async () => {
     db = await startIntakeDatabase();
-  });
+  }, 60000);
   afterAll(async () => {
-    await db.stop();
+    await db?.stop();
   });
 
   it("reads a stored double back as the identical number, whatever the server default", async () => {
