@@ -187,6 +187,10 @@ export class DataContext {
     string,
     Map<string, RegistryFacade>
   >();
+  private readonly resolverBackends = new Map<
+    string,
+    Map<string | undefined, UnifiedFacadeBackend>
+  >();
   // Rows emitted this run, so existingRow finds a same-run create the same way it
   // finds a prior-run row — one convergence path (ADR 0016). Keyed kind\nidentity.
   private readonly emittedRows = new Map<string, Record<string, unknown>>();
@@ -277,7 +281,17 @@ export class DataContext {
     kind: string,
     identityColumn?: string,
   ): UnifiedFacadeBackend {
-    return {
+    let backends = this.resolverBackends.get(kind);
+    if (backends === undefined) {
+      backends = new Map();
+      this.resolverBackends.set(kind, backends);
+    }
+    const existing = backends.get(identityColumn);
+    if (existing !== undefined) return existing;
+
+    // These capabilities capture only the context, kind, and identity column;
+    // every facade supplies its own record-specific arguments when resolving.
+    const backend: UnifiedFacadeBackend = {
       findCanonicalId: (input) => this.findCanonicalId(input),
       findOrCreateCanonicalId: (input) => this.findOrCreateCanonicalId(input),
       businessKeyId: (key, resolve) => this.businessKeyId(kind, key, resolve),
@@ -304,6 +318,8 @@ export class DataContext {
       resolveAgencyCoordinates: (input) =>
         this.locations.resolveCoordinates(input),
     };
+    backends.set(identityColumn, backend);
+    return backend;
   }
 
   // The one construction path every registry-owned kind shares (ADR 0016/0019):
