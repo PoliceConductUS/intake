@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import { readFile } from "node:fs/promises";
 import type { ImportArtifactKind } from "../../src/shared/io/index.js";
 
@@ -6,6 +7,7 @@ export const produces: readonly ImportArtifactKind[] = [
   "AuthorityLicenses",
   "Agencies",
   "Personnel",
+  "PersonnelEducations",
   "Licenses",
   "AgencyPersonnel",
   "Disciplines",
@@ -77,9 +79,10 @@ type OfficerDetail = {
   licenses?: { POSTLicenseList?: Array<{ contactId?: string }> };
   activeEmployment?: Array<{ rosterId?: string; agencyName?: string }>;
   disciplinaryActions?: unknown;
+  education?: unknown;
 };
 
-export const transform: SourceTransform = async ({ paths }) => {
+export const transform: SourceTransform = async ({ paths, logger }) => {
   const rosterPaths = paths.filter((p) => p.endsWith(".roster.json")).sort();
   const idMapPath = paths.find((p) => path.basename(p) === "agency-ids.yaml");
   const csvPath = paths.find((p) => p.toLowerCase().endsWith(".csv"));
@@ -161,13 +164,6 @@ export const transform: SourceTransform = async ({ paths }) => {
   const authorityLicenses: EmittedRecords = {};
   const licenses: EmittedRecords = {};
   const agencyPersonnel: EmittedRecords = {};
-  // Officer (contactId) → the agency ids they hold an emitted assignment at. A
-  // disciplinary action attributes to every one of them (an officer active at
-  // several agencies implicates all of them).
-  const assignmentAgenciesByContact = new Map<
-    string,
-    Map<string, Set<string>>
-  >();
 
   for (const rosterPath of rosterPaths) {
     const fileSlug = path
@@ -297,11 +293,6 @@ export const transform: SourceTransform = async ({ paths }) => {
             },
           };
         }
-        const held =
-          assignmentAgenciesByContact.get(contactId) ??
-          new Map<string, Set<string>>();
-        held.set(agency.id, rosterIds);
-        assignmentAgenciesByContact.set(contactId, held);
       }
     }
   }
@@ -318,15 +309,21 @@ export const transform: SourceTransform = async ({ paths }) => {
   // What each order document says, by the URL the action links to. An action
   // whose document the site no longer serves (see acquire's skip report) has no
   // entry and leaves the order fields null.
-  const analysisByUrl = new Map<string, OrderAnalysis>();
+  type OrderEvidence = { sha256: string; analysis: OrderAnalysis };
+  const documentsByUrl = new Map<string, OrderEvidence[]>();
+  const evidenceByCase = new Map<string, OrderEvidence>();
   for (const jsonPath of paths.filter((p) =>
     p.toLowerCase().endsWith(".document.json"),
   )) {
     const document = JSON.parse(await readFile(jsonPath, "utf8")) as {
       url: string;
       analysis: OrderAnalysis;
+      sha256: string;
     };
-    analysisByUrl.set(document.url, document.analysis);
+    const evidence = { sha256: document.sha256, analysis: document.analysis };
+    const documents = documentsByUrl.get(document.url) ?? [];
+    documents.push(evidence);
+    documentsByUrl.set(document.url, documents);
   }
 
   for (const detail of details) {
@@ -338,15 +335,15 @@ export const transform: SourceTransform = async ({ paths }) => {
       const action = (rawAction ?? {}) as Record<string, unknown>;
       const contactId = nullIfBlank(asString(action.contactId));
       const caseNumber = nullIfBlank(asString(action.caseNumber));
-      // A disciplinary record needs its POST case id and an officer to attribute
-      // it to. An officer with no known assignment (best-effort attribution
-      // isn't possible) is a future manual-resolution case; skip for now.
       if (contactId === null || caseNumber === null) {
-        continue;
+        throw new Error(
+          `mn-post discipline: missing contactId or caseNumber (${contactId}, ${caseNumber})`,
+        );
       }
-      const heldAgencies = assignmentAgenciesByContact.get(contactId);
-      if (heldAgencies === undefined || heldAgencies.size === 0) {
-        continue;
+      if (personnel[contactId] === undefined) {
+        throw new Error(
+          `mn-post discipline ${caseNumber}: unknown person contactId ${contactId}`,
+        );
       }
       const documentName = nullIfBlank(asString(action.documentName));
       const documentUrl = nullIfBlank(asString(action.documentURL));
@@ -356,10 +353,46 @@ export const transform: SourceTransform = async ({ paths }) => {
       // each officer's disciplinary record distinct and collision-free.
       const disciplineKey = `${contactId}|${caseNumber}`;
 
-      const order =
-        documentUrl === null ? undefined : analysisByUrl.get(documentUrl);
+      const documents =
+        documentUrl === null ? [] : (documentsByUrl.get(documentUrl) ?? []);
+      const order = documents.at(-1)?.analysis;
+      const substantive = {
+        action: documentName ?? "POST Disciplinary Action",
+        effective_date: effectiveDate,
+        expiration_date: toDate(asString(action.expirationDate)),
+      };
+      const previous = discipline[disciplineKey]?.spec as
+        | typeof substantive
+        | undefined;
+      if (
+        previous !== undefined &&
+        !isDeepStrictEqual(substantive, {
+          action: previous.action,
+          effective_date: previous.effective_date,
+          expiration_date: previous.expiration_date,
+        })
+      ) {
+        throw new Error(
+          `mn-post: conflicting discipline case ${disciplineKey}`,
+        );
+      }
+      for (const evidence of documents) {
+        const previousEvidence = evidenceByCase.get(disciplineKey);
+        if (
+          previousEvidence !== undefined &&
+          !isDeepStrictEqual(previousEvidence, evidence)
+        ) {
+          throw new Error(
+            `mn-post: conflicting document evidence for discipline case ${disciplineKey}`,
+          );
+        }
+        evidenceByCase.set(disciplineKey, evidence);
+      }
       discipline[disciplineKey] = {
         spec: {
+          personnel_id: contactId,
+          licensing_authority_id: "mn-post",
+          document_url: documentUrl,
           action: documentName ?? "POST Disciplinary Action",
           effective_date: effectiveDate,
           expiration_date: toDate(asString(action.expirationDate)),
@@ -385,29 +418,46 @@ export const transform: SourceTransform = async ({ paths }) => {
           },
         };
       }
-      // Attribute the event (and its document) to every assignment the officer
-      // held — all implicated agencies, per the multi-agency rule.
-      for (const [agencyId, rosterIds] of heldAgencies) {
-        for (const assignmentKey of rosterIds) {
-          // Preserve existing attribution keys unless separate assignments need separate links.
-          const attributionKey = `${disciplineKey}|${rosterIds.size === 1 ? agencyId : assignmentKey}`;
-          disciplineAgencyPersonnel[attributionKey] = {
-            spec: {
-              discipline_id: disciplineKey,
-              agency_personnel_id: assignmentKey,
-            },
-          };
-          if (documentUrl !== null) {
-            coverageLinkAgencyPersonnel[attributionKey] = {
-              spec: {
-                coverage_link_id: disciplineKey,
-                agency_personnel_id: assignmentKey,
-                confidence: "documented",
-              },
-            };
-          }
-        }
+    }
+  }
+
+  const education: EmittedRecords = {};
+  const educationByCourse = new Map<string, unknown>();
+  for (const detail of details) {
+    if (!Array.isArray(detail.education)) continue;
+    for (const rawCourse of detail.education) {
+      const course = (rawCourse ?? {}) as Record<string, unknown>;
+      const courseId = nullIfBlank(asString(course.courseId));
+      const contactId = nullIfBlank(asString(course.contactId));
+      if (courseId === null || contactId === null) {
+        throw new Error(
+          `mn-post education: missing courseId or contactId (${courseId}, ${contactId})`,
+        );
       }
+      if (personnel[contactId] === undefined) {
+        throw new Error(
+          `mn-post education ${courseId}: unknown person contactId ${contactId}`,
+        );
+      }
+      const spec = {
+        personnel_id: contactId,
+        name: nullIfBlank(asString(course.name)),
+        completion_date: toDate(asString(course.endDate)),
+        credits: course.credits ?? null,
+        sponsor_name: nullIfBlank(asString(course.sponsorname)),
+        sponsor_instructor: nullIfBlank(asString(course.sponsorInstructor)),
+      };
+      const previous = educationByCourse.get(courseId);
+      if (previous !== undefined && !isDeepStrictEqual(previous, spec)) {
+        throw new Error(`mn-post: conflicting education course ${courseId}`);
+      }
+      educationByCourse.set(courseId, spec);
+      if (spec.name === null) {
+        const message = `mn-post: omitted education ${courseId}: missing or blank course name`;
+        logger?.info(message);
+        continue;
+      }
+      education[courseId] = { spec };
     }
   }
 
@@ -417,6 +467,7 @@ export const transform: SourceTransform = async ({ paths }) => {
       { kind: "AuthorityLicenses", records: authorityLicenses },
       { kind: "Agencies", records: agencies },
       { kind: "Personnel", records: personnel },
+      { kind: "PersonnelEducations", records: education },
       { kind: "Licenses", records: licenses },
       { kind: "AgencyPersonnel", records: agencyPersonnel },
       { kind: "Disciplines", records: discipline },

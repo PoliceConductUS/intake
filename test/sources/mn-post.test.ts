@@ -11,9 +11,8 @@ import {
   LicensingAuthoritySpec,
   LicenseSpec,
   DisciplineSpec,
-  DisciplineAgencyPersonnelSpec,
+  PersonnelEducationSpec,
   CoverageLinkSpec,
-  CoverageLinkAgencyPersonnelSpec,
 } from "../../src/shared/io/index.js";
 import {
   buildArtifactsEnvelope,
@@ -98,7 +97,7 @@ const betaRoster = JSON.stringify([
 ]);
 
 // Officer 0031's detail JSON carries a disciplinary order. 0031 is assigned to
-// both agencies, so it attributes to both. 0032's detail has the no-discipline
+// both agencies, but the order identifies only the person. 0032's detail has the no-discipline
 // sentinel string and must produce nothing.
 const detail0031 = JSON.stringify({
   disciplinaryActions: [
@@ -235,6 +234,7 @@ describe("mn-post run", () => {
       "AuthorityLicenses",
       "Agencies",
       "Personnel",
+      "PersonnelEducations",
       "Licenses",
       "AgencyPersonnel",
       "Disciplines",
@@ -409,7 +409,7 @@ describe("mn-post run", () => {
     }
   });
 
-  it("preserves two distinct POST assignments at one agency and attributes orders to both", async () => {
+  it("preserves two distinct POST assignments without inferring order links", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "mn-post-dual-"));
     try {
       const detail = JSON.parse(detail0031);
@@ -418,16 +418,42 @@ describe("mn-post run", () => {
         agencyName: "Alpha Police Dept.",
         agencyStatus: "Secondary",
       });
+      const roster = JSON.parse(alphaRoster);
+      roster.push({
+        ...roster[0],
+        licenseId: "second-license",
+        licenseType: "Part-Time Peace Officer",
+      });
+      const rosterFile = path.join(
+        dir,
+        "alpha-police-dept-000000000001.roster.json",
+      );
+      await writeFile(rosterFile, JSON.stringify(roster));
       const file = path.join(dir, "duplicate.detail.json");
       await writeFile(file, JSON.stringify(detail));
       const paths = (await readdir(sourceDir))
-        .filter((f) => f !== "a2jofficer0031.detail.json")
+        .filter(
+          (f) =>
+            f !== "a2jofficer0031.detail.json" &&
+            !f.startsWith("alpha-police-dept"),
+        )
         .map((f) => path.join(sourceDir, f));
       const result = await transform({
-        paths: [...paths, file],
+        paths: [...paths, file, rosterFile],
         readXlsx: async () => [],
         state: "/unused",
         emit: async () => {},
+      });
+      expect(
+        Object.values(recordsOf(result, "Licenses")).filter(
+          (row) => LicenseSpec.parse(row.spec).personnel_id === "0031",
+        ),
+      ).toHaveLength(2);
+      expect(
+        recordsOf(result, "Disciplines")["0031|PB24-1-01"].spec,
+      ).toMatchObject({
+        personnel_id: "0031",
+        licensing_authority_id: "mn-post",
       });
       const assignments = recordsOf(result, "AgencyPersonnel");
       expect(assignments.a2m31ALPHA.spec).toEqual(
@@ -437,17 +463,7 @@ describe("mn-post run", () => {
         "DisciplineAgencyPersonnel",
         "CoverageLinkAgencyPersonnel",
       ]) {
-        const refs = Object.values(recordsOf(result, kind)).map((r) =>
-          kind === "DisciplineAgencyPersonnel"
-            ? DisciplineAgencyPersonnelSpec.parse(r.spec).agency_personnel_id
-            : CoverageLinkAgencyPersonnelSpec.parse(r.spec).agency_personnel_id,
-        );
-        expect(refs.sort()).toEqual([
-          "a2m31ALPHA",
-          "a2m31BETA",
-          "a2m31SECONDARY",
-          "a2m99ALPHA",
-        ]);
+        expect(recordsOf(result, kind)).toEqual({});
       }
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -468,7 +484,7 @@ describe("mn-post run", () => {
     ).rejects.toThrow(/0032.*Alpha Police Dept/);
   });
 
-  it("emits a discipline event per order, with a coverage link and multi-agency attribution", async () => {
+  it("emits person and issuer discipline with stable coverage links", async () => {
     const manifest = await runFixture();
     const discipline = recordsOf(manifest, "Disciplines");
     const attributions = recordsOf(manifest, "DisciplineAgencyPersonnel");
@@ -482,6 +498,9 @@ describe("mn-post run", () => {
     ]);
     // 0031's order document was acquired and analyzed: its fields come through.
     expect(discipline["0031|PB24-1-01"].spec).toEqual({
+      personnel_id: "0031",
+      licensing_authority_id: "mn-post",
+      document_url: "https://example.mn/orders/PB24-1-01.pdf",
       action: "SACO",
       effective_date: "2024-03-01",
       expiration_date: "2026-03-01",
@@ -495,6 +514,9 @@ describe("mn-post run", () => {
     });
     // 0099's document is unavailable (no document record): order fields null.
     expect(discipline["0099|PB20-1-09"].spec).toEqual({
+      personnel_id: "0099",
+      licensing_authority_id: "mn-post",
+      document_url: "https://example.mn/orders/PB20-1-09.pdf",
       action: "SACO",
       effective_date: "2020-06-01",
       expiration_date: null,
@@ -506,16 +528,7 @@ describe("mn-post run", () => {
       sanction: null,
     });
 
-    // 0031 is at both agencies → the order attributes to both assignments.
-    expect(Object.keys(attributions).sort()).toEqual([
-      "0031|PB24-1-01|a2jALPHA",
-      "0031|PB24-1-01|a2jBETA",
-      "0099|PB20-1-09|a2jALPHA",
-    ]);
-    expect(attributions["0031|PB24-1-01|a2jALPHA"].spec).toEqual({
-      discipline_id: "0031|PB24-1-01",
-      agency_personnel_id: "a2m31ALPHA",
-    });
+    expect(attributions).toEqual({});
 
     expect(coverage["0031|PB24-1-01"].spec).toMatchObject({
       url: "https://example.mn/orders/PB24-1-01.pdf",
@@ -523,32 +536,13 @@ describe("mn-post run", () => {
       source_name: "Minnesota POST",
       published_at: "2024-03-01",
     });
-    expect(Object.keys(coverageAttr).sort()).toEqual([
-      "0031|PB24-1-01|a2jALPHA",
-      "0031|PB24-1-01|a2jBETA",
-      "0099|PB20-1-09|a2jALPHA",
-    ]);
-    expect(coverageAttr["0031|PB24-1-01|a2jBETA"].spec).toMatchObject({
-      coverage_link_id: "0031|PB24-1-01",
-      agency_personnel_id: "a2m31BETA",
-      confidence: "documented",
-    });
+    expect(coverageAttr).toEqual({});
 
     for (const record of Object.values(discipline)) {
       expect(DisciplineSpec.safeParse(record.spec).success).toBe(true);
     }
-    for (const record of Object.values(attributions)) {
-      expect(DisciplineAgencyPersonnelSpec.safeParse(record.spec).success).toBe(
-        true,
-      );
-    }
     for (const record of Object.values(coverage)) {
       expect(CoverageLinkSpec.safeParse(record.spec).success).toBe(true);
-    }
-    for (const record of Object.values(coverageAttr)) {
-      expect(
-        CoverageLinkAgencyPersonnelSpec.safeParse(record.spec).success,
-      ).toBe(true);
     }
   });
 });
@@ -602,5 +596,243 @@ describe("mn-post run — unmapped agencies", () => {
         ]),
       }),
     ).rejects.toThrow(/has no agency in agency-ids.yaml/);
+  });
+});
+
+describe("mn-post personnel details", () => {
+  const course = {
+    courseId: "course-1",
+    contactId: "0031",
+    name: "Training",
+    endDate: "2026-08-16",
+    credits: 1,
+    sponsorname: "Sponsor",
+    sponsorInstructor: null,
+  };
+  const action = JSON.parse(detail0031).disciplinaryActions[0];
+  async function runDetails(
+    detail: unknown,
+    documents: unknown[] = [],
+    roster = [{ contactId: "0031", name: "Smith, John" }],
+    messages: string[] = [],
+  ) {
+    const dir = await mkdtemp(path.join(tmpdir(), "mn-post-details-"));
+    const files: Record<string, string> = {
+      "agency-ids.yaml": agencyIds,
+      "alpha-police-dept-000000000001.roster.json": JSON.stringify(roster),
+      "person.detail.json": JSON.stringify(detail),
+      ...Object.fromEntries(
+        documents.map((doc, i) => [`${i}.document.json`, JSON.stringify(doc)]),
+      ),
+    };
+    try {
+      for (const [name, contents] of Object.entries(files))
+        await writeFile(path.join(dir, name), contents);
+      const result = await transform({
+        paths: Object.keys(files).map((name) => path.join(dir, name)),
+        readXlsx: async () => [],
+        state: "/unused",
+        emit: async () => {},
+        logger: { info: (message) => messages.push(message) },
+      });
+      for (const [name, contents] of Object.entries(files))
+        expect(await readFile(path.join(dir, name), "utf8")).toBe(contents);
+      return result;
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+
+  it("emits discipline without a license or assignment", async () => {
+    const result = await runDetails({ disciplinaryActions: [action] });
+    expect(
+      recordsOf(result, "Disciplines")["0031|PB24-1-01"].spec,
+    ).toMatchObject({
+      personnel_id: "0031",
+      licensing_authority_id: "mn-post",
+      document_url: action.documentURL,
+    });
+    expect(recordsOf(result, "DisciplineAgencyPersonnel")).toEqual({});
+    expect(recordsOf(result, "CoverageLinkAgencyPersonnel")).toEqual({});
+  });
+  it.each([
+    { contactId: null },
+    { contactId: "unknown" },
+    { caseNumber: null },
+  ])("rejects missing or unknown discipline identity %j", async (patch) => {
+    await expect(
+      runDetails({ disciplinaryActions: [{ ...action, ...patch }] }),
+    ).rejects.toThrow(/discipline.*(contact|case|person)/i);
+  });
+  it("maps education source fields and preserves nulls", async () => {
+    const result = await runDetails({
+      education: [
+        course,
+        {
+          ...course,
+          courseId: "course-2",
+          endDate: null,
+          credits: null,
+          sponsorname: null,
+        },
+      ],
+    });
+    const rows = recordsOf(result, "PersonnelEducations");
+    expect(rows["course-1"].spec).toEqual({
+      personnel_id: "0031",
+      name: "Training",
+      completion_date: "2026-08-16",
+      credits: 1,
+      sponsor_name: "Sponsor",
+      sponsor_instructor: null,
+    });
+    expect(rows["course-2"].spec).toEqual({
+      personnel_id: "0031",
+      name: "Training",
+      completion_date: null,
+      credits: null,
+      sponsor_name: null,
+      sponsor_instructor: null,
+    });
+    for (const row of Object.values(rows))
+      expect(PersonnelEducationSpec.safeParse(row.spec).success).toBe(true);
+  });
+  it.each([{ courseId: null }, { contactId: null }, { contactId: "unknown" }])(
+    "rejects missing or unknown education identity before omitting unnamed rows %j",
+    async (patch) => {
+      await expect(
+        runDetails({ education: [{ ...course, name: null, ...patch }] }),
+      ).rejects.toThrow(/education.*(course|contact|person)/i);
+    },
+  );
+  it("reports each of three unnamed completions and retains the named completion", async () => {
+    const messages: string[] = [];
+    const result = await runDetails(
+      {
+        education: [
+          course,
+          ...[null, "", "  "].map((name, i) => ({
+            ...course,
+            courseId: `unnamed-${i}`,
+            name,
+          })),
+        ],
+      },
+      [],
+      undefined,
+      messages,
+    );
+    expect(Object.keys(recordsOf(result, "PersonnelEducations"))).toEqual([
+      "course-1",
+    ]);
+    expect(messages).toHaveLength(3);
+    for (let i = 0; i < 3; i++)
+      expect(messages[i]).toMatch(new RegExp(`unnamed-${i}.*name`));
+  });
+  it("coalesces identical education and rejects conflicting course IDs", async () => {
+    expect(
+      Object.keys(
+        recordsOf(
+          await runDetails({ education: [course, course] }),
+          "PersonnelEducations",
+        ),
+      ),
+    ).toEqual(["course-1"]);
+    await expect(
+      runDetails({ education: [course, { ...course, credits: 2 }] }),
+    ).rejects.toThrow(/conflict.*course-1/i);
+  });
+  it.each(["documentName", "effectiveDate", "expirationDate"])(
+    "rejects duplicate case disagreement in %s",
+    async (field) => {
+      await expect(
+        runDetails({
+          disciplinaryActions: [
+            action,
+            {
+              ...action,
+              [field]: field === "documentName" ? "Revocation" : "2026-01-02",
+            },
+          ],
+        }),
+      ).rejects.toThrow(/conflict.*0031\|PB24-1-01/i);
+    },
+  );
+  it("coalesces duplicate case documents that agree, preserving the existing last-entry coverage URL", async () => {
+    const doc = JSON.parse(document0031);
+    const second = {
+      ...action,
+      documentURL: "https://example.mn/duplicate.pdf",
+    };
+    const result = await runDetails({ disciplinaryActions: [action, second] }, [
+      doc,
+      { ...doc, url: second.documentURL },
+    ]);
+    expect(Object.keys(recordsOf(result, "Disciplines"))).toEqual([
+      "0031|PB24-1-01",
+    ]);
+    expect(
+      recordsOf(result, "CoverageLinks")["0031|PB24-1-01"].spec,
+    ).toMatchObject({ url: second.documentURL });
+  });
+  it.each(["sha256", "analysis"])(
+    "rejects conflicting available document %s for a duplicate case",
+    async (field) => {
+      const doc = JSON.parse(document0031);
+      const second = {
+        ...action,
+        documentURL: "https://example.mn/duplicate.pdf",
+      };
+      const changed =
+        field === "sha256"
+          ? "different"
+          : { ...doc.analysis, sanction: "different" };
+      await expect(
+        runDetails({ disciplinaryActions: [action, second] }, [
+          doc,
+          { ...doc, url: second.documentURL, [field]: changed },
+        ]),
+      ).rejects.toThrow(/conflict.*0031\|PB24-1-01/i);
+    },
+  );
+  it("names the case when document records for the same URL conflict", async () => {
+    const doc = JSON.parse(document0031);
+    await expect(
+      runDetails({ disciplinaryActions: [action] }, [
+        doc,
+        { ...doc, sha256: "different" },
+      ]),
+    ).rejects.toThrow(/conflict.*0031\|PB24-1-01/i);
+  });
+  it("keeps unavailable last-entry document fields null without changing its URL", async () => {
+    const doc = JSON.parse(document0031);
+    const second = {
+      ...action,
+      documentURL: "https://example.mn/unavailable.pdf",
+    };
+    const result = await runDetails({ disciplinaryActions: [action, second] }, [
+      doc,
+    ]);
+    expect(
+      recordsOf(result, "Disciplines")["0031|PB24-1-01"].spec,
+    ).toMatchObject({
+      document_url: second.documentURL,
+      allegation: null,
+      violation: null,
+      finding: null,
+      chief_action: null,
+      sanction: null,
+    });
+    expect(
+      recordsOf(result, "CoverageLinks")["0031|PB24-1-01"].spec,
+    ).toMatchObject({ url: second.documentURL });
+  });
+  it("emits empty education for empty source arrays", async () => {
+    expect(
+      recordsOf(
+        await runDetails({ education: [], disciplinaryActions: [] }),
+        "PersonnelEducations",
+      ),
+    ).toEqual({});
   });
 });
