@@ -126,6 +126,13 @@ already-matching dataset therefore yields an empty, no-op plan rather than a
 wall of check-only updates. If create-required fields cannot be resolved,
 `toMutation()` must not emit a partial create.
 
+Read-only upsert modes and existence-only skips are prohibited. Stable identity
+does not imply immutable content. An existing row must be compared even when its
+ID or URL is immutable; edits forbidden by a field constraint must fail visibly.
+Never replace a failed comparison or validation with a read to make an import
+appear successful or idempotent. Explicit read/assertion operations remain
+supported separately from source create/update planning.
+
 `canonicalIdFor(...)` is an undefined-symbol check. It may return a canonical ID
 for an existing database row or for a create mutation already planned in the
 current `DatabaseMutations` envelope. If the source object has not been resolved

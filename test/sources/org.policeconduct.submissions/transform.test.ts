@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, it, expect } from "vitest";
 import { transform } from "../../../sources/org.policeconduct.submissions/transform.js";
+import { Artifacts } from "../../../src/shared/io/Artifacts.js";
+import { buildArtifactsEnvelope } from "../../../src/cli/transform/source-transform.js";
 import type {
   TransformDataContext,
   SourceManifest,
@@ -149,6 +151,17 @@ describe("submissions run", () => {
     );
     expect(review.submitter_relationship).toBe("Directly involved");
     expect(review.incident_date).toBe("2023-12-04");
+    // Raw submitted evidence is preserved; canonical IO requires its timezone
+    // before this timestamp can be filed.
+    expect(() =>
+      Artifacts.new(
+        buildArtifactsEnvelope(
+          "org.policeconduct.submissions",
+          "transform",
+          manifest,
+        ),
+      ),
+    ).toThrow(/incident_date/);
     // The free-text location yields geocode hints for the Review facade.
     expect(review.address).toBe("5910 N MacArthur Blvd, Irving, TX 75039");
     expect(review.city).toBe("Irving");

@@ -2,6 +2,7 @@ import { BatchLoader } from "./batch-loader.js";
 import { TABLE_BY_KIND } from "../../../shared/io/generated/entity-specs.js";
 import type { DatabaseClient } from "../../database/index.js";
 import {
+  databaseRecordProjection,
   readDatabaseRecordByColumns,
   readDatabaseRecordsByColumns,
   readDatabaseRecordsByColumn,
@@ -122,7 +123,7 @@ export class CurrentRowReader {
     const selects = batches.map(
       (batch, index) =>
         `select ${index} as __batch, row_to_json(t.*) as __row ` +
-        `from ${batch.tableName} t where ${batch.identityColumn} = any($${index + 1})`,
+        `from (select ${databaseRecordProjection(batch.tableName)} from ${batch.tableName} where ${batch.identityColumn} = any($${index + 1})) t`,
     );
     const params = batches.map((batch) => batch.ids);
     const result = await this.requireClient().query(

@@ -5,6 +5,7 @@ import {
 } from "../../database/entities.js";
 import type { DatabaseClient } from "../../database/index.js";
 import {
+  geoJsonValue,
   locationPathBboxGeoJson,
   locationPathCentroidGeoJson,
 } from "../../database/location-path-spatial.js";
@@ -14,6 +15,7 @@ import {
   TABLE_BY_KIND,
 } from "../../../shared/io/generated/entity-specs.js";
 import { valuesEqual } from "../../../shared/values-equal.js";
+import { timestampValue } from "../../../shared/timestamp-value.js";
 import path from "node:path";
 import {
   DatabaseMutations,
@@ -53,11 +55,21 @@ function databaseMutationMetadata(
 
 function assertExpectedValue(
   mutationName: string,
+  recordKind: string,
   fieldName: string,
   expected: unknown,
   actual: unknown,
 ): void {
-  if (!valuesEqual(expected, actual)) {
+  const comparisonExpected =
+    recordKind === "LocationPathGeometry" && fieldName === "boundary"
+      ? geoJsonValue(expected)
+      : expected;
+  if (
+    !valuesEqual(
+      timestampValue(recordKind, fieldName, comparisonExpected),
+      timestampValue(recordKind, fieldName, actual),
+    )
+  ) {
     throw new Error(
       `DatabaseMutation ${mutationName} expected ${fieldName} to be ${String(expected)} but found ${String(actual)}.`,
     );
@@ -94,7 +106,12 @@ function databaseSpecForMutation(
     };
   }
 
-  return spec;
+  return Object.fromEntries(
+    Object.entries(spec).map(([field, value]) => [
+      field,
+      databaseFieldValue(recordKind, field, value),
+    ]),
+  );
 }
 
 function databaseFieldName(recordKind: string, fieldName: string): string {
@@ -110,7 +127,7 @@ function databaseFieldValue(
   value: unknown,
 ): unknown {
   if (recordKind !== "LocationPath") {
-    return value;
+    return timestampValue(recordKind, fieldName, value);
   }
   if (fieldName === "centroid") {
     return locationPathCentroidGeoJson(value);
@@ -204,8 +221,9 @@ async function executeUpdate(
     if (typedOperation.action === "check") {
       assertExpectedValue(
         mutationName,
+        recordKind,
         fieldName,
-        databaseFieldValue(recordKind, fieldName, typedOperation.value),
+        typedOperation.value,
         current[fieldName],
       );
       continue;
@@ -217,8 +235,9 @@ async function executeUpdate(
     }
     assertExpectedValue(
       mutationName,
+      recordKind,
       fieldName,
-      databaseFieldValue(recordKind, fieldName, typedOperation.from),
+      typedOperation.from,
       current[fieldName],
     );
     const nextValue = databaseFieldValue(

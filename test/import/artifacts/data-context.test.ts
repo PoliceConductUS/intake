@@ -465,7 +465,7 @@ describe("DataContext", () => {
     });
   });
 
-  test("emits an empty-spec read for an existing location path through the envelope", async () => {
+  test("omits a matching existing location path from the envelope", async () => {
     const existingLocationPath = locationPaths[0]!;
     const context = new DataContext({
       client: new EmptyDatabaseClient(),
@@ -484,7 +484,7 @@ describe("DataContext", () => {
         licenseActions: {},
       }),
     });
-    // The census row already exists (`current` set), so the facade emits a Read.
+    // Matching source fields produce no mutation for the existing census row.
     context.facadeFromSource("LocationPath", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
@@ -492,6 +492,9 @@ describe("DataContext", () => {
       current: {
         location_path_id: existingLocationPath.location_path_id,
         path: existingLocationPath.path,
+        level: existingLocationPath.level,
+        display_name: existingLocationPath.display_name,
+        parent_location_path_id: existingLocationPath.parent_location_path_id,
       },
       spec: {
         path: existingLocationPath.path,
@@ -508,13 +511,7 @@ describe("DataContext", () => {
       }),
     ).toMatchObject({
       spec: {
-        mutations: [
-          {
-            kind: "LocationPathRead",
-            name: existingLocationPath.location_path_id,
-            spec: {},
-          },
-        ],
+        mutations: [],
       },
     });
   });
@@ -1915,7 +1912,7 @@ describe("Census substrate facades", () => {
     });
   });
 
-  test("LocationPathFacade emits a LocationPathRead when the census row already exists", async () => {
+  test("LocationPathFacade compares the fields of an existing census row", async () => {
     const context = substrateContext({
       locationPaths: { mn: { canonicalId: "mn-location-path-id" } },
     });
@@ -1934,9 +1931,17 @@ describe("Census substrate facades", () => {
     });
 
     expect(await facade.toMutation()).toMatchObject({
-      kind: "LocationPathRead",
+      kind: "LocationPathUpdate",
       metadata: { namespace: "census", name: "mn-location-path-id" },
-      spec: {},
+      spec: {
+        operations: expect.arrayContaining([
+          expect.objectContaining({
+            action: "set",
+            path: "display_name",
+            to: "Minnesota",
+          }),
+        ]),
+      },
     });
   });
 

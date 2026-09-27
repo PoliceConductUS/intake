@@ -5,6 +5,11 @@ import pg from "pg";
 // mutation `from`/`to` values are strings — so the read side must match; a `Date`
 // object would fail the string field schemas when diffed against desired values.
 pg.types.setTypeParser(1082, (value) => value);
+// Keep timestamp precision and the model's string representation. Diff/replay
+// compare timestamp columns by instant, using generated column metadata.
+pg.types.setTypeParser(1184, (value) => value);
+// Generated numeric fields use numbers, as PostgreSQL JSON reads already do.
+pg.types.setTypeParser(1700, Number);
 
 export type DatabaseClient = {
   connect(): Promise<unknown>;

@@ -523,11 +523,12 @@ function baseType(column: Column, table: IntrospectedTable): string {
       return "nonEmptyString";
     // Dates/times travel as ISO strings in the envelope; the value is never blank.
     case "date":
-    case "timestamptz":
     case "timestamp":
     case "time":
     case "timetz":
       return "nonEmptyString";
+    case "timestamptz":
+      return "timestampWithTimezone";
     case "float8":
     case "float4":
     case "numeric":
@@ -722,6 +723,7 @@ export function generateEntitySpecsModule(
   header: string,
 ): string {
   const preamble = `${header}import { z } from "zod";
+import { timestampWithTimezone } from "../../timestamp-schema.js";
 
 // Fingerprint of the applied database migrations these specs were generated
 // against. The importer refuses to run when the live database's migrations
@@ -776,6 +778,24 @@ export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = ${JSON.str
         descriptor.recordKind,
         descriptor.createRequired ?? [],
       ]),
+    ),
+  )};
+
+// Timestamp instants require value comparison across PostgreSQL and ISO string
+// representations. Only source-writable timestamptz columns participate.
+export const TIMESTAMP_PROPERTIES: Record<string, readonly string[]> = ${JSON.stringify(
+    Object.fromEntries(
+      DESCRIPTORS.map((descriptor) => [
+        descriptor.recordKind,
+        schema.tables
+          .get(descriptor.table)!
+          .columns.filter(
+            (column) =>
+              column.udtName === "timestamptz" &&
+              !ALWAYS_EXCLUDED.has(column.name),
+          )
+          .map((column) => descriptor.rename?.[column.name] ?? column.name),
+      ]).filter(([, columns]) => columns.length > 0),
     ),
   )};
 

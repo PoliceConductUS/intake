@@ -64,8 +64,6 @@ type AnyResolver = Resolver<any, any>;
 type KindConfig = {
   /** Whether the identity is a minted canonical id (default) or a source natural key. */
   identityKind?: "canonical" | "natural";
-  /** Existing row → a diffed update (default) or an idempotent read. */
-  upsert?: "update" | "read";
   /**
    * Per-column resolvers that replace the derived default (a plain FK find, or
    * pass-through). Keyed by column: a location_path that resolves by state
@@ -155,7 +153,6 @@ const REGISTRY: Record<string, KindConfig> = {
     },
   },
   LocationPath: {
-    upsert: "read",
     urlOwnership: { property: "path", owner: "location_path_id" },
     overrides: {
       path: childPathResolver({
@@ -177,7 +174,6 @@ const REGISTRY: Record<string, KindConfig> = {
   LocationPathAlias: {
     urlOwnership: { property: "alias_path", owner: "location_path_id" },
     identityKind: "natural",
-    upsert: "read",
     overrides: {
       alias_path: childPathResolver({
         property: "alias_path",
@@ -308,12 +304,8 @@ const REGISTRY: Record<string, KindConfig> = {
     },
   },
   Review: {
-    // A published report (ADR 0030). id is the submission's natural id; a verified
-    // submission is immutable, so an existing report is a no-op read on re-import
-    // (never re-diffed or rewritten). One geocode from the report's address sets
-    // location + coordinates on first create.
+    // A published report (ADR 0030). id is the submission's natural id.
     identityKind: "natural",
-    upsert: "read",
     overrides: {
       ...(latLngFromAddress({
         entityType: "review",
@@ -336,10 +328,8 @@ const REGISTRY: Record<string, KindConfig> = {
     // The report's link to one resolved officer@agency (ADR 0030). Composed natural
     // id from (review_id, agency_personnel_id), unless a historical identity is
     // recorded in the ledger. The officer resolves through the
-    // ledger (run matched it against a roster). review_id resolves same-run. Like
-    // the report, an existing link is a no-op read on re-import.
+    // ledger (run matched it against a roster). review_id resolves same-run.
     identityKind: "natural",
-    upsert: "read",
     overrides: {
       id: new Resolver(
         async (context: ResolverContext<Row, EntityFacadeBackend>) =>
@@ -366,7 +356,7 @@ const REGISTRY: Record<string, KindConfig> = {
   ArrestProfile: {
     // A per-officer arrest profile (ADR 0032). Identity is find-or-mint by the
     // unique agency_personnel_id business key, so a re-run updates the one row in
-    // place (default "update" upsert — the summary is recomputed each run). The
+    // place (the summary is recomputed each run). The
     // officer resolves cross-source through the ledger; coverage/breakdowns jsonb
     // pass through unresolved.
     identityKind: "natural",
@@ -429,11 +419,10 @@ function mutationsForKind(kind: string): MutationConstructors<unknown> {
   >;
   const create = all[`${kind}Create`];
   const update = all[`${kind}Update`];
-  const read = all[`${kind}Read`];
   if (create === undefined) {
     throw new Error(`No Create mutation for kind ${kind}.`);
   }
-  return { create, update, read } as MutationConstructors<unknown>;
+  return { create, update } as MutationConstructors<unknown>;
 }
 
 /** The derived resolvers: identity (canonical mint) plus a find per foreign key. */
@@ -458,7 +447,7 @@ function derivedResolvers(
 
 /**
  * Build the facade for a registry-owned kind: derive its columns from the
- * generated CreateSpec, its create/update/read constructors by naming
+ * generated CreateSpec, its create/update constructors by naming
  * convention, its id + FK resolvers from the schema, and layer the registry's
  * per-column overrides on top. Everything else passes through.
  */
@@ -528,7 +517,6 @@ export function buildFacadeForKind(
       source: options.source,
       backend: options.backend,
       identity,
-      upsert: config.upsert,
       cache: options.cache,
       cacheableProperties: RESOLVED_PROPERTIES[kind],
     },

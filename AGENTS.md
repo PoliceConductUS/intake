@@ -100,6 +100,14 @@ This is a fail-fast-and-loudly project. Do not guess, silently recover, report
 partial success as success, skip invalid records without visibility, or continue
 after a failed write as though the operation succeeded.
 
+Existing imported rows must be compared with supplied source fields. Do not use
+`upsert: "read"`, unconditional reads, or existence-only skips to suppress edits,
+make reruns appear idempotent, or bypass validation or comparison failures.
+Stable IDs do not make record content immutable. Unchanged input is a no-op only
+after comparison; changed input must produce an update or a visible error under
+the existing field constraints. Explicit read/assertion operations are separate
+from importing source changes.
+
 Fallback behavior and backward-compatibility paths are prohibited. When a
 contract, file shape, command behavior, schema, or data meaning changes, require
 the new contract and fail loudly on the old one.

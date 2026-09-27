@@ -12,6 +12,7 @@ import {
 } from "../resolver-kit.js";
 import { typedInputFingerprint } from "../../../state/resolved-property/index.js";
 import { valuesEqual } from "../../../../shared/values-equal.js";
+import { timestampValue } from "../../../../shared/timestamp-value.js";
 import {
   CacheCorrectionError,
   CensusGeocoderRequestError,
@@ -43,7 +44,7 @@ export type EntityResolvers<Row, Backend = EntityFacadeBackend> = Partial<{
 
 type EnvelopeMetadata = { namespace: string; name: string };
 
-/** The create/update/read mutation envelope constructors a facade emits toward. */
+/** The create/update mutation envelope constructors a facade emits toward. */
 export type MutationConstructors<Env> = {
   create: { new: (input: { metadata: EnvelopeMetadata; spec: never }) => Env };
   update?: {
@@ -52,7 +53,6 @@ export type MutationConstructors<Env> = {
       spec: { operations: MutationOperation[] };
     }) => Env;
   };
-  read?: { new: (input: { metadata: EnvelopeMetadata; spec: never }) => Env };
 };
 
 type MutationOperation =
@@ -79,9 +79,6 @@ type MutationSource = {
   name: string;
 };
 
-/** How an existing row's mutation is expressed: a diffed Update, or a Read. */
-type UpsertMode = "update" | "read";
-
 /** Optional shape/identity knobs; every default reproduces a plain `id` entity. */
 export type EntityFacadeOptions<Backend> = {
   current?: Record<string, unknown>;
@@ -89,8 +86,6 @@ export type EntityFacadeOptions<Backend> = {
   backend: Backend;
   /** The identity column; `id` for canonical entities, else e.g. `location_path_id`. */
   identity?: string;
-  /** Existing row → a diffed Update (default) or a Read (natural-key idempotent rows). */
-  upsert?: UpsertMode;
   /** The `source > cache > live-resolve` property cache (ADR 0019). */
   cache?: PropertyCache;
   /** Properties resolved through the cache (`RESOLVED_PROPERTIES[kind]`; identity excluded). */
@@ -101,8 +96,8 @@ export type EntityFacadeOptions<Backend> = {
  * The single resolver-based facade engine (ADR 0016/0019): per-property
  * memoization, circular-dependency detection, plain source-or-null pass-through
  * for columns no resolver manages, the `source > cache > live-resolve` property
- * cache, and create-vs-(update|read) mutation planning. Everything entity-specific
- * — the resolver map, identity column, upsert mode, cacheable properties — is
+ * cache, and create-vs-update mutation planning. Everything entity-specific
+ * — the resolver map, identity column, cacheable properties — is
  * configuration; there is no per-entity subclass.
  */
 export class EntityFacade<
@@ -118,7 +113,6 @@ export class EntityFacade<
   private readonly source: FacadeSource;
   private readonly backend: Backend;
   private readonly identity: keyof Row & string;
-  private readonly upsert: UpsertMode;
   private readonly cache?: PropertyCache;
   private readonly cacheableProperties: ReadonlySet<string>;
 
@@ -134,7 +128,6 @@ export class EntityFacade<
     this.source = options.source;
     this.backend = options.backend;
     this.identity = (options.identity ?? "id") as keyof Row & string;
-    this.upsert = options.upsert ?? "update";
     this.cache = options.cache;
     this.cacheableProperties = new Set(
       (options.cacheableProperties ?? []).filter(
@@ -374,7 +367,7 @@ export class EntityFacade<
       if (value === undefined) {
         continue;
       }
-      resolved[column] = value;
+      resolved[column] = timestampValue(this.kind, column, value);
     }
     return { identityValue, resolved };
   }
@@ -400,15 +393,6 @@ export class EntityFacade<
       });
     }
 
-    if (this.upsert === "read") {
-      if (this.mutations.read === undefined) {
-        throw new Error(
-          `Cannot emit a ${this.kind} read for ${this.source.namespace}/${this.source.name}: no read mutation configured.`,
-        );
-      }
-      return this.mutations.read.new({ metadata, spec: {} as never });
-    }
-
     if (this.mutations.update === undefined) {
       throw new Error(
         `Cannot emit a ${this.kind} update for ${this.source.namespace}/${this.source.name}: no update mutation configured.`,
@@ -428,7 +412,7 @@ export class EntityFacade<
     };
     const operations: MutationOperation[] = Object.entries(resolved).map(
       ([path, to]) => {
-        const from = current[path];
+        const from = timestampValue(this.kind, path, current[path]);
         if (valuesEqual(from, to)) {
           return {
             action: "check",

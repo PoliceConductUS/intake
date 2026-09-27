@@ -28,7 +28,7 @@ Almost everything a facade needs is already generated from the database:
 (the cache-backed fields), the per-kind `*CreateSpec` (whose object shape is the
 exact column set), and the `{Kind}{Create,Update,Read}` mutation constructors
 (one uniform set per kind). What is _not_ derivable is small: which column is the
-identity, whether an existing row is diffed or read, and the handful of columns
+identity and the handful of columns
 whose resolver is not a plain foreign-key find or pass-through (casing, slug,
 geocode, a state-path lookup, a cross-source ledger reference).
 
@@ -39,7 +39,7 @@ geocode, a state-path lookup, a cross-source ledger reference).
 - **One engine.** `EntityFacade` is the single resolution engine: memoized
   `value`/`raw`, circular-dependency detection, plain source-or-null pass-through
   for unmanaged columns, the `source > cache > live-resolve` property cache
-  (folded in from the former `ResolvingFacade`), and create-vs-(update|read)
+  (folded in from the former `ResolvingFacade`), and create-vs-update
   mutation planning generalized over the identity column. No entity subclasses
   it.
 
@@ -52,10 +52,17 @@ geocode, a state-path lookup, a cross-source ledger reference).
 
 - **A small registry holds only the exceptions.** `RESOLVER_OVERRIDES` names, per
   kind, just what is not derivable: a non-`id` identity or a natural-key identity,
-  read-vs-update upsert, columns omitted when null, and per-column resolver
+  columns omitted when null, and per-column resolver
   overrides (a state → location-path lookup, a cross-source ledger foreign key, a
   nullable foreign key, name/title casing, slug or geocode resolution). A kind
   with no exceptions has no registry entry.
+
+- **Existing source rows are always compared.** A kind cannot configure a
+  read-only upsert. Unchanged rows become no-ops only after field comparison;
+  changed fields produce updates or visible constraint errors. Explicit
+  read/assertion operations are separate. This supersedes the original
+  read-vs-update registry option, which silently discarded source edits and
+  was used to bypass a timestamp validation failure.
 
 - **The DataContext maps records through the engine.** It no longer describes any
   entity's fields; it supplies the injected backend and calls the builder.

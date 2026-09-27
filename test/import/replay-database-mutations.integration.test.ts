@@ -256,10 +256,10 @@ describeWithDocker("replay against a real Postgres", () => {
     );
     expect(rows.rows).toEqual([
       {
-        cx: "-93.0900",
-        cy: "44.9537",
+        cx: -93.09,
+        cy: 44.9537,
         bbox_type: "ST_Polygon",
-        bbox_area: "0.0375",
+        bbox_area: 0.0375,
       },
     ]);
   });
@@ -312,7 +312,7 @@ describeWithDocker("replay against a real Postgres", () => {
        from public.location_path_geometry where location_path_id = 'lp'`,
     );
     expect(rows.rows).toEqual([
-      { t: "ST_MultiPolygon", srid: 4326, area: "0.0200" },
+      { t: "ST_MultiPolygon", srid: 4326, area: 0.02 },
     ]);
   });
 

@@ -110,6 +110,26 @@ describe("acquire -> run (env-driven, non-interactive)", () => {
 });
 
 describe("manual review restoration", () => {
+  it("rejects an incident timestamp without a timezone before acquiring the report", async () => {
+    const state = await tempDir();
+    await expect(
+      acquire({
+        sourceDir: state,
+        state,
+        env: {
+          MANUAL_KIND: "Review",
+          MANUAL_RECORD: JSON.stringify({
+            id: "report",
+            title: "Report title",
+            incident_date: "2023-12-04",
+          }),
+        },
+        data: {} as never,
+      }),
+    ).rejects.toThrow(/timezone/i);
+    expect((await readLatest(state)).entries).toEqual([]);
+  });
+
   it("acquires and emits a report and its personnel relationship unchanged", async () => {
     const state = await tempDir();
     const entries = [
@@ -120,7 +140,7 @@ describe("manual review restoration", () => {
           title: "Original title",
           description: "Original prose.\n\nSecond paragraph.",
           slug: "original-published-slug",
-          incident_date: "2023-12-04",
+          incident_date: "2023-12-04T08:00:00Z",
           location_path_id: "place-id",
           latitude: 32.89,
           longitude: -96.96,

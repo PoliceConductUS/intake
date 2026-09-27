@@ -34,7 +34,9 @@ import {
   type DatabaseMutationItem,
 } from "./io/DatabaseMutations.js";
 import { LocationPathGeometryCreate } from "./io/generated-mutations/LocationPathGeometryCreate.js";
-import { LocationPathGeometryRead } from "./io/generated-mutations/LocationPathGeometryRead.js";
+import { LocationPathGeometryUpdate } from "./io/generated-mutations/LocationPathGeometryUpdate.js";
+import { valuesEqual } from "../../../shared/values-equal.js";
+import { geoJsonValue } from "../../database/location-path-spatial.js";
 import {
   countDatabaseMutations,
   type DatabaseMutationCounts,
@@ -481,6 +483,12 @@ async function writeLocationPathGeometryMutationRefs(
       "location_path_id",
       canonicalId,
     );
+    if (
+      existing !== undefined &&
+      valuesEqual(existing.boundary, geoJsonValue(spec.geometry))
+    ) {
+      continue;
+    }
     const written =
       existing === undefined
         ? await LocationPathGeometryCreate.write(
@@ -497,14 +505,30 @@ async function writeLocationPathGeometryMutationRefs(
               } as Parameters<typeof LocationPathGeometryCreate.new>[0]["spec"],
             }),
           )
-        : await LocationPathGeometryRead.write(
+        : await LocationPathGeometryUpdate.write(
             mutationDirectory,
-            LocationPathGeometryRead.new({
+            LocationPathGeometryUpdate.new({
               metadata: {
                 name: canonicalId,
                 namespace: context.artifacts.metadata.namespace,
               },
-              spec: {},
+              spec: {
+                operations: [
+                  {
+                    action: "set",
+                    path: "geometry",
+                    from: JSON.stringify(existing.boundary),
+                    to: spec.geometry,
+                    reason: "Set LocationPathGeometry geometry.",
+                    source: {
+                      namespace: context.artifacts.metadata.namespace,
+                      command: { name: context.commandName },
+                      kind: "LocationPathGeometry",
+                      name: recordKey,
+                    },
+                  },
+                ],
+              },
             }),
           );
 
@@ -517,7 +541,7 @@ async function writeLocationPathGeometryMutationRefs(
         kind:
           existing === undefined
             ? "LocationPathGeometryCreate"
-            : "LocationPathGeometryRead",
+            : "LocationPathGeometryUpdate",
       },
     });
 

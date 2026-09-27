@@ -4,6 +4,7 @@ import { EmptyDatabaseClient } from "../../cli/database/empty-database-client.js
 import { fakeSourceNameLedger } from "../../cli/state/fake-source-name-ledger.js";
 import { INTAKE_API_VERSION } from "../../../src/shared/io/import-types.js";
 import { CivilCaseUpdate } from "../../../src/cli/import/artifacts/io/generated-mutations/CivilCaseUpdate.js";
+import { planDatabaseMutationItems } from "../../../src/cli/import/artifacts/mutation-plan.js";
 
 // A DB with only the /tx/ location_path (no rows), so CivilCase's state resolver
 // resolves but nothing pre-exists — the convergence is purely same-run.
@@ -33,7 +34,7 @@ class TxLocationClient extends EmptyDatabaseClient {
 
 // Two records that resolve to the SAME natural identity within one run must
 // converge: the first is a create, the rest reuse the first's just-created state
-// as their `current` so they diff (upsert "update") or no-op (upsert "read")
+// as their `current` so they diff and omit unchanged updates
 // against it — never a second create. Last-wins falls out of the diff; the
 // natural-key columns are never touched.
 describe("same-run identity convergence (natural-key kinds)", () => {
@@ -45,7 +46,7 @@ describe("same-run identity convergence (natural-key kinds)", () => {
     });
   }
 
-  it("LocationPathAlias (upsert:read): first creates, second reads — not two creates", async () => {
+  it("LocationPathAlias first creates, then omits the matching update", async () => {
     const data = context();
     // Same-run LocationPath so the alias FK resolves.
     data.facadeFromSource("LocationPath", {
@@ -73,11 +74,11 @@ describe("same-run identity convergence (natural-key kinds)", () => {
       spec: { alias_path: "/x/", location_path_id: "/y/" },
     });
 
-    const kinds = (await data.toMutations())
-      .filter((m) => String(m.kind).startsWith("LocationPathAlias"))
-      .map((m) => m.kind);
+    const kinds = planDatabaseMutationItems(await data.toMutations())
+      .map((m) => ("kind" in m ? m.kind : m.ref.kind))
+      .filter((kind) => kind.startsWith("LocationPathAlias"));
 
-    expect(kinds).toEqual(["LocationPathAliasCreate", "LocationPathAliasRead"]);
+    expect(kinds).toEqual(["LocationPathAliasCreate"]);
   });
 
   it("CivilCase (upsert:update): first creates, second updates last-wins — through the same lookup as a cross-run row", async () => {

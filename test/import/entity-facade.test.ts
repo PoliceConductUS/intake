@@ -44,6 +44,77 @@ function backend(
 
 const source = { namespace: "mn-post", name: "0031|PB24-1-01" };
 
+describe("existing records retain mutable fields", () => {
+  it.each([
+    {
+      kind: "LocationPath",
+      current: {
+        path: "/zz/",
+        level: "state",
+        display_name: "Original",
+        parent_location_path_id: null,
+      },
+      desired: {
+        path: "/zz/",
+        level: "state",
+        display_name: "Revised",
+        parent_location_path_id: null,
+      },
+      field: "display_name",
+      from: "Original",
+      to: "Revised",
+    },
+    {
+      kind: "LocationPathAlias",
+      current: {
+        alias_path: "/alias/",
+        location_path_id: "fk:LocationPath:old",
+      },
+      desired: { alias_path: "/alias/", location_path_id: "new" },
+      field: "location_path_id",
+      from: "fk:LocationPath:old",
+      to: "fk:LocationPath:new",
+    },
+    {
+      kind: "ReviewPersonnel",
+      current: {
+        review_id: "fk:Review:report",
+        agency_personnel_id: "assignment-id",
+        rating_overall: 1,
+      },
+      desired: {
+        review_id: "report",
+        agency_personnel_id: "assignment",
+        rating_overall: 5,
+      },
+      field: "rating_overall",
+      from: 1,
+      to: 5,
+    },
+  ])(
+    "$kind compares changed fields instead of emitting a read",
+    async ({ kind, current, desired, field, from, to }) => {
+      const deps = backend();
+      deps.backend.findCanonicalId = async ({ kind }) =>
+        kind === "ReviewPersonnel" ? "link-id" : "assignment-id";
+      const facade = buildFacadeForKind(kind, {
+        source: { ...source, commandName: "edit" },
+        current,
+        ...deps,
+      });
+      facade.merge(desired);
+      expect(await facade.toMutation()).toMatchObject({
+        kind: `${kind}Update`,
+        spec: {
+          operations: expect.arrayContaining([
+            expect.objectContaining({ action: "set", path: field, from, to }),
+          ]),
+        },
+      });
+    },
+  );
+});
+
 describe("EntityFacade via the discipline facades", () => {
   it("emits a create envelope with resolved id and passthrough columns", async () => {
     const facade = buildFacadeForKind("Discipline", { source, ...backend() });

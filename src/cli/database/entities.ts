@@ -1,6 +1,18 @@
 import { rowsFromResult, type DatabaseClient } from "./index.js";
 import type { SupportedTableName } from "./schema.js";
 
+/** Read spatial columns in the same typed GeoJSON shape used by envelopes. */
+export function databaseRecordProjection(
+  tableName: SupportedTableName,
+): string {
+  if (tableName === "public.location_path_geometry") {
+    return "*, ST_AsGeoJSON(boundary, 17)::jsonb as boundary";
+  }
+  return tableName === "public.location_path"
+    ? "*, ST_AsGeoJSON(centroid::geometry, 17)::jsonb as centroid, ST_AsGeoJSON(bbox, 17)::jsonb as bbox"
+    : "*";
+}
+
 export async function readDatabaseRecordByColumn(
   client: DatabaseClient,
   tableName: SupportedTableName,
@@ -8,9 +20,10 @@ export async function readDatabaseRecordByColumn(
   value: unknown,
 ): Promise<Record<string, unknown> | undefined> {
   return rowsFromResult(
-    await client.query(`select * from ${tableName} where ${columnName} = $1`, [
-      value,
-    ]),
+    await client.query(
+      `select ${databaseRecordProjection(tableName)} from ${tableName} where ${columnName} = $1`,
+      [value],
+    ),
   )[0];
 }
 
@@ -27,7 +40,7 @@ export async function readDatabaseRecordByColumns(
     .join(" and ");
   return rowsFromResult(
     await client.query(
-      `select * from ${tableName} where ${where} limit 1`,
+      `select ${databaseRecordProjection(tableName)} from ${tableName} where ${where} limit 1`,
       columns.map((column) => values[column]),
     ),
   )[0];
@@ -57,7 +70,7 @@ export async function readDatabaseRecordsByColumns(
     .join(" and ");
   return rowsFromResult(
     await client.query(
-      `select * from ${tableName} where ${where}`,
+      `select ${databaseRecordProjection(tableName)} from ${tableName} where ${where}`,
       columns.map((column) => constraints[column]),
     ),
   );
@@ -75,7 +88,7 @@ export async function readDatabaseRecordsByColumn(
 
   return rowsFromResult(
     await client.query(
-      `select * from ${tableName} where ${columnName} = any($1)`,
+      `select ${databaseRecordProjection(tableName)} from ${tableName} where ${columnName} = any($1)`,
       [[...new Set(values)]],
     ),
   );

@@ -62,7 +62,7 @@ reach the scrubbed `arrests-normalized.jsonl` that `run` reads.
 unique `agency_personnel_id` business key
 ([ADR 0028](0028-natural-key-and-composed-identity.md) / business-key convergence),
 with the default `update` upsert: a re-run replaces the officer's summary in place.
-Unlike a report (immutable), an arrest profile is a derived rollup that refreshes as
+An arrest profile is a derived rollup that refreshes as
 the underlying export grows.
 
 **5. acquire owns the read; ordering is FK-derived, not standalone.** The workbook
