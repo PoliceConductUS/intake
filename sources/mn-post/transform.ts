@@ -204,7 +204,9 @@ export const transform: SourceTransform = async ({ paths }) => {
       const zipCode = nullIfBlank(csv?.[AGENCY_CSV.zip]);
       if (city !== null) location.city = city;
       if (address !== null) location.address = address;
-      if (zipCode !== null) location.zip_code = zipCode;
+      if (zipCode !== null) {
+        location.zip_code = zipCode.replace(/^(\d{5})(\d{4})$/, "$1-$2");
+      }
       agencies[agency.id] = {
         spec: {
           name: agency.name,

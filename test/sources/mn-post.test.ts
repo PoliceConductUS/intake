@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -15,7 +15,10 @@ import {
   CoverageLinkSpec,
   CoverageLinkAgencyPersonnelSpec,
 } from "../../src/shared/io/index.js";
-import type { SourceManifest } from "../../src/cli/transform/source-transform.js";
+import {
+  buildArtifactsEnvelope,
+  type SourceManifest,
+} from "../../src/cli/transform/source-transform.js";
 
 // The mn-post source reads its inputs from files under the source folder (an
 // `agency-ids.yaml` name→id map, an `agencies.csv` address list, and one raw
@@ -281,6 +284,56 @@ describe("mn-post run", () => {
       expect(record.spec).not.toHaveProperty("status_date");
     }
   });
+
+  it.each([
+    ["551554047", "55155-4047", true],
+    ["012345678", "01234-5678", true],
+    ["55111", "55111", true],
+    ["55155-4047", "55155-4047", true],
+    ["55155404", "55155404", false],
+    ["5515A4047", "5515A4047", false],
+    ["000000000", "00000-0000", false],
+  ])(
+    "formats source ZIP %s as %s without dropping agency records",
+    async (sourceZip, expectedZip, valid) => {
+      const dir = await mkdtemp(path.join(tmpdir(), "mn-post-zip-"));
+      try {
+        const csvPath = path.join(dir, "agencies.csv");
+        const csv = agenciesCsv.replace("55111", sourceZip);
+        await writeFile(csvPath, csv);
+        const paths = (await readdir(sourceDir))
+          .filter((file) => file !== "agencies.csv")
+          .map((file) => path.join(sourceDir, file));
+        const manifest = await transform({
+          paths: [...paths, csvPath],
+          readXlsx: async () => [],
+          state: "/unused",
+          emit: async () => {},
+        });
+
+        expect(recordsOf(manifest, "Agencies")["a2jALPHA"].spec).toMatchObject({
+          zip_code: expectedZip,
+        });
+        expect(Object.keys(recordsOf(manifest, "Agencies")).sort()).toEqual([
+          "a2jALPHA",
+          "a2jBETA",
+        ]);
+        expect(
+          Object.keys(recordsOf(manifest, "AgencyPersonnel")).sort(),
+        ).toEqual(["a2m31ALPHA", "a2m31BETA", "a2m32ALPHA", "a2m99ALPHA"]);
+        const validate = () =>
+          buildArtifactsEnvelope("mn-post", "zip-format", manifest);
+        if (valid) {
+          expect(validate).not.toThrow();
+        } else {
+          expect(validate).toThrow(/zip_code/);
+        }
+        expect(await readFile(csvPath, "utf8")).toBe(csv);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    },
+  );
 
   it("maps Personnel keyed by contactId, splitting names, importing disciplined officers and skipping only blank rows", async () => {
     const personnel = recordsOf(await runFixture(), "Personnel");
