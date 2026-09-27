@@ -26,12 +26,12 @@
 
 **Interfaces:** Produce required `DisciplineSpec.personnel_id` and `.licensing_authority_id`, optional nullable `.document_url`; `PersonnelEducationSpec` and plural artifact `PersonnelEducations`.
 
-- [ ] Write failing schema/graph tests. Test old action ID preservation, unique person/issuer backfill, ambiguous backfill rollback, valid/new required FKs, and personnel traversal without another agency.
-- [ ] Run the focused tests and record the expected RED.
-- [ ] Add migration with required person/issuer FKs after checking/backfilling unique existing relationships. Retain old relationship tables/rows. Add nullable nonblank document_url.
-- [ ] Create personnel_education with explicit text id PK, required personnel_id FK and nonblank name; nullable completion_date date, credits numeric, sponsor_name text, sponsor_instructor text; existing timestamp/RLS conventions. Omit the three source completions with null names and report each source ID and reason. Add generated descriptor `{recordKind: "PersonnelEducation", table: "personnel_education", createRequired: ["id"]}`. Add graph edges `{parent: "Personnel", child: "Discipline", holder: "child", field: "personnel_id"}` and corresponding PersonnelEducation edge.
-- [ ] Apply all migrations in an isolated test database, generate contracts from that schema, and run focused tests/typecheck. Do not reset or mutate the audited local database.
-- [ ] Commit the scoped schema/contracts/tests and report RED/GREEN evidence.
+- [x] Write failing schema/graph tests. Test old action ID preservation, unique person/issuer backfill, ambiguous backfill rollback, valid/new required FKs, and personnel traversal without another agency.
+- [x] Run the focused tests and record the expected RED.
+- [x] Add migration with required person/issuer FKs after checking/backfilling unique existing relationships. Retain old relationship tables/rows. Add nullable nonblank document_url.
+- [x] Create personnel_education with explicit text id PK, required personnel_id FK and nonblank name; nullable completion_date date, credits numeric, sponsor_name text, sponsor_instructor text; existing timestamp/RLS conventions. Omit the three source completions with null names and report each source ID and reason. Add generated descriptor `{recordKind: "PersonnelEducation", table: "personnel_education", createRequired: ["id"]}`. Add graph edges `{parent: "Personnel", child: "Discipline", holder: "child", field: "personnel_id"}` and corresponding PersonnelEducation edge.
+- [x] Apply all migrations in an isolated test database, generate contracts from that schema, and run focused tests/typecheck. Do not reset or mutate the audited local database.
+- [x] Commit the scoped schema/contracts/tests and report RED/GREEN evidence.
 
 ### Task 2: MN POST transform
 
@@ -39,11 +39,11 @@
 
 **Interfaces:** Consume Task 1 generated contracts. Produce `PersonnelEducations` keyed by courseId and `Disciplines` keyed by the existing contactId|caseNumber source name. Use the same issuer source name as LicensingAuthorities.
 
-- [ ] Add failing fixtures for a person with two licenses and multiple assignments: action attaches only to person/issuer. Assert no newly inferred DisciplineAgencyPersonnel/CoverageLinkAgencyPersonnel records. Assert document_url and five existing detail fields.
-- [ ] Add failing education fixture with `courseId: "course-1", contactId: "0031", name: "Training", endDate: "2026-08-16", credits: 1, sponsorname: "Sponsor", sponsorInstructor: null`. Expect corresponding source record with personnel_id "0031", completion_date "2026-08-16", sponsor_name "Sponsor". Add missing/unknown identity and conflicting duplicate tests.
-- [ ] Run source tests for RED. Implement deterministic joins; source arrays with no records remain empty. Do not use disciplinaryAction boolean to filter real actions.
-- [ ] Preserve existing discipline source names. Compare duplicate case entries' action/dates and available document hashes/analysis; identical evidence may coalesce, conflicts must fail naming case. Preserve raw entries untouched.
-- [ ] Run focused tests/typecheck and commit. Resolve any existing fixture expectations affected by the approved semantics, without weakening unrelated validation.
+- [x] Add failing fixtures for a person with two licenses and multiple assignments: action attaches only to person/issuer. Assert no newly inferred DisciplineAgencyPersonnel/CoverageLinkAgencyPersonnel records. Assert document_url and five existing detail fields.
+- [x] Add failing education fixture with `courseId: "course-1", contactId: "0031", name: "Training", endDate: "2026-08-16", credits: 1, sponsorname: "Sponsor", sponsorInstructor: null`. Expect corresponding source record with personnel_id "0031", completion_date "2026-08-16", sponsor_name "Sponsor". Add missing/unknown identity and conflicting duplicate tests.
+- [x] Run source tests for RED. Implement deterministic joins; source arrays with no records remain empty. Do not use disciplinaryAction boolean to filter real actions.
+- [x] Preserve existing discipline source names. Compare duplicate case entries' action/dates and available document hashes/analysis; identical evidence may coalesce, conflicts must fail naming case. Preserve raw entries untouched.
+- [x] Run focused tests/typecheck and commit. Resolve any existing fixture expectations affected by the approved semantics, without weakening unrelated validation.
 
 ### Task 3: Available order documents and live import
 
@@ -51,12 +51,12 @@
 
 **Interfaces:** Use existing data acquire/transform/generate/up CLI and generated schema from Tasks 1-2. Use document JSON `{url,sha256,text,analysis,analyzedWith}` from existing acquisition, preserving every raw PDF.
 
-- [ ] Back up audited local database and record pre-import IDs/slugs/counts. Verify target host 127.0.0.1 port 54322 before any write.
-- [ ] Resume acquisition. Download available documents and report unavailable ones. Missing analysis credentials must be reported; do not fabricate analysis or silently claim completion.
-- [ ] Review downloaded-order extraction against source text. Preserve model/prompt/hash provenance for populated fields.
-- [ ] Apply reviewed migration incrementally to local; run normal transform/generate/up. Resumed acquisition education inventory is 1,769,993 records (1,769,990 after the three approved omissions); reconcile actual retained/imported counts and explain graph exclusions.
-- [ ] Verify all previous durable IDs/slugs remain; new FKs resolve; updated source fields were compared/applied; document detail counts and unavailable cases are reported. Check repeat generation is a no-op after comparison.
-- [ ] Run focused tests, typecheck/build, OpenSpec validation, independent review, and record actual results. Do not mark live task complete while blocked on document analysis or import.
+- [x] Back up audited local database and record pre-import IDs/slugs/counts. Verify target host 127.0.0.1 port 54322 before any write.
+- [x] Resume acquisition. Download available documents and report unavailable ones. Missing analysis credentials must be reported; do not fabricate analysis or silently claim completion.
+- [x] Review downloaded-order extraction against source text. Preserve model/prompt/hash provenance for populated fields.
+- [x] Apply reviewed migration incrementally to local; run normal transform/generate/up. Resumed acquisition education inventory is 1,769,993 records (1,769,990 after the three approved omissions); reconcile actual retained/imported counts and explain graph exclusions.
+- [x] Verify all previous durable IDs/slugs remain; new FKs resolve; updated source fields were compared/applied; document detail counts and unavailable cases are reported. Check repeat generation is a no-op after comparison.
+- [x] Run focused tests, typecheck/build, OpenSpec validation, independent review, and record actual results. Do not mark live task complete while blocked on document analysis or import.
 
 ### Task 4: Reuse context-owned resolver backends after measured construction failure
 
@@ -71,7 +71,7 @@
 - [x] Prove the memory regression passes and existing identity/convergence/current-row/coalescing tests remain green; run typecheck/build and independent review.
 - [x] Repeat full-source measured construction and identify any remaining allocation failure before resuming import.
 
-**Remaining measured failure:** Subsequent full-source generation still exhausts 12 GiB in graph identity resolution. The real graph resolver with 100,000 deferred in-memory ledger reads adds approximately 409 MiB of pending promise work. A separate fix to that stage is required; no scheduling change has been implemented or declared successful. See the operational memory diagnosis.
+**Failure observed after Task 4:** Subsequent full-source generation exhausted 12 GiB in graph identity resolution. The real graph resolver with 100,000 deferred in-memory ledger reads adds approximately 409 MiB of pending promise work. Task 5 below corrected that stage. See the operational memory diagnosis for the evidence and verification.
 
 ### Task 5: Chain resolution batches using the existing coalescer
 
@@ -81,7 +81,17 @@
 
 **Implementation:** One local helper consumes the iterable lazily, starts at most 1,000 record operations concurrently, and chains the next batch after completion. The measured deferred identity overhead is about 4 KiB per record, so a batch contributes about 4 MiB of pending identity work rather than scaling with the whole kind. No CLI setting or dependency. Apply to graph candidate identities/edges, mutation identity grouping, and singleton mutation generation. Preserve sequential recurring-identity processing.
 
-- [ ] Demonstrate failing deferred-resolution tests for all three paths, stable ordering, no later batch after failure, and same-tick current-row coalescing.
-- [ ] Implement the lazy promise chain, retaining existing facade/BatchLoader behavior and avoiding an eagerly constructed per-record promise queue.
-- [ ] Pass focused tests, the memory regression, typecheck/build/OpenSpec validation, and independent review.
-- [ ] Rerun instrumented full-source generation under the normal heap; complete the authorized local import and preservation audit once generation succeeds.
+- [x] Demonstrate failing deferred-resolution tests for all three paths, stable ordering, no later batch after failure, and same-tick current-row coalescing.
+- [x] Implement the lazy promise chain, retaining existing facade/BatchLoader behavior and avoiding an eagerly constructed per-record promise queue.
+- [x] Pass focused tests, the memory regression, typecheck/build/OpenSpec validation, and independent review.
+- [x] Rerun instrumented full-source generation under the normal heap; complete the authorized local import and preservation audit once generation succeeds.
+
+### Task 6: Reuse immutable kind configuration after measured rerun failure
+
+The initial import succeeded, but the unchanged-source rerun exhausted the normal 12 GiB heap while comparing roughly 1.18 million existing rows. Admission remained bounded and all canonical identities were reused without writes. The earlier controlled 100,000-facade experiment measured approximately 189 MiB of duplicated immutable kind configuration.
+
+**Scope:** Internal allocation only. Build the registry-derived columns, resolver definitions, and mutation constructors once per kind. Keep source values, backend/context, current rows, memoization, property cache, and correction state specific to each facade. Preserve batching, comparisons, and IO semantics. Do not add a dependency, raise the heap limit, or skip existing records.
+
+- [x] Strengthen the fixed-heap regression and demonstrate failure before changing production code.
+- [x] Reuse immutable kind configuration and verify record/context isolation with focused tests, typecheck/build, and independent review.
+- [x] Rerun the unchanged full source under the normal heap and verify an empty delta, no new identity writes, and a valid applied chain.

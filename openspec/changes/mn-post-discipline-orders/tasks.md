@@ -33,7 +33,7 @@
       OCR decision, transform join.
 - [x] 4.2 `Brewfile` (poppler, tesseract) and `.env.example`
       (`ANTHROPIC_API_KEY`).
-- [ ] 4.3 Live: `intake data acquire mn-post` (resumed from the latest
+- [x] 4.3 Live: `intake data acquire mn-post` (resumed from the latest
       acquisition) → `data transform` → `data generate` → `data up`.
 
 ## 5. Person-level discipline and education
@@ -43,12 +43,15 @@
 - [x] 5.2 Transform person-level discipline and education, preserve case identities,
       reject conflicting duplicates/missing identities, and remove inferred new
       assignment links. Prove behavior with focused tests.
-- [ ] 5.3 Validate local migration/import, preserve identity snapshots, and audit
+- [x] 5.3 Validate local migration/import, preserve identity snapshots, and audit
       actual education totals, discipline fields, document omissions, and reruns.
 
 - [x] 5.4 Diagnose construction memory failure and reuse context-owned resolver
       backends; preserve existing tick-based coalescing. Verify the fixed-heap
       regression, full-source construction, and full test suite.
-- [ ] 5.5 Chain bounded batches for shared graph and mutation resolution,
+- [x] 5.5 Chain bounded batches for shared graph and mutation resolution,
       retaining existing same-tick coalescing; verify full-source generation
       before completing the live import audit.
+- [x] 5.6 Reuse immutable per-kind facade configuration after the measured
+      existing-row comparison failure; prove the fixed-heap regression and
+      full unchanged-source no-op rerun.

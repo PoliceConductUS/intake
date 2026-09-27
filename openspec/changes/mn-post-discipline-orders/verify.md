@@ -1,5 +1,10 @@
 # Verification, 2026-09-27
 
+Local import and audit are complete. Chain entry `000010` applied 1,770,086
+mutations, including 1,769,990 education records and 76 discipline updates.
+The final unchanged-source rerun exited successfully with zero mutations, zero
+identity writes, and no new chain entry. All 944 tests pass.
+
 ## Completed
 
 - Person/issuer migration exercised against real isolated PostGIS with retained
@@ -25,7 +30,7 @@
   expected retained education count 1,769,990.
 - OpenSpec validation: 29 passed, zero failed.
 
-## In progress
+## Runtime diagnosis and live verification
 
 - Full test rerun passed: 123 files, 933 tests. The five old discipline
   fixtures were updated for required references; the isolated PostgreSQL test
@@ -58,8 +63,48 @@
 - The controlled 100,000-record graph probe now admits 1,000 pending lookups
   instead of 100,000. Additional heap at that checkpoint decreased from about
   409 MiB to 4 MiB. This establishes bounded pending work; the full-source
-  generation and import audit are still in progress.
-- Live data generate/up and post-import identity/count/rerun audit remain pending.
+  generation and import audit remained separate checks.
+- Full test run after chained batching: 125 files, 944 tests passed. All 30
+  current OpenSpec items passed. Evidence: `tests-after-chained-batches.log`.
+- Full-source generation with chained batches completed successfully under the
+  normal 12 GiB heap limit (exit 0, 2,338 seconds). All 1,803,134 facades were
+  processed; graph selection omitted zero records. Maximum sampled heap was
+  10.568 GiB. The existing coalescer serviced 1,825,199 loads in 1,813 flushes.
+  Chain entry `000010` contains 1,769,990 education creates, 76 discipline
+  updates, one agency create, four personnel creates, four license creates, and
+  eleven assignment creates. A canonical-IO audit confirmed all mutation counts.
+- Local chain entry `000010` applied successfully. The post-import audit confirms
+  1,769,990 unique education IDs for 10,553 personnel, 5,253,060 credits,
+  12,822 missing completion dates, and no unnamed records. All 76 discipline
+  records have person/issuer/document references; 69 have allegation, violation,
+  finding, and sanction details, and 40 have stated employer actions. No
+  discipline/education foreign-key orphans exist.
+- All original 3,292 agency IDs/slugs, 140,548 personnel IDs/slugs, 76 discipline
+  IDs, and 83 historical discipline-assignment links remain. Existing agency,
+  personnel, and historical link fields are unchanged. The independent manual
+  authority entry `000009` added 48 authorities during this work; MN POST entry
+  `000010` did not modify authorities. All ten applied chain entries verify.
+- An initial audit-script query returned PostgreSQL `name[]` as text; casting
+  column names to `text` fixed the audit, which then passed. No product/data
+  change was needed.
+- The unchanged-source rerun reused all 1,803,058 ledger mappings with zero
+  identity writes and passed graph selection with zero omissions. It then
+  exhausted the 12 GiB heap during comparison of about 1.18 million existing
+  rows (exit 134). This does not undo the successfully applied import. The
+  correction below addresses duplicated immutable kind configuration.
+- `af86354` reuses only kind-derived columns, resolver definitions, and mutation
+  constructors. Per-record options, values, memoization, caches, and scheduling
+  are unchanged. The strengthened 100,000-facade regression exhausted 384 MiB
+  before this correction and passes at about 235 MiB afterward. All 186 focused
+  tests, typecheck/build, formatting, and independent review passed.
+- The final full unchanged-source rerun succeeded under the normal 12 GiB heap
+  limit (exit 0, 866.8 seconds). It processed all 1,803,134 facades, reused
+  1,803,058 ledger mappings with zero writes, omitted zero graph records, and
+  produced zero mutations. Construction used 5.456 GiB; maximum sampled heap
+  was 10.733 GiB. No chain entry was appended. All ten applied entries verify.
+- Final full suite after kind-configuration reuse: 125 files, 944 tests passed.
+  Evidence: `tests-after-kind-reuse.log`, `memory-noop-kind-reuse.log`, and
+  `memory-noop-kind-reuse-summary.json`.
 - No full legacy linked seed load was performed. Migration history and dedicated
   real-database fixtures were exercised; no seed records were added or edited.
 
