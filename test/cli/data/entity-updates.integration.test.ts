@@ -125,6 +125,7 @@ withDocker("mutable entity edits through the data CLI", () => {
       agency_id: "agency",
       personnel_id: "person",
       start_date: "2020-01-01",
+      end_date: null,
       title: "Officer",
     };
     // Supporting roster fixture uses canonical artifacts and the real CLI;

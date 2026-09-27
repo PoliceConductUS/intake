@@ -348,6 +348,7 @@ describe("mn-post run", () => {
       license_id: "0031|Peace Officer",
     });
     for (const record of Object.values(assignments)) {
+      expect(record.spec).toHaveProperty("end_date", null);
       expect(AgencyPersonnelSpec.safeParse(record.spec).success).toBe(true);
     }
   });

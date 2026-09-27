@@ -1,3 +1,4 @@
+import { readExistingAgencyGraph } from "../../database/agency-graph.js";
 import { loadPropertyCorrections } from "../../../shared/io/property-corrections.js";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
@@ -648,6 +649,13 @@ async function writeDatabaseMutationsStage(
     });
 
     addSourceFacades(dataContext, artifacts);
+    const omitted = await dataContext.selectAgencyGraph((incoming) =>
+      readExistingAgencyGraph(client, incoming),
+    );
+    logger?.info(
+      { omitted },
+      "Agency graph selection completed; omitted candidates remain in source Artifacts.",
+    );
     databaseMutations = await dataContext.toDatabaseMutations({
       namespace: artifacts.metadata.namespace,
       name: context.commandName,

@@ -29,6 +29,7 @@ import {
 const namespace = "slug-regression";
 const personId = "preserved-personnel-id";
 const agencyId = "preserved-agency-id";
+const assignmentId = "preserved-assignment-id";
 const locationId = "preserved-place-id";
 const describeWithDocker = dockerAvailable() ? describe : describe.skip;
 
@@ -74,7 +75,12 @@ describeWithDocker(
           personnel: {
             "source-person": { kind: "Personnel", canonicalId: personId },
           },
-          agencyPersonnel: {},
+          agencyPersonnel: {
+            "source-agency-assignment": {
+              kind: "AgencyPersonnel",
+              canonicalId: assignmentId,
+            },
+          },
         },
         { rootDir },
       );
@@ -88,6 +94,16 @@ describeWithDocker(
         rootDir,
         subject: { apiVersion: INTAKE_API_VERSION, kind, name: id },
         targetProperty: "slug",
+      };
+    }
+
+    function assignmentSpec(agencySource: string) {
+      return {
+        agency_id: agencySource,
+        personnel_id: "source-person",
+        start_date: "2020-01-01",
+        end_date: null,
+        title: "Officer",
       };
     }
 
@@ -132,6 +148,16 @@ describeWithDocker(
                           ? { slug: "producer-agency" }
                           : {}),
                       },
+                    },
+                  },
+                },
+              },
+              {
+                kind: "AgencyPersonnel",
+                spec: {
+                  records: {
+                    "source-agency-assignment": {
+                      spec: assignmentSpec("source-agency"),
                     },
                   },
                 },
@@ -187,10 +213,22 @@ describeWithDocker(
       expect(await load("cache-established-slugs", false)).toMatchObject({
         ok: true,
       });
+      await db.query("delete from public.agency_personnel where id = $1", [
+        assignmentId,
+      ]);
       await db.query("delete from public.agency where id = $1", [agencyId]);
       await db.query("delete from public.personnel where id = $1", [personId]);
       expect(await load("reload", true)).toMatchObject({ ok: true });
       await expectPublishedIdentities();
+      expect(
+        (
+          await db.query(
+            "select id, agency_id, personnel_id from public.agency_personnel",
+          )
+        ).rows,
+      ).toEqual([
+        { id: assignmentId, agency_id: agencyId, personnel_id: personId },
+      ]);
     });
 
     test("a conflicting canonical cache fails visibly without changing database rows", async () => {
@@ -253,7 +291,22 @@ describeWithDocker(
           path.join(rootDir, "new-before-old"),
           Artifacts.new({
             metadata: { namespace, name: "new-before-old" },
-            spec: { artifacts: [{ kind: "Agencies", spec: { records } }] },
+            spec: {
+              artifacts: [
+                { kind: "Agencies", spec: { records } },
+                {
+                  kind: "AgencyPersonnel",
+                  spec: {
+                    records: Object.fromEntries(
+                      Object.keys(records).map((agencySource) => [
+                        `${agencySource}-assignment`,
+                        { spec: assignmentSpec(agencySource) },
+                      ]),
+                    ),
+                  },
+                },
+              ],
+            },
           }),
         );
         const result = await importArtifacts({

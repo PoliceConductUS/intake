@@ -51,6 +51,41 @@ describeWithDocker("authority_license + license import (real Postgres)", () => {
         spec: {
           artifacts: [
             {
+              kind: "Agencies",
+              spec: {
+                records: {
+                  agency: {
+                    spec: {
+                      name: "Test Police Department",
+                      city: "Austin",
+                      state: "TX",
+                      address: "715 East 8th Street",
+                      zip_code: "78701",
+                      location_path_id: "tx-lp",
+                      latitude: 30.2685,
+                      longitude: -97.7346,
+                    },
+                  },
+                },
+              },
+            },
+            {
+              kind: "AgencyPersonnel",
+              spec: {
+                records: {
+                  "agency|p1": {
+                    spec: {
+                      agency_id: "agency",
+                      personnel_id: "p1",
+                      start_date: "2020-01-01",
+                      end_date: null,
+                      title: "Officer",
+                    },
+                  },
+                },
+              },
+            },
+            {
               kind: "LicensingAuthorities",
               spec: {
                 records: {

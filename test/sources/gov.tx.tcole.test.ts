@@ -28,7 +28,7 @@ const sheets: Record<string, Array<Record<string, string>>> = {
       LNAME: "Denney",
       SFX: "Jr",
     },
-    // only attached to an INACTIVE agency -> dropped by the active cascade
+    // Only attached to an INACTIVE agency; retained as a candidate.
     {
       PUBLIC_GUID: "2000001",
       FNAME: "Gone",
@@ -36,7 +36,7 @@ const sheets: Record<string, Array<Record<string, string>>> = {
       LNAME: "Defunct",
       SFX: "",
     },
-    // not attached to any agency -> dropped by the active cascade
+    // Not attached to any agency; retained as a candidate.
     {
       PUBLIC_GUID: "3000001",
       FNAME: "Un",
@@ -72,7 +72,7 @@ const sheets: Record<string, Array<Record<string, string>>> = {
       E_MAIL: "",
       PHONE: "",
     },
-    // INACTIVE -> not emitted as an agency
+    // INACTIVE status does not prevent candidate emission.
     {
       DEPARTMENT_NUMBER: "555555",
       DEPARTMENT_NAME: "Defunct Marshal Office",
@@ -81,6 +81,7 @@ const sheets: Record<string, Array<Record<string, string>>> = {
       CITY: "Nowhere",
       ADD_LINE1: "1 Old Rd",
       ZIP_CODE: "70000",
+      PHONE: "(512) 555-5555",
     },
   ],
   Services: [
@@ -102,8 +103,7 @@ const sheets: Record<string, Array<Record<string, string>>> = {
       ST_DATE: "1994-06-16T00:00:00.000Z",
       END_DATE: "2023-09-30T00:00:00.000Z",
     },
-    // officer 2000001 only served at the INACTIVE agency 555555 -> both the
-    // service and the officer are dropped by the active cascade
+    // Officer 2000001 has an open assignment at an INACTIVE agency.
     {
       PUBLIC_GUID: "2000001",
       DEPARTMENT_NUMBER: "555555",
@@ -165,7 +165,7 @@ const sheets: Record<string, Array<Record<string, string>>> = {
       LICENSE_ACTION: "Suspended",
       LICENSE_STATUS: "INACTIVE",
     },
-    // action for the dropped (inactive-only) officer 2000001 -> not emitted
+    // Action for the officer attached only to an INACTIVE agency.
     {
       PUBLIC_GUID: "2000001",
       LICENSE: "Jailer License",
@@ -243,13 +243,16 @@ describe("gov.tx.tcole run", () => {
     ]);
   });
 
-  it("emits one AgencyPhoneNumber per non-blank PHONE/FAX on an active agency", async () => {
+  it("emits one AgencyPhoneNumber per non-blank PHONE/FAX on each candidate agency", async () => {
     const { records } = (await transform(deps)).artifacts.find(
       (a) => a.kind === "AgencyPhoneNumbers",
     )!;
-    // 471100 (ACTIVE) has both PHONE and FAX -> two records; 201217 (ACTIVE)
-    // has a blank PHONE and no FAX -> none; 555555 is INACTIVE -> none.
-    expect(Object.keys(records).sort()).toEqual(["471100|Fax", "471100|Phone"]);
+    // Phone records follow emitted agencies regardless of STATUS.
+    expect(Object.keys(records).sort()).toEqual([
+      "471100|Fax",
+      "471100|Phone",
+      "555555|Phone",
+    ]);
     expect(records["471100|Phone"].spec).toEqual({
       agency_id: "471100",
       phone_number: "(512) 772-2442",
@@ -265,11 +268,16 @@ describe("gov.tx.tcole run", () => {
     }
   });
 
-  it("maps Officers to valid Personnel keyed by PUBLIC_GUID, skipping nameless rows", async () => {
+  it("retains personnel candidates at inactive agencies and without assignments", async () => {
     const { records } = (await transform(deps)).artifacts.find(
       (a) => a.kind === "Personnel",
     )!;
-    expect(Object.keys(records).sort()).toEqual(["1000033", "1000038"]);
+    expect(Object.keys(records).sort()).toEqual([
+      "1000033",
+      "1000038",
+      "2000001",
+      "3000001",
+    ]);
     expect(records["1000033"].spec).toEqual({
       id: "1000033",
       first_name: "Scott",
@@ -290,7 +298,7 @@ describe("gov.tx.tcole run", () => {
     const { records } = (await transform(deps)).artifacts.find(
       (a) => a.kind === "Agencies",
     )!;
-    expect(Object.keys(records).sort()).toEqual(["201217", "471100"]);
+    expect(Object.keys(records).sort()).toEqual(["201217", "471100", "555555"]);
     expect(records["471100"].spec).toEqual({
       name: "Example County Jail",
       state: "TX",
@@ -314,30 +322,38 @@ describe("gov.tx.tcole run", () => {
     }
   });
 
-  it("drops inactive agencies and personnel only attached to them (active cascade)", async () => {
+  it("emits an inactive agency with its open assignment for shared selection", async () => {
     const manifest = await transform(deps);
     const agencies = manifest.artifacts.find((a) => a.kind === "Agencies")!;
-    const personnel = manifest.artifacts.find((a) => a.kind === "Personnel")!;
-    // 555555 is INACTIVE -> not emitted
-    expect(Object.keys(agencies.records)).not.toContain("555555");
-    // 2000001 only served the inactive agency; 3000001 has no service -> dropped
-    expect(Object.keys(personnel.records)).not.toContain("2000001");
-    expect(Object.keys(personnel.records)).not.toContain("3000001");
-    expect(Object.keys(personnel.records).sort()).toEqual([
-      "1000033",
-      "1000038",
-    ]);
+    const assignments = manifest.artifacts.find(
+      (a) => a.kind === "AgencyPersonnel",
+    )!;
+    expect(agencies.records["555555"].spec).toMatchObject({
+      name: "Defunct Marshal Office",
+    });
+    expect(
+      assignments.records["2000001|555555|Jailer|Jailer License|2010-01-01|"]
+        .spec,
+    ).toEqual({
+      agency_id: "555555",
+      personnel_id: "2000001",
+      start_date: "2010-01-01",
+      end_date: null,
+      title: "Jailer",
+      license_id: "2000001|Jailer",
+    });
   });
 
   it("keys AgencyPersonnel by the identity tuple with title=APPOINTMENT", async () => {
     const { records } = (await transform(deps)).artifacts.find(
       (a) => a.kind === "AgencyPersonnel",
     )!;
-    // the inactive-agency (555555) service is dropped by the active cascade
+    // Open and ended assignments remain candidates, including inactive agencies.
     expect(Object.keys(records).sort()).toEqual([
       "1000033|471100|Jailer|Temporary Jailer License|2024-10-15|",
       "1000038|201217|Peace Officer|Peace Officer License|1994-06-16|2023-09-30",
       "1000038|471100|||2020-01-01|",
+      "2000001|555555|Jailer|Jailer License|2010-01-01|",
     ]);
     const open =
       records["1000033|471100|Jailer|Temporary Jailer License|2024-10-15|"]
@@ -403,6 +419,7 @@ describe("gov.tx.tcole run", () => {
     // one per distinct license type held by an emitted officer, canonicalized
     // (the trailing " License" dropped) so spelling variants converge
     expect(Object.keys(records).sort()).toEqual([
+      "tcole|Jailer",
       "tcole|Peace Officer",
       "tcole|Temporary Jailer",
     ]);
@@ -419,10 +436,11 @@ describe("gov.tx.tcole run", () => {
     const { records } = (await transform(deps)).artifacts.find(
       (a) => a.kind === "Licenses",
     )!;
-    // only licenses for emitted (active) officers with a non-blank LICENSE
+    // Licenses follow emitted personnel candidates with a non-blank LICENSE.
     expect(Object.keys(records).sort()).toEqual([
       "1000033|Temporary Jailer",
       "1000038|Peace Officer",
+      "2000001|Jailer",
     ]);
     expect(records["1000038|Peace Officer"].spec).toEqual({
       personnel_id: "1000038",
@@ -445,7 +463,7 @@ describe("gov.tx.tcole run", () => {
     }
   });
 
-  it("emits LicenseActions keyed by the 4-tuple, skipping dropped officers", async () => {
+  it("emits candidate LicenseActions keyed by the 4-tuple", async () => {
     const { records } = (await transform(deps)).artifacts.find(
       (a) => a.kind === "LicenseActions",
     )!;
@@ -454,6 +472,7 @@ describe("gov.tx.tcole run", () => {
       "1000033|Temporary Jailer|Suspended|2024-10-15",
       "1000038|Peace Officer|Granted|1994-06-16",
       "1000038|Peace Officer|Renewed|2000-01-01",
+      "2000001|Jailer|Granted|2010-01-01",
     ]);
     expect(records["1000038|Peace Officer|Granted|1994-06-16"].spec).toEqual({
       license_id: "1000038|Peace Officer",
@@ -470,10 +489,6 @@ describe("gov.tx.tcole run", () => {
       action_date: "2024-10-15",
       status: "INACTIVE",
     });
-    // the dropped officer 2000001's action is not emitted
-    expect(Object.keys(records)).not.toContain(
-      "2000001|Jailer License|Granted|2010-01-01",
-    );
     for (const record of Object.values(records)) {
       expect(LicenseActionSpec.safeParse(record.spec).success).toBe(true);
     }

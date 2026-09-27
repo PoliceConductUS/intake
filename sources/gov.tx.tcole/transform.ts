@@ -120,8 +120,7 @@ export const transform: SourceTransform = async ({
     throw new Error("gov.tx.tcole expects a single .xlsx workbook input.");
   }
 
-  // Agencies: STATUS = ACTIVE only (the original seed omitted the 953 inactive
-  // departments). Everything else cascades from that decision.
+  // Emit candidates; the shared import pipeline determines agency eligibility.
   log.info("tcole: reading Departments sheet");
   const departmentRows = await readXlsx(
     workbook,
@@ -129,12 +128,10 @@ export const transform: SourceTransform = async ({
     Object.values(DEPARTMENT),
   );
   const agencies = buildAgencies(departmentRows);
-  log.info(`tcole: ${Object.keys(agencies).length} active agencies`);
+  log.info(`tcole: ${Object.keys(agencies).length} agency candidates`);
   const agencyPhoneNumbers = buildAgencyPhoneNumbers(departmentRows, agencies);
 
-  // Only officers attached to an active agency are imported: an officer is kept
-  // iff some Services row links them to an emitted (active) agency. Officers with
-  // no services, or only services at inactive agencies, are dropped.
+  // Preserve service history for shared assignment-based selection.
   log.info("tcole: reading Services sheet");
   const serviceRows = await readXlsx(
     workbook,
@@ -142,21 +139,11 @@ export const transform: SourceTransform = async ({
     Object.values(SERVICE),
   );
   log.info(`tcole: ${serviceRows.length} service rows`);
-  const activeOfficerGuids = new Set<string>();
-  for (const row of serviceRows) {
-    const departmentNumber = (row[SERVICE.departmentNumber] ?? "").trim();
-    const publicGuid = (row[SERVICE.publicGuid] ?? "").trim();
-    if (publicGuid !== "" && agencies[departmentNumber] !== undefined) {
-      activeOfficerGuids.add(publicGuid);
-    }
-  }
-
   log.info("tcole: reading Officers sheet");
   const personnel = buildPersonnel(
     await readXlsx(workbook, "Officers", Object.values(OFFICER)),
-    activeOfficerGuids,
   );
-  log.info(`tcole: ${Object.keys(personnel).length} active officers`);
+  log.info(`tcole: ${Object.keys(personnel).length} personnel candidates`);
 
   // Per-license history rows (one per licensing action). Sheet is optional; a
   // workbook without it simply yields no Licenses/LicenseActions.
@@ -208,7 +195,7 @@ export const transform: SourceTransform = async ({
 };
 
 /**
- * One AgencyPhoneNumber per non-blank PHONE/FAX on an active department, keyed
+ * One AgencyPhoneNumber per non-blank PHONE/FAX on an emitted department, keyed
  * `DEPARTMENT_NUMBER|Phone` / `DEPARTMENT_NUMBER|Fax` so the id is stable and a
  * department's phone and fax are distinct records. `agency_id` carries the
  * DEPARTMENT_NUMBER source key the import resolves to the canonical agency.
@@ -253,16 +240,11 @@ function nullIfBlank(value: string | undefined): string | null {
   return text === "" || text.toLowerCase() === "null" ? null : text;
 }
 
-function buildPersonnel(
-  rows: Array<Record<string, string>>,
-  activeOfficerGuids: ReadonlySet<string>,
-): EmittedRecords {
+function buildPersonnel(rows: Array<Record<string, string>>): EmittedRecords {
   const records: EmittedRecords = {};
   for (const row of rows) {
     const publicGuid = (row[OFFICER.publicGuid] ?? "").trim();
     const firstName = nullIfBlank(row[OFFICER.firstName]);
-    // Only import officers attached to an active agency.
-    if (!activeOfficerGuids.has(publicGuid)) continue;
     // Personnel spec requires a stable id and a first name. last_name is
     // nullable: TCOLE sometimes has no last name (sentinel "NULL"), and dropping
     // those would drop real (often active) officers.
@@ -286,10 +268,6 @@ function buildAgencies(rows: Array<Record<string, string>>): EmittedRecords {
     const departmentNumber = (row[DEPARTMENT.number] ?? "").trim();
     const name = (row[DEPARTMENT.name] ?? "").trim();
     const state = (row[DEPARTMENT.state] ?? "").trim();
-    // Only active agencies are imported (the original seed omitted inactive
-    // departments). Everything downstream cascades from this filter.
-    if ((row[DEPARTMENT.status] ?? "").trim().toUpperCase() !== "ACTIVE")
-      continue;
     // Agency spec requires a non-empty name and state; the key must be stable.
     if (departmentNumber === "" || name === "" || state === "") continue;
 

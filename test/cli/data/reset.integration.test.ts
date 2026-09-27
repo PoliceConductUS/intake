@@ -16,6 +16,7 @@ import { createCommandDirectory } from "../../../src/cli/command-directory.js";
 import { buildArtifactsEnvelope } from "../../../src/cli/transform/source-transform.js";
 import { sourceStateDir } from "../../../src/cli/transform/state.js";
 import { Artifacts } from "../../../src/shared/io/Artifacts.js";
+import { persistSourceNameToCanonicalIds } from "../../../src/cli/state/source-name-to-canonical-id/index.js";
 import { appendEntry } from "../../../sources/org.policeconduct.manual/chain.js";
 import {
   dockerAvailable,
@@ -52,6 +53,16 @@ withDocker("data reset against disposable Postgres", () => {
       INTAKE_WORKSPACE: workspace,
       DATABASE_URL: db.connectionString,
     };
+    await persistSourceNameToCanonicalIds(
+      "us-census-gazetteer",
+      {
+        locationPaths: { "/zz/": { canonicalId: "/zz/" } },
+        agencies: {},
+        personnel: {},
+        agencyPersonnel: {},
+      },
+      { rootDir: workspace },
+    );
     await mkdir(path.join(workspace, "data", "mutations"), { recursive: true });
     // Deliberately unusable as a mutation: a reset must retire it, never replay it.
     await writeFile(
@@ -90,6 +101,37 @@ withDocker("data reset against disposable Postgres", () => {
                 records: {
                   "person-one": {
                     spec: { first_name: "Chris", last_name: "True" },
+                  },
+                },
+              },
+              {
+                kind: "Agencies",
+                records: {
+                  "agency-one": {
+                    spec: {
+                      name: "Test Agency",
+                      state: "TX",
+                      city: "Test City",
+                      address: "1 Main St",
+                      zip_code: "75001",
+                      location_path_id: "/zz/",
+                      latitude: 32.8,
+                      longitude: -96.8,
+                    },
+                  },
+                },
+              },
+              {
+                kind: "AgencyPersonnel",
+                records: {
+                  "assignment-one": {
+                    spec: {
+                      agency_id: "agency-one",
+                      personnel_id: "person-one",
+                      start_date: "2020-01-01",
+                      end_date: null,
+                      title: "Officer",
+                    },
                   },
                 },
               },

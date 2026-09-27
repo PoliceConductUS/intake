@@ -1,3 +1,9 @@
+import {
+  AGENCY_GRAPH_COLUMNS,
+  graphKey,
+  selectAgencyGraph,
+  type AgencyGraphRecord,
+} from "./agency-graph.js";
 import type { ApplyPropertyCorrections } from "../../../shared/io/property-corrections.js";
 import { createId } from "@paralleldrive/cuid2";
 import {
@@ -463,6 +469,44 @@ export class DataContext {
           property === "id" ? identityColumn : property,
         ) as Promise<string>,
     };
+  }
+
+  /** Resolve only selection identities/edges, then retain reached source facades. */
+  async selectAgencyGraph(
+    readExisting: (
+      incoming: readonly AgencyGraphRecord[],
+    ) => Promise<AgencyGraphRecord[]>,
+  ): Promise<Record<string, number>> {
+    const candidates: Array<{ record: AgencyGraphRecord; sourceKey: string }> =
+      [];
+    for (const [kind, columns] of AGENCY_GRAPH_COLUMNS) {
+      const facades = this.facadesByKind.get(kind);
+      if (facades === undefined) continue;
+      const identified = await Promise.all(
+        [...facades].map(async ([sourceKey, facade]) => {
+          const id = String(await facade.value(identityColumnForKind(kind)));
+          const values: Record<string, unknown> = {};
+          for (const column of columns) {
+            // Omitted fields inherit the stored graph row. Do not invoke a required
+            // FK resolver for an untouched PATCH field or invent a null end date.
+            if (facade.raw(column) !== undefined)
+              values[column] = await facade.value(column);
+          }
+          return { record: { kind, id, values }, sourceKey };
+        }),
+      );
+      for (const candidate of identified) candidates.push(candidate);
+    }
+    if (candidates.length === 0) return {};
+    const incoming = candidates.map((candidate) => candidate.record);
+    const included = selectAgencyGraph(await readExisting(incoming), incoming);
+    const omitted: Record<string, number> = {};
+    for (const { record, sourceKey } of candidates) {
+      if (included.has(graphKey(record))) continue;
+      this.facadesByKind.get(record.kind)!.delete(sourceKey);
+      omitted[record.kind] = (omitted[record.kind] ?? 0) + 1;
+    }
+    return omitted;
   }
 
   async toMutations(): Promise<DatabaseMutationEnvelope[]> {

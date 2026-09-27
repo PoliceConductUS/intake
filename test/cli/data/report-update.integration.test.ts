@@ -7,6 +7,7 @@ import { sourceStateDir } from "../../../src/cli/transform/state.js";
 import { readLatest } from "../../../sources/org.policeconduct.manual/chain.js";
 import { listEntries } from "../../../src/cli/data/chain.js";
 import { DatabaseMutations } from "../../../src/cli/import/artifacts/io/DatabaseMutations.js";
+import { persistSourceNameToCanonicalIds } from "../../../src/cli/state/source-name-to-canonical-id/index.js";
 import {
   dockerAvailable,
   startIntakeDatabase,
@@ -70,6 +71,28 @@ withDocker("manual report updates through the data CLI", () => {
     const location = (
       await db.query("select location_path_id from public.location_path")
     ).rows[0]!;
+    await db.query(
+      "insert into public.agency (id, name, state, city, address, zip_code, location_path_id, latitude, longitude, slug) values ('report-agency', 'Test Agency', 'TX', 'Test City', '1 Main St', '75001', $1, 32.8, -96.8, 'test-agency')",
+      [location.location_path_id],
+    );
+    await db.query(
+      "insert into public.personnel (id, first_name, last_name, slug) values ('report-person', 'Test', 'Officer', 'test-officer')",
+    );
+    await db.query(
+      "insert into public.agency_personnel (id, agency_id, personnel_id, start_date, end_date, title) values ('report-assignment', 'report-agency', 'report-person', '2020-01-01', null, 'Officer')",
+    );
+    await persistSourceNameToCanonicalIds(
+      source,
+      {
+        locationPaths: {},
+        agencies: {},
+        personnel: {},
+        agencyPersonnel: {
+          "report-assignment": { canonicalId: "report-assignment" },
+        },
+      },
+      { rootDir: workspace },
+    );
     const report = {
       id: "ptapguvzxequnlrueybkgcsa",
       title: "Original report title",
@@ -81,6 +104,11 @@ withDocker("manual report updates through the data CLI", () => {
       longitude: -96.8,
     };
     await acquire("Review", { ...report, case_number: "CASE-123" });
+    await acquire("ReviewPersonnel", {
+      id: "report-assignment-link",
+      review_id: report.id,
+      agency_personnel_id: "report-assignment",
+    });
     await generate();
     const initialMutation = (
       await DatabaseMutations.read((await listEntries())[1]!.filePath)
