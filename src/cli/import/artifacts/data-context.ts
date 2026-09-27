@@ -165,6 +165,24 @@ type UnifiedFacadeBackend = EntityFacadeBackend & {
   ): Promise<AddressResolution>;
 };
 
+/** Admit bounded groups into the existing same-tick IO coalescer. */
+async function resolveInBatches<T, R>(
+  items: Iterable<T>,
+  resolve: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = [];
+  let batch: Promise<R>[] = [];
+  for (const item of items) {
+    batch.push(resolve(item));
+    if (batch.length === 64) {
+      for (const result of await Promise.all(batch)) results.push(result);
+      batch = [];
+    }
+  }
+  for (const result of await Promise.all(batch)) results.push(result);
+  return results;
+}
+
 export class DataContext {
   readonly locations: LocationDataContext;
   readonly locationPaths: LocationPathDataContext;
@@ -484,8 +502,9 @@ export class DataContext {
     for (const [kind, columns] of AGENCY_GRAPH_COLUMNS) {
       const facades = this.facadesByKind.get(kind);
       if (facades === undefined) continue;
-      const identified = await Promise.all(
-        [...facades].map(async ([sourceKey, facade]) => {
+      const identified = await resolveInBatches(
+        facades,
+        async ([sourceKey, facade]) => {
           const id = String(await facade.value(identityColumnForKind(kind)));
           const values: Record<string, unknown> = {};
           for (const column of columns) {
@@ -495,7 +514,7 @@ export class DataContext {
               values[column] = await facade.value(column);
           }
           return { record: { kind, id, values }, sourceKey };
-        }),
+        },
       );
       for (const candidate of identified) candidates.push(candidate);
     }
@@ -558,11 +577,12 @@ export class DataContext {
       // converge in order, each recording its row so the next reads it (create, then
       // update|read, last-wins).
       const groups = new Map<string, RegistryFacade[]>();
-      const identifiedFacades = await Promise.all(
-        [...facades.entries()].map(async ([sourceKey, facade]) => {
+      const identifiedFacades = await resolveInBatches(
+        facades,
+        async ([sourceKey, facade]) => {
           const identity = String(await facade.value(identityColumn));
           return { identity, facade, sourceKey };
-        }),
+        },
       );
       const columns = BUSINESS_KEYS[kind];
       if (columns !== undefined) {
@@ -601,7 +621,7 @@ export class DataContext {
           urlOwners.set(url, { owner, sourceKey: item.sourceKey });
         }
       }
-      // Promise.all preserves registration order; lookup completion order must
+      // Batched resolution preserves registration order; lookup completion order must
       // not decide which source's values win for a shared identity.
       for (const { identity, facade } of identifiedFacades) {
         const group = groups.get(identity);
@@ -624,8 +644,8 @@ export class DataContext {
 
       // A single kind can hold >100k rows (tcole assignments); spreading that into
       // push() arguments overflows the call stack, so append in place.
-      const singleMutations = await Promise.all(
-        singles.map((facade) => facade.toMutation()),
+      const singleMutations = await resolveInBatches(singles, (facade) =>
+        facade.toMutation(),
       );
       for (const mutation of singleMutations) {
         mutations.push(mutation);

@@ -57,3 +57,14 @@
 - [ ] Apply reviewed migration incrementally to local; run normal transform/generate/up. Resumed acquisition education inventory is 1,769,993 records (1,769,990 after the three approved omissions); reconcile actual retained/imported counts and explain graph exclusions.
 - [ ] Verify all previous durable IDs/slugs remain; new FKs resolve; updated source fields were compared/applied; document detail counts and unavailable cases are reported. Check repeat generation is a no-op after comparison.
 - [ ] Run focused tests, typecheck/build, OpenSpec validation, independent review, and record actual results. Do not mark live task complete while blocked on document analysis or import.
+
+### Task 4: Bound shared resolution work after the live memory failure
+
+**Files:** `src/cli/import/artifacts/data-context.ts`, a local ordered batch helper, and `test/import/artifacts/data-context.test.ts` or a focused helper test.
+
+**Interfaces:** Keep DataContext public signatures and mutation/identity shapes unchanged. Admit graph candidate identity resolution, mutation identity grouping, and singleton toMutation calls in ordered groups of at most 64. Reuse the existing BatchLoader through CurrentRowReader unchanged so each group coalesces same-tick IO; do not add a competing scheduler or cache. Preserve input ordering and recurring-identity sequential processing.
+
+- [ ] Reproduce the unbounded in-flight work with a deferred real callback test (more than 64 inputs), and an ordering/error test. Existing full-source run failed at the 12 GB heap while starting per-record work over 1.77 million education records.
+- [ ] Replace whole-kind Promise.all fan-out with bounded ordered processing; do not add a per-source branch, new CLI option, fallback, or skip-on-error behavior.
+- [ ] Verify the three high-cardinality paths use the shared bound; existing convergence/selection tests and the new behavioral tests must pass. Run typecheck/build, commit scoped code, and obtain independent review.
+- [ ] Resume live generation using preserved source-name mappings; finish Task 3 apply/audit/rerun under the reviewed implementation.
