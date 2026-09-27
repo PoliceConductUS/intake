@@ -165,6 +165,30 @@ type UnifiedFacadeBackend = EntityFacadeBackend & {
   ): Promise<AddressResolution>;
 };
 
+// Keep same-tick coalescing within each batch without retaining pending work
+// for an entire kind. Read the next batch only after this one has completed.
+function resolveInBatches<Input, Output>(
+  inputs: Iterable<Input>,
+  resolve: (input: Input) => Promise<Output>,
+): Promise<Output[]> {
+  const iterator = inputs[Symbol.iterator]();
+  const results: Output[] = [];
+  function nextBatch(): Promise<Output[]> {
+    const batch: Promise<Output>[] = [];
+    while (batch.length < 1000) {
+      const next = iterator.next();
+      if (next.done) break;
+      batch.push(resolve(next.value));
+    }
+    if (batch.length === 0) return Promise.resolve(results);
+    return Promise.all(batch).then((resolved) => {
+      for (const result of resolved) results.push(result);
+      return nextBatch();
+    });
+  }
+  return Promise.resolve().then(nextBatch);
+}
+
 export class DataContext {
   readonly locations: LocationDataContext;
   readonly locationPaths: LocationPathDataContext;
@@ -500,8 +524,9 @@ export class DataContext {
     for (const [kind, columns] of AGENCY_GRAPH_COLUMNS) {
       const facades = this.facadesByKind.get(kind);
       if (facades === undefined) continue;
-      const identified = await Promise.all(
-        [...facades].map(async ([sourceKey, facade]) => {
+      const identified = await resolveInBatches(
+        facades,
+        async ([sourceKey, facade]) => {
           const id = String(await facade.value(identityColumnForKind(kind)));
           const values: Record<string, unknown> = {};
           for (const column of columns) {
@@ -511,7 +536,7 @@ export class DataContext {
               values[column] = await facade.value(column);
           }
           return { record: { kind, id, values }, sourceKey };
-        }),
+        },
       );
       for (const candidate of identified) candidates.push(candidate);
     }
@@ -574,11 +599,12 @@ export class DataContext {
       // converge in order, each recording its row so the next reads it (create, then
       // update|read, last-wins).
       const groups = new Map<string, RegistryFacade[]>();
-      const identifiedFacades = await Promise.all(
-        [...facades.entries()].map(async ([sourceKey, facade]) => {
+      const identifiedFacades = await resolveInBatches(
+        facades,
+        async ([sourceKey, facade]) => {
           const identity = String(await facade.value(identityColumn));
           return { identity, facade, sourceKey };
-        }),
+        },
       );
       const columns = BUSINESS_KEYS[kind];
       if (columns !== undefined) {
@@ -617,7 +643,7 @@ export class DataContext {
           urlOwners.set(url, { owner, sourceKey: item.sourceKey });
         }
       }
-      // Promise.all preserves registration order; lookup completion order must
+      // Batches preserve registration order; lookup completion order must
       // not decide which source's values win for a shared identity.
       for (const { identity, facade } of identifiedFacades) {
         const group = groups.get(identity);
@@ -640,8 +666,8 @@ export class DataContext {
 
       // A single kind can hold >100k rows (tcole assignments); spreading that into
       // push() arguments overflows the call stack, so append in place.
-      const singleMutations = await Promise.all(
-        singles.map((facade) => facade.toMutation()),
+      const singleMutations = await resolveInBatches(singles, (facade) =>
+        facade.toMutation(),
       );
       for (const mutation of singleMutations) {
         mutations.push(mutation);
