@@ -49,7 +49,8 @@ not execute; it builds the envelope; a separate executor applies it.
 provider, the ledger persist-writer (DIP; OCP for new entities via new facades /
 resolvers). The command-planning stage (formerly `plan-database-mutations`) slims
 into a thin flush/transaction script: open the read transaction, wire the injected
-IO into `DataContext`, and drive the facades' `toMutation` **concurrently**
+IO into `DataContext`, and drive the facades' `toMutation` **concurrently within
+each sequentially chained batch**
 (`Promise.allSettled`), which does two things at once — it **catches per-entity
 failures and aggregates them into the `DatabaseMutationsDebug` envelope**, and it
 makes **batch-loader coalescing (ADR 0016 #10) emergent**: the batched geocoder

@@ -136,3 +136,21 @@ field is null.
 - **WHEN** the transform emits a Discipline for an action with no document
   record
 - **THEN** the five order fields are null
+
+### Requirement: Chain bounded batches of record resolution
+
+Shared graph selection and mutation generation MUST start record resolution in ordered batches, chaining each batch after the previous batch completes. Resolution within a batch MUST remain concurrent and use the existing lazy memoization and same-tick BatchLoader coalescing. A failed batch MUST reject the operation without starting subsequent batches. Record ordering, recurring-identity convergence, canonical IDs, field comparisons, and emitted mutation semantics MUST remain unchanged.
+
+#### Scenario: A large kind resolves through chained batches
+
+- **WHEN** one kind contains more records than one resolution batch
+- **THEN** the next batch starts only after the preceding batch completes
+- **AND** concurrent requests within each batch use the existing coalescer
+- **AND** results retain source registration order regardless of completion order
+
+#### Scenario: A failed batch stops admission
+
+- **WHEN** a record resolution rejects
+- **THEN** the operation rejects with that failure
+- **AND** no subsequent batch starts
+- **AND** no partial mutation envelope is reported as successful

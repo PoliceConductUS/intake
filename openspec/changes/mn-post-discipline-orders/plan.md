@@ -72,3 +72,16 @@
 - [x] Repeat full-source measured construction and identify any remaining allocation failure before resuming import.
 
 **Remaining measured failure:** Subsequent full-source generation still exhausts 12 GiB in graph identity resolution. The real graph resolver with 100,000 deferred in-memory ledger reads adds approximately 409 MiB of pending promise work. A separate fix to that stage is required; no scheduling change has been implemented or declared successful. See the operational memory diagnosis.
+
+### Task 5: Chain resolution batches using the existing coalescer
+
+**Authorization:** The user proposed transforming the all-at-once work into batches using a promise chain. This supersedes the earlier hold on introducing bounded admission.
+
+**Files:** `src/cli/import/artifacts/data-context.ts`, focused concurrency/memory regression tests; no BatchLoader replacement.
+
+**Implementation:** One local helper consumes the iterable lazily, starts at most 1,000 record operations concurrently, and chains the next batch after completion. The measured deferred identity overhead is about 4 KiB per record, so a batch contributes about 4 MiB of pending identity work rather than scaling with the whole kind. No CLI setting or dependency. Apply to graph candidate identities/edges, mutation identity grouping, and singleton mutation generation. Preserve sequential recurring-identity processing.
+
+- [ ] Demonstrate failing deferred-resolution tests for all three paths, stable ordering, no later batch after failure, and same-tick current-row coalescing.
+- [ ] Implement the lazy promise chain, retaining existing facade/BatchLoader behavior and avoiding an eagerly constructed per-record promise queue.
+- [ ] Pass focused tests, the memory regression, typecheck/build/OpenSpec validation, and independent review.
+- [ ] Rerun instrumented full-source generation under the normal heap; complete the authorized local import and preservation audit once generation succeeds.

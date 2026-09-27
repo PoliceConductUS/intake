@@ -49,5 +49,6 @@
 - [x] 5.4 Diagnose construction memory failure and reuse context-owned resolver
       backends; preserve existing tick-based coalescing. Verify the fixed-heap
       regression, full-source construction, and full test suite.
-- [ ] 5.5 Resolve the separately measured graph identity-resolution memory
-      failure before completing generation and the live import audit.
+- [ ] 5.5 Chain bounded batches for shared graph and mutation resolution,
+      retaining existing same-tick coalescing; verify full-source generation
+      before completing the live import audit.

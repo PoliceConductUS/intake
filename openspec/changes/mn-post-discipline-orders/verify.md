@@ -47,8 +47,18 @@
   failed at 12 GiB during graph identity resolution, after successful 8.2 GiB
   construction. A controlled 100,000-record probe measured about 409 MiB of
   additional pending identity work. No education identity files or database
-  mutations were written. This remaining failure is unresolved; the live
-  import is not complete.
+  mutations were written.
+- User-authorized promise-chain batching is implemented in `2c1a4d0`. Graph
+  identity resolution, mutation identity grouping, and singleton mutation
+  resolution lazily admit 1,000 records per batch. Existing tick coalescing and
+  sequential recurring-identity convergence are retained. Seven regression
+  tests failed on the previous whole-kind admission; all 125 focused tests now
+  pass, including cross-batch convergence and the construction memory test.
+  Typecheck, build, formatting, and independent review passed.
+- The controlled 100,000-record graph probe now admits 1,000 pending lookups
+  instead of 100,000. Additional heap at that checkpoint decreased from about
+  409 MiB to 4 MiB. This establishes bounded pending work; the full-source
+  generation and import audit are still in progress.
 - Live data generate/up and post-import identity/count/rerun audit remain pending.
 - No full legacy linked seed load was performed. Migration history and dedicated
   real-database fixtures were exercised; no seed records were added or edited.
