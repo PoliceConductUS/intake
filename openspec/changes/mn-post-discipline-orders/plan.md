@@ -22,14 +22,14 @@
 
 ### Task 1: Schema and shared contracts
 
-**Files:** create `supabase/migrations/20260927000000_personnel_discipline_education.sql`; modify `scripts/lib/entity-spec-generator.ts`, generated IO/mutations/row types, `src/cli/import/artifacts/agency-graph.ts`; add migration integration tests and extend `test/import/artifacts/agency-graph.test.ts`.
+**Files:** create `supabase/migrations/20260927000001_personnel_discipline_education.sql`; modify `scripts/lib/entity-spec-generator.ts`, generated IO/mutations/row types, `src/cli/import/artifacts/agency-graph.ts`; add migration integration tests and extend `test/import/artifacts/agency-graph.test.ts`.
 
 **Interfaces:** Produce required `DisciplineSpec.personnel_id` and `.licensing_authority_id`, optional nullable `.document_url`; `PersonnelEducationSpec` and plural artifact `PersonnelEducations`.
 
 - [ ] Write failing schema/graph tests. Test old action ID preservation, unique person/issuer backfill, ambiguous backfill rollback, valid/new required FKs, and personnel traversal without another agency.
 - [ ] Run the focused tests and record the expected RED.
 - [ ] Add migration with required person/issuer FKs after checking/backfilling unique existing relationships. Retain old relationship tables/rows. Add nullable nonblank document_url.
-- [ ] Create personnel_education with explicit text id PK, required personnel_id FK and nonblank name; nullable completion_date date, credits numeric, sponsor_name text, sponsor_instructor text; existing timestamp/RLS conventions. Add generated descriptor `{recordKind: "PersonnelEducation", table: "personnel_education", createRequired: ["id"]}`. Add graph edges `{parent: "Personnel", child: "Discipline", holder: "child", field: "personnel_id"}` and corresponding PersonnelEducation edge.
+- [ ] Create personnel_education with explicit text id PK, required personnel_id FK and nonblank name; nullable completion_date date, credits numeric, sponsor_name text, sponsor_instructor text; existing timestamp/RLS conventions. Omit the three source completions with null names and report each source ID and reason. Add generated descriptor `{recordKind: "PersonnelEducation", table: "personnel_education", createRequired: ["id"]}`. Add graph edges `{parent: "Personnel", child: "Discipline", holder: "child", field: "personnel_id"}` and corresponding PersonnelEducation edge.
 - [ ] Apply all migrations in an isolated test database, generate contracts from that schema, and run focused tests/typecheck. Do not reset or mutate the audited local database.
 - [ ] Commit the scoped schema/contracts/tests and report RED/GREEN evidence.
 
@@ -54,6 +54,6 @@
 - [ ] Back up audited local database and record pre-import IDs/slugs/counts. Verify target host 127.0.0.1 port 54322 before any write.
 - [ ] Resume acquisition. Download available documents and report unavailable ones. Missing analysis credentials must be reported; do not fabricate analysis or silently claim completion.
 - [ ] Review downloaded-order extraction against source text. Preserve model/prompt/hash provenance for populated fields.
-- [ ] Apply reviewed migration incrementally to local; run normal transform/generate/up. Education source inventory is 1,769,448 records; reconcile actual retained/imported counts and explain graph exclusions.
+- [ ] Apply reviewed migration incrementally to local; run normal transform/generate/up. Resumed acquisition education inventory is 1,769,993 records (1,769,990 after the three approved omissions); reconcile actual retained/imported counts and explain graph exclusions.
 - [ ] Verify all previous durable IDs/slugs remain; new FKs resolve; updated source fields were compared/applied; document detail counts and unavailable cases are reported. Check repeat generation is a no-op after comparison.
 - [ ] Run focused tests, typecheck/build, OpenSpec validation, independent review, and record actual results. Do not mark live task complete while blocked on document analysis or import.

@@ -37,6 +37,8 @@ ledger using courseId. Personnel MUST resolve from contactId. Missing identity
 or conflicting duplicate source IDs MUST fail loudly. Nullable source values
 remain null. Education and discipline MUST be included when their personnel
 is reached through an included agency, without pulling in another agency.
+Course name MUST be nonblank. The source MUST omit unnamed completions and
+report every omitted courseId and reason, preserving their raw source records.
 
 #### Scenario: Education survives repeat import
 

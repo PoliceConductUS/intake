@@ -81,6 +81,12 @@ PDFs and analysis provenance. Unavailable documents retain source action/date/
 URL with null unavailable details and a visible skip report. Analysis errors
 other than document unavailability remain failures.
 
+For this import the user explicitly chose Codex review of the downloaded orders
+instead of configuring an Anthropic key. Review receipts identify
+`codex-document-review`, retain page-specific supporting passages, and populate
+the existing five-field analysis shape. They must not claim Anthropic analysis.
+The acquired document JSON keeps the original URL, PDF hash, pages, and text.
+
 - The analysis is model output. It is constrained to the document's language,
   every field is nullable, and the full text plus the PDF are preserved beside
   it, so a reader can check any field against the source.

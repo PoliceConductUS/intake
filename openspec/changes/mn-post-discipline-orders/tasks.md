@@ -38,9 +38,9 @@
 
 ## 5. Person-level discipline and education
 
-- [ ] 5.1 Add and validate the person/issuer migration, education schema, generated
+- [x] 5.1 Add and validate the person/issuer migration, education schema, generated
       contracts, and personnel inclusion edges. Preserve all existing IDs/rows.
-- [ ] 5.2 Transform person-level discipline and education, preserve case identities,
+- [x] 5.2 Transform person-level discipline and education, preserve case identities,
       reject conflicting duplicates/missing identities, and remove inferred new
       assignment links. Prove behavior with focused tests.
 - [ ] 5.3 Validate local migration/import, preserve identity snapshots, and audit
