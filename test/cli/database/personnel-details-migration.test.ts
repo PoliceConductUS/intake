@@ -127,3 +127,32 @@ test.each(["ambiguous", "missing"])(
     ).toEqual([]);
   },
 );
+
+test("rejects conflicting assignment and license personnel naming the action and rolling back schema", async () => {
+  await db.query("begin");
+  try {
+    await db.query(
+      "update agency_personnel set license_id='other-license' where id='assignment'",
+    );
+    await expect(migrate()).rejects.toThrow(/discipline.*old-action/i);
+  } finally {
+    await db.query("rollback");
+  }
+  expect((await db.query("select id from discipline")).rows).toEqual([
+    { id: "old-action" },
+  ]);
+  expect(
+    (
+      await db.query(
+        "select column_name from information_schema.columns where table_name='discipline' and column_name='personnel_id'",
+      )
+    ).rows,
+  ).toEqual([]);
+  expect(
+    (
+      await db.query(
+        "select license_id from agency_personnel where id='assignment'",
+      )
+    ).rows,
+  ).toEqual([{ license_id: "license" }]);
+});

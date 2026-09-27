@@ -19,7 +19,8 @@ begin
     group by d.id
     having count(distinct ap.personnel_id) <> 1
       or count(distinct al.licensing_authority_id) <> 1
-      or count(*) filter (where ap.personnel_id is null or al.licensing_authority_id is null) > 0
+      or count(*) filter (where ap.personnel_id is null or al.licensing_authority_id is null
+        or ap.personnel_id is distinct from l.personnel_id) > 0
   ) invalid;
   if invalid_ids is not null then
     raise exception 'Cannot resolve discipline person/issuer identity: %', invalid_ids;
