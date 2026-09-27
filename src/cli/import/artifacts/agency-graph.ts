@@ -195,6 +195,7 @@ export function overlayAgencyGraph(
 export function selectAgencyGraph(
   existing: readonly AgencyGraphRecord[],
   incoming: readonly AgencyGraphRecord[],
+  additionalAgencyRootIds: readonly string[] = [],
 ): Set<string> {
   const records = overlayAgencyGraph(existing, incoming);
   const byKind = new Map<string, AgencyGraphRecord[]>();
@@ -253,6 +254,8 @@ export function selectAgencyGraph(
         include(graphKey({ kind: AGENCY_GRAPH_ROOT.kind, id: agencyId }));
     }
   }
+  for (const id of additionalAgencyRootIds)
+    include(graphKey({ kind: AGENCY_GRAPH_ROOT.kind, id }));
   for (let i = 0; i < queue.length; i++) {
     for (const child of adjacency.get(queue[i]!) ?? []) include(child);
   }

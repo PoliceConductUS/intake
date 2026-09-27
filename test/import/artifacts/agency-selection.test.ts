@@ -1,5 +1,10 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { createSourceNameToCanonicalIdLedger } from "../../../src/cli/state/source-name-to-canonical-id/index.js";
 import { expect, test } from "vitest";
 import { DataContext } from "../../../src/cli/import/artifacts/data-context.js";
+import { InitialAgencyRoots } from "../../../src/shared/io/index.js";
 import { INTAKE_API_VERSION } from "../../../src/shared/io/import-types.js";
 import { fakeSourceNameLedger } from "../../cli/state/fake-source-name-ledger.js";
 import { EmptyDatabaseClient } from "../../cli/database/empty-database-client.js";
@@ -67,4 +72,32 @@ test("no source end date is not converted to a null qualification during graph p
   const omitted = await data.selectAgencyGraph(async () => []);
   expect(omitted).toEqual({ Agency: 1, Personnel: 1, AgencyPersonnel: 1 });
   expect(await data.toMutations()).toEqual([]);
+});
+
+test("initial roots match source names only within their namespace and use resolved canonical IDs", async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), "initial-root-identity-"));
+  try {
+    const data = new DataContext({
+      client: new EmptyDatabaseClient(),
+      ledger: createSourceNameToCanonicalIdLedger({ rootDir }),
+    });
+    add(data, "Agency", "historic", { name: "Historical PD", state: "TX" });
+    add(data, "Agency", "unlisted", { name: "Unlisted PD", state: "TX" });
+    data.facadeFromSource("Agency", {
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "another.source",
+      name: "historic",
+      spec: { name: "Other PD", state: "TX" },
+    });
+    const omitted = await data.selectAgencyGraph(
+      async () => [],
+      InitialAgencyRoots.new({
+        metadata: { name: "initial", namespace: "test.graph" },
+        spec: { agencySourceNames: ["historic", "absent"] },
+      }),
+    );
+    expect(omitted).toEqual({ Agency: 2 });
+  } finally {
+    await rm(rootDir, { recursive: true, force: true });
+  }
 });

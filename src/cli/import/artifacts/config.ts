@@ -1,4 +1,7 @@
-import { readExistingAgencyGraph } from "../../database/agency-graph.js";
+import {
+  agencyTableIsEmpty,
+  readExistingAgencyGraph,
+} from "../../database/agency-graph.js";
 import { loadPropertyCorrections } from "../../../shared/io/property-corrections.js";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
@@ -26,6 +29,7 @@ import {
   type ArtifactsEnvelope,
 } from "../../../shared/io/Artifacts.js";
 import {
+  loadInitialAgencyRoots,
   LocationPathGeometries,
   LocationPathGeometry,
 } from "../../../shared/io/index.js";
@@ -649,8 +653,16 @@ async function writeDatabaseMutationsStage(
     });
 
     addSourceFacades(dataContext, artifacts);
-    const omitted = await dataContext.selectAgencyGraph((incoming) =>
-      readExistingAgencyGraph(client, incoming),
+    const initialRoots =
+      context.workspaceRoot !== undefined && (await agencyTableIsEmpty(client))
+        ? await loadInitialAgencyRoots(
+            context.workspaceRoot,
+            artifacts.metadata.namespace,
+          )
+        : undefined;
+    const omitted = await dataContext.selectAgencyGraph(
+      (incoming) => readExistingAgencyGraph(client, incoming),
+      initialRoots,
     );
     logger?.info(
       { omitted },

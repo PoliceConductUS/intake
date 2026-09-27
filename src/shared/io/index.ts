@@ -99,3 +99,12 @@ export type {
 export { PropertyCorrection } from "./PropertyCorrection.js";
 export { loadPropertyCorrections } from "./property-corrections.js";
 export type { ApplyPropertyCorrections } from "./property-corrections.js";
+export { InitialAgencyRoots } from "./InitialAgencyRoots.js";
+export type {
+  InitialAgencyRootsEnvelope,
+  InitialAgencyRootsInput,
+} from "./InitialAgencyRoots.js";
+export {
+  initialAgencyRootsDirectory,
+  loadInitialAgencyRoots,
+} from "./initial-agency-roots.js";

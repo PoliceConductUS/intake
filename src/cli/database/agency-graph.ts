@@ -13,6 +13,16 @@ import {
   type AgencyGraphRecord,
 } from "../import/artifacts/agency-graph.js";
 
+/** Bootstrap admission depends on the whole agency table, not candidate matches. */
+export async function agencyTableIsEmpty(
+  client: DatabaseClient,
+): Promise<boolean> {
+  return (
+    rowsFromResult(await client.query("select id from public.agency limit 1"))
+      .length === 0
+  );
+}
+
 /** Read only current candidates, their inclusion ancestors, and root witnesses. */
 export async function readExistingAgencyGraph(
   client: DatabaseClient,

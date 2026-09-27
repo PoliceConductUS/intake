@@ -1,3 +1,4 @@
+import type { InitialAgencyRootsEnvelope } from "../../../shared/io/index.js";
 import {
   AGENCY_GRAPH_COLUMNS,
   graphKey,
@@ -476,6 +477,7 @@ export class DataContext {
     readExisting: (
       incoming: readonly AgencyGraphRecord[],
     ) => Promise<AgencyGraphRecord[]>,
+    initialRoots?: InitialAgencyRootsEnvelope,
   ): Promise<Record<string, number>> {
     const candidates: Array<{ record: AgencyGraphRecord; sourceKey: string }> =
       [];
@@ -499,7 +501,37 @@ export class DataContext {
     }
     if (candidates.length === 0) return {};
     const incoming = candidates.map((candidate) => candidate.record);
-    const included = selectAgencyGraph(await readExisting(incoming), incoming);
+    const rootSourceKeys = new Set(
+      initialRoots?.spec.agencySourceNames.map((name) =>
+        [
+          INTAKE_API_VERSION,
+          initialRoots.metadata.namespace,
+          "Agency",
+          name,
+        ].join(":"),
+      ),
+    );
+    const rootIds = candidates
+      .filter(
+        ({ record, sourceKey }) =>
+          record.kind === "Agency" && rootSourceKeys.has(sourceKey),
+      )
+      .map(({ record }) => record.id);
+    if (initialRoots !== undefined) {
+      this.logger?.debug?.(
+        {
+          namespace: initialRoots.metadata.namespace,
+          configuredRoots: rootSourceKeys.size,
+          matchedRoots: rootIds.length,
+        },
+        "Initial agency roots resolved against incoming candidates.",
+      );
+    }
+    const included = selectAgencyGraph(
+      await readExisting(incoming),
+      incoming,
+      rootIds,
+    );
     const omitted: Record<string, number> = {};
     for (const { record, sourceKey } of candidates) {
       if (included.has(graphKey(record))) continue;

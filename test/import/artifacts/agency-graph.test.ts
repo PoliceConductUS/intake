@@ -232,3 +232,37 @@ test("a later dataset retains updates to stored history without selecting new de
     ),
   ).toEqual(["Agency:a", "AgencyPersonnel:job", "Personnel:p"]);
 });
+
+test("explicit roots traverse historical descendants, union ordinary roots, and never fabricate missing agencies", () => {
+  const incoming = [
+    node("Agency", "historical"),
+    node("Agency", "open"),
+    node("Agency", "unlisted"),
+    node("AgencyPersonnel", "past-job", {
+      agency_id: "historical",
+      personnel_id: "past-person",
+      end_date: "2000-01-01",
+    }),
+    node("Personnel", "past-person"),
+    node("License", "past-license", { personnel_id: "past-person" }),
+    node("LicenseAction", "past-action", { license_id: "past-license" }),
+    node("AgencyPersonnel", "open-job", {
+      agency_id: "open",
+      personnel_id: "open-person",
+      end_date: null,
+    }),
+    node("Personnel", "open-person"),
+  ];
+  expect(
+    [...selectAgencyGraph([], incoming, ["historical", "absent"])].sort(),
+  ).toEqual([
+    "Agency:historical",
+    "Agency:open",
+    "AgencyPersonnel:open-job",
+    "AgencyPersonnel:past-job",
+    "License:past-license",
+    "LicenseAction:past-action",
+    "Personnel:open-person",
+    "Personnel:past-person",
+  ]);
+});
