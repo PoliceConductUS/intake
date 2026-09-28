@@ -15,6 +15,7 @@
     "generate:envelope-types": "tsx scripts/generate-envelope-types.ts",
     "setup": "bash scripts/bootstrap-dev.sh",
     "doctor": "bash scripts/bootstrap-dev.sh --check",
+    "assert:provenance": "tsx scripts/assert-provenance-invariant.ts",
     "cli": "tsx src/cli/index.ts",
     "link-seed": "bash scripts/link-seed.sh",
     "format": "prettier --write \"**/*.{json,md,ts,yml,yaml}\"",
