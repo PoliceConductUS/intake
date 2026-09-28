@@ -262,6 +262,48 @@ describe("collectDocuments", () => {
     expect(document.analysis).toEqual(analysis);
   });
 
+  it("uses a Codex-reviewed cache entry with page-specific evidence", async () => {
+    const fixture = await makeFixture();
+    const sha256 = await import("node:crypto").then(({ default: crypto }) =>
+      crypto.createHash("sha256").update(pdfBytes).digest("hex"),
+    );
+    const receipt = {
+      method: "codex-document-review",
+      reviewedAt: "2026-09-28T12:00:00.000Z",
+      fieldEvidence: {
+        allegation: [{ page: 1, excerpt: "engaging in sexual harassment" }],
+        violation: [{ page: 1, excerpt: "violating Minn. R. 6700.1600" }],
+        finding: [{ page: 3, excerpt: "Tracy engaged in sexual harassment" }],
+        chief_action: [{ page: 3, excerpt: "LLPD placed Tracy on unpaid leave for 6 days" }],
+        sanction: [{ page: 1, excerpt: "license ... REVOKED ... STAYED for 6 years" }],
+      },
+    };
+    const cacheDir = path.join(fixture.statePath, "documents");
+    await mkdir(cacheDir, { recursive: true });
+    await writeFile(
+      path.join(cacheDir, `${sha256}.json`),
+      JSON.stringify({
+        analysis: {
+          model: "codex-document-review",
+          promptVersion: 1,
+          output: analysis,
+          reviewReceipt: receipt,
+        },
+      }),
+    );
+
+    const d = deps(fixture);
+    await collectDocuments(d);
+
+    expect(d.analyzer.analyze).not.toHaveBeenCalled();
+    const [document] = await documentsOn(fixture.sourceDir);
+    expect(document.analyzedWith).toEqual({
+      model: "codex-document-review",
+      promptVersion: 1,
+    });
+    expect(document.reviewReceipt).toEqual(receipt);
+  });
+
   it("banks every document's text before analyzing, so a keyless run leaves nothing to re-extract", async () => {
     const fixture = await makeFixture();
     const keyless = {

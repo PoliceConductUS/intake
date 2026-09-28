@@ -76,6 +76,14 @@ and sponsor_instructor. Nullable source fields stay nullable. This models the
 source completion record, without inventing a shared course catalog. Both
 education and discipline are reached from Personnel in the inclusion graph.
 
+The user approved importing every MN POST license value. The roster supplies a
+person's primary license, while `licenses.POSTLicenseList` in the detail response
+can contain additional types for that same person. Transform both surfaces into
+the existing AuthorityLicense and License entities, keyed by person and
+normalized type. Preserve source status and original issue date, including
+cancelled records; do not add personnel or assignments from the additional type.
+Repeated identical person/type rows coalesce, and conflicting values fail.
+
 The local import uses the normal transform/generate/up pipeline. Preserve raw
 PDFs and analysis provenance. Unavailable documents retain source action/date/
 URL with null unavailable details and a visible skip report. Analysis errors

@@ -1,4 +1,5 @@
 import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { openSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,6 +8,7 @@ import {
   downloadGazetteerSources,
   gazetteerSourceUrls,
 } from "../../../sources/us-census-gazetteer/acquire/download.js";
+import { verifyZipContentsFromFd } from "../../../src/cli/transform/parse/zip.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {
@@ -58,6 +60,11 @@ describe("downloadGazetteerSources", () => {
   const fixture = fileURLToPath(
     new URL("../../fixtures/gazetteer/sample.zip", import.meta.url),
   );
+  it("verifies ZIP contents through an already-open file descriptor", async () => {
+    const fd = openSync(fixture, "r");
+    await expect(verifyZipContentsFromFd(fd)).resolves.toBeUndefined();
+  });
+
   it("writes each url to disk under its filename", async () => {
     const dir = await makeDir();
     const fetchBytes = vi.fn(async (url: string) =>

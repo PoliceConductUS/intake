@@ -111,7 +111,24 @@ const detail0031 = JSON.stringify({
       complaintId: "cmp-001",
     },
   ],
-  licenses: { POSTLicenseList: [{ contactId: "0031" }] },
+  licenses: {
+    POSTLicenseList: [
+      {
+        contactId: "0031",
+        licenseId: "a2jLIC31",
+        licenseType: "Peace Officer",
+        status: "Active",
+        originalLicenseIssueDate: "2010-05-01",
+      },
+      {
+        contactId: "0031",
+        licenseId: "a2jPT31",
+        licenseType: "Part Time Peace Officer",
+        status: "Cancelled",
+        originalLicenseIssueDate: "2009-10-01",
+      },
+    ],
+  },
   activeEmployment: [
     {
       rosterId: "a2m31ALPHA",
@@ -126,7 +143,17 @@ const detail0031 = JSON.stringify({
   ],
 });
 const detail0032 = JSON.stringify({
-  licenses: { POSTLicenseList: [{ contactId: "0032" }] },
+  licenses: {
+    POSTLicenseList: [
+      {
+        contactId: "0032",
+        licenseId: "a2jLIC32",
+        licenseType: "Peace Officer",
+        status: "Active",
+        originalLicenseIssueDate: "2015-03-15",
+      },
+    ],
+  },
   activeEmployment: [
     { rosterId: "a2m32ALPHA", agencyName: "Alpha Police Dept." },
   ],
@@ -135,7 +162,17 @@ const detail0032 = JSON.stringify({
 // 0099's order links to a document the site no longer serves, so acquire wrote
 // no document record for it: its order fields stay null.
 const detail0099 = JSON.stringify({
-  licenses: { POSTLicenseList: [{ contactId: "0099" }] },
+  licenses: {
+    POSTLicenseList: [
+      {
+        contactId: "0099",
+        licenseId: "a2jLIC99",
+        licenseType: "Peace Officer",
+        status: "Active",
+        originalLicenseIssueDate: "2012-01-01",
+      },
+    ],
+  },
   activeEmployment: [
     { rosterId: "a2m99ALPHA", agencyName: "Alpha Police Dept." },
   ],
@@ -360,7 +397,14 @@ describe("mn-post run", () => {
       await runFixture(),
       "AuthorityLicenses",
     );
-    expect(Object.keys(authorityLicenses)).toEqual(["mn-post|Peace Officer"]);
+    expect(Object.keys(authorityLicenses).sort()).toEqual([
+      "mn-post|Part Time Peace Officer",
+      "mn-post|Peace Officer",
+    ]);
+    expect(authorityLicenses["mn-post|Part Time Peace Officer"].spec).toEqual({
+      licensing_authority_id: "mn-post",
+      name: "Part Time Peace Officer",
+    });
     expect(authorityLicenses["mn-post|Peace Officer"].spec).toEqual({
       licensing_authority_id: "mn-post",
       name: "Peace Officer",
@@ -370,6 +414,7 @@ describe("mn-post run", () => {
   it("maps Licenses (holdings) keyed by contactId|canonical-type", async () => {
     const licenses = recordsOf(await runFixture(), "Licenses");
     expect(Object.keys(licenses).sort()).toEqual([
+      "0031|Part Time Peace Officer",
       "0031|Peace Officer",
       "0032|Peace Officer",
       "0099|Peace Officer",
@@ -380,8 +425,70 @@ describe("mn-post run", () => {
       status: "Active",
       first_awarded: "2010-05-01",
     });
+    expect(licenses["0031|Part Time Peace Officer"].spec).toEqual({
+      personnel_id: "0031",
+      authority_license_id: "mn-post|Part Time Peace Officer",
+      status: "Cancelled",
+      first_awarded: "2009-10-01",
+    });
     for (const record of Object.values(licenses)) {
       expect(LicenseSpec.safeParse(record.spec).success).toBe(true);
+    }
+  });
+
+  it("fails on conflicting person/type license records", async () => {
+    const duplicate = path.join(sourceDir, "duplicate-license.detail.json");
+    try {
+      await writeFile(
+        duplicate,
+        JSON.stringify({
+          licenses: {
+            POSTLicenseList: [
+              {
+                contactId: "0031",
+                licenseId: "another-source-id",
+                licenseType: "Peace Officer",
+                status: "Revoked",
+                originalLicenseIssueDate: "2010-05-01",
+              },
+            ],
+          },
+        }),
+      );
+
+      await expect(runFixture()).rejects.toThrow(
+        /conflicting license another-source-id for contact 0031, type Peace Officer/,
+      );
+    } finally {
+      await rm(duplicate, { force: true });
+    }
+  });
+
+  it("fails when a detail license references a person outside the included roster graph", async () => {
+    const unknown = path.join(sourceDir, "unknown-license.detail.json");
+    try {
+      await writeFile(
+        unknown,
+        JSON.stringify({
+          licenses: {
+            POSTLicenseList: [
+              {
+                contactId: "9999",
+                licenseId: "a2jLIC9999",
+                licenseType: "Peace Officer",
+                status: "Active",
+                originalLicenseIssueDate: "2020-01-01",
+              },
+            ],
+          },
+        }),
+      );
+
+      await expect(runFixture()).rejects.toThrow(
+        /license a2jLIC9999: unknown person contactId 9999/,
+      );
+    } finally {
+      await rm(unknown, { force: true });
     }
   });
 
@@ -421,8 +528,10 @@ describe("mn-post run", () => {
       const roster = JSON.parse(alphaRoster);
       roster.push({
         ...roster[0],
-        licenseId: "second-license",
-        licenseType: "Part-Time Peace Officer",
+        licenseId: "a2jPT31",
+        licenseType: "Part Time Peace Officer",
+        status: "Cancelled",
+        originalLicenseIssueDate: "2009-10-01",
       });
       const rosterFile = path.join(
         dir,

@@ -1,7 +1,13 @@
 import {
+  close as closeFd,
+  fstat as fstatFd,
+  open as openFd,
+  read as readFd,
+  type Stats,
+} from "node:fs";
+import {
   copyFile,
   mkdir,
-  open,
   readdir,
   rename,
   rm,
@@ -10,7 +16,7 @@ import {
 } from "node:fs/promises";
 import path from "node:path";
 import type { GazetteerLinks } from "./discovery.js";
-import { verifyZipContents } from "../../../src/cli/transform/parse/zip.js";
+import { verifyZipContentsFromFd } from "../../../src/cli/transform/parse/zip.js";
 
 export type DownloadLogger = { info: (message: string) => void };
 export type FetchBytes = (url: string) => Promise<Uint8Array>;
@@ -66,27 +72,48 @@ async function matchesRemoteZip(
   file: string,
   remote: RemoteTail,
 ): Promise<boolean> {
-  if ((await stat(file)).size !== remote.totalSize) return false;
   const tail = Buffer.from(remote.bytes);
   if (!containsCentralDirectory(tail, remote.totalSize)) return false;
-  const handle = await open(file, "r");
+  const fd = await new Promise<number>((resolve, reject) => {
+    openFd(file, "r", (error, openedFd) => {
+      if (error) reject(error);
+      else resolve(openedFd);
+    });
+  });
+  let descriptorTransferred = false;
   try {
+    const stats = await new Promise<Stats>((resolve, reject) => {
+      fstatFd(fd, (error, value) => {
+        if (error) reject(error);
+        else resolve(value);
+      });
+    });
+    if (stats.size !== remote.totalSize) return false;
     const local = Buffer.alloc(tail.length);
-    const { bytesRead } = await handle.read(
-      local,
-      0,
-      local.length,
-      remote.totalSize - tail.length,
-    );
+    const bytesRead = await new Promise<number>((resolve, reject) => {
+      readFd(
+        fd,
+        local,
+        0,
+        local.length,
+        remote.totalSize - tail.length,
+        (error, count) => (error ? reject(error) : resolve(count)),
+      );
+    });
     if (bytesRead !== tail.length || !local.equals(tail)) return false;
+    try {
+      descriptorTransferred = true;
+      await verifyZipContentsFromFd(fd);
+      return true;
+    } catch {
+      return false;
+    }
   } finally {
-    await handle.close();
-  }
-  try {
-    await verifyZipContents(file);
-    return true;
-  } catch {
-    return false;
+    if (!descriptorTransferred) {
+      await new Promise<void>((resolve, reject) => {
+        closeFd(fd, (error) => (error ? reject(error) : resolve()));
+      });
+    }
   }
 }
 

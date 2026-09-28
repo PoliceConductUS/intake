@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { access, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type {
   AcquireDeps,
@@ -7,8 +7,8 @@ import type {
 import { readXlsx } from "../../src/cli/transform/read-xlsx.js";
 import { deriveArrest, type ArrestRow, type Charge } from "./arrest.js";
 
-// acquire owns the read half (ADR 0032): read the FOIA arrest workbook (its path
-// in IRVING_ARRESTS_FILE, never committed — it carries arrestee PII), join each
+// acquire owns the read half (ADR 0032): read the FOIA arrest workbook from the
+// source workspace (never committed — it carries arrestee PII), join each
 // arrest to its primary charge, and write a scrubbed normalized record per
 // arrest. Only the arresting officer's name and derived breakdown dimensions
 // survive; booking name/address never leave this phase.
@@ -17,10 +17,23 @@ export const acquire: SourceAcquire = async ({
   env,
   logger,
 }: AcquireDeps): Promise<void> => {
-  const file = env.IRVING_ARRESTS_FILE;
-  if (file === undefined || file.trim() === "") {
+  const workspace = env.INTAKE_WORKSPACE_TEST ?? env.INTAKE_WORKSPACE;
+  if (workspace === undefined || workspace.trim() === "") {
     throw new Error(
-      "gov.irvingtx.arrests: IRVING_ARRESTS_FILE is required (path to the FOIA arrest workbook).",
+      "gov.irvingtx.arrests: INTAKE_WORKSPACE is required to locate the source workbook.",
+    );
+  }
+  const file = path.join(
+    workspace,
+    "gov.irvingtx.arrests",
+    "source",
+    "arrests.xlsx",
+  );
+  try {
+    await access(file);
+  } catch {
+    throw new Error(
+      `gov.irvingtx.arrests: required FOIA workbook not found at ${file}.`,
     );
   }
 

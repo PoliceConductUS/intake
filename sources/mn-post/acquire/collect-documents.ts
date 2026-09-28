@@ -30,6 +30,11 @@ export type OrderAnalysis = {
   chief_action: string | null;
   sanction: string | null;
 };
+export type CodexDocumentReviewReceipt = {
+  method: "codex-document-review";
+  reviewedAt: string;
+  fieldEvidence: Record<keyof OrderAnalysis, Array<{ page: number; excerpt: string }>>;
+};
 export type OrderAnalyzer = {
   model: string;
   promptVersion: number;
@@ -48,6 +53,7 @@ export type DisciplinaryDocument = {
   text: string;
   analysis: OrderAnalysis;
   analyzedWith: { model: string; promptVersion: number };
+  reviewReceipt?: CodexDocumentReviewReceipt;
 };
 
 export type SkippedDocument = {
@@ -58,7 +64,12 @@ export type SkippedDocument = {
 
 type DocumentCache = {
   text?: DocumentText;
-  analysis?: { model: string; promptVersion: number; output: OrderAnalysis };
+  analysis?: {
+    model: string;
+    promptVersion: number;
+    output: OrderAnalysis;
+    reviewReceipt?: CodexDocumentReviewReceipt;
+  };
 };
 
 export type CollectDocumentsDeps = {
@@ -166,10 +177,16 @@ export async function collectDocuments({
     const position = `[${index + 1}/${extracted.length}]`;
     const cache = (await readJsonIfExists<DocumentCache>(entry.cachePath))!;
     const text = joinPages(cache.text!);
+    const isCodexReview =
+      cache.analysis?.model === "codex-document-review" &&
+      cache.analysis.promptVersion === analyzer.promptVersion &&
+      cache.analysis.reviewReceipt?.method === "codex-document-review" &&
+      cache.analysis.reviewReceipt.fieldEvidence !== undefined;
     if (
       cache.analysis === undefined ||
-      cache.analysis.model !== analyzer.model ||
-      cache.analysis.promptVersion !== analyzer.promptVersion
+      (!isCodexReview &&
+        (cache.analysis.model !== analyzer.model ||
+          cache.analysis.promptVersion !== analyzer.promptVersion))
     ) {
       logger.info(
         `mn-post: ${position} analyzing ${describeActions(entry.reference.actions)}`,
@@ -196,6 +213,9 @@ export async function collectDocuments({
         model: cache.analysis.model,
         promptVersion: cache.analysis.promptVersion,
       },
+      ...(cache.analysis.reviewReceipt === undefined
+        ? {}
+        : { reviewReceipt: cache.analysis.reviewReceipt }),
     };
     await writeJson(
       path.join(documentsDir, `${documentStem(entry.reference)}.document.json`),

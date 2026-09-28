@@ -1,4 +1,5 @@
-import { readFile, readdir, writeFile } from "node:fs/promises";
+import { open, readFile, readdir, rename, rm } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import type { ImportArtifactKind } from "../../src/shared/io/index.js";
 import type {
@@ -27,6 +28,29 @@ export const standalone = true;
 // a rejected one is permanently excluded; anything else is held for review.
 const APPROVED = new Set(["approved", "published"]);
 const REJECTED = new Set(["rejected"]);
+
+async function writeReviewReport(
+  state: string,
+  heldOrRejected: { submissionId: string; title: string; reason: string }[],
+): Promise<void> {
+  const reportPath = path.join(state, "review-report.json");
+  const temporaryPath = path.join(state, `.review-report-${randomUUID()}.tmp`);
+  const handle = await open(temporaryPath, "wx", 0o600);
+  try {
+    await handle.writeFile(JSON.stringify({ heldOrRejected }, null, 2), "utf8");
+  } catch (error) {
+    await handle.close();
+    await rm(temporaryPath, { force: true });
+    throw error;
+  }
+  await handle.close();
+  try {
+    await rename(temporaryPath, reportPath);
+  } catch (error) {
+    await rm(temporaryPath, { force: true });
+    throw error;
+  }
+}
 
 function slugify(value: string): string {
   return value
@@ -255,11 +279,7 @@ export const transform: SourceTransform = async ({
     }
   }
 
-  await writeFile(
-    path.join(state, "review-report.json"),
-    JSON.stringify({ heldOrRejected: held }, null, 2),
-    "utf8",
-  );
+  await writeReviewReport(state, held);
   logger?.info(
     `org.policeconduct.submissions: ${Object.keys(reviews).length} published, ${held.length} held.`,
   );

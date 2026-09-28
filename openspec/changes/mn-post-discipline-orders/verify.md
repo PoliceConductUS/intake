@@ -109,3 +109,21 @@ identity writes, and no new chain entry. All 944 tests pass.
   real-database fixtures were exercised; no seed records were added or edited.
 
 Operational evidence: `$INTAKE_WORKSPACE/audits/mn-post-details-20260927/`.
+
+## Complete MN POST license inventory verification (2026-09-28)
+
+- The saved detail export contains 10,638 Peace Officer credentials and 205
+  Part Time Peace Officer credentials. The latter include 2 Active and 203
+  Cancelled records, each attached to a distinct already-included person.
+- Transform emits both AuthorityLicense types and all 205 Part Time holdings.
+  Entry `000011` contains exactly 1 `AuthorityLicenseCreate` and 205
+  `LicenseCreate` mutations; it contains no personnel, agency, assignment, or
+  education mutations. The entry applied successfully to the configured local
+  database.
+- Post-apply local query: 10,638 Peace Officer licenses for 10,638 people and
+  205 Part Time licenses for 205 people (2 Active, 203 Cancelled). Agency,
+  personnel, and agency-personnel totals are 3,293, 140,552, and 181,686.
+- A full unchanged-source generation completed with an empty diff and appended
+  no entry. The applied chain verifies through entry `000011`.
+- Validation: 125 Vitest files and 948 tests passed; typecheck, lint, build,
+  Prettier, and OpenSpec validation (30 items) passed.

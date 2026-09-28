@@ -51,6 +51,43 @@ report every omitted courseId and reason, preserving their raw source records.
 - **WHEN** a completion contactId does not identify source personnel
 - **THEN** transform fails naming the completion and missing person
 
+### Requirement: Import every MN POST license type for included personnel
+
+MN POST transform MUST import every source license in each included person's
+detail `licenses.POSTLicenseList`, including additional types and non-active
+statuses. It MUST emit one AuthorityLicense per distinct normalized license
+type and one License per person and authority-license type, preserving source
+status and original issue date. It MUST NOT filter cancelled, expired, or other
+non-active statuses. Repeated person/type entries with matching fields MUST
+coalesce; conflicting fields MUST fail loudly. License identity MUST remain
+stable through the existing source-name mapping. These records MUST NOT add an
+agency or assignment beyond the included agency graph.
+
+#### Scenario: Additional license type attaches to an already licensed person
+
+- **WHEN** a person's detail record includes Peace Officer and Part Time Peace
+  Officer licenses
+- **THEN** transform emits both AuthorityLicense types and both License
+  holdings for that same Personnel
+- **AND** it emits no extra Personnel or AgencyPersonnel for the second type
+
+#### Scenario: Non-active license status is retained
+
+- **WHEN** a detail license has Cancelled, Expired, or another non-active status
+- **THEN** the License record retains the source status and original issue date
+
+#### Scenario: Duplicate license source rows agree
+
+- **WHEN** the same person and normalized license type appears repeatedly with
+  identical status and issue date
+- **THEN** transform emits one stable License record
+- **AND** conflicting values fail with the person and license type identified
+
+#### Scenario: License references unknown personnel
+
+- **WHEN** a license contactId is absent from the included Personnel records
+- **THEN** transform fails naming the source license and missing contactId
+
 ### Requirement: Acquire preserves and reads every disciplinary order document
 
 The `sources/mn-post/acquire.ts` phase MUST download the document behind every
@@ -103,9 +140,22 @@ when the model or prompt version differs from the cached one.
 
 The analysis MUST return `allegation`, `violation`, `finding`, `chief_action`,
 and `sanction`, each a string in the document's own words or null when the
-document does not state it. It MUST fail loud on a refused or unparsable
-response, and MUST require `ANTHROPIC_API_KEY` only when a document needs
-analyzing.
+document does not state it. New automated analysis MUST fail loud on a refused
+or unparsable response, and MUST require `ANTHROPIC_API_KEY` only when a
+document needs analyzing. A manually reviewed Codex result MAY satisfy the
+cache only when it carries the `codex-document-review` method, the current
+prompt version, and page-specific supporting passages for each field; its
+document record MUST preserve that receipt and MUST NOT claim Claude produced
+it.
+
+#### Scenario: a page-cited Codex review resumes without an Anthropic key
+
+- **WHEN** an unchanged document has a `codex-document-review` cache entry
+  with the current prompt version and page-specific field evidence
+- **THEN** acquire writes its analysis and review receipt without invoking the
+  automated analyzer
+- **AND** the document record identifies `codex-document-review` as its
+  analysis method
 
 #### Scenario: a cached-only run needs no API key
 

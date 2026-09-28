@@ -64,6 +64,7 @@ export const acquire: SourceAcquire = async ({
         body = text;
       }
       await appendFile(
+        // codeql[js/http-to-file-access] This fixed JSONL file preserves the source response for audit; downstream transforms parse JSON and never execute it.
         apiLogPath,
         `${JSON.stringify({ at: new Date().toISOString(), url, status: response.status, body })}\n`,
       );

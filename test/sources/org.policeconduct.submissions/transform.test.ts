@@ -1,4 +1,11 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, it, expect } from "vitest";
@@ -74,6 +81,36 @@ function records(
 }
 
 describe("submissions run", () => {
+  it("replaces a report symlink without writing through it", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "subs-run-"));
+    tempDirs.push(dir);
+    const submissions = path.join(dir, "submissions");
+    const state = path.join(dir, "state");
+    await mkdir(submissions, { recursive: true });
+    await mkdir(state, { recursive: true });
+    const target = path.join(dir, "outside.json");
+    await writeFile(target, "leave this alone", "utf8");
+    await symlink(target, path.join(state, "review-report.json"));
+
+    await transform({
+      paths: [],
+      readXlsx: (() => {
+        throw new Error("unused");
+      }) as never,
+      state,
+      emit: async () => {},
+      env: { SUBMISSIONS_BUCKET_DIR: dir },
+      data,
+    });
+
+    expect(await readFile(target, "utf8")).toBe("leave this alone");
+    expect(
+      JSON.parse(
+        await readFile(path.join(state, "review-report.json"), "utf8"),
+      ),
+    ).toEqual({ heldOrRejected: [] });
+  });
+
   it("publishes only approved, officer-resolved reports and holds the rest", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "subs-run-"));
     tempDirs.push(dir);

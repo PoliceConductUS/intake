@@ -49,6 +49,16 @@ a discipline row is a date and a link.
   traversal through personnel. Apply an additive local migration, not a reset.
 - No viewer changes or production migration execution in this work.
 
+**Complete MN POST license records (2026-09-28)**
+
+- Import every `licenses.POSTLicenseList` entry for included personnel,
+  including additional license types and non-active statuses. Preserve source
+  status and original issue date; coalesce duplicate person/type records and
+  fail on conflicts or unknown personnel.
+- Do not infer extra agencies or assignments from an additional license type.
+  The only approved source-record omission remains the three education records
+  with missing course names.
+
 ### New Capabilities
 
 - `mn-post-discipline-orders`: acquiring, reading, and analyzing MN POST

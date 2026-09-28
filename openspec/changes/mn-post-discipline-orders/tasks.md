@@ -55,3 +55,10 @@
 - [x] 5.6 Reuse immutable per-kind facade configuration after the measured
       existing-row comparison failure; prove the fixed-heap regression and
       full unchanged-source no-op rerun.
+- [x] 5.7 Import every detail `licenses.POSTLicenseList` entry for included
+      personnel, including additional types and non-active statuses. Coalesce
+      identical person/type records, fail on conflicts or unknown people, and
+      preserve canonical License identities.
+- [x] 5.8 Prove the 205 Part Time Peace Officer source records produce the
+      second AuthorityLicense type and correct License holdings/statuses, then
+      rerun full import and preservation audits.

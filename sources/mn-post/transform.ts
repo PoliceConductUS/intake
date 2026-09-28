@@ -76,7 +76,15 @@ const AGENCY_CSV = {
 } as const;
 
 type OfficerDetail = {
-  licenses?: { POSTLicenseList?: Array<{ contactId?: string }> };
+  licenses?: {
+    POSTLicenseList?: Array<{
+      contactId?: string;
+      licenseId?: string;
+      licenseType?: string;
+      status?: string;
+      originalLicenseIssueDate?: string;
+    }>;
+  };
   activeEmployment?: Array<{ rosterId?: string; agencyName?: string }>;
   disciplinaryActions?: unknown;
   education?: unknown;
@@ -165,6 +173,38 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
   const licenses: EmittedRecords = {};
   const agencyPersonnel: EmittedRecords = {};
 
+  const addLicense = (
+    contactId: string,
+    licenseType: string,
+    status: string | null,
+    firstAwarded: string | null,
+    sourceLicenseId: string,
+  ): string => {
+    const canonicalType = canonicalLicenseType(licenseType);
+    const authorityLicenseId = `mn-post|${canonicalType}`;
+    const licenseHoldingKey = `${contactId}|${canonicalType}`;
+    const spec = {
+      personnel_id: contactId,
+      authority_license_id: authorityLicenseId,
+      status,
+      first_awarded: firstAwarded,
+    };
+    const previous = licenses[licenseHoldingKey]?.spec;
+    if (previous !== undefined && !isDeepStrictEqual(previous, spec)) {
+      throw new Error(
+        `mn-post: conflicting license ${sourceLicenseId} for contact ${contactId}, type ${canonicalType}`,
+      );
+    }
+    authorityLicenses[authorityLicenseId] = {
+      spec: {
+        licensing_authority_id: "mn-post",
+        name: canonicalType,
+      },
+    };
+    licenses[licenseHoldingKey] = { spec };
+    return licenseHoldingKey;
+  };
+
   for (const rosterPath of rosterPaths) {
     const fileSlug = path
       .basename(rosterPath, ".roster.json")
@@ -249,21 +289,13 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
           ? null
           : `${contactId}|${canonicalLicenseType(licenseType)}`;
       if (licenseId !== null && licenseType !== null) {
-        const authorityLicenseId = `mn-post|${canonicalLicenseType(licenseType)}`;
-        authorityLicenses[authorityLicenseId] = {
-          spec: {
-            licensing_authority_id: "mn-post",
-            name: canonicalLicenseType(licenseType),
-          },
-        };
-        licenses[licenseHoldingKey!] = {
-          spec: {
-            personnel_id: contactId,
-            authority_license_id: authorityLicenseId,
-            status: nullIfBlank(asString(row.status)),
-            first_awarded: startDate,
-          },
-        };
+        addLicense(
+          contactId,
+          licenseType,
+          nullIfBlank(asString(row.status)),
+          startDate,
+          licenseId,
+        );
       }
 
       // Preserve POST's assignment identity; multiple jobs at one agency are distinct.
@@ -294,6 +326,34 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
           };
         }
       }
+    }
+  }
+
+  // The person detail API carries additional and historical license types that
+  // are not necessarily present on the current agency roster. Preserve every
+  // valid holding for a person already admitted by the agency-rooted roster.
+  for (const detail of details) {
+    for (const row of detail.licenses?.POSTLicenseList ?? []) {
+      const contactId = nullIfBlank(asString(row.contactId));
+      const licenseId = nullIfBlank(asString(row.licenseId));
+      const licenseType = nullIfBlank(asString(row.licenseType));
+      if (contactId === null || licenseId === null || licenseType === null) {
+        throw new Error(
+          `mn-post license: missing contactId, licenseId, or licenseType (${licenseId}, ${contactId})`,
+        );
+      }
+      if (personnel[contactId] === undefined) {
+        throw new Error(
+          `mn-post license ${licenseId}: unknown person contactId ${contactId}`,
+        );
+      }
+      addLicense(
+        contactId,
+        licenseType,
+        nullIfBlank(asString(row.status)),
+        toDate(asString(row.originalLicenseIssueDate)),
+        licenseId,
+      );
     }
   }
 

@@ -64,6 +64,7 @@ export const acquire: SourceAcquire = async ({
         body = text;
       }
       await appendFile(
+        // codeql[js/http-to-file-access] This fixed JSONL file preserves the source response for audit; downstream transforms parse JSON and never execute it.
         apiLogPath,
         `${JSON.stringify({
           at: new Date().toISOString(),
@@ -190,6 +191,7 @@ export const acquire: SourceAcquire = async ({
     totalCases += cases.length;
     if (cases.length > 0) agenciesWithCases += 1;
     await writeFile(
+      // codeql[js/http-to-file-access] This raw API snapshot is the intended acquisition artifact; the agency filename is slugified and transforms parse JSON without executing it.
       path.join(sourceDir, `${slugify(agencyName)}.cases.json`),
       JSON.stringify(
         {

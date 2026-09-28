@@ -58,6 +58,56 @@ describe("manual chain", () => {
 });
 
 describe("acquire -> run (env-driven, non-interactive)", () => {
+  it("acquires a licensing authority with a stable source identity and emits its state reference", async () => {
+    const state = await tempDir();
+    const record = {
+      id: "state-licensing-authority-ca",
+      name: "Commission on Peace Officer Standards and Training",
+      abbreviation: "POST",
+      website: "https://post.ca.gov/",
+      location_path_id: "ca",
+    };
+    await acquire({
+      sourceDir: state,
+      state,
+      env: {
+        MANUAL_KIND: "LicensingAuthority",
+        MANUAL_RECORD: JSON.stringify(record),
+      },
+      data: {} as never,
+    });
+    expect((await readLatest(state)).entries).toEqual([
+      { kind: "LicensingAuthority", record },
+    ]);
+    const manifest = await transform({
+      paths: [],
+      state,
+      emit: async () => {},
+    } as never);
+    expect(manifest.artifacts).toEqual([
+      {
+        kind: "LicensingAuthorities",
+        records: { "state-licensing-authority-ca": { spec: record } },
+      },
+    ]);
+  });
+
+  it("rejects a manual authority without its required state reference", async () => {
+    const state = await tempDir();
+    await expect(
+      acquire({
+        sourceDir: state,
+        state,
+        env: {
+          MANUAL_KIND: "LicensingAuthority",
+          MANUAL_RECORD: JSON.stringify({ id: "no-state", name: "Authority" }),
+        },
+        data: {} as never,
+      }),
+    ).rejects.toThrow(/location_path_id/);
+    expect((await readLatest(state)).entries).toEqual([]);
+  });
+
   it("interviews a LocationPathAlias into the chain and emits it as an artifact", async () => {
     const state = await tempDir();
     await acquire({
