@@ -1,5 +1,100 @@
 # Verify — add-tx-post-tcole
 
+## Current verification — 2026-09-29
+
+The real-data verification is complete against the local `dev-copy` workspace
+and PostgreSQL at `127.0.0.1:54322`. The database already contained the successful
+reconstruction in applied entry `000004-gov.tx.tcole`; this verification reran
+the actual source transformation and comparison without resetting that database.
+
+- `npm run cli -- data transform gov.tx.tcole`: passed using the preserved
+  `PublicInformationRequest_2025-02-10_1410.xlsx` input.
+- `npm run cli -- data generate gov.tx.tcole`: passed; **empty diff, nothing appended**.
+- `npm run cli -- data verify`: all applied entries verify.
+- All seven audited database tables are byte-equivalent under the same PostgreSQL
+  value parsers before and after this run, including IDs, slugs, links, and timestamps.
+- Fresh repository validation: **1,195 tests / 129 files passed**, type checking,
+  build, and OpenSpec validation passed.
+
+### Source and reconstructed counts
+
+Counts below distinguish emitted candidates from **creates in the applied TCOLE
+chain entry**. Other sources' existing rows are not counted as TCOLE creates.
+Each listed create's canonical ID is present in the current database.
+
+| Kind               | Fresh artifact records | Applied TCOLE creates | Missing creates |
+| ------------------ | ---------------------: | --------------------: | --------------: |
+| Agency             |                  3,739 |                 2,895 |               0 |
+| Personnel          |                129,973 |               129,914 |               0 |
+| AgencyPersonnel    |                170,622 |               170,366 |               0 |
+| LicensingAuthority |                      1 |                     1 |               0 |
+| AuthorityLicense   |                     12 |                    12 |               0 |
+| License            |                153,021 |               152,962 |               0 |
+| LicenseAction      |                188,115 |               188,003 |               0 |
+
+The source also emits 6,826 AgencyPhoneNumbers. All artifact chunks were counted
+and checked for duplicate source keys. The original six-kind checklist predates
+the additional AuthorityLicense and AgencyPhoneNumber outputs.
+
+### Canonical identity and role verification
+
+All **276,622** entries in the preserved external identity maps were compared
+with the durable ledger through canonical IO:
+
+| Kind            | Historical mappings | Identical current mappings | Missing/reassigned mappings | Original IDs in database |
+| --------------- | ------------------: | -------------------------: | --------------------------: | -----------------------: |
+| Agency          |               2,950 |                      2,950 |                           0 |                    2,898 |
+| Personnel       |             129,973 |                    129,973 |                           0 |                  129,914 |
+| AgencyPersonnel |             143,699 |                    143,699 |                           0 |                  143,579 |
+
+The established ledger was verified rather than overwritten by running the
+one-time seed tool again. The counts include the previously documented five
+personnel/assignment identity repairs. All 143,579 retained historical assignment
+rows have the role title from their source tuple; zero title mismatches.
+
+The absent IDs do not represent changed identity mappings:
+
+- 52 agencies: documented exclusions in the prior per-record audit.
+- 59 personnel: workbook and current ledger checks find 44 attached only to
+  agencies outside the selected database and 15 attached only to invalid agency
+  candidates reported by the current transform.
+- 120 historical assignments: 113 attached to absent agencies and seven attached
+  to the excluded DHS placeholder, as documented in the prior per-record audit.
+
+### Licensing links
+
+All 152,962 reconstructed licenses link to an existing person and AuthorityLicense,
+whose LicensingAuthority is TCOLE at `/tx/`. All 170,366 reconstructed assignments
+have a non-null existing license for the same person and valid agency/personnel
+references. Zero missing links and zero wrong-person links were found. Global
+license-action-to-license and AuthorityLicense-to-authority checks also found
+zero orphans.
+
+The current model is `License.authority_license_id` →
+`AuthorityLicense.licensing_authority_id` → TCOLE. References below to the earlier
+`issued_by_authority_id` schema and curated-authority proposal are historical;
+this verification does not reintroduce them.
+
+### Evidence
+
+Audit directory:
+`/Users/dalelotts/dev/PoliceConductUS/intake-workspace/dev-copy/audits/tcole-reconstruction-20260929/`.
+
+- `report.json`: source provenance, all legacy-map counts, chain creates and
+  presence checks, current artifact counts, and scoped license-link checks.
+- `linkage.json`: authority jurisdiction, license-type counts, and global orphan checks.
+- `assignment-roles.json`, `personnel-absent-workbook.json`, and the `*-absent.json`
+  files: role and absence reconciliation.
+- `database-before.json` and `database-unchanged.json`: unchanged-row verification.
+- Preserved CLI/test logs and executable audit scripts accompany the results.
+
+Workbook SHA-256: `46f9d380b16919f9f7a46c939d2468cab00f003e4ef78332c4f1ff8231610774` (16,983,932 bytes).
+
+## Historical implementation record
+
+The following dated entries document earlier states. Their pending/not-started
+labels are superseded by the current verification above.
+
 _Reconstructed 2026-08-13 from committed history (`6a370b5`…`d636958`, all
 2026-08-12) after a lost session. Only claims backed by committed code or
 passing tests are marked verified; real-data run captures that were never

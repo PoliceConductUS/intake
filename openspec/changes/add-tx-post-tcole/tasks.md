@@ -1,10 +1,9 @@
-> **Updated 2026-08-13.** Phase A source/ledger/employment import + the
-> `license_type`→`title` rename (1.4) are landed and unit-tested. Phase B
-> (licensing model: 4.1–4.5, 5.1–5.2) is fully implemented and unit-tested
-> (301 tests green, typecheck clean). Remaining: the curated authorities file is
-> a verified subset to be grown to ~55 (5.0), and the **real-data run captures**
-> (2.3, 3.1–3.3, 5.3–5.4) need the 02-10 workbook in a populated dev workspace.
-> See `verify.md`.
+> **Verified 2026-09-29.** Real workbook transformation, current database comparison,
+> historical identity-ledger reconciliation, and license-link verification are
+> complete. The former `intake run` workflow is now `data transform` followed by
+> `data generate` and, only for a nonempty delta, `data up`. See the current
+> verification section in `verify.md`; older task descriptions retain historical
+> names for provenance.
 
 ## 1. Phase A — Source config (employment kinds) + rename
 
@@ -20,13 +19,13 @@
 
 - [x] 2.1 Ledger-seed tool (`scripts/seed-tcole-ledger.ts`): read the abandoned `identity/sources/tcole/{agencies,personnel,agency-officers}.yaml`, build a `SourceNameToCanonicalIds` object, and call `persistSourceNameToCanonicalIds("gov.tx.tcole", …)`.
 - [x] 2.2 Round-trip test (`test/cli/state/seed-from-identity-maps.test.ts`): seed a small maps fixture, then `loadSourceNameToCanonicalIds("gov.tx.tcole")` returns the same mappings.
-- [ ] 2.3 Run the seed tool against the real maps into the dev workspace; record counts (~2,950 agencies / ~129,968 personnel / ~143,694 agency-officers) in verify.md. _Not captured — no real-data run recorded._
+- [x] 2.3 Verify the real maps against the already-populated dev-copy ledger: 2,950 agencies, 129,973 personnel, and 143,699 assignments all retain their canonical IDs. Do not overwrite the established ledger by reseeding it.
 
 ## 3. Phase A — Employment reconstruction
 
-- [ ] 3.1 Confirm `intake run gov.tx.tcole` composes (source loads, envelope builds, Census resolver defaulted on). _Code path in place and unit-tested; a real run is not yet recorded._
-- [ ] 3.2 Dry-run; reconcile Agency/Personnel/Assignment counts against the abandoned manifest; spot-check preserved canonical IDs and that the role field holds the role.
-- [ ] 3.3 Record the employment reconstruction result in verify.md.
+- [x] 3.1 Run the preserved 02-10 workbook through the current `data transform gov.tx.tcole` command; verify authority location `/tx/` and successful composition.
+- [x] 3.2 Run `data generate gov.tx.tcole`; reconcile actual artifact and chain counts, every historical mapping, and all retained historical assignment roles. Result: empty diff.
+- [x] 3.3 Record the employment reconstruction results and audit paths in verify.md.
 
 ## 3b. Phase B prerequisite — verify additive load
 
@@ -46,5 +45,5 @@
 - [x] 5.0 **No curated list** (superseded by [ADR 0015](../../../docs/adr/0015-isolate-namespaces-and-own-cross-source-identity-at-root.md)). Namespaces are isolated and self-contained: a source emits only the authorities it processes, with its own namespace-local names. `gov.tx.tcole` emits exactly one authority — TCOLE — in-source. The DB's authorities end up being {TCOLE, AZ POST, MN POST}, one per POST source; cross-source unification is a future root-level dedup concern (ADR 0008). The shared/curated `licensing-authorities.ts` file was deleted.
 - [x] 5.1 Config emits the TCOLE LicensingAuthority (keyed `tcole`; `location_path_id` = the namespace-local state value `"tx"`, which the intake root resolves to the canonical TX location_path via `getByPath`, resolve-or-fail per ADR 0006 — not the ledger), License (distinct `PUBLIC_GUID`×`LICENSE` across `OfficersLicensesActions`+`Services` for emitted officers, `issued_by`=`tcole` resolved in-namespace, `first_awarded`=earliest action date), and LicenseAction (`OfficersLicensesActions`, keyed `PUBLIC_GUID|LICENSE|ACTION|ACTION_DATE`); each Assignment sets `license_id` (null when blank or un-emitted). Emit order dependency-respecting.
 - [x] 5.2 Source tests assert LicensingAuthority/License/LicenseAction shapes + determinism, Assignment `license_id` resolves to an emitted License (and is null for the blank-LICENSE row), and actions for dropped officers are not emitted.
-- [ ] 5.3 Full reconstruction: one `intake run gov.tx.tcole` emits all six kinds. Confirm counts (incl. ~189k license actions) and that assignment `license_id` + license `issued_by_authority_id` resolve. _PENDING — needs the real 02-10 workbook in a populated dev workspace (with census-gazetteer LocationPaths imported so `/tx/` resolves)._
-- [ ] 5.4 Record the full reconstruction result (counts, preserved IDs, license linkage) in verify.md. _PENDING — depends on 5.3._
+- [x] 5.3 Verify the real workbook produces the six original kinds plus AuthorityLicenses and AgencyPhoneNumbers; check all reconstructed records are present and assignment/license/authority links resolve through the current AuthorityLicense model.
+- [x] 5.4 Record full counts, preserved mappings, source hash, license linkage, exclusions, and unchanged database evidence in verify.md.
