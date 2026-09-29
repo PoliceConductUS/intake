@@ -77,7 +77,7 @@ describeWithDocker("initial agency roots in the shared import pipeline", () => {
       }),
     );
   }
-  async function load() {
+  async function load(useInitialAgencyRoots?: boolean) {
     const agency = (name: string) => ({
       spec: {
         name,
@@ -146,6 +146,7 @@ describeWithDocker("initial agency roots in the shared import pipeline", () => {
     );
     return importArtifacts({
       artifactsPath: input.path,
+      useInitialAgencyRoots,
       env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE_TEST: root },
       commandName: "bootstrap",
       commandDirectory: path.join(root, "command"),
@@ -262,5 +263,65 @@ describeWithDocker("initial agency roots in the shared import pipeline", () => {
       error: expect.stringContaining("InitialAgencyRoots is malformed"),
     });
     expect(await agencyNames()).toEqual([]);
+  });
+  test("initial run context retains saved agencies after an earlier office import", async () => {
+    const input = await Artifacts.write(
+      root,
+      Artifacts.new({
+        metadata: { namespace: "reference.source", name: "office" },
+        spec: {
+          artifacts: [
+            {
+              kind: "FederalAgencies",
+              spec: {
+                records: {
+                  parent: {
+                    spec: {
+                      name: "Parent Organization",
+                      slug: "parent-organization",
+                    },
+                  },
+                },
+              },
+            },
+            {
+              kind: "Agencies",
+              spec: {
+                records: {
+                  office: {
+                    spec: {
+                      name: "First Office",
+                      state: "TX",
+                      city: "Austin",
+                      address: "1 Main St",
+                      zip_code: "78701",
+                      location_path_id: "bootstrap-tx",
+                      latitude: 30,
+                      longitude: -97,
+                      parent_federal_agency_id: "parent",
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      }),
+    );
+    expect(
+      await importArtifacts({
+        artifactsPath: input.path,
+        env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE_TEST: root },
+        commandName: "office",
+        commandDirectory: path.join(root, "first-command"),
+      }),
+    ).toMatchObject({ ok: true });
+    await writeRoots();
+    expect(await load(true)).toMatchObject({ ok: true });
+    expect(await agencyNames()).toEqual([
+      "First Office",
+      "Historical PD",
+      "Open PD",
+    ]);
   });
 });

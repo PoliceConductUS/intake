@@ -49,8 +49,6 @@ export {
   AgencyPhoneNumberSpec,
   FederalAgencies,
   FederalAgencySpec,
-  FederalAgencyBranches,
-  FederalAgencyBranchSpec,
   CivilCases,
   CivilCaseSpec,
   CivilCasePersonnel,

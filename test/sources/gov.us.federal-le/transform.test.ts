@@ -5,11 +5,7 @@ import { stringify as stringifyYaml } from "yaml";
 import { afterEach, describe, it, expect } from "vitest";
 import { transform } from "../../../sources/gov.us.federal-le/transform.js";
 import { readXlsx } from "../../../src/cli/transform/read-xlsx.js";
-import {
-  AgencySpec,
-  FederalAgencySpec,
-  FederalAgencyBranchSpec,
-} from "../../../src/shared/io/index.js";
+import { AgencySpec, FederalAgencySpec } from "../../../src/shared/io/index.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {
@@ -81,11 +77,12 @@ async function runWithState() {
 }
 
 describe("gov.us.federal-le run", () => {
-  it("emits each LE agency as a federal_agency, its complete offices as agencies, and branch links", async () => {
+  it("emits federal agencies and complete offices with their parent reference", async () => {
     const manifest = await runWithState();
     const byKind = Object.fromEntries(
       manifest.artifacts.map((a) => [a.kind, a.records]),
     );
+    expect(Object.keys(byKind).sort()).toEqual(["Agencies", "FederalAgencies"]);
 
     expect(Object.keys(byKind.FederalAgencies).sort()).toEqual(["dea", "fbi"]);
     expect(byKind.FederalAgencies.fbi.spec).toEqual({
@@ -100,20 +97,12 @@ describe("gov.us.federal-le run", () => {
       "fbi-new-york",
     ]);
     expect(byKind.Agencies["fbi-new-york"].spec).toEqual({
+      parent_federal_agency_id: "fbi",
       name: "FBI New York Field Office",
       state: "NY",
       city: "New York",
       address: "26 Federal Plaza",
       zip_code: "10278",
-    });
-
-    expect(Object.keys(byKind.FederalAgencyBranches).sort()).toEqual([
-      "fbi|fbi-hq",
-      "fbi|fbi-new-york",
-    ]);
-    expect(byKind.FederalAgencyBranches["fbi|fbi-hq"].spec).toEqual({
-      federal_agency_id: "fbi",
-      agency_id: "fbi-hq",
     });
   });
 
@@ -121,11 +110,7 @@ describe("gov.us.federal-le run", () => {
     const manifest = await runWithState();
     for (const artifact of manifest.artifacts) {
       const spec =
-        artifact.kind === "FederalAgencies"
-          ? FederalAgencySpec
-          : artifact.kind === "FederalAgencyBranches"
-            ? FederalAgencyBranchSpec
-            : AgencySpec;
+        artifact.kind === "FederalAgencies" ? FederalAgencySpec : AgencySpec;
       for (const record of Object.values(artifact.records)) {
         expect(spec.parse(record.spec)).toBeTruthy();
       }

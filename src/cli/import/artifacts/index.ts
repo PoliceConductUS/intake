@@ -27,6 +27,7 @@ export async function runImportArtifactsCommand(
       artifactsPath: string;
       logger?: ReturnType<typeof createIntakeLog>["logger"];
       dryImport?: boolean;
+      useInitialAgencyRoots?: boolean;
       env?: Record<string, string | undefined>;
       commandDirectory?: string;
       commandName?: string;
@@ -35,6 +36,7 @@ export async function runImportArtifactsCommand(
     env?: Record<string, string | undefined>;
     terminal?: { write(text: string): unknown } | false;
     dryImport?: boolean;
+    useInitialAgencyRoots?: boolean;
     excludedRecords?: ExcludedRecords;
     args?: readonly string[];
     now?: Date;
@@ -79,6 +81,7 @@ export async function runImportArtifactsCommand(
     artifactsPath: artifactsRef,
     logger,
     dryImport: dependencies.dryImport,
+    useInitialAgencyRoots: dependencies.useInitialAgencyRoots,
     env,
     commandDirectory: command.outputDirectory,
     commandName: command.commandName,

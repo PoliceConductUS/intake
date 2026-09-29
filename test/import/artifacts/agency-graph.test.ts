@@ -69,7 +69,7 @@ test("the dataset closing the last assignment retains its agency as a root", () 
     selected(
       [
         node("AgencyPersonnel", "job", { end_date: "2026-01-01" }),
-        node("AgencyLink", "new-link", { agency_id: "a" }),
+        node("AgencyPhoneNumber", "new-link", { agency_id: "a" }),
       ],
       [
         node("Agency", "a"),
@@ -83,8 +83,8 @@ test("the dataset closing the last assignment retains its agency as a root", () 
     ),
   ).toEqual([
     "Agency:a",
-    "AgencyLink:new-link",
     "AgencyPersonnel:job",
+    "AgencyPhoneNumber:new-link",
     "Personnel:p",
   ]);
 });
@@ -218,7 +218,7 @@ test("a later dataset retains updates to stored history without selecting new de
     selected(
       [
         node("Personnel", "p", { first_name: "Corrected" }),
-        node("AgencyLink", "later", { agency_id: "a" }),
+        node("AgencyPhoneNumber", "later", { agency_id: "a" }),
       ],
       [
         node("Agency", "a"),
@@ -297,5 +297,57 @@ test("person-level discipline and education follow an included person without an
     "Discipline:action",
     "Personnel:p",
     "PersonnelEducation:course",
+  ]);
+});
+
+test("federal parents admit offices without personnel or cases and leave unrelated agencies excluded", () => {
+  expect(
+    selected(
+      [
+        node("FederalAgency", "federal"),
+        node("Agency", "new-office", { parent_federal_agency_id: "federal" }),
+        node("Agency", "existing-office", {
+          parent_federal_agency_id: "federal",
+        }),
+        node("AgencyPhoneNumber", "office-phone", { agency_id: "new-office" }),
+        node("Agency", "unrelated"),
+      ],
+      [
+        node("Agency", "existing-office"),
+        node("AgencyPersonnel", "ended", {
+          agency_id: "existing-office",
+          personnel_id: "p",
+          end_date: "2020-01-01",
+        }),
+        node("Personnel", "p"),
+      ],
+    ),
+  ).toEqual([
+    "Agency:existing-office",
+    "Agency:new-office",
+    "AgencyPersonnel:ended",
+    "AgencyPhoneNumber:office-phone",
+    "FederalAgency:federal",
+    "Personnel:p",
+  ]);
+});
+
+test("a stored federal parent admits a newly supplied office and later office descendants", () => {
+  expect(
+    selected(
+      [
+        node("Agency", "new-office", { parent_federal_agency_id: "federal" }),
+        node("AgencyPhoneNumber", "phone", { agency_id: "old-office" }),
+      ],
+      [
+        node("FederalAgency", "federal"),
+        node("Agency", "old-office", { parent_federal_agency_id: "federal" }),
+      ],
+    ),
+  ).toEqual([
+    "Agency:new-office",
+    "Agency:old-office",
+    "AgencyPhoneNumber:phone",
+    "FederalAgency:federal",
   ]);
 });

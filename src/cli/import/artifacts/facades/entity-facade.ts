@@ -357,7 +357,7 @@ export class EntityFacade<
     const partial = this.identityIsPartialUpdate();
     const resolved: Record<string, unknown> = {};
     for (const column of this.columns) {
-      if (partial && !this.hasSourceValue(column)) {
+      if (partial && this.raw(column) === undefined) {
         continue;
       }
       const value = await this.value(column);

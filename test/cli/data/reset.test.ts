@@ -46,11 +46,16 @@ async function fixture() {
         "old generated data",
       );
     }),
-    runDataCommand: vi.fn(async (args: readonly string[]) => {
-      calls.push(args.join(" "));
-      expect(await readdir(chain).catch(() => [])).toEqual([]);
-      return { exitCode: 0 };
-    }),
+    runDataCommand: vi.fn(
+      async (
+        args: readonly string[],
+        _context?: { useInitialAgencyRoots: boolean },
+      ) => {
+        calls.push(args.join(" "));
+        expect(await readdir(chain).catch(() => [])).toEqual([]);
+        return { exitCode: 0 };
+      },
+    ),
   };
   return { workspace, chain, state, calls, deps };
 }
@@ -59,6 +64,11 @@ test("no-acquire rebuilds in dependency order, applies manual records, and retai
   const f = await fixture();
   const result = await resetData({ acquire: false }, f.deps);
   expect(result.exitCode).toBe(0);
+  expect(
+    f.deps.runDataCommand.mock.calls
+      .filter(([args]) => args[1] === "generate")
+      .every(([, context]) => context?.useInitialAgencyRoots === true),
+  ).toBe(true);
   expect(f.calls).toEqual([
     "schema reset",
     "data transform places",

@@ -12,7 +12,6 @@ export const HANDLED_RECORD_KINDS = [
   "LocationPath",
   "LocationPathAlias",
   "LicensingAuthority",
-  "AgencyLink",
   "CivilCase",
   "CivilCasePersonnel",
   "CivilCaseLink",

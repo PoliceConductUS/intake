@@ -15,7 +15,10 @@ type ResetDependencies = {
   logger: { info(message: string): void };
   orderedSourceIds?: () => Promise<string[]>;
   resetDatabase?: (env: Record<string, string | undefined>) => Promise<void>;
-  runDataCommand?: (args: readonly string[]) => Promise<CommandResult>;
+  runDataCommand?: (
+    args: readonly string[],
+    context?: { useInitialAgencyRoots: boolean },
+  ) => Promise<CommandResult>;
   prepareManualLocations?: () => Promise<CommandResult>;
 };
 
@@ -75,9 +78,9 @@ export async function resetData(
     });
     const runDataCommand =
       dependencies.runDataCommand ??
-      (async (args) => {
+      (async (args, context) => {
         const { runIntake } = await import("../run-intake.js");
-        return runIntake(args);
+        return runIntake(args, context);
       });
 
     phase = "schema reset";
@@ -98,7 +101,9 @@ export async function resetData(
     const executePhase = async (args: string[]) => {
       phase = args.join(" ");
       logger.info(`data reset: ${phase}`);
-      const result = await runDataCommand(args);
+      const result = await runDataCommand(args, {
+        useInitialAgencyRoots: true,
+      });
       if (result.exitCode !== 0)
         throw new Error(result.stderr?.trim() || `${phase} failed.`);
       if (result.stdout?.trim()) logger.info(result.stdout.trim());

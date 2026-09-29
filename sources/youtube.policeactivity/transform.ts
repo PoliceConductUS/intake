@@ -12,7 +12,6 @@ import type { AcquiredVideo } from "./video-cache.js";
 export const produces: readonly ImportArtifactKind[] = [
   "CoverageLinks",
   "CoverageLinkAgencyPersonnel",
-  "CoverageLinkCivilCases",
 ];
 
 export const description =
@@ -56,17 +55,6 @@ function normalizedUrl(url: string): string {
   return url.trim().replace(/\/+$/, "").toLowerCase();
 }
 
-// Federal district docket tokens the publisher cites (e.g. 3:23-cv-01234). Only
-// candidates — resolveCivilCase matches them against EXISTING cases.
-const DOCKET = /\b\d:\d{2}-[a-z]{2,3}-\d{3,6}\b/gi;
-function docketMentions(video: AcquiredVideo): string[] {
-  const found = new Set<string>();
-  for (const field of [video.title, video.description, video.captions ?? ""]) {
-    for (const match of field.matchAll(DOCKET)) found.add(match[0]);
-  }
-  return [...found];
-}
-
 export const transform: SourceTransform = async ({
   paths,
   data,
@@ -86,7 +74,6 @@ export const transform: SourceTransform = async ({
 
   const coverageLinks: EmittedRecords = {};
   const coverageLinkAgencyPersonnel: EmittedRecords = {};
-  const coverageLinkCivilCases: EmittedRecords = {};
 
   for (const file of files) {
     const envelope = JSON.parse(await readFile(file, "utf8")) as VideoEnvelope;
@@ -139,30 +126,12 @@ export const transform: SourceTransform = async ({
           },
         };
       }
-
-      // Officer-gated: only a video already tied to an officer links to a case it
-      // cites (an existing docket the resolver matches).
-      if (data.resolveCivilCase !== undefined) {
-        for (const docket of docketMentions(video)) {
-          const match = await data.resolveCivilCase({ docket });
-          if (match !== null) {
-            coverageLinkCivilCases[`${videoId}|${match.civilCaseId}`] = {
-              spec: {
-                coverage_link_id: videoId,
-                civil_case_id: match.civilCaseId,
-                notes: docket,
-              },
-            };
-          }
-        }
-      }
     }
   }
 
   log.info(
     `youtube.policeactivity: ${Object.keys(coverageLinks).length} videos with a resolved officer, ` +
-      `${Object.keys(coverageLinkAgencyPersonnel).length} video-officer links, ` +
-      `${Object.keys(coverageLinkCivilCases).length} video-case links`,
+      `${Object.keys(coverageLinkAgencyPersonnel).length} video-officer links`,
   );
 
   return {
@@ -172,7 +141,6 @@ export const transform: SourceTransform = async ({
         kind: "CoverageLinkAgencyPersonnel",
         records: coverageLinkAgencyPersonnel,
       },
-      { kind: "CoverageLinkCivilCases", records: coverageLinkCivilCases },
     ],
   };
 };

@@ -200,6 +200,7 @@ describe("DataContext", () => {
   }
 
   const resolvedAgencySpec = {
+    parent_federal_agency_id: null,
     name: "Minnesota State Patrol",
     city: "Saint Paul",
     state: "MN",
@@ -1342,9 +1343,6 @@ describe("PersonnelFacade", () => {
         id: "personnel-canonical-id",
         first_name: "Marc",
         last_name: "Denney",
-        middle_name: null,
-        prefix: null,
-        suffix: null,
         slug: "marc-denney-icalid",
       },
     });
@@ -1718,7 +1716,7 @@ describe("AgencyPersonnelFacade", () => {
       spec: {
         agency_id: "agency-source",
         personnel_id: "personnel-source",
-        // no license_id
+        license_id: null,
         title: "Peace Officer",
         start_date: "2020-01-01",
       },

@@ -34,7 +34,7 @@ describe("consumesOf", () => {
     ).toEqual([]);
   });
 
-  it("derives a roster source's consumed set as just LocationPaths", () => {
+  it("derives a roster source's location and federal parent dependencies", () => {
     const produces: ImportArtifactKind[] = [
       "LicensingAuthorities",
       "AuthorityLicenses",
@@ -45,10 +45,10 @@ describe("consumesOf", () => {
       "AgencyPersonnel",
       "AgencyPhoneNumbers",
     ];
-    // Agency/LicensingAuthority FK LocationPath; every other FK target
+    // Agency also references FederalAgency; every other FK target
     // (Agency, AuthorityLicense, License, Personnel, LicensingAuthority) is
     // produced here.
-    expect(consumesOf(produces)).toEqual(["LocationPaths"]);
+    expect(consumesOf(produces)).toEqual(["LocationPaths", "FederalAgencies"]);
   });
 });
 
@@ -73,7 +73,7 @@ describe("planSourceOrder", () => {
       },
       {
         id: "gov.us.federal-le",
-        produces: ["FederalAgencies", "Agencies", "FederalAgencyBranches"],
+        produces: ["FederalAgencies", "Agencies"],
       },
       { id: "gov.azpost.roster", produces: ["Personnel"] },
       {
@@ -113,12 +113,12 @@ describe("planSourceOrder", () => {
     ]);
     expect(order).toEqual([
       "us-census-gazetteer",
+      "gov.us.federal-le",
       "gov.tx.tcole",
       "mn-post",
       "clearinghouse-api",
       "courtlistener",
       "gov.azpost.roster",
-      "gov.us.federal-le",
     ]);
   });
 

@@ -198,19 +198,9 @@ const DESCRIPTORS: EntityDescriptor[] = [
     createRequired: ["id"],
   },
   {
-    recordKind: "AgencyLink",
-    table: "agency_links",
-    createRequired: ["id"],
-  },
-  {
     recordKind: "FederalAgency",
     table: "federal_agency",
     createRequired: ["id", "slug"],
-  },
-  {
-    recordKind: "FederalAgencyBranch",
-    table: "federal_agency_branch",
-    createRequired: ["id"],
   },
   {
     recordKind: "CivilCase",
@@ -232,11 +222,6 @@ const DESCRIPTORS: EntityDescriptor[] = [
   {
     recordKind: "CivilCaseLink",
     table: "civil_case_links",
-    createRequired: ["id"],
-  },
-  {
-    recordKind: "CoverageLinkCivilCase",
-    table: "coverage_link_civil_cases",
     createRequired: ["id"],
   },
   {
@@ -430,13 +415,10 @@ const ENTITY_NAME_BY_RECORD_KIND: Record<string, string> = {
   CoverageLink: "coverageLinks",
   CoverageLinkAgencyPersonnel: "coverageLinkAgencyPersonnel",
   AgencyPhoneNumber: "agencyPhoneNumbers",
-  AgencyLink: "agencyLinks",
   FederalAgency: "federalAgencies",
-  FederalAgencyBranch: "federalAgencyBranches",
   CivilCase: "civilCases",
   CivilCasePersonnel: "civilCasePersonnel",
   CivilCaseLink: "civilCaseLinks",
-  CoverageLinkCivilCase: "coverageLinkCivilCases",
   Review: "reviews",
   ReviewPersonnel: "reviewPersonnel",
   ReviewLink: "reviewLinks",

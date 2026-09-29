@@ -5,6 +5,7 @@ import { registerDiscoveredCommands } from "../shared/cli/command-discovery.js";
 import type { CommandResult } from "../shared/cli/types.js";
 
 export type IntakeCliDependencies = {
+  useInitialAgencyRoots?: boolean;
   runImportArtifactsCommand?: (
     artifactsRef: string,
     dependencies?: { dryImport?: boolean },

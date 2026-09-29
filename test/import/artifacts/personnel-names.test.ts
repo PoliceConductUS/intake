@@ -48,7 +48,7 @@ describe("personnel suffix normalization", () => {
     ["", null],
     ["  ", null],
     [null, null],
-    [undefined, null],
+    [undefined, undefined],
   ])("resolves %j as %j", async (suffix, expected) => {
     expect(await personnel({ suffix }).value("suffix")).toBe(expected);
   });

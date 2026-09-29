@@ -271,20 +271,20 @@ withDocker("agency graph context in real Postgres", () => {
         values: { agency_id: "agency-b" },
       },
       {
-        kind: "AgencyLink",
+        kind: "AgencyPhoneNumber",
         id: "old-agency-link",
         values: { agency_id: "agency-unrelated" },
       },
       {
-        kind: "AgencyLink",
+        kind: "AgencyPhoneNumber",
         id: "new-agency-link",
         values: { agency_id: "agency-b" },
       },
     ];
     const existing = await readExistingAgencyGraph(client, incoming);
     const selected = selectAgencyGraph(existing, incoming);
-    expect(selected).toContain("AgencyLink:old-agency-link");
-    expect(selected).toContain("AgencyLink:new-agency-link");
+    expect(selected).toContain("AgencyPhoneNumber:old-agency-link");
+    expect(selected).toContain("AgencyPhoneNumber:new-agency-link");
   });
 
   it("keeps a former case root when the incoming link changes case and assignment", async () => {
@@ -298,19 +298,19 @@ withDocker("agency graph context in real Postgres", () => {
         },
       },
       {
-        kind: "AgencyLink",
+        kind: "AgencyPhoneNumber",
         id: "former-case-agency-link",
         values: { agency_id: "agency-c" },
       },
       {
-        kind: "AgencyLink",
+        kind: "AgencyPhoneNumber",
         id: "current-case-agency-link",
         values: { agency_id: "agency-b" },
       },
     ];
     const existing = await readExistingAgencyGraph(client, incoming);
     const selected = selectAgencyGraph(existing, incoming);
-    expect(selected).toContain("AgencyLink:former-case-agency-link");
-    expect(selected).toContain("AgencyLink:current-case-agency-link");
+    expect(selected).toContain("AgencyPhoneNumber:former-case-agency-link");
+    expect(selected).toContain("AgencyPhoneNumber:current-case-agency-link");
   });
 });

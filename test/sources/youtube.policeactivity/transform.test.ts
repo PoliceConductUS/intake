@@ -28,7 +28,7 @@ const envelope = {
       videoId: "v2",
       url: "https://www.youtube.com/watch?v=v2",
       title: "Traffic stop",
-      // Cites a resolvable docket but matches no officer -> still no case link.
+      // A docket mention does not substitute for a resolved officer.
       description:
         "Officer Nobody Stranger writes a ticket. Case 3:23-cv-01234.",
       publishedAt: "2024-01-01T00:00:00Z",
@@ -69,9 +69,6 @@ function fakeData(
       const id = resolved[personnelName];
       return id === undefined ? null : { agencyPersonnelId: id };
     },
-    // Only docket 3:23-cv-01234 matches an existing case.
-    resolveCivilCase: async ({ docket }: { docket: string }) =>
-      docket === "3:23-cv-01234" ? { civilCaseId: "txnd:323cv01234" } : null,
   };
 }
 
@@ -135,19 +132,12 @@ describe("youtube.policeactivity run", () => {
     expect(Object.keys(byKind.CoverageLinks)).not.toContain("v3");
   });
 
-  it("links a cited case only when the video also matched an officer", async () => {
+  it("emits only video coverage and personnel links when a video cites a docket", async () => {
     const { byKind } = await runWith();
-    // v1 matched officers and cites a resolvable docket → one case link.
-    // v2 cites the same resolvable docket but matched no officer → none.
-    expect(byKind.CoverageLinkCivilCases).toEqual({
-      "v1|txnd:323cv01234": {
-        spec: {
-          coverage_link_id: "v1",
-          civil_case_id: "txnd:323cv01234",
-          notes: "3:23-cv-01234",
-        },
-      },
-    });
+    expect(Object.keys(byKind).sort()).toEqual([
+      "CoverageLinkAgencyPersonnel",
+      "CoverageLinks",
+    ]);
   });
 
   it("resolves each mention scoped to the acquired agency", async () => {

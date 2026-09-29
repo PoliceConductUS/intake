@@ -317,7 +317,7 @@ describe("selector-resolved partial update (ADR 0034)", () => {
 describe("registry coverage and identity", () => {
   // The generic builder must own every entity kind except the stream-only ones,
   // so a kind a source emits is never silently dropped for want of a hand-list
-  // entry (the CoverageLinkCivilCase / AgencyLink drift this consolidation fixed).
+  // entry.
   const STREAM_ONLY = new Set(["LocationPathGeometry"]);
 
   for (const kind of RECORD_KINDS_IN_DEPENDENCY_ORDER) {
@@ -377,5 +377,86 @@ describe("shared structured-text whitespace resolution", () => {
     agency.merge({ address: " 100   MAIN ST ", city: "  FORT   WORTH " });
     expect(await agency.value("address")).toBe("100 Main St");
     expect(await agency.value("city")).toBe("Fort Worth");
+  });
+});
+
+describe("schema-derived foreign key nullability", () => {
+  it("keeps an omitted optional foreign key undefined", async () => {
+    const facade = buildFacadeForKind("Agency", { source, ...backend() });
+    expect(await facade.value("parent_federal_agency_id")).toBeUndefined();
+  });
+  it.each([
+    { action: "PUT" as const, clear: false },
+    { action: "PUT" as const, clear: true },
+    { action: "PATCH" as const, clear: false },
+    { action: "PATCH" as const, clear: true },
+  ])(
+    "$action preserves an omitted parent and clears only explicit null (clear: $clear)",
+    async ({ action, clear }) => {
+      const current = {
+        id: "canon:office",
+        name: "Office",
+        city: "Washington",
+        state: "DC",
+        address: "1 Main St",
+        zip_code: "20001",
+        slug: "office",
+        location_path_id: "place",
+        latitude: 38.9,
+        longitude: -77,
+        parent_federal_agency_id: "parent-id",
+      };
+      const officeBackend = {
+        ...backend(undefined, { Agency: [current] }).backend,
+        registerSlug: async () => {},
+      };
+      const facade = buildFacadeForKind("Agency", {
+        source: {
+          ...source,
+          name: "office",
+          commandName: "roster-update",
+          action,
+          ...(action === "PATCH" ? { selector: { slug: "office" } } : {}),
+        },
+        current,
+        backend: officeBackend,
+      });
+      const {
+        parent_federal_agency_id: _parent,
+        id: _id,
+        ...ordinaryFields
+      } = current;
+      facade.merge({
+        ...ordinaryFields,
+        ...(clear ? { parent_federal_agency_id: null } : {}),
+      });
+      const mutation = (await facade.toMutation()) as {
+        spec: { operations: Array<Record<string, unknown>> };
+      };
+      expect(
+        mutation.spec.operations.filter(
+          (op) => op.path === "parent_federal_agency_id",
+        ),
+      ).toEqual(
+        clear
+          ? [
+              expect.objectContaining({
+                action: "set",
+                from: "parent-id",
+                to: null,
+              }),
+            ]
+          : [],
+      );
+    },
+  );
+  it("still rejects a missing required foreign key", async () => {
+    const facade = buildFacadeForKind("AgencyPhoneNumber", {
+      source,
+      ...backend(),
+    });
+    await expect(facade.value("agency_id")).rejects.toThrow(
+      /source agency_id is missing/,
+    );
   });
 });

@@ -24,6 +24,12 @@ export type InclusionEdge = {
 
 export const AGENCY_GRAPH_EDGES: readonly InclusionEdge[] = [
   {
+    parent: "FederalAgency",
+    child: "Agency",
+    holder: "child",
+    field: "parent_federal_agency_id",
+  },
+  {
     parent: "Personnel",
     child: "Discipline",
     holder: "child",
@@ -44,18 +50,6 @@ export const AGENCY_GRAPH_EDGES: readonly InclusionEdge[] = [
   {
     parent: "Agency",
     child: "AgencyPhoneNumber",
-    holder: "child",
-    field: "agency_id",
-  },
-  {
-    parent: "Agency",
-    child: "AgencyLink",
-    holder: "child",
-    field: "agency_id",
-  },
-  {
-    parent: "Agency",
-    child: "FederalAgencyBranch",
     holder: "child",
     field: "agency_id",
   },
@@ -100,18 +94,6 @@ export const AGENCY_GRAPH_EDGES: readonly InclusionEdge[] = [
     child: "CivilCaseLink",
     holder: "child",
     field: "civil_case_id",
-  },
-  {
-    parent: "CivilCase",
-    child: "CoverageLinkCivilCase",
-    holder: "child",
-    field: "civil_case_id",
-  },
-  {
-    parent: "CoverageLinkCivilCase",
-    child: "CoverageLink",
-    holder: "parent",
-    field: "coverage_link_id",
   },
   {
     parent: "AgencyPersonnel",
@@ -165,7 +147,9 @@ export const AGENCY_GRAPH_EDGES: readonly InclusionEdge[] = [
 
 /** Only these fields are needed for selection; unrelated properties stay lazy. */
 export const AGENCY_GRAPH_COLUMNS = new Map<string, Set<string>>();
+const DEPENDENT_KINDS = new Set<string>();
 for (const edge of AGENCY_GRAPH_EDGES) {
+  DEPENDENT_KINDS.add(edge.child);
   for (const kind of [edge.parent, edge.child]) {
     if (!AGENCY_GRAPH_COLUMNS.has(kind))
       AGENCY_GRAPH_COLUMNS.set(kind, new Set());
@@ -222,7 +206,7 @@ export function selectAgencyGraph(
     const group = byKind.get(record.kind) ?? [];
     group.push(record);
     byKind.set(record.kind, group);
-    if (!AGENCY_GRAPH_COLUMNS.has(record.kind)) include(key);
+    if (!DEPENDENT_KINDS.has(record.kind)) include(key);
   }
   const adjacency = new Map<string, string[]>();
   for (const edge of AGENCY_GRAPH_EDGES) {

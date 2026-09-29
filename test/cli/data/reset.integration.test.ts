@@ -70,7 +70,10 @@ withDocker("data reset against disposable Postgres", () => {
       "old data",
     );
     const commands: string[] = [];
-    const runDataCommand = async (args: readonly string[]) => {
+    const runDataCommand = async (
+      args: readonly string[],
+      context?: { useInitialAgencyRoots: boolean },
+    ) => {
       commands.push(args.join(" "));
       if (args[1] === "acquire") throw new Error("Unexpected acquisition");
       if (args[1] === "transform" && args[2] === "us-census-gazetteer") {
@@ -140,7 +143,7 @@ withDocker("data reset against disposable Postgres", () => {
         );
         return { exitCode: 0 };
       }
-      return runIntake(args);
+      return runIntake(args, context);
     };
     return {
       env,

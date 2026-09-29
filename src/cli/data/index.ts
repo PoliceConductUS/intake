@@ -20,6 +20,7 @@ import {
 } from "./source-pipeline.js";
 import { registerAcquireCommand } from "../acquire/index.js";
 import { resetData } from "./reset.js";
+import { agencyTableIsEmpty } from "../database/agency-graph.js";
 
 const consoleLogger = {
   info: (message: string) => process.stderr.write(`${message}\n`),
@@ -197,7 +198,11 @@ export function registerCliCommand(
     .action(async (source: string): Promise<void> => {
       try {
         await withClient((client) => assertAtHead(client));
-        const result = await generateOneSource(source, process.env);
+        const result = await generateOneSource(
+          source,
+          process.env,
+          dependencies.useInitialAgencyRoots,
+        );
         dependencies.setResult(
           "error" in result
             ? result.error
@@ -288,6 +293,7 @@ export function registerCliCommand(
     )
     .action(async (): Promise<void> => {
       try {
+        const useInitialAgencyRoots = await withClient(agencyTableIsEmpty);
         const done: string[] = [];
         // An empty diff is a legitimate no-op (a source unchanged since it was last
         // applied, or one with no acquired input); an error is a broken source. They
@@ -312,7 +318,11 @@ export function registerCliCommand(
             continue;
           }
           await withClient((client) => assertAtHead(client));
-          const generated = await generateOneSource(source, process.env);
+          const generated = await generateOneSource(
+            source,
+            process.env,
+            useInitialAgencyRoots,
+          );
           if ("error" in generated) {
             errored.push(
               `${source} (generate: ${generated.error.stderr?.trim() ?? "failed"})`,

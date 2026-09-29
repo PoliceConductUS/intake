@@ -82,6 +82,7 @@ export type ImportArtifactsCommandInput = {
   artifactsPath: string;
   env?: Record<string, string | undefined>;
   dryImport?: boolean;
+  useInitialAgencyRoots?: boolean;
   logger?: ImportLogger;
   resolveAgencyCoordinates?: (
     requests: AgencyCoordinateRequest[],
@@ -654,7 +655,9 @@ async function writeDatabaseMutationsStage(
 
     addSourceFacades(dataContext, artifacts);
     const initialRoots =
-      context.workspaceRoot !== undefined && (await agencyTableIsEmpty(client))
+      context.workspaceRoot !== undefined &&
+      (context.commandInput.useInitialAgencyRoots ??
+        (await agencyTableIsEmpty(client)))
         ? await loadInitialAgencyRoots(
             context.workspaceRoot,
             artifacts.metadata.namespace,

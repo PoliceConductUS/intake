@@ -71,8 +71,6 @@ const DESCRIPTIONS: Record<string, string> = {
   AgencyPhoneNumber: "A phone or fax number for an agency.",
   FederalAgency:
     "A federal law-enforcement agency (e.g. the FBI, DEA), distinct from its individual offices.",
-  FederalAgencyBranch:
-    "A federal agency's office or field location, recorded as its own agency and linked to the parent federal agency.",
   CivilCase: "A civil lawsuit naming an agency and/or its personnel.",
   CivilCasePersonnel:
     "Ties a civil case to a named assignment (person at an agency) it involves.",

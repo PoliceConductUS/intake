@@ -157,14 +157,14 @@ describeWithDocker("shared agency selection in the import pipeline", () => {
         spec: {
           artifacts: [
             {
-              kind: "AgencyLinks",
+              kind: "AgencyPhoneNumbers",
               spec: {
                 records: {
                   closing: {
                     spec: {
                       agency_id: "agency",
-                      url: "https://example.test/closing",
-                      label: "Closing record",
+                      phone_number: "555-0100",
+                      description: "Closing record",
                     },
                   },
                 },
@@ -214,10 +214,10 @@ describeWithDocker("shared agency selection in the import pipeline", () => {
     expect(
       (
         await db.query(
-          "select url from public.agency_links where agency_id='a-close'",
+          "select phone_number from public.agency_phone_numbers where agency_id='a-close'",
         )
       ).rows,
-    ).toEqual([{ url: "https://example.test/closing" }]);
+    ).toEqual([{ phone_number: "555-0100" }]);
     const later = await Artifacts.write(
       root,
       Artifacts.new({
@@ -231,14 +231,14 @@ describeWithDocker("shared agency selection in the import pipeline", () => {
               },
             },
             {
-              kind: "AgencyLinks",
+              kind: "AgencyPhoneNumbers",
               spec: {
                 records: {
                   later: {
                     spec: {
                       agency_id: "agency",
-                      url: "https://example.test/later",
-                      label: "Later record",
+                      phone_number: "555-0101",
+                      description: "Later record",
                     },
                   },
                 },
@@ -266,9 +266,157 @@ describeWithDocker("shared agency selection in the import pipeline", () => {
     expect(
       (
         await db.query(
-          "select url from public.agency_links where agency_id='a-close'",
+          "select phone_number from public.agency_phone_numbers where agency_id='a-close'",
         )
       ).rows,
-    ).toEqual([{ url: "https://example.test/closing" }]);
+    ).toEqual([{ phone_number: "555-0100" }]);
+  });
+  test("federal offices persist parent references without personnel or cases and support later descendants", async () => {
+    const root = await workspace();
+    const namespace = "federal-office-parent";
+    await db.query(
+      "insert into public.location_path (location_path_id,path,level,display_name) values ('federal-place','/federal-place/','place','Federal Place')",
+    );
+    await db.query(
+      "insert into public.agency (id,name,city,state,address,zip_code,slug,location_path_id,latitude,longitude) values ('stored-office','Existing Office','Washington','DC','1 Main St','20001','preserved-office-slug','federal-place',38.9,-77)",
+    );
+    await db.query(
+      "insert into public.personnel (id,first_name,slug) values ('former-federal-person','Former','former-federal-person')",
+    );
+    await db.query(
+      "insert into public.agency_personnel (id,agency_id,personnel_id,start_date,end_date,title) values ('ended-federal-job','stored-office','former-federal-person','2020-01-01','2021-01-01','Agent')",
+    );
+    await persistSourceNameToCanonicalIds(
+      namespace,
+      {
+        locationPaths: {},
+        agencies: {
+          existing: { kind: "Agency", canonicalId: "stored-office" },
+        },
+        agencyPersonnel: {},
+        personnel: {},
+      },
+      { rootDir: root },
+    );
+    const office = (name: string) => ({
+      name,
+      parent_federal_agency_id: "parent",
+      city: "Washington",
+      state: "DC",
+      address: "1 Main St",
+      zip_code: "20001",
+      location_path_id: "federal-place",
+      latitude: 38.9,
+      longitude: -77,
+    });
+    const input = await Artifacts.write(
+      root,
+      Artifacts.new({
+        metadata: { namespace, name: "offices" },
+        spec: {
+          artifacts: [
+            {
+              kind: "FederalAgencies",
+              spec: {
+                records: {
+                  parent: {
+                    spec: { name: "Federal Test", slug: "federal-test" },
+                  },
+                },
+              },
+            },
+            {
+              kind: "Agencies",
+              spec: {
+                records: {
+                  existing: { spec: office("Existing Office") },
+                  new: { spec: office("New Office") },
+                  unrelated: {
+                    spec: { name: "Unrelated Agency", state: "DC" },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      }),
+    );
+    const run = (artifactsPath: string, name: string) =>
+      importArtifacts({
+        artifactsPath,
+        env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE_TEST: root },
+        commandName: name,
+        commandDirectory: path.join(root, name),
+      });
+    expect(await run(input.path, "offices")).toMatchObject({ ok: true });
+    const rows = (
+      await db.query(
+        "select a.id,a.slug,a.location_path_id,a.parent_federal_agency_id,f.slug as parent_slug from public.agency a join public.federal_agency f on a.parent_federal_agency_id=f.id where f.slug='federal-test' order by a.name",
+      )
+    ).rows;
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({
+      id: "stored-office",
+      slug: "preserved-office-slug",
+      location_path_id: "federal-place",
+      parent_slug: "federal-test",
+    });
+    expect(rows[1]).toMatchObject({
+      location_path_id: "federal-place",
+      parent_slug: "federal-test",
+    });
+    expect(rows[0].parent_federal_agency_id).not.toBe("parent");
+    expect(rows[1].parent_federal_agency_id).toBe(
+      rows[0].parent_federal_agency_id,
+    );
+    expect(
+      (
+        await db.query(
+          "select id from public.agency where name='Unrelated Agency'",
+        )
+      ).rows,
+    ).toEqual([]);
+    expect(await run(input.path, "offices-repeat")).toMatchObject({ ok: true });
+    expect(
+      (
+        await db.query(
+          "select a.id,a.slug,a.location_path_id,a.parent_federal_agency_id,f.slug as parent_slug from public.agency a join public.federal_agency f on a.parent_federal_agency_id=f.id where f.slug='federal-test' order by a.name",
+        )
+      ).rows,
+    ).toEqual(rows);
+    const later = await Artifacts.write(
+      root,
+      Artifacts.new({
+        metadata: { namespace, name: "office-phone" },
+        spec: {
+          artifacts: [
+            {
+              kind: "AgencyPhoneNumbers",
+              spec: {
+                records: {
+                  phone: {
+                    spec: {
+                      agency_id: "existing",
+                      phone_number: "555-0111",
+                      description: "Office",
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      }),
+    );
+    expect(await run(later.path, "later-office-phone")).toMatchObject({
+      ok: true,
+    });
+    expect(
+      (
+        await db.query(
+          "select phone_number from public.agency_phone_numbers where agency_id='stored-office'",
+        )
+      ).rows,
+    ).toEqual([{ phone_number: "555-0111" }]);
   });
 });

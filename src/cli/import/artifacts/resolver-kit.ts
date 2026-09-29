@@ -319,19 +319,24 @@ export function valueAsString(value: unknown): string | undefined {
  * upstream resolver (e.g. a geocode that sets both `latitude` and `longitude`)
  * runs once — and applies `build` to transform them. This is how one property
  * delegates to another's output (e.g. a GeoJSON point built from resolved
- * coordinates) without recomputing it. `build` returns `null`/`undefined` to defer
- * to the resolver's unresolved policy.
+ * coordinates) without recomputing it. Missing sibling values remain omitted
+ * instead of being passed to a delegate that might turn them into null.
  */
 export function composedResolver<T, Row>(
   from: ReadonlyArray<keyof Row & string>,
   build: (values: unknown[]) => T | undefined,
-): Resolver<T, ResolverContext<Row, unknown>> {
-  return new Resolver(async ({ facade }) => {
-    const values = await Promise.all(
-      from.map((property) => facade.value(property)),
-    );
-    return build(values);
-  });
+): Resolver<T | undefined, ResolverContext<Row, unknown>> {
+  return new Resolver<T | undefined, ResolverContext<Row, unknown>>(
+    async ({ facade }) => {
+      const values = await Promise.all(
+        from.map((property) => facade.value(property)),
+      );
+      return values.some((value) => value === undefined)
+        ? undefined
+        : build(values);
+    },
+    { defaultValue: undefined },
+  );
 }
 
 /**
@@ -476,10 +481,14 @@ export async function resolveReference<Row>(
 
 /**
  * A reference resolver over the standard chain (ADR 0016/0023): derive the
- * reference (`referenceFrom`), run the chain, first hit wins. Absent → fail loud
- * (or null when `optional`); present-but-unresolved → fail loud. Never mints.
+ * reference (`referenceFrom`), run the chain, first hit wins. Required absence
+ * fails loudly; optional references preserve omission and explicit null.
+ * Present-but-unresolved fails loudly. Never mints.
  */
-export function referenceResolver<Row, T extends string | null = string>(
+export function referenceResolver<
+  Row,
+  T extends string | null | undefined = string,
+>(
   entityKind: string,
   property: string,
   targetKind: string,
@@ -489,34 +498,41 @@ export function referenceResolver<Row, T extends string | null = string>(
   options: { optional?: boolean } = {},
 ): Resolver<T, ResolverContext<Row, ReferenceBackend>> {
   const links = standardChain<Row>(targetKind);
-  return new Resolver(async (context) => {
-    const { source } = context;
-    const reference = referenceFrom(context);
-    if (reference === undefined) {
-      if (options.optional === true) {
-        return null as T;
+  return new Resolver(
+    async (context) => {
+      const { source } = context;
+      const reference = referenceFrom(context);
+      if (reference === undefined) {
+        if (options.optional === true) {
+          return (
+            context.facade.raw(property as keyof Row) === undefined
+              ? undefined
+              : null
+          ) as T;
+        }
+        throw new Error(
+          `Cannot resolve ${entityKind}.${property} for ${source.namespace}/${source.name}; source ${property} is missing.`,
+        );
+      }
+      for (const link of links) {
+        const resolved = await link(reference, context);
+        if (resolved !== undefined) {
+          return resolved as T;
+        }
       }
       throw new Error(
-        `Cannot resolve ${entityKind}.${property} for ${source.namespace}/${source.name}; source ${property} is missing.`,
+        [
+          `${entityKind} ${source.namespace}/${source.name} references ${targetKind} ${JSON.stringify(
+            reference,
+          )}, which does not exist in namespace ${source.namespace}.`,
+          source.sourceFile && `Source: ${source.sourceFile}.`,
+        ]
+          .filter(Boolean)
+          .join(" "),
       );
-    }
-    for (const link of links) {
-      const resolved = await link(reference, context);
-      if (resolved !== undefined) {
-        return resolved as T;
-      }
-    }
-    throw new Error(
-      [
-        `${entityKind} ${source.namespace}/${source.name} references ${targetKind} ${JSON.stringify(
-          reference,
-        )}, which does not exist in namespace ${source.namespace}.`,
-        source.sourceFile && `Source: ${source.sourceFile}.`,
-      ]
-        .filter(Boolean)
-        .join(" "),
-    );
-  });
+    },
+    options.optional ? { defaultValue: undefined as T } : {},
+  );
 }
 
 /**
@@ -597,13 +613,13 @@ export function facadeLedgerForeignKeyResolver<Row>(
   return facadeForeignKeyResolver<Row>(entityKind, property, targetKind);
 }
 
-/** Nullable FK (ADR 0016 #9): the standard chain; an absent reference is null. */
+/** Nullable FK: omission stays omitted; explicit null clears the relationship. */
 export function facadeNullableForeignKeyResolver<Row>(
   entityKind: string,
   property: keyof Row & string,
   targetKind: string,
-): Resolver<string | null, ResolverContext<Row, ReferenceBackend>> {
-  return referenceResolver<Row, string | null>(
+): Resolver<string | null | undefined, ResolverContext<Row, ReferenceBackend>> {
+  return referenceResolver<Row, string | null | undefined>(
     entityKind,
     property,
     targetKind,
@@ -615,8 +631,8 @@ export function facadeNullableForeignKeyResolver<Row>(
 /**
  * Build the shared casing resolveFn: read the source string at `property`, apply
  * `transform`, or resolve to `undefined` when the source value is absent — so the
- * resolver's nullability policy (a `null` default for nullable columns, fail-loud
- * for required ones) decides the outcome. Casing runs through the facade, never a
+ * required resolver fails visibly while nullable resolvers preserve omission and
+ * explicit null separately. Casing runs through the facade, never a
  * pre-DB transform (the forbidden pattern).
  */
 function casingResolveFn<Row, Backend>(
@@ -646,6 +662,21 @@ export function textWhitespaceResolver<Row, Backend>(
   );
 }
 
+function casingResolverNullable<Row, Backend>(
+  property: keyof Row & string,
+  transform: (value: string) => string,
+): Resolver<string | null | undefined, ResolverContext<Row, Backend>> {
+  const resolve = casingResolveFn<Row, Backend>(property, transform);
+  return new Resolver(
+    async (context: ResolverContext<Row, Backend>) => {
+      const raw = context.facade.raw(property);
+      if (raw === undefined || raw === null) return raw;
+      return (await resolve(context)) ?? null;
+    },
+    { defaultValue: undefined },
+  );
+}
+
 /** Title-case an organization/address string property (REQUIRED column). */
 export function titleCaseResolver<Row, Backend>(
   property: keyof Row & string,
@@ -655,14 +686,11 @@ export function titleCaseResolver<Row, Backend>(
   );
 }
 
-/** Title-case a string property (NULLABLE column); blank/absent → null. */
+/** Title-case a nullable string while preserving omission and explicit null. */
 export function titleCaseResolverNullable<Row, Backend>(
   property: keyof Row & string,
-): Resolver<string | null, ResolverContext<Row, Backend>> {
-  return new Resolver<string | null, ResolverContext<Row, Backend>>(
-    casingResolveFn<Row, Backend>(property, titleCase),
-    { defaultValue: null },
-  );
+): Resolver<string | null | undefined, ResolverContext<Row, Backend>> {
+  return casingResolverNullable<Row, Backend>(property, titleCase);
 }
 
 /** Name-case a person-name string property (REQUIRED column). */
@@ -677,29 +705,20 @@ export function nameCaseResolver<Row, Backend>(
 /** Name-case a person-name string property (NULLABLE column). */
 export function nameCaseResolverNullable<Row, Backend>(
   property: keyof Row & string,
-): Resolver<string | null, ResolverContext<Row, Backend>> {
-  return new Resolver<string | null, ResolverContext<Row, Backend>>(
-    casingResolveFn<Row, Backend>(property, nameCase),
-    { defaultValue: null },
-  );
+): Resolver<string | null | undefined, ResolverContext<Row, Backend>> {
+  return casingResolverNullable<Row, Backend>(property, nameCase);
 }
 
 /** Normalize a nullable personnel suffix consistently across sources. */
 export function nameSuffixResolverNullable<Row, Backend>(
   property: keyof Row & string,
-): Resolver<string | null, ResolverContext<Row, Backend>> {
-  return new Resolver<string | null, ResolverContext<Row, Backend>>(
-    casingResolveFn<Row, Backend>(property, nameSuffix),
-    { defaultValue: null },
-  );
+): Resolver<string | null | undefined, ResolverContext<Row, Backend>> {
+  return casingResolverNullable<Row, Backend>(property, nameSuffix);
 }
 
 /** Lowercase an email string property (NULLABLE column). */
 export function lowerCaseEmailResolverNullable<Row, Backend>(
   property: keyof Row & string,
-): Resolver<string | null, ResolverContext<Row, Backend>> {
-  return new Resolver<string | null, ResolverContext<Row, Backend>>(
-    casingResolveFn<Row, Backend>(property, lowerCaseEmail),
-    { defaultValue: null },
-  );
+): Resolver<string | null | undefined, ResolverContext<Row, Backend>> {
+  return casingResolverNullable<Row, Backend>(property, lowerCaseEmail);
 }

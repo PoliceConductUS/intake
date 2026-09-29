@@ -17,6 +17,30 @@ function sha256(contents: string): string {
 }
 
 describe("Artifacts shared IO", () => {
+  test.each(["AgencyLinks", "FederalAgencyBranches", "CoverageLinkCivilCases"])(
+    "rejects retired %s artifacts",
+    async (kind) => {
+      const directory = await createTempArtifactsDirectory();
+      const artifactsPath = path.join(directory, "artifacts.yaml");
+      await writeFile(
+        artifactsPath,
+        [
+          `apiVersion: ${INTAKE_API_VERSION}`,
+          "kind: Artifacts",
+          "metadata:",
+          "  name: retired-records",
+          "  namespace: test-source",
+          "spec:",
+          "  artifacts:",
+          `    - kind: ${kind}`,
+          "      spec:",
+          "        records: {}",
+        ].join("\n"),
+      );
+      await expect(Artifacts.read(artifactsPath)).rejects.toThrow();
+    },
+  );
+
   test("reads Artifacts and referenced artifacts with exact kind readers", async () => {
     const directory = await createTempArtifactsDirectory();
     const artifactsPath = path.join(directory, "artifacts.yaml");

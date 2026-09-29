@@ -97,23 +97,11 @@ import {
   write as writeAgencyPhoneNumbers,
 } from "./AgencyPhoneNumbers.js";
 import {
-  AgencyLinks,
-  AgencyLinkSpec,
-  read as readAgencyLinks,
-  write as writeAgencyLinks,
-} from "./AgencyLinks.js";
-import {
   FederalAgencies,
   FederalAgencySpec,
   read as readFederalAgencies,
   write as writeFederalAgencies,
 } from "./FederalAgencies.js";
-import {
-  FederalAgencyBranches,
-  FederalAgencyBranchSpec,
-  read as readFederalAgencyBranches,
-  write as writeFederalAgencyBranches,
-} from "./FederalAgencyBranches.js";
 import {
   CivilCases,
   CivilCaseSpec,
@@ -132,12 +120,6 @@ import {
   read as readCivilCaseLinks,
   write as writeCivilCaseLinks,
 } from "./CivilCaseLinks.js";
-import {
-  CoverageLinkCivilCases,
-  CoverageLinkCivilCaseSpec,
-  read as readCoverageLinkCivilCases,
-  write as writeCoverageLinkCivilCases,
-} from "./CoverageLinkCivilCases.js";
 import {
   Reviews,
   ReviewSpec,
@@ -260,23 +242,11 @@ export const ARTIFACT_MODULES = {
     read: readAgencyPhoneNumbers,
     write: writeAgencyPhoneNumbers,
   },
-  AgencyLinks: {
-    envelope: AgencyLinks,
-    recordSpec: AgencyLinkSpec,
-    read: readAgencyLinks,
-    write: writeAgencyLinks,
-  },
   FederalAgencies: {
     envelope: FederalAgencies,
     recordSpec: FederalAgencySpec,
     read: readFederalAgencies,
     write: writeFederalAgencies,
-  },
-  FederalAgencyBranches: {
-    envelope: FederalAgencyBranches,
-    recordSpec: FederalAgencyBranchSpec,
-    read: readFederalAgencyBranches,
-    write: writeFederalAgencyBranches,
   },
   CivilCases: {
     envelope: CivilCases,
@@ -295,12 +265,6 @@ export const ARTIFACT_MODULES = {
     recordSpec: CivilCaseLinkSpec,
     read: readCivilCaseLinks,
     write: writeCivilCaseLinks,
-  },
-  CoverageLinkCivilCases: {
-    envelope: CoverageLinkCivilCases,
-    recordSpec: CoverageLinkCivilCaseSpec,
-    read: readCoverageLinkCivilCases,
-    write: writeCoverageLinkCivilCases,
   },
   Reviews: {
     envelope: Reviews,

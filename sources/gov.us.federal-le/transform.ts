@@ -4,7 +4,6 @@ import type { ImportArtifactKind } from "../../src/shared/io/index.js";
 export const produces: readonly ImportArtifactKind[] = [
   "FederalAgencies",
   "Agencies",
-  "FederalAgencyBranches",
 ];
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
@@ -22,7 +21,7 @@ import {
 } from "./model.js";
 
 export const description =
-  "US federal law-enforcement agencies — each agency (FBI, DEA, …) as a federal_agency, its offices (HQ + field offices) as agency records, linked by federal_agency_branch. Agencies are discovered from Wikipedia; offices are curated in state.";
+  "US federal law-enforcement agencies — each agency (FBI, DEA, …) as a federal_agency, its offices (HQ + field offices) as agency records. Agencies are discovered from Wikipedia; offices are curated in state.";
 
 async function loadYamlList<T>(
   stateDir: string,
@@ -56,7 +55,6 @@ export const transform: SourceTransform = async ({
   }
 
   const agencies: EmittedRecords = {};
-  const branches: EmittedRecords = {};
   const skipped: string[] = [];
   for (const office of offices) {
     if (!officeIsComplete(office) || !orgSlugs.has(office.federal_agency)) {
@@ -65,6 +63,7 @@ export const transform: SourceTransform = async ({
     }
     agencies[office.slug] = {
       spec: {
+        parent_federal_agency_id: office.federal_agency,
         name: office.name,
         state: office.state,
         city: office.city,
@@ -72,18 +71,11 @@ export const transform: SourceTransform = async ({
         zip_code: office.zip_code,
       },
     };
-    branches[`${office.federal_agency}|${office.slug}`] = {
-      spec: {
-        federal_agency_id: office.federal_agency,
-        agency_id: office.slug,
-      },
-    };
   }
 
   log.info(
     `federal-le: ${Object.keys(federalAgencies).length} agencies, ` +
       `${Object.keys(agencies).length} offices, ` +
-      `${Object.keys(branches).length} branches, ` +
       `${skipped.length} offices skipped (incomplete or unknown agency)`,
   );
   if (skipped.length > 0) {
@@ -94,7 +86,6 @@ export const transform: SourceTransform = async ({
     artifacts: [
       { kind: "FederalAgencies", records: federalAgencies },
       { kind: "Agencies", records: agencies },
-      { kind: "FederalAgencyBranches", records: branches },
     ],
   };
 };

@@ -42,8 +42,8 @@ describe("composedResolver", () => {
     expect(reads).toEqual(["latitude", "longitude"]);
   });
 
-  it("returns null (defers) when a sibling is absent", async () => {
+  it("preserves omission when a sibling is absent", async () => {
     const { context } = fakeFacade({ latitude: 30.5 });
-    expect(await geoJsonPoint.resolve(context, () => "locate")).toBeNull();
+    expect(await geoJsonPoint.resolve(context, () => "locate")).toBeUndefined();
   });
 });

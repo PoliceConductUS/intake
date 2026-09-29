@@ -11,9 +11,6 @@ export type SourceManifest = {
   artifacts: Array<{ kind: ImportArtifactKind; records: EmittedRecords }>;
 };
 export type ResolvedPersonnel = { agencyPersonnelId: string };
-// CivilCase identity is its natural key (court:docket, ADR 0028), so a resolved
-// civil case is that key directly — no ledger mapping.
-export type ResolvedCivilCase = { civilCaseId: string };
 // An existing agency's own address, carried so a report with a too-vague incident
 // location can anchor to its resolved officer's agency (ADR 0030). Geocoding this
 // address hits the same cached point the agency already resolved to; the importer
@@ -42,11 +39,6 @@ export type TransformDataContext = {
     agencyId: string;
     personnelName: string;
   }): Promise<ResolvedPersonnel | null>;
-  // Resolve a docket to an EXISTING civil case's natural key, or null. Optional:
-  // sources that never reference cases do not need it.
-  resolveCivilCase?(input: {
-    docket: string;
-  }): Promise<ResolvedCivilCase | null>;
   // Resolve an agency name to an EXISTING agency's source id, or null (no unique
   // match). Optional: only sources that name agencies as free text need it.
   resolveAgency?(input: { agencyName: string }): Promise<ResolvedAgency | null>;

@@ -91,6 +91,7 @@ export async function transformOneSource(
 export async function generateOneSource(
   sourceId: string,
   env: Record<string, string | undefined>,
+  useInitialAgencyRoots?: boolean,
 ): Promise<
   { version?: string; mutationCount: number } | { error: CommandResult }
 > {
@@ -110,6 +111,7 @@ export async function generateOneSource(
   }
   const importResult = await runImportArtifactsCommand(artifactsPath, {
     dryImport: true,
+    useInitialAgencyRoots,
     env,
     terminal: false,
     args: ["data", "generate", sourceId],

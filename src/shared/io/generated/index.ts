@@ -139,21 +139,11 @@ export type {
   AgencyPhoneNumbersEnvelope,
   AgencyPhoneNumbersInput,
 } from "./AgencyPhoneNumbers.js";
-export { AgencyLinks, AgencyLinkSpec } from "./AgencyLinks.js";
-export type { AgencyLinksEnvelope, AgencyLinksInput } from "./AgencyLinks.js";
 export { FederalAgencies, FederalAgencySpec } from "./FederalAgencies.js";
 export type {
   FederalAgenciesEnvelope,
   FederalAgenciesInput,
 } from "./FederalAgencies.js";
-export {
-  FederalAgencyBranches,
-  FederalAgencyBranchSpec,
-} from "./FederalAgencyBranches.js";
-export type {
-  FederalAgencyBranchesEnvelope,
-  FederalAgencyBranchesInput,
-} from "./FederalAgencyBranches.js";
 export { CivilCases, CivilCaseSpec } from "./CivilCases.js";
 export type { CivilCasesEnvelope, CivilCasesInput } from "./CivilCases.js";
 export {
@@ -169,14 +159,6 @@ export type {
   CivilCaseLinksEnvelope,
   CivilCaseLinksInput,
 } from "./CivilCaseLinks.js";
-export {
-  CoverageLinkCivilCases,
-  CoverageLinkCivilCaseSpec,
-} from "./CoverageLinkCivilCases.js";
-export type {
-  CoverageLinkCivilCasesEnvelope,
-  CoverageLinkCivilCasesInput,
-} from "./CoverageLinkCivilCases.js";
 export { Reviews, ReviewSpec } from "./Reviews.js";
 export type { ReviewsEnvelope, ReviewsInput } from "./Reviews.js";
 export { ReviewPersonnel, ReviewPersonnelSpec } from "./ReviewPersonnel.js";

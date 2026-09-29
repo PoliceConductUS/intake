@@ -37,10 +37,7 @@ import {
   entitySlugResolver,
 } from "./agency-personnel-resolvers.js";
 import { latLngFromAddress } from "./geocode-resolvers.js";
-import {
-  coverageLinkIdResolver,
-  civilCaseReferenceResolver,
-} from "./coverage-resolvers.js";
+import { coverageLinkIdResolver } from "./coverage-resolvers.js";
 import {
   EntityFacade,
   type EntityFacadeBackend,
@@ -202,7 +199,7 @@ const REGISTRY: Record<string, KindConfig> = {
     },
   },
   AgencyPersonnel: {
-    // license_id is the one nullable FK: an officer may hold no license.
+    // An officer may hold no license.
     overrides: {
       license_id: facadeNullableForeignKeyResolver<Row>(
         "AgencyPersonnel",
@@ -281,13 +278,6 @@ const REGISTRY: Record<string, KindConfig> = {
     identityKind: "natural",
     overrides: {
       id: coverageLinkIdResolver() as AnyResolver,
-    },
-  },
-  CoverageLinkCivilCase: {
-    // civil_case_id references an existing case (another source) by its natural
-    // key, so it passes through as the canonical id (ADR 0023/0028).
-    overrides: {
-      civil_case_id: civilCaseReferenceResolver() as AnyResolver,
     },
   },
   CoverageLinkAgencyPersonnel: {
@@ -402,14 +392,14 @@ const SUPPORTED_KINDS = new Set<string>(
   ),
 );
 
-function createSpecShapeKeys(kind: string): string[] {
+function createSpecForKind(kind: string) {
   const spec = (entitySpecs as Record<string, unknown>)[`${kind}CreateSpec`];
   if (!(spec instanceof z.ZodObject)) {
     throw new Error(
       `No CreateSpec for kind ${kind}; cannot derive its columns.`,
     );
   }
-  return Object.keys(spec.shape);
+  return spec;
 }
 
 function mutationsForKind(kind: string): MutationConstructors<unknown> {
@@ -435,8 +425,12 @@ function derivedResolvers(
   if (identityKind === "canonical") {
     resolvers[identity] = facadeCanonicalIdResolver<Row>(kind) as AnyResolver;
   }
+  const spec = createSpecForKind(kind);
   for (const fk of FK_REFERENCES[kind] ?? []) {
-    resolvers[fk.field] = facadeForeignKeyResolver<Row>(
+    const resolver = spec.shape[fk.field].isNullable()
+      ? facadeNullableForeignKeyResolver<Row>
+      : facadeForeignKeyResolver<Row>;
+    resolvers[fk.field] = resolver(
       kind,
       fk.field,
       fk.targetKind,
@@ -463,7 +457,7 @@ function configurationForKind(kind: string): FacadeConfiguration {
   const config = REGISTRY[kind] ?? {};
   const identity = identityColumnForKind(kind);
   const identityKind = config.identityKind ?? "canonical";
-  const columns = createSpecShapeKeys(kind).filter(
+  const columns = Object.keys(createSpecForKind(kind).shape).filter(
     (column) => column !== identity,
   );
   const resolvers = {
