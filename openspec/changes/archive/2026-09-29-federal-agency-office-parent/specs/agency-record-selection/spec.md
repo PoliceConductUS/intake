@@ -1,9 +1,5 @@
-# agency-record-selection Specification
+## MODIFIED Requirements
 
-## Purpose
-
-Select new records through qualifying agency roots across sources while preserving stored records, factual updates, canonical identities, and source evidence.
-## Requirements
 ### Requirement: Open assignments and civil cases determine agency roots
 
 Shared intake SHALL select the unique UNION of agency IDs referenced by assignments whose effective end_date is exactly null, agency IDs linked to a civil case, and office Agency IDs linked to a federal organization through `parent_federal_agency_id`. The current schema represents case-agency connections through CivilCasePersonnel -> AgencyPersonnel -> Agency; selection SHALL use that relationship without introducing a CaseAgency table. Agency STATUS SHALL NOT determine selection. All current and past assignments at a selected agency SHALL be included, along with their personnel. For each import, assignment/case root agencies SHALL be the union of agencies qualifying before and after incoming records are overlaid on the stored canonical graph. Federal office inclusion SHALL follow the effective parent reference. Traversal SHALL follow the effective incoming graph. This retains the agency as a root for the dataset that closes its last open assignment. Later sources can attach data to previously imported assignments. Missing end_date in a new candidate SHALL NOT independently establish a qualifying assignment.
@@ -65,15 +61,6 @@ State/location records, licensing authorities, authority license types, and fede
   with no assignments or only ended assignments and no linked civil cases
 - **AND** unrelated nonfederal agencies remain subject to ordinary eligibility
 
-### Requirement: Preserve evidence and identity
-
-Source adapters SHALL emit otherwise valid candidate agencies, personnel, and assignments without preempting the shared agency eligibility rule. MN current roster assignments SHALL explicitly emit end_date null. Selection SHALL preserve raw inputs and candidate artifacts, canonical IDs, source mappings, and URLs, and SHALL report excluded candidate counts. Exclusion SHALL NOT issue database deletes. Missing required data SHALL remain a visible validation error rather than being reported as successful inclusion.
-
-#### Scenario: TCOLE inactive status with an open assignment
-
-- **WHEN** a department has STATUS INACTIVE but has a valid null-ended assignment
-- **THEN** the source emits the candidates and shared selection includes the agency and its reachable records
-
 ### Requirement: Intake never deletes records
 
 Intake SHALL NOT delete stored records. Inclusion eligibility SHALL govern new records; incoming updates to an existing canonical record SHALL remain eligible even when its agency no longer qualifies. Retaining an existing record SHALL NOT itself qualify the agency or select new descendants.
@@ -88,41 +75,6 @@ Intake SHALL NOT delete stored records. Inclusion eligibility SHALL govern new r
 
 - **WHEN** an agency has only ended assignments, no linked civil case, and no federal parent
 - **THEN** its unimported candidates remain inspectable but produce no create mutations; updates to stored records remain eligible
-
-### Requirement: Selection uses available case relationships
-
-Case qualification SHALL use incoming and stored case relationships available to the import. CourtListener acquisition and matching SHALL remain unchanged; an agency may be excluded before CourtListener is queried.
-
-#### Scenario: Historical-only agency precedes case discovery
-
-- **WHEN** a new agency has only ended assignments and no case relationship available to its import
-- **THEN** it may be excluded before CourtListener searches imported agencies
-- **AND** selection does not stage or import the agency solely to discover a future case
-
-### Requirement: Source adapters omit invalid records without weakening validation
-
-The TCOLE source SHALL validate agency candidates against the canonical Agency spec and report and omit invalid records. city null SHALL remain invalid. Assignments and contacts referencing an omitted agency SHALL not be emitted. Raw source data SHALL remain intact. Source validity filtering SHALL remain distinct from shared agency eligibility selection, and omission SHALL NOT delete stored records.
-
-#### Scenario: Department with invalid address data
-
-- **WHEN** an agency candidate contains null city, address, or zip_code and fails the existing canonical spec
-- **THEN** the source reports the agency source identity and invalid fields and omits the agency and its dependent assignments and contacts
-- **AND** valid agency candidates remain available to shared selection
-
-### Requirement: Shared agency address validation rejects approved placeholders
-
-Shared Agency field validation SHALL reject city and address values NULL, 0, x, xx, -----, N/A, and test after trimming and case-folding. ZIP values SHALL match five digits or ZIP+4 and SHALL NOT start with an all-zero five-digit ZIP. These rules SHALL apply to canonical agency artifacts and create/update validation for every source. Existing optional artifact fields SHALL remain optional; required create fields SHALL remain required. Ambiguous short addresses such as 341, rere, and 12t SHALL NOT be banned by this change. No global string validator SHALL be tightened for unrelated fields.
-
-#### Scenario: Invalid placeholder address from any source
-
-- **WHEN** an Agency contains one of the approved address or city placeholders, including mixed case or surrounding whitespace
-- **THEN** the canonical field validation rejects it
-
-#### Scenario: Postal format
-
-- **WHEN** an agency ZIP is 0, 00000, 00000-0000, or a malformed ZIP
-- **THEN** it is rejected
-- **AND** valid ZIPs with leading zeros and valid ZIP+4 values remain accepted
 
 ### Requirement: Initial agency roots for an empty database
 
@@ -173,41 +125,3 @@ Initial roots SHALL select their directed descendants using shared traversal. Th
 - **WHEN** a reset or initially empty update imports reference parents and offices before a roster with saved initial agencies
 - **THEN** the roster's saved initial agencies and their directed descendants are included
 - **AND** this behavior uses shared run context, without special handling for a source or entity kind
-
-### Requirement: Retired duplicate Texas agency pages
-
-The duplicate agency identities `azc6n47oplmlxa1cu0izal7wwoyv` / `dallas-police-department-tx-woyv`, `vt2zc6c6hi4k2665vm30h4ltpy90` / `fort-worth-police-department-tx-py90`, and `vxvk51wclfh4urgbdwxt46bf28dj` / `texas-department-of-public-safety-tx-28dj` SHALL NOT be restored as agencies by manual intake or included in local agency build inputs. Their presence in the production sitemap SHALL NOT cause bootstrap restoration. Explicit manual-source exclusions SHALL record the retired identities and the selected survivors.
-
-The selected existing identities SHALL remain `cm76wpxb701ggvrvgmu50aa9n` / `dallas-police-department-d32dea`, `cm7a0bgon037gewvgoqo5jqsu` / `fort-worth-police-department-a80e5e`, and `cm7a0bgoo03ekewvgxw2elv24` / `texas-department-of-public-safety-7f40bb`. Existing relationships SHALL remain attached to surviving records; this retirement does not authorize fabricating missing historical relationships or deleting personnel or cases. Historical raw inputs SHALL remain preserved as evidence and SHALL NOT be treated as active seed inputs. Ordinary intake SHALL remain non-deleting.
-
-#### Scenario: Manual restoration attempts to recreate a rejected duplicate
-
-- **WHEN** manual intake emits any of the three retired Agency source keys
-- **THEN** the existing explicit-exclusion stage removes that agency before writing import artifacts
-- **AND** the corresponding selected survivor is not excluded
-
-#### Scenario: Agency pages generated from the rebuilt database
-
-- **WHEN** agency build inputs are read from the rebuilt local database
-- **THEN** none of the three rejected IDs or slugs is present
-- **AND** all three selected survivor IDs and slugs remain unchanged
-
-### Requirement: Deferred Minnesota identity reconciliation
-
-This reconciliation SHALL leave the existing local canonical IDs, slugs and source mappings of Brooklyn Center Police Department, Minneapolis Police Department, Minnesota State Patrol and St. Anthony Police Department unchanged. Their production/local identity differences SHALL be reported as explicitly deferred, not silently merged or declared resolved.
-
-#### Scenario: Skipped Minnesota identity difference
-
-- **WHEN** the rebuilt local database contains one of the four deferred Minnesota agencies under a slug different from the production page
-- **THEN** this correction preserves its existing local ID/slug and source mapping
-- **AND** the audit reports the production difference as deferred by user direction
-
-### Requirement: Confirmed cross-source federal agency identities
-
-The federal office source names `fbi-headquarters`, `dea-headquarters`, `atf-headquarters`, and `usss-headquarters` SHALL resolve respectively to the selected existing Agency IDs `cm7a0bgot046gewvgtaafjyui`, `cm7a0bgot046oewvgozeu75gj`, `cm7a0bgot046mewvgs6xyqymp`, and `cm7a0bgot046iewvg5qs1f9cn`. Their established survivor slugs SHALL remain unchanged. Forward and reverse mappings SHALL agree, and replaced mapping evidence SHALL remain inspectable. These corrections SHALL NOT broaden agency selection or merge distinct agencies or district offices.
-
-#### Scenario: A later source describes the same selected agency
-
-- **WHEN** federal intake resolves one of the four confirmed office source names
-- **THEN** it resolves to the selected existing TCOLE Agency identity
-- **AND** it does not recreate the alternate agency ID or replace the established slug
