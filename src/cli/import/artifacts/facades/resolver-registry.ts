@@ -133,6 +133,7 @@ const REGISTRY: Record<string, KindConfig> = {
       // Share address geocoding; resolve place containment separately (ADR 0019).
       ...(latLngFromAddress({
         entityType: "agency",
+        requirePlace: true,
         from: {
           state: "state",
           place: "city",

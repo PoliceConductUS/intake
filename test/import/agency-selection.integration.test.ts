@@ -66,7 +66,7 @@ describeWithDocker("shared agency selection in the import pipeline", () => {
   test("a later personnel source uses persisted assignment reachability and preserves its canonical identity", async () => {
     const root = await workspace();
     await db.query(
-      "insert into public.location_path (location_path_id,path,level,display_name) values ('tx-graph','/tx/','state','Texas')",
+      "insert into public.location_path (location_path_id,path,level,display_name) values ('tx-graph','/tx/','place','Texas')",
     );
     await db.query(
       "insert into public.agency (id,name,city,state,address,zip_code,slug,location_path_id,latitude,longitude) values ('a-graph','Agency','Austin','TX','1 Main St','78701','agency-graph','tx-graph',30,-97)",
@@ -127,7 +127,7 @@ describeWithDocker("shared agency selection in the import pipeline", () => {
   test("closing the last assignment updates its end date and retains stored history", async () => {
     const root = await workspace();
     await db.query(
-      "insert into public.location_path (location_path_id,path,level,display_name) values ('tx-close','/tx-close/','state','Texas')",
+      "insert into public.location_path (location_path_id,path,level,display_name) values ('tx-close','/tx-close/','place','Texas')",
     );
     await db.query(
       "insert into public.agency (id,name,city,state,address,zip_code,slug,location_path_id,latitude,longitude) values ('a-close','Closed Agency','Austin','TX','1 Main St','78701','agency-close','tx-close',30,-97)",

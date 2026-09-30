@@ -138,7 +138,52 @@ describe("Census supplemental places", () => {
     expect(result.built.locationPathAlias).toEqual({});
     expect(result.report[0]).toMatchObject({ status: "covered" });
   });
-  it.each(["S2", "S3", "Z3", "Z5", "Z9"])(
+  it.each([
+    ["2705321965", "Fort Snelling UT", "053", "hennepin-county"],
+    ["2706399999", "Test unorganized territory", "063", "jackson-county"],
+  ])(
+    "imports Z3 territory %s as a place with its full boundary",
+    (geoid, name, countyCode, countySlug) => {
+      const built = baseline();
+      const parent = `administrative_area:GEOID:27${countyCode}`;
+      built.locationPaths[parent] = {
+        ...built.locationPaths["administrative_area:GEOID:27063"],
+        location_path_id: parent,
+        path: `/mn/${countySlug}/`,
+      };
+      built.locationPathSources[parent] = { sourceKey: parent };
+      const territory = feature(geoid, name, [0, 0, 4, 4], {
+        CLASSFP: "Z3",
+        COUNTYFP: countyCode,
+      });
+      const result = addSupplementalPlaces({
+        built,
+        subdivisions: [territory],
+        consolidatedCities: [],
+        places: [feature("2700001", "Overlapping city", [0, 0, 2, 4])],
+        counties: [],
+      });
+      const key = `county_subdivision:GEOID:${geoid}`;
+      expect(result.built.locationPaths[key]).toMatchObject({
+        level: "place",
+        display_name: name,
+        parent_location_path_id: parent,
+        resolution_class: "county_subdivision",
+      });
+      expect(result.built.locationPathSources[key]).toEqual({
+        sourceKey: key,
+        parentSourceKey: parent,
+      });
+      expect(result.geometries.get(key)?.coordinates).toEqual([
+        territory.geometry.coordinates,
+      ]);
+      expect(result.report[0]).toMatchObject({
+        status: "included",
+        classCode: "Z3",
+      });
+    },
+  );
+  it.each(["S2", "S3", "Z5", "Z9"])(
     "excludes statistical/undefined class %s visibly",
     (CLASSFP) => {
       const result = run([

@@ -9,3 +9,7 @@ Record `resolution_class` on location_path with primary as the database default 
 User approved excluding statistical divisions, preferring PLACE over township, and skipping fully PLACE-covered townships, and retaining the full original Census boundaries of the remaining townships. Consolidated cities are broader municipal coverage and follow subdivisions in resolution priority. Existing 50 states plus DC scope excludes territorial subminor civil divisions. No separate tribal-reservation, service-area, or land-use dataset is added. Legally independent tribal-area county subdivisions (Census class Z2) are included as local jurisdictions through COUSUB.
 
 References: [Census class codes](https://www.census.gov/library/reference/code-lists/class-codes.html), [COUSUB files](https://www2.census.gov/geo/tiger/TIGER2025/COUSUB/), [CONCITY files](https://www2.census.gov/geo/tiger/TIGER2025/CONCITY/).
+
+## Unorganized territory coverage
+
+Z3 unorganized territories are website places beneath their Census county. Import them through the same county-subdivision path with original boundaries and existing coverage/precedence rules. Fort Snelling UT (2705321965) belongs beneath Hennepin County (27053). S2, S3, Z5 and Z9 remain excluded. This supersedes the earlier Z3 exclusion; the checked-in national audit records the earlier run, not the revised coverage.

@@ -76,25 +76,45 @@ withDocker("data reset against disposable Postgres", () => {
     ) => {
       commands.push(args.join(" "));
       if (args[1] === "acquire") throw new Error("Unexpected acquisition");
-      if (args[1] === "transform" && args[2] === "us-census-gazetteer") {
+      if (
+        args[1] === "transform" &&
+        ["us-census-gazetteer", "fixture-agencies"].includes(args[2])
+      ) {
         const command = await createCommandDirectory(env, {
           namespace: args[2],
           args,
         });
+        const selectArtifacts = (
+          items: Parameters<typeof buildArtifactsEnvelope>[2]["artifacts"],
+        ) =>
+          items.filter((item) =>
+            args[2] === "us-census-gazetteer"
+              ? item.kind === "LocationPaths"
+              : item.kind !== "LocationPaths",
+          );
         await Artifacts.write(
           command.outputDirectory,
           buildArtifactsEnvelope(args[2], command.commandName, {
-            artifacts: [
+            artifacts: selectArtifacts([
               {
                 kind: "LocationPaths",
                 records: {
+                  "/root/": {
+                    spec: {
+                      location_path_id: "/root/",
+                      path: "/root/",
+                      level: "state",
+                      display_name: "Test State",
+                      parent_location_path_id: null,
+                    },
+                  },
                   "/zz/": {
                     spec: {
                       location_path_id: "/zz/",
                       path: "/zz/",
-                      level: "state",
+                      level: "place",
                       display_name: "Test State",
-                      parent_location_path_id: null,
+                      parent_location_path_id: "/root/",
                     },
                   },
                 },
@@ -138,7 +158,7 @@ withDocker("data reset against disposable Postgres", () => {
                   },
                 },
               },
-            ],
+            ]),
           }),
         );
         return { exitCode: 0 };
@@ -150,7 +170,7 @@ withDocker("data reset against disposable Postgres", () => {
       commands,
       runDataCommand,
       logger: { info: () => {} },
-      orderedSourceIds: async () => ["us-census-gazetteer"],
+      orderedSourceIds: async () => ["us-census-gazetteer", "fixture-agencies"],
     };
   }
 
@@ -184,7 +204,11 @@ withDocker("data reset against disposable Postgres", () => {
       },
     ]);
     expect(
-      (await db.query("select path from public.location_path")).rows,
+      (
+        await db.query(
+          "select path from public.location_path where level = 'place'",
+        )
+      ).rows,
     ).toEqual([{ path: "/zz/" }]);
     expect(
       (await db.query("select alias_path from public.location_path_alias"))
@@ -196,7 +220,7 @@ withDocker("data reset against disposable Postgres", () => {
           "select count(*)::int as count from public.data_mutation_applied",
         )
       ).rows,
-    ).toEqual([{ count: 2 }]);
+    ).toEqual([{ count: 3 }]);
     expect(await resetData({ acquire: false }, deps)).toMatchObject({
       exitCode: 0,
     });

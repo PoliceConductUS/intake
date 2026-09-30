@@ -1,8 +1,11 @@
 # empty-table-retirement Specification
 
 ## Purpose
+
 TBD - created by archiving change drop-empty-tables. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Remove the audited empty tables
 
 The migrated public schema SHALL omit `agency_links`,
@@ -37,4 +40,3 @@ source outputs, graph edges, and resolvers.
 
 - **WHEN** an artifact declares a retired record kind
 - **THEN** the canonical artifact reader SHALL reject it
-

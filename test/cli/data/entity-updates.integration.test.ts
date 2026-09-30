@@ -50,7 +50,7 @@ withDocker("mutable entity edits through the data CLI", () => {
     return {
       locations: (
         await db.query(
-          "select location_path_id, path, display_name, ST_AsGeoJSON(centroid::geometry, 15)::jsonb as centroid, ST_AsGeoJSON(bbox, 15)::jsonb as bbox from public.location_path order by path",
+          "select location_path_id, path, display_name, ST_AsGeoJSON(centroid::geometry, 15)::jsonb as centroid, ST_AsGeoJSON(bbox, 15)::jsonb as bbox from public.location_path where level = 'place' order by path",
         )
       ).rows,
       aliases: (
@@ -66,12 +66,19 @@ withDocker("mutable entity edits through the data CLI", () => {
     };
   }
   test("generates location, alias, and report-personnel updates, applies them, and converges unchanged input", async () => {
+    await acquire("LocationPath", {
+      location_path_id: "/root/",
+      path: "/root/",
+      level: "state",
+      display_name: "Test State",
+      parent_location_path_id: null,
+    });
     const location = {
       location_path_id: "/aa/",
       path: "/aa/",
-      level: "state",
+      level: "place",
       display_name: "Original Place",
-      parent_location_path_id: null,
+      parent_location_path_id: "/root/",
       centroid: {
         type: "Point",
         coordinates: [-96.123456789123, 32.123456789123],
@@ -93,9 +100,9 @@ withDocker("mutable entity edits through the data CLI", () => {
     await acquire("LocationPath", {
       location_path_id: "/bb/",
       path: "/bb/",
-      level: "state",
+      level: "place",
       display_name: "Other Place",
-      parent_location_path_id: null,
+      parent_location_path_id: "/root/",
     });
     await acquire("LocationPathAlias", {
       alias_path: "/alias/",

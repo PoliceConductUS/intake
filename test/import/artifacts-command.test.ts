@@ -303,7 +303,24 @@ describe("importArtifacts", () => {
       `2026-06-08T00-00-00-000Z-${runId}`,
     );
     const runContext = new DataContext({
-      client: new EmptyDatabaseClient(),
+      client: new (class extends EmptyDatabaseClient {
+        async query(sql = "", values: readonly unknown[] = []) {
+          if (
+            sql.includes("where location_path_id = $1") &&
+            values[0] === agencyRecord.location_path_id
+          ) {
+            return {
+              rows: [
+                {
+                  location_path_id: agencyRecord.location_path_id,
+                  level: "place",
+                },
+              ],
+            };
+          }
+          return { rows: [] };
+        }
+      })(),
       ledger: fakeSourceNameLedger({
         agencies: {
           "agency-source-id": { canonicalId: "agency-canonical-id" },

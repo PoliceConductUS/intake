@@ -62,3 +62,7 @@ skipped. City/CDP precedence and consolidated-city support remain unchanged.
   command ID `mc4vjxe4btjb56u4gpa6irt9`. The repaired polygon is valid, retains
   8,158 vertices and 56 parts, and has the same extent. The persisted correction
   matches the current artifact and does not match changed geometry.
+
+## Z3 policy revision (2026-09-30)
+
+The earlier national audit above and its CSV/JSON describe the previous policy; their Z3 exclusion counts are historical. Z3 territories are now included as website places. Two regression cases failed before the implementation and passed afterward, including Fort Snelling under Hennepin County with preserved source identity and complete polygon. All 104 focused Census and place-resolution tests, type checking, and 36 OpenSpec validations passed. No database writes or reset were performed; national regeneration remains part of the user-run reset.

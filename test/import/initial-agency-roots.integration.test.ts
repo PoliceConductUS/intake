@@ -40,7 +40,7 @@ describeWithDocker("initial agency roots in the shared import pipeline", () => {
     await db.truncateAll();
     // Reference rows deliberately exist before the first agency import.
     await db.query(
-      "insert into public.location_path (location_path_id,path,level,display_name) values ('bootstrap-tx','/tx/','state','Texas')",
+      "insert into public.location_path (location_path_id,path,level,display_name) values ('bootstrap-tx','/tx/','place','Texas')",
     );
     await persistSourceNameToCanonicalIds(
       "source.one",

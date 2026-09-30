@@ -12,6 +12,7 @@ import { createCensusAgencyCoordinateResolver } from "../../../src/cli/import/ar
 
 const AGENCY_CONFIG = {
   entityType: "agency",
+  requirePlace: true,
   from: {
     state: "state",
     place: "city",
@@ -39,7 +40,9 @@ it.each([
     let containmentReads = 0;
     const writes: unknown[] = [];
     class Client extends EmptyDatabaseClient {
-      async query(sql = "") {
+      async query(sql = "", values: readonly unknown[] = []) {
+        if (sql.includes("where location_path_id = $1"))
+          return { rows: [{ location_path_id: values[0], level: "place" }] };
         if (sql.includes("ST_Covers")) containmentReads++;
         return { rows: [] };
       }
@@ -280,6 +283,10 @@ function fakeContext(
         geocodeCalls += 1;
         return { latitude: 30.5, longitude: -97.7 };
       },
+      getLocationPathById: async (id: string) => ({
+        location_path_id: id,
+        level: "place",
+      }),
       resolveAgencyLocation: async () => ({
         locationPathId: "lp-1",
         addressLatitude: 30.5,
@@ -440,6 +447,10 @@ it.each([
       {
         source: { namespace: "test", name: "agency-1" },
         backend: {
+          getLocationPathById: async (id: string) => ({
+            location_path_id: id,
+            level: "place",
+          }),
           resolveAgencyLocation: async () => {
             resolutions++;
             return {
@@ -484,13 +495,16 @@ it.each([true, false])(
     });
     const writes: unknown[] = [];
     class Client extends EmptyDatabaseClient {
-      async query(sql = "") {
+      async query(sql = "", values: readonly unknown[] = []) {
+        if (sql.includes("where location_path_id = $1"))
+          return { rows: [{ location_path_id: values[0], level: "place" }] };
         if (sql.includes("ST_Covers"))
           return {
             rows: hasPlace
               ? [
                   {
                     location_path_id: "containing-place",
+                    level: "place",
                     resolution_class: "primary",
                   },
                 ]

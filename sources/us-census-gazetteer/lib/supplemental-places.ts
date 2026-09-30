@@ -22,9 +22,10 @@ const LOCAL_CLASSES = new Set([
   "T9",
   "Z1",
   "Z2",
+  "Z3",
   "Z7",
 ]);
-const EXCLUDED_CLASSES = new Set(["S2", "S3", "Z3", "Z5", "Z9"]);
+const EXCLUDED_CLASSES = new Set(["S2", "S3", "Z5", "Z9"]);
 export interface SupplementalPlaceReport {
   geoid: string;
   name: string;
@@ -107,7 +108,7 @@ export function addSupplementalPlaces(input: {
         EXCLUDED_CLASSES.has(classCode)
       ) {
         entry.status = "excluded";
-        entry.reason = "Statistical, unorganized, or undefined subdivision";
+        entry.reason = "Excluded statistical or undefined subdivision";
         continue;
       }
       if (

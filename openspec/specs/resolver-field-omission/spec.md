@@ -1,8 +1,11 @@
 # resolver-field-omission Specification
 
 ## Purpose
+
 TBD - created by archiving change federal-agency-office-parent. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Resolvers preserve source omission and explicit null
 
 Every registered property resolver and shared resolver primitive SHALL preserve
@@ -22,4 +25,3 @@ clear stored values during updates, including nullable foreign keys and text.
 
 - **WHEN** an update explicitly supplies null for a nullable field
 - **THEN** it clears the field, while omission leaves the stored field unchanged
-

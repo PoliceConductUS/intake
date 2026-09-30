@@ -1,3 +1,4 @@
+import * as database from "../../src/cli/database/index.js";
 import {
   loadPropertyCorrections,
   inspectPropertyCorrection,
@@ -18,6 +19,22 @@ import { DataContext } from "../../src/cli/import/artifacts/data-context.js";
 import { createSourceNameToCanonicalIdLedger } from "../../src/cli/state/source-name-to-canonical-id/index.js";
 import { EmptyDatabaseClient } from "./database/empty-database-client.js";
 
+const placeLookup = async (id: string) => ({
+  location_path_id: id,
+  level:
+    id === "county-id"
+      ? "administrative_area"
+      : id === "state-id"
+        ? "state"
+        : "place",
+});
+class PlaceClient extends EmptyDatabaseClient {
+  async query(sql = "", values: readonly unknown[] = []) {
+    if (sql.includes("where location_path_id = $1"))
+      return { rows: [await placeLookup(String(values[0]))] };
+    return { rows: [] };
+  }
+}
 let workspace: string;
 const subject = {
   apiVersion: INTAKE_API_VERSION,
@@ -27,6 +44,10 @@ const subject = {
 beforeEach(async () => {
   workspace = await mkdtemp(path.join(tmpdir(), "cache-cli-"));
   vi.stubEnv("INTAKE_WORKSPACE", workspace);
+  vi.stubEnv("DATABASE_URL", "postgres://test/cache");
+  vi.spyOn(database, "defaultDatabaseClientFactory").mockImplementation(
+    () => new PlaceClient(),
+  );
   await persistSourceNameToCanonicalIds(
     "test.source",
     {
@@ -40,6 +61,7 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
   await rm(workspace, { recursive: true, force: true });
 });
 const args = (action: string, property = "location_path_id") => [
@@ -60,11 +82,14 @@ test("sets and reads a manual resolution by source identity, including new resol
   expect(result.stdout).toContain("source-one");
   expect(result.stdout).toContain("manual-place-id");
   expect(
-    (await loadPropertyCorrections(workspace, "test.source"))(
-      "Agency",
-      "source-one",
-      {},
-    ).location_path_id,
+    (
+      await loadPropertyCorrections(
+        workspace,
+        "test.source",
+        undefined,
+        placeLookup,
+      )
+    )("Agency", "source-one", {}).location_path_id,
   ).toBe("manual-place-id");
 });
 
@@ -74,6 +99,7 @@ test("requires force, shows existing values, and retains prior resolved entries 
     subject,
     targetProperty: "location_path_id",
     inputFingerprint: "old-input",
+    getLocationPathById: placeLookup,
   };
   await writeResolvedProperty({ ...key, value: "wrong-place-id" });
   const rejected = await runIntake([...args("set"), "right-place-id"]);
@@ -88,11 +114,14 @@ test("requires force, shows existing values, and retains prior resolved entries 
     (await runIntake([...args("set"), "right-place-id", "--force"])).exitCode,
   ).toBe(0);
   expect(
-    (await loadPropertyCorrections(workspace, "test.source"))(
-      "Agency",
-      "source-one",
-      {},
-    ).location_path_id,
+    (
+      await loadPropertyCorrections(
+        workspace,
+        "test.source",
+        undefined,
+        placeLookup,
+      )
+    )("Agency", "source-one", {}).location_path_id,
   ).toBe("right-place-id");
   expect(await readResolvedProperty(key)).toBe("wrong-place-id");
   expect(
@@ -166,21 +195,27 @@ test("requires force, shows existing values, and retains prior resolved entries 
 test("validates property values without converting a string True into a boolean", async () => {
   expect((await runIntake([...args("set", "city"), "True"])).exitCode).toBe(0);
   expect(
-    (await loadPropertyCorrections(workspace, "test.source"))(
-      "Agency",
-      "source-one",
-      {},
-    ).city,
+    (
+      await loadPropertyCorrections(
+        workspace,
+        "test.source",
+        undefined,
+        placeLookup,
+      )
+    )("Agency", "source-one", {}).city,
   ).toBe("True");
   expect(
     (await runIntake([...args("set", "latitude"), "33.767"])).exitCode,
   ).toBe(0);
   expect(
-    (await loadPropertyCorrections(workspace, "test.source"))(
-      "Agency",
-      "source-one",
-      {},
-    ).latitude,
+    (
+      await loadPropertyCorrections(
+        workspace,
+        "test.source",
+        undefined,
+        placeLookup,
+      )
+    )("Agency", "source-one", {}).latitude,
   ).toBe(33.767);
   expect(
     (await runIntake([...args("set", "longitude"), "not-a-number"])).exitCode,
@@ -198,8 +233,10 @@ test("an agency mutation uses the CLI override when its address has no available
     applyPropertyCorrections: await loadPropertyCorrections(
       workspace,
       "test.source",
+      undefined,
+      placeLookup,
     ),
-    client: new EmptyDatabaseClient(),
+    client: new PlaceClient(),
     ledger: createSourceNameToCanonicalIdLedger({ rootDir: workspace }),
     resolvedPropertyStore: {
       read: (input) => readResolvedProperty({ ...input, rootDir: workspace }),
@@ -287,14 +324,24 @@ test("--from and no-from replace one rule, never chain, and distinguish blank fr
   expect(
     (await runIntake([...args("set", "name"), "A", "--from", ""])).exitCode,
   ).toBe(0);
-  const first = await loadPropertyCorrections(workspace, "test.source");
+  const first = await loadPropertyCorrections(
+    workspace,
+    "test.source",
+    undefined,
+    placeLookup,
+  );
   expect(first("Agency", "source-one", { name: "" }).name).toBe("A");
   expect(first("Agency", "source-one", {}).name).toBeUndefined();
   expect((await runIntake([...args("set", "name"), "B"])).exitCode).toBe(1);
   expect(
     (await runIntake([...args("set", "name"), "B", "--force"])).exitCode,
   ).toBe(0);
-  const second = await loadPropertyCorrections(workspace, "test.source");
+  const second = await loadPropertyCorrections(
+    workspace,
+    "test.source",
+    undefined,
+    placeLookup,
+  );
   expect(second("Agency", "source-one", { name: "" }).name).toBe("");
   expect(second("Agency", "source-one", {}).name).toBe("B");
   expect(second("Agency", "source-one", { name: "A" }).name).toBe("A");
@@ -316,11 +363,13 @@ test("generation applies a source correction before dependent address resolution
     longitude: -96,
   }));
   const context = new DataContext({
-    client: new EmptyDatabaseClient(),
+    client: new PlaceClient(),
     ledger: createSourceNameToCanonicalIdLedger({ rootDir: workspace }),
     applyPropertyCorrections: await loadPropertyCorrections(
       workspace,
       "test.source",
+      undefined,
+      placeLookup,
     ),
     resolveAddress,
   });
@@ -373,7 +422,12 @@ test("a forced conditional rule retires the old unconditional correction", async
       inputFingerprint: "changed",
     }),
   ).toBeUndefined();
-  const apply = await loadPropertyCorrections(workspace, "test.source");
+  const apply = await loadPropertyCorrections(
+    workspace,
+    "test.source",
+    undefined,
+    placeLookup,
+  );
   expect(apply("Agency", "source-one", { latitude: 31 }).latitude).toBe(32);
   expect(apply("Agency", "source-one", {}).latitude).toBeUndefined();
 });
@@ -383,11 +437,13 @@ test("explicit identity changes fail instead of silently bypassing the durable m
     0,
   );
   const context = new DataContext({
-    client: new EmptyDatabaseClient(),
+    client: new PlaceClient(),
     ledger: createSourceNameToCanonicalIdLedger({ rootDir: workspace }),
     applyPropertyCorrections: await loadPropertyCorrections(
       workspace,
       "test.source",
+      undefined,
+      placeLookup,
     ),
   });
   const facade = context.facadeFromSource("Agency", {
@@ -412,7 +468,12 @@ test("accepts an explicit null replacement for a nullable property", async () =>
       ])
     ).exitCode,
   ).toBe(0);
-  const apply = await loadPropertyCorrections(workspace, "test.source");
+  const apply = await loadPropertyCorrections(
+    workspace,
+    "test.source",
+    undefined,
+    placeLookup,
+  );
   expect(
     apply("Agency", "source-one", { contact_name: "Unknown" }).contact_name,
   ).toBeNull();
@@ -440,7 +501,7 @@ test("a CLI name correction is applied before a location path is derived during 
     async () => "existing-town-id",
   );
   const context = new DataContext({
-    client: new EmptyDatabaseClient(),
+    client: new PlaceClient(),
     ledger,
     resolvedPropertyStore: {
       read: (input) => readResolvedProperty({ ...input, rootDir: workspace }),
@@ -449,6 +510,8 @@ test("a CLI name correction is applied before a location path is derived during 
     applyPropertyCorrections: await loadPropertyCorrections(
       workspace,
       "test.source",
+      undefined,
+      placeLookup,
     ),
   });
   const source = {
@@ -530,7 +593,7 @@ test("a CLI name correction is applied before a location path is derived during 
 
 test("generation rejects equal derived paths for distinct source identities", async () => {
   const context = new DataContext({
-    client: new EmptyDatabaseClient(),
+    client: new PlaceClient(),
     ledger: createSourceNameToCanonicalIdLedger({ rootDir: workspace }),
   });
   for (const name of ["state:GEOID:01", "state:GEOID:02"]) {
@@ -554,7 +617,7 @@ test("generation rejects equal derived paths for distinct source identities", as
 
 test("corrected source references resolve to canonical parent IDs", async () => {
   const context = new DataContext({
-    client: new EmptyDatabaseClient(),
+    client: new PlaceClient(),
     ledger: {
       read: async (_namespace, _kind, key) => `canonical-${key}`,
       findOrCreate: async (_namespace, _kind, key) => `canonical-${key}`,
@@ -600,7 +663,7 @@ test.each(["alias", "canonical"])(
   "a conflicting %s URL fails before aliases can converge",
   async (collision) => {
     const context = new DataContext({
-      client: new EmptyDatabaseClient(),
+      client: new PlaceClient(),
       ledger: createSourceNameToCanonicalIdLedger({ rootDir: workspace }),
     });
     const source = {
@@ -637,5 +700,24 @@ test.each(["alias", "canonical"])(
         spec: { alias_path: "/shared/", location_path_id: "b" },
       });
     await expect(context.toMutations()).rejects.toThrow(/URL.*already.*owned/);
+  },
+);
+
+test.each(["county-id", "state-id"])(
+  "cache set rejects non-place %s",
+  async (id) => {
+    const result = await runIntake([...args("set"), id]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("must reference an existing place");
+    expect(
+      await inspectPropertyCorrection(
+        workspace,
+        "test.source",
+        "Agency",
+        "source-one",
+        "location_path_id",
+        placeLookup,
+      ),
+    ).toBeUndefined();
   },
 );

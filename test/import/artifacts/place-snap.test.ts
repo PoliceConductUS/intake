@@ -25,6 +25,7 @@ function fakeContext(options: {
         return {
           rows: (options.containing[level] ?? []).map((row) => ({
             resolution_class: "primary",
+            level,
             ...(row as object),
           })),
         };

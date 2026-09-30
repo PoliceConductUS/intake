@@ -1,3 +1,4 @@
+import { requireAgencyPlaceLocationPath } from "../../../shared/agency-location-path.js";
 import { valueAsString } from "./resolver-kit.js";
 import {
   readLocationPathAliasByPath,
@@ -115,6 +116,11 @@ export class LocationDataContext {
       request.entityId,
     );
     if (cached !== undefined) {
+      await requireAgencyPlaceLocationPath(
+        request.entityId,
+        cached.locationPathId,
+        (id) => this.context.locationPaths.getById(id),
+      );
       return cached;
     }
 
@@ -218,7 +224,13 @@ export class LocationPathDataContext {
           .join(", ")}.`,
       );
     }
-    return uniqueMatches[0]!.location_path_id;
+    const location = uniqueMatches[0]!;
+    await requireAgencyPlaceLocationPath(
+      input.subject,
+      location.location_path_id,
+      async () => location,
+    );
+    return location.location_path_id;
   }
 
   // ADR 0024: resolve the containing place or fail.

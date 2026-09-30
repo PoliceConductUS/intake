@@ -274,8 +274,12 @@ describe("collectDocuments", () => {
         allegation: [{ page: 1, excerpt: "engaging in sexual harassment" }],
         violation: [{ page: 1, excerpt: "violating Minn. R. 6700.1600" }],
         finding: [{ page: 3, excerpt: "Tracy engaged in sexual harassment" }],
-        chief_action: [{ page: 3, excerpt: "LLPD placed Tracy on unpaid leave for 6 days" }],
-        sanction: [{ page: 1, excerpt: "license ... REVOKED ... STAYED for 6 years" }],
+        chief_action: [
+          { page: 3, excerpt: "LLPD placed Tracy on unpaid leave for 6 days" },
+        ],
+        sanction: [
+          { page: 1, excerpt: "license ... REVOKED ... STAYED for 6 years" },
+        ],
       },
     };
     const cacheDir = path.join(fixture.statePath, "documents");

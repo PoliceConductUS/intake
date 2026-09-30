@@ -63,6 +63,10 @@ export class Resolver<T, Ctx> {
     private readonly cacheInputFn?: (
       context: Ctx,
     ) => Promise<unknown> | unknown,
+    private readonly validateFn?: (
+      value: unknown,
+      context: Ctx,
+    ) => Promise<void>,
   ) {
     if (Object.keys(policy).length > 1) {
       throw new Error(
@@ -81,9 +85,14 @@ export class Resolver<T, Ctx> {
       : await this.cacheInputFn(context);
   }
 
+  async validate(value: T, context: Ctx): Promise<void> {
+    await this.validateFn?.(value, context);
+  }
+
   async resolve(context: Ctx, locate: () => string): Promise<T> {
     const value = await this.resolveFn(context);
     if (value !== undefined) {
+      await this.validate(value, context);
       return value;
     }
     if ("exception" in this.policy) {

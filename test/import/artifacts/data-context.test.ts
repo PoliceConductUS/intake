@@ -179,7 +179,7 @@ describe("DataContext", () => {
           options?.databaseAgencies === undefined
             ? {}
             : { "public.agency": options.databaseAgencies },
-          { locationPaths: options?.databaseLocationPaths ?? [] },
+          { locationPaths: options?.databaseLocationPaths ?? locationPaths },
         ),
       commandName: "command-name",
       ledger: fakeSourceNameLedger({
@@ -368,7 +368,7 @@ describe("DataContext", () => {
 
   test("creates agency facade with canonical ID from source mapping and collects create mutation", async () => {
     const context = new DataContext({
-      client: new EmptyDatabaseClient(),
+      client: new CurrentRowClient({}, { locationPaths }),
       commandName: "command-name",
       ledger: fakeSourceNameLedger({
         agencies: {
@@ -410,7 +410,7 @@ describe("DataContext", () => {
 
   test("collects touched facades into a DatabaseMutations envelope", async () => {
     const context = new DataContext({
-      client: new EmptyDatabaseClient(),
+      client: new CurrentRowClient({}, { locationPaths }),
       commandName: "command-name",
       ledger: fakeSourceNameLedger({
         agencies: {

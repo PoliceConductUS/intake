@@ -1,3 +1,4 @@
+import type { AgencyLocationPathLookup } from "../agency-location-path.js";
 import { isDeepStrictEqual } from "node:util";
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
@@ -38,6 +39,7 @@ export async function inspectPropertyCorrection(
   kind: string,
   sourceId: string,
   property: string,
+  getLocationPathById?: AgencyLocationPathLookup,
 ): Promise<PropertyCorrectionEnvelope | undefined> {
   const name = nameFor(kind, sourceId, property);
   const file = path.join(
@@ -52,6 +54,7 @@ export async function inspectPropertyCorrection(
   }
   const result = await PropertyCorrection.read(file, {
     expectedNamespace: namespace,
+    getLocationPathById,
   });
   if (
     result.metadata.name !== name ||
@@ -63,6 +66,7 @@ export async function inspectPropertyCorrection(
   return result;
 }
 export async function setPropertyCorrection(input: {
+  getLocationPathById?: AgencyLocationPathLookup;
   rootDir: string;
   namespace: string;
   kind: string;
@@ -81,6 +85,7 @@ export async function setPropertyCorrection(input: {
     input.kind,
     input.sourceId,
     input.property,
+    input.getLocationPathById,
   );
   if (existing !== undefined && !input.force)
     throw new Error(
@@ -112,6 +117,7 @@ export async function setPropertyCorrection(input: {
         ],
       },
     }),
+    { getLocationPathById: input.getLocationPathById },
   );
 }
 export type ApplyPropertyCorrections = (
@@ -124,6 +130,7 @@ export async function loadPropertyCorrections(
   root: string | undefined,
   namespace: string,
   log?: (message: string) => void,
+  getLocationPathById?: AgencyLocationPathLookup,
 ): Promise<ApplyPropertyCorrections> {
   if (root === undefined) return (_kind, _id, spec) => spec;
   const dir = directory(root, namespace);
@@ -136,6 +143,7 @@ export async function loadPropertyCorrections(
     if (!file.endsWith(".PropertyCorrection.yaml")) continue;
     const envelope = await PropertyCorrection.read(path.join(dir, file), {
       expectedNamespace: namespace,
+      getLocationPathById,
     });
     const { subject, targetProperty, entries } = envelope.spec;
     const expectedName = nameFor(subject.kind, subject.name, targetProperty);

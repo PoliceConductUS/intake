@@ -23,7 +23,7 @@ withDocker("agency graph context in real Postgres", () => {
     client = defaultDatabaseClientFactory(db.connectionString);
     await client.connect();
     await db.query(`insert into public.location_path(location_path_id,path,level,display_name)
-      values ('graph-state','/zz/','state','Test')`);
+      values ('graph-state','/zz/','place','Test')`);
     await db.query(`insert into public.agency(id,name,city,state,address,zip_code,slug,location_path_id,latitude,longitude) values
       ('agency-a','Agency A','City','ZZ','1 Main St','12345','agency-a','graph-state',1,1),
       ('agency-b','Agency B','City','ZZ','2 Main St','12345','agency-b','graph-state',1,1),

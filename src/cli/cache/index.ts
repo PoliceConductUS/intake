@@ -1,3 +1,8 @@
+import {
+  defaultDatabaseClientFactory,
+  type DatabaseClient,
+} from "../database/index.js";
+import { readLocationPathById } from "../database/location-paths.js";
 import { z } from "zod";
 import {
   correctionPropertySchema,
@@ -86,6 +91,19 @@ export const registerCliCommand: RegisterCliCommand = (
         valueOrOptions: string | object,
         options?: { force?: boolean; from?: string },
       ) => {
+        let locationClient: DatabaseClient | undefined;
+        const getLocationPathById = async (id: string) => {
+          if (locationClient === undefined) {
+            const url = process.env.DATABASE_URL;
+            if (!url)
+              throw new Error(
+                "DATABASE_URL is required to verify an agency location is a place.",
+              );
+            locationClient = defaultDatabaseClientFactory(url);
+            await locationClient.connect();
+          }
+          return readLocationPathById(locationClient, id);
+        };
         try {
           const schema = correctionPropertySchema(kind, property);
           const rootDir = intakeWorkspace(process.env);
@@ -101,6 +119,7 @@ export const registerCliCommand: RegisterCliCommand = (
             kind,
             sourceId,
             property,
+            getLocationPathById,
           );
           const conditional =
             action === "set" || correction !== undefined || id === undefined;
@@ -131,6 +150,7 @@ export const registerCliCommand: RegisterCliCommand = (
                         name: id,
                       },
                       targetProperty: property,
+                      getLocationPathById,
                     });
               if (resolved !== undefined && !options?.force)
                 throw new Error(
@@ -155,6 +175,7 @@ export const registerCliCommand: RegisterCliCommand = (
                 },
               );
               await setPropertyCorrection({
+                getLocationPathById,
                 rootDir,
                 namespace,
                 kind,
@@ -170,6 +191,7 @@ export const registerCliCommand: RegisterCliCommand = (
                   rootDir,
                   subject: { apiVersion: INTAKE_API_VERSION, kind, name: id },
                   targetProperty: property,
+                  getLocationPathById,
                 });
             }
             const current = await inspectPropertyCorrection(
@@ -178,6 +200,7 @@ export const registerCliCommand: RegisterCliCommand = (
               kind,
               sourceId,
               property,
+              getLocationPathById,
             );
             if (current === undefined)
               throw new Error(
@@ -197,6 +220,7 @@ export const registerCliCommand: RegisterCliCommand = (
               name: id!,
             } as const,
             targetProperty: property,
+            getLocationPathById,
           };
           const current = await inspectResolvedProperty(input);
           if (current === undefined)
@@ -212,6 +236,8 @@ export const registerCliCommand: RegisterCliCommand = (
             exitCode: 1,
             stderr: `${error instanceof Error ? error.message : String(error)}\n`,
           });
+        } finally {
+          await locationClient?.end();
         }
       },
     );

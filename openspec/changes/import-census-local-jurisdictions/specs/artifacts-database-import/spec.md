@@ -2,7 +2,7 @@
 
 ### Requirement: Census local jurisdictions are website places
 
-The Census namespace SHALL import PLACE features, legal and nonfunctioning local county subdivisions, and consolidated cities within the existing 50 states and District of Columbia coverage. It SHALL exclude statistical subdivisions (S2, S3, Z5), undefined areas (Z9), and unorganized statistical territories (Z3). C2/C5/C7/T5/Z7 representations already covered by PLACE polygons SHALL not create duplicates. Classification MUST use Census CLASSFP and boundary data, not guessed names. Unknown subdivision class codes MUST fail visibly.
+The Census namespace SHALL import PLACE features, legal and nonfunctioning local county subdivisions, unorganized territories (Z3), and consolidated cities within the existing 50 states and District of Columbia coverage. It SHALL exclude statistical subdivisions (S2, S3, Z5), and undefined areas (Z9). C2/C5/C7/T5/Z7 representations already covered by PLACE polygons SHALL not create duplicates. Classification MUST use Census CLASSFP and boundary data, not guessed names. Unknown subdivision class codes MUST fail visibly.
 
 #### Scenario: Alba township
 
@@ -12,7 +12,7 @@ The Census namespace SHALL import PLACE features, legal and nonfunctioning local
 
 #### Scenario: Statistical divisions
 
-- **WHEN** COUSUB contains a CCD, census subarea, undefined area, or unorganized statistical territory
+- **WHEN** COUSUB contains a CCD, census subarea, or undefined area
 - **THEN** it is excluded with an inspectable reason in the source transform report
 
 #### Scenario: Fully covered subdivision
@@ -193,3 +193,10 @@ The artifacts import pipeline MUST resolve every supported source entity key to 
 - **AND** the database does not contain that `public.location_path` row
 - **THEN** intake fails during import preparation before resolving a replacement location path
 - **AND** intake reports the missing cached canonical `locationPathId`
+
+#### Scenario: Unorganized territories fill local place coverage
+
+- **WHEN** COUSUB contains a Z3 unorganized territory within supported coverage
+- **THEN** intake treats it as a website place with county-subdivision resolution precedence and its full original Census polygon, subject to the existing fully-covered subdivision rule
+- **AND** Fort Snelling UT, GEOID 2705321965, belongs beneath Hennepin County, GEOID 27053
+- **AND** its stable identity comes from the Census source key, not the mailing city or county identity

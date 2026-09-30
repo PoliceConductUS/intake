@@ -1,4 +1,8 @@
 import {
+  requireAgencyPlaceLocationPath,
+  type AgencyLocationPathLookup,
+} from "../../../../shared/agency-location-path.js";
+import {
   Resolver,
   valueAsString,
   type FacadeSource,
@@ -15,6 +19,7 @@ type Row = Record<string, unknown>;
 
 /** The capability the geocode resolvers reach through (entity-independent). */
 export type LocationBackend = {
+  getLocationPathById: AgencyLocationPathLookup;
   resolveAgencyCoordinates(
     input: ResolveAddressInput,
   ): Promise<AddressResolution>;
@@ -29,6 +34,7 @@ export type LocationBackend = {
  * `latLngFromAddress`.
  */
 export type GeocodeConfig = {
+  requirePlace?: boolean;
   /** Passed through to the backend's address resolution (branch/telemetry). */
   entityType: string;
   /** Canonical identity column used in resolution diagnostics (default `id`). */
@@ -207,6 +213,15 @@ export function latLngFromAddress(
         city: normalizeToken(valueAsString(facade.raw(config.from.place))),
         state: normalizeToken(valueAsString(facade.raw(config.from.state))),
       }),
+      config.requirePlace
+        ? async (value, { facade, backend }) => {
+            await requireAgencyPlaceLocationPath(
+              String(await facade.value(identity)),
+              value,
+              backend.getLocationPathById,
+            );
+          }
+        : undefined,
     );
 
   return {

@@ -1,3 +1,4 @@
+import { readLocationPathById } from "../../database/location-paths.js";
 import {
   agencyTableIsEmpty,
   readExistingAgencyGraph,
@@ -462,6 +463,7 @@ async function writeLocationPathGeometryMutationRefs(
     context.workspaceRoot,
     context.artifacts.metadata.namespace,
     (message) => context.commandInput.logger?.info(message),
+    (id) => readLocationPathById(client, id),
   );
   for await (const {
     recordKey,
@@ -643,6 +645,7 @@ async function writeDatabaseMutationsStage(
         context.workspaceRoot,
         context.artifacts!.metadata.namespace,
         (message) => context.commandInput.logger?.info(message),
+        (id) => readLocationPathById(client, id),
       ),
       client,
       logger,

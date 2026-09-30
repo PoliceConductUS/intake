@@ -1,3 +1,7 @@
+import {
+  requireAgencyPlaceLocationPath,
+  type AgencyLocationPathLookup,
+} from "../../../shared/agency-location-path.js";
 import path from "node:path";
 import { z } from "zod";
 import { INTAKE_API_VERSION } from "../../../shared/io/import-types.js";
@@ -16,6 +20,7 @@ type EnvelopeReadRef =
   | { ref: { path: string; kind?: string; sha256?: string } };
 
 type EnvelopeReadOptions = {
+  getLocationPathById?: AgencyLocationPathLookup;
   expectedNamespace?: string;
   relativeTo?: string;
 };
@@ -178,14 +183,35 @@ async function readResolvedPropertyEnvelope(
       `ResolvedProperty namespace ${envelope.metadata.namespace} does not match expected namespace ${options.expectedNamespace}: ${ref.filePath}`,
     );
   }
+  await validateAgencyLocations(envelope, options.getLocationPathById);
   return envelope;
+}
+
+async function validateAgencyLocations(
+  envelope: ResolvedPropertyEnvelope,
+  lookup: AgencyLocationPathLookup | undefined,
+): Promise<void> {
+  if (
+    envelope.spec.subject.kind === "Agency" &&
+    envelope.spec.targetProperty === "location_path_id"
+  ) {
+    for (const entry of envelope.spec.entries) {
+      await requireAgencyPlaceLocationPath(
+        envelope.spec.subject.name,
+        entry.value,
+        lookup,
+      );
+    }
+  }
 }
 
 async function writeResolvedPropertyEnvelope(
   directory: string,
   envelope: ResolvedPropertyEnvelope,
+  options: { getLocationPathById?: AgencyLocationPathLookup } = {},
 ): Promise<{ path: string }> {
   const parsed = parseResolvedProperty(envelope);
+  await validateAgencyLocations(parsed, options.getLocationPathById);
   const filePath = yamlResourcePath(directory, parsed);
   await writeYamlDocumentFile(filePath, parsed);
   return { path: filePath };

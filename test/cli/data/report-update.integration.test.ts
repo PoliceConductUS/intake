@@ -60,16 +60,25 @@ withDocker("manual report updates through the data CLI", () => {
 
   test("generates and applies changed prose without changing identity, then emits no entry for unchanged input", async () => {
     await acquire("LocationPath", {
-      location_path_id: "/zz/",
-      path: "/zz/",
+      location_path_id: "/root/",
+      path: "/root/",
       level: "state",
       display_name: "Test State",
       parent_location_path_id: null,
     });
+    await acquire("LocationPath", {
+      location_path_id: "/zz/",
+      path: "/zz/",
+      level: "place",
+      display_name: "Test State",
+      parent_location_path_id: "/root/",
+    });
     await generate();
     await command("up");
     const location = (
-      await db.query("select location_path_id from public.location_path")
+      await db.query(
+        "select location_path_id from public.location_path where level = 'place'",
+      )
     ).rows[0]!;
     await db.query(
       "insert into public.agency (id, name, state, city, address, zip_code, location_path_id, latitude, longitude, slug) values ('report-agency', 'Test Agency', 'TX', 'Test City', '1 Main St', '75001', $1, 32.8, -96.8, 'test-agency')",

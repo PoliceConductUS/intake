@@ -33,7 +33,10 @@ export type OrderAnalysis = {
 export type CodexDocumentReviewReceipt = {
   method: "codex-document-review";
   reviewedAt: string;
-  fieldEvidence: Record<keyof OrderAnalysis, Array<{ page: number; excerpt: string }>>;
+  fieldEvidence: Record<
+    keyof OrderAnalysis,
+    Array<{ page: number; excerpt: string }>
+  >;
 };
 export type OrderAnalyzer = {
   model: string;

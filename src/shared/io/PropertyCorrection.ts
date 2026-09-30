@@ -1,3 +1,7 @@
+import {
+  requireAgencyPlaceLocationPath,
+  type AgencyLocationPathLookup,
+} from "../agency-location-path.js";
 import { z } from "zod";
 import { INTAKE_API_VERSION } from "./import-types.js";
 import { firstIssuePath, yamlDigest, yamlResourcePath } from "./resource.js";
@@ -56,6 +60,7 @@ export type PropertyCorrectionInput = Omit<
 >;
 
 type EnvelopeReadOptions = {
+  getLocationPathById?: AgencyLocationPathLookup;
   expectedNamespace?: string;
   expectedSha256?: string;
 };
@@ -103,14 +108,35 @@ async function readPropertyCorrection(
       `PropertyCorrection namespace ${envelope.metadata.namespace} does not match expected namespace ${options.expectedNamespace}: ${filePath}`,
     );
   }
+  await validateAgencyLocations(envelope, options.getLocationPathById);
   return envelope;
+}
+
+async function validateAgencyLocations(
+  envelope: PropertyCorrectionEnvelope,
+  lookup: AgencyLocationPathLookup | undefined,
+): Promise<void> {
+  if (
+    envelope.spec.subject.kind === "Agency" &&
+    envelope.spec.targetProperty === "location_path_id"
+  ) {
+    for (const entry of envelope.spec.entries) {
+      await requireAgencyPlaceLocationPath(
+        envelope.spec.subject.name,
+        entry.value,
+        lookup,
+      );
+    }
+  }
 }
 
 async function writePropertyCorrection(
   directory: string,
   envelope: PropertyCorrectionEnvelope,
+  options: { getLocationPathById?: AgencyLocationPathLookup } = {},
 ): Promise<{ path: string; sha256: string }> {
   const parsed = parsePropertyCorrection(envelope);
+  await validateAgencyLocations(parsed, options.getLocationPathById);
   const filePath = yamlResourcePath(directory, parsed);
   const contents = await writeYamlDocumentFile(filePath, parsed);
   return { path: filePath, sha256: yamlDigest(contents) };

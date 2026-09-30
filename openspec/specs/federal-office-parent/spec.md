@@ -1,8 +1,11 @@
 # federal-office-parent Specification
 
 ## Purpose
+
 TBD - created by archiving change federal-agency-office-parent. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Federal offices are ordinary agencies with one parent
 
 Agency SHALL have a nullable `parent_federal_agency_id` foreign key referencing
@@ -29,4 +32,3 @@ envelope SHALL remain retired.
 - **WHEN** the migration chain and the preserved 11-office federal source are applied
 - **THEN** all 11 offices have valid parent foreign keys on their Agency rows
 - **AND** no separate branch relationship rows are required
-

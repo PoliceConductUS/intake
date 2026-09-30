@@ -407,6 +407,10 @@ describe("schema-derived foreign key nullability", () => {
         parent_federal_agency_id: "parent-id",
       };
       const officeBackend = {
+        getLocationPathById: async (id: string) => ({
+          location_path_id: id,
+          level: "place",
+        }),
         ...backend(undefined, { Agency: [current] }).backend,
         registerSlug: async () => {},
       };

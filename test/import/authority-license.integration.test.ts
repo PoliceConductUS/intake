@@ -36,7 +36,7 @@ describeWithDocker("authority_license + license import (real Postgres)", () => {
     await db.truncateAll();
     await db.query(
       `insert into public.location_path (location_path_id, path, level, display_name)
-       values ('tx-lp', '/tx/', 'state', 'Texas')`,
+       values ('tx-lp', '/tx/', 'place', 'Texas')`,
     );
   });
 

@@ -256,6 +256,7 @@ export class EntityFacade<
     };
     const hit = await cache.read(key);
     if (hit !== undefined) {
+      await resolver.validate(hit as Row[K], context);
       return hit as Row[K];
     }
     const resolved = await this.resolveWithDiagnostics(

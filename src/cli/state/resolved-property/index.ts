@@ -1,3 +1,4 @@
+import type { AgencyLocationPathLookup } from "../../../shared/agency-location-path.js";
 import { createHash } from "node:crypto";
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
@@ -27,6 +28,7 @@ type EntrySources = Record<
 >;
 
 export type ResolvedPropertyCacheInput = {
+  getLocationPathById?: AgencyLocationPathLookup;
   subject: ResolvedPropertySubject;
   targetProperty: string;
   /**
@@ -117,6 +119,7 @@ export async function inspectResolvedProperty(
   }
   const envelope = await ResolvedProperty.read(filePath, {
     expectedNamespace: "intake",
+    getLocationPathById: input.getLocationPathById,
   });
   if (envelope.metadata.name !== resolvedPropertyCacheName(input)) {
     throw new Error(
@@ -246,6 +249,7 @@ async function persistEntries(
         entries: [...entries],
       },
     }),
+    { getLocationPathById: input.getLocationPathById },
   );
 }
 
@@ -304,7 +308,10 @@ export async function writeResolvedProperty(
 
   const filePath = resolvedPropertyPath(input.rootDir, input);
   const existingEnvelope = (await readableResolvedPropertyFile(filePath))
-    ? await ResolvedProperty.read(filePath, { expectedNamespace: "intake" })
+    ? await ResolvedProperty.read(filePath, {
+        expectedNamespace: "intake",
+        getLocationPathById: input.getLocationPathById,
+      })
     : undefined;
   const existing = existingEnvelope?.spec.entries ?? [];
   const fingerprint = input.inputFingerprint;

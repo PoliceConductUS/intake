@@ -1,3 +1,4 @@
+import type { AgencyLocationPathLookup } from "../../../shared/agency-location-path.js";
 import type { InitialAgencyRootsEnvelope } from "../../../shared/io/index.js";
 import {
   AGENCY_GRAPH_COLUMNS,
@@ -147,6 +148,7 @@ type RegistryFacade = EntityFacade<
 // plus the slug and agency-geocode capabilities the Personnel/Agency resolvers
 // reach through. Inert for kinds whose resolvers never call them.
 type UnifiedFacadeBackend = EntityFacadeBackend & {
+  getLocationPathById: AgencyLocationPathLookup;
   ensureUniqueSlug(input: {
     kind: string;
     base: string;
@@ -275,12 +277,14 @@ export class DataContext {
         cache.read({
           subject: { apiVersion: INTAKE_API_VERSION, kind, name: id },
           targetProperty: property,
+          getLocationPathById: (id) => this.locationPaths.getById(id),
           inputFingerprint,
         }),
       write: ({ kind, id, property, inputFingerprint, source }, value) =>
         cache.write({
           subject: { apiVersion: INTAKE_API_VERSION, kind, name: id },
           targetProperty: property,
+          getLocationPathById: (id) => this.locationPaths.getById(id),
           inputFingerprint,
           value,
           ...(source === undefined
@@ -329,6 +333,7 @@ export class DataContext {
       },
       findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
       getLocationPathByPath: (path) => this.locationPaths.getByPath(path),
+      getLocationPathById: (id) => this.locationPaths.getById(id),
       findRowsByColumns: (targetKind, columnValues) =>
         this.rows.getRowsByColumns(targetKind, columnValues),
       ensureUniqueSlug: (input) =>

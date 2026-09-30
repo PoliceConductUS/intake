@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import pg from "pg";
 
-/** One column of an entity table as the database reports it. */
+/** One writable column; database-generated columns are excluded. */
 export type IntrospectedColumn = {
   name: string;
   /** pg `udt_name` (e.g. `text`, `float8`, `date`, `timestamptz`, `geometry`). */
@@ -123,6 +123,7 @@ export async function introspectSchema(
         `select column_name, udt_name, is_nullable
            from information_schema.columns
           where table_schema = 'public' and table_name = $1
+            and is_generated = 'NEVER'
           order by ordinal_position`,
         [table],
       );
@@ -164,7 +165,7 @@ export async function introspectSchema(
         column: string;
         ref_table: string;
       }>(
-        `select att.attname as column, frel.relname as ref_table
+        `select distinct att.attname as column, frel.relname as ref_table
            from pg_constraint con
            join pg_class rel on rel.oid = con.conrelid
            join pg_class frel on frel.oid = con.confrelid
@@ -173,7 +174,7 @@ export async function introspectSchema(
            join pg_attribute att
              on att.attrelid = rel.oid and att.attnum = colnum
           where ns.nspname = 'public' and rel.relname = $1
-            and con.contype = 'f'`,
+            and con.contype = 'f' and att.attgenerated = ''`,
         [table],
       );
       const foreignKeys = foreignKeyRows.rows
@@ -185,7 +186,9 @@ export async function introspectSchema(
       )?.column;
 
       // Unique constraints (not the PK) — an entity's business/natural key, used
-      // to converge records by find-or-mint at import.
+      // to converge records by find-or-mint at import. A unique key containing
+      // the primary key is redundant for identity (e.g. a typed FK target),
+      // not a natural key supplied by a source.
       const uniqueRows = await client.query<{
         conname: string;
         column: string;
@@ -198,6 +201,11 @@ export async function introspectSchema(
            join pg_attribute att
              on att.attrelid = rel.oid and att.attnum = u.attnum
           where ns.nspname = 'public' and rel.relname = $1 and con.contype = 'u'
+            and not exists (
+              select 1 from pg_constraint pk
+              where pk.conrelid = con.conrelid and pk.contype = 'p'
+                and pk.conkey <@ con.conkey
+            )
           order by con.conname, u.ord`,
         [table],
       );
