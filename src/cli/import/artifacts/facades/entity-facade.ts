@@ -147,6 +147,10 @@ export class EntityFacade<
       this.correctedProperties.add(property);
   }
 
+  get sourceIdentity(): Readonly<FacadeSource> {
+    return this.source;
+  }
+
   correction(property: keyof Row): unknown {
     return this.correctedProperties.has(String(property))
       ? this.raw(property)
