@@ -3,20 +3,18 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
 import { runImportArtifactsCommand } from "../../src/cli/index.js";
-import {
-  planDatabaseMutations,
-  type DatabaseClient,
-} from "../../src/cli/import/artifacts/plan-database-mutations.js";
+import { GENERATED_MIGRATION_VERSIONS } from "../../src/shared/io/generated/entity-specs.js";
 import { importArtifacts } from "../../src/cli/import/artifacts/config.js";
 import { DataContext } from "../../src/cli/import/artifacts/data-context.js";
 import { applyOptionalArtifactMutation } from "../../src/cli/import/artifacts/artifact-mutation.js";
 import { ArtifactMutation } from "../../src/cli/import/artifacts/io/ArtifactMutation.js";
 import { ArtifactMutations } from "../../src/cli/import/artifacts/io/ArtifactMutations.js";
-import { type ImportOperations } from "../../src/cli/import/artifacts/operations.js";
 import { DatabaseMutations } from "../../src/cli/import/artifacts/io/DatabaseMutations.js";
 import { DatabaseMutationsDebug } from "../../src/cli/import/artifacts/io/DatabaseMutationsDebug.js";
 import { replayDatabaseMutations } from "../../src/cli/replay/database-mutations/config.js";
 import { persistSourceNameToCanonicalIds } from "../../src/cli/state/source-name-to-canonical-id/index.js";
+import { fakeSourceNameLedger } from "../cli/state/fake-source-name-ledger.js";
+import { EmptyDatabaseClient } from "../cli/database/empty-database-client.js";
 import {
   readResolvedProperty,
   type ResolvedPropertyCacheInput,
@@ -24,297 +22,23 @@ import {
 import { Artifacts } from "../../src/shared/io/Artifacts.js";
 import { Command as CommandEnvelope } from "../../src/shared/io/Command.js";
 import { write as writeAgencies } from "../../src/shared/io/generated/Agencies.js";
-import { AgencyCreate } from "../../src/cli/import/artifacts/io/generated-mutations/AgencyCreate.js";
-import { LocationPathCreate } from "../../src/cli/import/artifacts/io/generated-mutations/LocationPathCreate.js";
-import { LocationPathGeometryCreate } from "../../src/cli/import/artifacts/io/generated-mutations/LocationPathGeometryCreate.js";
 import { INTAKE_API_VERSION } from "../../src/shared/io/import-types.js";
 import { yamlResourceFileName } from "../../src/shared/io/resource.js";
-import type {
-  ImportRows,
-  LocationPathGeometryRow,
-  LocationPathRow,
-} from "../../src/cli/import/artifacts/transform.js";
 
-const rows: ImportRows = {
-  locationPaths: [],
-  locationPathAliases: [],
-  agencies: [
-    {
-      id: "agency-canonical-id",
-      name: "Minnesota State Patrol",
-      city: "Saint Paul",
-      state: "MN",
-      address: "444 Cedar Street",
-      zip_code: "55101",
-      contact_name: null,
-      contact_email: null,
-      slug: "minnesota-state-patrol",
-      location_path_id: "mn/saint-paul/minnesota-state-patrol",
-      latitude: 44.955097,
-      longitude: -93.102211,
-    },
-  ],
-  officers: [
-    {
-      id: "personnel-canonical-id",
-      first_name: "Spenser",
-      last_name: "Stockwell",
-      middle_name: null,
-      prefix: null,
-      suffix: null,
-      slug: "spenser-stockwell",
-    },
-  ],
-  agencyOfficers: [
-    {
-      id: "agency-personnel-canonical-id",
-      agency_id: "agency-canonical-id",
-      personnel_id: "personnel-canonical-id",
-      badge_number: "49112",
-      start_date: "2020-01-01",
-      end_date: null,
-      license_type: "Peace Officer",
-    },
-  ],
-  preparationMutations: [],
-  ownedColumns: {
-    agencies: {
-      "agency-canonical-id": [
-        "name",
-        "city",
-        "state",
-        "address",
-        "zip_code",
-        "contact_name",
-        "contact_email",
-        "slug",
-        "location_path_id",
-        "latitude",
-        "longitude",
-      ],
-    },
-    officers: {
-      "personnel-canonical-id": [
-        "first_name",
-        "last_name",
-        "middle_name",
-        "prefix",
-        "suffix",
-        "slug",
-      ],
-    },
-    agencyOfficers: {
-      "agency-personnel-canonical-id": [
-        "agency_id",
-        "personnel_id",
-        "badge_number",
-        "start_date",
-        "end_date",
-        "license_type",
-      ],
-    },
-  },
+const agencyRecord = {
+  id: "agency-canonical-id",
+  name: "Minnesota State Patrol",
+  city: "Saint Paul",
+  state: "MN",
+  address: "444 Cedar Street",
+  zip_code: "55101",
+  contact_name: null,
+  contact_email: null,
+  slug: "minnesota-state-patrol",
+  location_path_id: "mn/saint-paul/minnesota-state-patrol",
+  latitude: 44.955097,
+  longitude: -93.102211,
 };
-
-const createOperations: ImportOperations = {
-  locationPaths: {},
-  locationPathGeometries: {},
-  locationPathAliases: {},
-  agencies: {},
-  officers: {},
-  agencyOfficers: {},
-};
-
-function locationPathSnapshot(
-  placeLocationPathId = "mn/saint-paul/minnesota-state-patrol",
-): LocationPathRow[] {
-  return [
-    {
-      location_path_id: "mn-state-location-path-id",
-      path: "/mn/",
-      level: "state",
-      state_or_territory_slug: "mn",
-      administrative_area_slug: null,
-      place_slug: null,
-      state_or_territory_name: "Minnesota",
-      administrative_area_name: null,
-      place_name: null,
-      parent_location_path_id: null,
-    },
-    {
-      location_path_id: "ramsey-county-location-path-id",
-      path: "/mn/ramsey-county/",
-      level: "administrative_area",
-      state_or_territory_slug: "mn",
-      administrative_area_slug: "ramsey-county",
-      place_slug: null,
-      state_or_territory_name: "Minnesota",
-      administrative_area_name: "Ramsey County",
-      place_name: null,
-      parent_location_path_id: "mn-state-location-path-id",
-    },
-    {
-      location_path_id: placeLocationPathId,
-      path: "/mn/ramsey-county/saint-paul/",
-      level: "place",
-      state_or_territory_slug: "mn",
-      administrative_area_slug: "ramsey-county",
-      place_slug: "saint-paul",
-      state_or_territory_name: "Minnesota",
-      administrative_area_name: "Ramsey County",
-      place_name: "Saint Paul",
-      parent_location_path_id: "ramsey-county-location-path-id",
-    },
-  ];
-}
-
-function locationPathGeometry(locationPathId: string): LocationPathGeometryRow {
-  return {
-    location_path_id: locationPathId,
-    sourceLocationPathKey: `source:${locationPathId}`,
-    geometry: {
-      type: "Polygon",
-      coordinates: [
-        [
-          [-93.2, 44.9],
-          [-93.0, 44.9],
-          [-93.0, 45.0],
-          [-93.2, 45.0],
-          [-93.2, 44.9],
-        ],
-      ],
-    },
-  };
-}
-
-const schemaRowsByTable: Record<string, Record<string, unknown>[]> = {
-  agency: [
-    { column_name: "id", is_nullable: "NO", column_default: "generate_cuid()" },
-    { column_name: "name", is_nullable: "NO", column_default: null },
-    { column_name: "state", is_nullable: "NO", column_default: null },
-    { column_name: "slug", is_nullable: "NO", column_default: null },
-    {
-      column_name: "location_path_id",
-      is_nullable: "NO",
-      column_default: null,
-    },
-    { column_name: "latitude", is_nullable: "NO", column_default: null },
-    { column_name: "longitude", is_nullable: "NO", column_default: null },
-  ],
-  officers: [
-    { column_name: "id", is_nullable: "NO", column_default: "generate_cuid()" },
-    { column_name: "first_name", is_nullable: "NO", column_default: null },
-    { column_name: "last_name", is_nullable: "NO", column_default: null },
-    { column_name: "slug", is_nullable: "NO", column_default: null },
-  ],
-  agency_officers: [
-    { column_name: "id", is_nullable: "NO", column_default: "generate_cuid()" },
-    { column_name: "officer_id", is_nullable: "NO", column_default: null },
-    { column_name: "start_date", is_nullable: "NO", column_default: null },
-  ],
-};
-
-class RecordingClient implements DatabaseClient {
-  readonly queries: { text: string; values: readonly unknown[] }[] = [];
-  ended = false;
-
-  constructor(
-    private readonly connectError?: Error,
-    private readonly queryFailure?: { pattern: RegExp; error: Error },
-    private readonly queryResponses: {
-      pattern: RegExp;
-      values?: readonly unknown[];
-      rows: Record<string, unknown>[];
-    }[] = [],
-  ) {}
-
-  async connect(): Promise<void> {
-    if (this.connectError) {
-      throw this.connectError;
-    }
-  }
-
-  async query(
-    text: string,
-    values: readonly unknown[] = [],
-  ): Promise<{ rows: Record<string, unknown>[] }> {
-    this.queries.push({ text, values });
-
-    if (this.queryFailure?.pattern.test(text)) {
-      throw this.queryFailure.error;
-    }
-
-    if (/from information_schema\.columns\b/i.test(text)) {
-      const tableName = typeof values[1] === "string" ? values[1] : "";
-      return { rows: schemaRowsByTable[tableName] ?? [] };
-    }
-
-    if (/from supabase_migrations\.schema_migrations\b/i.test(text)) {
-      return {
-        rows: [
-          {
-            version: "20260608172000",
-            name: "add_location_path_alias",
-          },
-        ],
-      };
-    }
-
-    const isGeometryContainmentQuery =
-      /join public\.location_path_geometry\b/i.test(text);
-    const response = this.queryResponses.find(
-      ({ pattern, values: expected }) =>
-        pattern.test(text) &&
-        (!isGeometryContainmentQuery ||
-          pattern.source.includes("location_path_geometry")) &&
-        (expected === undefined ||
-          JSON.stringify(expected) === JSON.stringify(values)),
-    );
-    if (response) {
-      return { rows: response.rows };
-    }
-
-    if (isGeometryContainmentQuery) {
-      return { rows: [] };
-    }
-
-    if (/from public\.location_path\b/i.test(text) && values.length === 0) {
-      return {
-        rows: locationPathSnapshot(),
-      };
-    }
-
-    if (
-      /from public\.location_path\s+where location_path_id = \$1/i.test(text)
-    ) {
-      return {
-        rows:
-          typeof values[0] === "string"
-            ? [
-                {
-                  location_path_id: values[0],
-                  path: `/test/${values[0]}/`,
-                  level: "place",
-                  state_or_territory_slug: "test",
-                  administrative_area_slug: "test-county",
-                  place_slug: String(values[0]),
-                  state_or_territory_name: "Test",
-                  administrative_area_name: "Test County",
-                  place_name: String(values[0]),
-                  parent_location_path_id: "test-county-location-path-id",
-                },
-              ]
-            : [],
-      };
-    }
-
-    return { rows: [] };
-  }
-
-  async end(): Promise<void> {
-    this.ended = true;
-  }
-}
 
 async function writeSourceArtifactsFile(rootDir: string): Promise<string> {
   const writtenArtifacts = await Artifacts.write(
@@ -328,144 +52,6 @@ async function writeSourceArtifactsFile(rootDir: string): Promise<string> {
 }
 
 describe("importArtifacts", () => {
-  test("import-artifacts replay does not add source-resolved location path commands", async () => {
-    const rootDir = await mkdtemp(path.join(tmpdir(), "intake-debug-chain-"));
-    const writtenArtifacts = await Artifacts.write(
-      rootDir,
-      Artifacts.new({
-        metadata: { name: "test-run", namespace: "mn-post" },
-        spec: {
-          artifacts: [
-            {
-              kind: "Agencies",
-              spec: {
-                records: {
-                  "agency-source-id": {
-                    spec: {
-                      name: "Minnesota State Patrol",
-                      state: "MN",
-                    },
-                  },
-                },
-              },
-            },
-          ],
-        },
-      }),
-    );
-    const artifactsPath = writtenArtifacts.path;
-    const artifacts = await Artifacts.read(artifactsPath);
-    const partialRows: ImportRows = {
-      ...rows,
-      locationPaths: [],
-      locationPathGeometries: [
-        locationPathGeometry("saint-paul-location-path-id"),
-      ],
-      agencies: [
-        {
-          ...rows.agencies[0],
-          sourceName: "agency-source-id",
-          location_path_id: undefined,
-          latitude: undefined,
-          longitude: undefined,
-        },
-      ],
-      officers: [],
-      agencyOfficers: [],
-      ownedColumns: {
-        agencies: {
-          "agency-canonical-id": [
-            "name",
-            "city",
-            "state",
-            "location_path_id",
-            "latitude",
-            "longitude",
-          ],
-        },
-        officers: {},
-        agencyOfficers: {},
-      },
-    };
-    const client = new RecordingClient(undefined, undefined, [
-      {
-        pattern: /select \* from public\.agency where id = \$1/i,
-        rows: [],
-      },
-      {
-        pattern:
-          /from public\.location_path lp\s+join public\.location_path_geometry lpg/i,
-        rows: locationPathSnapshot("saint-paul-location-path-id").filter(
-          (locationPath) => locationPath.level === "place",
-        ),
-      },
-      {
-        pattern: /from public\.location_path\b/i,
-        rows: locationPathSnapshot("saint-paul-location-path-id"),
-      },
-    ]);
-
-    const result = await planDatabaseMutations(partialRows, {
-      env: { DATABASE_URL: "postgres://example/intake" },
-      clientFactory: () => client,
-      resolveAgencyCoordinates: async () => [
-        {
-          rowId: "agency-canonical-id",
-          latitude: 44.955097,
-          longitude: -93.102211,
-        },
-      ],
-      resolveLocationAdministrativeArea: async () => ({
-        administrativeAreaName: "Ramsey County",
-      }),
-    });
-    const commandDirectory = path.join(
-      rootDir,
-      "intake",
-      "commands",
-      "2026-06-08T00-00-00-000Z-test-command",
-    );
-    const databaseMutations = new DataContext({
-      rows: partialRows,
-      operations: result.operations,
-    }).toDatabaseMutations({
-      namespace: artifacts.metadata.namespace,
-      name: "test-command",
-      sourceArtifactsName: artifacts.metadata.name,
-      sourceArtifactsPath: artifactsPath,
-      sourceArtifactsDigest: await Artifacts.digest(artifactsPath),
-      databaseSchema: result.schema,
-    });
-    const replayImportArtifactsEnvelope = await DatabaseMutations.write(
-      commandDirectory,
-      databaseMutations,
-    );
-
-    const importArtifactsEnvelope = await DatabaseMutations.read(
-      replayImportArtifactsEnvelope.path,
-    );
-    const mutations = importArtifactsEnvelope.spec.mutations;
-
-    expect(mutations.map((mutation) => mutation.kind)).toEqual([
-      "LocationPathGeometryCreate",
-      "AgencyCreate",
-    ]);
-    expect(mutations.map((mutation) => mutation.kind)).not.toContain(
-      "LocationPathCreate",
-    );
-    expect(
-      (mutations[1]?.spec as Record<string, unknown>).location_path_id,
-    ).toEqual("saint-paul-location-path-id");
-    expect(importArtifactsEnvelope.metadata.databaseSchema).toEqual({
-      appliedMigrations: [
-        {
-          version: "20260608172000",
-          name: "add_location_path_alias",
-        },
-      ],
-    });
-  });
-
   test("applies optional artifact mutation before transform", async () => {
     const rootDir = await mkdtemp(path.join(tmpdir(), "intake-mutation-"));
     const sourceCommandDirectory = path.join(rootDir, "source-command");
@@ -606,7 +192,13 @@ describe("importArtifacts", () => {
     const agencyArtifact = artifacts.spec.artifacts.find(
       (artifact) => artifact.kind === "Agencies",
     );
-    expect(agencyArtifact?.spec.records["agency-source-id"]).toMatchObject({
+    expect(
+      (
+        agencyArtifact?.spec.records["agency-source-id"] as {
+          spec: Record<string, unknown>;
+        }
+      ).spec,
+    ).toMatchObject({
       urls: { website: "https://example.test/police" },
       latitude: 46.3433,
       longitude: -94.2821,
@@ -648,8 +240,7 @@ describe("importArtifacts", () => {
       spec: {
         records: {
           "agency-source-id": {
-            name: "Baxter Police Dept.",
-            state: "MN",
+            spec: { name: "Baxter Police Dept.", state: "MN" },
           },
         },
       },
@@ -662,8 +253,7 @@ describe("importArtifacts", () => {
     const artifactsPath = await writeSourceArtifactsFile(rootDir);
     const existingPath = path.join(
       rootDir,
-      "intake",
-      "commands",
+      "command",
       `2026-06-08T00-00-00-000Z-${replayImportArtifactsId}`,
       yamlResourceFileName(replayImportArtifactsId, "DatabaseMutations"),
     );
@@ -688,8 +278,7 @@ describe("importArtifacts", () => {
       commandName: "test-command",
       commandDirectory: path.join(
         rootDir,
-        "intake",
-        "commands",
+        "command",
         "2026-06-08T00-00-00-000Z-test-command",
       ),
     });
@@ -710,14 +299,48 @@ describe("importArtifacts", () => {
     const artifacts = await Artifacts.read(artifactsPath);
     const commandDirectory = path.join(
       rootDir,
-      "intake",
-      "commands",
+      "command",
       `2026-06-08T00-00-00-000Z-${runId}`,
     );
-    const databaseMutations = new DataContext({
-      rows,
-      operations: createOperations,
-    }).toDatabaseMutations({
+    const runContext = new DataContext({
+      client: new (class extends EmptyDatabaseClient {
+        async query(sql = "", values: readonly unknown[] = []) {
+          if (
+            sql.includes("where location_path_id = $1") &&
+            values[0] === agencyRecord.location_path_id
+          ) {
+            return {
+              rows: [
+                {
+                  location_path_id: agencyRecord.location_path_id,
+                  level: "place",
+                },
+              ],
+            };
+          }
+          return { rows: [] };
+        }
+      })(),
+      ledger: fakeSourceNameLedger({
+        agencies: {
+          "agency-source-id": { canonicalId: "agency-canonical-id" },
+        },
+        personnel: {},
+        agencyPersonnel: {},
+        locationPaths: {},
+      }),
+    });
+    // Agencies are facade-based (ADR 0016): register the (already-resolved) agency
+    // through its facade so it emits.
+    const { id: _agencyId, ...agencySpec } = agencyRecord;
+    runContext
+      .facadeFromSource("Agency", {
+        apiVersion: INTAKE_API_VERSION,
+        namespace: "mn-post",
+        name: "agency-source-id",
+      })
+      .merge(agencySpec);
+    const databaseMutations = await runContext.toDatabaseMutations({
       namespace: artifacts.metadata.namespace,
       name: runId,
       sourceArtifactsName: artifacts.metadata.name,
@@ -730,17 +353,17 @@ describe("importArtifacts", () => {
     );
 
     expect(replayImportArtifacts?.path).toContain(
-      path.join(rootDir, "intake", "commands"),
+      path.join(rootDir, "command"),
     );
     expect(path.dirname(replayImportArtifacts!.path)).toMatch(
       new RegExp(
-        `${path.join(rootDir, "intake", "commands").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/\\d{4}-\\d{2}-\\d{2}T.*-${runId}$`,
+        `${path.join(rootDir, "command").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/\\d{4}-\\d{2}-\\d{2}T.*-${runId}$`,
       ),
     );
     expect(path.basename(replayImportArtifacts!.path)).toBe(
       yamlResourceFileName(runId, "DatabaseMutations"),
     );
-    const commandRoot = path.join(rootDir, "intake", "commands");
+    const commandRoot = path.join(rootDir, "command");
     const [commandFolder] = await readdir(commandRoot);
     const parsedImportArtifacts = await DatabaseMutations.read(
       path.join(
@@ -770,1192 +393,12 @@ describe("importArtifacts", () => {
     expect(agencyMutation?.kind).toBe("AgencyCreate");
   });
 
-  test.each([false, true])("caches slugs (DB: %s)", async (db) => {
-    const rootDir = await mkdtemp(path.join(tmpdir(), "intake-slug-cache-"));
-    await persistSourceNameToCanonicalIds(
-      "mn-post",
-      {
-        locationPaths: {},
-        agencies: {
-          "agency-source-id": {
-            canonicalId: "agency-canonical-id",
-          },
-        },
-        personnel: {
-          "personnel-source-id": {
-            canonicalId: "personnel-canonical-id",
-          },
-        },
-        agencyPersonnel: {},
-      },
-      { rootDir },
-    );
-
-    async function writeArtifacts(
-      name: string,
-      agencyName: string,
-      firstName: string,
-      lastName: string,
-    ): Promise<string> {
-      const written = await Artifacts.write(
-        rootDir,
-        Artifacts.new({
-          metadata: { name, namespace: "mn-post" },
-          spec: {
-            artifacts: [
-              {
-                kind: "Agencies",
-                spec: {
-                  records: {
-                    "agency-source-id": {
-                      spec: {
-                        name: agencyName,
-                        slug: "producer-agency-slug",
-                        phones: { office: { number: "555-0100" } },
-                        city: "Saint Paul",
-                        state: "MN",
-                        address: "444 Cedar Street",
-                        zip_code: "55101",
-                        contact_name: null,
-                        ...(db ? {} : { contact_email: null }),
-                        location_path_id: "saint-paul-location-path-id",
-                        latitude: 44.955097,
-                        longitude: -93.102211,
-                      },
-                    },
-                  },
-                },
-              },
-              {
-                kind: "Personnel",
-                spec: {
-                  records: {
-                    "personnel-source-id": {
-                      spec: {
-                        first_name: firstName,
-                        slug: "producer-personnel-slug",
-                        last_name: lastName,
-                        ...(db ? {} : { middle_name: null }),
-                        prefix: null,
-                        suffix: null,
-                      },
-                    },
-                  },
-                },
-              },
-            ],
-          },
-        }),
-      );
-      return written.path;
-    }
-
-    const firstImport = await importArtifacts({
-      artifactsPath: await writeArtifacts(
-        "test-run",
-        db ? "Changed Agency" : "Minnesota State Patrol",
-        db ? "Changed" : "Spenser",
-        "Stockwell",
-      ),
-      dryImport: !db,
-      env: {
-        INTAKE_WORKSPACE_TEST: rootDir,
-        DATABASE_URL: "postgres://example/intake",
-      },
-      logger: { info: () => {}, debug: () => {} },
-      commandName: "first-command",
-      commandDirectory: path.join(rootDir, "commands", "first-command"),
-      clientFactory: () =>
-        new RecordingClient(undefined, undefined, [
-          ...(db
-            ? [
-                {
-                  pattern: /select \* from public\.agency\b/i,
-                  rows: [
-                    {
-                      ...rows.agencies[0],
-                      slug: "published-agency-123",
-                      contact_email: "retained@example.test",
-                      contact_name: "Previous Contact",
-                      phones: { office: { number: "555-0100" } },
-                    },
-                  ],
-                },
-                {
-                  pattern: /select \* from public\.officers\b/i,
-                  rows: [
-                    {
-                      ...rows.officers[0],
-                      slug: "published-person-123",
-                      middle_name: "Retained",
-                      suffix: "Jr",
-                    },
-                  ],
-                },
-              ]
-            : []),
-          {
-            pattern:
-              /from public\.location_path lp\s+join public\.location_path_geometry lpg/i,
-            rows: locationPathSnapshot("saint-paul-location-path-id").filter(
-              (locationPath) => locationPath.level === "place",
-            ),
-          },
-          {
-            pattern: /from public\.location_path\b/i,
-            rows: locationPathSnapshot("saint-paul-location-path-id"),
-          },
-        ]),
-    });
-
-    if (!firstImport.ok) {
-      throw new Error(firstImport.error);
-    }
-    if (db) {
-      const firstMutations = await DatabaseMutations.read(
-        path.join(
-          rootDir,
-          "commands",
-          "first-command",
-          yamlResourceFileName("first-command", "DatabaseMutations"),
-        ),
-      );
-      const updates = firstMutations.spec.mutations.filter(
-        (mutation) =>
-          "kind" in mutation &&
-          (mutation.kind === "AgencyUpdate" ||
-            mutation.kind === "PersonnelUpdate"),
-      );
-      expect(JSON.stringify(updates)).not.toContain('"path":"contact_email"');
-      expect(JSON.stringify(updates)).not.toContain('"path":"middle_name"');
-      expect(firstMutations.spec.mutations).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            kind: "AgencyUpdate",
-            name: "agency-canonical-id",
-            spec: expect.objectContaining({
-              operations: expect.arrayContaining([
-                expect.objectContaining({
-                  action: "check",
-                  path: "phones",
-                  value: { office: { number: "555-0100" } },
-                }),
-                expect.objectContaining({
-                  action: "check",
-                  path: "slug",
-                  value: "published-agency-123",
-                }),
-                expect.objectContaining({
-                  action: "set",
-                  path: "contact_name",
-                  from: "Previous Contact",
-                  to: null,
-                }),
-                expect.objectContaining({
-                  action: "set",
-                  path: "name",
-                  from: "Minnesota State Patrol",
-                  to: "Changed Agency",
-                }),
-              ]),
-            }),
-          }),
-          expect.objectContaining({
-            kind: "PersonnelUpdate",
-            name: "personnel-canonical-id",
-            spec: expect.objectContaining({
-              operations: expect.arrayContaining([
-                expect.objectContaining({
-                  action: "check",
-                  path: "slug",
-                  value: "published-person-123",
-                }),
-                expect.objectContaining({
-                  action: "set",
-                  path: "suffix",
-                  from: "Jr",
-                  to: null,
-                }),
-                expect.objectContaining({
-                  action: "set",
-                  path: "first_name",
-                  from: "Spenser",
-                  to: "Changed",
-                }),
-              ]),
-            }),
-          }),
-        ]),
-      );
-    }
-    const agencyCacheInput = {
-      subject: {
-        apiVersion: INTAKE_API_VERSION,
-        kind: "Agency",
-        name: "agency-canonical-id",
-      },
-      targetProperty: "slug",
-    } satisfies ResolvedPropertyCacheInput;
-    const personnelCacheInput = {
-      subject: {
-        apiVersion: INTAKE_API_VERSION,
-        kind: "Personnel",
-        name: "personnel-canonical-id",
-      },
-      targetProperty: "slug",
-    } satisfies ResolvedPropertyCacheInput;
-    await expect(
-      readResolvedProperty({ ...agencyCacheInput, rootDir }),
-    ).resolves.toBe(
-      db ? "published-agency-123" : "minnesota-state-patrol-icalid",
-    );
-    await expect(
-      readResolvedProperty({ ...personnelCacheInput, rootDir }),
-    ).resolves.toBe(db ? "published-person-123" : "spenser-stockwell-icalid");
-
-    const secondImport = await importArtifacts({
-      artifactsPath: await writeArtifacts(
-        "test-run-changed",
-        "Changed Agency Name",
-        "Changed",
-        "Person",
-      ),
-      dryImport: true,
-      env: {
-        INTAKE_WORKSPACE_TEST: rootDir,
-        DATABASE_URL: "postgres://example/intake",
-      },
-      logger: { info: () => {}, debug: () => {} },
-      commandName: "second-command",
-      commandDirectory: path.join(rootDir, "commands", "second-command"),
-      clientFactory: () =>
-        new RecordingClient(undefined, undefined, [
-          {
-            pattern:
-              /from public\.location_path lp\s+join public\.location_path_geometry lpg/i,
-            rows: locationPathSnapshot("saint-paul-location-path-id").filter(
-              (locationPath) => locationPath.level === "place",
-            ),
-          },
-          {
-            pattern: /from public\.location_path\b/i,
-            rows: locationPathSnapshot("saint-paul-location-path-id"),
-          },
-        ]),
-    });
-
-    expect(secondImport.ok).toBe(true);
-    const databaseMutations = await DatabaseMutations.read(
-      path.join(
-        rootDir,
-        "commands",
-        "second-command",
-        yamlResourceFileName("second-command", "DatabaseMutations"),
-      ),
-    );
-    const serializedMutations = JSON.stringify(
-      databaseMutations.spec.mutations,
-    );
-    expect(serializedMutations).toContain(
-      db ? "published-agency-123" : "minnesota-state-patrol-icalid",
-    );
-    expect(serializedMutations).toContain(
-      db ? "published-person-123" : "spenser-stockwell-icalid",
-    );
-    expect(serializedMutations).not.toContain("changed-agency-name");
-    expect(serializedMutations).not.toContain("changed-person");
-  });
-
-  test("imports artifacts by writing and replaying DatabaseMutations", async () => {
-    const rootDir = await mkdtemp(path.join(tmpdir(), "intake-pipeline-"));
-    const runId = "tz4a98xxat96iws9zmbrgj3a";
-    const writtenArtifacts = await Artifacts.write(
-      rootDir,
-      Artifacts.new({
-        metadata: { name: "test-run", namespace: "mn-post" },
-        spec: {
-          artifacts: [
-            {
-              kind: "LocationPathGeometries",
-              spec: {
-                records: {
-                  "saint-paul-geometry": {
-                    spec: {
-                      location_path_id: "/mn/ramsey-county/saint-paul/",
-                      sourceLocationPathKey: "place:GEOID:2743000",
-                      geometry: {
-                        type: "Polygon",
-                        coordinates: [
-                          [
-                            [-93.2, 44.9],
-                            [-93.0, 44.9],
-                            [-93.0, 45.0],
-                            [-93.2, 45.0],
-                            [-93.2, 44.9],
-                          ],
-                        ],
-                      },
-                    },
-                  },
-                },
-              },
-            },
-            {
-              kind: "Agencies",
-              spec: {
-                records: {
-                  "agency-source-id": {
-                    spec: {
-                      name: "Minnesota State Patrol",
-                      city: "Saint Paul",
-                      state: "MN",
-                      address: "444 Cedar Street",
-                      zip_code: "55101",
-                      contact_name: null,
-                      contact_email: null,
-                      slug: "minnesota-state-patrol",
-                      location_path_id: "saint-paul-location-path-id",
-                      latitude: 44.955097,
-                      longitude: -93.102211,
-                    },
-                  },
-                },
-              },
-            },
-            {
-              kind: "Personnel",
-              spec: {
-                records: {
-                  "personnel-source-id": {
-                    spec: {
-                      first_name: "Spenser",
-                      last_name: "Stockwell",
-                      middle_name: null,
-                      prefix: null,
-                      suffix: null,
-                      slug: "spenser-stockwell",
-                    },
-                  },
-                },
-              },
-            },
-            {
-              kind: "AgencyPersonnel",
-              spec: {
-                records: {
-                  "agency-personnel-source-id": {
-                    spec: {
-                      agency_id: "agency-source-id",
-                      personnel_id: "personnel-source-id",
-                      badge_number: "49112",
-                      start_date: "2020-01-01",
-                      end_date: null,
-                      license_type: "Peace Officer",
-                    },
-                  },
-                },
-              },
-            },
-          ],
-        },
-      }),
-    );
-    await persistSourceNameToCanonicalIds(
-      "mn-post",
-      {
-        locationPaths: {
-          "place:GEOID:2743000": {
-            kind: "LocationPath",
-            canonicalId: "mn/saint-paul/minnesota-state-patrol",
-          },
-        },
-        agencies: {
-          "agency-source-id": {
-            kind: "Agency",
-            canonicalId: "agency-canonical-id",
-          },
-        },
-        personnel: {
-          "personnel-source-id": {
-            kind: "Personnel",
-            canonicalId: "personnel-canonical-id",
-          },
-        },
-        agencyPersonnel: {
-          "agency-personnel-source-id": {
-            kind: "AgencyPersonnel",
-            canonicalId: "agency-personnel-canonical-id",
-          },
-        },
-      },
-      { rootDir },
-    );
-    const commandDirectory = path.join(
-      rootDir,
-      "intake",
-      "commands",
-      `2026-06-08T00-00-00-000Z-${runId}`,
-    );
-    const client = new RecordingClient(undefined, undefined, [
-      {
-        pattern:
-          /from public\.location_path lp\s+join public\.location_path_geometry lpg/i,
-        rows: locationPathSnapshot("saint-paul-location-path-id").filter(
-          (locationPath) => locationPath.level === "place",
-        ),
-      },
-    ]);
-
-    const result = await importArtifacts({
-      artifactsPath: writtenArtifacts.path,
-      env: {
-        DATABASE_URL: "postgres://example/intake",
-        INTAKE_WORKSPACE_TEST: rootDir,
-      },
-      logger: {
-        info: () => {},
-        debug: () => {},
-      },
-      commandName: runId,
-      commandDirectory,
-      clientFactory: () => client,
-    });
-
-    expect(result).toEqual({
-      ok: true,
-      counts: {
-        mutations: 4,
-        recordsByEntityType: {
-          Agency: 1,
-          AgencyPersonnel: 1,
-          LocationPathGeometry: 1,
-          Personnel: 1,
-        },
-      },
-    });
-    const databaseMutations = await DatabaseMutations.read(
-      path.join(
-        commandDirectory,
-        yamlResourceFileName(runId, "DatabaseMutations"),
-      ),
-    );
-    expect(databaseMutations).toMatchObject({
-      metadata: { name: runId, namespace: "mn-post" },
-    });
-    expect(databaseMutations.spec.mutations).toContainEqual(
-      expect.objectContaining({
-        kind: "AgencyCreate",
-        name: "agency-source-id",
-        spec: expect.objectContaining({
-          id: "agency-canonical-id",
-        }),
-      }),
-    );
-    expect(databaseMutations.spec.mutations).toContainEqual(
-      expect.objectContaining({
-        kind: "PersonnelCreate",
-        name: "personnel-source-id",
-        spec: expect.objectContaining({
-          id: "personnel-canonical-id",
-        }),
-      }),
-    );
-    expect(databaseMutations.spec.mutations).toContainEqual(
-      expect.objectContaining({
-        kind: "AgencyPersonnelCreate",
-        name: "agency-personnel-source-id",
-        spec: expect.objectContaining({
-          id: "agency-personnel-canonical-id",
-          agency_id: "agency-canonical-id",
-          personnel_id: "personnel-canonical-id",
-        }),
-      }),
-    );
-    expect(
-      client.queries.some(({ text }) =>
-        /^insert into public\.agency\b/i.test(text),
-      ),
-    ).toBe(true);
-    const agencyPersonnelInsert = client.queries.find(({ text }) =>
-      /^insert into public\.agency_officers\b/i.test(text),
-    );
-    expect(agencyPersonnelInsert?.text).toContain("officer_id");
-    expect(agencyPersonnelInsert?.text).not.toContain("personnel_id");
-  });
-
-  test("streams location path geometry using the location path artifact key when sourceLocationPathKey is not mapped", async () => {
-    const rootDir = await mkdtemp(path.join(tmpdir(), "intake-geometry-key-"));
-    const runId = "geometry-key-fallback";
-    const writtenArtifacts = await Artifacts.write(
-      rootDir,
-      Artifacts.new({
-        metadata: { name: "test-run", namespace: "us-census-gazetteer" },
-        spec: {
-          artifacts: [
-            {
-              kind: "LocationPaths",
-              spec: {
-                records: {
-                  "/ak/": {
-                    spec: {
-                      location_path_id: "/ak/",
-                      path: "/ak/",
-                      level: "state",
-                      state_or_territory_slug: "ak",
-                      administrative_area_slug: null,
-                      place_slug: null,
-                      state_or_territory_name: "Alaska",
-                      administrative_area_name: null,
-                      place_name: null,
-                      parent_location_path_id: null,
-                    },
-                  },
-                },
-              },
-            },
-            {
-              kind: "LocationPathGeometries",
-              spec: {
-                records: {
-                  "/ak/": {
-                    spec: {
-                      location_path_id: "/ak/",
-                      sourceLocationPathKey: "state:GEOID:02",
-                      geometry: {
-                        type: "Polygon",
-                        coordinates: [
-                          [
-                            [-170, 50],
-                            [-130, 50],
-                            [-130, 72],
-                            [-170, 72],
-                            [-170, 50],
-                          ],
-                        ],
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          ],
-        },
-      }),
-    );
-    await persistSourceNameToCanonicalIds(
-      "us-census-gazetteer",
-      {
-        locationPaths: {
-          "/ak/": {
-            kind: "LocationPath",
-            canonicalId: "alaska-canonical-location-path-id",
-          },
-        },
-        agencies: {},
-        personnel: {},
-        agencyPersonnel: {},
-      },
-      { rootDir },
-    );
-    const commandDirectory = path.join(
-      rootDir,
-      "intake",
-      "commands",
-      `2026-06-08T00-00-00-000Z-${runId}`,
-    );
-    const client = new RecordingClient(undefined, undefined, [
-      {
-        pattern: /from public\.location_path\b/i,
-        rows: [],
-      },
-      {
-        pattern: /from public\.location_path_geometry\b/i,
-        rows: [],
-      },
-    ]);
-
-    const result = await importArtifacts({
-      artifactsPath: writtenArtifacts.path,
-      env: {
-        DATABASE_URL: "postgres://example/intake",
-        INTAKE_WORKSPACE_TEST: rootDir,
-      },
-      logger: {
-        info: () => {},
-        debug: () => {},
-      },
-      commandName: runId,
-      commandDirectory,
-      dryImport: true,
-      clientFactory: () => client,
-    });
-
-    expect(result).toEqual({
-      ok: true,
-      counts: {
-        mutations: 2,
-        recordsByEntityType: {
-          LocationPath: 1,
-          LocationPathGeometry: 1,
-        },
-      },
-    });
-    const databaseMutations = await DatabaseMutations.read(
-      path.join(
-        commandDirectory,
-        yamlResourceFileName(runId, "DatabaseMutations"),
-      ),
-    );
-    expect(databaseMutations.spec.mutations).toContainEqual(
-      expect.objectContaining({
-        kind: "LocationPathGeometryCreate",
-        name: "alaska-canonical-location-path-id",
-        spec: expect.objectContaining({
-          location_path_id: "alaska-canonical-location-path-id",
-          sourceLocationPathKey: "state:GEOID:02",
-        }),
-      }),
-    );
-  });
-
-  test.each(
-    (
-      [
-        {
-          kind: "AgencyUpdate",
-          table: "public.agency",
-          field: "name",
-          key: "id",
-          protectedFields: ["slug"],
-        },
-        {
-          kind: "PersonnelUpdate",
-          table: "public.officers",
-          field: "first_name",
-          key: "id",
-          protectedFields: ["slug"],
-        },
-        {
-          kind: "LocationPathUpdate",
-          table: "public.location_path",
-          field: "place_name",
-          key: "location_path_id",
-          protectedFields: [
-            "path",
-            "state_or_territory_slug",
-            "administrative_area_slug",
-            "place_slug",
-          ],
-        },
-      ] as const
-    ).flatMap((entry) =>
-      entry.protectedFields.map((protectedField) => ({
-        ...entry,
-        protectedField,
-      })),
-    ),
-  )(
-    "rejects replacement of $protectedField when replaying $kind",
-    async ({ kind, table, field, key, protectedField }) => {
-      const protectedFields = [protectedField];
-      const rootDir = await mkdtemp(path.join(tmpdir(), "intake-stale-slug-"));
-      const current = {
-        [key]: "canonical-id",
-        [field]: "Original",
-        ...Object.fromEntries(
-          protectedFields.map((name) => [
-            name,
-            name === "path" ? "/published/" : "published-slug",
-          ]),
-        ),
-      };
-      const written = await DatabaseMutations.write(
-        rootDir,
-        DatabaseMutations.new({
-          metadata: { name: "stale-update", namespace: "mn-post" },
-          spec: {
-            mutations: [
-              {
-                kind,
-                name: "canonical-id",
-                spec: {
-                  operations: [
-                    ...protectedFields.map((name) => ({
-                      action: "set",
-                      path: name,
-                      from: name === "path" ? "/published/" : "published-slug",
-                      to:
-                        name === "path" ? "/replacement/" : "replacement-slug",
-                      reason: "Previously prepared update",
-                      source: {
-                        namespace: "mn-post",
-                        command: { name: "old-command" },
-                        kind: "Personnel",
-                        name: "source-id",
-                      },
-                    })),
-                    {
-                      action: "set",
-                      path: field,
-                      from: "Original",
-                      to: "Changed",
-                      reason: "Source name changed",
-                      source: {
-                        namespace: "mn-post",
-                        command: { name: "old-command" },
-                        kind: "Personnel",
-                        name: "source-id",
-                      },
-                    },
-                  ],
-                },
-              },
-            ],
-          },
-        }),
-      );
-      const client = new RecordingClient(undefined, undefined, [
-        {
-          pattern: new RegExp(
-            `select \\* from ${table.replace(".", "\\.")} where`,
-          ),
-          rows: [current],
-        },
-      ]);
-      const result = await replayDatabaseMutations({
-        databaseMutationsPath: written.path,
-        env: { DATABASE_URL: "postgres://example" },
-        clientFactory: () => client,
-      });
-      expect(result).toMatchObject({
-        ok: false,
-        error: expect.stringMatching(/cannot change established/),
-      });
-      expect(
-        client.queries.filter(({ text }) => /^update /i.test(text)),
-      ).toEqual([]);
-    },
-  );
-
-  test.each([
-    { kind: "AgencyUpdate", table: "public.agency", field: "name" },
-    { kind: "PersonnelUpdate", table: "public.officers", field: "first_name" },
-  ] as const)(
-    "updates non-slug fields alongside unchanged slug in $kind",
-    async ({ kind, table, field }) => {
-      const rootDir = await mkdtemp(
-        path.join(tmpdir(), "intake-unchanged-slug-"),
-      );
-      const written = await DatabaseMutations.write(
-        rootDir,
-        DatabaseMutations.new({
-          metadata: { name: "unchanged-slug", namespace: "mn-post" },
-          spec: {
-            mutations: [
-              {
-                kind,
-                name: "canonical-id",
-                spec: {
-                  operations: [
-                    {
-                      action: "set",
-                      path: "slug",
-                      from: "published-slug",
-                      to: "published-slug",
-                      reason: "Preserve published slug",
-                      source: {
-                        namespace: "mn-post",
-                        command: { name: "command" },
-                        kind: "Personnel",
-                        name: "source-id",
-                      },
-                    },
-                    {
-                      action: "set",
-                      path: field,
-                      from: "Original",
-                      to: "Changed",
-                      reason: "Source name changed",
-                      source: {
-                        namespace: "mn-post",
-                        command: { name: "command" },
-                        kind: "Personnel",
-                        name: "source-id",
-                      },
-                    },
-                  ],
-                },
-              },
-            ],
-          },
-        }),
-      );
-      const client = new RecordingClient(undefined, undefined, [
-        {
-          pattern: new RegExp(
-            `select \\* from ${table.replace(".", "\\.")} where`,
-          ),
-          rows: [
-            { id: "canonical-id", slug: "published-slug", [field]: "Original" },
-          ],
-        },
-      ]);
-      const result = await replayDatabaseMutations({
-        databaseMutationsPath: written.path,
-        env: { DATABASE_URL: "postgres://example" },
-        clientFactory: () => client,
-      });
-      expect(result.ok).toBe(true);
-      expect(
-        client.queries.filter(({ text }) => /^update /i.test(text)),
-      ).toEqual([
-        {
-          text: `update ${table} set slug = $2, ${field} = $3 where id = $1`,
-          values: ["canonical-id", "published-slug", "Changed"],
-        },
-      ]);
-    },
-  );
-
-  test.each(
-    (["check", "set"] as const).flatMap((action) =>
-      [true, false].map((matches) => ({ action, matches })),
-    ),
-  )(
-    "validates JSON $action preconditions (matches: $matches)",
-    async ({ action, matches }) => {
-      const rootDir = await mkdtemp(path.join(tmpdir(), "intake-json-check-"));
-      const jsonValue = {
-        office: { city: "Saint Paul", lines: ["444 Cedar Street"] },
-      };
-      const written = await DatabaseMutations.write(
-        rootDir,
-        DatabaseMutations.new({
-          metadata: { name: "json-update", namespace: "mn-post" },
-          spec: {
-            mutations: [
-              {
-                kind: "AgencyUpdate",
-                name: "canonical-id",
-                spec: {
-                  operations: [
-                    {
-                      action,
-                      path: "addresses",
-                      reason: "Source address",
-                      source: {
-                        namespace: "mn-post",
-                        command: { name: "command" },
-                        kind: "Agency",
-                        name: "source-id",
-                      },
-                      ...(action === "check"
-                        ? { value: jsonValue }
-                        : {
-                            from: jsonValue,
-                            to: { office: { city: "Changed" } },
-                          }),
-                    },
-                  ],
-                },
-              },
-            ],
-          },
-        }),
-      );
-      const client = new RecordingClient(undefined, undefined, [
-        {
-          pattern: /select \* from public\.agency where/i,
-          rows: [
-            {
-              id: "canonical-id",
-              addresses: matches
-                ? structuredClone(jsonValue)
-                : { office: { city: "Different" } },
-            },
-          ],
-        },
-      ]);
-      const result = await replayDatabaseMutations({
-        databaseMutationsPath: written.path,
-        env: { DATABASE_URL: "postgres://example" },
-        clientFactory: () => client,
-      });
-      expect(result.ok).toBe(matches);
-      expect(
-        client.queries.filter(({ text }) => /^update /i.test(text)),
-      ).toEqual(
-        !matches || action === "check"
-          ? []
-          : [
-              {
-                text: "update public.agency set addresses = $2 where id = $1",
-                values: ["canonical-id", { office: { city: "Changed" } }],
-              },
-            ],
-      );
-    },
-  );
-
-  test("replays DatabaseMutations through database CRU", async () => {
-    const rootDir = await mkdtemp(path.join(tmpdir(), "intake-run-ref-"));
-    const writtenAgencyCreate = await AgencyCreate.write(
-      path.join(rootDir, "mutations"),
-      AgencyCreate.new({
-        metadata: {
-          name: "agency-canonical-id",
-          namespace: "mn-post",
-        },
-        spec: rows.agencies[0] as Parameters<
-          typeof AgencyCreate.new
-        >[0]["spec"],
-      }),
-    );
-    const writtenImportArtifacts = await DatabaseMutations.write(
-      rootDir,
-      DatabaseMutations.new({
-        metadata: {
-          name: "run-1",
-          namespace: "mn-post",
-        },
-        spec: {
-          mutations: [
-            {
-              ref: {
-                path: path.relative(rootDir, writtenAgencyCreate.path),
-                kind: "AgencyCreate",
-              },
-            },
-          ],
-        },
-      }),
-    );
-
-    const client = new RecordingClient();
-    const result = await replayDatabaseMutations({
-      databaseMutationsPath: writtenImportArtifacts.path,
-      env: { DATABASE_URL: "postgres://example" },
-      clientFactory: () => client,
-    });
-
-    expect(result).toEqual({
-      ok: true,
-      counts: {
-        mutations: 1,
-        recordsByEntityType: {
-          Agency: 1,
-        },
-      },
-    });
-    expect(
-      client.queries.some((query) =>
-        /^insert into public\.agency/i.test(query.text),
-      ),
-    ).toBe(true);
-  });
-
-  test("replays location path centroid and bbox as PostGIS values", async () => {
-    const rootDir = await mkdtemp(path.join(tmpdir(), "intake-run-ref-"));
-    const writtenLocationPathCreate = await LocationPathCreate.write(
-      path.join(rootDir, "mutations"),
-      LocationPathCreate.new({
-        metadata: {
-          name: "location-path-id",
-          namespace: "mn-post",
-        },
-        spec: {
-          location_path_id: "location-path-id",
-          path: "/mn/ramsey-county/saint-paul/",
-          level: "place",
-          state_or_territory_slug: "mn",
-          administrative_area_slug: "ramsey-county",
-          place_slug: "saint-paul",
-          state_or_territory_name: "Minnesota",
-          administrative_area_name: "Ramsey County",
-          place_name: "Saint Paul",
-          parent_location_path_id: "ramsey-county-location-path-id",
-          centroid: {
-            type: "Point",
-            coordinates: [-93.09, 44.9537],
-          },
-          bbox: {
-            type: "Polygon",
-            coordinates: [
-              [
-                [-93.23, 44.88],
-                [-92.98, 44.88],
-                [-92.98, 45.03],
-                [-93.23, 45.03],
-                [-93.23, 44.88],
-              ],
-            ],
-          },
-        },
-      }),
-    );
-    const writtenImportArtifacts = await DatabaseMutations.write(
-      rootDir,
-      DatabaseMutations.new({
-        metadata: {
-          name: "run-1",
-          namespace: "mn-post",
-        },
-        spec: {
-          mutations: [
-            {
-              ref: {
-                path: path.relative(rootDir, writtenLocationPathCreate.path),
-                kind: "LocationPathCreate",
-              },
-            },
-          ],
-        },
-      }),
-    );
-
-    const client = new RecordingClient(undefined, undefined, [
-      {
-        pattern: /from public\.location_path\b/i,
-        rows: [],
-      },
-    ]);
-    const result = await replayDatabaseMutations({
-      databaseMutationsPath: writtenImportArtifacts.path,
-      env: { DATABASE_URL: "postgres://example" },
-      clientFactory: () => client,
-    });
-
-    expect(result).toEqual({
-      ok: true,
-      counts: {
-        mutations: 1,
-        recordsByEntityType: {
-          LocationPath: 1,
-        },
-      },
-    });
-    const insert = client.queries.find((query) =>
-      /^insert into public\.location_path/i.test(query.text),
-    );
-    expect(insert?.text).toContain("centroid");
-    expect(insert?.text).toContain("bbox");
-    expect(insert?.text).toContain("ST_GeomFromGeoJSON");
-    expect(insert?.values).toContain(
-      JSON.stringify({ type: "Point", coordinates: [-93.09, 44.9537] }),
-    );
-    expect(insert?.values).toContain(
-      JSON.stringify({
-        type: "Polygon",
-        coordinates: [
-          [
-            [-93.23, 44.88],
-            [-92.98, 44.88],
-            [-92.98, 45.03],
-            [-93.23, 45.03],
-            [-93.23, 44.88],
-          ],
-        ],
-      }),
-    );
-  });
-
-  test("replays location path geometry as boundary PostGIS value", async () => {
-    const rootDir = await mkdtemp(path.join(tmpdir(), "intake-run-geometry-"));
-    const boundary = {
-      type: "MultiPolygon",
-      coordinates: [
-        [
-          [
-            [-93.23, 44.88],
-            [-92.98, 44.88],
-            [-92.98, 45.03],
-            [-93.23, 45.03],
-            [-93.23, 44.88],
-          ],
-        ],
-      ],
-    };
-    const writtenLocationPathGeometryCreate =
-      await LocationPathGeometryCreate.write(
-        path.join(rootDir, "mutations"),
-        LocationPathGeometryCreate.new({
-          metadata: {
-            name: "location-path-id",
-            namespace: "mn-post",
-          },
-          spec: {
-            location_path_id: "location-path-id",
-            sourceLocationPathKey: "place:GEOID:2743000",
-            geometry: boundary,
-          },
-        }),
-      );
-    const writtenImportArtifacts = await DatabaseMutations.write(
-      rootDir,
-      DatabaseMutations.new({
-        metadata: {
-          name: "run-1",
-          namespace: "mn-post",
-        },
-        spec: {
-          mutations: [
-            {
-              ref: {
-                path: path.relative(
-                  rootDir,
-                  writtenLocationPathGeometryCreate.path,
-                ),
-                kind: "LocationPathGeometryCreate",
-              },
-            },
-          ],
-        },
-      }),
-    );
-
-    const client = new RecordingClient(undefined, undefined, [
-      {
-        pattern: /from public\.location_path_geometry\b/i,
-        rows: [],
-      },
-    ]);
-    const result = await replayDatabaseMutations({
-      databaseMutationsPath: writtenImportArtifacts.path,
-      env: { DATABASE_URL: "postgres://example" },
-      clientFactory: () => client,
-    });
-
-    expect(result).toEqual({
-      ok: true,
-      counts: {
-        mutations: 1,
-        recordsByEntityType: {
-          LocationPathGeometry: 1,
-        },
-      },
-    });
-    const insert = client.queries.find((query) =>
-      /^insert into public\.location_path_geometry/i.test(query.text),
-    );
-    expect(insert?.text).toContain("boundary");
-    expect(insert?.text).toContain("ST_GeomFromGeoJSON");
-    expect(insert?.values).toEqual([
-      "location-path-id",
-      JSON.stringify(boundary),
-    ]);
-  });
-
   test("replays an existing DatabaseMutations without writing another DatabaseMutations envelope", async () => {
     const rootDir = await mkdtemp(path.join(tmpdir(), "intake-run-replay-"));
     const artifactsPath = await writeSourceArtifactsFile(rootDir);
     const artifacts = await Artifacts.read(artifactsPath);
     const replayImportArtifactsArtifact = await DatabaseMutations.write(
-      path.join(
-        rootDir,
-        "intake",
-        "commands",
-        "2026-06-08T00-00-00-000Z-test-command",
-      ),
+      path.join(rootDir, "command", "2026-06-08T00-00-00-000Z-test-command"),
       DatabaseMutations.new({
         metadata: {
           namespace: artifacts.metadata.namespace,
@@ -1992,12 +435,7 @@ describe("importArtifacts", () => {
     );
 
     const replayImportArtifacts = await DatabaseMutations.write(
-      path.join(
-        rootDir,
-        "intake",
-        "commands",
-        "2026-06-08T00-00-00-000Z-test-command",
-      ),
+      path.join(rootDir, "command", "2026-06-08T00-00-00-000Z-test-command"),
       DatabaseMutations.new({
         metadata: {
           namespace: artifacts.metadata.namespace,
@@ -2030,12 +468,7 @@ describe("importArtifacts", () => {
     const artifactsPath = await writeSourceArtifactsFile(rootDir);
     const artifacts = await Artifacts.read(artifactsPath);
     const replayImportArtifacts = await DatabaseMutationsDebug.write(
-      path.join(
-        rootDir,
-        "intake",
-        "commands",
-        `2026-06-08T00-00-00-000Z-${runId}`,
-      ),
+      path.join(rootDir, "command", `2026-06-08T00-00-00-000Z-${runId}`),
       DatabaseMutationsDebug.new({
         metadata: {
           namespace: artifacts.metadata.namespace,
@@ -2089,12 +522,7 @@ describe("importArtifacts", () => {
     const rootDir = await mkdtemp(path.join(tmpdir(), "intake-run-debug-"));
     const runId = "tz4a98xxat96iws9zmbrgj3a";
     const replayImportArtifacts = await DatabaseMutationsDebug.write(
-      path.join(
-        rootDir,
-        "intake",
-        "commands",
-        `2026-06-08T00-00-00-000Z-${runId}`,
-      ),
+      path.join(rootDir, "command", `2026-06-08T00-00-00-000Z-${runId}`),
       DatabaseMutationsDebug.new({
         metadata: {
           namespace: "mn-post",
@@ -2139,12 +567,7 @@ describe("importArtifacts", () => {
     const artifactsPath = await writeSourceArtifactsFile(rootDir);
     const artifacts = await Artifacts.read(artifactsPath);
     const replayImportArtifacts = await DatabaseMutations.write(
-      path.join(
-        rootDir,
-        "intake",
-        "commands",
-        "2026-06-08T00-00-00-000Z-test-command",
-      ),
+      path.join(rootDir, "command", "2026-06-08T00-00-00-000Z-test-command"),
       DatabaseMutations.new({
         metadata: {
           namespace: artifacts.metadata.namespace,
@@ -2158,9 +581,9 @@ describe("importArtifacts", () => {
     );
 
     expect(replayImportArtifacts?.path).toContain(
-      path.join(rootDir, "intake", "commands"),
+      path.join(rootDir, "command"),
     );
-    const commandRoot = path.join(rootDir, "intake", "commands");
+    const commandRoot = path.join(rootDir, "command");
     await expect(readdir(commandRoot)).resolves.toHaveLength(1);
   });
 
@@ -2170,7 +593,7 @@ describe("importArtifacts", () => {
     await writeFile(workspaceFile, "not a directory");
     const artifactsPath = await writeSourceArtifactsFile(rootDir);
     const artifacts = await Artifacts.read(artifactsPath);
-    const commandRoot = path.join(workspaceFile, "intake", "commands");
+    const commandRoot = path.join(workspaceFile, "command");
 
     await expect(
       DatabaseMutations.write(
@@ -2223,15 +646,13 @@ describe("importArtifacts", () => {
 
     const logPath = path.join(
       workspace,
-      "intake",
-      "commands",
+      "command",
       "2026-06-10T00-00-00-000Z-tz4a98xxat96iws9zmbrgj3a",
       "tz4a98xxat96iws9zmbrgj3a.log",
     );
     const commandPath = path.join(
       workspace,
-      "intake",
-      "commands",
+      "command",
       "2026-06-10T00-00-00-000Z-tz4a98xxat96iws9zmbrgj3a",
       "tz4a98xxat96iws9zmbrgj3a.Command.yaml",
     );
@@ -2252,7 +673,7 @@ describe("importArtifacts", () => {
         path: ".",
         statePath: "../../state",
         sharedIoRoot: path.join(process.cwd(), "dist", "shared", "io"),
-        args: ["import", "artifacts", artifactsPath],
+        args: ["data", "generate", artifactsPath],
       },
     });
     expect(terminalOutput).toContain(`Writing logs to ${logPath}`);
@@ -2355,8 +776,7 @@ describe("importArtifacts", () => {
 
     const logPath = path.join(
       workspace,
-      "intake",
-      "commands",
+      "command",
       "2026-06-10T00-00-00-000Z-tz4a98xxat96iws9zmbrgj3a",
       "tz4a98xxat96iws9zmbrgj3a.log",
     );

@@ -1,20 +1,19 @@
+# Preserve intake slugs
+
 ## Why
 
-Intake regenerated published personnel slugs while retaining IDs, breaking 129,924 published URLs in the audited next-release dataset. Agency slugs must obey the same canonical ownership rule.
+Re-imports can accept producer slugs or bypass established canonical cache values and change public URLs for the same record ID.
 
 ## What Changes
 
-- Preserve canonical IDs and existing slugs during imports.
-- Keep slug assignment under intake control; producer fields cannot assign system slugs.
-- Preserve cached slugs across resets and source name changes.
-- Restore affected exact-ID slugs from the retained reference backup, with before/after evidence.
+Preserve established slugs by canonical kind and ID, including across database resets. Source slug fields do not override canonical slugs or own system uniqueness. Cache each intake-resolved slug. Reject replay changes to established IDs, slugs, and location paths.
 
 ## Capabilities
 
-### Modified Capabilities
+### New Capabilities
 
-- `artifacts-database-import`: preserve established IDs and slug fields.
+- `canonical-slug-preservation`: stable canonical URL identity through import and replay.
 
 ## Impact
 
-Import transformation, planning, resolved-property cache, regression tests, and local dataset correction. No schema migration, reset, generated contract change, or deployment. Production rollout requires corrected data and a fresh site build.
+Current import facades, property cache integration, slug allocation, and mutation replay. Refresh the FederalAgency source contract to classify slug as intake-resolved (optional source input, required database create value). No migrations, seed edits, database reset, dependencies, or downstream database schema changes. Previously repaired local data is preserved; this change prevents recurrence.

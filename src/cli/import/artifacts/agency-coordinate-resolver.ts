@@ -1,11 +1,10 @@
+import { BatchLoader } from "./batch-loader.js";
+import { CensusGeocoderRequestError } from "./property-resolution-error.js";
+import { parse as parseCsv } from "csv-parse/sync";
 import type {
   AgencyCoordinateRequest,
   AgencyCoordinateResolution,
-} from "./plan-database-mutations.js";
-import type {
-  LocationAdministrativeAreaRequest,
-  LocationAdministrativeAreaResolution,
-} from "./data-context.js";
+} from "./agency-coordinate-types.js";
 
 const CENSUS_BATCH_URL =
   "https://geocoding.geo.census.gov/geocoder/locations/addressbatch";
@@ -40,30 +39,6 @@ function csvEscape(value: unknown): string {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
 }
 
-function parseCsvLine(line: string): string[] {
-  const cells: string[] = [];
-  let current = "";
-  let quoted = false;
-
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    if (char === '"' && quoted && line[index + 1] === '"') {
-      current += '"';
-      index += 1;
-    } else if (char === '"') {
-      quoted = !quoted;
-    } else if (char === "," && !quoted) {
-      cells.push(current);
-      current = "";
-    } else {
-      current += char;
-    }
-  }
-
-  cells.push(current);
-  return cells;
-}
-
 function zip5(value: string): string {
   return value.trim().slice(0, 5);
 }
@@ -80,12 +55,6 @@ function normalizeGeocodingStreetAddress(address: string): string {
   return physicalLine ?? address.replace(/\s+/g, " ").trim();
 }
 
-function valueAsString(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0
-    ? value.trim()
-    : undefined;
-}
-
 function asRecords(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value)
     ? value.filter(
@@ -95,84 +64,64 @@ function asRecords(value: unknown): Record<string, unknown>[] {
     : [];
 }
 
-function geographyRecords(
-  geographies: Record<string, unknown>,
-  key: string,
-): Record<string, unknown>[] {
-  return asRecords(geographies[key]);
+function failureDetails(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const connection = error as Error & Record<string, unknown>;
+  const details = [error.message || error.name];
+  for (const key of [
+    "code",
+    "errno",
+    "syscall",
+    "hostname",
+    "address",
+    "port",
+  ]) {
+    if (connection[key] !== undefined)
+      details.push(`${key}=${String(connection[key])}`);
+  }
+  if (error.cause !== undefined)
+    details.push(`cause: ${failureDetails(error.cause)}`);
+  if (error instanceof AggregateError)
+    details.push(...error.errors.map(failureDetails));
+  return details.join("; ");
 }
 
-function administrativeAreaNameFromCounty(
-  county: Record<string, unknown>,
-): string | undefined {
-  const name = valueAsString(county.NAME) ?? valueAsString(county.BASENAME);
-  if (name === undefined) {
-    return undefined;
-  }
-
-  return /\b(county|parish|borough|municipality|census area|city and borough)\b/i.test(
-    name,
-  )
-    ? name
-    : `${name} County`;
-}
-
-function administrativeAreaFromCensusPayload(
-  payload: unknown,
-): LocationAdministrativeAreaResolution | undefined {
-  if (typeof payload !== "object" || payload === null) {
-    return undefined;
-  }
-
-  const result = (payload as { result?: unknown }).result;
-  if (typeof result !== "object" || result === null) {
-    return undefined;
-  }
-
-  for (const match of asRecords(
-    (result as { addressMatches?: unknown }).addressMatches,
-  )) {
-    const geographies = match.geographies;
-    if (typeof geographies !== "object" || geographies === null) {
-      continue;
-    }
-
-    const counties = [
-      ...geographyRecords(geographies as Record<string, unknown>, "Counties"),
-      ...geographyRecords(geographies as Record<string, unknown>, "County"),
-    ];
-    for (const county of counties) {
-      const administrativeAreaName = administrativeAreaNameFromCounty(county);
-      if (administrativeAreaName !== undefined) {
-        return { administrativeAreaName };
-      }
-    }
-  }
-
-  return undefined;
-}
-
-async function fetchWithTimeout(
+async function requestCensus<T>(
   fetchFn: FetchLike,
   url: string,
   init: RequestInit | undefined,
   timeoutMs: number,
-  description: string,
-): Promise<Response> {
+  requests: AgencyCoordinateRequest[],
+  readResponse: (response: Response) => Promise<T>,
+): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetchFn(url, {
+    const response = await fetchFn(url, {
       ...init,
       signal: controller.signal,
     });
+    clearTimeout(timeout);
+    if (!response.ok)
+      throw new Error(`HTTP ${response.status} ${response.statusText}`);
+    return await readResponse(response);
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error(
-        `Census geocoder request timed out after ${timeoutMs} ms while resolving ${description}.`,
-      );
-    }
-    throw error;
+    const reason = controller.signal.aborted
+      ? `timed out after ${timeoutMs} ms; ${failureDetails(error)}`
+      : failureDetails(error);
+    throw new CensusGeocoderRequestError(
+      [
+        `Census geocoder request failed: ${reason}`,
+        `Request: ${init?.method ?? "GET"} ${url}`,
+        "This request failure does not identify an invalid agency address or cache value. Retry the command; do not change cached coordinates based on this error.",
+        `Affected agencies (${requests.length}):`,
+        ...requests.map(
+          (request) =>
+            `  - ${request.sourceName ?? request.rowId}: ${request.name}; ${request.address}, ${request.city}, ${request.state} ${request.zipCode}; canonical-id=${request.rowId}`,
+        ),
+      ].join("\n"),
+      { cause: error },
+    );
   } finally {
     clearTimeout(timeout);
   }
@@ -236,7 +185,7 @@ async function resolveBatch(
     "agencies.csv",
   );
 
-  const response = await fetchWithTimeout(
+  const body = await requestCensus(
     fetchFn,
     CENSUS_BATCH_URL,
     {
@@ -244,34 +193,30 @@ async function resolveBatch(
       method: "POST",
     },
     requestTimeoutMs,
-    `agency address coordinates for ${requests.length} ${requests.length === 1 ? "agency" : "agencies"}`,
+    requests,
+    (response) => response.text(),
   );
-  if (!response.ok) {
-    throw new Error(
-      `Census geocoder failed: ${response.status} ${response.statusText}`,
-    );
-  }
 
-  return (await response.text())
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map(parseCsvLine)
-    .flatMap((row): AgencyCoordinateResolution[] => {
-      const [rowId, , matchStatus, , , coordinates] = row;
-      if (rowId === undefined || matchStatus !== "Match" || !coordinates) {
-        return [];
-      }
+  const rows = parseCsv(body, {
+    relax_column_count: true,
+    skip_empty_lines: true,
+    trim: true,
+  }) as string[][];
+  return rows.flatMap((row): AgencyCoordinateResolution[] => {
+    const [rowId, , matchStatus, , , coordinates] = row;
+    if (rowId === undefined || matchStatus !== "Match" || !coordinates) {
+      return [];
+    }
 
-      const [longitudeText, latitudeText] = coordinates.split(",");
-      const latitude = Number(latitudeText);
-      const longitude = Number(longitudeText);
-      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-        return [];
-      }
+    const [longitudeText, latitudeText] = coordinates.split(",");
+    const latitude = Number(latitudeText);
+    const longitude = Number(longitudeText);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return [];
+    }
 
-      return [{ rowId, latitude, longitude }];
-    });
+    return [{ rowId, latitude, longitude }];
+  });
 }
 
 async function resolveSingleAddress(
@@ -289,22 +234,17 @@ async function resolveSingleAddress(
     format: "json",
   });
 
-  const response = await fetchWithTimeout(
+  return requestCensus(
     fetchFn,
     `${CENSUS_GEOGRAPHIES_ADDRESS_URL}?${parameters.toString()}`,
     undefined,
     requestTimeoutMs,
-    `single-address coordinates for agency ${request.rowId}`,
-  );
-  if (!response.ok) {
-    throw new Error(
-      `Census geocoder failed: ${response.status} ${response.statusText}`,
-    );
-  }
-
-  return coordinateResolutionFromCensusPayload(
-    request.rowId,
-    await response.json(),
+    [request],
+    async (response) =>
+      coordinateResolutionFromCensusPayload(
+        request.rowId,
+        await response.json(),
+      ),
   );
 }
 
@@ -316,103 +256,74 @@ export function createCensusAgencyCoordinateResolver(
 ) => Promise<AgencyCoordinateResolution[]> {
   const requestTimeoutMs =
     options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
-  return async (requests) => {
-    const canonical: AgencyCoordinateResolution[] = [];
-    const batchCount = Math.ceil(requests.length / BATCH_SIZE);
-    for (let index = 0; index < requests.length; index += BATCH_SIZE) {
-      const batch = requests.slice(index, index + BATCH_SIZE);
-      options.onProgress?.({
-        stage: "batch",
-        batchIndex: Math.floor(index / BATCH_SIZE) + 1,
-        batchCount,
-        batchSize: batch.length,
-        total: requests.length,
-      });
-      const batchCoordinateResolutions = await resolveBatch(
-        batch,
-        fetchFn,
-        requestTimeoutMs,
-      );
-      canonical.push(...batchCoordinateResolutions);
-
-      const resolvedRowIds = new Set(
-        batchCoordinateResolutions.map((resolution) => resolution.rowId),
-      );
-      const unresolvedRequests = batch.filter(
-        (request) => !resolvedRowIds.has(request.rowId),
-      );
-      for (const [unresolvedIndex, request] of unresolvedRequests.entries()) {
+  const loader = new BatchLoader<
+    AgencyCoordinateRequest,
+    AgencyCoordinateResolution
+  >(
+    (request) =>
+      JSON.stringify([
+        normalizeGeocodingStreetAddress(request.address),
+        request.city,
+        request.state,
+        zip5(request.zipCode),
+      ]),
+    async (requests) => {
+      const canonical: AgencyCoordinateResolution[] = [];
+      const batchCount = Math.ceil(requests.length / BATCH_SIZE);
+      for (let index = 0; index < requests.length; index += BATCH_SIZE) {
+        const batch = requests.slice(index, index + BATCH_SIZE);
         options.onProgress?.({
-          stage: "unresolved",
-          attempted: unresolvedIndex + 1,
-          total: unresolvedRequests.length,
-          rowId: request.rowId,
+          stage: "batch",
+          batchIndex: Math.floor(index / BATCH_SIZE) + 1,
+          batchCount,
+          batchSize: batch.length,
+          total: requests.length,
         });
-        const resolution = await resolveSingleAddress(
-          request,
+        const batchCoordinateResolutions = await resolveBatch(
+          batch,
           fetchFn,
           requestTimeoutMs,
         );
-        if (resolution !== undefined) {
-          canonical.push(resolution);
+        canonical.push(...batchCoordinateResolutions);
+
+        const resolvedRowIds = new Set(
+          batchCoordinateResolutions.map((resolution) => resolution.rowId),
+        );
+        const unresolvedRequests = batch.filter(
+          (request) => !resolvedRowIds.has(request.rowId),
+        );
+        for (const [unresolvedIndex, request] of unresolvedRequests.entries()) {
+          options.onProgress?.({
+            stage: "unresolved",
+            attempted: unresolvedIndex + 1,
+            total: unresolvedRequests.length,
+            rowId: request.rowId,
+          });
+          const resolution = await resolveSingleAddress(
+            request,
+            fetchFn,
+            requestTimeoutMs,
+          );
+          if (resolution !== undefined) {
+            canonical.push(resolution);
+          }
         }
       }
-    }
-    return canonical;
-  };
-}
-
-export function createCensusLocationAdministrativeAreaResolver(
-  fetchFn: FetchLike = fetch,
-): (
-  request: LocationAdministrativeAreaRequest,
-) => Promise<LocationAdministrativeAreaResolution | undefined> {
-  const cache = new Map<
-    string,
-    LocationAdministrativeAreaResolution | undefined
-  >();
-
-  return async (request) => {
-    const cacheKey = [
-      valueAsString(request.address) ?? "",
-      request.placeSlug,
-      request.state.trim().toUpperCase(),
-      valueAsString(request.zipCode) ?? "",
-    ].join("|");
-    if (cache.has(cacheKey)) {
-      return cache.get(cacheKey);
-    }
-
-    const parameters = new URLSearchParams({
-      city: request.placeName,
-      state: request.state,
-      benchmark: "Public_AR_Current",
-      vintage: "Current_Current",
-      layers: "82",
-      format: "json",
-    });
-    const address = valueAsString(request.address);
-    if (address !== undefined) {
-      parameters.set("street", normalizeGeocodingStreetAddress(address));
-    }
-    const zipCode = valueAsString(request.zipCode);
-    if (zipCode !== undefined) {
-      parameters.set("zip", zip5(zipCode));
-    }
-
-    const response = await fetchFn(
-      `${CENSUS_GEOGRAPHIES_ADDRESS_URL}?${parameters.toString()}`,
+      const byId = new Map(canonical.map((result) => [result.rowId, result]));
+      return requests.map((request) => byId.get(request.rowId));
+    },
+  );
+  return async (requests) => {
+    const results = await Promise.all(
+      requests.map(async (request) => {
+        const result = await loader.load(request);
+        return result === undefined
+          ? undefined
+          : { ...result, rowId: request.rowId };
+      }),
     );
-    if (!response.ok) {
-      throw new Error(
-        `Census geography resolver failed: ${response.status} ${response.statusText}`,
-      );
-    }
-
-    const resolution = administrativeAreaFromCensusPayload(
-      await response.json(),
+    return results.filter(
+      (result): result is AgencyCoordinateResolution => result !== undefined,
     );
-    cache.set(cacheKey, resolution);
-    return resolution;
   };
 }

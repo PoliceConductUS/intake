@@ -167,8 +167,8 @@ describe("architecture boundaries", () => {
       if (
         !fileName.startsWith("src/cli/database/") &&
         (contents.includes("from public.agency") ||
-          contents.includes("from public.officers") ||
-          contents.includes("from public.agency_officers") ||
+          contents.includes("from public.personnel") ||
+          contents.includes("from public.agency_personnel") ||
           contents.includes("select * from ${tableName}") ||
           contents.includes("select id, slug from ${tableName}"))
       ) {
@@ -199,20 +199,23 @@ describe("architecture boundaries", () => {
     expect(violations).toEqual([]);
   });
 
-  test("keeps import operation classification out of replay CRU", async () => {
+  test("keeps import operation classification out of the write pass", async () => {
     const filePath = path.join(
       sourceRoot,
       "cli",
       "import",
       "artifacts",
-      "plan-database-mutations.ts",
+      "config.ts",
     );
     const contents = await readFile(filePath, "utf8");
 
+    // Create-vs-read/update is decided by each facade's own current-row read at
+    // mutation time (ADR 0019), never by a separate operation-classification pass.
     expect(contents).not.toContain(
       "function resolvePreparedDatabaseOperations",
     );
     expect(contents).not.toContain("function rowExists");
+    expect(contents).not.toContain("classifyDatabaseOperations");
   });
 
   test("implements import artifacts as named pipeline stages", async () => {
@@ -231,33 +234,11 @@ describe("architecture boundaries", () => {
     for (const stageName of [
       "readArtifactsStage",
       "rejectExistingImportStage",
-      "applyArtifactMutationsStage",
-      "resolveSourceNamesStage",
-      "transformArtifactsStage",
-      "executeDatabaseMutationPlanningStage",
-      "writeDatabaseMutationsDebugStage",
+      "validateArtifactRecordsStage",
       "writeDatabaseMutationsStage",
     ]) {
       expect(contents).toContain(stageName);
     }
-  });
-
-  test("keeps DatabaseMutationsDebug writing out of database planning stage", async () => {
-    const filePath = path.join(
-      sourceRoot,
-      "cli",
-      "import",
-      "artifacts",
-      "config.ts",
-    );
-    const contents = await readFile(filePath, "utf8");
-    const executeStage = contents.slice(
-      contents.indexOf("async function executeDatabaseMutationPlanningStage"),
-      contents.indexOf("async function writeDatabaseMutationsDebugStage"),
-    );
-
-    expect(executeStage).not.toContain("DatabaseMutationsDebug.write");
-    expect(executeStage).not.toContain("DatabaseMutationsDebug.new");
   });
 
   test("keeps DatabaseMutations assembly on DataContext and exact kind IO", async () => {
@@ -294,7 +275,7 @@ describe("architecture boundaries", () => {
       "cli",
       "import",
       "artifacts",
-      "plan-database-mutations.ts",
+      "config.ts",
     );
     const contents = await readFile(filePath, "utf8");
 
@@ -303,19 +284,21 @@ describe("architecture boundaries", () => {
     expect(contents).not.toContain("requiredInsertColumns");
   });
 
-  test("keeps import artifact planning free of database writes", async () => {
+  test("keeps the import artifact write pass free of database writes", async () => {
     const filePath = path.join(
       sourceRoot,
       "cli",
       "import",
       "artifacts",
-      "plan-database-mutations.ts",
+      "config.ts",
     );
     const contents = await readFile(filePath, "utf8");
 
+    // The write pass only reads (schema, location paths, current rows); records
+    // are created/updated later by the separate replay client.
     expect(contents).not.toContain("createMissingLocationPathRecords");
     expect(contents).not.toContain("createOrUpdateOwnedDatabaseRecord");
-    expect(contents).not.toContain("commit");
+    expect(contents).not.toContain('query("commit")');
   });
 
   test("keeps import artifact stages on narrow adapters instead of DataContext reach-through", async () => {
@@ -326,13 +309,6 @@ describe("architecture boundaries", () => {
         "import",
         "artifacts",
         "agency-address-resolution.ts",
-      ),
-      path.join(
-        sourceRoot,
-        "cli",
-        "import",
-        "artifacts",
-        "agency-field-resolution.ts",
       ),
     ];
     const violations: string[] = [];
@@ -350,24 +326,6 @@ describe("architecture boundaries", () => {
     }
 
     expect(violations).toEqual([]);
-  });
-
-  test("keeps agency artifact processing unaware of database mutation planning", async () => {
-    const filePath = path.join(
-      sourceRoot,
-      "cli",
-      "import",
-      "artifacts",
-      "agency-preparation.ts",
-    );
-    const contents = await readFile(filePath, "utf8");
-
-    expect(contents).not.toContain("readDatabaseRecordById");
-    expect(contents).not.toContain("setOperation");
-    expect(contents).not.toContain("resolveCachedAgencyLocationPath");
-    expect(contents).not.toContain("resolveAgencyMissingFields");
-    expect(contents).not.toContain("locationPaths.");
-    expect(contents).not.toContain("locations.");
   });
 
   test("keeps source artifact facade construction on DataContext", async () => {
@@ -429,7 +387,6 @@ describe("architecture boundaries", () => {
     const files = await existingFiles(sourceRoot);
     const sourceFiles = files.filter((file) => /\.[cm]?tsx?$/.test(file));
     const allowed = new Set([
-      "src/cli/import/artifacts/agency-coordinate-cache.ts",
       "src/cli/import/artifacts/config.ts",
       "src/cli/state/resolved-property/ResolvedProperty.ts",
       "src/cli/state/resolved-property/index.ts",

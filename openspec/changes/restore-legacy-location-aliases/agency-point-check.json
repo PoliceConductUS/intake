@@ -1,0 +1,3468 @@
+{
+  "checked_at": "2026-09-21",
+  "legacy_agency_ids": 127,
+  "current_agencies_checked": 123,
+  "assigned_shape_does_not_contain_point": 46,
+  "agencies": [
+    {
+      "id": "cm76wpxb601ctvrvg1quqkpgb",
+      "name": "112th Judicial Dist. Atty.'s Office",
+      "address": "400 S. Nelson",
+      "city": "Ft. Stockton",
+      "state": "TX",
+      "zip_code": "79735",
+      "latitude": 30.882429569058,
+      "longitude": -102.880344870127,
+      "assigned_path": "/tx/pecos-county/fort-stockton/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cz1utg8t10m2plxclvnzp9c1",
+          "path": "/tx/pecos-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "ca5j1zhzis2bln21rz311s1x",
+          "path": "/tx/pecos-county/fort-stockton/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgoq03rjewvg1uzf8o96",
+      "name": "143rd Judicial Dist. Atty.'s Office",
+      "address": "301 South Oak St. Ste C",
+      "city": "Pecos",
+      "state": "TX",
+      "zip_code": "79772",
+      "latitude": 31.425454656782,
+      "longitude": -103.495403257123,
+      "assigned_path": "/tx/reeves-county/town-of-pecos/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cbwphlv5cmyu1evhjqf0nrv1",
+          "path": "/tx/reeves-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "vevurvqilf6o2u7bo2znq63d",
+          "path": "/tx/reeves-county/town-of-pecos/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm76wpxaz0063vrvgrr8j9m0t",
+      "name": "155th Judicial Dist. CSCD",
+      "address": "265 N. Chesley, Ste 6",
+      "city": "Bellville",
+      "state": "TX",
+      "zip_code": "77418",
+      "latitude": 29.956542177646,
+      "longitude": -96.264019865746,
+      "assigned_path": "/tx/austin-county/bellville/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "c6wfjmyzffyrv7tl49flyj7k",
+          "path": "/tx/austin-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgog01zmewvga7n4s61o",
+      "name": "452nd District Attorney's Office",
+      "address": "1024 Mckinney Ave. ( D.A. Main Office), 111 Austin ( Invest. Main Off.)",
+      "city": "Mason",
+      "state": "TX",
+      "zip_code": "76865",
+      "latitude": 30.7480029,
+      "longitude": -99.2287442,
+      "assigned_path": "/tx/mason-county/mason/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "celro9kul7vltz00wju203b7",
+          "path": "/tx/mason-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "c3tqbjj0uqeo3fn31514xvjf",
+          "path": "/tx/mason-county/mason/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgo800l1ewvg23w03i5y",
+      "name": "Alief I.S.D. Police Dept.",
+      "address": "P. O. Box 68",
+      "city": "Alief",
+      "state": "TX",
+      "zip_code": "77411",
+      "latitude": 29.7110641,
+      "longitude": -95.5963337,
+      "assigned_path": "/tx/harris-county/houston/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cbmeonfi8xu2viijb27rwt9j",
+          "path": "/tx/harris-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "cnmbt1oikb4y48bq1choxo1o",
+          "path": "/tx/harris-county/houston/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgol02xgewvgtfja79dl",
+      "name": "Aransas Pass Police Department",
+      "address": "600 W Cleveland Blvd",
+      "city": "Aransas Pass",
+      "state": "TX",
+      "zip_code": "78336-3638",
+      "latitude": 27.909897442351,
+      "longitude": -97.150367059711,
+      "assigned_path": "/tx/nueces-county/aransas-pass/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "klx7yemmhe8kh2voeprm7pvn",
+          "path": "/tx/nueces-county/aransas-pass/",
+          "level": "place"
+        },
+        {
+          "id": "cqeybff9fhb7rszgdsrb7q8b",
+          "path": "/tx/san-patricio-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm76wpxaz004kvrvgl13cxmgt",
+      "name": "Archer Co. Const. PCT. 3",
+      "address": "100 Law Enforcement Way",
+      "city": "Archer",
+      "state": "TX",
+      "zip_code": "76351",
+      "latitude": 33.5926851,
+      "longitude": -98.627202,
+      "assigned_path": "/tx/archer-county/archer-city/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "c3qcjem87cuq218nbzzwo6p0",
+          "path": "/tx/archer-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "c7ne85g4lwe83ps4lxk7u1pb",
+          "path": "/tx/archer-county/archer-city/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm76wpxaz004mvrvggeao7cgd",
+      "name": "Archer Co. Const. PCT. 4",
+      "address": "P.O. Box 517",
+      "city": "Archer City",
+      "state": "TX",
+      "zip_code": "76531",
+      "latitude": 33.5926851,
+      "longitude": -98.627202,
+      "assigned_path": "/tx/archer-county/archer-city/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "c3qcjem87cuq218nbzzwo6p0",
+          "path": "/tx/archer-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "c7ne85g4lwe83ps4lxk7u1pb",
+          "path": "/tx/archer-county/archer-city/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm76wpxaz006cvrvgnjbqazt8",
+      "name": "Austin Co. Const. PCT. 2",
+      "address": "P.O. Box 142",
+      "city": "Bleiblerville",
+      "state": "TX",
+      "zip_code": "78931",
+      "latitude": 30.0311447,
+      "longitude": -96.4429166,
+      "assigned_path": "/tx/austin-county/industry/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "c6wfjmyzffyrv7tl49flyj7k",
+          "path": "/tx/austin-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgog01y6ewvgk29umr61",
+      "name": "Axtell ISD Police Department",
+      "address": "1178 Longhorn Parkway",
+      "city": "Axtell",
+      "state": "TX",
+      "zip_code": "76624",
+      "latitude": 31.650625983207,
+      "longitude": -96.977681810821,
+      "assigned_path": "/tx/mclennan-county/hallsburg/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cukg81o79umcinhxvwv1e4ii",
+          "path": "/tx/mclennan-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgon036mewvg9rlhers8",
+      "name": "Azle Police Department",
+      "address": "505 W Main St # 2",
+      "city": "Azle",
+      "state": "TX",
+      "zip_code": "76020-2907",
+      "latitude": 32.898506667797,
+      "longitude": -97.548189702639,
+      "assigned_path": "/tx/tarrant-county/azle/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cb3zqt995mapvnkqb4a0og9u",
+          "path": "/tx/parker-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "c2uirq08vky32y4htx8ildlo",
+          "path": "/tx/tarrant-county/azle/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm76wpxaz007lvrvg6utatpx0",
+      "name": "Bandera Co. Const. PCT. 3",
+      "address": "P.O. Box 1557",
+      "city": "Medina",
+      "state": "TX",
+      "zip_code": "78055",
+      "latitude": 26.9289548,
+      "longitude": -99.2614176,
+      "assigned_path": "/tx/zapata-county/medina/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cle4pwqd6gyu6klvpltwnlv4",
+          "path": "/tx/zapata-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "fbdnj6b9swid8265n7gl1mdh",
+          "path": "/tx/zapata-county/medina/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm76wpxb0007ovrvgsez3548d",
+      "name": "Bandera Co. Const. PCT. 4",
+      "address": "P. O. Box 377",
+      "city": "Utopia",
+      "state": "TX",
+      "zip_code": "78884",
+      "latitude": 29.6188017,
+      "longitude": -99.5153145,
+      "assigned_path": "/tx/uvalde-county/utopia/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cq0fg2fg7dci4f9avx44ff0v",
+          "path": "/tx/uvalde-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "yxlzdc13z74iphqdgz6492td",
+          "path": "/tx/uvalde-county/utopia/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgor03z3ewvgezcl1zk9",
+      "name": "Bartlett Police Dept.",
+      "address": "202 N.dalton/po Box 670",
+      "city": "Bartlett",
+      "state": "TX",
+      "zip_code": "76511",
+      "latitude": 30.79776739746,
+      "longitude": -97.424712302012,
+      "assigned_path": "/tx/williamson-county/bartlett/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "c0fy3d5n99r4spybrxd59vqq",
+          "path": "/tx/bell-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "g2r2gqpp3qpmmubck31sj8su",
+          "path": "/tx/williamson-county/bartlett/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm76wpxb0009dvrvgjyaio1jd",
+      "name": "Bee Co. Const. PCT. 2",
+      "address": "105 W. Corpus Christi St., Rm 109",
+      "city": "Beevillle",
+      "state": "TX",
+      "zip_code": "78102",
+      "latitude": 28.401958037649,
+      "longitude": -97.748195240821,
+      "assigned_path": "/tx/bee-county/beeville/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "ci22h51n77ink8sv99znskhz",
+          "path": "/tx/bee-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "cn85chxd3q39odayp6nmdx1b",
+          "path": "/tx/bee-county/beeville/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm76wpxb000cwvrvgz5f4fhy0",
+      "name": "Bexar Co. CSCD",
+      "address": "13500 Herring Rd",
+      "city": "Atascosa",
+      "state": "TX",
+      "zip_code": "78002",
+      "latitude": 29.2830504,
+      "longitude": -98.7365113,
+      "assigned_path": "/tx/bexar-county/macdona/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cwgy31b0ry0egcix5gx6gaec",
+          "path": "/tx/bexar-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgob012hewvgnssusuyi",
+      "name": "Bland ISD Police Department",
+      "address": "P.O. Box 216, 6164 FM 2194",
+      "city": "Merit",
+      "state": "TX",
+      "zip_code": "75458-0216",
+      "latitude": 33.2157217,
+      "longitude": -96.2886628,
+      "assigned_path": "/tx/collin-county/farmersville/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "c1jrfejticgtszpwmdhr9tct",
+          "path": "/tx/hunt-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm76wpxb100j5vrvgj6vyl74o",
+      "name": "Bowie Co. Const. PCT. 3",
+      "address": "1351 FM 1326",
+      "city": "Avery",
+      "state": "TX",
+      "zip_code": "75554",
+      "latitude": 33.553841002686,
+      "longitude": -94.690911133651,
+      "assigned_path": "/tx/red-river-county/avery/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cm9yue8t6m0iyk0mf7unrrwm",
+          "path": "/tx/bowie-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm76wpxb100j8vrvgazb144st",
+      "name": "Bowie Co. Const. PCT. 4",
+      "address": "4844 US Hwy 67",
+      "city": "Simms",
+      "state": "TX",
+      "zip_code": "75574",
+      "latitude": 33.339890199288,
+      "longitude": -94.465447796878,
+      "assigned_path": "/tx/bowie-county/new-boston/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cm9yue8t6m0iyk0mf7unrrwm",
+          "path": "/tx/bowie-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgog01x1ewvgpb9i0xs2",
+      "name": "Bruceville-Eddy Police Dept.",
+      "address": "143 Wilcox Dr",
+      "city": "Eddy",
+      "state": "TX",
+      "zip_code": "76524-2587",
+      "latitude": 31.306549323546,
+      "longitude": -97.246505816961,
+      "assigned_path": "/tx/mclennan-county/bruceville-eddy/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cukg81o79umcinhxvwv1e4ii",
+          "path": "/tx/mclennan-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "tdx80ophe3xrdolmm73mfyv1",
+          "path": "/tx/mclennan-county/bruceville-eddy/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm76wpxb5012yvrvgohpcncsd",
+      "name": "Bullard ISD Police Department",
+      "address": "308 School House Rd.",
+      "city": "Bullard",
+      "state": "TX",
+      "zip_code": "75757",
+      "latitude": 32.1433386,
+      "longitude": -95.3177643,
+      "assigned_path": "/tx/smith-county/bullard/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cpajx4gwel5abj501mx2tz8w",
+          "path": "/tx/smith-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "ekc9h6b0no7xq2bqdb2pybsn",
+          "path": "/tx/smith-county/bullard/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgom0318ewvgo92g2xo2",
+      "name": "Bullard Police Department",
+      "address": "Po Box 109",
+      "city": "Bullard",
+      "state": "TX",
+      "zip_code": "75757-0109",
+      "latitude": 32.1433386,
+      "longitude": -95.3177643,
+      "assigned_path": "/tx/smith-county/bullard/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cpajx4gwel5abj501mx2tz8w",
+          "path": "/tx/smith-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "ekc9h6b0no7xq2bqdb2pybsn",
+          "path": "/tx/smith-county/bullard/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm76wpxb300sxvrvgzznpvfy9",
+      "name": "Caldwell Co. Const. PCT. 3",
+      "address": "P.O. Box 145",
+      "city": "Maxwell",
+      "state": "TX",
+      "zip_code": "78656",
+      "latitude": 29.9027653,
+      "longitude": -97.8089758,
+      "assigned_path": "/tx/hays-county/kyle/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "crx02mgcxuufym27q1ag1chq",
+          "path": "/tx/caldwell-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm76wpxb4010kvrvg3a3zvlko",
+      "name": "Castro Co. Dist. Atty.'s Office",
+      "address": "100 E Bedford",
+      "city": "Dimmit",
+      "state": "TX",
+      "zip_code": "79027-2689",
+      "latitude": 34.550908123138,
+      "longitude": -102.312364683176,
+      "assigned_path": "/tx/castro-county/dimmitt/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "c44mijojysv223t1oc91dyli",
+          "path": "/tx/castro-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "c8vw62rl2ajmin34mbeqalsw",
+          "path": "/tx/castro-county/dimmitt/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm76wpxay0014vrvgicuzi1y4",
+      "name": "Cayuga ISD Police Department",
+      "address": "17750 N US Highway 287",
+      "city": "Tennessee Colony",
+      "state": "TX",
+      "zip_code": "75861-3332",
+      "latitude": 31.92152071267,
+      "longitude": -95.923838477526,
+      "assigned_path": "/tx/henderson-county/trinidad/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "c1ekiz8xeh65p5iqg2rle02o",
+          "path": "/tx/anderson-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm76wpxaz003fvrvg17anj5p7",
+      "name": "Central Independent School District",
+      "address": "7622 US Hwy 69 N",
+      "city": "Pollok",
+      "state": "TX",
+      "zip_code": "75969",
+      "latitude": 31.427974822829,
+      "longitude": -94.810627657548,
+      "assigned_path": "/tx/angelina-county/hudson/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "clb1g1clq17wwwja3pxm2eip",
+          "path": "/tx/angelina-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm76wpxb5011bvrvgm052h04w",
+      "name": "Chambers Co. Const. PCT. 6",
+      "address": "7711 Highway 146",
+      "city": "Baytown",
+      "state": "TX",
+      "zip_code": "77520",
+      "latitude": 29.806478955937,
+      "longitude": -94.903442722732,
+      "assigned_path": "/tx/harris-county/baytown/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "ch605cqqbp7s7tlndizs73z4",
+          "path": "/tx/chambers-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "c8qxtab254i7ceawf82hdf9x",
+          "path": "/tx/harris-county/baytown/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgo600bdewvg72sur2db",
+      "name": "City of New Berlin Marshal's Office",
+      "address": "9180 FM 775",
+      "city": "La Vernia",
+      "state": "TX",
+      "zip_code": "78121-3502",
+      "latitude": 29.461386727652,
+      "longitude": -98.103106692191,
+      "assigned_path": "/tx/guadalupe-county/new-berlin/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cxgvorjh0iv4azp4s4zs5xlx",
+          "path": "/tx/guadalupe-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "t6fqsfwobpsr09z5vpotvb9h",
+          "path": "/tx/guadalupe-county/new-berlin/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm76wpxb6018evrvgddmvn6bd",
+      "name": "Colorado Co. Const. PCT. 3",
+      "address": "1053 Constable Ln",
+      "city": "Cat Spring",
+      "state": "TX",
+      "zip_code": "78933",
+      "latitude": 29.786786905137,
+      "longitude": -96.366870064618,
+      "assigned_path": "/tx/austin-county/new-ulm/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cppa4u1q5d9vndr2n9lb292z",
+          "path": "/tx/colorado-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm76wpxb601ajvrvg2rxgxvl2",
+      "name": "Cooke Co. Const. PCT. 2",
+      "address": "112 South Dixon Street Ste. 120",
+      "city": "Gainsville",
+      "state": "TX",
+      "zip_code": "76240",
+      "latitude": 33.624153528858,
+      "longitude": -97.145234786255,
+      "assigned_path": "/tx/cooke-county/gainesville/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cza8rng0l7tj92gzkjk09o80",
+          "path": "/tx/cooke-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "cp3vz4a2f1gzzgi4fw4rh9jb",
+          "path": "/tx/cooke-county/gainesville/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgo700h7ewvgu61v0ctv",
+      "name": "Cypress - Fairbanks ISD Police Department",
+      "address": "11200 Telge Rd",
+      "city": "Cypress",
+      "state": "TX",
+      "zip_code": "77429-3398",
+      "latitude": 29.940305590818,
+      "longitude": -95.649141613626,
+      "assigned_path": "/tx/harris-county/houston/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cbmeonfi8xu2viijb27rwt9j",
+          "path": "/tx/harris-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm76wpxb801jovrvgalvblpyg",
+      "name": "Dallas-Dfw Airport DPS",
+      "address": "Po Box 619428",
+      "city": "DFW Airport",
+      "state": "TX",
+      "zip_code": "75261-9428",
+      "latitude": 32.8856718,
+      "longitude": -97.0541808,
+      "assigned_path": "/tx/tarrant-county/grapevine/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cjqeg95grrkhq4myzcbvmdb8",
+          "path": "/tx/tarrant-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "capqukhg9xvllhcyk5q3hxt1",
+          "path": "/tx/tarrant-county/grapevine/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm76wpxb200kdvrvgaqqqf33l",
+      "name": "De Kalb ISD Police Department",
+      "address": "152 SW Maple Street",
+      "city": "Dekalb",
+      "state": "TX",
+      "zip_code": "75559",
+      "latitude": 33.509090988825,
+      "longitude": -94.621280942746,
+      "assigned_path": "/tx/bowie-county/de-kalb/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cm9yue8t6m0iyk0mf7unrrwm",
+          "path": "/tx/bowie-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "c2kqwx36t0dzw0gu5pntx3g1",
+          "path": "/tx/bowie-county/de-kalb/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgop03itewvgnv2ydynb",
+      "name": "Del Valle ISD Police Department",
+      "address": "5201 Ross Rd",
+      "city": "Del Valle",
+      "state": "TX",
+      "zip_code": "78617-3202",
+      "latitude": 30.185312240303,
+      "longitude": -97.609381952693,
+      "assigned_path": "/tx/travis-county/austin/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cpurcte0zqb5043tsnvvy6qx",
+          "path": "/tx/travis-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm76wpxb901mvvrvgz2bwisxx",
+      "name": "Denton Co. Const. PCT. 2",
+      "address": "5533 FM 423, Suite 601",
+      "city": "Frisco",
+      "state": "TX",
+      "zip_code": "75034",
+      "latitude": 33.123630179153,
+      "longitude": -96.891423697344,
+      "assigned_path": "/tx/collin-county/frisco/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cfkloi655fyf1vxi2md9m86m",
+          "path": "/tx/collin-county/frisco/",
+          "level": "place"
+        },
+        {
+          "id": "cuw3ra6fst6g3150q5ixoade",
+          "path": "/tx/denton-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm76wpxb901n7vrvgyv1q36ft",
+      "name": "Denton Co. Const. PCT. 6",
+      "address": "1029 W Rosemeade Pkwy",
+      "city": "Carrollton",
+      "state": "TX",
+      "zip_code": "75007-6205",
+      "latitude": 33.010331187191,
+      "longitude": -96.913698347727,
+      "assigned_path": "/tx/dallas-county/carrollton/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "c8gkvriu9a0nywhg5rc9ggsu",
+          "path": "/tx/dallas-county/carrollton/",
+          "level": "place"
+        },
+        {
+          "id": "cuw3ra6fst6g3150q5ixoade",
+          "path": "/tx/denton-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgoi02alewvgzbr3t6bv",
+      "name": "Douglass ISD Police Department",
+      "address": "20712 S. FM 225",
+      "city": "Douglass",
+      "state": "TX",
+      "zip_code": "75943",
+      "latitude": 31.658651131896,
+      "longitude": -94.883582478306,
+      "assigned_path": "/tx/nacogdoches-county/cushing/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "caw80vyvyazyobidnyhqlnp5",
+          "path": "/tx/nacogdoches-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgo800m9ewvgnlvucmei",
+      "name": "Elysian Fields ISD Police Department",
+      "address": "Po Box 120",
+      "city": "Elysian Fields",
+      "state": "TX",
+      "zip_code": "75642-0120",
+      "latitude": 32.3581983,
+      "longitude": -94.1781996,
+      "assigned_path": "/tx/harrison-county/waskom/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cgbqgjt64zhxfpwa3ydh9586",
+          "path": "/tx/panola-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgo900pnewvgxtm0g17y",
+      "name": "Enchanted Oaks Police Dept.",
+      "address": "P. O. Box 5019",
+      "city": "Mabank",
+      "state": "TX",
+      "zip_code": "75147",
+      "latitude": 32.3700436,
+      "longitude": -96.1135179,
+      "assigned_path": "/tx/kaufman-county/mabank/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "c11wr4l1nugryffxw0kkqpyk",
+          "path": "/tx/kaufman-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "cxrbaxdpfkq0od3uyxs3vac1",
+          "path": "/tx/kaufman-county/mabank/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm76wpxb100fgvrvgt4hr35ft",
+      "name": "Fair Oaks Ranch Police Department",
+      "address": "7286 Dietz Elkhorn Rd",
+      "city": "Boerne",
+      "state": "TX",
+      "zip_code": "78015-4707",
+      "latitude": 29.731039340377,
+      "longitude": -98.62912439345,
+      "assigned_path": "/tx/bexar-county/fair-oaks-ranch/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cwgy31b0ry0egcix5gx6gaec",
+          "path": "/tx/bexar-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "p8tegv64aut7y4lc3vd3ywsk",
+          "path": "/tx/bexar-county/fair-oaks-ranch/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgot04afewvgjh28pftq",
+      "name": "Foreign Service",
+      "address": "12t",
+      "city": "Abbott",
+      "state": "TX",
+      "zip_code": "78723",
+      "latitude": 31.8868158,
+      "longitude": -97.079917,
+      "assigned_path": "/tx/hill-county/abbott/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "ct63gtkl03ag80971u3rbjfm",
+          "path": "/tx/hill-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm76wpxbc023tvrvglpoxhb2z",
+      "name": "Fort Bend Co. Const. PCT. 1",
+      "address": "22333 Grand Corner Drive, Suite 103",
+      "city": "Katy",
+      "state": "TX",
+      "zip_code": "77494",
+      "latitude": 29.70276552336,
+      "longitude": -95.771994421032,
+      "assigned_path": "/tx/harris-county/houston/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cprlw77gerk6b76ft583hhki",
+          "path": "/tx/fort-bend-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "cnmbt1oikb4y48bq1choxo1o",
+          "path": "/tx/harris-county/houston/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm76wpxbc025gvrvg9q6pu4bt",
+      "name": "Fort Bend I.S.D. Police Dept.",
+      "address": "550 Julie Rivers Dr. Bld. 1",
+      "city": "Sugarland",
+      "state": "TX",
+      "zip_code": "77478",
+      "latitude": 29.634072114534,
+      "longitude": -95.600998407376,
+      "assigned_path": "/tx/fort-bend-county/sugar-land/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cprlw77gerk6b76ft583hhki",
+          "path": "/tx/fort-bend-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "c70atcs51nyytm5qh1tdwcg2",
+          "path": "/tx/fort-bend-county/sugar-land/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm76wpxbc025rvrvg7z87xxpw",
+      "name": "Franklin Co. Const. PCT. 1",
+      "address": "208 Hwy 37 South",
+      "city": "Mt. Vernon",
+      "state": "TX",
+      "zip_code": "75457",
+      "latitude": 33.189511893315,
+      "longitude": -95.221505304231,
+      "assigned_path": "/tx/franklin-county/mount-vernon/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cjjdqlxifx4oxcfyzdvmbf8c",
+          "path": "/tx/franklin-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "czanyg7pg4jne7i21mwqbwp6",
+          "path": "/tx/franklin-county/mount-vernon/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgo600ahewvgkdm4gx6k",
+      "name": "Guadalupe Co. Const. PCT. 3",
+      "address": "1101 Elbel Road, Ste. 5",
+      "city": "Schertz",
+      "state": "TX",
+      "zip_code": "78154",
+      "latitude": 29.565226299777,
+      "longitude": -98.259516063357,
+      "assigned_path": "/tx/bexar-county/schertz/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "qjhjunwx1dlzuvy4xjxpacbv",
+          "path": "/tx/bexar-county/schertz/",
+          "level": "place"
+        },
+        {
+          "id": "cxgvorjh0iv4azp4s4zs5xlx",
+          "path": "/tx/guadalupe-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgo700dxewvgeh7nqlen",
+      "name": "Hardin Co. Const. PCT. 6",
+      "address": "P.O. Box 596",
+      "city": "Batson",
+      "state": "TX",
+      "zip_code": "77519",
+      "latitude": 30.2112968,
+      "longitude": -94.5859541,
+      "assigned_path": "/tx/liberty-county/hull/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "c73prlc2q3abe7o1oojpqst8",
+          "path": "/tx/hardin-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgo800n8ewvgppt1kslt",
+      "name": "Hays Co. Const. PCT. 5",
+      "address": "Po Box 236",
+      "city": "Buda",
+      "state": "TX",
+      "zip_code": "78610-0236",
+      "latitude": 30.076299,
+      "longitude": -97.8490773,
+      "assigned_path": "/tx/hays-county/buda/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cupbbnu7wx8pdnkssmfh0aty",
+          "path": "/tx/hays-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "c1l087z4ip685mtmmcu44t0q",
+          "path": "/tx/hays-county/buda/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgo800oeewvg8kgkdj5m",
+      "name": "Henderson Co. Const. PCT. 4",
+      "address": "Po Box 124, 9551 County Road 4719",
+      "city": "Larue",
+      "state": "TX",
+      "zip_code": "75770",
+      "latitude": 32.1405668,
+      "longitude": -95.6469671,
+      "assigned_path": "/tx/henderson-county/poynor/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cgxq075bfzqdw1fac0xfx39b",
+          "path": "/tx/henderson-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgoa00vxewvgss65a1wd",
+      "name": "Hockley Co. Const. PCT. 4",
+      "address": "601 Brownlee",
+      "city": "Witharral",
+      "state": "TX",
+      "zip_code": "79380",
+      "latitude": 33.7391544,
+      "longitude": -102.3278231,
+      "assigned_path": "/tx/hockley-county/whitharral/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "clfnqi8hsfja1e8sq2nx1di0",
+          "path": "/tx/hockley-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "rdmcqscjwg7nagiribcx051k",
+          "path": "/tx/hockley-county/whitharral/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgo800l4ewvgv2e577jm",
+      "name": "Huffman ISD Police Department",
+      "address": "24403 E. Lake Houston Pkwy.",
+      "city": "Huffman",
+      "state": "TX",
+      "zip_code": "77336",
+      "latitude": 30.022927944484,
+      "longitude": -95.111271867787,
+      "assigned_path": "/tx/harris-county/houston/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cbmeonfi8xu2viijb27rwt9j",
+          "path": "/tx/harris-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "cnmbt1oikb4y48bq1choxo1o",
+          "path": "/tx/harris-county/houston/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgob014xewvgokx1jiob",
+      "name": "Jasper Co. Const. PCT. 5",
+      "address": "256 Attoyac Ct.",
+      "city": "Brookeland",
+      "state": "TX",
+      "zip_code": "75931",
+      "latitude": 31.060768709725,
+      "longitude": -94.037807404852,
+      "assigned_path": "/tx/jasper-county/sam-rayburn/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cyv3gjw2ygelm3kojbgnxgq7",
+          "path": "/tx/jasper-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "c4xdkxokzjbaklxcv5hxwauc",
+          "path": "/tx/jasper-county/sam-rayburn/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgo700cxewvgc3pk0j0a",
+      "name": "Jonesboro ISD Police Department",
+      "address": "14909 E State Highway 36",
+      "city": "Jonesboro",
+      "state": "TX",
+      "zip_code": "76538-1353",
+      "latitude": 31.6425823,
+      "longitude": -97.8895783,
+      "assigned_path": "/tx/bosque-county/cranfills-gap/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cb8hglnqw98vpfan1ydrbzyh",
+          "path": "/tx/hamilton-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm76wpxbc025dvrvgnbpdwlr0",
+      "name": "Katy Fire Marshals Office",
+      "address": "1417 Ave D",
+      "city": "Katy",
+      "state": "TX",
+      "zip_code": "77493",
+      "latitude": 29.792418037297,
+      "longitude": -95.824483004343,
+      "assigned_path": "/tx/waller-county/katy/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cbmeonfi8xu2viijb27rwt9j",
+          "path": "/tx/harris-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "hfjaq1m05i3uijyta1hqvlhw",
+          "path": "/tx/waller-county/katy/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgo800kmewvg6bq1izrv",
+      "name": "Katy ISD Police Department",
+      "address": "20370 Franz Rd",
+      "city": "Katy",
+      "state": "TX",
+      "zip_code": "77449-5600",
+      "latitude": 29.801797102789,
+      "longitude": -95.741077690012,
+      "assigned_path": "/tx/waller-county/katy/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cbmeonfi8xu2viijb27rwt9j",
+          "path": "/tx/harris-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgo700hmewvgjspkbz1x",
+      "name": "Katy Police Dept.",
+      "address": "5456 Franz Rd.",
+      "city": "Katy",
+      "state": "TX",
+      "zip_code": "77493",
+      "latitude": 29.801621612802,
+      "longitude": -95.818964752698,
+      "assigned_path": "/tx/waller-county/katy/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cbmeonfi8xu2viijb27rwt9j",
+          "path": "/tx/harris-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "hfjaq1m05i3uijyta1hqvlhw",
+          "path": "/tx/waller-county/katy/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgoc01d6ewvgokaoinyv",
+      "name": "Kaufman Co. Const. PCT. 4",
+      "address": "1906 E Hwy 175",
+      "city": "Kaufman",
+      "state": "TX",
+      "zip_code": "75412",
+      "latitude": 32.5770226,
+      "longitude": -96.3138487,
+      "assigned_path": "/tx/kaufman-county/kaufman/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "c11wr4l1nugryffxw0kkqpyk",
+          "path": "/tx/kaufman-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "ceigclryq078c5zejctti91k",
+          "path": "/tx/kaufman-county/kaufman/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgod01hoewvg6dktdvpx",
+      "name": "Kleberg Co. Const. PCT. 2",
+      "address": "620 North Third Street",
+      "city": "Kinsgville",
+      "state": "TX",
+      "zip_code": "78363",
+      "latitude": 27.521910366614,
+      "longitude": -97.872070031953,
+      "assigned_path": "/tx/kleberg-county/kingsville/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cicq48m9cbgzrkz8karx9z1d",
+          "path": "/tx/kleberg-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "cdbg1inav9bht23xvtqvaeau",
+          "path": "/tx/kleberg-county/kingsville/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgog0227ewvgcpg3zyuo",
+      "name": "La Coste Police Dept.",
+      "address": "Po Box 112, 16004 S. Front Street",
+      "city": "La Coste",
+      "state": "TX",
+      "zip_code": "78039",
+      "latitude": 29.309720978633,
+      "longitude": -98.81415489672,
+      "assigned_path": "/tx/medina-county/lacoste/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cgfmdjrjbnxatdzuhkfozyfj",
+          "path": "/tx/medina-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "wedpgdhn9zapil5mkl072o1x",
+          "path": "/tx/medina-county/lacoste/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgok02ovewvgbgy1xfjs",
+      "name": "Lake Tanglewood Police Department",
+      "address": "1000 Tanglewood Dr",
+      "city": "Amarillo",
+      "state": "TX",
+      "zip_code": "79118-8024",
+      "latitude": 35.1985232,
+      "longitude": -101.8309847,
+      "assigned_path": "/tx/potter-county/amarillo/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cjke1xbobu80vjqyx2otx5pa",
+          "path": "/tx/potter-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "c4cnpcidam76hypdxtbmn7tq",
+          "path": "/tx/potter-county/amarillo/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgo900qdewvg7b41od9e",
+      "name": "Lapoynor ISD Police Department",
+      "address": "13155 Hwy 175 E.",
+      "city": "Larue",
+      "state": "TX",
+      "zip_code": "75770",
+      "latitude": 32.096122141609,
+      "longitude": -95.639818188704,
+      "assigned_path": "/tx/henderson-county/poynor/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cgxq075bfzqdw1fac0xfx39b",
+          "path": "/tx/henderson-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgoe01mcewvga030mewr",
+      "name": "Lee Co. Const. PCT. 4",
+      "address": "Po Box 141, 1043 Stephen F Austin St",
+      "city": "Dimebox",
+      "state": "TX",
+      "zip_code": "77853",
+      "latitude": 30.35658069318,
+      "longitude": -96.825292448292,
+      "assigned_path": "/tx/lee-county/dime-box/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "c3d1jvaskrqg8hknzwjj9xoq",
+          "path": "/tx/lee-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "y0g7x7wnkzk8z90i3ixrzs9g",
+          "path": "/tx/lee-county/dime-box/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgos0400ewvgseubfmii",
+      "name": "Liberty Hill Police Department",
+      "address": "Po Box 1414, 1120 Main St",
+      "city": "Liberty Hill",
+      "state": "TX",
+      "zip_code": "78642-1414",
+      "latitude": 30.066302174306,
+      "longitude": -94.795083461378,
+      "assigned_path": "/tx/liberty-county/liberty/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cuebgn83qw16jlbn4mg9fs68",
+          "path": "/tx/liberty-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "ceksj31q87wc8wjzoj8rsawb",
+          "path": "/tx/liberty-county/liberty/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm76wpxb000brvrvgr9hzfa7r",
+      "name": "Little River-Academy Police Dept.",
+      "address": "P. O. Box 521, 509 E. Main Street",
+      "city": "Little River",
+      "state": "TX",
+      "zip_code": "76554",
+      "latitude": 30.982642056311,
+      "longitude": -97.34781948228,
+      "assigned_path": "/tx/bell-county/little-river-academy/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "c0fy3d5n99r4spybrxd59vqq",
+          "path": "/tx/bell-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "etnke8w4dw93m5bqg4cml33e",
+          "path": "/tx/bell-county/little-river-academy/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgof01qaewvgu1j3ixit",
+      "name": "Live Oak Co. Const. PCT. 1",
+      "address": "161 Vista Drive",
+      "city": "Sandia",
+      "state": "TX",
+      "zip_code": "78383",
+      "latitude": 28.115873056122,
+      "longitude": -97.923194821976,
+      "assigned_path": "/tx/jim-wells-county/sandia/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cs16k0qvcmbaxl177te3qu9r",
+          "path": "/tx/live-oak-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm76wpxb0007tvrvgxic15mnx",
+      "name": "Medina ISD Police Department",
+      "address": "1 Bobcat Lane",
+      "city": "Medina",
+      "state": "TX",
+      "zip_code": "78055",
+      "latitude": 26.9289548,
+      "longitude": -99.2614176,
+      "assigned_path": "/tx/zapata-county/medina/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cle4pwqd6gyu6klvpltwnlv4",
+          "path": "/tx/zapata-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "fbdnj6b9swid8265n7gl1mdh",
+          "path": "/tx/zapata-county/medina/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm76wpxb100icvrvgov1qt7m3",
+      "name": "Meridian Police Department",
+      "address": "Po Box 739",
+      "city": "Meridian",
+      "state": "TX",
+      "zip_code": "76665-0739",
+      "latitude": 31.9178332,
+      "longitude": -97.7204972,
+      "assigned_path": "/tx/bosque-county/meridian/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "ca8s0zlt7x42j4po8sd6utpr",
+          "path": "/tx/bosque-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgoh025pewvgnszlr3hy",
+      "name": "Montgomery Co. Const. PCT. 4",
+      "address": "21130 US Highway 59 Ste C",
+      "city": "New Caney",
+      "state": "TX",
+      "zip_code": "77357-8290",
+      "latitude": 30.139604702742,
+      "longitude": -95.226231883395,
+      "assigned_path": "/tx/montgomery-county/woodbranch/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cdemxoxrtqc1x1g9o3adcna1",
+          "path": "/tx/montgomery-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgog01wmewvgc9m33p6k",
+      "name": "Moody Police Department",
+      "address": "Po Box 68",
+      "city": "Moody",
+      "state": "TX",
+      "zip_code": "76557-0068",
+      "latitude": 31.3065805,
+      "longitude": -97.3589516,
+      "assigned_path": "/tx/mclennan-county/moody/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cukg81o79umcinhxvwv1e4ii",
+          "path": "/tx/mclennan-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "j7ynreilh1wv1vcl0s4w8r2t",
+          "path": "/tx/mclennan-county/moody/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgoh027dewvgprkhzl5r",
+      "name": "New Caney I.S.D. Police Dept.",
+      "address": "W. 20387 FM 1485",
+      "city": "New Caney",
+      "state": "TX",
+      "zip_code": "77357",
+      "latitude": 30.155192634121,
+      "longitude": -95.221215352962,
+      "assigned_path": "/tx/montgomery-county/woodbranch/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cdemxoxrtqc1x1g9o3adcna1",
+          "path": "/tx/montgomery-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm76wpxb901navrvgpn94ithu",
+      "name": "North Texas Emergency Communications Center, Inc. (Ntecc)",
+      "address": "1649 W Frankford Rd Ste 150",
+      "city": "Carrollton",
+      "state": "TX",
+      "zip_code": "75007-4605",
+      "latitude": 32.994965147237,
+      "longitude": -96.930483914641,
+      "assigned_path": "/tx/dallas-county/carrollton/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "c8gkvriu9a0nywhg5rc9ggsu",
+          "path": "/tx/dallas-county/carrollton/",
+          "level": "place"
+        },
+        {
+          "id": "cuw3ra6fst6g3150q5ixoade",
+          "path": "/tx/denton-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgof01uqewvg1v8j72ck",
+      "name": "O'donnell ISD Police Department",
+      "address": "400 Small St",
+      "city": "Odonnell",
+      "state": "TX",
+      "zip_code": "79351-3007",
+      "latitude": 32.968746157225,
+      "longitude": -101.82971193805,
+      "assigned_path": "/tx/lynn-county/o-donnell/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "c6m0mgjkcbsfth8yqbsjbg4c",
+          "path": "/tx/lynn-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "ce6vr6jjwogez0odp4u4ohuz",
+          "path": "/tx/lynn-county/o-donnell/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgoh026gewvgqyddt1ci",
+      "name": "Panorama Village Police Dept.",
+      "address": "98 Hiwon Dr",
+      "city": "Panorama",
+      "state": "TX",
+      "zip_code": "77304",
+      "latitude": 30.378708141288,
+      "longitude": -95.495185369603,
+      "assigned_path": "/tx/montgomery-county/panorama-village/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cdemxoxrtqc1x1g9o3adcna1",
+          "path": "/tx/montgomery-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "zscob3uotdaeftny6c2p5xil",
+          "path": "/tx/montgomery-county/panorama-village/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgo900ptewvgotxki0i1",
+      "name": "Payne Springs Police Department",
+      "address": "19601 County Road 2529 Rd",
+      "city": "Mabank",
+      "state": "TX",
+      "zip_code": "75156-8507",
+      "latitude": 32.3700436,
+      "longitude": -96.1135179,
+      "assigned_path": "/tx/kaufman-county/mabank/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "c11wr4l1nugryffxw0kkqpyk",
+          "path": "/tx/kaufman-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "cxrbaxdpfkq0od3uyxs3vac1",
+          "path": "/tx/kaufman-county/mabank/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgok02qjewvgzsvmkdke",
+      "name": "Pecos-Barstow-Toyah ISD Police Department",
+      "address": "1306 S. Park Street",
+      "city": "Pecos",
+      "state": "TX",
+      "zip_code": "79772",
+      "latitude": 31.413429676357,
+      "longitude": -103.502764355739,
+      "assigned_path": "/tx/reeves-county/town-of-pecos/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cbwphlv5cmyu1evhjqf0nrv1",
+          "path": "/tx/reeves-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "vevurvqilf6o2u7bo2znq63d",
+          "path": "/tx/reeves-county/town-of-pecos/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgok02qgewvgxbmkwbwy",
+      "name": "Pecos Municipal Criminal Justice Center",
+      "address": "172 Raul Florez Blvd.",
+      "city": "Pecos",
+      "state": "TX",
+      "zip_code": "79772",
+      "latitude": 31.396949501101,
+      "longitude": -103.503737625463,
+      "assigned_path": "/tx/reeves-county/town-of-pecos/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cbwphlv5cmyu1evhjqf0nrv1",
+          "path": "/tx/reeves-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "vevurvqilf6o2u7bo2znq63d",
+          "path": "/tx/reeves-county/town-of-pecos/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgok02qdewvguljrtvhu",
+      "name": "Pecos Police Dept.",
+      "address": "P.O. Box 1761, 172 Raul Florez Blvd",
+      "city": "Pecos",
+      "state": "TX",
+      "zip_code": "79772",
+      "latitude": 31.396949501101,
+      "longitude": -103.503737625463,
+      "assigned_path": "/tx/reeves-county/town-of-pecos/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cbwphlv5cmyu1evhjqf0nrv1",
+          "path": "/tx/reeves-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "vevurvqilf6o2u7bo2znq63d",
+          "path": "/tx/reeves-county/town-of-pecos/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgoj02kxewvgslkxkei1",
+      "name": "Polk Co. Const. PCT. 3",
+      "address": "RT 1 Box 12",
+      "city": "Moscow",
+      "state": "TX",
+      "zip_code": "75960",
+      "latitude": 30.9037582,
+      "longitude": -94.8617829,
+      "assigned_path": "/tx/polk-county/seven-oaks/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "czbltpmchaka63tiivjoei0q",
+          "path": "/tx/polk-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgod01jmewvghujg3ai9",
+      "name": "Prairiland ISD Police Department",
+      "address": "466 FM 196 South",
+      "city": "Pattonville",
+      "state": "TX",
+      "zip_code": "75468",
+      "latitude": 33.572505682164,
+      "longitude": -95.389532476421,
+      "assigned_path": "/tx/lamar-county/deport/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "ct9jian7ei8p1zmcp37cio4q",
+          "path": "/tx/lamar-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgok02ohewvglvazrl61",
+      "name": "Randall Co. Const. PCT. 4",
+      "address": "4320 S. Western St., Ste 108",
+      "city": "Amarillo",
+      "state": "TX",
+      "zip_code": "79110",
+      "latitude": 35.166244359571,
+      "longitude": -101.88397508434,
+      "assigned_path": "/tx/potter-county/amarillo/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "c4cnpcidam76hypdxtbmn7tq",
+          "path": "/tx/potter-county/amarillo/",
+          "level": "place"
+        },
+        {
+          "id": "c0glmhbraf0rsl9tb2cems43",
+          "path": "/tx/randall-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgok02o8ewvg851xlmcu",
+      "name": "Randall County Juvenile Probation",
+      "address": "9300 South Georgia",
+      "city": "Amarillo",
+      "state": "TX",
+      "zip_code": "79118",
+      "latitude": 35.115675639762,
+      "longitude": -101.866082350622,
+      "assigned_path": "/tx/potter-county/amarillo/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "c0glmhbraf0rsl9tb2cems43",
+          "path": "/tx/randall-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgok02obewvgoqhv2bri",
+      "name": "Randall County Sheriff's Office",
+      "address": "9100 S Georgia St",
+      "city": "Amarillo",
+      "state": "TX",
+      "zip_code": "79118-5073",
+      "latitude": 35.11866541809,
+      "longitude": -101.866092651558,
+      "assigned_path": "/tx/potter-county/amarillo/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "c0glmhbraf0rsl9tb2cems43",
+          "path": "/tx/randall-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgok02q5ewvg820apnxk",
+      "name": "Reeves Co. Const. PCT. 1",
+      "address": "701 S Hackberry, 1714 Schmidt Drive",
+      "city": "Pecos",
+      "state": "TX",
+      "zip_code": "79772",
+      "latitude": 31.417506611075,
+      "longitude": -103.505421838594,
+      "assigned_path": "/tx/reeves-county/town-of-pecos/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cbwphlv5cmyu1evhjqf0nrv1",
+          "path": "/tx/reeves-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "vevurvqilf6o2u7bo2znq63d",
+          "path": "/tx/reeves-county/town-of-pecos/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgok02q7ewvgwcenrqtl",
+      "name": "Reeves Co. Const. PCT. 2",
+      "address": "1212 S. Park",
+      "city": "Pecos",
+      "state": "TX",
+      "zip_code": "79772",
+      "latitude": 31.414624745129,
+      "longitude": -103.502484658583,
+      "assigned_path": "/tx/reeves-county/town-of-pecos/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cbwphlv5cmyu1evhjqf0nrv1",
+          "path": "/tx/reeves-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "vevurvqilf6o2u7bo2znq63d",
+          "path": "/tx/reeves-county/town-of-pecos/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgok02q9ewvgnu8dw57j",
+      "name": "Reeves Co. Const. PCT. 3",
+      "address": "802 W. Daggett",
+      "city": "Pecos",
+      "state": "TX",
+      "zip_code": "79772",
+      "latitude": 31.3984865,
+      "longitude": -103.5863617,
+      "assigned_path": "/tx/reeves-county/town-of-pecos/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cbwphlv5cmyu1evhjqf0nrv1",
+          "path": "/tx/reeves-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "vevurvqilf6o2u7bo2znq63d",
+          "path": "/tx/reeves-county/town-of-pecos/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgok02qbewvgj7wcuon0",
+      "name": "Reeves Co. Const. PCT. 4",
+      "address": "1714 Schmidt Drive",
+      "city": "Pecos",
+      "state": "TX",
+      "zip_code": "79772",
+      "latitude": 31.400227521999,
+      "longitude": -103.51485513089,
+      "assigned_path": "/tx/reeves-county/town-of-pecos/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cbwphlv5cmyu1evhjqf0nrv1",
+          "path": "/tx/reeves-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "vevurvqilf6o2u7bo2znq63d",
+          "path": "/tx/reeves-county/town-of-pecos/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgok02q2ewvgri83ksuk",
+      "name": "Reeves Co. Sheriff's Office",
+      "address": "Po Box 910, Attn: Ernesto E. Lazcano",
+      "city": "Pecos",
+      "state": "TX",
+      "zip_code": "79772-0910",
+      "latitude": 31.3984865,
+      "longitude": -103.5863617,
+      "assigned_path": "/tx/reeves-county/town-of-pecos/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cbwphlv5cmyu1evhjqf0nrv1",
+          "path": "/tx/reeves-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "vevurvqilf6o2u7bo2znq63d",
+          "path": "/tx/reeves-county/town-of-pecos/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgoj02jcewvgczqsgrbh",
+      "name": "Reno Police Dept. (367204) - 367204",
+      "address": "195 W Reno Rd",
+      "city": "Azle",
+      "state": "TX",
+      "zip_code": "76020-6001",
+      "latitude": 32.944164428287,
+      "longitude": -97.580189753752,
+      "assigned_path": "/tx/parker-county/reno/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cb3zqt995mapvnkqb4a0og9u",
+          "path": "/tx/parker-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "qqc0c1vlxj1nozdq0j1gafsu",
+          "path": "/tx/parker-county/reno/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm76wpxb100gfvrvg1cy6qusk",
+      "name": "Saint Hedwig Marshal's Office",
+      "address": "13065 FM 1346, P.O. Box 40",
+      "city": "Saint Hedwig",
+      "state": "TX",
+      "zip_code": "78152",
+      "latitude": 29.424483063827,
+      "longitude": -98.226860248135,
+      "assigned_path": "/tx/bexar-county/st-hedwig/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cwgy31b0ry0egcix5gx6gaec",
+          "path": "/tx/bexar-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "n2gnmdr6p7ds1a4ggv4f0oz8",
+          "path": "/tx/bexar-county/st-hedwig/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgoa00y2ewvg5gk9bccn",
+      "name": "Saltillo I.S.D. Police Department",
+      "address": "P.O. Box 269",
+      "city": "Saltillo",
+      "state": "TX",
+      "zip_code": "75478",
+      "latitude": 33.1727674,
+      "longitude": -95.3522431,
+      "assigned_path": "/tx/franklin-county/mount-vernon/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "csj94c8mtyce4uiqytaq8gym",
+          "path": "/tx/hopkins-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm76wpxbc022dvrvge8ks2pyl",
+      "name": "Sam Rayburn ISD Police Department",
+      "address": "9363 E. FM 273",
+      "city": "Ivanhoe",
+      "state": "TX",
+      "zip_code": "75447",
+      "latitude": 33.76749429006,
+      "longitude": -96.10511487177,
+      "assigned_path": "/tx/tyler-county/ivanhoe/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cgy150divtkstme38fmo97au",
+          "path": "/tx/fannin-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgol02w8ewvgsa2s8313",
+      "name": "San Jacinto Co. Const. PCT. 3",
+      "address": "29 Lilley Yeager Loop N.",
+      "city": "Cleveland",
+      "state": "TX",
+      "zip_code": "77328",
+      "latitude": 30.483487186979,
+      "longitude": -95.194165334718,
+      "assigned_path": "/tx/liberty-county/cleveland/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "ci5nqzglwel2irtcry4a4yhe",
+          "path": "/tx/san-jacinto-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgol02wbewvgrsshglqm",
+      "name": "San Jacinto Co. Const. PCT. 4",
+      "address": "227 Boat Launch Rd",
+      "city": "Pointblank",
+      "state": "TX",
+      "zip_code": "77364-7474",
+      "latitude": 30.746687210214,
+      "longitude": -95.217207362651,
+      "assigned_path": "/tx/san-jacinto-county/point-blank/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "ci5nqzglwel2irtcry4a4yhe",
+          "path": "/tx/san-jacinto-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "bj647t1f5st7g106ijk21o83",
+          "path": "/tx/san-jacinto-county/point-blank/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgol02x6ewvgp48gmwch",
+      "name": "San Patricio Co. Const. PCT. 6",
+      "address": "225 W. Wheeler #a",
+      "city": "Aransas Pass",
+      "state": "TX",
+      "zip_code": "78336",
+      "latitude": 27.906922349603,
+      "longitude": -97.145541461447,
+      "assigned_path": "/tx/nueces-county/aransas-pass/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "klx7yemmhe8kh2voeprm7pvn",
+          "path": "/tx/nueces-county/aransas-pass/",
+          "level": "place"
+        },
+        {
+          "id": "cqeybff9fhb7rszgdsrb7q8b",
+          "path": "/tx/san-patricio-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgo600azewvg4r3p21vr",
+      "name": "Schertz Police Department",
+      "address": "1400 Schertz Pkwy BLDG 6",
+      "city": "Schertz",
+      "state": "TX",
+      "zip_code": "78154-1673",
+      "latitude": 29.564218088103,
+      "longitude": -98.269559154541,
+      "assigned_path": "/tx/bexar-county/schertz/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "qjhjunwx1dlzuvy4xjxpacbv",
+          "path": "/tx/bexar-county/schertz/",
+          "level": "place"
+        },
+        {
+          "id": "cxgvorjh0iv4azp4s4zs5xlx",
+          "path": "/tx/guadalupe-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgo800j7ewvgu2vwn0ti",
+      "name": "Seabrook Fire Marshal's Office",
+      "address": "1700 1st Street",
+      "city": "Seabrook",
+      "state": "TX",
+      "zip_code": "77586",
+      "latitude": 29.563547223014,
+      "longitude": -95.023702470753,
+      "assigned_path": "/tx/chambers-county/seabrook/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "vjjk1zu7jim57ulfq1399f4z",
+          "path": "/tx/chambers-county/seabrook/",
+          "level": "place"
+        },
+        {
+          "id": "cbmeonfi8xu2viijb27rwt9j",
+          "path": "/tx/harris-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgo700i4ewvgi88sa5vs",
+      "name": "Seabrook Police Department",
+      "address": "1400 Cook St",
+      "city": "Seabrook",
+      "state": "TX",
+      "zip_code": "77586-3529",
+      "latitude": 29.564184770295,
+      "longitude": -95.023632031747,
+      "assigned_path": "/tx/chambers-county/seabrook/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "vjjk1zu7jim57ulfq1399f4z",
+          "path": "/tx/chambers-county/seabrook/",
+          "level": "place"
+        },
+        {
+          "id": "cbmeonfi8xu2viijb27rwt9j",
+          "path": "/tx/harris-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm76wpxb100evvrvgnkliuwge",
+      "name": "Selma Police Dept.",
+      "address": "9375 Corporate Dr",
+      "city": "Selma",
+      "state": "TX",
+      "zip_code": "78154-1250",
+      "latitude": 29.590946173387,
+      "longitude": -98.305546741157,
+      "assigned_path": "/tx/bexar-county/selma/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "f3t899oq4tujftc24wq3bd50",
+          "path": "/tx/bexar-county/selma/",
+          "level": "place"
+        },
+        {
+          "id": "cxgvorjh0iv4azp4s4zs5xlx",
+          "path": "/tx/guadalupe-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm76wpxb200kjvrvg8mkbssin",
+      "name": "Simms ISD Police Department",
+      "address": "47 James Bowie Ln",
+      "city": "Simms",
+      "state": "TX",
+      "zip_code": "75574-6180",
+      "latitude": 33.349838533551,
+      "longitude": -94.505441502426,
+      "assigned_path": "/tx/bowie-county/new-boston/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cm9yue8t6m0iyk0mf7unrrwm",
+          "path": "/tx/bowie-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgoc01brewvgtv1x09x0",
+      "name": "Stamford Police Dept.",
+      "address": "115 North Swenson",
+      "city": "Stamford",
+      "state": "TX",
+      "zip_code": "79553",
+      "latitude": 32.945474795003,
+      "longitude": -99.803116970753,
+      "assigned_path": "/tx/haskell-county/stamford/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "ut1kpsyhhltiympramjz32f8",
+          "path": "/tx/haskell-county/stamford/",
+          "level": "place"
+        },
+        {
+          "id": "c8k05dmqvfi025mofed38hon",
+          "path": "/tx/jones-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgot047zewvg2ciurb2p",
+      "name": "State of Connecticut",
+      "address": "Null",
+      "city": "Abbott",
+      "state": "TX",
+      "zip_code": "00000-0000",
+      "latitude": 31.8868158,
+      "longitude": -97.079917,
+      "assigned_path": "/tx/hill-county/abbott/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "ct63gtkl03ag80971u3rbjfm",
+          "path": "/tx/hill-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgot0487ewvgdlewthlp",
+      "name": "State of Hawaii",
+      "address": "Null",
+      "city": "Abbott",
+      "state": "TX",
+      "zip_code": "00000-0000",
+      "latitude": 31.8868158,
+      "longitude": -97.079917,
+      "assigned_path": "/tx/hill-county/abbott/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "ct63gtkl03ag80971u3rbjfm",
+          "path": "/tx/hill-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgot0489ewvgfnbl3tn6",
+      "name": "State of Idaho",
+      "address": "Null",
+      "city": "Abbott",
+      "state": "TX",
+      "zip_code": "00000-0000",
+      "latitude": 31.8868158,
+      "longitude": -97.079917,
+      "assigned_path": "/tx/hill-county/abbott/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "ct63gtkl03ag80971u3rbjfm",
+          "path": "/tx/hill-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgot048vewvgv748afah",
+      "name": "State of Minnesota",
+      "address": "Null",
+      "city": "Abbott",
+      "state": "TX",
+      "zip_code": "00000-0000",
+      "latitude": 31.8868158,
+      "longitude": -97.079917,
+      "assigned_path": "/tx/hill-county/abbott/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "ct63gtkl03ag80971u3rbjfm",
+          "path": "/tx/hill-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgot049xewvg7zcy2a2p",
+      "name": "State of Tennessee",
+      "address": "Null",
+      "city": "Abbott",
+      "state": "TX",
+      "zip_code": "00000-0000",
+      "latitude": 31.8868158,
+      "longitude": -97.079917,
+      "assigned_path": "/tx/hill-county/abbott/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "ct63gtkl03ag80971u3rbjfm",
+          "path": "/tx/hill-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgoa00yhewvgu9z1vvtc",
+      "name": "Sulphur Bluff ISD Police Department",
+      "address": "1027 CR 3550",
+      "city": "Sulphur Bluff",
+      "state": "TX",
+      "zip_code": "75481",
+      "latitude": 33.332095943534,
+      "longitude": -95.394547927641,
+      "assigned_path": "/tx/hopkins-county/tira/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "csj94c8mtyce4uiqytaq8gym",
+          "path": "/tx/hopkins-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgof01rdewvgb3pe5lk7",
+      "name": "Sunrise Beach Police Department",
+      "address": "124 Sunrise Drive",
+      "city": "Sunrise Beach",
+      "state": "TX",
+      "zip_code": "78643-9283",
+      "latitude": 30.590119130696,
+      "longitude": -98.425189888236,
+      "assigned_path": "/tx/llano-county/sunrise-beach-village/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cmgidpc6h7s753jhrwk3jhuz",
+          "path": "/tx/llano-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "z5pfzkq5memng6kzxmcjr7ua",
+          "path": "/tx/llano-county/sunrise-beach-village/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgog020iewvgr3y1tspm",
+      "name": "Tidehaven I.S.D. Police Dept.",
+      "address": "P. O. Box 129",
+      "city": "El Maton",
+      "state": "TX",
+      "zip_code": "77440-0129",
+      "latitude": 28.8881718,
+      "longitude": -96.1460674,
+      "assigned_path": "/tx/matagorda-county/blessing/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cdyjlcn2hmzor3ngruiao0mt",
+          "path": "/tx/matagorda-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgoo03d4ewvghvhy2jhw",
+      "name": "Titus Co. Atty.'s Office",
+      "address": "100 West First, Room 102",
+      "city": "Mt. Pleasant",
+      "state": "TX",
+      "zip_code": "75455",
+      "latitude": 33.156762407889,
+      "longitude": -94.968601360904,
+      "assigned_path": "/tx/titus-county/mount-pleasant/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cc14810bdjk9qi71ai2q7oes",
+          "path": "/tx/titus-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "cmsfn65q0d2174exbbk96c86",
+          "path": "/tx/titus-county/mount-pleasant/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgoo03cyewvg4cgoftxi",
+      "name": "Titus Co. Const. PCT. 1",
+      "address": "100 S. Madison",
+      "city": "Mt. Pleasant",
+      "state": "TX",
+      "zip_code": "75455",
+      "latitude": 33.156762944313,
+      "longitude": -94.969428128623,
+      "assigned_path": "/tx/titus-county/mount-pleasant/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cc14810bdjk9qi71ai2q7oes",
+          "path": "/tx/titus-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "cmsfn65q0d2174exbbk96c86",
+          "path": "/tx/titus-county/mount-pleasant/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgoo03d1ewvgep9kh2i0",
+      "name": "Titus Co. Const. PCT. 2",
+      "address": "100 S Madison",
+      "city": "Mt. Pleasant",
+      "state": "TX",
+      "zip_code": "75455",
+      "latitude": 33.156762944313,
+      "longitude": -94.969428128623,
+      "assigned_path": "/tx/titus-county/mount-pleasant/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cc14810bdjk9qi71ai2q7oes",
+          "path": "/tx/titus-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "cmsfn65q0d2174exbbk96c86",
+          "path": "/tx/titus-county/mount-pleasant/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgoo03daewvgnre5hhsx",
+      "name": "Titus Co. Fresh Water Supp. Police Dept.",
+      "address": "P.O. Box 650",
+      "city": "Mt. Pleasant",
+      "state": "TX",
+      "zip_code": "75456-0650",
+      "latitude": 33.1569602,
+      "longitude": -94.9695517,
+      "assigned_path": "/tx/titus-county/mount-pleasant/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cc14810bdjk9qi71ai2q7oes",
+          "path": "/tx/titus-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "cmsfn65q0d2174exbbk96c86",
+          "path": "/tx/titus-county/mount-pleasant/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm76wpxba01pfvrvgt96ub80p",
+      "name": "Town of Cross Roads Police Department",
+      "address": "1401 FM 424",
+      "city": "Crossroads",
+      "state": "TX",
+      "zip_code": "76227-7284",
+      "latitude": 33.229684260655,
+      "longitude": -96.989024059404,
+      "assigned_path": "/tx/denton-county/cross-roads/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cuw3ra6fst6g3150q5ixoade",
+          "path": "/tx/denton-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "c5elpgh4rywkmzu6tow0bnoe",
+          "path": "/tx/denton-county/cross-roads/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgop03jbewvguoqaf5bi",
+      "name": "Trinity Co. Const. PCT. 4",
+      "address": "P O Box 81",
+      "city": "Apple Springs",
+      "state": "TX",
+      "zip_code": "75926",
+      "latitude": 31.2327901,
+      "longitude": -94.9694583,
+      "assigned_path": "/tx/angelina-county/hudson/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cfj3f1pywhfa1fa38uk5x9my",
+          "path": "/tx/trinity-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm76wpxb300tevrvg75wj870p",
+      "name": "Uhland Police Department",
+      "address": "15 N Old Spanish TRL",
+      "city": "Kyle",
+      "state": "TX",
+      "zip_code": "78640-9338",
+      "latitude": 29.958524979903,
+      "longitude": -97.783820666643,
+      "assigned_path": "/tx/hays-county/uhland/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "crx02mgcxuufym27q1ag1chq",
+          "path": "/tx/caldwell-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "tttuns2hs1feop52ejc8cebz",
+          "path": "/tx/hays-county/uhland/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgop03kjewvgp01oijjn",
+      "name": "Upshur Co. Const. PCT. 3",
+      "address": "2498 West Upshur Avenue",
+      "city": "Gladewater",
+      "state": "TX",
+      "zip_code": "75647",
+      "latitude": 32.544960901226,
+      "longitude": -94.967744860414,
+      "assigned_path": "/tx/gregg-county/gladewater/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "ckq81b15kv4iiugy1slub0um",
+          "path": "/tx/gregg-county/gladewater/",
+          "level": "place"
+        },
+        {
+          "id": "cq6vscta4g22tmv19h62klyo",
+          "path": "/tx/upshur-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgop03l9ewvgebglraqi",
+      "name": "Upton Co. Const. PCT. 1",
+      "address": "1500 Couny Road 255",
+      "city": "Midkiff",
+      "state": "TX",
+      "zip_code": "79755",
+      "latitude": 31.362354543513,
+      "longitude": -101.878898105424,
+      "assigned_path": "/tx/upton-county/rankin/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cxt5o5ehyxlcjdguk4lk410y",
+          "path": "/tx/upton-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgot046xewvgaaosroib",
+      "name": "U.S. Federal Reserve System",
+      "address": "20th St. and Constitution Ave.",
+      "city": "N.W., Washington",
+      "state": "DC",
+      "zip_code": "20551",
+      "latitude": 38.892007213454,
+      "longitude": -76.976223724356,
+      "assigned_path": "/dc/district-of-columbia/washington/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "cb7fe5hwebjc311nb170elaz",
+          "path": "/dc/",
+          "level": "state"
+        },
+        {
+          "id": "c0rb6cmo18lqt4xjdjb7je2r",
+          "path": "/dc/district-of-columbia/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "clkjo4tvva6emp4uae2rv556",
+          "path": "/dc/district-of-columbia/washington/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgop03loewvg93d8mirz",
+      "name": "Uvalde Co. Const. PCT. 3",
+      "address": "P O Box 96",
+      "city": "Concan",
+      "state": "TX",
+      "zip_code": "78838",
+      "latitude": 29.5347518,
+      "longitude": -99.7075444,
+      "assigned_path": "/tx/real-county/leakey/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cq0fg2fg7dci4f9avx44ff0v",
+          "path": "/tx/uvalde-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgok02oyewvg745viklu",
+      "name": "Village of Timbercreek Canyon Police Department",
+      "address": "101 N Timbercreek Dr",
+      "city": "Amarillo",
+      "state": "TX",
+      "zip_code": "79118-3707",
+      "latitude": 35.06292408753,
+      "longitude": -101.813361735838,
+      "assigned_path": "/tx/randall-county/timbercreek-canyon/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "c0glmhbraf0rsl9tb2cems43",
+          "path": "/tx/randall-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "u6t95rakelhsy3un3yfxpyb2",
+          "path": "/tx/randall-county/timbercreek-canyon/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgo700emewvgmrpl1rwu",
+      "name": "West Hardin County Cisd Police Department",
+      "address": "39227 Highway 105",
+      "city": "Saratoga",
+      "state": "TX",
+      "zip_code": "77585-8923",
+      "latitude": 30.2994824,
+      "longitude": -94.5293486,
+      "assigned_path": "/tx/liberty-county/hull/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "c73prlc2q3abe7o1oojpqst8",
+          "path": "/tx/hardin-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgoi02a9ewvgkbro2fze",
+      "name": "Woden I.S.D. Police Dept.",
+      "address": "P.O. Box 100",
+      "city": "Woden",
+      "state": "TX",
+      "zip_code": "75978",
+      "latitude": 31.5032387,
+      "longitude": -94.5265962,
+      "assigned_path": "/tx/nacogdoches-county/nacogdoches/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "caw80vyvyazyobidnyhqlnp5",
+          "path": "/tx/nacogdoches-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    },
+    {
+      "id": "cm7a0bgoh026sewvgyryep8vh",
+      "name": "Woodbranch Police Dept.",
+      "address": "58a Woodbranch Drive",
+      "city": "New Caney",
+      "state": "TX",
+      "zip_code": "77357",
+      "latitude": 30.18765658809,
+      "longitude": -95.192065017141,
+      "assigned_path": "/tx/montgomery-county/woodbranch/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cdemxoxrtqc1x1g9o3adcna1",
+          "path": "/tx/montgomery-county/",
+          "level": "administrative_area"
+        },
+        {
+          "id": "r058a7qq8mo9p47o3xgqbraw",
+          "path": "/tx/montgomery-county/woodbranch/",
+          "level": "place"
+        }
+      ],
+      "assigned_shape_contains_point": true
+    },
+    {
+      "id": "cm7a0bgot0468ewvginnn0mqy",
+      "name": "Zavala Co. Const. PCT. 4",
+      "address": "Po Box 215, 121 US Hwy 57",
+      "city": "La Pryor",
+      "state": "TX",
+      "zip_code": "78872",
+      "latitude": 28.907462,
+      "longitude": -99.8804044,
+      "assigned_path": "/tx/zavala-county/la-pryor/",
+      "assigned_level": "place",
+      "containing_paths": [
+        {
+          "id": "c1mpinhb7tznxwa3mpfs7w7p",
+          "path": "/tx/",
+          "level": "state"
+        },
+        {
+          "id": "cgvkjjen8mf6ga3qw0ja5o6l",
+          "path": "/tx/zavala-county/",
+          "level": "administrative_area"
+        }
+      ],
+      "assigned_shape_contains_point": false
+    }
+  ]
+}

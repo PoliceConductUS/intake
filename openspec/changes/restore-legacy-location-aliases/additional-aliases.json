@@ -1,0 +1,82 @@
+[
+  {
+    "audit_row": 2,
+    "legacy_location_path_id": "cvfz7cynjvu31c90r51vji6p",
+    "alias_path": "/ct/new-haven-county/new-haven/",
+    "target_path": "/ct/south-central-connecticut-planning-region/new-haven/",
+    "target_id": "s9qnxxb0ouon51bax2n329w6",
+    "target_name": "New Haven",
+    "reason": "The legacy city is New Haven, Census GEOID 0952000. Connecticut changed its county-equivalent parent to South Central Connecticut; the alias preserves the city URL, not the historical county geography.",
+    "geographic_source": "https://portal.ct.gov/-/media/dph/injury-and-violence-prevention/community-gun-violence-prevention-program---cgvpp/community_violence_publication_ct_9_7_24.pdf"
+  },
+  {
+    "audit_row": 8,
+    "legacy_location_path_id": "c4rszx6dlr09rngtvq4fqosm",
+    "alias_path": "/tx/archer-county/archer/",
+    "target_path": "/tx/archer-county/archer-city/",
+    "target_id": "c7ne85g4lwe83ps4lxk7u1pb",
+    "target_name": "Archer City",
+    "reason": "The legacy Archer record comes from the constable address 100 Law Enforcement Way, Archer, TX 76351. Archer County identifies that exact physical address as Archer City; the saved Census polygon contains the agency point. This is a truncated city name.",
+    "geographic_source": "https://www.co.archer.tx.us/page/archer.Sheriff"
+  },
+  {
+    "audit_row": 65,
+    "legacy_location_path_id": "crg5o51hsf1it8t8xdwmagnn",
+    "alias_path": "/tx/llano-county/sunrise-beach/",
+    "target_path": "/tx/llano-county/sunrise-beach-village/",
+    "target_id": "z5pfzkq5memng6kzxmcjr7ua",
+    "target_name": "Sunrise Beach Village",
+    "reason": "The municipality calls itself City of Sunrise Beach Village and uses Sunrise Beach in its own 124 Sunrise Drive address, matching the legacy agency address.",
+    "geographic_source": "https://sunrisebeachtx.gov/government/"
+  },
+  {
+    "audit_row": 71,
+    "legacy_location_path_id": "c6hf3stz034z6y7zpousub0r",
+    "alias_path": "/tx/montgomery-county/panorama/",
+    "target_path": "/tx/montgomery-county/panorama-village/",
+    "target_id": "zscob3uotdaeftny6c2p5xil",
+    "target_name": "Panorama Village",
+    "reason": "The legacy record links to Panorama Village Police at 98 Hiwon Drive, Panorama; the saved point falls within Census Panorama Village. The city official permit identifies the municipality as Panorama Village at adjacent 99 Hiwon Drive. The legacy name omits Village.",
+    "geographic_source": "https://webgen1files1.revize.com/panoramavillagetx/Document%20Center/Resident%20Services/%20Planning%20and%20Zoning/GENERAL.pdf"
+  },
+  {
+    "audit_row": 79,
+    "legacy_location_path_id": "chns0sc1xkv2ovlqvj4iygaf",
+    "alias_path": "/tx/reeves-county/pecos/",
+    "target_path": "/tx/reeves-county/town-of-pecos/",
+    "target_id": "vevurvqilf6o2u7bo2znq63d",
+    "target_name": "Town of Pecos",
+    "reason": "The municipality uses Town of Pecos City and Pecos, Texas on its official site. This is the same Reeves County city, Census GEOID 4873493, not Pecos County.",
+    "geographic_source": "https://pecostx.gov/?nid=1"
+  },
+  {
+    "audit_row": 93,
+    "legacy_location_path_id": "copq7v3jkzal9ci5drtyalzm",
+    "alias_path": "/ct/hartford-county/hartford/",
+    "target_path": "/ct/capitol-planning-region/hartford/",
+    "target_id": "ihalc2n5hhm77acfpybpa9q3",
+    "target_name": "Hartford",
+    "reason": "The legacy city is Hartford, Census GEOID 0937000. Connecticut changed its county-equivalent parent to Capitol; the alias preserves the city URL, not the historical county geography. The unrelated placeholder agency is not evidence.",
+    "geographic_source": "https://portal.ct.gov/-/media/dph/injury-and-violence-prevention/community-gun-violence-prevention-program---cgvpp/community_violence_publication_ct_9_7_24.pdf"
+  },
+  {
+    "audit_row": 94,
+    "legacy_location_path_id": "c2vsnaloigw71sqi91im36pl",
+    "alias_path": "/dc/district-of-columbia-county/",
+    "target_path": "/dc/district-of-columbia/",
+    "target_id": "c0rb6cmo18lqt4xjdjb7je2r",
+    "target_name": "District of Columbia",
+    "reason": "Census treats the undivided District of Columbia as one county equivalent. The old administrative-area path adds a county suffix to that same jurisdiction; it does not identify a separate county.",
+    "geographic_source": "https://www.census.gov/programs-surveys/popest/about/glossary/geo-terms.html"
+  },
+  {
+    "audit_row": 97,
+    "legacy_location_path_id": "ceq428lkivhx7fhjnieky9ln",
+    "alias_path": "/id/ada-county/boise/",
+    "target_path": "/id/ada-county/boise-city/",
+    "target_id": "o95hr3dwibq1lp7auetwi9ob",
+    "target_name": "Boise City",
+    "reason": "Boise and Boise City identify the same municipality in Ada County. The municipal site uses City of Boise and Boise City Clerk; Census uses Boise City city. The unrelated placeholder agency is not evidence.",
+    "geographic_source": "https://permits.cityofboise.org/"
+  }
+]

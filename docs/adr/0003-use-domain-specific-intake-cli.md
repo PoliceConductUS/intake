@@ -2,7 +2,12 @@
 
 ## Status
 
-Proposed
+Accepted
+
+> **CLI vocabulary superseded by [ADR 0035](0035-one-data-command-group-replaces-run-and-import.md):**
+> the pipeline is now a single `intake data <phase>` group; the top-level `run` and
+> `import artifacts` commands described below are gone. The code-organization
+> principles here still hold.
 
 ## Context
 

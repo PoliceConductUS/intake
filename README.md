@@ -8,11 +8,12 @@ upstream source-specific processes, validates them, files them into an intake-ow
 archive, preserves raw and transformed artifacts, and loads deterministic derived
 state into Supabase/Postgres.
 
-The database schema and migrations currently live under `supabase/` and will
-remain there for now. The existing `supabase/seed.sql` can populate the current
-schema, but it is transitional and known to be the wrong long-term loading
-model. The target state is to move away from `seed.sql` as quickly as practical:
-database loading and reset should be driven from accepted archived artifacts.
+The database schema and migrations live under `supabase/`. `supabase/seed.sql`
+is **retired**: a `db reset` no longer loads it (see `supabase/config.toml`). The
+database is built from migrations alone, then populated by the config-driven
+sources and the replayable data-mutation chain (`intake data update` / ADR 0033).
+The `seed.sql` file is kept only as the record of the legacy website data, for
+migrating the remaining hand-curated gaps.
 
 The intake envelope contract is modeled after Kubernetes-style resources:
 
@@ -50,19 +51,108 @@ spec:
 The `Artifacts` envelope can point to local files, S3 objects, or URLs. It must not reference
 the intake archive directly; archive layout and storage are owned by this repo.
 
-Initial CLI vocabulary:
+CLI vocabulary (the data pipeline, ADR 0033/0034):
 
 ```bash
-intake import artifacts [--dry-run] <artifacts-ref>
+intake data acquire   <source-id>            # download/scrape a source's raw inputs
+intake data transform <source-id>            # run its transform.ts to produce Artifacts
+intake data generate  <source-id>            # diff those Artifacts against the DB head → next chain entry
+intake data up        [--to <version>]       # apply pending chain entries in order
+intake data status                           # applied vs pending chain entries
+intake data verify                           # recompute applied-entry checksums; fail on drift
+intake data update                           # transform → generate → up for every source, in dependency order (appends deltas)
+intake data reset [--no-acquire]              # reset schema and regenerate all source imports, then manual records
 intake replay database-mutations <database-mutations-ref>
 ```
 
-- `import artifacts` reads and validates a source-produced `Artifacts` envelope,
-  resolves intake-owned mappings, writes a `DatabaseMutations` envelope, and
-  applies the database mutations unless `--dry-run` is set.
+- `data transform` runs a source's `transform.ts`, which returns an `Artifacts`
+  manifest, and writes the envelope — resolving intake-owned mappings against the
+  live database — but stops before the import.
+- `data generate` imports a source's latest transform Artifacts as a dry run
+  (diffing against the database at chain head), then appends the resulting
+  `DatabaseMutations` delta as the next entry in the replayable chain. It does not
+  apply it — `data up` does.
 - `replay database-mutations` reads an existing `DatabaseMutations` envelope and
   re-applies the database mutations without reading SourceNameToCanonicalId records or source
   artifacts.
+
+To rebuild the configured database from already acquired files using the current
+transforms and resolution rules, run:
+
+```bash
+npm run cli -- data reset --no-acquire
+```
+
+This resets the database identified by `DATABASE_URL` to current migrations,
+moves the old mutation chain into the reset command's output, and runs transform
+→ generate → apply for each source in dependency order. Manual locations and
+aliases load immediately after Census; the complete manual source runs at the
+end. It preserves acquired files, canonical identity mappings, slug caches,
+and durable manual records. A failed phase stops the command with a nonzero exit
+status and an incomplete-rebuild message. Plain `data reset` also acquires each
+automatic source before transforming it. `data up` only replays previously
+generated mutations; it does not regenerate imports.
+
+Inspect or correct any declared record property using its source identity:
+
+```bash
+npm run cli -- cache get <namespace> <kind> <source-id> <property>
+npm run cli -- cache set <namespace> <kind> <source-id> <property> <value>
+npm run cli -- cache set <namespace> <kind> <source-id> <property> <value> --from <existing-value>
+npm run cli -- cache set <namespace> <kind> <source-id> <property> <value> --force
+```
+
+Use `cache set` for manual cache corrections. Source checkouts do not seed the
+cache; cleared values are resolved again or supplied explicitly through the CLI.
+
+`set` refuses an existing value and displays it unless `--force` is supplied.
+There is one active manual rule per namespace/kind/source-ID/property:
+
+- With `--from X`, replace input X with the supplied value; other inputs are unchanged.
+- Without `--from` (or with `--from null`), fill only absent/null input. Empty strings require `--from ''`.
+- The forms replace the same rule with `--force`; they do not coexist or chain.
+- A matching rule supplies the property directly before dependent resolution. If it does not match, normal source/resolver/cache behavior continues. Archived rules are never evaluated.
+
+Corrections live in `$INTAKE_WORKSPACE/state/intake/namespaces/<namespace>/PropertyCorrection/`,
+written through canonical IO with command ID, timestamp, and previous entries. They
+can be set before a canonical mapping exists. All declared properties are eligible;
+normal type, canonical identity, slug ownership, and mutation constraints still apply.
+The acquired files remain unchanged. Existing canonical `ResolvedProperty` caches
+remain available; replacing an old manual cache entry archives that override.
+
+All input corrections apply during `data generate`, before property resolution.
+Census records use geography type plus GEOID as source keys, for example
+`state:GEOID:27`, `administrative_area:GEOID:27053`, `place:GEOID:2743000`,
+`county_subdivision:GEOID:2706300604`, and `consolidated_city:GEOID:<GEOID>`.
+Paths and alternate-county aliases are derived from corrected names during generation.
+For example:
+
+```bash
+npm run cli -- cache set us-census-gazetteer LocationPath place:GEOID:2416620 display_name 'Chevy Chase town' --from 'Chevy Chase'
+npm run cli -- data generate us-census-gazetteer
+```
+
+Each Census GEOID keeps its own boundary. Unresolved path collisions fail with both
+source identities; they never merge records or select a name by processing order.
+Neither cache edits nor generation modify already-applied database rows.
+
+Exclude an invalid source record with a documented reason:
+
+```bash
+npm run cli -- data exclude <source> <kind> <source-id> --reason "Reason for exclusion"
+npm run cli -- data transform <source>
+npm run cli -- data generate <source>
+```
+
+This appends to `$INTAKE_WORKSPACE/state/<source>/excluded.yaml`. Exclusions
+belong to the selected workspace and are shared across checkouts using it.
+Operator correction lists and audits belong under `$INTAKE_WORKSPACE/audits/`;
+manual records remain in the manual source’s workspace state. Use the singular record kind
+(for example, `Agency`) and the source's own ID. Existing exclusions cannot be
+overwritten by this command. The next transform removes the excluded record and
+records that reference it, such as agency assignments, while retaining independent
+personnel. Acquired inputs and previous artifacts remain unchanged. Exclusions
+do not delete records already in the database.
 
 Core invariants:
 
@@ -82,6 +172,13 @@ Core invariants:
   artifacts and the source-name mapping ledger.
 
 See `docs/adr/` for the durable architecture decisions behind this scope.
+
+Source module authors should follow the
+[Source Producer Guide](docs/source-producer-guide.md) for the current data
+commands, source interfaces, workspace ownership, stable identity, shared IO,
+and resolved-officer requirement for civil-case imports.
+
+To add a community missing from Census, see [Manual Locations](docs/manual-locations.md).
 
 ## Candidate Upstream Producers
 

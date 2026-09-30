@@ -1,21 +1,17 @@
 # Verification
 
-## Result: PASS for scoped code and local slug recovery
+Status: PASS.
 
-- Full suite: 206 tests across 14 files passed.
-- Typecheck and TypeScript build: passed.
-- Changed TypeScript formatting and git diff check: passed.
-- OpenSpec validation: 3 items passed before archive.
-- Independent review: two findings reproduced and fixed; scoped re-review confirmed both resolved without introduced regressions (44 focused tests passed).
-- New regression failures were observed before fixes: same-ID slug loss, cache disagreement, reset reuse, stale slug updates, omitted-field clearing, and serialized JSON comparison.
-- Producers cannot assign system slugs; the end-to-end fixture supplies producer slugs and verifies the canonical values remain authoritative.
-- Existing LocationPath IDs retain path and slug components; changed URL replay operations fail visibly.
+Implementation commit: `f7ed2e3` on `redesign-config-driven-intake`, based on `4b2c9f3`. The implementation worktree was clean after that commit. All implementation tasks are complete; this record and spec archival complete delivery.
 
-## Local recovery
+- Full suite: `node node_modules/vitest/vitest.mjs run --maxWorkers=2 --hookTimeout=180000` — 95 files, 610 tests passed, none skipped.
+- PostgreSQL coverage uses disposable PostGIS containers provisioned by all 30 current migrations. Covers source slug overrides, name corrections, canonical ID/cache reuse after reload, cache disagreement, same-import and separate-import cached ownership, immutable ID/slug/path updates, and transaction rollback.
+- Red evidence: seven original PostgreSQL regressions failed before the first correction. Two additional reset-order regressions exposed missing persistent ownership; the same-import regression then exposed an optimistic-claim race. All pass in the final suite.
+- `npm run lint`, `npm run build`, changed-file Prettier checks, and `git diff --check` passed.
+- `npm run openspec:validate` passed all eight items before archive. The new canonical-slug-preservation delta is synced through archival and validated again afterwards.
+- Independent review found and verified corrections for persistent ownership and concurrent claims, then reported no remaining blockers; its 36 focused allocator/cache tests passed independently.
+- No migration or seed changes were made. The shared database was not reset or written during this implementation. Real migration/reset-equivalent coverage is automated in disposable databases; no manual database test is deferred.
+- All artifacts are in this OpenSpec change. The new spec describes the implemented behavior; the only source contract change is FederalAgency slug becoming an intake-resolved property.
+- Requested branch/worktree deletions were verified by Git; no matching local or remote-tracking branch remains.
 
-Restored 129,924 personnel and 2,949 agency slugs. Canonical IO verified all 132,873 corrected cache entries. A separate database connection verified zero remaining reference mismatches across 140,301 same-ID personnel and 3,342 agencies, unchanged full ID sets, and unchanged unaffected slugs. Non-slug fingerprints and relationships stayed unchanged during the committed transaction. See recovery.md for evidence and source hashes.
-
-## Limits
-
-No migration or seed file changed, no reset ran, and no production deployment occurred.
-The current local database uses personnel/agency_personnel while this checkout targets officers/agency_officers. A full live import requires the separate table-contract changes; import/replay behavior here is tested through the repository database adapter fixtures. Actual slug recovery ran and was verified against the current local database.
+Local-data recovery and independent 143,643-record verification are recorded in recovery.md.

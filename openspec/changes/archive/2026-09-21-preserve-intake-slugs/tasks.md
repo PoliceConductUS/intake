@@ -1,16 +1,10 @@
-## 1. Preserve slugs in import and replay
+## 1. Canonical slug resolution
 
-- [x] 1.1 Add failing tests for same-ID database preservation, cache reuse, and stale replay; confirm producer slugs remain non-authoritative.
-- [x] 1.2 Implement the smallest transform/planning/replay corrections without changing IDs.
-- [x] 1.3 Run focused tests and review the changes.
+- [x] 1.1 Add failing regression tests and implement canonical slug precedence, caching, uniqueness, and source independence in current facades.
+- [x] 1.2 Add failing replay tests and reject changes to established URL identities.
 
-## 2. Correct the affected local dataset
+## 2. Verify and deliver
 
-- [x] 2.1 Audit exact-ID personnel, agency, and location-path slugs against reference CSVs.
-- [x] 2.2 Retain before/after evidence and restore verified bad slugs and cached values.
-- [x] 2.3 Verify zero remaining targeted mismatches and no ID changes.
-
-## 3. Verify delivery
-
-- [x] 3.1 Run relevant tests, type checking, formatting, and OpenSpec validation.
-- [x] 3.2 Record results, review, and remaining deployment boundary.
+- [x] 2.1 Exercise re-import and replay against PostgreSQL provisioned by all current migrations.
+- [x] 2.2 Run focused tests, type checking, OpenSpec validation, and independent review.
+- [x] 2.3 Commit the fix on redesign-config-driven-intake and verify the three requested branches/worktrees are deleted.

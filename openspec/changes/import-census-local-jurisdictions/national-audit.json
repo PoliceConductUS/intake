@@ -1,0 +1,27 @@
+{
+  "year": 2025,
+  "unchangedExistingPaths": 35249,
+  "addedPaths": 24728,
+  "sourceCounts": {
+    "places": 32058,
+    "subdivisions": 35488,
+    "consolidatedCities": 8
+  },
+  "counts": {
+    "county_subdivision:excluded": 5633,
+    "county_subdivision:included": 12121,
+    "county_subdivision:clipped": 12599,
+    "county_subdivision:covered": 5135,
+    "consolidated_city:included": 8
+  },
+  "alba": {
+    "geoid": "2706300604",
+    "name": "Alba township",
+    "classCode": "T1",
+    "sourceType": "county_subdivision",
+    "status": "included",
+    "reason": "Census local jurisdiction",
+    "path": "/mn/jackson-county/alba-township/"
+  },
+  "sourceDirectory": "/private/tmp/census-local-jurisdictions"
+}

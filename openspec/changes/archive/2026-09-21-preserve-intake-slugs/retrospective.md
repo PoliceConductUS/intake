@@ -1,15 +1,29 @@
 # Retrospective
 
+## Evidence
+
+Implementation `f7ed2e3`; 610 passing tests; real PostgreSQL red/green tests; independent review; current-workspace recovery counts in recovery.md.
+
 ## Outcome
 
-Canonical database and cached slugs are preserved during imports. Stale replay changes to established URL fields fail loudly. Historical slugs were restored by exact ID, with cache backups, reference digests, a rolled-back rehearsal, and post-commit verification.
+The fix lives on the user-designated redesign branch and uses the current generated schema. Canonical IDs and URLs survive import/replay and cache-based reloads.
 
-## Corrections during implementation
+## What worked
 
-The initial investigation treated producer slug fields as authoritative. The user clarified that uniqueness and ownership belong to intake; the design was corrected before implementation and no producer slug assignment was added.
+Actual-migration PostgreSQL tests reproduced the URL changes and verified complete rollback. Checking the selected worktree's environment identified its separate stale cache.
 
-Activating existing-row updates exposed two issues caught in review: omitted source fields could be null-filled, and JSON comparison used object identity. Narrow fixes preserve source field ownership and compare JSON structure after serialization.
+## What failed
 
-## Remaining integration boundary
+The first port checked only database/current-command ownership. Review exposed collision with absent cached records. Adding durable ownership then exposed an optimistic-claim race under concurrent facade resolution.
 
-The code stays on the scoped fix branch until integration. The local dataset correction is already applied. The separate table-name contract and fresh site build remain outside this patch; no deployment was performed.
+## Corrections
+
+Read persisted cache ownership once per kind per command. Resolve durable ownership before the synchronous command claim check/set. Preserve the selected workspace's corrected cached values with auditable backups.
+
+## Validation limits
+
+Tests use disposable local PostgreSQL; no production deployment or production data change is claimed. One full-suite attempt exceeded an existing ten-second Docker startup hook; the final complete run used a 180-second hook budget and skipped no tests.
+
+## Carry forward
+
+Keep ongoing work in the existing redesign worktree and verify its actual schema and workspace configuration before integration. Include new-before-old and concurrent cases when testing durable identity allocation.

@@ -1,3 +1,7 @@
+import {
+  requireAgencyPlaceLocationPath,
+  type AgencyLocationPathLookup,
+} from "../../../shared/agency-location-path.js";
 import path from "node:path";
 import { z } from "zod";
 import { INTAKE_API_VERSION } from "../../../shared/io/import-types.js";
@@ -16,6 +20,7 @@ type EnvelopeReadRef =
   | { ref: { path: string; kind?: string; sha256?: string } };
 
 type EnvelopeReadOptions = {
+  getLocationPathById?: AgencyLocationPathLookup;
   expectedNamespace?: string;
   relativeTo?: string;
 };
@@ -72,19 +77,41 @@ export const specSchema = z
       })
       .strict(),
     targetProperty: z.string().trim().min(1),
-    sources: z
-      .record(
-        z.string().trim().min(1),
+    // The cache holds N `(input → value)` entries per (subject, property): a
+    // derived property re-resolves only when its input fingerprint changes, and
+    // an unchanged (or previously seen) input is a hit (ADR 0019).
+    entries: z
+      .array(
         z
           .object({
-            kind: z.string().trim().min(1),
-            name: z.string().trim().min(1),
-            inputFingerprint: z.string().trim().min(1),
+            inputFingerprint: z.string().trim().min(1).optional(),
+            value: z.unknown(),
+            recordedAt: z.string().datetime().optional(),
+            commandId: z.string().trim().min(1).optional(),
+            // Provenance: the source record(s) that resolved this input to this
+            // value, keyed by namespace. Traceability back to the source and a
+            // hook for spotting cross-source disagreement.
+            sources: z
+              .record(
+                z.string().trim().min(1),
+                z
+                  .object({
+                    kind: z.string().trim().min(1),
+                    name: z.string().trim().min(1),
+                    inputFingerprint: z.string().trim().min(1).optional(),
+                  })
+                  .strict(),
+              )
+              .optional(),
           })
           .strict(),
       )
-      .optional(),
-    value: z.unknown(),
+      .refine(
+        (entries) =>
+          entries.filter((entry) => entry.inputFingerprint === undefined)
+            .length <= 1,
+        "Only one entry may omit inputFingerprint.",
+      ),
   })
   .strict();
 
@@ -156,14 +183,35 @@ async function readResolvedPropertyEnvelope(
       `ResolvedProperty namespace ${envelope.metadata.namespace} does not match expected namespace ${options.expectedNamespace}: ${ref.filePath}`,
     );
   }
+  await validateAgencyLocations(envelope, options.getLocationPathById);
   return envelope;
+}
+
+async function validateAgencyLocations(
+  envelope: ResolvedPropertyEnvelope,
+  lookup: AgencyLocationPathLookup | undefined,
+): Promise<void> {
+  if (
+    envelope.spec.subject.kind === "Agency" &&
+    envelope.spec.targetProperty === "location_path_id"
+  ) {
+    for (const entry of envelope.spec.entries) {
+      await requireAgencyPlaceLocationPath(
+        envelope.spec.subject.name,
+        entry.value,
+        lookup,
+      );
+    }
+  }
 }
 
 async function writeResolvedPropertyEnvelope(
   directory: string,
   envelope: ResolvedPropertyEnvelope,
+  options: { getLocationPathById?: AgencyLocationPathLookup } = {},
 ): Promise<{ path: string }> {
   const parsed = parseResolvedProperty(envelope);
+  await validateAgencyLocations(parsed, options.getLocationPathById);
   const filePath = yamlResourcePath(directory, parsed);
   await writeYamlDocumentFile(filePath, parsed);
   return { path: filePath };

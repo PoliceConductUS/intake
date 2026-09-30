@@ -1,4 +1,10 @@
 -- Collapsed from 20250303232529_remote_schema.sql
+-- Portable (non-Supabase) form: Supabase extensions/roles/RLS/privileges/audit removed.
+
+set search_path to public;
+create extension if not exists postgis;
+
+-- Collapsed from 20250303232529_remote_schema.sql
 
 SET
 statement_timeout = 0;
@@ -10,7 +16,6 @@ SET
 client_encoding = 'UTF8';
 SET
 standard_conforming_strings = on;
-SELECT pg_catalog.set_config('search_path', '', false);
 SET
 check_function_bodies = false;
 SET
@@ -21,63 +26,6 @@ SET
 row_security = off;
 
 
-CREATE
-EXTENSION IF NOT EXISTS "pgsodium";
-
-
-
-
-
-
-COMMENT
-ON SCHEMA "public" IS 'standard public schema';
-
-
-
-CREATE
-EXTENSION IF NOT EXISTS "pg_graphql" WITH SCHEMA "graphql";
-
-
-
-
-
-
-CREATE
-EXTENSION IF NOT EXISTS "pg_stat_statements" WITH SCHEMA "extensions";
-
-
-
-
-
-
-CREATE
-EXTENSION IF NOT EXISTS "pgcrypto" WITH SCHEMA "extensions";
-
-
-
-
-
-
-CREATE
-EXTENSION IF NOT EXISTS "pgjwt" WITH SCHEMA "extensions";
-
-
-
-
-
-
-CREATE
-EXTENSION IF NOT EXISTS "supabase_vault" WITH SCHEMA "vault";
-
-
-
-
-
-
-CREATE
-EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA "extensions";
-
-
 
 CREATE TYPE "public"."rating_label" AS ENUM (
     'Outstanding',
@@ -86,33 +34,6 @@ CREATE TYPE "public"."rating_label" AS ENUM (
     'Needs Improvement',
     'Unacceptable'
 );
-
-ALTER TYPE "public"."rating_label" OWNER TO "postgres";
-
-
-CREATE OR REPLACE FUNCTION "public"."audit_trigger_func"() RETURNS "trigger"
-    LANGUAGE "plpgsql" SECURITY DEFINER
-    AS $$
-BEGIN
-    IF
-TG_OP = 'INSERT' THEN
-        INSERT INTO audit_logs (table_name, record_id, action, new_values, created_by)
-        VALUES (TG_TABLE_NAME, NEW.id, 'INSERT', row_to_json(NEW), auth.uid());
-    ELSIF
-TG_OP = 'UPDATE' THEN
-        INSERT INTO audit_logs (table_name, record_id, action, old_values, new_values, created_by)
-        VALUES (TG_TABLE_NAME, NEW.id, 'UPDATE', row_to_json(OLD), row_to_json(NEW), auth.uid());
-    ELSIF
-TG_OP = 'DELETE' THEN
-        INSERT INTO audit_logs (table_name, record_id, action, old_values, created_by)
-        VALUES (TG_TABLE_NAME, OLD.id, 'DELETE', row_to_json(OLD), auth.uid());
-END IF;
-RETURN NULL;
-END;
-$$;
-
-
-ALTER FUNCTION "public"."audit_trigger_func"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."calculate_agency_officer_stats"("agency_officer_id" "text") RETURNS "void"
@@ -160,9 +81,6 @@ SET review_stats   = COALESCE(stats, '{}'::jsonb),
 WHERE id = agency_officer_id;
 END;
 $$;
-
-
-ALTER FUNCTION "public"."calculate_agency_officer_stats"("agency_officer_id" "text") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."calculate_overall_rating_stats"("rating_stats" "jsonb") RETURNS "jsonb"
@@ -260,9 +178,6 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."calculate_overall_rating_stats"("rating_stats" "jsonb") OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."calculate_rating_stats"("review_officers_ratings_array" "jsonb") RETURNS "jsonb"
     LANGUAGE "plpgsql"
     AS $$
@@ -307,9 +222,6 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."calculate_rating_stats"("review_officers_ratings_array" "jsonb") OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."generate_cuid"() RETURNS "text"
     LANGUAGE "plpgsql"
     AS $$
@@ -321,9 +233,6 @@ RETURN LOWER(
        );
 END;
 $$;
-
-
-ALTER FUNCTION "public"."generate_cuid"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."handle_agency_officer_change"() RETURNS "trigger"
@@ -355,9 +264,6 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."handle_agency_officer_change"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."handle_new_user"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -368,9 +274,6 @@ values (new.id);
 return new;
 end;
 $$;
-
-
-ALTER FUNCTION "public"."handle_new_user"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."handle_review_rating_change"() RETURNS "trigger"
@@ -409,25 +312,6 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."handle_review_rating_change"() OWNER TO "postgres";
-
-
-CREATE OR REPLACE FUNCTION "public"."officers_audit_trigger"() RETURNS "trigger"
-    LANGUAGE "plpgsql" SECURITY DEFINER
-    AS $$
-BEGIN
-    NEW.updated_at
-= timezone('utc'::text, now());
-    NEW.updated_by
-= auth.uid();
-RETURN NEW;
-END;
-$$;
-
-
-ALTER FUNCTION "public"."officers_audit_trigger"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."prevent_trait_deletion"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -439,9 +323,6 @@ END IF;
 RETURN OLD;
 END;
 $$;
-
-
-ALTER FUNCTION "public"."prevent_trait_deletion"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."prevent_trait_modification"() RETURNS "trigger"
@@ -458,25 +339,6 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."prevent_trait_modification"() OWNER TO "postgres";
-
-
-CREATE OR REPLACE FUNCTION "public"."review_links_audit_trigger"() RETURNS "trigger"
-    LANGUAGE "plpgsql" SECURITY DEFINER
-    AS $$
-BEGIN
-    NEW.updated_at
-= timezone('utc'::text, now());
-    NEW.updated_by
-= auth.uid();
-RETURN NEW;
-END;
-$$;
-
-
-ALTER FUNCTION "public"."review_links_audit_trigger"() OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."trigger_set_timestamp"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -486,9 +348,6 @@ BEGIN
 RETURN NEW;
 END;
 $$;
-
-
-ALTER FUNCTION "public"."trigger_set_timestamp"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."update_agency_overall_rating"("agency_id" "text") RETURNS "void"
@@ -510,9 +369,6 @@ SET rating_overall = COALESCE(overall_rating, 0)
 WHERE id = agency_id;
 END;
 $$;
-
-
-ALTER FUNCTION "public"."update_agency_overall_rating"("agency_id" "text") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."update_officer_overall_rating"("officer_id" "text") RETURNS "void"
@@ -538,9 +394,6 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."update_officer_overall_rating"("officer_id" "text") OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."update_overall_stats"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -551,9 +404,6 @@ BEGIN
 RETURN NEW;
 END;
 $$;
-
-
-ALTER FUNCTION "public"."update_overall_stats"() OWNER TO "postgres";
 
 SET
 default_tablespace = '';
@@ -577,9 +427,6 @@ CREATE TABLE IF NOT EXISTS "public"."agency" (
 );
 
 
-ALTER TABLE "public"."agency" OWNER TO "postgres";
-
-
 COMMENT
 ON COLUMN "public"."agency"."contact_name" IS 'Name of the primary contact person for the agency';
 
@@ -599,9 +446,6 @@ CREATE TABLE IF NOT EXISTS "public"."agency_links" (
 );
 
 
-ALTER TABLE "public"."agency_links" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."agency_officers" (
     "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL,
     "agency_id" "text",
@@ -617,9 +461,6 @@ CREATE TABLE IF NOT EXISTS "public"."agency_officers" (
 );
 
 
-ALTER TABLE "public"."agency_officers" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."agency_phone_numbers" (
     "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL,
     "agency_id" "text",
@@ -627,9 +468,6 @@ CREATE TABLE IF NOT EXISTS "public"."agency_phone_numbers" (
     "description" "text",
     "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL
 );
-
-
-ALTER TABLE "public"."agency_phone_numbers" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."audit_logs" (
@@ -642,9 +480,6 @@ CREATE TABLE IF NOT EXISTS "public"."audit_logs" (
     "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
     "created_by" "uuid"
 );
-
-
-ALTER TABLE "public"."audit_logs" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."officers" (
@@ -661,9 +496,6 @@ CREATE TABLE IF NOT EXISTS "public"."officers" (
 );
 
 
-ALTER TABLE "public"."officers" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."profile_emails" (
     "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL,
     "profile_id" "uuid",
@@ -675,9 +507,6 @@ CREATE TABLE IF NOT EXISTS "public"."profile_emails" (
 );
 
 
-ALTER TABLE "public"."profile_emails" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."profile_links" (
     "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL,
     "profile_id" "uuid",
@@ -685,9 +514,6 @@ CREATE TABLE IF NOT EXISTS "public"."profile_links" (
     "label" "text" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL
 );
-
-
-ALTER TABLE "public"."profile_links" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."profile_phone_numbers" (
@@ -700,9 +526,6 @@ CREATE TABLE IF NOT EXISTS "public"."profile_phone_numbers" (
     "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
     "label" "text"
 );
-
-
-ALTER TABLE "public"."profile_phone_numbers" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."profiles" (
@@ -729,16 +552,10 @@ CREATE TABLE IF NOT EXISTS "public"."profiles" (
 );
 
 
-ALTER TABLE "public"."profiles" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."rating_values" (
     "label" "public"."rating_label" NOT NULL,
     "value" integer NOT NULL
 );
-
-
-ALTER TABLE "public"."rating_values" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."review_attachments" (
@@ -749,9 +566,6 @@ CREATE TABLE IF NOT EXISTS "public"."review_attachments" (
     "content_type" "text" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL
 );
-
-
-ALTER TABLE "public"."review_attachments" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."review_links" (
@@ -766,9 +580,6 @@ CREATE TABLE IF NOT EXISTS "public"."review_links" (
 );
 
 
-ALTER TABLE "public"."review_links" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."review_officers" (
     "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL,
     "review_id" "text" NOT NULL,
@@ -778,9 +589,6 @@ CREATE TABLE IF NOT EXISTS "public"."review_officers" (
     "created_by" "uuid",
     "updated_by" "uuid"
 );
-
-
-ALTER TABLE "public"."review_officers" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."review_officers_ratings" (
@@ -795,17 +603,11 @@ CREATE TABLE IF NOT EXISTS "public"."review_officers_ratings" (
 );
 
 
-ALTER TABLE "public"."review_officers_ratings" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."review_tags" (
     "review_id" "text" NOT NULL,
     "tag_id" "text" NOT NULL,
     "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL
 );
-
-
-ALTER TABLE "public"."review_tags" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."review_witnesses" (
@@ -816,9 +618,6 @@ CREATE TABLE IF NOT EXISTS "public"."review_witnesses" (
     "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL
 );
-
-
-ALTER TABLE "public"."review_witnesses" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."reviews" (
@@ -835,9 +634,6 @@ CREATE TABLE IF NOT EXISTS "public"."reviews" (
 );
 
 
-ALTER TABLE "public"."reviews" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."rubrics" (
     "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL,
     "trait_id" "text" NOT NULL,
@@ -851,18 +647,12 @@ CREATE TABLE IF NOT EXISTS "public"."rubrics" (
 );
 
 
-ALTER TABLE "public"."rubrics" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."tags" (
     "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL,
     "label" "text" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
-
-
-ALTER TABLE "public"."tags" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."traits" (
@@ -874,9 +664,6 @@ CREATE TABLE IF NOT EXISTS "public"."traits" (
     "created_by" "uuid",
     "updated_by" "uuid"
 );
-
-
-ALTER TABLE "public"."traits" OWNER TO "postgres";
 
 
 ALTER TABLE ONLY "public"."agency_links"
@@ -1028,48 +815,8 @@ ON "public"."agency_officers" FOR EACH ROW EXECUTE FUNCTION "public"."handle_age
 
 
 
-CREATE OR REPLACE TRIGGER "officers_audit" BEFORE UPDATE 
-ON "public"."review_officers" FOR EACH ROW EXECUTE FUNCTION "public"."officers_audit_trigger"();
-
-
-
-CREATE OR REPLACE TRIGGER "officers_ratings_audit" BEFORE UPDATE 
-ON "public"."review_officers_ratings" FOR EACH ROW EXECUTE FUNCTION "public"."officers_audit_trigger"();
-
-
-
-CREATE OR REPLACE TRIGGER "review_links_audit" BEFORE UPDATE 
-ON "public"."review_links" FOR EACH ROW EXECUTE FUNCTION "public"."review_links_audit_trigger"();
-
-
-
-CREATE OR REPLACE TRIGGER "review_links_audit_log" AFTER INSERT OR DELETE OR UPDATE 
-ON "public"."review_links" FOR EACH ROW EXECUTE FUNCTION "public"."audit_trigger_func"();
-
-
-
-CREATE OR REPLACE TRIGGER "review_officers_audit_log" AFTER INSERT OR DELETE OR UPDATE 
-ON "public"."review_officers" FOR EACH ROW EXECUTE FUNCTION "public"."audit_trigger_func"();
-
-
-
-CREATE OR REPLACE TRIGGER "review_officers_ratings_audit_log" AFTER INSERT OR DELETE OR UPDATE 
-ON "public"."review_officers_ratings" FOR EACH ROW EXECUTE FUNCTION "public"."audit_trigger_func"();
-
-
-
 CREATE OR REPLACE TRIGGER "review_rating_change" AFTER INSERT OR DELETE OR UPDATE 
 ON "public"."review_officers_ratings" FOR EACH ROW EXECUTE FUNCTION "public"."handle_review_rating_change"();
-
-
-
-CREATE OR REPLACE TRIGGER "rubrics_audit_trigger" AFTER INSERT OR DELETE OR UPDATE 
-ON "public"."rubrics" FOR EACH ROW EXECUTE FUNCTION "public"."audit_trigger_func"();
-
-
-
-CREATE OR REPLACE TRIGGER "traits_audit_trigger" AFTER INSERT OR DELETE OR UPDATE 
-ON "public"."traits" FOR EACH ROW EXECUTE FUNCTION "public"."audit_trigger_func"();
 
 
 
@@ -1137,13 +884,6 @@ CASCADE;
 
 
 
-ALTER TABLE ONLY "public"."profiles"
-    ADD CONSTRAINT "profiles_id_fkey" FOREIGN KEY ("id") REFERENCES "auth"."users"("id") ON
-DELETE
-CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."review_attachments"
     ADD CONSTRAINT "review_attachments_review_id_fkey" FOREIGN KEY ("review_id") REFERENCES "public"."reviews"("id") ON
 DELETE
@@ -1152,32 +892,12 @@ CASCADE;
 
 
 ALTER TABLE ONLY "public"."review_links"
-    ADD CONSTRAINT "review_links_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "auth"."users"("id");
-
-
-
-ALTER TABLE ONLY "public"."review_links"
     ADD CONSTRAINT "review_links_review_id_fkey" FOREIGN KEY ("review_id") REFERENCES "public"."reviews"("id");
-
-
-
-ALTER TABLE ONLY "public"."review_links"
-    ADD CONSTRAINT "review_links_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "auth"."users"("id");
-
-
-
-ALTER TABLE ONLY "public"."review_officers"
-    ADD CONSTRAINT "review_officers_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "auth"."users"("id");
 
 
 
 ALTER TABLE ONLY "public"."review_officers"
     ADD CONSTRAINT "review_officers_officer_id_fkey" FOREIGN KEY ("officer_id") REFERENCES "public"."officers"("id");
-
-
-
-ALTER TABLE ONLY "public"."review_officers_ratings"
-    ADD CONSTRAINT "review_officers_ratings_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "auth"."users"("id");
 
 
 
@@ -1196,18 +916,8 @@ ALTER TABLE ONLY "public"."review_officers_ratings"
 
 
 
-ALTER TABLE ONLY "public"."review_officers_ratings"
-    ADD CONSTRAINT "review_officers_ratings_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "auth"."users"("id");
-
-
-
 ALTER TABLE ONLY "public"."review_officers"
     ADD CONSTRAINT "review_officers_review_id_fkey" FOREIGN KEY ("review_id") REFERENCES "public"."reviews"("id");
-
-
-
-ALTER TABLE ONLY "public"."review_officers"
-    ADD CONSTRAINT "review_officers_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "auth"."users"("id");
 
 
 
@@ -1278,606 +988,6 @@ ALTER TABLE ONLY "public"."traits"
     ADD CONSTRAINT "traits_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "public"."profiles"("id") ON
 DELETE
 SET NULL;
-
-
-
-CREATE POLICY "Users can delete own emails" ON "public"."profile_emails" FOR DELETE
-USING (("profile_id" = "auth"."uid"()));
-
-
-
-CREATE POLICY "Users can delete own links" ON "public"."profile_links" FOR DELETE
-USING (("profile_id" = "auth"."uid"()));
-
-
-
-CREATE POLICY "Users can delete own phone numbers" ON "public"."profile_phone_numbers" FOR DELETE
-USING (("profile_id" = "auth"."uid"()));
-
-
-
-CREATE POLICY "Users can delete their own profile" ON "public"."profiles" FOR DELETE
-USING (("auth"."uid"() = "id"));
-
-
-
-CREATE POLICY "Users can insert own emails" ON "public"."profile_emails" FOR INSERT WITH CHECK (("profile_id" = "auth"."uid"()));
-
-
-
-CREATE POLICY "Users can insert own links" ON "public"."profile_links" FOR INSERT WITH CHECK (("profile_id" = "auth"."uid"()));
-
-
-
-CREATE POLICY "Users can insert own phone numbers" ON "public"."profile_phone_numbers" FOR INSERT WITH CHECK (("profile_id" = "auth"."uid"()));
-
-
-
-CREATE POLICY "Users can insert their own profile" ON "public"."profiles" FOR INSERT WITH CHECK (("auth"."uid"() = "id"));
-
-
-
-CREATE POLICY "Users can update own emails" ON "public"."profile_emails" FOR UPDATE 
-USING (("profile_id" = "auth"."uid"()));
-
-
-
-CREATE POLICY "Users can update own links" ON "public"."profile_links" FOR UPDATE 
-USING (("profile_id" = "auth"."uid"()));
-
-
-
-CREATE POLICY "Users can update own phone numbers" ON "public"."profile_phone_numbers" FOR UPDATE 
-USING (("profile_id" = "auth"."uid"()));
-
-
-
-CREATE POLICY "Users can update their own profile" ON "public"."profiles" FOR UPDATE 
-USING (("auth"."uid"() = "id"));
-
-
-
-CREATE POLICY "Users can view own emails" ON "public"."profile_emails" FOR SELECT 
-USING (("profile_id" = "auth"."uid"()));
-
-
-
-CREATE POLICY "Users can view own links" ON "public"."profile_links" FOR SELECT 
-USING (("profile_id" = "auth"."uid"()));
-
-
-
-CREATE POLICY "Users can view own phone numbers" ON "public"."profile_phone_numbers" FOR SELECT 
-USING (("profile_id" = "auth"."uid"()));
-
-
-
-CREATE POLICY "Users can view their own profile" ON "public"."profiles" FOR SELECT 
-USING (("auth"."uid"() = "id"));
-
-
-
-ALTER TABLE "public"."profile_emails" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."profile_links" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."profile_phone_numbers" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."profiles" ENABLE ROW LEVEL SECURITY;
-
-
-
-ALTER PUBLICATION "supabase_realtime" OWNER TO "postgres";
-
-
-GRANT USAGE ON SCHEMA "public" TO "postgres";
-GRANT USAGE ON SCHEMA "public" TO "anon";
-GRANT USAGE ON SCHEMA "public" TO "authenticated";
-GRANT USAGE ON SCHEMA "public" TO "service_role";
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-GRANT ALL ON FUNCTION "public"."audit_trigger_func"() TO "anon";
-GRANT ALL ON FUNCTION "public"."audit_trigger_func"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."audit_trigger_func"() TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."calculate_agency_officer_stats"("agency_officer_id" "text") TO "anon";
-GRANT ALL ON FUNCTION "public"."calculate_agency_officer_stats"("agency_officer_id" "text") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."calculate_agency_officer_stats"("agency_officer_id" "text") TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."calculate_overall_rating_stats"("rating_stats" "jsonb") TO "anon";
-GRANT ALL ON FUNCTION "public"."calculate_overall_rating_stats"("rating_stats" "jsonb") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."calculate_overall_rating_stats"("rating_stats" "jsonb") TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."calculate_rating_stats"("review_officers_ratings_array" "jsonb") TO "anon";
-GRANT ALL ON FUNCTION "public"."calculate_rating_stats"("review_officers_ratings_array" "jsonb") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."calculate_rating_stats"("review_officers_ratings_array" "jsonb") TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."generate_cuid"() TO "anon";
-GRANT ALL ON FUNCTION "public"."generate_cuid"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."generate_cuid"() TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."handle_agency_officer_change"() TO "anon";
-GRANT ALL ON FUNCTION "public"."handle_agency_officer_change"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."handle_agency_officer_change"() TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "anon";
-GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."handle_review_rating_change"() TO "anon";
-GRANT ALL ON FUNCTION "public"."handle_review_rating_change"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."handle_review_rating_change"() TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."officers_audit_trigger"() TO "anon";
-GRANT ALL ON FUNCTION "public"."officers_audit_trigger"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."officers_audit_trigger"() TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."prevent_trait_deletion"() TO "anon";
-GRANT ALL ON FUNCTION "public"."prevent_trait_deletion"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."prevent_trait_deletion"() TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."prevent_trait_modification"() TO "anon";
-GRANT ALL ON FUNCTION "public"."prevent_trait_modification"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."prevent_trait_modification"() TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."review_links_audit_trigger"() TO "anon";
-GRANT ALL ON FUNCTION "public"."review_links_audit_trigger"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."review_links_audit_trigger"() TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."trigger_set_timestamp"() TO "anon";
-GRANT ALL ON FUNCTION "public"."trigger_set_timestamp"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."trigger_set_timestamp"() TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."update_agency_overall_rating"("agency_id" "text") TO "anon";
-GRANT ALL ON FUNCTION "public"."update_agency_overall_rating"("agency_id" "text") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."update_agency_overall_rating"("agency_id" "text") TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."update_officer_overall_rating"("officer_id" "text") TO "anon";
-GRANT ALL ON FUNCTION "public"."update_officer_overall_rating"("officer_id" "text") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."update_officer_overall_rating"("officer_id" "text") TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."update_overall_stats"() TO "anon";
-GRANT ALL ON FUNCTION "public"."update_overall_stats"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."update_overall_stats"() TO "service_role";
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-GRANT ALL ON TABLE "public"."agency" TO "anon";
-GRANT ALL ON TABLE "public"."agency" TO "authenticated";
-GRANT ALL ON TABLE "public"."agency" TO "service_role";
-
-
-
-GRANT ALL
-ON TABLE "public"."agency_links" TO "anon";
-GRANT ALL
-ON TABLE "public"."agency_links" TO "authenticated";
-GRANT ALL
-ON TABLE "public"."agency_links" TO "service_role";
-
-
-
-GRANT ALL
-ON TABLE "public"."agency_officers" TO "anon";
-GRANT ALL
-ON TABLE "public"."agency_officers" TO "authenticated";
-GRANT ALL
-ON TABLE "public"."agency_officers" TO "service_role";
-
-
-
-GRANT ALL
-ON TABLE "public"."agency_phone_numbers" TO "anon";
-GRANT ALL
-ON TABLE "public"."agency_phone_numbers" TO "authenticated";
-GRANT ALL
-ON TABLE "public"."agency_phone_numbers" TO "service_role";
-
-
-
-GRANT ALL
-ON TABLE "public"."audit_logs" TO "anon";
-GRANT ALL
-ON TABLE "public"."audit_logs" TO "authenticated";
-GRANT ALL
-ON TABLE "public"."audit_logs" TO "service_role";
-
-
-
-GRANT ALL
-ON TABLE "public"."officers" TO "anon";
-GRANT ALL
-ON TABLE "public"."officers" TO "authenticated";
-GRANT ALL
-ON TABLE "public"."officers" TO "service_role";
-
-
-
-GRANT ALL
-ON TABLE "public"."profile_emails" TO "anon";
-GRANT ALL
-ON TABLE "public"."profile_emails" TO "authenticated";
-GRANT ALL
-ON TABLE "public"."profile_emails" TO "service_role";
-
-
-
-GRANT ALL
-ON TABLE "public"."profile_links" TO "anon";
-GRANT ALL
-ON TABLE "public"."profile_links" TO "authenticated";
-GRANT ALL
-ON TABLE "public"."profile_links" TO "service_role";
-
-
-
-GRANT ALL
-ON TABLE "public"."profile_phone_numbers" TO "anon";
-GRANT ALL
-ON TABLE "public"."profile_phone_numbers" TO "authenticated";
-GRANT ALL
-ON TABLE "public"."profile_phone_numbers" TO "service_role";
-
-
-
-GRANT ALL
-ON TABLE "public"."profiles" TO "anon";
-GRANT ALL
-ON TABLE "public"."profiles" TO "authenticated";
-GRANT ALL
-ON TABLE "public"."profiles" TO "service_role";
-
-
-
-GRANT ALL
-ON TABLE "public"."rating_values" TO "anon";
-GRANT ALL
-ON TABLE "public"."rating_values" TO "authenticated";
-GRANT ALL
-ON TABLE "public"."rating_values" TO "service_role";
-
-
-
-GRANT ALL
-ON TABLE "public"."review_attachments" TO "anon";
-GRANT ALL
-ON TABLE "public"."review_attachments" TO "authenticated";
-GRANT ALL
-ON TABLE "public"."review_attachments" TO "service_role";
-
-
-
-GRANT ALL
-ON TABLE "public"."review_links" TO "anon";
-GRANT ALL
-ON TABLE "public"."review_links" TO "authenticated";
-GRANT ALL
-ON TABLE "public"."review_links" TO "service_role";
-
-
-
-GRANT ALL
-ON TABLE "public"."review_officers" TO "anon";
-GRANT ALL
-ON TABLE "public"."review_officers" TO "authenticated";
-GRANT ALL
-ON TABLE "public"."review_officers" TO "service_role";
-
-
-
-GRANT ALL
-ON TABLE "public"."review_officers_ratings" TO "anon";
-GRANT ALL
-ON TABLE "public"."review_officers_ratings" TO "authenticated";
-GRANT ALL
-ON TABLE "public"."review_officers_ratings" TO "service_role";
-
-
-
-GRANT ALL
-ON TABLE "public"."review_tags" TO "anon";
-GRANT ALL
-ON TABLE "public"."review_tags" TO "authenticated";
-GRANT ALL
-ON TABLE "public"."review_tags" TO "service_role";
-
-
-
-GRANT ALL
-ON TABLE "public"."review_witnesses" TO "anon";
-GRANT ALL
-ON TABLE "public"."review_witnesses" TO "authenticated";
-GRANT ALL
-ON TABLE "public"."review_witnesses" TO "service_role";
-
-
-
-GRANT ALL
-ON TABLE "public"."reviews" TO "anon";
-GRANT ALL
-ON TABLE "public"."reviews" TO "authenticated";
-GRANT ALL
-ON TABLE "public"."reviews" TO "service_role";
-
-
-
-GRANT ALL
-ON TABLE "public"."rubrics" TO "anon";
-GRANT ALL
-ON TABLE "public"."rubrics" TO "authenticated";
-GRANT ALL
-ON TABLE "public"."rubrics" TO "service_role";
-
-
-
-GRANT ALL
-ON TABLE "public"."tags" TO "anon";
-GRANT ALL
-ON TABLE "public"."tags" TO "authenticated";
-GRANT ALL
-ON TABLE "public"."tags" TO "service_role";
-
-
-
-GRANT ALL
-ON TABLE "public"."traits" TO "anon";
-GRANT ALL
-ON TABLE "public"."traits" TO "authenticated";
-GRANT ALL
-ON TABLE "public"."traits" TO "service_role";
-
-
-
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "postgres";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "anon";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "authenticated";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "service_role";
-
-
-
-
-
-
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUNCTIONS TO "postgres";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUNCTIONS TO "anon";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUNCTIONS TO "authenticated";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUNCTIONS TO "service_role";
-
-
-
-
-
-
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "postgres";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "anon";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "authenticated";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "service_role";
 
 
 

@@ -3,6 +3,11 @@ export type LocationPathCentroid = {
   coordinates: [number, number];
 };
 
+/** Geometry envelopes retain either a GeoJSON object or serialized GeoJSON. */
+export function geoJsonValue(value: unknown): unknown {
+  return typeof value === "string" ? JSON.parse(value) : value;
+}
+
 export type LocationPathBbox = {
   type: "Polygon";
   coordinates: [

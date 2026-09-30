@@ -2,7 +2,13 @@
 
 ## Status
 
-Proposed
+Accepted
+
+> **Command surface superseded by [ADR 0035](0035-one-data-command-group-replaces-run-and-import.md)
+> and [ADR 0036](0036-rename-the-produce-phase-from-run-to-transform.md):** the
+> `import artifacts` pipeline described here is no longer a user command — it is the
+> internal dry-diff step of `data generate` — and the produce phase is `transform`,
+> not `run`. The ELT-pipeline design itself is unchanged.
 
 ## Context
 
@@ -229,8 +235,11 @@ read, create, or update. The pipeline only mutates the facade. During
 `toMutation()`, setting a field to the value already present in the database
 records an expected-state check, not a database mutation; setting a different
 value records an update with the expected prior value; setting a field on a new
-row contributes to a create mutation. Replay must refuse to apply a mutation
-ledger when an expected-state check does not match the current database state.
+row contributes to a create mutation. An update that reduces to _only_
+expected-state checks mutates nothing, so it is not emitted — checks survive
+only alongside a `set`, guarding the row being changed. Replay must refuse to
+apply a mutation ledger when an expected-state check does not match the current
+database state.
 
 `canonicalIdFor(apiVersion, namespace, kind, name)` returns the canonical ID for
 a source object already resolved from the database, durable state, or a planned
@@ -259,9 +268,10 @@ If the canonical row does not exist, `toMutation()` emits the exact entity
 `*Create` envelope with a complete row `spec`. If the canonical row exists,
 `toMutation()` emits the exact entity `*Update` envelope with ordered operations.
 `set` operations require `from` and `to`; same-value assignments become `check`
-operations with the expected value. If the facade cannot produce a complete
-create or a valid update, it emits an invalid database mutation diagnostic
-instead of a partial executable mutation.
+operations with the expected value. An update whose operations are all `check`
+is dropped rather than emitted, so the plan carries only genuine changes. If the
+facade cannot produce a complete create or a valid update, it emits an invalid
+database mutation diagnostic instead of a partial executable mutation.
 
 ## `replay database-mutations` Pipeline
 

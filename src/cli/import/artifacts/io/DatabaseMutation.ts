@@ -3,15 +3,7 @@ import {
   parseMutationKind,
 } from "../../../../shared/io/import-types.js";
 import { importMutationEnvelopeTypes } from "./generated-mutations/index.js";
-
-type EnvelopeReadRef =
-  | { path: string; kind?: string; sha256?: string }
-  | { ref: { path: string; kind?: string; sha256?: string } };
-
-type EnvelopeReadOptions = {
-  expectedNamespace?: string;
-  relativeTo?: string;
-};
+import type { EnvelopeReadOptions, EnvelopeReadRef } from "./envelope-ref.js";
 
 export type DatabaseMutationEnvelope = {
   apiVersion: string;

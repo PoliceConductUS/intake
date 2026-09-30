@@ -17,6 +17,30 @@ function sha256(contents: string): string {
 }
 
 describe("Artifacts shared IO", () => {
+  test.each(["AgencyLinks", "FederalAgencyBranches", "CoverageLinkCivilCases"])(
+    "rejects retired %s artifacts",
+    async (kind) => {
+      const directory = await createTempArtifactsDirectory();
+      const artifactsPath = path.join(directory, "artifacts.yaml");
+      await writeFile(
+        artifactsPath,
+        [
+          `apiVersion: ${INTAKE_API_VERSION}`,
+          "kind: Artifacts",
+          "metadata:",
+          "  name: retired-records",
+          "  namespace: test-source",
+          "spec:",
+          "  artifacts:",
+          `    - kind: ${kind}`,
+          "      spec:",
+          "        records: {}",
+        ].join("\n"),
+      );
+      await expect(Artifacts.read(artifactsPath)).rejects.toThrow();
+    },
+  );
+
   test("reads Artifacts and referenced artifacts with exact kind readers", async () => {
     const directory = await createTempArtifactsDirectory();
     const artifactsPath = path.join(directory, "artifacts.yaml");
@@ -46,12 +70,7 @@ describe("Artifacts shared IO", () => {
       "        location_path_id: /mn/ramsey-county/saint-paul/",
       "        path: /mn/ramsey-county/saint-paul/",
       "        level: place",
-      "        state_or_territory_slug: mn",
-      "        administrative_area_slug: ramsey-county",
-      "        place_slug: saint-paul",
-      "        state_or_territory_name: Minnesota",
-      "        administrative_area_name: Ramsey County",
-      "        place_name: Saint Paul",
+      "        display_name: Saint Paul",
       "        parent_location_path_id: /mn/ramsey-county/",
     ].join("\n");
     await writeFile(path.join(directory, "aliases.yaml"), aliasesArtifact);
@@ -160,12 +179,7 @@ describe("Artifacts shared IO", () => {
       "        location_path_id: /mn/",
       "        path: /mn/",
       "        level: state",
-      "        state_or_territory_slug: mn",
-      "        administrative_area_slug: null",
-      "        place_slug: null",
-      "        state_or_territory_name: Minnesota",
-      "        administrative_area_name: null",
-      "        place_name: null",
+      "        display_name: Minnesota",
       "        parent_location_path_id: null",
     ].join("\n");
     await writeFile(path.join(directory, "paths.yaml"), pathsArtifact);
@@ -218,12 +232,7 @@ describe("Artifacts shared IO", () => {
         "              location_path_id: /mn/",
         "              path: /mn/",
         "              level: state",
-        "              state_or_territory_slug: mn",
-        "              administrative_area_slug: null",
-        "              place_slug: null",
-        "              state_or_territory_name: Minnesota",
-        "              administrative_area_name: null",
-        "              place_name: null",
+        "              display_name: Minnesota",
         "              parent_location_path_id: null",
         "              longitude: -93.2",
       ].join("\n"),
@@ -252,12 +261,7 @@ describe("Artifacts shared IO", () => {
                     location_path_id: "/mn/",
                     path: "/mn/",
                     level: "state",
-                    state_or_territory_slug: "mn",
-                    administrative_area_slug: null,
-                    place_slug: null,
-                    state_or_territory_name: "Minnesota",
-                    administrative_area_name: null,
-                    place_name: null,
+                    display_name: "Minnesota",
                     parent_location_path_id: null,
                   },
                 },
