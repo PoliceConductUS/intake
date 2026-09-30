@@ -624,7 +624,7 @@ export const AgencySpec = z
     address: agencyAddressText.optional(),
     zip_code: agencyZipCode.optional(),
     contact_name: nullableNonEmptyString.optional(),
-    contact_email: nullableNonEmptyString.optional(),
+    contact_email: z.string().nullable().optional(),
     slug: nonEmptyString.optional(),
     location_path_id: nonEmptyString.optional(),
     latitude: z.number().finite().optional(),
@@ -689,7 +689,7 @@ export const LicensingAuthoritySpec = z
     id: nonEmptyString.optional(),
     name: nonEmptyString,
     abbreviation: nullableNonEmptyString.optional(),
-    website: nullableNonEmptyString.optional(),
+    website: z.string().nullable().optional(),
     location_path_id: nonEmptyString,
   })
   .strict();
@@ -768,7 +768,7 @@ export const DisciplineSpec = z
     sanction: nullableNonEmptyString.optional(),
     personnel_id: z.string(),
     licensing_authority_id: z.string(),
-    document_url: nullableNonEmptyString.optional(),
+    document_url: z.string().nullable().optional(),
   })
   .strict();
 

@@ -1,3 +1,4 @@
+import { sourceValueType } from "../../src/shared/source-field-types.js";
 import type {
   IntrospectedSchema,
   IntrospectedTable,
@@ -507,7 +508,10 @@ function baseType(column: Column, table: IntrospectedTable): string {
   if (enumValues !== undefined) {
     return `z.enum([${enumValues.map((v) => JSON.stringify(v)).join(", ")}])`;
   }
-  const nonBlank = table.nonBlankColumns.has(column.name);
+  // Source values must reach correction and defect handling before rejection.
+  const nonBlank =
+    sourceValueType(column.name) === undefined &&
+    table.nonBlankColumns.has(column.name);
   switch (column.udtName) {
     case "text":
     case "varchar":
