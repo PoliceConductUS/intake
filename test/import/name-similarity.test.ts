@@ -73,3 +73,71 @@ describe("officerNameConfidence", () => {
     expect(match.confidence).toBe(1);
   });
 });
+
+describe("titled civil-party names", () => {
+  it.each([
+    ["Officer  Bryan Pham", "Bryan", "Pham"],
+    ["Chief\t Mike Gudgel", "Mike", "Gudgel"],
+  ])("matches %s using the person's name", (party, first, last) => {
+    expect(
+      officerNameConfidence(party, { first_name: first, last_name: last }),
+    ).toEqual({ confidence: 1, uncertainty: 0 });
+  });
+});
+
+describe("initial-based personnel matching", () => {
+  it.each([
+    ["Officer B. M. Bullin", "Blake", "M", "Bullin"],
+    ["Officer C. C. Flores", "Christian", "C", "Flores"],
+    ["C. Flores", "Christian", "C", "Flores"],
+    ["Bullin M. B.", "Blake", "M", "Bullin"],
+    ["Blake M Bullin", "B", "M", "Bullin"],
+  ])("accepts compatible initials in %s", (party, first, middle, last) => {
+    expect(
+      officerNameConfidence(party, {
+        first_name: first,
+        middle_name: middle,
+        last_name: last,
+      }).confidence,
+    ).toBeGreaterThanOrEqual(0.85);
+  });
+  it("distinguishes matching middle initials from conflicting ones", () => {
+    const party = "Officer C. C. Flores";
+    expect(
+      officerNameConfidence(party, {
+        first_name: "Christian",
+        middle_name: "C",
+        last_name: "Flores",
+      }).confidence,
+    ).toBeGreaterThanOrEqual(0.85);
+    expect(
+      officerNameConfidence(party, {
+        first_name: "Christopher",
+        middle_name: "J",
+        last_name: "Flores",
+      }).confidence,
+    ).toBeLessThan(0.85);
+  });
+  it("prefers corroborated middle initials over absent middle names", () => {
+    const party = "B. M. Bullin";
+    const confirmed = officerNameConfidence(party, {
+      first_name: "Blake",
+      middle_name: "M",
+      last_name: "Bullin",
+    });
+    const missing = officerNameConfidence(party, {
+      first_name: "Brett",
+      middle_name: null,
+      last_name: "Bullin",
+    });
+    expect(confirmed.uncertainty).toBeLessThan(missing.uncertainty);
+  });
+  it("does not match conflicting first initials", () => {
+    expect(
+      officerNameConfidence("C. Flores", {
+        first_name: "Michael",
+        last_name: "Flores",
+      }).confidence,
+    ).toBeLessThan(0.85);
+  });
+});

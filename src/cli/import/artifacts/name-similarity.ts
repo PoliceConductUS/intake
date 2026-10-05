@@ -37,9 +37,10 @@ function officerPart(officer: Record<string, unknown>, key: string): string {
  * Confidence that a listed party name is a given officer, scoring the first and
  * last name SEPARATELY and taking the lower of the two — a strong last name can
  * never carry a wrong first name (e.g. "Ana Ramirez" ≠ "Juan Ramirez"). Both
- * name orderings are tried so a "Last First" caption still matches. Middle parts
- * on the party side are ignored (that is what a middle initial in a docket
- * needs) and counted as `uncertainty`; suffixes are already dropped by
+ * name orderings are tried so a "Last First" caption still matches. Compatible
+ * first/middle initials are likely matches; conflicting supplied middle names
+ * reject a candidate. Uncorroborated middle parts count as uncertainty.
+ * Suffixes are already dropped by
  * {@link normalizeName}.
  */
 export function officerNameConfidence(
@@ -47,23 +48,49 @@ export function officerNameConfidence(
   officer: Record<string, unknown>,
 ): NameMatch {
   const party = nameTokens(partyName);
+  if (party[0] === "officer" || party[0] === "chief") party.shift();
   if (party.length === 0) return { confidence: 0, uncertainty: 0 };
   const rosterFirst = officerPart(officer, "first_name");
   const rosterLast = officerPart(officer, "last_name");
   const partyFirst = party[0];
   const partyLast = party[party.length - 1];
+  const partyMiddle = party.slice(1, -1);
+  const rosterMiddle = nameTokens(officerPart(officer, "middle_name"));
+  let middleConfidence = 1;
+  let uncertainty = 0;
+  for (let index = 0; index < partyMiddle.length; index++) {
+    if (rosterMiddle[index] === undefined) {
+      uncertainty++;
+    } else {
+      middleConfidence = Math.min(
+        middleConfidence,
+        givenNameSimilarity(partyMiddle[index], rosterMiddle[index]),
+      );
+    }
+  }
   const forward = Math.min(
-    nameSimilarity(partyFirst, rosterFirst),
+    givenNameSimilarity(partyFirst, rosterFirst),
     nameSimilarity(partyLast, rosterLast),
+    middleConfidence,
   );
   const reversed = Math.min(
-    nameSimilarity(partyLast, rosterFirst),
+    givenNameSimilarity(partyLast, rosterFirst),
     nameSimilarity(partyFirst, rosterLast),
+    middleConfidence,
   );
-  return {
-    confidence: Math.max(forward, reversed),
-    uncertainty: Math.max(0, party.length - 2),
-  };
+  return { confidence: Math.max(forward, reversed), uncertainty };
+}
+
+function givenNameSimilarity(left: string, right: string): number {
+  if (
+    left !== "" &&
+    right !== "" &&
+    (left.length === 1 || right.length === 1) &&
+    left[0] === right[0]
+  ) {
+    return 0.9;
+  }
+  return nameSimilarity(left, right);
 }
 
 function bigrams(value: string): Map<string, number> {
