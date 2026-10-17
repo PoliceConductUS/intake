@@ -466,3 +466,29 @@ describe("Artifacts shared IO", () => {
     );
   });
 });
+
+test("roundtrips explicit personnel source roots through artifact references and kind filtering", async () => {
+  const directory = await createTempArtifactsDirectory();
+  const envelope = Artifacts.new({
+    metadata: { name: "person-roots", namespace: "test-source" },
+    spec: {
+      personnelSourceNames: ["license-person"],
+      artifacts: [
+        {
+          kind: "Personnel",
+          spec: {
+            records: { "license-person": { spec: { first_name: "Jane" } } },
+          },
+        },
+      ],
+    },
+  });
+  const written = await Artifacts.write(directory, envelope);
+  expect(
+    (await Artifacts.read(written.path)).spec.personnelSourceNames,
+  ).toEqual(["license-person"]);
+  expect(
+    (await Artifacts.read(written.path, { includeKinds: [] })).spec
+      .personnelSourceNames,
+  ).toEqual(["license-person"]);
+});

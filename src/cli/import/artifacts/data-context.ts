@@ -571,6 +571,10 @@ export class DataContext {
       incoming: readonly AgencyGraphRecord[],
     ) => Promise<AgencyGraphRecord[]>,
     initialRoots?: InitialAgencyRootsEnvelope,
+    personnelRoots?: {
+      namespace: string;
+      personnelSourceNames: readonly string[];
+    },
   ): Promise<Record<string, number>> {
     this.omitInvalidSourceRecords();
     const candidates: Array<{ record: AgencyGraphRecord; sourceKey: string }> =
@@ -622,10 +626,24 @@ export class DataContext {
         "Initial agency roots resolved against incoming candidates.",
       );
     }
+    const personnelSourceKeys = new Set(
+      personnelRoots?.personnelSourceNames.map((name) =>
+        [INTAKE_API_VERSION, personnelRoots.namespace, "Personnel", name].join(
+          ":",
+        ),
+      ),
+    );
+    const personnelIds = candidates
+      .filter(
+        ({ record, sourceKey }) =>
+          record.kind === "Personnel" && personnelSourceKeys.has(sourceKey),
+      )
+      .map(({ record }) => record.id);
     const included = selectAgencyGraph(
       await readExisting(incoming),
       incoming,
       rootIds,
+      personnelIds,
     );
     const omitted: Record<string, number> = {};
     for (const { record, sourceKey } of candidates) {

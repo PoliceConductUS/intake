@@ -669,6 +669,10 @@ async function writeDatabaseMutationsStage(
     const omitted = await dataContext.selectAgencyGraph(
       (incoming) => readExistingAgencyGraph(client, incoming),
       initialRoots,
+      {
+        namespace: artifacts.metadata.namespace,
+        personnelSourceNames: artifacts.spec.personnelSourceNames ?? [],
+      },
     );
     logger?.info(
       { omitted },

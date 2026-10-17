@@ -101,3 +101,43 @@ test("initial roots match source names only within their namespace and use resol
     await rm(rootDir, { recursive: true, force: true });
   }
 });
+
+test("explicit personnel roots resolve source names within namespace without admitting unrelated people or historical agencies", async () => {
+  const rootDir = await mkdtemp(
+    path.join(tmpdir(), "personnel-root-identity-"),
+  );
+  try {
+    const data = new DataContext({
+      client: new EmptyDatabaseClient(),
+      ledger: createSourceNameToCanonicalIdLedger({ rootDir }),
+    });
+    add(data, "Personnel", "listed", { first_name: "Listed" });
+    add(data, "Personnel", "unlisted", { first_name: "Unlisted" });
+    data.facadeFromSource("Personnel", {
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "other.source",
+      name: "listed",
+      spec: { first_name: "Other" },
+    });
+    add(data, "Agency", "historic", { name: "Historical PD", state: "MN" });
+    add(data, "AgencyPersonnel", "past-job", {
+      agency_id: "historic",
+      personnel_id: "listed",
+      start_date: "1990-01-01",
+      end_date: "2000-01-01",
+      title: "Peace Officer",
+    });
+    const omitted = await data.selectAgencyGraph(async () => [], undefined, {
+      namespace: "test.graph",
+      personnelSourceNames: ["listed"],
+    });
+    expect(omitted).toEqual({ Personnel: 2, Agency: 1, AgencyPersonnel: 1 });
+    const mutations = await data.toMutations();
+    expect(mutations.map((mutation) => mutation.kind)).toEqual([
+      "PersonnelCreate",
+    ]);
+    expect(mutations[0]!.spec).toMatchObject({ first_name: "Listed" });
+  } finally {
+    await rm(rootDir, { recursive: true, force: true });
+  }
+});

@@ -8,6 +8,7 @@ import type { readXlsx } from "./read-xlsx.js";
 
 export type EmittedRecords = Record<string, { spec: unknown }>;
 export type SourceManifest = {
+  personnelSourceNames?: string[];
   artifacts: Array<{ kind: ImportArtifactKind; records: EmittedRecords }>;
 };
 export type ResolvedPersonnel = { agencyPersonnelId: string };
@@ -123,6 +124,9 @@ export function buildArtifactsEnvelope(
   return Artifacts.new({
     metadata: { name: `${sourceId}-${digest}`, namespace: sourceId },
     spec: {
+      ...(manifest.personnelSourceNames === undefined
+        ? {}
+        : { personnelSourceNames: manifest.personnelSourceNames }),
       artifacts: [
         ...manifest.artifacts.map((artifact) => ({
           kind: artifact.kind,

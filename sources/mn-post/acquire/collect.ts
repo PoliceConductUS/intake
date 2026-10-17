@@ -33,6 +33,7 @@ export type AgencyFilters = {
 export type AgencyCsv = { body: string; citation: unknown };
 
 export type PostClient = {
+  searchLicense(licenseNumber: string): Promise<OfficerRow[]>;
   searchAgency(agencyName: string): Promise<AgencyMatchResult>;
   fetchOfficerList(agencyId: string): Promise<OfficerRow[]>;
   fetchOfficerDetails(officers: OfficerRow[]): Promise<OfficerDetail[]>;

@@ -621,6 +621,7 @@ test("corrected source references resolve to canonical parent IDs", async () => 
     ledger: {
       read: async (_namespace, _kind, key) => `canonical-${key}`,
       findOrCreate: async (_namespace, _kind, key) => `canonical-${key}`,
+      readSourceName: async (_namespace, _kind, id) => id,
       sourceIdFor: async (_namespace, _kind, id) => id,
     },
     applyPropertyCorrections: (_kind, key, spec, applied) => {

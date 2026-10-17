@@ -4,6 +4,8 @@ import {
 } from "../database/index.js";
 import { readLocationPathById } from "../database/location-paths.js";
 import { z } from "zod";
+import { RECORD_KINDS_IN_DEPENDENCY_ORDER } from "../../shared/io/generated/entity-specs.js";
+import { SourceNameToCanonicalId } from "../state/source-name-to-canonical-id/SourceNameToCanonicalId.js";
 import {
   correctionPropertySchema,
   inspectPropertyCorrection,
@@ -59,6 +61,122 @@ export const registerCliCommand: RegisterCliCommand = (
     .command("cache")
     .description(
       "Inspect or correct any record property by source identity. --from replaces matching input; otherwise fills absent/null input.",
+    );
+  cache
+    .command("alias")
+    .description(
+      "Map a new source name to an existing canonical identity, retaining the old name.",
+    )
+    .argument("<namespace>")
+    .argument("<kind>")
+    .argument("<new-source-id>")
+    .argument("<existing-source-id>")
+    .requiredOption(
+      "--evidence <reference>",
+      "reference to the evidence establishing identical identity",
+    )
+    .addHelpText(
+      "after",
+      "\nA new alias becomes the preferred reverse source name. Replaying an existing matching alias leaves the current reverse name unchanged. No database rows change.\n",
+    )
+    .action(
+      async (
+        namespace: string,
+        kind: string,
+        newSourceId: string,
+        existingSourceId: string,
+        options: { evidence: string },
+      ) => {
+        try {
+          const nonEmpty = z.string().trim().min(1);
+          namespace = nonEmpty.parse(namespace);
+          kind = z.enum(RECORD_KINDS_IN_DEPENDENCY_ORDER).parse(kind);
+          newSourceId = nonEmpty.parse(newSourceId);
+          existingSourceId = nonEmpty.parse(existingSourceId);
+          const evidence = nonEmpty.parse(options.evidence);
+          const ledger = createSourceNameToCanonicalIdLedger({
+            rootDir: intakeWorkspace(process.env),
+          });
+          const entityKind = kind as LedgerEntityKind;
+          const canonicalId = await ledger.read(
+            namespace,
+            entityKind,
+            existingSourceId,
+          );
+          if (canonicalId === undefined)
+            throw new Error(
+              `Existing source mapping is missing: ${namespace}/${kind}/${existingSourceId}.`,
+            );
+          const existingAliasId = await ledger.read(
+            namespace,
+            entityKind,
+            newSourceId,
+          );
+          if (existingAliasId !== undefined && existingAliasId !== canonicalId)
+            throw new Error(
+              `Source ${namespace}/${kind}/${newSourceId} already maps to ${existingAliasId}, not ${canonicalId}.`,
+            );
+          const reverseSourceName =
+            existingAliasId === undefined
+              ? newSourceId
+              : await ledger.readSourceName(namespace, entityKind, canonicalId);
+          if (reverseSourceName === undefined)
+            throw new Error(
+              `Reverse source mapping is missing: ${namespace}/${kind}/${canonicalId}.`,
+            );
+          const { commandName, outputDirectory } = await createCommandDirectory(
+            process.env,
+            {
+              args: [
+                "cache",
+                "alias",
+                namespace,
+                kind,
+                newSourceId,
+                existingSourceId,
+                "--evidence",
+                evidence,
+              ],
+            },
+          );
+          const provenance = await SourceNameToCanonicalId.write(
+            outputDirectory,
+            SourceNameToCanonicalId.new({
+              metadata: {
+                name: newSourceId,
+                namespace,
+                annotations: {
+                  operation: "identity-alias",
+                  existingSourceName: existingSourceId,
+                  evidence,
+                  commandId: commandName,
+                  reverseSourceName,
+                },
+              },
+              spec: { kind, canonicalId },
+            }),
+          );
+          const resolved = await ledger.findOrCreate(
+            namespace,
+            entityKind,
+            newSourceId,
+            async () => canonicalId,
+          );
+          if (resolved !== canonicalId)
+            throw new Error(
+              `Alias resolved to conflicting canonical ID ${resolved}.`,
+            );
+          dependencies.setResult({
+            exitCode: 0,
+            stdout: `${JSON.stringify({ canonicalId, reverseSourceName, provenancePath: provenance.path }, null, 2)}\n`,
+          });
+        } catch (error) {
+          dependencies.setResult({
+            exitCode: 1,
+            stderr: `${error instanceof Error ? error.message : String(error)}\n`,
+          });
+        }
+      },
     );
   for (const action of ["get", "set"] as const) {
     const command = cache

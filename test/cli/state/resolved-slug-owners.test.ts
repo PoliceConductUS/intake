@@ -90,6 +90,7 @@ describe("canonical cache slug ownership", () => {
         ledger: {
           read: async (_namespace, _kind, name) => `${name}-id`,
           findOrCreate: async (_namespace, _kind, name) => `${name}-id`,
+          readSourceName: async (_namespace, _kind, id) => id,
           sourceIdFor: async (_namespace, _kind, id) => id,
         },
         resolvedPropertyStore: {

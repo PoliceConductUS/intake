@@ -192,6 +192,7 @@ export function selectAgencyGraph(
   existing: readonly AgencyGraphRecord[],
   incoming: readonly AgencyGraphRecord[],
   additionalAgencyRootIds: readonly string[] = [],
+  explicitPersonnelIds: readonly string[] = [],
 ): Set<string> {
   const records = overlayAgencyGraph(existing, incoming);
   const byKind = new Map<string, AgencyGraphRecord[]>();
@@ -207,6 +208,13 @@ export function selectAgencyGraph(
     group.push(record);
     byKind.set(record.kind, group);
     if (!DEPENDENT_KINDS.has(record.kind)) include(key);
+    // Discipline establishes a person-level record regardless of employment.
+    if (record.kind === "Discipline") {
+      include(key);
+      const personnelId = record.values.personnel_id;
+      if (typeof personnelId === "string")
+        include(graphKey({ kind: "Personnel", id: personnelId }));
+    }
   }
   const adjacency = new Map<string, string[]>();
   for (const edge of AGENCY_GRAPH_EDGES) {
@@ -252,6 +260,8 @@ export function selectAgencyGraph(
   }
   for (const id of additionalAgencyRootIds)
     include(graphKey({ kind: AGENCY_GRAPH_ROOT.kind, id }));
+  for (const id of explicitPersonnelIds)
+    include(graphKey({ kind: "Personnel", id }));
   for (let i = 0; i < queue.length; i++) {
     for (const child of adjacency.get(queue[i]!) ?? []) include(child);
   }

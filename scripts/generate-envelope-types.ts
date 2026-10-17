@@ -626,6 +626,7 @@ export const schema = z
     metadata: metadataSchema,
     spec: z
       .object({
+        personnelSourceNames: z.array(z.string().trim().min(1)).optional(),
         artifacts: z
           .array(
             z.union([artifactReferenceSchema, inlineArtifactSchema]),
