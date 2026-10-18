@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { stringify as stringifyYaml, parse as parseYaml } from "yaml";
+import { documentStem } from "../../sources/mn-post/acquire/collect-documents.js";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { readdir } from "node:fs/promises";
@@ -196,7 +199,7 @@ const document0031 = JSON.stringify({
   url: "https://example.mn/orders/PB24-1-01.pdf",
   documentName: "SACO",
   actions: [{ contactId: "0031", caseNumber: "PB24-1-01" }],
-  sha256: "abc",
+  sha256: createHash("sha256").update("pdf").digest("hex"),
   bytes: 3,
   fetchedAt: "2026-09-10T12:00:00.000Z",
   pages: [{ page: 1, method: "ocr", text: "STIPULATION AND CONSENT ORDER" }],
@@ -241,6 +244,19 @@ beforeAll(async () => {
     path.join(sourceDir, "a2jofficer0099.detail.json"),
     detail0099,
   );
+  await writeFile(path.join(sourceDir, "pb24-1-01-abcdef012345.pdf"), "pdf");
+  await writeFile(
+    path.join(sourceDir, "skipped.yaml"),
+    stringifyYaml({
+      skippedDocuments: [
+        {
+          url: JSON.parse(detail0099).disciplinaryActions[0].documentURL,
+          actions: [{ contactId: "0099", caseNumber: "PB20-1-09" }],
+          reason: "source returned 404",
+        },
+      ],
+    }),
+  );
   await writeFile(
     path.join(sourceDir, "pb24-1-01-abcdef012345.document.json"),
     document0031,
@@ -265,7 +281,98 @@ function recordsOf(manifest: SourceManifest, kind: string) {
   return manifest.artifacts.find((a) => a.kind === kind)!.records;
 }
 
+describe("mn-post document completion", () => {
+  async function runDocumentFixture(
+    change: (files: Record<string, string>) => void,
+  ) {
+    const dir = await mkdtemp(path.join(tmpdir(), "mn-document-contract-"));
+    try {
+      const files: Record<string, string> = Object.fromEntries(
+        await Promise.all(
+          (await readdir(sourceDir)).map(async (name) => [
+            name,
+            await readFile(path.join(sourceDir, name), "utf8"),
+          ]),
+        ),
+      );
+      change(files);
+      for (const [name, value] of Object.entries(files))
+        await writeFile(path.join(dir, name), value);
+      return await transform({
+        paths: Object.keys(files).map((n) => path.join(dir, n)),
+        readXlsx: async () => [],
+        state: "/unused",
+        emit: async () => {},
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+  it.each(["missing analysis", "invalid analysis", "mismatched PDF"])(
+    "rejects %s",
+    async (mode) => {
+      await expect(
+        runDocumentFixture((files) => {
+          const name = "pb24-1-01-abcdef012345.document.json";
+          const doc = JSON.parse(files[name]);
+          if (mode === "missing analysis") delete doc.analysis;
+          else if (mode === "invalid analysis") doc.analysis.sanction = 42;
+          else files["pb24-1-01-abcdef012345.pdf"] = "changed";
+          files[name] = JSON.stringify(doc);
+        }),
+      ).rejects.toThrow();
+    },
+  );
+  it("rejects a stale unavailable report when its PDF remains unfinished", async () => {
+    await expect(
+      runDocumentFixture((files) => {
+        delete files["pb24-1-01-abcdef012345.document.json"];
+        const action = JSON.parse(detail0031).disciplinaryActions[0];
+        const reference = {
+          url: action.documentURL,
+          documentName: action.documentName,
+          actions: [
+            { contactId: action.contactId, caseNumber: action.caseNumber },
+          ],
+        };
+        files[documentStem(reference) + ".pdf"] = "pdf";
+        const skipped = parseYaml(files["skipped.yaml"]);
+        skipped.skippedDocuments.push({ ...reference, reason: "404" });
+        delete skipped.skippedDocuments.at(-1).documentName;
+        files["skipped.yaml"] = stringifyYaml(skipped);
+      }),
+    ).rejects.toThrow(/document incomplete.*PB24-1-01/);
+  });
+  it("rejects unavailable results for another action", async () => {
+    await expect(
+      runDocumentFixture((files) => {
+        delete files["pb24-1-01-abcdef012345.document.json"];
+        const skipped = parseYaml(files["skipped.yaml"]);
+        skipped.skippedDocuments.push({
+          url: JSON.parse(detail0031).disciplinaryActions[0].documentURL,
+          actions: [{ contactId: "other", caseNumber: "PB24-1-01" }],
+          reason: "404",
+        });
+        files["skipped.yaml"] = stringifyYaml(skipped);
+      }),
+    ).rejects.toThrow(/document incomplete.*PB24-1-01/);
+  });
+});
+
 describe("mn-post run", () => {
+  it("rejects referenced documents without completed analysis or an unavailable result", async () => {
+    const paths = (await readdir(sourceDir))
+      .filter((f) => !f.endsWith(".document.json"))
+      .map((f) => path.join(sourceDir, f));
+    await expect(
+      transform({
+        paths,
+        readXlsx: async () => [],
+        state: "/unused",
+        emit: async () => {},
+      }),
+    ).rejects.toThrow(/document.*PB24-1-01/i);
+  });
   it("emits the licensing kinds in dependency order", async () => {
     const manifest = await runFixture();
     expect(manifest.artifacts.map((a) => a.kind)).toEqual([
@@ -730,6 +837,29 @@ describe("mn-post personnel details", () => {
       ...Object.fromEntries(
         documents.map((doc, i) => [`${i}.document.json`, JSON.stringify(doc)]),
       ),
+      ...Object.fromEntries(documents.map((doc, i) => [`${i}.pdf`, "pdf"])),
+      "skipped.yaml": stringifyYaml({
+        skippedDocuments: ((detail as { disciplinaryActions?: unknown })
+          .disciplinaryActions instanceof Array
+          ? (detail as { disciplinaryActions: Record<string, string>[] })
+              .disciplinaryActions
+          : []
+        )
+          .filter(
+            (a) =>
+              a.documentURL &&
+              a.contactId &&
+              a.caseNumber &&
+              !documents.some(
+                (d) => (d as { url: string }).url === a.documentURL,
+              ),
+          )
+          .map((a) => ({
+            url: a.documentURL,
+            actions: [{ contactId: a.contactId, caseNumber: a.caseNumber }],
+            reason: "source returned 404",
+          })),
+      }),
     };
     try {
       for (const [name, contents] of Object.entries(files))
@@ -862,7 +992,7 @@ describe("mn-post personnel details", () => {
             },
           ],
         }),
-      ).rejects.toThrow(/conflict.*0031\|cmp-001/i);
+      ).rejects.toThrow(/conflict.*0031\|cmp-001|sha256|document actions/i);
     },
   );
   it("preserves distinct official complaints that reuse the same visible case label", async () => {
@@ -928,7 +1058,7 @@ describe("mn-post personnel details", () => {
           doc,
           { ...doc, url: second.documentURL, [field]: changed },
         ]),
-      ).rejects.toThrow(/conflict.*0031\|cmp-001/i);
+      ).rejects.toThrow(/conflict.*0031\|cmp-001|sha256|document actions/i);
     },
   );
   it("names the case when document records for the same URL conflict", async () => {
@@ -938,7 +1068,7 @@ describe("mn-post personnel details", () => {
         doc,
         { ...doc, sha256: "different" },
       ]),
-    ).rejects.toThrow(/conflict.*0031\|cmp-001/i);
+    ).rejects.toThrow(/conflict.*0031\|cmp-001|sha256|document actions/i);
   });
   it("omits unavailable last-entry analysis fields without changing its URL", async () => {
     const doc = JSON.parse(document0031);

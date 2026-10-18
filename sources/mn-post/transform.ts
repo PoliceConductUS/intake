@@ -1,3 +1,8 @@
+import {
+  readDocumentEvidence,
+  UnavailableDocumentSchema,
+} from "./acquire/document-evidence.js";
+import { documentStem } from "./acquire/collect-documents.js";
 import { isDeepStrictEqual } from "node:util";
 import { readFile } from "node:fs/promises";
 import type { ImportArtifactKind } from "../../src/shared/io/index.js";
@@ -519,21 +524,44 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
   // What each order document says, by the URL the action links to. An action
   // whose document the site no longer serves (see acquire's skip report) has no
   // entry and omits the order fields so stored narratives remain unchanged.
-  type OrderEvidence = { sha256: string; analysis: OrderAnalysis };
+  type OrderEvidence = {
+    sha256: string;
+    analysis: OrderAnalysis;
+    actions: { contactId: string; caseNumber: string }[];
+  };
   const documentsByUrl = new Map<string, OrderEvidence[]>();
-  const evidenceByComplaint = new Map<string, OrderEvidence>();
+  const evidenceByComplaint = new Map<
+    string,
+    Pick<OrderEvidence, "sha256" | "analysis">
+  >();
   for (const jsonPath of paths.filter((p) =>
     p.toLowerCase().endsWith(".document.json"),
   )) {
-    const document = JSON.parse(await readFile(jsonPath, "utf8")) as {
-      url: string;
-      analysis: OrderAnalysis;
-      sha256: string;
+    const document = await readDocumentEvidence(jsonPath);
+    const evidence = {
+      sha256: document.sha256,
+      analysis: document.analysis,
+      actions: document.actions,
     };
-    const evidence = { sha256: document.sha256, analysis: document.analysis };
     const documents = documentsByUrl.get(document.url) ?? [];
     documents.push(evidence);
     documentsByUrl.set(document.url, documents);
+  }
+
+  const unavailable = [] as Array<
+    import("./acquire/collect-documents.js").SkippedDocument
+  >;
+  for (const file of paths.filter((p) => path.basename(p) === "skipped.yaml")) {
+    const report = parseYaml(await readFile(file, "utf8")) as {
+      skippedDocuments?: unknown;
+    };
+    if (!Array.isArray(report.skippedDocuments))
+      throw new Error("mn-post: malformed skipped document report");
+    unavailable.push(
+      ...report.skippedDocuments.map((entry) =>
+        UnavailableDocumentSchema.parse(entry),
+      ),
+    );
   }
 
   for (const detail of details) {
@@ -565,6 +593,37 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
 
       const documents =
         documentUrl === null ? [] : (documentsByUrl.get(documentUrl) ?? []);
+      if (documentUrl !== null) {
+        const matches = (entry: {
+          actions: { contactId: string; caseNumber: string }[];
+        }) =>
+          entry.actions.some(
+            (a) => a.contactId === contactId && a.caseNumber === caseNumber,
+          );
+        if (documents.length > 0 && !documents.every(matches))
+          throw new Error(
+            `mn-post document actions do not match ${caseNumber}: ${documentUrl}`,
+          );
+        if (documents.length === 0) {
+          const stem = documentStem({
+            url: documentUrl,
+            documentName,
+            actions: [{ contactId, caseNumber }],
+          });
+          const unfinished = paths.some((p) =>
+            path.basename(p).endsWith(`${stem.slice(-12)}.pdf`),
+          );
+          if (
+            unfinished ||
+            !unavailable.some(
+              (entry) => entry.url === documentUrl && matches(entry),
+            )
+          )
+            throw new Error(
+              `mn-post document incomplete for ${caseNumber}: ${documentUrl}`,
+            );
+        }
+      }
       const order = documents.at(-1)?.analysis;
       const substantive = {
         case_number: caseNumber,
@@ -588,7 +647,11 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
           `mn-post: conflicting discipline complaint ${disciplineKey}`,
         );
       }
-      for (const evidence of documents) {
+      for (const document of documents) {
+        const evidence = {
+          sha256: document.sha256,
+          analysis: document.analysis,
+        };
         const previousEvidence = evidenceByComplaint.get(disciplineKey);
         if (
           previousEvidence !== undefined &&

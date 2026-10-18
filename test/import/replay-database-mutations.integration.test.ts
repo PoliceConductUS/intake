@@ -13,7 +13,7 @@ import { DatabaseMutations } from "../../src/cli/import/artifacts/io/DatabaseMut
 import { LocationPathCreate } from "../../src/cli/import/artifacts/io/generated-mutations/LocationPathCreate.js";
 import { LocationPathGeometryCreate } from "../../src/cli/import/artifacts/io/generated-mutations/LocationPathGeometryCreate.js";
 import { replayDatabaseMutations } from "../../src/cli/replay/database-mutations/config.js";
-import { importArtifacts } from "../../src/cli/import/artifacts/config.js";
+import { importArtifacts } from "./completed-artifacts.js";
 import { Artifacts } from "../../src/shared/io/Artifacts.js";
 import { persistSourceNameToCanonicalIds } from "../../src/cli/state/source-name-to-canonical-id/index.js";
 import { yamlResourceFileName } from "../../src/shared/io/resource.js";
@@ -438,7 +438,7 @@ describeWithDocker("replay against a real Postgres", () => {
     );
 
     const writtenArtifacts = await Artifacts.write(
-      rootDir,
+      path.join(rootDir, "output"),
       Artifacts.new({
         metadata: { name: "test-run", namespace: "mn-post" },
         spec: {
@@ -576,8 +576,9 @@ describeWithDocker("replay against a real Postgres", () => {
       commandDirectory,
     });
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: true,
+      databaseMutationsPath: expect.any(String),
       counts: {
         mutations: 4,
         recordsByEntityType: {

@@ -24,6 +24,8 @@ const testRefItems = [
 // history — vitest does not auto-reset mocks between `it` blocks here.
 function makeOkDeps() {
   return {
+    beginCompletion: async () => {},
+    complete: async () => {},
     sourcesRoot: "/sources",
     // The manifest emits Personnel; the emit sink (flush) emits
     // LocationPathGeometries via testRefItems — both must be declared.

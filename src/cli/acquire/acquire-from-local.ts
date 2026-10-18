@@ -1,7 +1,14 @@
 import { glob, stat, cp, mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 import { createCommandDirectory } from "../command-directory.js";
-import { writeCommandPointer } from "../state/command-pointer.js";
+import type {
+  SourceAcquire,
+  AcquireDataContext,
+} from "../transform/source-transform.js";
+import {
+  readCommandPointer,
+  writeCommandPointer,
+} from "../state/command-pointer.js";
 
 type CopyItem = { source: string; destinationRelative: string };
 
@@ -105,14 +112,15 @@ export type AcquireFromLocalDeps = {
   cwd: string;
   createCommandDirectory: typeof createCommandDirectory;
   writeCommandPointer: typeof writeCommandPointer;
+  acquire: SourceAcquire | undefined;
+  data: AcquireDataContext;
   logger: { info: (message: string) => void };
 };
 
 /**
  * Stage local files as a source's acquired inputs: copy the resolved file/folder/
- * glob into a fresh command's `<source-id>/output/` and point the `acquire`
- * command pointer at it — the same shape a real acquire produces, so `intake data transform`
- * consumes it identically (no source `acquire.ts` module required).
+ * glob into a fresh command's `<source-id>/output/`. Complete the source's
+ * acquisition module when present before publishing the acquired snapshot.
  */
 export async function acquireFromLocal(
   sourceId: string,
@@ -130,6 +138,23 @@ export async function acquireFromLocal(
     await cp(item.source, destination);
   }
   const outputRelative = path.relative(deps.workspace, outputDirectory);
+  const pointer = await readCommandPointer(deps.state, "acquire");
+  await deps.writeCommandPointer(deps.state, "acquire", {
+    ...pointer,
+    resume: outputRelative,
+  });
+  if (deps.acquire !== undefined) {
+    await deps.acquire({
+      sourceDir: outputDirectory,
+      previousSourceDirs: [...new Set([pointer.resume, pointer.latest])]
+        .filter((p): p is string => p !== undefined)
+        .map((p) => path.join(deps.workspace, p)),
+      state: deps.state,
+      env: deps.env,
+      data: deps.data,
+      logger: deps.logger,
+    });
+  }
   await deps.writeCommandPointer(deps.state, "acquire", {
     latest: outputRelative,
   });

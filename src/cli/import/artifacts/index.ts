@@ -42,7 +42,7 @@ export async function runImportArtifactsCommand(
     now?: Date;
     createCommandName?: () => string;
   } = {},
-): Promise<CommandResult> {
+): Promise<CommandResult & { databaseMutationsPath?: string }> {
   const env = dependencies.env ?? process.env;
   const namespace = await artifactsNamespace(artifactsRef);
   let command;
@@ -110,6 +110,7 @@ export async function runImportArtifactsCommand(
 
   return {
     exitCode: 0,
+    databaseMutationsPath: result.databaseMutationsPath,
     stdout: [
       dependencies.dryImport === true
         ? "Created DatabaseMutations envelope. Database apply skipped."

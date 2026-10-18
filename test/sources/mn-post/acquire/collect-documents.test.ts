@@ -229,6 +229,30 @@ describe("collectDocuments", () => {
     ]);
   });
 
+  it("reuses completed evidence while refreshing newly acquired action references", async () => {
+    const fixture = await makeFixture();
+    const d = deps(fixture);
+    await collectDocuments(d);
+    await writeFile(
+      path.join(fixture.sourceDir, "officers", "z-new.detail.json"),
+      JSON.stringify({
+        disciplinaryActions: [
+          {
+            contactId: "NEW",
+            caseNumber: "NEW-CASE",
+            documentURL: ORDER_URL,
+            documentName: "SACO",
+          },
+        ],
+      }),
+    );
+    await collectDocuments(d);
+    expect((await documentsOn(fixture.sourceDir))[0].actions).toContainEqual({
+      contactId: "NEW",
+      caseNumber: "NEW-CASE",
+    });
+    expect(d.analyzer.analyze).toHaveBeenCalledTimes(1);
+  });
   it("resumes: a second run fetches, extracts, and analyzes nothing already done", async () => {
     const fixture = await makeFixture();
     const d = deps(fixture);
@@ -297,6 +321,28 @@ describe("collectDocuments", () => {
     );
 
     const d = deps(fixture);
+    vi.mocked(d.extractText).mockResolvedValue({
+      pages: [
+        {
+          page: 1,
+          method: "text",
+          text: Object.values(receipt.fieldEvidence)
+            .flat()
+            .filter((e) => e.page === 1)
+            .map((e) => e.excerpt)
+            .join("\n"),
+        },
+        {
+          page: 3,
+          method: "text",
+          text: Object.values(receipt.fieldEvidence)
+            .flat()
+            .filter((e) => e.page === 3)
+            .map((e) => e.excerpt)
+            .join("\n"),
+        },
+      ],
+    });
     await collectDocuments(d);
 
     expect(d.analyzer.analyze).not.toHaveBeenCalled();

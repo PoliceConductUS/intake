@@ -1,5 +1,8 @@
 import path from "node:path";
-import { readdir, stat } from "node:fs/promises";
+import {
+  requireTransformCompletion,
+  beginTransform,
+} from "../state/transform-completion.js";
 import type { CommandResult } from "../../shared/cli/types.js";
 import { intakeWorkspace } from "../command-directory.js";
 import {
@@ -21,31 +24,6 @@ import type { ImportArtifactKind } from "../../shared/io/index.js";
 const SOURCES_ROOT = path.join(process.cwd(), "sources");
 const SILENT = { info: () => {} };
 
-// The newest `output/` file ending in `suffix` a source produced across all command
-// runs — its latest transform Artifacts, or the DatabaseMutations an import just wrote.
-async function newestSourceOutput(
-  workspace: string,
-  sourceId: string,
-  suffix: string,
-): Promise<string | undefined> {
-  let best: string | undefined;
-  let bestMtime = 0;
-  const commandRoot = path.join(workspace, "command");
-  for (const commandDir of await readdir(commandRoot).catch(() => [])) {
-    const outputDir = path.join(commandRoot, commandDir, sourceId, "output");
-    for (const file of await readdir(outputDir).catch(() => [])) {
-      if (!file.endsWith(suffix)) continue;
-      const filePath = path.join(outputDir, file);
-      const mtime = (await stat(filePath)).mtimeMs;
-      if (mtime > bestMtime) {
-        bestMtime = mtime;
-        best = filePath;
-      }
-    }
-  }
-  return best;
-}
-
 /**
  * `data transform <source>`: run a source's transform.ts against its latest acquired input to
  * produce and write its Artifacts (no chain, no apply). Returns the Artifacts path.
@@ -56,6 +34,7 @@ export async function transformOneSource(
   logger: { info: (message: string) => void } = SILENT,
   kinds?: readonly ImportArtifactKind[],
 ): Promise<{ artifactsPath: string } | { error: CommandResult }> {
+  await beginTransform(path.join(intakeWorkspace(env), "state", sourceId));
   const standalone = await loadSourceStandalone(sourceId, SOURCES_ROOT);
   const workspace = intakeWorkspace(env);
   const paths = standalone
@@ -96,16 +75,14 @@ export async function generateOneSource(
   { version?: string; mutationCount: number } | { error: CommandResult }
 > {
   const workspace = intakeWorkspace(env);
-  const artifactsPath = await newestSourceOutput(
-    workspace,
-    sourceId,
-    ".Artifacts.yaml",
-  );
-  if (artifactsPath === undefined) {
+  let artifactsPath: string;
+  try {
+    artifactsPath = await requireTransformCompletion(workspace, sourceId);
+  } catch (error) {
     return {
       error: {
         exitCode: 1,
-        stderr: `No transform output for ${sourceId}; run \`intake data transform ${sourceId}\` first.\n`,
+        stderr: `${error instanceof Error ? error.message : String(error)}\n`,
       },
     };
   }
@@ -119,15 +96,15 @@ export async function generateOneSource(
   if (importResult.exitCode !== 0) {
     return { error: importResult };
   }
-  const mutationsPath = await newestSourceOutput(
-    workspace,
-    sourceId,
-    ".DatabaseMutations.yaml",
-  );
-  if (mutationsPath === undefined) {
-    return { mutationCount: 0 };
+  if (importResult.databaseMutationsPath === undefined) {
+    return {
+      error: {
+        exitCode: 1,
+        stderr: "Import completed without its DatabaseMutations output.\n",
+      },
+    };
   }
-  return generateEntry(mutationsPath);
+  return generateEntry(importResult.databaseMutationsPath);
 }
 
 /**

@@ -18,7 +18,10 @@ import type {
 import { defaultDatabaseClientFactory } from "../database/index.js";
 import { createAcquireDataContext } from "./acquire-data-context.js";
 import { createSourceNameToCanonicalIdLedger } from "../state/source-name-to-canonical-id/index.js";
-import { loadSourceAcquire } from "../transform/load-source-module.js";
+import {
+  findSourceAcquire,
+  loadSourceAcquire,
+} from "../transform/load-source-module.js";
 import { sourceStateDir } from "../transform/state.js";
 import { matchSourceIds } from "../source-glob.js";
 import {
@@ -127,8 +130,8 @@ export const registerAcquireCommand: RegisterCliCommand = (
     )
     .option(
       "--from-local <path...>",
-      "acquire a single source from local file(s), folder(s), or glob(s) instead " +
-        "of running its acquire module — copies them into the source's command " +
+      "acquire a single source from local file(s), folder(s), or glob(s) and run " +
+        "its acquisition module when present — copies them into the source's command " +
         "output so `intake data transform` consumes them like any acquired input",
     )
     .addHelpText(
@@ -165,18 +168,6 @@ export const registerAcquireCommand: RegisterCliCommand = (
               });
               return;
             }
-            const sourceId = sourceIds[0];
-            await acquireFromLocal(sourceId, options.fromLocal, {
-              env,
-              workspace,
-              state: await sourceStateDir(env, sourceId),
-              cwd: process.cwd(),
-              createCommandDirectory,
-              writeCommandPointer,
-              logger,
-            });
-            dependencies.setResult({ exitCode: 0 });
-            return;
           }
           const databaseUrl = env.DATABASE_URL;
           const client =
@@ -202,6 +193,20 @@ export const registerAcquireCommand: RegisterCliCommand = (
                 client !== undefined
                   ? createAcquireDataContext(client, ledger, sourceId)
                   : noDatabase;
+              if (options.fromLocal !== undefined) {
+                await acquireFromLocal(sourceId, options.fromLocal, {
+                  env,
+                  workspace,
+                  state: await sourceStateDir(env, sourceId),
+                  cwd: process.cwd(),
+                  createCommandDirectory,
+                  writeCommandPointer,
+                  logger,
+                  data,
+                  acquire: await findSourceAcquire(sourceId, sourcesRoot),
+                });
+                continue;
+              }
               const result = await acquireSource(sourceId, {
                 sourcesRoot,
                 env,

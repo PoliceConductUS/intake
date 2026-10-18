@@ -65,6 +65,19 @@ intake data reset [--no-acquire]              # reset schema and regenerate all 
 intake replay database-mutations <database-mutations-ref>
 ```
 
+- `data acquire <source-id> --from-local <path...>` stages local files and runs
+  the source's acquisition module when it has one. Failed acquisition preserves
+  resumable output without promoting it; sources without an acquisition module
+  accept the staged files directly.
+- Successful transformation records the acquired snapshot and output integrity.
+  Generation and internal artifact import reject missing completion records,
+  changed inputs or outputs, and a newer failed transform. Regenerate older,
+  unrecorded artifacts through `data transform`; file timestamps do not select
+  outputs. Standalone manual sources still require no network acquisition.
+- MN POST requires complete document analysis matching its preserved PDF, or an
+  explicit matching unavailable-document entry in `skipped.yaml`. A downloaded
+  but unfinished PDF cannot be excused by a skip entry. Unavailable documents
+  omit narrative updates, preserving stored values.
 - `data transform` runs a source's `transform.ts`, which returns an `Artifacts`
   manifest, and writes the envelope — resolving intake-owned mappings against the
   live database — but stops before the import.

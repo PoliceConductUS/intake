@@ -12,7 +12,7 @@ import {
 import { acquire } from "../../sources/org.policeconduct.manual/acquire.js";
 import { transform } from "../../sources/org.policeconduct.manual/transform.js";
 import { buildArtifactsEnvelope } from "../../src/cli/transform/source-transform.js";
-import { importArtifacts } from "../../src/cli/import/artifacts/config.js";
+import { importArtifacts } from "./completed-artifacts.js";
 import { Artifacts } from "../../src/shared/io/Artifacts.js";
 import {
   dockerAvailable,
@@ -81,7 +81,10 @@ describeWithDocker(
       } as never);
 
       const envelope = buildArtifactsEnvelope(NAMESPACE, "digest", manifest);
-      const writtenArtifacts = await Artifacts.write(rootDir, envelope);
+      const writtenArtifacts = await Artifacts.write(
+        path.join(rootDir, "output"),
+        envelope,
+      );
 
       const runId = "tz4a98xxat96iws9zmbrgj3a";
       const result = await importArtifacts({
@@ -142,7 +145,10 @@ describeWithDocker(
       } as never);
 
       const envelope = buildArtifactsEnvelope(NAMESPACE, "digest", manifest);
-      const writtenArtifacts = await Artifacts.write(rootDir, envelope);
+      const writtenArtifacts = await Artifacts.write(
+        path.join(rootDir, "output"),
+        envelope,
+      );
 
       const runId = "tz4a98xxat96iws9zmbrgj3b";
       const result = await importArtifacts({

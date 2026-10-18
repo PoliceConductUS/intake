@@ -1,3 +1,9 @@
+import {
+  beginTransform,
+  completeTransform,
+  snapshotInput,
+} from "../state/transform-completion.js";
+import { intakeWorkspace } from "../command-directory.js";
 import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
@@ -7,7 +13,11 @@ import { createCommandDirectory } from "../command-directory.js";
 import type { CommandResult } from "../../shared/cli/types.js";
 import { buildArtifactsEnvelope } from "./source-transform.js";
 import type { SourceManifest } from "./source-transform.js";
-import { loadSourceModule, loadSourceProduces } from "./load-source-module.js";
+import {
+  loadSourceModule,
+  loadSourceProduces,
+  loadSourceStandalone,
+} from "./load-source-module.js";
 import { defaultDatabaseClientFactory } from "../database/index.js";
 import { createSourceNameToCanonicalIdLedger } from "../state/source-name-to-canonical-id/index.js";
 import { createTransformDataContext } from "./personnel-resolver.js";
@@ -38,6 +48,8 @@ type TransformSourceDeps = {
     manifest: SourceManifest,
     refItems: EmitRefItem[],
   ) => Promise<{ path: string }>;
+  beginCompletion: () => Promise<void>;
+  complete: (artifactsPath: string) => Promise<void>;
   logger?: { info: (message: string) => void };
 };
 
@@ -120,6 +132,7 @@ export async function transformSource(
   options: { standalone?: boolean },
   deps: TransformSourceDeps,
 ): Promise<{ artifactsPath: string } | { error: CommandResult }> {
+  await deps.beginCompletion();
   // A standalone (manual curation) source reads its records from state, not input
   // paths, so it runs with none; every other source requires at least one path.
   if (paths.length === 0 && options.standalone !== true) {
@@ -228,6 +241,7 @@ export async function transformSource(
       filteredManifest,
       refItems,
     );
+    await deps.complete(artifactsPath);
     return { artifactsPath };
   } catch (error) {
     return { error: { exitCode: 1, stderr: `${errorMessage(error)}\n` } };
@@ -248,9 +262,29 @@ export async function buildTransformSourceDeps(
   },
 ): Promise<TransformSourceDeps> {
   const sourcesRoot = path.join(process.cwd(), "sources");
+  const state = await sourceStateDir(env, sourceId);
+  const standalone = await loadSourceStandalone(sourceId, sourcesRoot);
+  let input: Awaited<ReturnType<typeof snapshotInput>>;
+
   return {
     sourcesRoot,
     env,
+    beginCompletion: async () => {
+      await beginTransform(state);
+      input = await snapshotInput(intakeWorkspace(env), state, standalone);
+      if (input !== null) {
+        const acquiredPaths = await sourceInputPaths(input.directory);
+        if (
+          JSON.stringify(acquiredPaths.map((p) => path.resolve(p)).sort()) !==
+          JSON.stringify(paths.map((p) => path.resolve(p)).sort())
+        )
+          throw new Error(
+            "Transform paths must exactly match the completed acquired snapshot.",
+          );
+      }
+    },
+    complete: async (artifactsPath) =>
+      completeTransform(state, artifactsPath, input),
     produces: await loadSourceProduces(sourceId, sourcesRoot),
     loadSourceModule,
     readXlsx,

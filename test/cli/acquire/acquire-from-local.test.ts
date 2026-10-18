@@ -116,6 +116,38 @@ describe("resolveLocalInputs", () => {
 });
 
 describe("acquireFromLocal", () => {
+  it("runs required acquisition on staged inputs and preserves failed work without promotion", async () => {
+    const workspace = await tempDir("local-acquire-failed-");
+    const inputs = await tempDir("local-acquire-input-");
+    await writeFile(path.join(inputs, "cached.pdf"), "cached");
+    const state = path.join(workspace, "state", "test");
+    const { writeCommandPointer } =
+      await import("../../../src/cli/state/command-pointer.js");
+    await writeCommandPointer(state, "acquire", { latest: "previous" });
+    await expect(
+      acquireFromLocal("test", ["cached.pdf"], {
+        env: { INTAKE_WORKSPACE: workspace },
+        workspace,
+        state,
+        cwd: inputs,
+        createCommandDirectory: fakeCreateCommandDirectory("failed"),
+        writeCommandPointer,
+        logger: { info() {} },
+        acquire: async ({ sourceDir }) => {
+          expect(
+            await readFile(path.join(sourceDir, "cached.pdf"), "utf8"),
+          ).toBe("cached");
+          throw new Error("analysis incomplete");
+        },
+        data: { agencies: async () => ({ items: [] }) },
+      }),
+    ).rejects.toThrow("analysis incomplete");
+    expect(await readCommandPointer(state, "acquire")).toEqual({
+      latest: "previous",
+      resume: path.join("command", "failed", "test", "output"),
+    });
+  });
+
   it("copies inputs into the command output and points the acquire pointer at it", async () => {
     const workspace = await tempDir("from-local-ws-");
     const inputs = await tempDir("from-local-src-");
@@ -129,6 +161,8 @@ describe("acquireFromLocal", () => {
       state,
       cwd: inputs,
       createCommandDirectory: fakeCreateCommandDirectory("2026-08-25-abc"),
+      acquire: undefined,
+      data: { agencies: async () => ({ items: [] }) },
       // real pointer writer
       writeCommandPointer: (
         await import("../../../src/cli/state/command-pointer.js")

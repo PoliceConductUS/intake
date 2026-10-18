@@ -1,3 +1,4 @@
+import { completeTransform } from "../../../src/cli/state/transform-completion.js";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -92,7 +93,7 @@ withDocker("data reset against disposable Postgres", () => {
               ? item.kind === "LocationPaths"
               : item.kind !== "LocationPaths",
           );
-        await Artifacts.write(
+        const written = await Artifacts.write(
           command.outputDirectory,
           buildArtifactsEnvelope(args[2], command.commandName, {
             artifacts: selectArtifacts([
@@ -160,6 +161,11 @@ withDocker("data reset against disposable Postgres", () => {
               },
             ]),
           }),
+        );
+        await completeTransform(
+          await sourceStateDir(env, args[2]),
+          written.path,
+          null,
         );
         return { exitCode: 0 };
       }

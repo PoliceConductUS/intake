@@ -9,7 +9,7 @@ import {
   expect,
   test,
 } from "vitest";
-import { importArtifacts } from "../../src/cli/import/artifacts/config.js";
+import { importArtifacts } from "./completed-artifacts.js";
 import { transform } from "../../sources/gov.tx.tcole/transform.js";
 import { excludeManifestRecords } from "../../src/cli/transform/exclude-records.js";
 import { buildArtifactsEnvelope } from "../../src/cli/transform/source-transform.js";
@@ -91,7 +91,7 @@ describeWithDocker("initial agency roots in the shared import pipeline", () => {
       },
     });
     const input = await Artifacts.write(
-      root,
+      path.join(root, "output"),
       Artifacts.new({
         metadata: { namespace: "source.one", name: "source" },
         spec: {
@@ -226,7 +226,7 @@ describeWithDocker("initial agency roots in the shared import pipeline", () => {
     );
     expect(filtered.removed).toEqual({ Agency: 1, AgencyPhoneNumber: 1 });
     const input = await Artifacts.write(
-      root,
+      path.join(root, "output"),
       buildArtifactsEnvelope("source.one", "filtered-tcole", filtered.manifest),
     );
     expect(
@@ -266,7 +266,7 @@ describeWithDocker("initial agency roots in the shared import pipeline", () => {
   });
   test("initial run context retains saved agencies after an earlier office import", async () => {
     const input = await Artifacts.write(
-      root,
+      path.join(root, "output"),
       Artifacts.new({
         metadata: { namespace: "reference.source", name: "office" },
         spec: {

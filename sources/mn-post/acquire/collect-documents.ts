@@ -1,3 +1,7 @@
+import {
+  readDocumentEvidence,
+  OrderAnalysisSchema,
+} from "./document-evidence.js";
 import crypto from "node:crypto";
 import {
   access,
@@ -132,6 +136,15 @@ export async function collectDocuments({
     const stem = documentStem(reference);
     const pdfPath = path.join(documentsDir, `${stem}.pdf`);
     if (await fileExists(path.join(documentsDir, `${stem}.document.json`))) {
+      const documentPath = path.join(documentsDir, `${stem}.document.json`);
+      const document = await readDocumentEvidence(documentPath);
+      if (document.url !== reference.url)
+        throw new Error(`mn-post document URL does not match ${reference.url}`);
+      await writeJson(documentPath, {
+        ...document,
+        actions: reference.actions,
+        documentName: reference.documentName,
+      });
       continue;
     }
 
@@ -211,7 +224,7 @@ export async function collectDocuments({
       fetchedAt: entry.fetchedAt,
       pages: cache.text!.pages,
       text,
-      analysis: cache.analysis.output,
+      analysis: OrderAnalysisSchema.parse(cache.analysis.output),
       analyzedWith: {
         model: cache.analysis.model,
         promptVersion: cache.analysis.promptVersion,
@@ -220,10 +233,12 @@ export async function collectDocuments({
         ? {}
         : { reviewReceipt: cache.analysis.reviewReceipt }),
     };
-    await writeJson(
-      path.join(documentsDir, `${documentStem(entry.reference)}.document.json`),
-      document,
+    const documentPath = path.join(
+      documentsDir,
+      `${documentStem(entry.reference)}.document.json`,
     );
+    await writeJson(documentPath, document);
+    await readDocumentEvidence(documentPath);
   }
 
   return { skippedDocuments };

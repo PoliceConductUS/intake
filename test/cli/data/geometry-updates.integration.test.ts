@@ -1,3 +1,4 @@
+import { completeTransform } from "../../../src/cli/state/transform-completion.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -40,7 +41,7 @@ withDocker("streamed geometry updates through the data CLI", () => {
       namespace: source,
       args: ["data", "transform", source],
     });
-    await Artifacts.write(
+    const artifacts = await Artifacts.write(
       output.outputDirectory,
       buildArtifactsEnvelope(source, output.commandName, {
         artifacts: [
@@ -59,6 +60,11 @@ withDocker("streamed geometry updates through the data CLI", () => {
           },
         ],
       }),
+    );
+    await completeTransform(
+      path.join(workspace, "state", source),
+      artifacts.path,
+      null,
     );
   }
   async function stored() {
