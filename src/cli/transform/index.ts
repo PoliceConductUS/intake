@@ -14,6 +14,7 @@ import type { CommandResult } from "../../shared/cli/types.js";
 import { buildArtifactsEnvelope } from "./source-transform.js";
 import type { SourceManifest } from "./source-transform.js";
 import {
+  assertValidSourceId,
   loadSourceModule,
   loadSourceProduces,
   loadSourceStandalone,
@@ -132,6 +133,7 @@ export async function transformSource(
   options: { standalone?: boolean },
   deps: TransformSourceDeps,
 ): Promise<{ artifactsPath: string } | { error: CommandResult }> {
+  assertValidSourceId(sourceId);
   await deps.beginCompletion();
   // A standalone (manual curation) source reads its records from state, not input
   // paths, so it runs with none; every other source requires at least one path.
@@ -261,6 +263,7 @@ export async function buildTransformSourceDeps(
     logger: { info: (message: string) => void };
   },
 ): Promise<TransformSourceDeps> {
+  assertValidSourceId(sourceId);
   const sourcesRoot = path.join(process.cwd(), "sources");
   const state = await sourceStateDir(env, sourceId);
   const standalone = await loadSourceStandalone(sourceId, sourcesRoot);

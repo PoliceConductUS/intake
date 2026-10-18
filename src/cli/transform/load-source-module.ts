@@ -11,7 +11,7 @@ const IMPORT_ARTIFACT_KIND_SET: ReadonlySet<string> = new Set(
   IMPORT_ARTIFACT_KINDS,
 );
 
-function assertValidSourceId(sourceId: string): void {
+export function assertValidSourceId(sourceId: string): void {
   if (!/^[a-z0-9][a-z0-9.\-]*$/i.test(sourceId)) {
     throw new Error(`Invalid source id: ${sourceId}`);
   }

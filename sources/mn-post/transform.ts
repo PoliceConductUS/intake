@@ -600,7 +600,7 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
           entry.actions.some(
             (a) => a.contactId === contactId && a.caseNumber === caseNumber,
           );
-        if (documents.length > 0 && !documents.every(matches))
+        if (documents.length > 0 && !documents.some(matches))
           throw new Error(
             `mn-post document actions do not match ${caseNumber}: ${documentUrl}`,
           );

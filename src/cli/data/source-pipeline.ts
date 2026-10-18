@@ -12,6 +12,7 @@ import {
   transformSource,
 } from "../transform/index.js";
 import {
+  assertValidSourceId,
   loadSourceProduces,
   loadSourceStandalone,
 } from "../transform/load-source-module.js";
@@ -34,6 +35,7 @@ export async function transformOneSource(
   logger: { info: (message: string) => void } = SILENT,
   kinds?: readonly ImportArtifactKind[],
 ): Promise<{ artifactsPath: string } | { error: CommandResult }> {
+  assertValidSourceId(sourceId);
   await beginTransform(path.join(intakeWorkspace(env), "state", sourceId));
   const standalone = await loadSourceStandalone(sourceId, SOURCES_ROOT);
   const workspace = intakeWorkspace(env);

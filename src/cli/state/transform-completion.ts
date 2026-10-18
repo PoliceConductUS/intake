@@ -14,7 +14,7 @@ const Completion = z.discriminatedUnion("status", [
   z.strictObject({
     status: z.literal("complete"),
     input: Snapshot.nullable(),
-    output: Snapshot,
+    outputDigest: z.string().regex(/^[a-f0-9]{64}$/),
     artifactsPath: z.string().min(1),
   }),
 ]);
@@ -80,13 +80,12 @@ export async function completeTransform(
     (await directoryDigest(input.directory)) !== input.digest
   )
     throw new Error("Acquired input changed during transform.");
-  await Artifacts.read(artifactsPath, { raw: true });
-  const directory = path.dirname(path.resolve(artifactsPath));
+
   await writeCompletion(state, {
     status: "complete",
     input,
     artifactsPath: path.resolve(artifactsPath),
-    output: { directory, digest: await directoryDigest(directory) },
+    outputDigest: await Artifacts.integrityDigest(artifactsPath),
   });
 }
 /** Single handoff gate shared by generation and its internal import entry point. */
@@ -128,7 +127,10 @@ export async function requireTransformCompletion(
         `Acquired input changed since successful transform for ${sourceId}.`,
       );
   }
-  if ((await directoryDigest(record.output.directory)) !== record.output.digest)
+  if (
+    (await Artifacts.integrityDigest(record.artifactsPath)) !==
+    record.outputDigest
+  )
     throw new Error(
       `Artifacts changed since successful transform for ${sourceId}.`,
     );

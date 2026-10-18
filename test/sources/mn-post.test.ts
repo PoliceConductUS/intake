@@ -282,6 +282,114 @@ function recordsOf(manifest: SourceManifest, kind: string) {
 }
 
 describe("mn-post document completion", () => {
+  it.each(["matching", "analysis conflict", "PDF conflict"])(
+    "checks retained same-URL evidence (%s) when an earlier case is acquired",
+    async (mode) => {
+      const dir = await mkdtemp(path.join(tmpdir(), "mn-earlier-case-"));
+      try {
+        await mkdir(path.join(dir, "officers"));
+        const files = {
+          "agency-ids.yaml": agencyIds,
+          "agencies.csv": agenciesCsv,
+          "alpha-police-dept-000000000001.roster.json": JSON.stringify(
+            JSON.parse(alphaRoster).filter(
+              (p: { contactId: string }) => p.contactId === "0031",
+            ),
+          ),
+          "beta-county-sheriff-000000000002.roster.json": JSON.stringify(
+            JSON.parse(betaRoster).filter(
+              (p: { contactId: string }) => p.contactId === "0031",
+            ),
+          ),
+        };
+        for (const [name, value] of Object.entries(files))
+          await writeFile(path.join(dir, name), value);
+        const old = JSON.parse(detail0031);
+        old.disciplinaryActions[0].caseNumber = "OLD";
+        await writeFile(
+          path.join(dir, "officers", "z.detail.json"),
+          JSON.stringify(old),
+        );
+        const { collectDocuments } =
+          await import("../../sources/mn-post/acquire/collect-documents.js");
+        const deps = {
+          sourceDir: dir,
+          statePath: path.join(dir, "cache"),
+          fetchDocument: async () => ({
+            kind: "pdf" as const,
+            bytes: Buffer.from("pdf"),
+          }),
+          extractText: async () => ({
+            pages: [{ page: 1, method: "text" as const, text: "order" }],
+          }),
+          analyzer: {
+            model: "test",
+            promptVersion: 1,
+            analyze: async () => ({
+              allegation: null,
+              violation: null,
+              finding: null,
+              chief_action: null,
+              sanction: null,
+            }),
+          },
+          now: () => "2026-10-18",
+        };
+        await collectDocuments(deps);
+        const newer = JSON.parse(detail0031);
+        newer.disciplinaryActions[0].caseNumber = "NEW";
+        newer.disciplinaryActions[0].complaintId = "new-complaint";
+        await writeFile(
+          path.join(dir, "officers", "a.detail.json"),
+          JSON.stringify(newer),
+        );
+        await collectDocuments(deps);
+        if (mode !== "matching") {
+          const documentsDir = path.join(dir, "documents");
+          const name = (await readdir(documentsDir)).find(
+            (name) =>
+              name.startsWith("old-") && name.endsWith(".document.json"),
+          )!;
+          const doc = JSON.parse(
+            await readFile(path.join(documentsDir, name), "utf8"),
+          );
+          if (mode === "analysis conflict")
+            doc.analysis.sanction = "Different sanction";
+          else {
+            const bytes = Buffer.from("different PDF");
+            await writeFile(
+              path.join(documentsDir, name.replace(".document.json", ".pdf")),
+              bytes,
+            );
+            doc.sha256 = createHash("sha256").update(bytes).digest("hex");
+            doc.bytes = bytes.length;
+          }
+          await writeFile(path.join(documentsDir, name), JSON.stringify(doc));
+        }
+        const { sourceInputPaths } =
+          await import("../../src/cli/transform/index.js");
+        const pending = transform({
+          paths: await sourceInputPaths(dir),
+          readXlsx: async () => [],
+          state: "/unused",
+          emit: async () => {},
+        });
+        if (mode !== "matching") {
+          await expect(pending).rejects.toThrow(
+            /conflicting document evidence/,
+          );
+          return;
+        }
+        const result = await pending;
+        expect(Object.keys(recordsOf(result, "Disciplines"))).toEqual([
+          "0031|new-complaint",
+          "0031|cmp-001",
+        ]);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    },
+  );
   async function runDocumentFixture(
     change: (files: Record<string, string>) => void,
   ) {

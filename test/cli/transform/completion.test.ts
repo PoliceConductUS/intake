@@ -27,7 +27,16 @@ async function fixture() {
     path.join(root, "command", "old", "gov.tx.tcole", "output"),
     Artifacts.new({
       metadata: { name: "old", namespace: "gov.tx.tcole" },
-      spec: { artifacts: [] },
+      spec: {
+        artifacts: [
+          {
+            kind: "Agencies",
+            spec: {
+              records: { agency: { spec: { name: "Test", state: "TX" } } },
+            },
+          },
+        ],
+      },
     }),
   );
   return {
@@ -125,12 +134,18 @@ it.each(["envelope", "referenced output"])(
     await writeFile(
       which === "envelope"
         ? f.artifactsPath
-        : path.join(path.dirname(f.artifactsPath), "records.yaml"),
+        : path.join(
+            path.dirname(f.artifactsPath),
+            (
+              (await Artifacts.read(f.artifactsPath, { raw: true })).spec
+                .artifacts[0] as { ref: { path: string } }
+            ).ref.path,
+          ),
       "changed",
     );
     await expect(
       requireTransformCompletion(f.root, "gov.tx.tcole"),
-    ).rejects.toThrow(/artifacts changed/i);
+    ).rejects.toThrow(/artifacts changed|malformed|sha256/i);
   },
 );
 it("does not fall back after a newer failed transform", async () => {
@@ -198,4 +213,173 @@ it("runs the declared manual source without an acquisition snapshot", async () =
   expect(
     await requireTransformCompletion(f.root, "org.policeconduct.manual"),
   ).toBe((result as { artifactsPath: string }).artifactsPath);
+});
+
+it("validates a source id before touching completion state", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "invalid-source-"));
+  roots.push(root);
+  const workspace = path.join(root, "workspace");
+  await mkdir(workspace);
+  const victim = path.join(root, "victim");
+  await mkdir(victim);
+  const file = path.join(victim, "transform-completion.json");
+  await writeFile(file, "important");
+  await expect(
+    transformOneSource("../../victim", { INTAKE_WORKSPACE_TEST: workspace }),
+  ).rejects.toThrow(/Invalid source/);
+  expect(
+    await import("node:fs/promises").then((fs) => fs.readFile(file, "utf8")),
+  ).toBe("important");
+  expect(
+    await import("node:fs/promises").then((fs) => fs.readdir(workspace)),
+  ).toEqual([]);
+});
+it("allows a separately audited correction after completing transform", async () => {
+  const f = await fixture();
+  const { path: artifactsPath } = await Artifacts.write(
+    path.join(f.root, "correction-output"),
+    Artifacts.new({
+      metadata: { name: "correctable", namespace: "gov.tx.tcole" },
+      spec: {
+        artifacts: [
+          {
+            kind: "Agencies",
+            spec: {
+              records: { agency: { spec: { name: "Original", state: "TX" } } },
+            },
+          },
+        ],
+      },
+    }),
+  );
+  await completeTransform(
+    path.join(f.root, "state", "gov.tx.tcole"),
+    artifactsPath,
+    null,
+  );
+  const { ArtifactMutations } =
+    await import("../../../src/cli/import/artifacts/io/ArtifactMutations.js");
+  await ArtifactMutations.write(
+    path.dirname(artifactsPath),
+    ArtifactMutations.new({
+      metadata: { name: "correctable", namespace: "manual" },
+      spec: {
+        mutations: [
+          {
+            target: {
+              namespace: "gov.tx.tcole",
+              command: { name: "correctable" },
+              kind: "Agency",
+              name: "agency",
+            },
+            operations: [
+              {
+                action: "set",
+                path: "name",
+                value: "Corrected",
+                reason: "Source correction",
+                source: {
+                  namespace: "gov.tx.tcole",
+                  command: { name: "correctable" },
+                  kind: "Agencies",
+                  name: "agency",
+                },
+              },
+            ],
+          },
+        ],
+      },
+    }),
+  );
+  const result = await importArtifacts({
+    artifactsPath,
+    env: f.env,
+    commandName: "correction-import",
+    commandDirectory: path.join(f.root, "mutations"),
+    dryImport: true,
+  });
+  // The real importer must reach its existing correction stage, not fail completion.
+  expect(result).toEqual({
+    ok: false,
+    error: expect.stringMatching(/DATABASE_URL/),
+  });
+  expect(await requireTransformCompletion(f.root, "gov.tx.tcole")).toBe(
+    artifactsPath,
+  );
+});
+
+it("rejects changed streamed record bytes before mutation creation", async () => {
+  const f = await fixture();
+  const output = path.join(f.root, "streamed");
+  await mkdir(output);
+  const { createEmitSink } =
+    await import("../../../src/cli/transform/emit-sink.js");
+  const sink = createEmitSink(output, "gov.tx.tcole");
+  await sink.emit("LocationPathGeometries", "test", {
+    location_path_id: "test",
+    sourceLocationPathKey: "test",
+    geometry: { type: "Point", coordinates: [0, 0] },
+  });
+  const { path: artifactsPath } = await Artifacts.write(
+    output,
+    Artifacts.new({
+      metadata: { name: "streamed", namespace: "gov.tx.tcole" },
+      spec: { artifacts: await sink.flush() },
+    }),
+  );
+  await completeTransform(
+    path.join(f.root, "state", "gov.tx.tcole"),
+    artifactsPath,
+    null,
+  );
+  const root = await Artifacts.read(artifactsPath, { raw: true });
+  const collection = path.resolve(
+    output,
+    (root.spec.artifacts[0] as { ref: { path: string } }).ref.path,
+  );
+  const { LocationPathGeometries } =
+    await import("../../../src/shared/io/index.js");
+  const raw = await LocationPathGeometries.read(collection, { raw: true });
+  const record = Object.values(raw.spec.records)[0] as {
+    ref: { path: string };
+  };
+  await writeFile(
+    path.resolve(path.dirname(collection), record.ref.path),
+    "changed",
+  );
+  const mutations = path.join(f.root, "mutations");
+  const result = await importArtifacts({
+    artifactsPath,
+    env: f.env,
+    commandName: "reject",
+    commandDirectory: mutations,
+    dryImport: true,
+  });
+  expect(result).toMatchObject({
+    ok: false,
+    error: expect.stringMatching(/sha256|malformed/),
+  });
+  await expect(
+    import("node:fs/promises").then((fs) => fs.access(mutations)),
+  ).rejects.toThrow();
+});
+
+it("rejects invalid source IDs before the dependency builder creates state", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "invalid-builder-"));
+  roots.push(root);
+  const workspace = path.join(root, "workspace");
+  await mkdir(workspace);
+  await expect(
+    buildTransformSourceDeps(
+      "../../victim",
+      [],
+      { INTAKE_WORKSPACE_TEST: workspace },
+      { commandArgs: [], logger: { info() {} } },
+    ),
+  ).rejects.toThrow(/Invalid source/);
+  await expect(
+    import("node:fs/promises").then((fs) =>
+      fs.access(path.join(root, "victim")),
+    ),
+  ).rejects.toThrow();
 });

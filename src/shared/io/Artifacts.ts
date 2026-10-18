@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import * as recordIO from "./generated/index.js";
 import path from "node:path";
 import { z } from "zod";
 import type { ArtifactsEnvelope as ArtifactsEnvelopeResource } from "./generated/Artifacts.js";
@@ -354,9 +356,69 @@ async function readArtifactsEnvelope(
   });
 }
 
+/** Hash only the transformed artifact graph; operator corrections are a separate audit input.
+ * Record refs are verified one at a time through canonical IO so streamed geometry
+ * never needs to be materialized as one resolved collection.
+ */
+async function integrityDigest(filePath: string): Promise<string> {
+  const envelope = await readArtifactsEnvelope(filePath, { raw: true });
+  const hash = createHash("sha256");
+  hash.update(await readYamlDocumentDigest(filePath, "Artifacts"));
+  for (const item of envelope.spec.artifacts) {
+    if (!("ref" in item)) continue;
+    const artifactPath = path.resolve(path.dirname(filePath), item.ref.path);
+    const artifact = (await artifactEnvelopeTypes[item.ref.kind].read(
+      artifactPath,
+      {
+        raw: true,
+        expectedKind: item.ref.kind,
+        expectedNamespace: envelope.metadata.namespace,
+        expectedSha256: item.ref.sha256,
+      },
+    )) as { spec: { records: Record<string, unknown> } };
+    hash.update(await readYamlDocumentDigest(artifactPath, item.ref.kind));
+    for (const [key, value] of Object.entries(artifact.spec.records)) {
+      if (typeof value !== "object" || value === null || !("ref" in value))
+        continue;
+      const ref = (
+        value as { ref: { path: string; kind: string; sha256?: string } }
+      ).ref;
+      const io = (
+        recordIO as unknown as Record<
+          string,
+          {
+            read: (
+              ref: unknown,
+              options: unknown,
+            ) => Promise<{ metadata: { name: string } }>;
+          }
+        >
+      )[ref.kind];
+      if (io === undefined)
+        throw new Error(`No canonical IO for artifact record kind ${ref.kind}`);
+      const record = await io.read(ref, {
+        relativeTo: artifactPath,
+        expectedNamespace: envelope.metadata.namespace,
+      });
+      if (record.metadata.name !== key)
+        throw new Error(
+          `Artifact record metadata.name does not match ${key}: ${artifactPath}`,
+        );
+      hash.update(
+        await readYamlDocumentDigest(
+          path.resolve(path.dirname(artifactPath), ref.path),
+          ref.kind,
+        ),
+      );
+    }
+  }
+  return hash.digest("hex");
+}
+
 export const Artifacts = {
   ...GeneratedArtifacts,
   read: readArtifactsEnvelope,
+  integrityDigest,
   digest(filePath: string): Promise<string> {
     return readYamlDocumentDigest(filePath, "Artifacts");
   },

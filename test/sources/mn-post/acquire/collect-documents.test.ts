@@ -229,30 +229,33 @@ describe("collectDocuments", () => {
     ]);
   });
 
-  it("reuses completed evidence while refreshing newly acquired action references", async () => {
-    const fixture = await makeFixture();
-    const d = deps(fixture);
-    await collectDocuments(d);
-    await writeFile(
-      path.join(fixture.sourceDir, "officers", "z-new.detail.json"),
-      JSON.stringify({
-        disciplinaryActions: [
-          {
-            contactId: "NEW",
-            caseNumber: "NEW-CASE",
-            documentURL: ORDER_URL,
-            documentName: "SACO",
-          },
-        ],
-      }),
-    );
-    await collectDocuments(d);
-    expect((await documentsOn(fixture.sourceDir))[0].actions).toContainEqual({
-      contactId: "NEW",
-      caseNumber: "NEW-CASE",
-    });
-    expect(d.analyzer.analyze).toHaveBeenCalledTimes(1);
-  });
+  it.each(["a-new.detail.json", "z-new.detail.json"])(
+    "reuses completed evidence while refreshing action references from %s",
+    async (filename) => {
+      const fixture = await makeFixture();
+      const d = deps(fixture);
+      await collectDocuments(d);
+      await writeFile(
+        path.join(fixture.sourceDir, "officers", filename),
+        JSON.stringify({
+          disciplinaryActions: [
+            {
+              contactId: "NEW",
+              caseNumber: "NEW-CASE",
+              documentURL: ORDER_URL,
+              documentName: "SACO",
+            },
+          ],
+        }),
+      );
+      await collectDocuments(d);
+      expect((await documentsOn(fixture.sourceDir))[0].actions).toContainEqual({
+        contactId: "NEW",
+        caseNumber: "NEW-CASE",
+      });
+      expect(d.analyzer.analyze).toHaveBeenCalledTimes(1);
+    },
+  );
   it("resumes: a second run fetches, extracts, and analyzes nothing already done", async () => {
     const fixture = await makeFixture();
     const d = deps(fixture);
