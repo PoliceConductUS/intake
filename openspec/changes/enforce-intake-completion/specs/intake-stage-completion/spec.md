@@ -64,3 +64,24 @@ MN POST acquisition SHALL request legacy `https://mnitservices--c.documentforce.
 
 - **WHEN** the mapped download endpoint returns 404
 - **THEN** acquisition records the document as unavailable without requesting another hostname
+
+### Requirement: Null document narratives have explicit field-level absence reasons
+
+Every completed MN POST analysis, whether produced by the automated analyzer or a Codex document review, SHALL supply a nonblank absence reason for each null narrative field. The absence-reason map SHALL contain exactly the null narrative fields; populated narratives SHALL be nonblank and have no absence-reason entry. Reasons SHALL remain separate from the five public narrative values and SHALL NOT change database shape. The document-evidence reader SHALL enforce this contract for every model. Previous analysis contracts and prompt versions SHALL NOT be silently reused as completed current evidence.
+
+Analysis instructions SHALL treat an expressly stated conviction (including an unnamed felony conviction), nonreporting, fee, continuing-education or tax basis as a stated allegation/factual basis even when the underlying incident is not described. Findings SHALL preserve their stated attribution; analysis SHALL NOT invent underlying conduct. An absence reason records the reviewer's asserted explanation and does not independently prove semantic completeness or accuracy.
+
+#### Scenario: An analysis leaves a narrative null
+
+- **WHEN** a narrative is null without a nonblank reason for that field
+- **THEN** acquisition/evidence validation rejects the analysis regardless of model
+
+#### Scenario: A populated field includes an absence reason
+
+- **WHEN** a populated narrative also has an absence-reason entry
+- **THEN** validation rejects the conflicting analysis contract
+
+#### Scenario: Previously completed evidence uses the old contract
+
+- **WHEN** acquisition encounters a completed document or cached analysis from the previous contract
+- **THEN** it fails visibly or reprocesses through the current analysis contract rather than silently reusing the result

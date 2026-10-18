@@ -44,3 +44,9 @@ No website code changes, new dependencies, reset, identity changes, unrelated ed
 - [ ] Apply and verify the chain and dataset. Record actual coverage, limitations and evidence.
 - [ ] Complete verify/retrospective/archive; merge and remove worktree before website production build/deploy from main.
 - [ ] Verify published records and report actual outcome.
+
+### Task 1 follow-up: Enforce semantic extraction accounting
+
+- [x] Add regression-first coverage for missing/blank null reasons, reasons attached to populated narratives, automated and Codex cache paths, and old completed-document reuse.
+- [x] Require field-specific absence reasons separate from public narratives, raise the prompt contract version, and clarify stated allegation bases and finding attribution.
+- [ ] Validate relevant/full tests and build, report limits honestly, and commit scoped implementation without changing actual recovery data or runtime generated metadata.

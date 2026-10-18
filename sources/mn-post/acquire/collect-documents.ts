@@ -1,6 +1,8 @@
 import {
   readDocumentEvidence,
-  OrderAnalysisSchema,
+  readPriorDocumentEvidence,
+  OrderAnalysisResultSchema,
+  ORDER_ANALYSIS_PROMPT_VERSION,
 } from "./document-evidence.js";
 import crypto from "node:crypto";
 import {
@@ -34,6 +36,13 @@ export type OrderAnalysis = {
   chief_action: string | null;
   sanction: string | null;
 };
+export type AnalysisAbsenceReasons = Partial<
+  Record<keyof OrderAnalysis, string>
+>;
+export type OrderAnalysisResult = {
+  analysis: OrderAnalysis;
+  absenceReasons: AnalysisAbsenceReasons;
+};
 export type CodexDocumentReviewReceipt = {
   method: "codex-document-review";
   reviewedAt: string;
@@ -45,7 +54,7 @@ export type CodexDocumentReviewReceipt = {
 export type OrderAnalyzer = {
   model: string;
   promptVersion: number;
-  analyze(text: string): Promise<OrderAnalysis>;
+  analyze(text: string): Promise<OrderAnalysisResult>;
 };
 
 /** `documents/<stem>.document.json` — the record the transform reads per order. */
@@ -59,6 +68,7 @@ export type DisciplinaryDocument = {
   pages: DocumentPage[];
   text: string;
   analysis: OrderAnalysis;
+  absenceReasons: AnalysisAbsenceReasons;
   analyzedWith: { model: string; promptVersion: number };
   reviewReceipt?: CodexDocumentReviewReceipt;
 };
@@ -75,6 +85,7 @@ type DocumentCache = {
     model: string;
     promptVersion: number;
     output: OrderAnalysis;
+    absenceReasons: AnalysisAbsenceReasons;
     reviewReceipt?: CodexDocumentReviewReceipt;
   };
 };
@@ -137,15 +148,30 @@ export async function collectDocuments({
     const pdfPath = path.join(documentsDir, `${stem}.pdf`);
     if (await fileExists(path.join(documentsDir, `${stem}.document.json`))) {
       const documentPath = path.join(documentsDir, `${stem}.document.json`);
-      const document = await readDocumentEvidence(documentPath);
-      if (document.url !== reference.url)
-        throw new Error(`mn-post document URL does not match ${reference.url}`);
-      await writeJson(documentPath, {
-        ...document,
-        actions: reference.actions,
-        documentName: reference.documentName,
-      });
-      continue;
+      const previous =
+        await readJsonIfExists<DisciplinaryDocument>(documentPath);
+      if (previous?.analyzedWith?.promptVersion === 1) {
+        const prior = await readPriorDocumentEvidence(documentPath);
+        if (prior.url !== reference.url)
+          throw new Error(
+            `mn-post document URL does not match ${reference.url}`,
+          );
+        logger.info(
+          `mn-post: ${position} reprocessing prior analysis contract for ${reference.url}`,
+        );
+      } else {
+        const document = await readDocumentEvidence(documentPath);
+        if (document.url !== reference.url)
+          throw new Error(
+            `mn-post document URL does not match ${reference.url}`,
+          );
+        await writeJson(documentPath, {
+          ...document,
+          actions: reference.actions,
+          documentName: reference.documentName,
+        });
+        continue;
+      }
     }
 
     let bytes = await readBytesIfExists(pdfPath);
@@ -207,14 +233,24 @@ export async function collectDocuments({
       logger.info(
         `mn-post: ${position} analyzing ${describeActions(entry.reference.actions)}`,
       );
+      const result = OrderAnalysisResultSchema.parse(
+        await analyzer.analyze(text),
+      );
       cache.analysis = {
         model: analyzer.model,
         promptVersion: analyzer.promptVersion,
-        output: await analyzer.analyze(text),
+        output: result.analysis,
+        absenceReasons: result.absenceReasons,
       };
       await writeJson(entry.cachePath, cache);
     }
 
+    if (cache.analysis.promptVersion !== ORDER_ANALYSIS_PROMPT_VERSION)
+      throw new Error("mn-post: analysis uses a stale prompt contract");
+    const completed = OrderAnalysisResultSchema.parse({
+      analysis: cache.analysis.output,
+      absenceReasons: cache.analysis.absenceReasons,
+    });
     const document: DisciplinaryDocument = {
       url: entry.reference.url,
       documentName: entry.reference.documentName,
@@ -224,7 +260,8 @@ export async function collectDocuments({
       fetchedAt: entry.fetchedAt,
       pages: cache.text!.pages,
       text,
-      analysis: OrderAnalysisSchema.parse(cache.analysis.output),
+      analysis: completed.analysis,
+      absenceReasons: completed.absenceReasons,
       analyzedWith: {
         model: cache.analysis.model,
         promptVersion: cache.analysis.promptVersion,

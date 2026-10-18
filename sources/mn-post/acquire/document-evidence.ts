@@ -7,7 +7,8 @@ export const DocumentActionSchema = z.strictObject({
   contactId: z.string().min(1),
   caseNumber: z.string().min(1),
 });
-const narrative = z.string().nullable();
+export const ORDER_ANALYSIS_PROMPT_VERSION = 2;
+const narrative = z.string().trim().min(1).nullable();
 export const OrderAnalysisSchema = z.strictObject({
   allegation: narrative,
   violation: narrative,
@@ -15,6 +16,37 @@ export const OrderAnalysisSchema = z.strictObject({
   chief_action: narrative,
   sanction: narrative,
 });
+export const AbsenceReasonsSchema = z.strictObject({
+  allegation: z.string().trim().min(1).optional(),
+  violation: z.string().trim().min(1).optional(),
+  finding: z.string().trim().min(1).optional(),
+  chief_action: z.string().trim().min(1).optional(),
+  sanction: z.string().trim().min(1).optional(),
+});
+export const OrderAnalysisResultSchema = z
+  .strictObject({
+    analysis: OrderAnalysisSchema,
+    absenceReasons: AbsenceReasonsSchema,
+  })
+  .superRefine(({ analysis, absenceReasons }, ctx) => {
+    for (const field of Object.keys(analysis) as Array<keyof typeof analysis>) {
+      const hasReason = Object.hasOwn(absenceReasons, field);
+      if (
+        analysis[field] === null
+          ? typeof absenceReasons[field] !== "string" ||
+            absenceReasons[field]!.trim() === ""
+          : hasReason
+      )
+        ctx.addIssue({
+          code: "custom",
+          path: ["absenceReasons", field],
+          message:
+            analysis[field] === null
+              ? `Null ${field} requires an explicit absence reason`
+              : `Populated ${field} must not have an absence reason`,
+        });
+    }
+  });
 const page = z.strictObject({
   page: z.number().int().positive(),
   method: z.enum(["text", "ocr"]),
@@ -36,9 +68,10 @@ const DocumentSchema = z.strictObject({
   pages: z.array(page).min(1),
   text: z.string(),
   analysis: OrderAnalysisSchema,
+  absenceReasons: AbsenceReasonsSchema,
   analyzedWith: z.strictObject({
     model: z.string().min(1),
-    promptVersion: z.number().int().positive(),
+    promptVersion: z.literal(ORDER_ANALYSIS_PROMPT_VERSION),
   }),
   reviewReceipt: z
     .strictObject({
@@ -54,6 +87,30 @@ const DocumentSchema = z.strictObject({
     })
     .optional(),
 });
+const PreviousDocumentSchema = DocumentSchema.omit({
+  absenceReasons: true,
+}).extend({
+  analysis: z.strictObject({
+    allegation: z.string().nullable(),
+    violation: z.string().nullable(),
+    finding: z.string().nullable(),
+    chief_action: z.string().nullable(),
+    sanction: z.string().nullable(),
+  }),
+  analyzedWith: z.strictObject({
+    model: z.string().min(1),
+    promptVersion: z.literal(1),
+  }),
+});
+
+export async function readPriorDocumentEvidence(jsonPath: string) {
+  const document = PreviousDocumentSchema.parse(
+    JSON.parse(await readFile(jsonPath, "utf8")),
+  );
+  await verifyPreservedDocument(jsonPath, document);
+  return document;
+}
+
 export const UnavailableDocumentSchema = z.strictObject({
   url: z.string().min(1),
   actions: z.array(DocumentActionSchema).min(1),
@@ -65,22 +122,11 @@ export async function readDocumentEvidence(jsonPath: string) {
   const document = DocumentSchema.parse(
     JSON.parse(await readFile(jsonPath, "utf8")),
   );
-  const pdfPath = jsonPath.replace(/\.document\.json$/i, ".pdf");
-  const bytes = await readFile(pdfPath);
-  if (
-    bytes.length !== document.bytes ||
-    createHash("sha256").update(bytes).digest("hex") !== document.sha256
-  )
-    throw new Error(
-      `mn-post document evidence does not match PDF: ${path.basename(jsonPath)}`,
-    );
-  if (
-    document.pages
-      .map((p) => p.text.trim())
-      .filter(Boolean)
-      .join("\n\n") !== document.text
-  )
-    throw new Error(`mn-post document text does not match pages: ${jsonPath}`);
+  OrderAnalysisResultSchema.parse({
+    analysis: document.analysis,
+    absenceReasons: document.absenceReasons,
+  });
+  await verifyPreservedDocument(jsonPath, document);
   if (
     document.analyzedWith.model === "codex-document-review" &&
     document.reviewReceipt === undefined
@@ -109,4 +155,31 @@ export async function readDocumentEvidence(jsonPath: string) {
     }
   }
   return document;
+}
+
+async function verifyPreservedDocument(
+  jsonPath: string,
+  document: {
+    sha256: string;
+    bytes: number;
+    pages: Array<{ text: string }>;
+    text: string;
+  },
+): Promise<void> {
+  const pdfPath = jsonPath.replace(/\.document\.json$/i, ".pdf");
+  const bytes = await readFile(pdfPath);
+  if (
+    bytes.length !== document.bytes ||
+    createHash("sha256").update(bytes).digest("hex") !== document.sha256
+  )
+    throw new Error(
+      `mn-post document evidence does not match PDF: ${path.basename(jsonPath)}`,
+    );
+  if (
+    document.pages
+      .map((p) => p.text.trim())
+      .filter(Boolean)
+      .join("\n\n") !== document.text
+  )
+    throw new Error(`mn-post document text does not match pages: ${jsonPath}`);
 }

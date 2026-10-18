@@ -212,7 +212,8 @@ const document0031 = JSON.stringify({
     chief_action: "placed on unpaid leave for 6 days",
     sanction: "license REVOKED, stayed 6 years; SUSPENDED 25 days; CENSURED",
   },
-  analyzedWith: { model: "test-model", promptVersion: 1 },
+  absenceReasons: {},
+  analyzedWith: { model: "test-model", promptVersion: 2 },
 });
 
 let sourceDir: string;
@@ -324,13 +325,23 @@ describe("mn-post document completion", () => {
           }),
           analyzer: {
             model: "test",
-            promptVersion: 1,
+            promptVersion: 2,
             analyze: async () => ({
-              allegation: null,
-              violation: null,
-              finding: null,
-              chief_action: null,
-              sanction: null,
+              analysis: {
+                allegation: null,
+                violation: null,
+                finding: null,
+                chief_action: null,
+                sanction: null,
+              },
+              absenceReasons: {
+                allegation: "The fixture order states no factual basis.",
+                violation: "The fixture order cites no violation.",
+                finding: "The fixture order states no findings.",
+                chief_action:
+                  "The fixture order describes no employer response.",
+                sanction: "The fixture order states no sanction.",
+              },
             }),
           },
           now: () => "2026-10-18",
@@ -353,9 +364,10 @@ describe("mn-post document completion", () => {
           const doc = JSON.parse(
             await readFile(path.join(documentsDir, name), "utf8"),
           );
-          if (mode === "analysis conflict")
+          if (mode === "analysis conflict") {
             doc.analysis.sanction = "Different sanction";
-          else {
+            delete doc.absenceReasons.sanction;
+          } else {
             const bytes = Buffer.from("different PDF");
             await writeFile(
               path.join(documentsDir, name.replace(".document.json", ".pdf")),
@@ -943,7 +955,23 @@ describe("mn-post personnel details", () => {
       "alpha-police-dept-000000000001.roster.json": JSON.stringify(roster),
       "person.detail.json": JSON.stringify(detail),
       ...Object.fromEntries(
-        documents.map((doc, i) => [`${i}.document.json`, JSON.stringify(doc)]),
+        documents.map((raw, i) => {
+          const doc = raw as { analysis: Record<string, unknown> };
+          return [
+            `${i}.document.json`,
+            JSON.stringify({
+              ...doc,
+              absenceReasons: Object.fromEntries(
+                Object.entries(doc.analysis)
+                  .filter(([, value]) => value === null)
+                  .map(([field]) => [
+                    field,
+                    `The fixture order heading does not state ${field}.`,
+                  ]),
+              ),
+            }),
+          ];
+        }),
       ),
       ...Object.fromEntries(documents.map((doc, i) => [`${i}.pdf`, "pdf"])),
       "skipped.yaml": stringifyYaml({

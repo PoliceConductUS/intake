@@ -105,13 +105,22 @@ it("preserves the source URL in acquired document evidence after transport mappi
       }),
       analyzer: {
         model: "test",
-        promptVersion: 1,
+        promptVersion: 2,
         analyze: async () => ({
-          allegation: null,
-          violation: null,
-          finding: null,
-          chief_action: null,
-          sanction: null,
+          analysis: {
+            allegation: null,
+            violation: null,
+            finding: null,
+            chief_action: null,
+            sanction: null,
+          },
+          absenceReasons: {
+            allegation: "The fixture text contains no stated basis.",
+            violation: "The fixture text cites no violation.",
+            finding: "The fixture text states no finding.",
+            chief_action: "The fixture text describes no employer action.",
+            sanction: "The fixture text states no sanction.",
+          },
         }),
       },
       now: () => "2026-10-18",
