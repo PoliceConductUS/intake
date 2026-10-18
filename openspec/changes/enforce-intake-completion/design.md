@@ -25,3 +25,5 @@ Existing unproven artifacts require regeneration. Integrity checks add local IO 
 ## Migration Plan
 
 Validate and review the implementation, complete document acquisition/analysis, regenerate through the enforced pipeline, inspect and apply the forward delta, verify counts and evidence, merge and remove the worktree, then build/deploy the unchanged website from main. No destructive rollback or reset.
+
+MN POST's source download adapter maps only the observed legacy direct-download URL shape from `mnitservices--c.documentforce.com` to `mnitservices.file.force.com` before making its request. This is the Salesforce enhanced-domain content-host mapping, confirmed by the recovery audit's same-path/query PDF response and [Salesforce's domain format documentation](https://help.salesforce.com/s/articleView?id=sf.domain_name_url_format_changes_enable_enhanced.htm&language=en_US&type=5). The adapter changes transport routing only: acquisition still records the original URL from the action, preserving document identity and provenance. No alternate-host retries or shared pipeline corrections are introduced; a mapped 404 remains unavailable.

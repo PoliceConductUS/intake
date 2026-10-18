@@ -50,3 +50,17 @@ Regeneration SHALL preserve canonical personnel and discipline identities, keep 
 
 - **WHEN** a linked order is retrieved and analyzed
 - **THEN** regenerated discipline fields trace to that order and update the existing canonical record
+
+### Requirement: Legacy Salesforce document links use the current download hostname
+
+MN POST acquisition SHALL request legacy `https://mnitservices--c.documentforce.com/sfc/dist/version/download/` links through `mnitservices.file.force.com`, preserving the exact path, query and file-version identifiers. Raw officer action URLs and saved document URL provenance SHALL remain unchanged. Acquisition SHALL make a single mapped request, without an alternate-host retry chain. A genuine 404 from the mapped endpoint SHALL remain an explicit unavailable-document outcome.
+
+#### Scenario: Legacy content host no longer serves a file
+
+- **WHEN** an officer action references a legacy direct download URL
+- **THEN** acquisition requests the current content hostname with the same path/query and preserves the original action URL in its saved evidence
+
+#### Scenario: Current content endpoint reports absence
+
+- **WHEN** the mapped download endpoint returns 404
+- **THEN** acquisition records the document as unavailable without requesting another hostname
