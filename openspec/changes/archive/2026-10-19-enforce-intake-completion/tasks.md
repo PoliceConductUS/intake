@@ -10,5 +10,5 @@
 
 - [x] 2.1 Acquire and analyze linked documents through the full source workflow; enumerate unavailable documents.
 - [x] 2.2 Regenerate and inspect a forward delta, apply through intake, and verify identity/narrative preservation.
-- [ ] 2.3 Record verification and retrospective, merge and remove worktree before production build.
-- [ ] 2.4 Build/deploy the unchanged website from main and verify published discipline details, then archive with release evidence.
+- [x] 2.3 Record verification and retrospective, merge and remove worktree before production build.
+- [x] 2.4 Build/deploy the unchanged website from main and verify published discipline details, then archive with release evidence.

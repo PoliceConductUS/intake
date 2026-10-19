@@ -24,4 +24,4 @@ The user explicitly requires merge and worktree cleanup before the production bu
 
 ## Workflow
 
-OpenSpec, debugging, worktree isolation, test-first implementation, independent review and verification were used. The finishing workflow follows the user's already authorized integration/release order. Publication remains pending until recorded in verification.
+OpenSpec, debugging, worktree isolation, test-first implementation, independent review and verification were used. The finishing workflow follows the user's already authorized integration/release order. Publication and live verification completed on 2026-10-19; see verification.
