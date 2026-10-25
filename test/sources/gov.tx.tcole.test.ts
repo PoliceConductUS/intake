@@ -567,3 +567,41 @@ it.each([
     expect(departments[2]![field]).toBe(value);
   },
 );
+
+it("preserves suspect names and suffixes for shared validation and explicit exclusion data", async () => {
+  const raw = [
+    {
+      PUBLIC_GUID: "fixture",
+      FNAME: "User",
+      LNAME: "Test",
+      MNAME: "",
+      SFX: "",
+    },
+    {
+      PUBLIC_GUID: "numeric",
+      FNAME: "9",
+      LNAME: "Townsend",
+      MNAME: "",
+      SFX: "111",
+    },
+    {
+      PUBLIC_GUID: "real",
+      FNAME: "Foo",
+      LNAME: "Tester",
+      MNAME: "",
+      SFX: "N/A",
+    },
+  ];
+  const result = await transform({
+    ...deps,
+    readXlsx: async (file, sheet, columns) =>
+      sheet === "Officers" ? raw : fakeReadXlsx(file, sheet, columns),
+  });
+  const records = result.artifacts.find((a) => a.kind === "Personnel")!.records;
+  expect(Object.keys(records)).toEqual(["fixture", "numeric", "real"]);
+  expect(records.numeric.spec).toMatchObject({
+    first_name: "9",
+    suffix: "111",
+  });
+  expect(records.real.spec).toMatchObject({ first_name: "Foo", suffix: "N/A" });
+});

@@ -8,13 +8,6 @@ import {
   type ImportArtifactKind,
 } from "../../src/shared/io/index.js";
 import { canonicalLicenseType } from "../../src/shared/license.js";
-import {
-  isFixtureAgencyName,
-  isFixtureGivenName,
-  isNonNameValue,
-  normalizeNameSuffix,
-} from "../lib/person-name-quality.js";
-
 export const produces: readonly ImportArtifactKind[] = [
   "LicensingAuthorities",
   "AuthorityLicenses",
@@ -152,7 +145,6 @@ export const transform: SourceTransform = async ({
   log.info("tcole: reading Officers sheet");
   const personnel = buildPersonnel(
     await readXlsx(workbook, "Officers", Object.values(OFFICER)),
-    log,
   );
   log.info(`tcole: ${Object.keys(personnel).length} personnel candidates`);
 
@@ -251,13 +243,8 @@ function nullIfBlank(value: string | undefined): string | null {
   return text === "" || text.toLowerCase() === "null" ? null : text;
 }
 
-function buildPersonnel(
-  rows: Array<Record<string, string>>,
-  log: { info: (message: string) => void },
-): EmittedRecords {
+function buildPersonnel(rows: Array<Record<string, string>>): EmittedRecords {
   const records: EmittedRecords = {};
-  let fixtures = 0;
-  const rejectedSuffixes = new Map<string, number>();
   for (const row of rows) {
     const publicGuid = (row[OFFICER.publicGuid] ?? "").trim();
     const firstName = nullIfBlank(row[OFFICER.firstName]);
@@ -265,47 +252,16 @@ function buildPersonnel(
     // nullable: TCOLE sometimes has no last name (sentinel "NULL"), and dropping
     // those would drop real (often active) officers.
     if (publicGuid === "" || firstName === null) continue;
-    // A fixture or a non-name given value is not a person, so it never enters
-    // the database (INS-69). Judged on the given name only — `Test` and
-    // `Tester` are real surnames here, held by officers at real agencies.
-    if (isFixtureGivenName(firstName) || isNonNameValue(firstName)) {
-      fixtures += 1;
-      log.info(
-        `tcole: excluded non-person personnel ${publicGuid} (given name ${JSON.stringify(firstName)})`,
-      );
-      continue;
-    }
-    // SFX carries in-band placeholders (`N/A`, `n/a`) and bare badge numbers,
-    // which were published verbatim as part of officers' names. Only a real
-    // generational suffix is stored; anything else is dropped and counted. The
-    // person is kept either way, and the slug is built from the given and
-    // family name, so this does not move an established URL.
-    const { suffix, rejected } = normalizeNameSuffix(row[OFFICER.suffix]);
-    if (rejected !== null) {
-      rejectedSuffixes.set(rejected, (rejectedSuffixes.get(rejected) ?? 0) + 1);
-    }
+    // Preserve candidates for mandatory shared validation and audited exclusions.
     records[publicGuid] = {
       spec: {
         id: publicGuid,
         first_name: firstName,
         last_name: nullIfBlank(row[OFFICER.lastName]),
         middle_name: nullIfBlank(row[OFFICER.middleName]),
-        suffix,
+        suffix: nullIfBlank(row[OFFICER.suffix]),
       },
     };
-  }
-  if (fixtures > 0) {
-    log.info(`tcole: excluded ${fixtures} non-person personnel record(s)`);
-  }
-  if (rejectedSuffixes.size > 0) {
-    // Reported rather than silently swallowed: a value here is either a source
-    // placeholder or a real suffix we do not recognise, and only the source
-    // agency can say which.
-    const summary = [...rejectedSuffixes]
-      .sort((left, right) => right[1] - left[1])
-      .map(([value, count]) => `${JSON.stringify(value)}×${count}`)
-      .join(", ");
-    log.info(`tcole: dropped unrecognised name suffixes — ${summary}`);
   }
   return records;
 }
@@ -321,16 +277,6 @@ function buildAgencies(
     const state = (row[DEPARTMENT.state] ?? "").trim();
     // Agency spec requires a non-empty name and state; the key must be stable.
     if (departmentNumber === "" || name === "" || state === "") continue;
-    // A department that exists only as a test fixture is not published, and
-    // because buildAgencyPersonnel skips assignments whose agency was not
-    // emitted, its whole roster drops with it (INS-69).
-    if (isFixtureAgencyName(name)) {
-      log.info(
-        `tcole: excluded fixture agency ${departmentNumber} (${JSON.stringify(name)})`,
-      );
-      continue;
-    }
-
     const address = [row[DEPARTMENT.addressLine1], row[DEPARTMENT.addressLine2]]
       .map((part) => (part ?? "").trim())
       .filter((part) => part !== "")
