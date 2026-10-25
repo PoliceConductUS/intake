@@ -18,7 +18,6 @@ function video(id: string, publishedAt = "2024-01-01T00:00:00Z") {
     publishedAt,
     channelId: "c",
     url: `https://www.youtube.com/watch?v=${id}`,
-    captions: null,
     retrievedAt: "2026-10-24T00:00:00.000Z",
   };
 }

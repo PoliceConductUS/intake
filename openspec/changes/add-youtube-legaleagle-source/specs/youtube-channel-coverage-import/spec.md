@@ -3,8 +3,9 @@
 ### Requirement: A channel coverage source is configuration, not an implementation
 
 A YouTube channel coverage source MUST be defined by a `ChannelSourceConfig`
-naming the channel handle, the `source_name` stamped on emitted links, and the
-rolling publication window length in years. The acquire and transform behavior
+naming the pinned channel id, the handle recorded as provenance, the
+`source_name` stamped on emitted links, and the rolling publication window
+length in years. The acquire and transform behavior
 MUST live in one shared implementation (`sources/lib/youtube-channel.ts`), and
 each `sources/<namespace>/` MUST contain only that configuration. Adding a
 channel MUST NOT require new acquire or transform logic, and the shared
@@ -18,31 +19,73 @@ implementation MUST NOT branch on a namespace, handle, or source name.
 #### Scenario: LegalEagle is configured as rank 6
 
 - **WHEN** the `youtube.legaleagle` source is described
-- **THEN** its configuration is handle `@LegalEagle`, source name `LegalEagle`, and a five-year rolling window
+- **THEN** its configuration is channel id `UCpa-Zb0ZcQjTCPP1Dx_1M8Q`, handle `@LegalEagle`, source name `LegalEagle`, and a five-year rolling window
 
-### Requirement: Acquire resolves the channel by handle to its immutable id
+### Requirement: The channel id is pinned and verified, never resolved from a handle
 
-Acquire MUST resolve the configured handle to the channel's immutable YouTube
-channel id through the YouTube Data API before any search, MUST write that id to
-`channel.json` in the source directory, and MUST fail loudly when the handle
-does not resolve. It MUST require `YOUTUBE_API_KEY`. The channel id MUST NOT be
-checked into the source configuration. Every stored video MUST carry the
-`channelId` the API returned for it. All network access MUST live in acquire.
+The source configuration MUST pin the channel's immutable YouTube channel id, and
+that id MUST be the source's identity. Acquire MUST verify the pinned id through
+the YouTube Data API's `channels.list` before any search, MUST scope every search
+to it, and MUST fail loudly when the id returns no channel. Acquire MUST NOT
+select a channel by handle: a handle can be renamed or transferred to a different
+channel, which would silently re-point the source at another channel's videos.
+The handle MAY be recorded as provenance, and drift between the configured handle
+and the one the API reports MUST be logged rather than acted on. Acquire MUST
+write the pinned id, the configured handle, and the live handle and title to
+`channel.json`. It MUST require `YOUTUBE_API_KEY`. Every stored video MUST carry
+the `channelId` the API returned for it. All network access MUST live in acquire.
 
-#### Scenario: the handle resolves and is preserved
+#### Scenario: the pinned id is verified and preserved
 
-- **WHEN** acquire runs for a configured handle
-- **THEN** the resolved channel id is written to `channel.json` with the handle that produced it, and every subsequent search is scoped to that channel id
+- **WHEN** acquire runs
+- **THEN** it looks the channel up by id, never by handle, and writes the pinned id with the live handle and title to `channel.json`, and every subsequent search is scoped to that id
 
-#### Scenario: an unresolvable handle fails the run
+#### Scenario: an unverifiable pinned id fails the run
 
-- **WHEN** the configured handle resolves to no channel
-- **THEN** acquire throws, naming the namespace and the handle, and writes no envelopes
+- **WHEN** the pinned channel id returns no channel
+- **THEN** acquire throws rather than running against an unverified channel, and writes no envelopes
+
+#### Scenario: handle drift does not change channel selection
+
+- **WHEN** the API reports a different handle than the configuration records
+- **THEN** acquire logs the drift and still selects by the pinned id
 
 #### Scenario: a missing API key fails the run
 
 - **WHEN** `YOUTUBE_API_KEY` is absent or blank
 - **THEN** acquire throws before any network call
+
+### Requirement: Officer candidates come from title and description only
+
+A channel coverage source MUST derive officer-name candidates from the video's
+title and description only. It MUST NOT fetch video captions or transcripts:
+`youtube.com/robots.txt` carries `Disallow: /api/`, and the only third-party
+transcript endpoint, `youtube.com/api/timedtext`, is inside that prefix. The Data
+API's `captions.download` requires OAuth as the channel owner, so no sanctioned
+third-party transcript path exists. The acquired video record MUST NOT carry a
+caption field. Every request a channel source makes MUST go to the keyed Data API
+host. The resulting loss of recall is accepted.
+
+#### Scenario: no request reaches a disallowed path
+
+- **WHEN** acquire searches a channel and stores the hits
+- **THEN** no request it makes is under `youtube.com/api/`, and every request it makes goes to `www.googleapis.com`
+
+#### Scenario: a name only a transcript would carry produces no link
+
+- **WHEN** an officer is named only in a video's spoken audio and not in its title or description
+- **THEN** no candidate is produced for that officer and no link is emitted
+
+### Requirement: Links are re-verified against the pinned channel at emit
+
+Transform MUST confirm each video's `channelId` matches the configured channel id
+before emitting any link for it, so the channel guarantee holds on a replay in
+which acquire never ran. A video from another channel MUST produce no link.
+
+#### Scenario: a video from another channel is not attributed to this source
+
+- **WHEN** an envelope contains a video whose `channelId` is not the configured channel id
+- **THEN** no CoverageLink and no personnel link is emitted for it
 
 ### Requirement: Each run considers only the rolling window ending at that run
 
@@ -110,7 +153,7 @@ one.
 #### Scenario: no video media is stored
 
 - **WHEN** acquire stores a video
-- **THEN** it stores the video's id, canonical url, title, description, publication time, channel id, retrieval time, and available caption text, and never the video media itself
+- **THEN** it stores the video's id, canonical url, title, description, publication time, channel id, and retrieval time, and never the video media itself
 
 ### Requirement: Skipped videos are reconsidered on every later run
 

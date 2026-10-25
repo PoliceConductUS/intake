@@ -22,8 +22,8 @@ function video(fields: {
   videoId: string;
   publishedAt: string;
   description?: string;
-  captions?: string | null;
   title?: string;
+  channelId?: string;
 }) {
   return {
     videoId: fields.videoId,
@@ -31,15 +31,14 @@ function video(fields: {
     title: fields.title ?? `LegalEagle reviews ${fields.videoId}`,
     description: fields.description ?? "",
     publishedAt: fields.publishedAt,
-    channelId: "UClegaleagle",
-    captions: fields.captions ?? null,
+    channelId: fields.channelId ?? config.channelId,
     retrievedAt: RUN_AT.toISOString(),
   };
 }
 
 const envelope = {
   agency: { id: "a1", name: "Irving Police Department", state: "TX" },
-  channelId: "UClegaleagle",
+  channelId: config.channelId,
   handle: "@LegalEagle",
   window: WINDOW,
   retrievedAt: RUN_AT.toISOString(),
@@ -49,8 +48,8 @@ const envelope = {
       videoId: "v1",
       publishedAt: "2024-03-05T12:00:00Z",
       title: "Real lawyer reacts: Irving PD arrest",
-      description: "Officer John Smith responds to a call.",
-      captions: "Sergeant Jane Wilson also arrived on scene.",
+      description:
+        "Officer John Smith responds to a call. Sergeant Jane Wilson also arrived on scene.",
     }),
     // In window, names an officer who does not exist at this agency.
     video({
@@ -141,6 +140,7 @@ describe("youtube.legaleagle configuration", () => {
   it("is the rank-6 channel with a five-year rolling window", () => {
     expect(config).toEqual({
       namespace: "youtube.legaleagle",
+      channelId: "UCpa-Zb0ZcQjTCPP1Dx_1M8Q",
       handle: "@LegalEagle",
       sourceName: "LegalEagle",
       windowYears: 5,
@@ -166,7 +166,8 @@ describe("youtube.legaleagle transform", () => {
       title: "Real lawyer reacts: Irving PD arrest",
       source_name: "LegalEagle",
       published_at: "2024-03-05",
-      notes: "Officer John Smith responds to a call.",
+      notes:
+        "Officer John Smith responds to a call. Sergeant Jane Wilson also arrived on scene.",
     });
 
     expect(byKind.CoverageLinkAgencyPersonnel).toEqual({
@@ -267,6 +268,45 @@ describe("youtube.legaleagle transform", () => {
     await expect(
       runWith(fakeData(), { ...envelope, window: undefined }),
     ).rejects.toThrow(/no usable publication window/);
+  });
+
+  it("emits nothing for a video that is not from the pinned channel", async () => {
+    // Re-verified on the evidence, so the guarantee holds on a replay where
+    // acquire never ran.
+    const { byKind } = await runWith(fakeData(), {
+      ...envelope,
+      videos: [
+        video({
+          videoId: "vx",
+          publishedAt: "2024-03-05T12:00:00Z",
+          description: "Officer John Smith responds to a call.",
+          channelId: "UCsomeoneElsesChannel00",
+        }),
+      ],
+    });
+    expect(Object.keys(byKind.CoverageLinks)).toEqual([]);
+  });
+
+  it("derives officer candidates from title and description only", async () => {
+    // Captions are off limits (youtube.com/robots.txt: `Disallow: /api/`), so an
+    // acquired video carries no caption field and a name that would only have
+    // appeared in a transcript cannot produce a link.
+    const data = fakeData({ "John Smith": "ap-1", "Jane Wilson": "ap-2" });
+    const { byKind } = await runWith(data, {
+      ...envelope,
+      videos: [
+        video({
+          videoId: "vt",
+          publishedAt: "2024-03-05T12:00:00Z",
+          title: "Real lawyer reacts",
+          description: "Officer John Smith responds to a call.",
+        }),
+      ],
+    });
+    expect(Object.keys(byKind.CoverageLinkAgencyPersonnel)).toEqual([
+      "vt|ap-1",
+    ]);
+    expect(data.calls.map((c) => c.personnelName)).not.toContain("Jane Wilson");
   });
 
   it("requires a data context to resolve officers", async () => {

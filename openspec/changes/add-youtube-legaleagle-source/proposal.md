@@ -32,8 +32,9 @@ video, and no video media is ingested or stored — only links.
 - From: `sources/youtube.policeactivity/` holds the only channel
   implementation, with its handle, display name, and window floor inlined.
 - To: `createChannelAcquire(config)` and `createChannelTransform(config)` hold
-  the behavior once; a `ChannelSourceConfig` names the channel handle, the
-  `source_name` to stamp, and the rolling window length.
+  the behavior once; a `ChannelSourceConfig` names the pinned channel id, the
+  handle as provenance, the `source_name` to stamp, and the rolling window
+  length.
 - Reason: five more channels are queued; the channel identity is the only
   axis that varies.
 - Impact: additive. `sources/youtube.policeactivity/` is **not** modified by
@@ -43,8 +44,9 @@ video, and no video media is ingested or stored — only links.
 **New source `sources/youtube.legaleagle/` (acquire + transform)**
 
 - From: no way to ingest LegalEagle coverage.
-- To: two configuration modules that call the shared factories with
-  `handle: "@LegalEagle"`, `sourceName: "LegalEagle"`, `windowYears: 5`.
+- To: configuration modules that call the shared factories with
+  `channelId: "UCpa-Zb0ZcQjTCPP1Dx_1M8Q"`, `handle: "@LegalEagle"`,
+  `sourceName: "LegalEagle"`, `windowYears: 5`.
 - Impact: additive namespace `youtube.legaleagle`. No schema, migration,
   registry, or envelope change — sources are discovered by the presence of
   `transform.ts`, and `CoverageLinks` / `CoverageLinkAgencyPersonnel` are
@@ -60,15 +62,26 @@ video, and no video media is ingested or stored — only links.
 - A cached video whose `publishedAt` has since fallen out of the window emits
   no link.
 
-**Channel identity**
+**Channel identity is a pinned id**
 
-- The config names the channel by **handle**; acquire resolves it to the
-  immutable channel id through `channels.list?forHandle=`, writes
-  `channel.json`, and fails loudly when it does not resolve. The channel id is
-  not checked in, because it cannot be verified from this repo without a
-  provisioned `YOUTUBE_API_KEY` (INS-53), and an unverified pinned id is
-  exactly the kind of unsourced claim this project refuses to publish.
-- Every acquired video carries the `channelId` the API returned for it.
+- The config pins the immutable channel id `UCpa-Zb0ZcQjTCPP1Dx_1M8Q`; acquire
+  verifies it through `channels.list?id=` and fails loudly if it returns no
+  channel. The handle is provenance only and is never used to select, because a
+  handle can be renamed or transferred and would silently re-point the source
+  at another channel.
+- The id was established by evidence, not assumption: the board's
+  `/c/LegalEagle` and `@LegalEagle` both canonicalize to
+  `youtube.com/channel/UCpa-Zb0ZcQjTCPP1Dx_1M8Q`, both titled "LegalEagle".
+- Every acquired video carries the `channelId` the API returned, and the
+  transform re-checks it against the pin so the guarantee survives a replay.
+
+**No captions**
+
+- `youtube.com/robots.txt` carries `Disallow: /api/`, and the only third-party
+  transcript endpoint (`youtube.com/api/timedtext`) is inside it, so this source
+  fetches no captions and the acquired record has no caption field. Officer
+  candidates come from title and description only, accepting narrower recall.
+  Every request goes to `www.googleapis.com`.
 
 **Fair acquisition order**
 

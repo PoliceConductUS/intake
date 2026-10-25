@@ -12,7 +12,11 @@ import path from "node:path";
 
 export const CACHE_FILE = "video-cache.json";
 
-/** A link to a video and the provenance of that link. Never video media. */
+/**
+ * A link to a video and the provenance of that link. Never video media, and
+ * never caption text — `youtube.com/api/timedtext` is inside the `Disallow:
+ * /api/` prefix in youtube.com/robots.txt, so there is no caption field to fill.
+ */
 export type AcquiredVideo = {
   videoId: string;
   title: string;
@@ -20,7 +24,6 @@ export type AcquiredVideo = {
   publishedAt: string;
   channelId: string;
   url: string;
-  captions: string | null;
   /** When this run retrieved the video from the channel. */
   retrievedAt: string;
 };

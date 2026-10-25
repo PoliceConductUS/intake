@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { acquire } from "../../../sources/youtube.legaleagle/acquire.js";
+import { config } from "../../../sources/youtube.legaleagle/config.js";
 import type {
   AcquireAgencyRecord,
   AcquireDataContext,
@@ -41,13 +42,16 @@ function agency(
 /** A YouTube Data API stub: records every URL, answers from fixed pages. */
 function fakeYoutube(
   options: {
+    /** null = the pinned id returns no channel. */
     channelId?: string | null;
+    liveHandle?: string;
     videosByQuery?: Record<string, string[]>;
   } = {},
 ) {
   const urls: string[] = [];
-  // `?? ` would swallow an explicit null, which is the unresolvable-handle case.
-  const channelId = "channelId" in options ? options.channelId : "UClegaleagle";
+  // `?? ` would swallow an explicit null, which is the unverifiable-id case.
+  const channelId =
+    "channelId" in options ? options.channelId : config.channelId;
   const fetchImpl = async (input: unknown): Promise<Response> => {
     const url = String(input);
     urls.push(url);
@@ -55,7 +59,20 @@ function fakeYoutube(
       new Response(JSON.stringify(body), { status: 200 });
 
     if (url.includes("/channels?")) {
-      return json({ items: channelId === null ? [] : [{ id: channelId }] });
+      return json({
+        items:
+          channelId === null
+            ? []
+            : [
+                {
+                  id: channelId,
+                  snippet: {
+                    title: "LegalEagle",
+                    customUrl: options.liveHandle ?? "@legaleagle",
+                  },
+                },
+              ],
+      });
     }
     if (url.includes("/search?")) {
       const query = decodeURIComponent(
@@ -74,8 +91,7 @@ function fakeYoutube(
         })),
       });
     }
-    // timedtext (captions) — no track available.
-    return new Response("", { status: 200 });
+    return new Response("unexpected request", { status: 404 });
   };
   return { urls, fetchImpl };
 }
@@ -127,25 +143,30 @@ async function readEnvelope(
 }
 
 describe("youtube.legaleagle acquire", () => {
-  it("resolves the configured handle to the immutable channel id and preserves it", async () => {
+  it("verifies the PINNED channel id by id, never by handle, and preserves it", async () => {
     const youtube = fakeYoutube();
     const { sourceDir } = await run({
       agencies: [agency("ag-1", "Irving Police Department")],
       youtube,
     });
 
+    // Looked up by id...
     expect(
       youtube.urls.some((url) =>
-        url.includes("/channels?part=id&forHandle=LegalEagle"),
+        url.includes(`/channels?part=snippet&id=${config.channelId}`),
       ),
     ).toBe(true);
+    // ...and never by handle, which could be renamed or transferred.
+    expect(youtube.urls.some((url) => url.includes("forHandle"))).toBe(false);
 
     const channel = JSON.parse(
       await readFile(path.join(sourceDir, "channel.json"), "utf8"),
     );
     expect(channel).toEqual({
+      channelId: config.channelId,
       handle: "@LegalEagle",
-      channelId: "UClegaleagle",
+      liveHandle: "@legaleagle",
+      liveTitle: "LegalEagle",
       window: {
         start: "2021-10-24T12:00:00.000Z",
         end: "2026-10-24T12:00:00.000Z",
@@ -153,21 +174,54 @@ describe("youtube.legaleagle acquire", () => {
       retrievedAt: "2026-10-24T12:00:00.000Z",
     });
 
-    // Every search is scoped to the resolved channel id.
+    // Every search is scoped to the pinned channel id.
     const searches = youtube.urls.filter((url) => url.includes("/search?"));
     expect(searches).not.toHaveLength(0);
     expect(
-      searches.every((url) => url.includes("channelId=UClegaleagle")),
+      searches.every((url) => url.includes(`channelId=${config.channelId}`)),
     ).toBe(true);
   });
 
-  it("fails loudly when the handle resolves to no channel", async () => {
+  it("refuses to run when the pinned channel id returns no channel", async () => {
     await expect(
       run({
         agencies: [agency("ag-1", "Irving Police Department")],
         youtube: fakeYoutube({ channelId: null }),
       }),
-    ).rejects.toThrow(/could not resolve channel id for @LegalEagle/);
+    ).rejects.toThrow(/returned no channel/);
+  });
+
+  it("logs handle drift but still selects by the pinned id", async () => {
+    const youtube = fakeYoutube({ liveHandle: "@SomethingElse" });
+    const { logs } = await run({
+      agencies: [agency("ag-1", "Irving Police Department")],
+      youtube,
+    });
+    expect(logs.some((line) => /handle drift/.test(line))).toBe(true);
+    expect(
+      youtube.urls
+        .filter((url) => url.includes("/search?"))
+        .every((url) => url.includes(`channelId=${config.channelId}`)),
+    ).toBe(true);
+  });
+
+  it("never requests the robots-disallowed caption endpoint", async () => {
+    const youtube = fakeYoutube({
+      videosByQuery: { "Irving Police Department Irving": ["v1"] },
+    });
+    await run({
+      agencies: [agency("ag-1", "Irving Police Department")],
+      youtube,
+    });
+    // youtube.com/robots.txt carries `Disallow: /api/`.
+    expect(youtube.urls.some((url) => url.includes("/api/"))).toBe(false);
+    expect(youtube.urls.some((url) => url.includes("timedtext"))).toBe(false);
+    // Everything this source fetches goes to the keyed Data API host.
+    expect(
+      youtube.urls.every((url) =>
+        url.startsWith("https://www.googleapis.com/"),
+      ),
+    ).toBe(true);
   });
 
   it("requires YOUTUBE_API_KEY before any network call", async () => {
@@ -203,7 +257,7 @@ describe("youtube.legaleagle acquire", () => {
       end: "2026-10-24T12:00:00.000Z",
     });
     expect(envelope.retrievedAt).toBe("2026-10-24T12:00:00.000Z");
-    expect(envelope.channelId).toBe("UClegaleagle");
+    expect(envelope.channelId).toBe(config.channelId);
     expect(envelope.handle).toBe("@LegalEagle");
     expect(envelope.agency.id).toBe("ag-1");
   });
@@ -224,9 +278,8 @@ describe("youtube.legaleagle acquire", () => {
         title: "Real lawyer reacts to v1",
         description: "Officer John Smith in v1",
         publishedAt: "2024-03-05T12:00:00Z",
-        channelId: "UClegaleagle",
+        channelId: config.channelId,
         url: "https://www.youtube.com/watch?v=v1",
-        captions: null,
         retrievedAt: "2026-10-24T12:00:00.000Z",
       },
     ]);
@@ -326,10 +379,15 @@ describe("youtube.legaleagle acquire", () => {
       urls.push(url);
       if (url.includes("/channels?")) {
         return new Response(
-          JSON.stringify({ items: [{ id: "UClegaleagle" }] }),
-          {
-            status: 200,
-          },
+          JSON.stringify({
+            items: [
+              {
+                id: config.channelId,
+                snippet: { title: "LegalEagle", customUrl: "@legaleagle" },
+              },
+            ],
+          }),
+          { status: 200 },
         );
       }
       return new Response(

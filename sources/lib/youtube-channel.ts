@@ -51,7 +51,13 @@ import {
 export type ChannelSourceConfig = {
   /** Source namespace. Used only to prefix log lines and error messages. */
   namespace: string;
-  /** Public channel handle, e.g. `@LegalEagle`, resolved to the immutable id. */
+  /**
+   * The channel's immutable YouTube channel id (`UC…`). This, not the handle, is
+   * the source's identity: a handle can be renamed or transferred to a different
+   * channel, silently re-pointing the source at someone else's videos.
+   */
+  channelId: string;
+  /** Public handle, recorded as provenance only. Never used to select. */
   handle: string;
   /** `source_name` stamped on every emitted CoverageLink. */
   sourceName: string;
@@ -103,6 +109,14 @@ function normalizedUrl(url: string): string {
   return url.trim().replace(/\/+$/, "").toLowerCase();
 }
 
+// Candidates come from the video's TITLE and DESCRIPTION only. Captions are off
+// limits: youtube.com/robots.txt carries `Disallow: /api/`, and the only
+// third-party transcript path is `youtube.com/api/timedtext`, inside that
+// prefix. The Data API's `captions.download` needs OAuth as the channel owner,
+// so there is no sanctioned transcript route for someone else's channel at all.
+// That costs real recall — a name is most often spoken rather than written — and
+// we take the loss. Do not reintroduce a caption fetch or a scraping library.
+//
 // A named officer the publisher asserts, and the passage asserting it. Names are
 // only ever CANDIDATES — the intake-owned resolver gates them against the agency
 // roster (confidence floor + ambiguity band); we never guess.
@@ -120,7 +134,7 @@ export function officerMentions(
   video: AcquiredVideo,
 ): Array<{ name: string; passage: string }> {
   const found = new Map<string, string>();
-  for (const field of [video.title, video.description, video.captions ?? ""]) {
+  for (const field of [video.title, video.description]) {
     for (const match of field.matchAll(OFFICER_MENTION)) {
       const name = match[1].trim();
       if (!isPersonName(name) || found.has(name)) continue;
@@ -171,16 +185,37 @@ export function createChannelAcquire(
         await sleep(waitMs);
       }
     };
-    const fetchText = async (url: string): Promise<string> => {
-      const response = await fetch(url);
-      return response.ok ? response.text() : "";
-    };
+    // `fetchText` is required by the client's constructor but is only used by
+    // its caption fetch, which we never call — see the captions note above.
+    const fetchText = async (): Promise<string> => "";
 
     const youtube = createYoutubeApi({ fetchJson, fetchText });
-    const channelId = await youtube.resolveChannelId(config.handle);
-    if (channelId === null) {
+
+    // Verify the PINNED channel id, never resolve one from the handle. A handle
+    // can be renamed or transferred to a different channel, which would silently
+    // re-point this source at someone else's videos; an id cannot. The handle and
+    // title the API returns are recorded as provenance and logged on drift.
+    const channelId = config.channelId;
+    const verified = await fetchJson(
+      `https://www.googleapis.com/youtube/v3/channels?part=snippet&id=${encodeURIComponent(channelId)}`,
+    );
+    const channel = (Array.isArray(verified.items) ? verified.items : [])[0] as
+      | { snippet?: { title?: unknown; customUrl?: unknown } }
+      | undefined;
+    if (channel === undefined) {
       throw new Error(
-        `${config.namespace}: could not resolve channel id for ${config.handle}.`,
+        `${config.namespace}: channel id ${channelId} returned no channel; refusing to run against an unverified channel.`,
+      );
+    }
+    const liveTitle = text(channel.snippet?.title);
+    const liveHandle = text(channel.snippet?.customUrl);
+    if (
+      liveHandle !== "" &&
+      liveHandle.replace(/^@/, "").toLowerCase() !==
+        config.handle.replace(/^@/, "").toLowerCase()
+    ) {
+      log.info(
+        `${config.namespace}: handle drift — config says ${config.handle}, channel ${channelId} now reports ${liveHandle}. Selecting by id regardless; update the config's provenance.`,
       );
     }
 
@@ -192,7 +227,14 @@ export function createChannelAcquire(
     await writeFile(
       path.join(sourceDir, "channel.json"),
       JSON.stringify(
-        { handle: config.handle, channelId, window, retrievedAt },
+        {
+          channelId,
+          handle: config.handle,
+          liveHandle,
+          liveTitle,
+          window,
+          retrievedAt,
+        },
         null,
         2,
       ),
@@ -255,14 +297,10 @@ export function createChannelAcquire(
           agencyQuery(agencyName, record.place ?? ""),
           searchBounds(year, window),
         );
-        const videos: AcquiredVideo[] = [];
-        for (const hit of hits) {
-          videos.push({
-            ...hit,
-            captions: await youtube.fetchCaptions(hit.videoId),
-            retrievedAt,
-          });
-        }
+        const videos: AcquiredVideo[] = hits.map((hit) => ({
+          ...hit,
+          retrievedAt,
+        }));
         entry.years[String(year)] = { searchedAt: retrievedAt, videos };
         cache.agencies[record.agencyId] = entry;
         await saveChannelCache(state, cache);
@@ -354,6 +392,7 @@ export function createChannelTransform(
     const coverageLinks: EmittedRecords = {};
     const coverageLinkAgencyPersonnel: EmittedRecords = {};
     let outOfWindow = 0;
+    let wrongChannel = 0;
 
     for (const file of files.slice().sort()) {
       const envelope = JSON.parse(
@@ -380,6 +419,14 @@ export function createChannelTransform(
         const url = text(video.url);
         const title = text(video.title);
         if (videoId === "" || url === "" || title === "") continue;
+
+        // Re-verify the channel on the evidence itself, so the guarantee holds
+        // on a replay where acquire never ran. A video from another channel must
+        // not be attributed to this source.
+        if (text(video.channelId) !== config.channelId) {
+          wrongChannel += 1;
+          continue;
+        }
 
         // The rolling window is enforced here, not only at search time: the
         // acquired cache outlives the window it was fetched under, so a video
@@ -435,7 +482,8 @@ export function createChannelTransform(
     log.info(
       `${config.namespace}: ${Object.keys(coverageLinks).length} videos with a resolved officer, ` +
         `${Object.keys(coverageLinkAgencyPersonnel).length} video-officer links, ` +
-        `${outOfWindow} skipped as out of window`,
+        `${outOfWindow} skipped as out of window, ` +
+        `${wrongChannel} skipped as not from channel ${config.channelId}`,
     );
 
     return {
