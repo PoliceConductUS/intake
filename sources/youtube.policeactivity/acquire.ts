@@ -1,4 +1,4 @@
-import { appendFile, mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type {
   AcquireDeps,
@@ -6,9 +6,8 @@ import type {
 } from "../../src/cli/transform/source-transform.js";
 import { slugify } from "../lib/civil-defendants.js";
 import {
+  createKeyedYoutubeFetchers,
   createYoutubeApi,
-  isQuotaExhaustedBody,
-  quotaResetHint,
   YoutubeQuotaError,
 } from "../lib/youtube.js";
 import {
@@ -16,12 +15,10 @@ import {
   mergedVideos,
   nextYearToAcquire,
   saveVideoCache,
-  type AcquiredVideo,
-} from "./video-cache.js";
+} from "../lib/youtube-video-cache.js";
+import type { AcquiredVideo } from "./transform.js";
 
 const CHANNEL_HANDLE = "@PoliceActivity";
-const MAX_RETRIES = 5;
-const MAX_BACKOFF_MS = 60_000;
 // Be gentle: a small pause between agency searches (we are in no rush).
 const POLITE_DELAY_MS = 250;
 
@@ -52,45 +49,12 @@ export const acquire: SourceAcquire = async ({
   await mkdir(sourceDir, { recursive: true });
   const apiLogPath = path.join(sourceDir, ".api-calls.jsonl");
 
-  const fetchJson = async (url: string): Promise<Record<string, unknown>> => {
-    const keyed = `${url}${url.includes("?") ? "&" : "?"}key=${apiKey}`;
-    for (let attempt = 0; ; attempt += 1) {
-      const response = await fetch(keyed);
-      const text = await response.text();
-      let body: unknown;
-      try {
-        body = JSON.parse(text);
-      } catch {
-        body = text;
-      }
-      await appendFile(
-        // codeql[js/http-to-file-access] This fixed JSONL file preserves the source response for audit; downstream transforms parse JSON and never execute it.
-        apiLogPath,
-        `${JSON.stringify({ at: new Date().toISOString(), url, status: response.status, body })}\n`,
-      );
-      if (response.ok) return body as Record<string, unknown>;
-      if (isQuotaExhaustedBody(body)) {
-        throw new YoutubeQuotaError(
-          `youtube.policeactivity: YouTube quota exhausted (${response.status}); ${quotaResetHint(body, new Date())}. Stopping (resumes next run).`,
-        );
-      }
-      const retryable = response.status === 429 || response.status >= 500;
-      if (!retryable || attempt >= MAX_RETRIES) {
-        throw new Error(
-          `youtube.policeactivity: ${response.status} for ${url}`,
-        );
-      }
-      const waitMs = Math.min(MAX_BACKOFF_MS, 1000 * 2 ** attempt);
-      log.info(
-        `youtube.policeactivity: ${response.status}; retrying in ${Math.round(waitMs / 1000)}s (attempt ${attempt + 1}/${MAX_RETRIES}).`,
-      );
-      await sleep(waitMs);
-    }
-  };
-  const fetchText = async (url: string): Promise<string> => {
-    const response = await fetch(url);
-    return response.ok ? response.text() : "";
-  };
+  const { fetchJson, fetchText } = createKeyedYoutubeFetchers({
+    sourceId: "youtube.policeactivity",
+    apiKey,
+    apiLogPath,
+    logger: log,
+  });
 
   const youtube = createYoutubeApi({ fetchJson, fetchText });
   const channelId = await youtube.resolveChannelId(CHANNEL_HANDLE);
@@ -109,7 +73,7 @@ export const acquire: SourceAcquire = async ({
   const currentYear = new Date().getFullYear();
   const floorYear = Number(env.YOUTUBE_MIN_YEAR ?? currentYear);
 
-  const cache = await loadVideoCache(state);
+  const cache = await loadVideoCache<AcquiredVideo>(state);
   const nowIso = new Date().toISOString();
   let searched = 0;
   let upToDate = 0;
