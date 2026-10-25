@@ -1,4 +1,4 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { ImportArtifactKind } from "../../src/shared/io/index.js";
 import type {
@@ -6,8 +6,23 @@ import type {
   TransformDeps,
   SourceTransform,
 } from "../../src/cli/transform/source-transform.js";
-import { isPersonName } from "../lib/civil-defendants.js";
-import type { AcquiredVideo } from "./video-cache.js";
+import {
+  collectEnvelopePaths,
+  normalizedUrl,
+  officerMentions,
+} from "../lib/youtube-coverage.js";
+
+// The acquired evidence shape this transform reads: what acquire preserves for
+// each video hit it stored for an agency.
+export type AcquiredVideo = {
+  videoId: string;
+  title: string;
+  description: string;
+  publishedAt: string;
+  channelId: string;
+  url: string;
+  captions: string | null;
+};
 
 export const produces: readonly ImportArtifactKind[] = [
   "CoverageLinks",
@@ -22,37 +37,8 @@ type VideoEnvelope = {
   videos?: AcquiredVideo[];
 };
 
-// A named officer the publisher asserts, and the passage asserting it. Names are
-// only ever CANDIDATES — the intake-owned resolver gates them against the agency
-// roster (confidence floor + ambiguity band); we never guess (#52).
-// The role prefix is case-insensitive (`(?i:…)`) so "Officer"/"OFFICER"/"officer"
-// all match; the name stays Title-case so only capitalized name words are
-// captured (it stops at the next lowercase word, e.g. "responds").
-const OFFICER_MENTION =
-  /\b(?i:officers?|deputies|deputy|sergeants?|sgt|detectives?|det|lieutenants?|lt|corporals?|cpl|troopers?|chiefs?|captains?|capt|sheriffs?|marshals?|patrol(?:man|woman|men)?)\.?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z'.-]+){1,2})/g;
-
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
-}
-
-// The distinct officer mentions in a video, each with its first supporting
-// passage across the title, description, and captions.
-function officerMentions(
-  video: AcquiredVideo,
-): Array<{ name: string; passage: string }> {
-  const found = new Map<string, string>();
-  for (const field of [video.title, video.description, video.captions ?? ""]) {
-    for (const match of field.matchAll(OFFICER_MENTION)) {
-      const name = match[1].trim();
-      if (!isPersonName(name) || found.has(name)) continue;
-      found.set(name, match[0].trim());
-    }
-  }
-  return [...found].map(([name, passage]) => ({ name, passage }));
-}
-
-function normalizedUrl(url: string): string {
-  return url.trim().replace(/\/+$/, "").toLowerCase();
 }
 
 export const transform: SourceTransform = async ({
@@ -91,7 +77,11 @@ export const transform: SourceTransform = async ({
       // by acquire). A name resolving to no existing officer, or ambiguously,
       // yields no link — never a guess, never a new record.
       const resolved = new Map<string, string>();
-      for (const mention of officerMentions(video)) {
+      for (const mention of officerMentions([
+        video.title,
+        video.description,
+        video.captions ?? "",
+      ])) {
         const match = await data.resolvePersonnel({
           agencyId,
           personnelName: mention.name,
@@ -144,17 +134,3 @@ export const transform: SourceTransform = async ({
     ],
   };
 };
-
-async function collectEnvelopePaths(paths: string[]): Promise<string[]> {
-  const files: string[] = [];
-  for (const base of paths) {
-    try {
-      for (const entry of await readdir(base)) {
-        if (entry.endsWith(".videos.json")) files.push(path.join(base, entry));
-      }
-    } catch {
-      // A non-directory path is not an envelope root; skip it.
-    }
-  }
-  return files;
-}
