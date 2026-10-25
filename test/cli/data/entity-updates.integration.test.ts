@@ -1,3 +1,4 @@
+import { completeTransform } from "../../../src/cli/state/transform-completion.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -141,7 +142,7 @@ withDocker("mutable entity edits through the data CLI", () => {
       namespace: source,
       args: ["data", "transform", source],
     });
-    await Artifacts.write(
+    const rosterArtifacts = await Artifacts.write(
       rosterCommand.outputDirectory,
       buildArtifactsEnvelope(source, rosterCommand.commandName, {
         artifacts: [
@@ -153,6 +154,11 @@ withDocker("mutable entity edits through the data CLI", () => {
           },
         ],
       }),
+    );
+    await completeTransform(
+      path.join(workspace, "state", source),
+      rosterArtifacts.path,
+      null,
     );
     await command("generate", source);
     await command("up");

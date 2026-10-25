@@ -49,8 +49,12 @@ import {
 // facade's row is a plain string-keyed record at this layer, and the value/context
 // generics are erased on purpose.
 type Row = Record<string, unknown>;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyResolver = Resolver<any, any>;
+// Backend context must remain erased here: slug and location resolvers require
+// different capabilities not present on EntityFacadeBackend. Replacing it with
+// that base context fails TS2352; using unknown rejects the narrower callbacks.
+// Removing this exception requires a kind-indexed registry/backend contract.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Heterogeneous resolver contexts cannot share the base backend type.
+type AnyResolver = Resolver<unknown, any>;
 
 /**
  * The per-kind resolution nuance that is NOT derivable from the schema. A kind

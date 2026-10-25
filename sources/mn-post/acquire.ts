@@ -1,4 +1,9 @@
-import { readFile } from "node:fs/promises";
+import {
+  readDisciplineWorkbooks,
+  WORKBOOK_FILES,
+} from "./acquire/discipline-workbooks.js";
+import { collectDisciplinePersonnel } from "./acquire/collect-discipline.js";
+import { copyFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
@@ -64,6 +69,8 @@ function createLazyPostClient(
   let handle: Promise<PostClientHandle> | undefined;
   const client = (): Promise<PostClientHandle> => (handle ??= open());
   return {
+    searchLicense: async (licenseNumber) =>
+      (await client()).searchLicense(licenseNumber),
     searchAgency: async (agencyName) =>
       (await client()).searchAgency(agencyName),
     fetchOfficerList: async (agencyId) =>
@@ -115,6 +122,28 @@ export const acquire: SourceAcquire = async ({
       excludedAgencyNames,
       fetchAgencyCsv: () =>
         fetchPostAgencyCsv({ context, captchaWaitMs, logger: log }),
+      cache,
+      client,
+      logger: log,
+    });
+    const workbookDir = path.join(sourceDir, "workbooks");
+    await mkdir(workbookDir, { recursive: true });
+    for (const filename of Object.values(WORKBOOK_FILES)) {
+      const target = path.join(workbookDir, filename);
+      try {
+        await readFile(target);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        await copyFile(
+          path.join(path.dirname(fileURLToPath(import.meta.url)), filename),
+          target,
+        );
+      }
+    }
+    const people = await readDisciplineWorkbooks(workbookDir);
+    await collectDisciplinePersonnel({
+      sourceDir,
+      people,
       cache,
       client,
       logger: log,

@@ -1,8 +1,12 @@
+import { createHash } from "node:crypto";
+import { stringify as stringifyYaml, parse as parseYaml } from "yaml";
+import { documentStem } from "../../sources/mn-post/acquire/collect-documents.js";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { artifactStem } from "../../sources/mn-post/acquire/collect.js";
 import { transform } from "../../sources/mn-post/transform.js";
 import {
   AgencySpec,
@@ -180,6 +184,7 @@ const detail0099 = JSON.stringify({
     {
       contactId: "0099",
       caseNumber: "PB20-1-09",
+      complaintId: "complaint99",
       documentName: "SACO",
       documentURL: "https://example.mn/orders/PB20-1-09.pdf",
       effectiveDate: "2020-06-01",
@@ -194,7 +199,7 @@ const document0031 = JSON.stringify({
   url: "https://example.mn/orders/PB24-1-01.pdf",
   documentName: "SACO",
   actions: [{ contactId: "0031", caseNumber: "PB24-1-01" }],
-  sha256: "abc",
+  sha256: createHash("sha256").update("pdf").digest("hex"),
   bytes: 3,
   fetchedAt: "2026-09-10T12:00:00.000Z",
   pages: [{ page: 1, method: "ocr", text: "STIPULATION AND CONSENT ORDER" }],
@@ -207,7 +212,8 @@ const document0031 = JSON.stringify({
     chief_action: "placed on unpaid leave for 6 days",
     sanction: "license REVOKED, stayed 6 years; SUSPENDED 25 days; CENSURED",
   },
-  analyzedWith: { model: "test-model", promptVersion: 1 },
+  absenceReasons: {},
+  analyzedWith: { model: "test-model", promptVersion: 2 },
 });
 
 let sourceDir: string;
@@ -239,6 +245,19 @@ beforeAll(async () => {
     path.join(sourceDir, "a2jofficer0099.detail.json"),
     detail0099,
   );
+  await writeFile(path.join(sourceDir, "pb24-1-01-abcdef012345.pdf"), "pdf");
+  await writeFile(
+    path.join(sourceDir, "skipped.yaml"),
+    stringifyYaml({
+      skippedDocuments: [
+        {
+          url: JSON.parse(detail0099).disciplinaryActions[0].documentURL,
+          actions: [{ contactId: "0099", caseNumber: "PB20-1-09" }],
+          reason: "source returned 404",
+        },
+      ],
+    }),
+  );
   await writeFile(
     path.join(sourceDir, "pb24-1-01-abcdef012345.document.json"),
     document0031,
@@ -263,7 +282,217 @@ function recordsOf(manifest: SourceManifest, kind: string) {
   return manifest.artifacts.find((a) => a.kind === kind)!.records;
 }
 
+describe("mn-post document completion", () => {
+  it.each(["matching", "analysis conflict", "PDF conflict"])(
+    "checks retained same-URL evidence (%s) when an earlier case is acquired",
+    async (mode) => {
+      const dir = await mkdtemp(path.join(tmpdir(), "mn-earlier-case-"));
+      try {
+        await mkdir(path.join(dir, "officers"));
+        const files = {
+          "agency-ids.yaml": agencyIds,
+          "agencies.csv": agenciesCsv,
+          "alpha-police-dept-000000000001.roster.json": JSON.stringify(
+            JSON.parse(alphaRoster).filter(
+              (p: { contactId: string }) => p.contactId === "0031",
+            ),
+          ),
+          "beta-county-sheriff-000000000002.roster.json": JSON.stringify(
+            JSON.parse(betaRoster).filter(
+              (p: { contactId: string }) => p.contactId === "0031",
+            ),
+          ),
+        };
+        for (const [name, value] of Object.entries(files))
+          await writeFile(path.join(dir, name), value);
+        const old = JSON.parse(detail0031);
+        old.disciplinaryActions[0].caseNumber = "OLD";
+        await writeFile(
+          path.join(dir, "officers", "z.detail.json"),
+          JSON.stringify(old),
+        );
+        const { collectDocuments } =
+          await import("../../sources/mn-post/acquire/collect-documents.js");
+        const deps = {
+          sourceDir: dir,
+          statePath: path.join(dir, "cache"),
+          fetchDocument: async () => ({
+            kind: "pdf" as const,
+            bytes: Buffer.from("pdf"),
+          }),
+          extractText: async () => ({
+            pages: [{ page: 1, method: "text" as const, text: "order" }],
+          }),
+          analyzer: {
+            model: "test",
+            promptVersion: 2,
+            analyze: async () => ({
+              analysis: {
+                allegation: null,
+                violation: null,
+                finding: null,
+                chief_action: null,
+                sanction: null,
+              },
+              absenceReasons: {
+                allegation: "The fixture order states no factual basis.",
+                violation: "The fixture order cites no violation.",
+                finding: "The fixture order states no findings.",
+                chief_action:
+                  "The fixture order describes no employer response.",
+                sanction: "The fixture order states no sanction.",
+              },
+            }),
+          },
+          now: () => "2026-10-18",
+        };
+        await collectDocuments(deps);
+        const newer = JSON.parse(detail0031);
+        newer.disciplinaryActions[0].caseNumber = "NEW";
+        newer.disciplinaryActions[0].complaintId = "new-complaint";
+        await writeFile(
+          path.join(dir, "officers", "a.detail.json"),
+          JSON.stringify(newer),
+        );
+        await collectDocuments(deps);
+        if (mode !== "matching") {
+          const documentsDir = path.join(dir, "documents");
+          const name = (await readdir(documentsDir)).find(
+            (name) =>
+              name.startsWith("old-") && name.endsWith(".document.json"),
+          )!;
+          const doc = JSON.parse(
+            await readFile(path.join(documentsDir, name), "utf8"),
+          );
+          if (mode === "analysis conflict") {
+            doc.analysis.sanction = "Different sanction";
+            delete doc.absenceReasons.sanction;
+          } else {
+            const bytes = Buffer.from("different PDF");
+            await writeFile(
+              path.join(documentsDir, name.replace(".document.json", ".pdf")),
+              bytes,
+            );
+            doc.sha256 = createHash("sha256").update(bytes).digest("hex");
+            doc.bytes = bytes.length;
+          }
+          await writeFile(path.join(documentsDir, name), JSON.stringify(doc));
+        }
+        const { sourceInputPaths } =
+          await import("../../src/cli/transform/index.js");
+        const pending = transform({
+          paths: await sourceInputPaths(dir),
+          readXlsx: async () => [],
+          state: "/unused",
+          emit: async () => {},
+        });
+        if (mode !== "matching") {
+          await expect(pending).rejects.toThrow(
+            /conflicting document evidence/,
+          );
+          return;
+        }
+        const result = await pending;
+        expect(Object.keys(recordsOf(result, "Disciplines"))).toEqual([
+          "0031|new-complaint",
+          "0031|cmp-001",
+        ]);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    },
+  );
+  async function runDocumentFixture(
+    change: (files: Record<string, string>) => void,
+  ) {
+    const dir = await mkdtemp(path.join(tmpdir(), "mn-document-contract-"));
+    try {
+      const files: Record<string, string> = Object.fromEntries(
+        await Promise.all(
+          (await readdir(sourceDir)).map(async (name) => [
+            name,
+            await readFile(path.join(sourceDir, name), "utf8"),
+          ]),
+        ),
+      );
+      change(files);
+      for (const [name, value] of Object.entries(files))
+        await writeFile(path.join(dir, name), value);
+      return await transform({
+        paths: Object.keys(files).map((n) => path.join(dir, n)),
+        readXlsx: async () => [],
+        state: "/unused",
+        emit: async () => {},
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+  it.each(["missing analysis", "invalid analysis", "mismatched PDF"])(
+    "rejects %s",
+    async (mode) => {
+      await expect(
+        runDocumentFixture((files) => {
+          const name = "pb24-1-01-abcdef012345.document.json";
+          const doc = JSON.parse(files[name]);
+          if (mode === "missing analysis") delete doc.analysis;
+          else if (mode === "invalid analysis") doc.analysis.sanction = 42;
+          else files["pb24-1-01-abcdef012345.pdf"] = "changed";
+          files[name] = JSON.stringify(doc);
+        }),
+      ).rejects.toThrow();
+    },
+  );
+  it("rejects a stale unavailable report when its PDF remains unfinished", async () => {
+    await expect(
+      runDocumentFixture((files) => {
+        delete files["pb24-1-01-abcdef012345.document.json"];
+        const action = JSON.parse(detail0031).disciplinaryActions[0];
+        const reference = {
+          url: action.documentURL,
+          documentName: action.documentName,
+          actions: [
+            { contactId: action.contactId, caseNumber: action.caseNumber },
+          ],
+        };
+        files[documentStem(reference) + ".pdf"] = "pdf";
+        const skipped = parseYaml(files["skipped.yaml"]);
+        skipped.skippedDocuments.push({ ...reference, reason: "404" });
+        delete skipped.skippedDocuments.at(-1).documentName;
+        files["skipped.yaml"] = stringifyYaml(skipped);
+      }),
+    ).rejects.toThrow(/document incomplete.*PB24-1-01/);
+  });
+  it("rejects unavailable results for another action", async () => {
+    await expect(
+      runDocumentFixture((files) => {
+        delete files["pb24-1-01-abcdef012345.document.json"];
+        const skipped = parseYaml(files["skipped.yaml"]);
+        skipped.skippedDocuments.push({
+          url: JSON.parse(detail0031).disciplinaryActions[0].documentURL,
+          actions: [{ contactId: "other", caseNumber: "PB24-1-01" }],
+          reason: "404",
+        });
+        files["skipped.yaml"] = stringifyYaml(skipped);
+      }),
+    ).rejects.toThrow(/document incomplete.*PB24-1-01/);
+  });
+});
+
 describe("mn-post run", () => {
+  it("rejects referenced documents without completed analysis or an unavailable result", async () => {
+    const paths = (await readdir(sourceDir))
+      .filter((f) => !f.endsWith(".document.json"))
+      .map((f) => path.join(sourceDir, f));
+    await expect(
+      transform({
+        paths,
+        readXlsx: async () => [],
+        state: "/unused",
+        emit: async () => {},
+      }),
+    ).rejects.toThrow(/document.*PB24-1-01/i);
+  });
   it("emits the licensing kinds in dependency order", async () => {
     const manifest = await runFixture();
     expect(manifest.artifacts.map((a) => a.kind)).toEqual([
@@ -559,7 +788,7 @@ describe("mn-post run", () => {
         ),
       ).toHaveLength(2);
       expect(
-        recordsOf(result, "Disciplines")["0031|PB24-1-01"].spec,
+        recordsOf(result, "Disciplines")["0031|cmp-001"].spec,
       ).toMatchObject({
         personnel_id: "0031",
         licensing_authority_id: "mn-post",
@@ -602,11 +831,11 @@ describe("mn-post run", () => {
 
     // 0031 and 0099 have one order each; 0032's sentinel string yields nothing.
     expect(Object.keys(discipline).sort()).toEqual([
-      "0031|PB24-1-01",
-      "0099|PB20-1-09",
+      "0031|cmp-001",
+      "0099|complaint99",
     ]);
     // 0031's order document was acquired and analyzed: its fields come through.
-    expect(discipline["0031|PB24-1-01"].spec).toEqual({
+    expect(discipline["0031|cmp-001"].spec).toEqual({
       personnel_id: "0031",
       licensing_authority_id: "mn-post",
       document_url: "https://example.mn/orders/PB24-1-01.pdf",
@@ -621,8 +850,8 @@ describe("mn-post run", () => {
       chief_action: "placed on unpaid leave for 6 days",
       sanction: "license REVOKED, stayed 6 years; SUSPENDED 25 days; CENSURED",
     });
-    // 0099's document is unavailable (no document record): order fields null.
-    expect(discipline["0099|PB20-1-09"].spec).toEqual({
+    // 0099's document is unavailable: absent analysis does not clear stored fields.
+    expect(discipline["0099|complaint99"].spec).toEqual({
       personnel_id: "0099",
       licensing_authority_id: "mn-post",
       document_url: "https://example.mn/orders/PB20-1-09.pdf",
@@ -630,16 +859,11 @@ describe("mn-post run", () => {
       effective_date: "2020-06-01",
       expiration_date: null,
       case_number: "PB20-1-09",
-      allegation: null,
-      violation: null,
-      finding: null,
-      chief_action: null,
-      sanction: null,
     });
 
     expect(attributions).toEqual({});
 
-    expect(coverage["0031|PB24-1-01"].spec).toMatchObject({
+    expect(coverage["0031|cmp-001"].spec).toMatchObject({
       url: "https://example.mn/orders/PB24-1-01.pdf",
       title: "SACO PB24-1-01",
       source_name: "Minnesota POST",
@@ -731,8 +955,47 @@ describe("mn-post personnel details", () => {
       "alpha-police-dept-000000000001.roster.json": JSON.stringify(roster),
       "person.detail.json": JSON.stringify(detail),
       ...Object.fromEntries(
-        documents.map((doc, i) => [`${i}.document.json`, JSON.stringify(doc)]),
+        documents.map((raw, i) => {
+          const doc = raw as { analysis: Record<string, unknown> };
+          return [
+            `${i}.document.json`,
+            JSON.stringify({
+              ...doc,
+              absenceReasons: Object.fromEntries(
+                Object.entries(doc.analysis)
+                  .filter(([, value]) => value === null)
+                  .map(([field]) => [
+                    field,
+                    `The fixture order heading does not state ${field}.`,
+                  ]),
+              ),
+            }),
+          ];
+        }),
       ),
+      ...Object.fromEntries(documents.map((doc, i) => [`${i}.pdf`, "pdf"])),
+      "skipped.yaml": stringifyYaml({
+        skippedDocuments: ((detail as { disciplinaryActions?: unknown })
+          .disciplinaryActions instanceof Array
+          ? (detail as { disciplinaryActions: Record<string, string>[] })
+              .disciplinaryActions
+          : []
+        )
+          .filter(
+            (a) =>
+              a.documentURL &&
+              a.contactId &&
+              a.caseNumber &&
+              !documents.some(
+                (d) => (d as { url: string }).url === a.documentURL,
+              ),
+          )
+          .map((a) => ({
+            url: a.documentURL,
+            actions: [{ contactId: a.contactId, caseNumber: a.caseNumber }],
+            reason: "source returned 404",
+          })),
+      }),
     };
     try {
       for (const [name, contents] of Object.entries(files))
@@ -754,13 +1017,13 @@ describe("mn-post personnel details", () => {
 
   it("emits discipline without a license or assignment", async () => {
     const result = await runDetails({ disciplinaryActions: [action] });
-    expect(
-      recordsOf(result, "Disciplines")["0031|PB24-1-01"].spec,
-    ).toMatchObject({
-      personnel_id: "0031",
-      licensing_authority_id: "mn-post",
-      document_url: action.documentURL,
-    });
+    expect(recordsOf(result, "Disciplines")["0031|cmp-001"].spec).toMatchObject(
+      {
+        personnel_id: "0031",
+        licensing_authority_id: "mn-post",
+        document_url: action.documentURL,
+      },
+    );
     expect(recordsOf(result, "DisciplineAgencyPersonnel")).toEqual({});
     expect(recordsOf(result, "CoverageLinkAgencyPersonnel")).toEqual({});
   });
@@ -768,10 +1031,11 @@ describe("mn-post personnel details", () => {
     { contactId: null },
     { contactId: "unknown" },
     { caseNumber: null },
+    { complaintId: null },
   ])("rejects missing or unknown discipline identity %j", async (patch) => {
     await expect(
       runDetails({ disciplinaryActions: [{ ...action, ...patch }] }),
-    ).rejects.toThrow(/discipline.*(contact|case|person)/i);
+    ).rejects.toThrow(/discipline.*(contact|case|person|complaint)/i);
   });
   it("maps education source fields and preserves nulls", async () => {
     const result = await runDetails({
@@ -851,7 +1115,7 @@ describe("mn-post personnel details", () => {
       runDetails({ education: [course, { ...course, credits: 2 }] }),
     ).rejects.toThrow(/conflict.*course-1/i);
   });
-  it.each(["documentName", "effectiveDate", "expirationDate"])(
+  it.each(["documentName", "effectiveDate", "expirationDate", "caseNumber"])(
     "rejects duplicate case disagreement in %s",
     async (field) => {
       await expect(
@@ -864,9 +1128,38 @@ describe("mn-post personnel details", () => {
             },
           ],
         }),
-      ).rejects.toThrow(/conflict.*0031\|PB24-1-01/i);
+      ).rejects.toThrow(/conflict.*0031\|cmp-001|sha256|document actions/i);
     },
   );
+  it("preserves distinct official complaints that reuse the same visible case label", async () => {
+    const result = await runDetails({
+      disciplinaryActions: [
+        action,
+        {
+          ...action,
+          complaintId: "complaint-second",
+          effectiveDate: "2014-04-24",
+        },
+      ],
+    });
+    const rows = recordsOf(result, "Disciplines");
+    expect(Object.keys(rows).sort()).toEqual([
+      "0031|cmp-001",
+      "0031|complaint-second",
+    ]);
+    expect(rows["0031|complaint-second"].spec).toMatchObject({
+      case_number: "PB24-1-01",
+      effective_date: "2014-04-24",
+    });
+    expect(rows["0031|cmp-001"].spec).toMatchObject({
+      case_number: "PB24-1-01",
+      effective_date: "2024-03-01",
+    });
+    expect(Object.keys(recordsOf(result, "CoverageLinks")).sort()).toEqual([
+      "0031|cmp-001",
+      "0031|complaint-second",
+    ]);
+  });
   it("coalesces duplicate case documents that agree, preserving the existing last-entry coverage URL", async () => {
     const doc = JSON.parse(document0031);
     const second = {
@@ -878,10 +1171,10 @@ describe("mn-post personnel details", () => {
       { ...doc, url: second.documentURL },
     ]);
     expect(Object.keys(recordsOf(result, "Disciplines"))).toEqual([
-      "0031|PB24-1-01",
+      "0031|cmp-001",
     ]);
     expect(
-      recordsOf(result, "CoverageLinks")["0031|PB24-1-01"].spec,
+      recordsOf(result, "CoverageLinks")["0031|cmp-001"].spec,
     ).toMatchObject({ url: second.documentURL });
   });
   it.each(["sha256", "analysis"])(
@@ -901,7 +1194,7 @@ describe("mn-post personnel details", () => {
           doc,
           { ...doc, url: second.documentURL, [field]: changed },
         ]),
-      ).rejects.toThrow(/conflict.*0031\|PB24-1-01/i);
+      ).rejects.toThrow(/conflict.*0031\|cmp-001|sha256|document actions/i);
     },
   );
   it("names the case when document records for the same URL conflict", async () => {
@@ -911,9 +1204,9 @@ describe("mn-post personnel details", () => {
         doc,
         { ...doc, sha256: "different" },
       ]),
-    ).rejects.toThrow(/conflict.*0031\|PB24-1-01/i);
+    ).rejects.toThrow(/conflict.*0031\|cmp-001|sha256|document actions/i);
   });
-  it("keeps unavailable last-entry document fields null without changing its URL", async () => {
+  it("omits unavailable last-entry analysis fields without changing its URL", async () => {
     const doc = JSON.parse(document0031);
     const second = {
       ...action,
@@ -922,19 +1215,44 @@ describe("mn-post personnel details", () => {
     const result = await runDetails({ disciplinaryActions: [action, second] }, [
       doc,
     ]);
+    expect(recordsOf(result, "Disciplines")["0031|cmp-001"].spec).toMatchObject(
+      {
+        document_url: second.documentURL,
+      },
+    );
+    for (const field of [
+      "allegation",
+      "violation",
+      "finding",
+      "chief_action",
+      "sanction",
+    ]) {
+      expect(
+        Object.hasOwn(
+          recordsOf(result, "Disciplines")["0031|cmp-001"].spec as object,
+          field,
+        ),
+      ).toBe(false);
+    }
     expect(
-      recordsOf(result, "Disciplines")["0031|PB24-1-01"].spec,
-    ).toMatchObject({
-      document_url: second.documentURL,
+      recordsOf(result, "CoverageLinks")["0031|cmp-001"].spec,
+    ).toMatchObject({ url: second.documentURL });
+  });
+  it("preserves explicit nulls in a supplied order analysis", async () => {
+    const doc = JSON.parse(document0031);
+    const analysis = {
       allegation: null,
       violation: null,
       finding: null,
       chief_action: null,
       sanction: null,
-    });
-    expect(
-      recordsOf(result, "CoverageLinks")["0031|PB24-1-01"].spec,
-    ).toMatchObject({ url: second.documentURL });
+    };
+    const result = await runDetails({ disciplinaryActions: [action] }, [
+      { ...doc, analysis },
+    ]);
+    expect(recordsOf(result, "Disciplines")["0031|cmp-001"].spec).toMatchObject(
+      analysis,
+    );
   });
   it("emits empty education for empty source arrays", async () => {
     expect(
@@ -943,5 +1261,328 @@ describe("mn-post personnel details", () => {
         "PersonnelEducations",
       ),
     ).toEqual({});
+  });
+});
+
+describe("mn-post discipline workbook personnel", () => {
+  const officer = {
+    contactId: "revoked-person",
+    licenseId: "revoked-license",
+    licenseNumber: "12345",
+    name: "Smith, John Robert",
+    licenseType: "Peace Officer",
+    status: "Revoked",
+    originalLicenseIssueDate: "1990-01-01",
+  };
+  const history = {
+    sourceRow: 2,
+    agencyName: "Alpha Police Dept.",
+    startDate: "1995-02-03",
+    endDate: "2001-04-05",
+  };
+  const person = {
+    licenseNumber: "12345",
+    sourceRow: 2,
+    name: officer.name,
+    officer,
+    history: [] as (typeof history)[],
+  };
+  async function runPeople(
+    people = [person],
+    roster?: unknown[],
+    actions = people.map((p) => ({
+      contactId: p.officer.contactId,
+      caseNumber: "PB-1",
+      complaintId: "complaint1",
+      documentName: "Revocation",
+      effectiveDate: "2001-04-05",
+    })),
+    unresolvedAgencies?: Array<{
+      agencyName: string;
+      reason: string;
+      kind: string;
+      candidateCount: number;
+    }>,
+    messages: string[] = [],
+  ) {
+    const dir = await mkdtemp(path.join(tmpdir(), "mn-post-standalone-"));
+    const files: Record<string, string> = {
+      "agency-ids.yaml": agencyIds,
+      "agencies.csv": agenciesCsv,
+      "discipline-personnel.json": JSON.stringify({
+        people,
+        missingActions: [],
+      }),
+      "person.detail.json": JSON.stringify({
+        licenses: { POSTLicenseList: people.map((p) => p.officer) },
+        disciplinaryActions: actions,
+      }),
+    };
+    if (roster) files["alpha-police-dept.roster.json"] = JSON.stringify(roster);
+    if (unresolvedAgencies !== undefined)
+      files["discipline-unresolved-agencies.json"] =
+        JSON.stringify(unresolvedAgencies);
+    try {
+      for (const [name, content] of Object.entries(files))
+        await writeFile(path.join(dir, name), content);
+      return await transform({
+        paths: Object.keys(files).map((name) => path.join(dir, name)),
+        readXlsx: async () => [],
+        state: "/unused",
+        emit: async () => {},
+        logger: { info: (message) => messages.push(message) },
+      }).then(async (result) => {
+        for (const [name, content] of Object.entries(files))
+          expect(await readFile(path.join(dir, name), "utf8")).toBe(content);
+        return result;
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+  it("declares only workbook personnel even when no action details are returned", async () => {
+    const result = await runPeople(
+      [person],
+      [{ contactId: "unrelated-roster-person", name: "Someone, Else" }],
+      [],
+    );
+    expect(Object.keys(recordsOf(result, "Personnel"))).toHaveLength(2);
+    expect(result.personnelSourceNames).toEqual(["revoked-person"]);
+    expect(recordsOf(result, "Disciplines")).toEqual({});
+  });
+  it("imports a revoked person and actual discipline without any agency roster or assignment", async () => {
+    const result = await runPeople();
+    expect(
+      recordsOf(result, "Personnel")[officer.contactId].spec,
+    ).toMatchObject({ first_name: "John", last_name: "Smith" });
+    expect(
+      recordsOf(result, "Licenses")[`${officer.contactId}|Peace Officer`].spec,
+    ).toMatchObject({ status: "Revoked" });
+    expect(
+      recordsOf(result, "Disciplines")[`${officer.contactId}|complaint1`].spec,
+    ).toMatchObject({ personnel_id: officer.contactId });
+    expect(recordsOf(result, "AgencyPersonnel")).toEqual({});
+    expect(recordsOf(result, "Agencies")).toEqual({});
+    expect(recordsOf(result, "DisciplineAgencyPersonnel")).toEqual({});
+  });
+  it("reuses an existing roster contact without merging a different contact with the same name", async () => {
+    const second = {
+      ...person,
+      licenseNumber: "54321",
+      officer: {
+        ...officer,
+        contactId: "second-person",
+        licenseId: "second-license",
+        licenseNumber: "54321",
+      },
+    };
+    const result = await runPeople(
+      [person, second],
+      [{ contactId: officer.contactId, name: officer.name }],
+    );
+    expect(Object.keys(recordsOf(result, "Personnel")).sort()).toEqual([
+      "revoked-person",
+      "second-person",
+    ]);
+    expect(result.personnelSourceNames).toEqual([
+      "revoked-person",
+      "second-person",
+    ]);
+    expect(
+      buildArtifactsEnvelope("mn-post", "roots", result).spec
+        .personnelSourceNames,
+    ).toEqual(result.personnelSourceNames);
+  });
+  it("rejects conflicting person content for an existing contact", async () => {
+    await expect(
+      runPeople(
+        [person],
+        [{ contactId: officer.contactId, name: "Other, Person" }],
+      ),
+    ).rejects.toThrow(/conflicting person.*revoked-person/);
+  });
+  it("emits former assignments with source dates and agency details without a roster, coalescing repeated history", async () => {
+    const result = await runPeople([
+      { ...person, history: [history, { ...history, sourceRow: 3 }] },
+    ]);
+    const assignments = recordsOf(result, "AgencyPersonnel");
+    expect(Object.keys(assignments)).toHaveLength(1);
+    expect(Object.values(assignments)[0].spec).toMatchObject({
+      personnel_id: officer.contactId,
+      agency_id: "a2jALPHA",
+      start_date: "1995-02-03",
+      end_date: "2001-04-05",
+      title: "Peace Officer",
+      license_id: null,
+    });
+    expect(
+      AgencyPersonnelSpec.safeParse(Object.values(assignments)[0].spec).success,
+    ).toBe(true);
+    expect(recordsOf(result, "Agencies").a2jALPHA.spec).toMatchObject({
+      name: "Alpha Police Dept.",
+      address: "100 Main St",
+      city: "Alphaville",
+    });
+    expect(recordsOf(result, "DisciplineAgencyPersonnel")).toEqual({});
+  });
+  it("rejects conflicting license-derived titles for the same employment", async () => {
+    const other = {
+      ...person,
+      licenseNumber: "67890",
+      officer: {
+        ...officer,
+        licenseNumber: "67890",
+        licenseId: "part-time-license",
+        licenseType: "Part Time Peace Officer",
+      },
+      history: [history],
+    };
+    await expect(
+      runPeople([{ ...person, history: [history] }, other]),
+    ).rejects.toThrow(/conflicting history assignment.*revoked-person/);
+  });
+  it("retains personnel and discipline while reporting explicitly unresolved history relationships", async () => {
+    const messages: string[] = [];
+    const result = await runPeople(
+      [
+        {
+          ...person,
+          history: [
+            history,
+            { ...history, sourceRow: 7, agencyName: "Missing Police" },
+          ],
+        },
+      ],
+      undefined,
+      undefined,
+      [
+        {
+          agencyName: "Missing Police",
+          reason: "site agency search returned no resolvable id",
+          kind: "skip",
+          candidateCount: 0,
+        },
+      ],
+      messages,
+    );
+    expect(result.personnelSourceNames).toEqual(["revoked-person"]);
+    expect(Object.keys(recordsOf(result, "Disciplines"))).toEqual([
+      "revoked-person|complaint1",
+    ]);
+    expect(Object.keys(recordsOf(result, "AgencyPersonnel"))).toHaveLength(1);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatch(
+      /omitted history.*12345.*row 7.*Missing Police.*no resolvable id/,
+    );
+  });
+  it("an unresolved report for another agency does not authorize omitting unknown history", async () => {
+    await expect(
+      runPeople(
+        [
+          {
+            ...person,
+            history: [{ ...history, agencyName: "Missing Police" }],
+          },
+        ],
+        undefined,
+        undefined,
+        [
+          {
+            agencyName: "Different Police",
+            reason: "no result",
+            kind: "skip",
+            candidateCount: 0,
+          },
+        ],
+      ),
+    ).rejects.toThrow(/Missing Police.*agency-ids/);
+  });
+  it("rejects a history agency that has no authoritative identity", async () => {
+    await expect(
+      runPeople([
+        { ...person, history: [{ ...history, agencyName: "Missing Police" }] },
+      ]),
+    ).rejects.toThrow(/Missing Police.*agency-ids/);
+  });
+});
+
+describe("mn-post confirmed detail request identity", () => {
+  async function runDetail(filename: string, returnedContact?: string) {
+    const dir = await mkdtemp(path.join(tmpdir(), "mn-post-detail-identity-"));
+    const officer = {
+      contactId: "confirmed-person",
+      licenseId: "confirmed-license",
+      licenseNumber: "12527",
+      name: "Fank, Patrick",
+      licenseType: "Peace Officer",
+      status: "Active",
+      originalLicenseIssueDate: "1990-01-01",
+    };
+    const detail = JSON.stringify({
+      licenses: {
+        POSTLicenseList:
+          returnedContact === undefined
+            ? []
+            : [{ ...officer, contactId: returnedContact }],
+      },
+      activeEmployment: [
+        { rosterId: "confirmed-roster", agencyName: "Alpha Police Dept." },
+      ],
+    });
+    const files = {
+      "agency-ids.yaml": agencyIds,
+      "alpha-police-dept.roster.json": JSON.stringify([officer]),
+      "discipline-personnel.json": JSON.stringify({
+        people: [
+          {
+            licenseNumber: "12527",
+            sourceRow: 2,
+            name: officer.name,
+            officer,
+            history: [],
+          },
+        ],
+        missingActions: [],
+      }),
+      [filename]: detail,
+    };
+    try {
+      for (const [name, contents] of Object.entries(files))
+        await writeFile(path.join(dir, name), contents);
+      const result = await transform({
+        paths: Object.keys(files).map((name) => path.join(dir, name)),
+        readXlsx: async () => [],
+        state: "/unused",
+        emit: async () => {},
+      });
+      expect(await readFile(path.join(dir, filename), "utf8")).toBe(detail);
+      return result;
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+  it("retains explicit employment when the confirmed request detail returns an empty license list", async () => {
+    const result = await runDetail(
+      `${artifactStem("confirmed-license")}.detail.json`,
+    );
+    expect(
+      recordsOf(result, "AgencyPersonnel")["confirmed-roster"].spec,
+    ).toMatchObject({
+      personnel_id: "confirmed-person",
+      agency_id: "a2jALPHA",
+    });
+  });
+  it("does not assign employment from an unrelated detail filename", async () => {
+    await expect(runDetail("unrelated.detail.json")).rejects.toThrow(
+      /no activeEmployment rosterId/,
+    );
+  });
+  it("rejects returned license contact identities that conflict with the confirmed request", async () => {
+    await expect(
+      runDetail(
+        `${artifactStem("confirmed-license")}.detail.json`,
+        "other-contact",
+      ),
+    ).rejects.toThrow(/detail.*contact mismatch/);
   });
 });

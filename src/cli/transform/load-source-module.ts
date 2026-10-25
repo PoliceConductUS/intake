@@ -11,7 +11,7 @@ const IMPORT_ARTIFACT_KIND_SET: ReadonlySet<string> = new Set(
   IMPORT_ARTIFACT_KINDS,
 );
 
-function assertValidSourceId(sourceId: string): void {
+export function assertValidSourceId(sourceId: string): void {
   if (!/^[a-z0-9][a-z0-9.\-]*$/i.test(sourceId)) {
     throw new Error(`Invalid source id: ${sourceId}`);
   }
@@ -109,10 +109,10 @@ export async function loadSourceStandalone(
 
 // Load a source's optional acquire (download/scrape) phase. A source with no
 // acquire.ts is a valid source that simply does not support acquire.
-export async function loadSourceAcquire(
+export async function findSourceAcquire(
   sourceId: string,
   sourcesRoot: string,
-): Promise<SourceAcquire> {
+): Promise<SourceAcquire | undefined> {
   assertValidSourceId(sourceId);
   if (
     !(await fileExists(sourcePhasePath(sourceId, sourcesRoot, "transform")))
@@ -123,7 +123,7 @@ export async function loadSourceAcquire(
   }
   const modulePath = sourcePhasePath(sourceId, sourcesRoot, "acquire");
   if (!(await fileExists(modulePath))) {
-    throw new Error(`Source ${sourceId} does not support acquire`);
+    return undefined;
   }
   const module = (await import(pathToFileURL(modulePath).href)) as {
     acquire?: unknown;
@@ -134,4 +134,14 @@ export async function loadSourceAcquire(
     );
   }
   return module.acquire as SourceAcquire;
+}
+
+export async function loadSourceAcquire(
+  sourceId: string,
+  sourcesRoot: string,
+): Promise<SourceAcquire> {
+  const acquire = await findSourceAcquire(sourceId, sourcesRoot);
+  if (acquire === undefined)
+    throw new Error(`Source ${sourceId} does not support acquire`);
+  return acquire;
 }

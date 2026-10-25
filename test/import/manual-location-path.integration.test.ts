@@ -12,7 +12,7 @@ import {
 import { acquire } from "../../sources/org.policeconduct.manual/acquire.js";
 import { transform } from "../../sources/org.policeconduct.manual/transform.js";
 import { buildArtifactsEnvelope } from "../../src/cli/transform/source-transform.js";
-import { importArtifacts } from "../../src/cli/import/artifacts/config.js";
+import { importArtifacts } from "./completed-artifacts.js";
 import { replayDatabaseMutations } from "../../src/cli/replay/database-mutations/config.js";
 import { Artifacts } from "../../src/shared/io/Artifacts.js";
 import {
@@ -90,7 +90,7 @@ describeWithDocker("manual community creation and reconstruction", () => {
       emit: async () => {},
     } as never);
     return Artifacts.write(
-      rootDir,
+      path.join(rootDir, "output"),
       buildArtifactsEnvelope(
         "org.policeconduct.manual",
         "manual-community",

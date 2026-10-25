@@ -87,5 +87,5 @@ export function excludeManifestRecords(
     return { ...artifact, records };
   });
 
-  return { manifest: { artifacts }, removed: removedCounts };
+  return { manifest: { ...manifest, artifacts }, removed: removedCounts };
 }

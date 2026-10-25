@@ -47,8 +47,9 @@ describe("excludeManifestRecords", () => {
     expect(removed).toEqual({ Agency: 1, AgencyPersonnel: 1 });
   });
 
-  test("is a no-op when nothing is excluded", () => {
+  test("is a no-op when nothing is excluded, preserving explicit personnel roots", () => {
     const manifest: SourceManifest = {
+      personnelSourceNames: ["person"],
       artifacts: [
         { kind: "Agencies", records: { "1": { spec: { name: "PD" } } } },
       ],

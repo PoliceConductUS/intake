@@ -116,6 +116,54 @@ describe("existing records retain mutable fields", () => {
 });
 
 describe("EntityFacade via the discipline facades", () => {
+  it.each(["allegation", "violation", "finding", "chief_action", "sanction"])(
+    "preserves omitted %s while permitting explicit null",
+    async (field) => {
+      const current = {
+        personnel_id: "fk:Personnel:0031",
+        licensing_authority_id: "fk:LicensingAuthority:mn-post",
+        action: "SACO",
+        [field]: "Existing analyzed narrative",
+      };
+      const makeFacade = () =>
+        buildFacadeForKind("Discipline", {
+          source: { ...source, commandName: "refresh" },
+          ...backend({ "canon:0031|PB24-1-01": current }),
+        });
+      const retained = makeFacade();
+      retained.merge({
+        personnel_id: "0031",
+        licensing_authority_id: "mn-post",
+        action: "Board Order",
+      });
+      const retainedMutation = (await retained.toMutation()) as {
+        spec: { operations: Array<{ path: string }> };
+      };
+      expect(
+        retainedMutation.spec.operations.some((op) => op.path === field),
+      ).toBe(false);
+      const cleared = makeFacade();
+      cleared.merge({
+        personnel_id: "0031",
+        licensing_authority_id: "mn-post",
+        action: "Board Order",
+        [field]: null,
+      });
+      expect(await cleared.toMutation()).toMatchObject({
+        spec: {
+          operations: expect.arrayContaining([
+            expect.objectContaining({
+              action: "set",
+              path: field,
+              from: "Existing analyzed narrative",
+              to: null,
+            }),
+          ]),
+        },
+      });
+    },
+  );
+
   it("emits a create envelope with resolved id and passthrough columns", async () => {
     const facade = buildFacadeForKind("Discipline", { source, ...backend() });
     facade.merge({

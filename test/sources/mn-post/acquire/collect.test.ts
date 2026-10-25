@@ -43,6 +43,7 @@ const noDisciplineDetail = {
 
 function fakeClient(overrides: Partial<PostClient> = {}): PostClient {
   return {
+    searchLicense: vi.fn(async () => [sampleOfficer]),
     searchAgency: vi.fn(async (agencyName: string) => ({
       agencyName,
       candidateMatches: [],

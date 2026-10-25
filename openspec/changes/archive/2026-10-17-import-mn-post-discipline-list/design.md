@@ -1,0 +1,23 @@
+# Design
+
+The discipline workbook supplies the bounded collection set. The license roster and agency history supply corroborating names and relationships, joined strictly by license number. Copy raw workbooks to acquisition output. Parse them with existing ExcelJS. Preserve row numbers and source values in a saved JSON inventory.
+
+Add `searchLicense(licenseNumber)` to PostClient using the observed POSTSearch.getLicensesByLicense call (licenseParm, maxThreshold). Require the exact number and a stable contactId/licenseId. Save standalone search rows and officer details; refresh details for discipline-list people once per new collection to expose stale empty action lists. A resumed collection reuses completed records.
+
+Transform standalone search rows into personnel before processing detail licenses and actions. Existing contactId keys remain unchanged. No synthetic agency is created for unassigned people. Use existing agency identifiers for explicit former history rows with supplied start/end dates; keep discipline agency links empty. Missing detail actions remain a coverage discrepancy, never a fabricated order.
+
+The source manifest declares a bounded `personnelSourceNames` list containing the discipline workbook's distinct official contact IDs. Canonical Artifacts IO preserves this optional typed list through writes, reads, and record filtering. Shared import resolves names within the artifact namespace to existing durable canonical identities and adds only those personnel as graph roots; normal personnel descendants follow. Actual discipline admission remains independent. This also retains people whose returned action lists are empty, without treating the workbook flag as an invented action. History assignments are emitted, but their import remains subject to existing agency eligibility; personnel roots do not create reverse traversal to historical agencies.
+
+Unresolved historical agencies are an acquisition coverage discrepancy independent of resolved personnel. Keep their original history rows in the inventory and their exact unresolved lookup results in `discipline-unresolved-agencies.json`. Collection warns with the unresolved agency count; unresolved licenses follow the separately approved partial-coverage decision below. Transform omits only a relationship with both a missing agency ID and an explicit named unresolved report, logging license number, history source row, agency name, and reason. Missing IDs without that report still fail. This does not infer closure, change agency eligibility, or create substitute agency identities.
+
+The user authorized retaining the 34 unresolved license inputs while proceeding with confirmed personnel. Acquisition preserves complete unresolved source rows and search evidence in `discipline-unresolved-licenses.json`, logs each unresolved reason and final input/resolved/unresolved counts, and allows confirmed records to continue. This changes batch completion behavior only; exact identity requirements and fatal conflicting contact evidence remain unchanged.
+
+## Shared source identity aliases
+
+Source identities may change only after evidence uniquely relates the new source key to an existing imported record. Add `cache alias <namespace> <kind> <new-source-id> <existing-source-id> --evidence <reference>` as a shared CLI operation. It requires the existing ledger mapping and rejects a new key already mapped to another canonical ID. The operation uses the existing ledger API, keeps the old forward mapping, and creates the new forward mapping with the same canonical ID. A newly created alias becomes the preferred reverse source name; replay of an existing matching alias is a no-op and reports the current reverse source name. Persist the command and a canonical mapping envelope containing the evidence reference, old source key, command ID, and reverse-name behavior before applying the alias. No database rows change and no source-specific correction code is introduced.
+
+Existing-alias replay inspects reverse identity without minting. If the reverse mapping is missing, replay fails without modifying workspace state; it does not repair identity implicitly before command provenance.
+
+## Action identity and partial evidence
+
+Use `contactId|complaintId` for discipline and corresponding coverage-link keys, while retaining the supplied case label. Preserve the 76 previously imported discipline IDs using source-evidenced aliases. Missing analyzed order documents omit narrative fields instead of clearing stored narratives; an explicit null from present analysis remains an explicit update.

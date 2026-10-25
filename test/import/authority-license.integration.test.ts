@@ -9,7 +9,7 @@ import {
   expect,
   test,
 } from "vitest";
-import { importArtifacts } from "../../src/cli/import/artifacts/config.js";
+import { importArtifacts } from "./completed-artifacts.js";
 import { Artifacts } from "../../src/shared/io/Artifacts.js";
 import {
   dockerAvailable,
@@ -45,7 +45,7 @@ describeWithDocker("authority_license + license import (real Postgres)", () => {
     const runId = "tz4a98xxat96iws9zmbrgj3c";
 
     const written = await Artifacts.write(
-      rootDir,
+      path.join(rootDir, "output"),
       Artifacts.new({
         metadata: { name: "run", namespace: "gov.tx.tcole" },
         spec: {

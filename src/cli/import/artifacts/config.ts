@@ -1,3 +1,5 @@
+import { requireTransformCompletion } from "../../state/transform-completion.js";
+import { intakeWorkspace } from "../../command-directory.js";
 import { readLocationPathById } from "../../database/location-paths.js";
 import {
   agencyTableIsEmpty,
@@ -76,7 +78,7 @@ type ImportLogger = {
 };
 
 export type ImportArtifactsResult =
-  | { ok: true; counts: DatabaseMutationCounts }
+  | { ok: true; counts: DatabaseMutationCounts; databaseMutationsPath: string }
   | { ok: false; error: string };
 
 export type ImportArtifactsCommandInput = {
@@ -162,6 +164,7 @@ type ImportArtifactsPipelineContext = {
   artifactMutation?: ApplyArtifactMutationResult;
   ledger: SourceNameToCanonicalIdLedger;
   databaseMutationCounts?: DatabaseMutationCounts;
+  databaseMutationsPath?: string;
 };
 
 type ImportArtifactsPipelineStage = (
@@ -182,6 +185,14 @@ async function readArtifactsStage(
   context: ImportArtifactsPipelineContext,
 ): Promise<ImportArtifactsPipelineContext> {
   context.commandInput.logger?.info("Reading Artifacts.");
+  const sourceArtifacts = await Artifacts.read(context.artifactsPath, {
+    raw: true,
+  });
+  await requireTransformCompletion(
+    intakeWorkspace(context.commandInput.env ?? process.env),
+    sourceArtifacts.metadata.namespace,
+    context.artifactsPath,
+  );
   // The reader applies explicit ADR 0012 command-local mutations.
   const { artifacts, artifactMutation } = await readImportArtifacts(
     context.artifactsPath,
@@ -669,6 +680,10 @@ async function writeDatabaseMutationsStage(
     const omitted = await dataContext.selectAgencyGraph(
       (incoming) => readExistingAgencyGraph(client, incoming),
       initialRoots,
+      {
+        namespace: artifacts.metadata.namespace,
+        personnelSourceNames: artifacts.spec.personnelSourceNames ?? [],
+      },
     );
     logger?.info(
       { omitted },
@@ -711,7 +726,11 @@ async function writeDatabaseMutationsStage(
       : "Applying DatabaseMutations envelope.",
   );
   if (context.commandInput.dryImport === true) {
-    return { ...context, databaseMutationCounts };
+    return {
+      ...context,
+      databaseMutationCounts,
+      databaseMutationsPath: databaseMutationsEnvelope.path,
+    };
   }
 
   const replayResult = await replayDatabaseMutations({
@@ -726,6 +745,7 @@ async function writeDatabaseMutationsStage(
   return {
     ...context,
     databaseMutationCounts: replayResult.counts,
+    databaseMutationsPath: databaseMutationsEnvelope.path,
   };
 }
 
@@ -769,11 +789,18 @@ export async function importArtifacts(
   } catch (error) {
     return { ok: false, error: errorMessage(error) };
   }
-  if (context.databaseMutationCounts === undefined) {
+  if (
+    context.databaseMutationCounts === undefined ||
+    context.databaseMutationsPath === undefined
+  ) {
     return {
       ok: false,
       error: "DatabaseMutations pipeline finished without mutation counts.",
     };
   }
-  return { ok: true, counts: context.databaseMutationCounts };
+  return {
+    ok: true,
+    counts: context.databaseMutationCounts,
+    databaseMutationsPath: context.databaseMutationsPath,
+  };
 }

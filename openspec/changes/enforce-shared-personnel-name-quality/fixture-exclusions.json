@@ -1,0 +1,51 @@
+[
+  {
+    "namespace": "gov.tx.tcole",
+    "kind": "Agency",
+    "key": "123456",
+    "name": "Central Texas Police Dept.",
+    "reason": "INS-69 confirmed synthetic department; retained TCOLE 2025-02-10 workbook Departments row 123456 has 555 texas lane, head TCOLE, and the reviewed five-person Test roster. Verified against retained input on 2026-10-25."
+  },
+  {
+    "namespace": "gov.tx.tcole",
+    "kind": "Personnel",
+    "key": "1506326",
+    "name": "User Test",
+    "reason": "INS-69 confirmed synthetic Central Texas Police Dept. roster; PUBLIC_GUID and name verified in retained TCOLE 2025-02-10 Officers sheet on 2026-10-25."
+  },
+  {
+    "namespace": "gov.tx.tcole",
+    "kind": "Personnel",
+    "key": "1509723",
+    "name": "Roger Test-Tester",
+    "reason": "INS-69 confirmed synthetic Central Texas Police Dept. roster; PUBLIC_GUID and name verified in retained TCOLE 2025-02-10 Officers sheet on 2026-10-25."
+  },
+  {
+    "namespace": "gov.tx.tcole",
+    "kind": "Personnel",
+    "key": "1675161",
+    "name": "Chester Test",
+    "reason": "INS-69 confirmed synthetic Central Texas Police Dept. roster; PUBLIC_GUID and name verified in retained TCOLE 2025-02-10 Officers sheet on 2026-10-25."
+  },
+  {
+    "namespace": "gov.tx.tcole",
+    "kind": "Personnel",
+    "key": "1688058",
+    "name": "Jessica Test-Tester",
+    "reason": "INS-69 confirmed synthetic Central Texas Police Dept. roster; PUBLIC_GUID and name verified in retained TCOLE 2025-02-10 Officers sheet on 2026-10-25."
+  },
+  {
+    "namespace": "gov.tx.tcole",
+    "kind": "Personnel",
+    "key": "1744365",
+    "name": "Jailer 1 Test",
+    "reason": "INS-69 confirmed synthetic Central Texas Police Dept. roster; PUBLIC_GUID and name verified in retained TCOLE 2025-02-10 Officers sheet on 2026-10-25."
+  },
+  {
+    "namespace": "gov.or.dpsst",
+    "kind": "Personnel",
+    "key": "30613",
+    "name": "Test R. Leds",
+    "reason": "INS-69 confirmed fixture disposition; retained 2026-10-06 DPSST officer-30613-employment-1.html header identifies Leds, Test R., ID 30613; canonical ledger maps to jtlmvahum9p8h51zqkye9png. Identity verified 2026-10-25; fixture disposition is inherited from INS-69, not inferred from the name."
+  }
+]

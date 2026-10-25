@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
-import { importArtifacts } from "../../src/cli/import/artifacts/config.js";
+import { importArtifacts } from "./completed-artifacts.js";
 import { Artifacts } from "../../src/shared/io/Artifacts.js";
 import { persistSourceNameToCanonicalIds } from "../../src/cli/state/source-name-to-canonical-id/index.js";
 import {
@@ -32,7 +32,7 @@ describeWithDocker("shared agency selection in the import pipeline", () => {
   test("an unqualified agency needs no address resolution and produces no agency mutation", async () => {
     const root = await workspace();
     const input = await Artifacts.write(
-      root,
+      path.join(root, "output"),
       Artifacts.new({
         metadata: { namespace: "graph-empty", name: "empty" },
         spec: {
@@ -90,7 +90,7 @@ describeWithDocker("shared agency selection in the import pipeline", () => {
       { rootDir: root },
     );
     const input = await Artifacts.write(
-      root,
+      path.join(root, "output"),
       Artifacts.new({
         metadata: { namespace: "graph-later", name: "later" },
         spec: {
@@ -151,7 +151,7 @@ describeWithDocker("shared agency selection in the import pipeline", () => {
       { rootDir: root },
     );
     const input = await Artifacts.write(
-      root,
+      path.join(root, "output"),
       Artifacts.new({
         metadata: { namespace: "graph-close", name: "close" },
         spec: {
@@ -219,7 +219,7 @@ describeWithDocker("shared agency selection in the import pipeline", () => {
       ).rows,
     ).toEqual([{ phone_number: "555-0100" }]);
     const later = await Artifacts.write(
-      root,
+      path.join(root, "output"),
       Artifacts.new({
         metadata: { namespace: "graph-close", name: "after-close" },
         spec: {
@@ -310,7 +310,7 @@ describeWithDocker("shared agency selection in the import pipeline", () => {
       longitude: -77,
     });
     const input = await Artifacts.write(
-      root,
+      path.join(root, "output"),
       Artifacts.new({
         metadata: { namespace, name: "offices" },
         spec: {
@@ -385,7 +385,7 @@ describeWithDocker("shared agency selection in the import pipeline", () => {
       ).rows,
     ).toEqual(rows);
     const later = await Artifacts.write(
-      root,
+      path.join(root, "output"),
       Artifacts.new({
         metadata: { namespace, name: "office-phone" },
         spec: {

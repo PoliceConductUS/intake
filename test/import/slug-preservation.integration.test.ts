@@ -9,7 +9,7 @@ import {
   expect,
   test,
 } from "vitest";
-import { importArtifacts } from "../../src/cli/import/artifacts/config.js";
+import { importArtifacts } from "./completed-artifacts.js";
 import { DatabaseMutations } from "../../src/cli/import/artifacts/io/DatabaseMutations.js";
 import { replayDatabaseMutations } from "../../src/cli/replay/database-mutations/config.js";
 import {

@@ -143,6 +143,20 @@ export async function createPostLicenseSearchClient({
   }
 
   return {
+    async searchLicense(licenseNumber: string): Promise<OfficerRow[]> {
+      const result = (await executeApexAction({
+        classname: "POSTSearch",
+        method: "getLicensesByLicense",
+        params: { licenseParm: licenseNumber, maxThreshold: "2000" },
+      })) as { POSTLicenseList?: OfficerRow[]; recordCount?: number };
+      const rows = result.POSTLicenseList ?? [];
+      assertCompleteResultCount(
+        "getLicensesByLicense",
+        result.recordCount,
+        rows,
+      );
+      return rows;
+    },
     async searchAgency(agencyName: string): Promise<AgencyMatchResult> {
       const result = (await executeApexAction({
         classname: "POSTSearch",

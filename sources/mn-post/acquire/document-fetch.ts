@@ -7,7 +7,8 @@ const PUBLIC_LINK_RENDER_MS = 30_000;
 /**
  * Fetch a disciplinary order from the site's Salesforce file storage. Two link
  * shapes occur: a direct version download (`/sfc/dist/version/download/…`),
- * fetched as-is, and a public content-delivery page (`/sfc/p/…`) that renders
+ * fetched through the current hostname for legacy content links, and a public
+ * content-delivery page (`/sfc/p/…`) that renders
  * the file in the browser — for those the page is opened, the rendered file
  * version is read out of it, and the same direct download URL is derived. A
  * 404, or a page that no longer serves a file, is `unavailable` (reported, not
@@ -21,7 +22,13 @@ export function createDocumentFetcher({
   logger?: CollectLogger;
 }): (url: string) => Promise<FetchedDocument> {
   async function download(url: string): Promise<FetchedDocument> {
-    const response = await context.request.get(url, { maxRedirects: 5 });
+    // Salesforce enhanced domains moved this source's legacy content host.
+    // Change transport only: the caller retains the original evidence URL.
+    const requestUrl = url.replace(
+      /^https:\/\/mnitservices--c\.documentforce\.com(?=\/sfc\/dist\/version\/download\/)/,
+      "https://mnitservices.file.force.com",
+    );
+    const response = await context.request.get(requestUrl, { maxRedirects: 5 });
     if (response.status() === 404) {
       return { kind: "unavailable", reason: "the site returned 404" };
     }

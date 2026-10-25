@@ -107,8 +107,8 @@ async function makeFixture(): Promise<{
 function fakeAnalyzer(): OrderAnalyzer & { analyze: ReturnType<typeof vi.fn> } {
   return {
     model: "test-model",
-    promptVersion: 1,
-    analyze: vi.fn(async () => analysis),
+    promptVersion: 2,
+    analyze: vi.fn(async () => ({ analysis, absenceReasons: {} })),
   };
 }
 
@@ -212,7 +212,8 @@ describe("collectDocuments", () => {
       pages: extracted.pages,
       text: "PB 25-141\nSTIPULATION\n\nFindings of Fact\n1. Tracy holds",
       analysis,
-      analyzedWith: { model: "test-model", promptVersion: 1 },
+      absenceReasons: {},
+      analyzedWith: { model: "test-model", promptVersion: 2 },
     });
     expect(d.analyzer.analyze).toHaveBeenCalledWith(document.text);
     expect(result.skippedDocuments).toEqual([
@@ -229,6 +230,33 @@ describe("collectDocuments", () => {
     ]);
   });
 
+  it.each(["a-new.detail.json", "z-new.detail.json"])(
+    "reuses completed evidence while refreshing action references from %s",
+    async (filename) => {
+      const fixture = await makeFixture();
+      const d = deps(fixture);
+      await collectDocuments(d);
+      await writeFile(
+        path.join(fixture.sourceDir, "officers", filename),
+        JSON.stringify({
+          disciplinaryActions: [
+            {
+              contactId: "NEW",
+              caseNumber: "NEW-CASE",
+              documentURL: ORDER_URL,
+              documentName: "SACO",
+            },
+          ],
+        }),
+      );
+      await collectDocuments(d);
+      expect((await documentsOn(fixture.sourceDir))[0].actions).toContainEqual({
+        contactId: "NEW",
+        caseNumber: "NEW-CASE",
+      });
+      expect(d.analyzer.analyze).toHaveBeenCalledTimes(1);
+    },
+  );
   it("resumes: a second run fetches, extracts, and analyzes nothing already done", async () => {
     const fixture = await makeFixture();
     const d = deps(fixture);
@@ -289,21 +317,44 @@ describe("collectDocuments", () => {
       JSON.stringify({
         analysis: {
           model: "codex-document-review",
-          promptVersion: 1,
+          promptVersion: 2,
           output: analysis,
+          absenceReasons: {},
           reviewReceipt: receipt,
         },
       }),
     );
 
     const d = deps(fixture);
+    vi.mocked(d.extractText).mockResolvedValue({
+      pages: [
+        {
+          page: 1,
+          method: "text",
+          text: Object.values(receipt.fieldEvidence)
+            .flat()
+            .filter((e) => e.page === 1)
+            .map((e) => e.excerpt)
+            .join("\n"),
+        },
+        {
+          page: 3,
+          method: "text",
+          text: Object.values(receipt.fieldEvidence)
+            .flat()
+            .filter((e) => e.page === 3)
+            .map((e) => e.excerpt)
+            .join("\n"),
+        },
+      ],
+    });
     await collectDocuments(d);
 
     expect(d.analyzer.analyze).not.toHaveBeenCalled();
     const [document] = await documentsOn(fixture.sourceDir);
     expect(document.analyzedWith).toEqual({
       model: "codex-document-review",
-      promptVersion: 1,
+      promptVersion: 2,
     });
     expect(document.reviewReceipt).toEqual(receipt);
   });
@@ -335,7 +386,15 @@ describe("collectDocuments", () => {
     await collectDocuments(deps(fixture));
     await rm(path.join(fixture.sourceDir, "documents"), { recursive: true });
 
-    const analyzer = { ...fakeAnalyzer(), promptVersion: 2 };
+    const cacheDir = path.join(fixture.statePath, "documents");
+    for (const name of await readdir(cacheDir)) {
+      const file = path.join(cacheDir, name);
+      const cache = JSON.parse(await readFile(file, "utf8"));
+      cache.analysis.promptVersion = 1;
+      delete cache.analysis.absenceReasons;
+      await writeFile(file, JSON.stringify(cache));
+    }
+    const analyzer = fakeAnalyzer();
     const d = deps(fixture, { analyzer });
     await collectDocuments(d);
 
@@ -347,4 +406,103 @@ describe("collectDocuments", () => {
       promptVersion: 2,
     });
   });
+  it.each(["populated", "blank"])(
+    "reprocesses stale completed JSON (%s) with preserved PDF/text and current reviewed cache",
+    async (mode) => {
+      const fixture = await makeFixture();
+      const d = deps(fixture);
+      await collectDocuments(d);
+      const dir = path.join(fixture.sourceDir, "documents");
+      const name = (await readdir(dir)).find((n) =>
+        n.endsWith(".document.json"),
+      )!;
+      const file = path.join(dir, name);
+      const doc = JSON.parse(await readFile(file, "utf8"));
+      doc.analyzedWith.promptVersion = 1;
+      delete doc.absenceReasons;
+      if (mode === "blank") doc.analysis.chief_action = "  ";
+      await writeFile(file, JSON.stringify(doc));
+      const messages: string[] = [];
+      await collectDocuments({
+        ...d,
+        logger: { info: (message) => messages.push(message) },
+      });
+      expect((await documentsOn(fixture.sourceDir))[0]).toMatchObject({
+        analyzedWith: { promptVersion: 2 },
+        absenceReasons: {},
+      });
+      expect(d.extractText).toHaveBeenCalledTimes(1);
+      expect(d.analyzer.analyze).toHaveBeenCalledTimes(1);
+      expect(
+        messages.some((m) =>
+          m.includes("reprocessing prior analysis contract"),
+        ),
+      ).toBe(true);
+    },
+  );
+  it.each(["PDF", "URL"])(
+    "rejects mismatched prior %s evidence before reprocessing",
+    async (field) => {
+      const fixture = await makeFixture();
+      const d = deps(fixture);
+      await collectDocuments(d);
+      const dir = path.join(fixture.sourceDir, "documents");
+      const name = (await readdir(dir)).find((n) =>
+        n.endsWith(".document.json"),
+      )!;
+      const file = path.join(dir, name);
+      const doc = JSON.parse(await readFile(file, "utf8"));
+      doc.analyzedWith.promptVersion = 1;
+      delete doc.absenceReasons;
+      if (field === "URL") doc.url = "https://other.test/order";
+      else
+        await writeFile(
+          path.join(dir, name.replace(".document.json", ".pdf")),
+          "changed",
+        );
+      await writeFile(file, JSON.stringify(doc));
+      await expect(collectDocuments(d)).rejects.toThrow(/does not match/);
+      expect(d.analyzer.analyze).toHaveBeenCalledTimes(1);
+    },
+  );
+  it("does not silently reanalyze malformed current completed evidence", async () => {
+    const fixture = await makeFixture();
+    const d = deps(fixture);
+    await collectDocuments(d);
+    const dir = path.join(fixture.sourceDir, "documents");
+    const name = (await readdir(dir)).find((n) =>
+      n.endsWith(".document.json"),
+    )!;
+    const file = path.join(dir, name);
+    const doc = JSON.parse(await readFile(file, "utf8"));
+    doc.analysis.chief_action = null;
+    await writeFile(file, JSON.stringify(doc));
+    await expect(collectDocuments(d)).rejects.toThrow(/chief_action/);
+    expect(d.analyzer.analyze).toHaveBeenCalledTimes(1);
+  });
+  it.each(["test-model", "codex-document-review"])(
+    "rejects current %s cache nulls without reasons",
+    async (model) => {
+      const fixture = await makeFixture();
+      await collectDocuments(deps(fixture));
+      await rm(path.join(fixture.sourceDir, "documents"), { recursive: true });
+      const cacheDir = path.join(fixture.statePath, "documents");
+      for (const name of await readdir(cacheDir)) {
+        const file = path.join(cacheDir, name);
+        const cache = JSON.parse(await readFile(file, "utf8"));
+        cache.analysis.model = model;
+        cache.analysis.output.chief_action = null;
+        if (model === "codex-document-review")
+          cache.analysis.reviewReceipt = {
+            method: model,
+            reviewedAt: "2026-10-18",
+            fieldEvidence: {},
+          };
+        await writeFile(file, JSON.stringify(cache));
+      }
+      const d = deps(fixture);
+      await expect(collectDocuments(d)).rejects.toThrow(/chief_action/);
+      expect(d.analyzer.analyze).not.toHaveBeenCalled();
+    },
+  );
 });

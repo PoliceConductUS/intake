@@ -60,6 +60,8 @@ describe("emit sink integration (via transformSource)", () => {
       ["dummy-snapshot.zip"],
       {},
       {
+        beginCompletion: async () => {},
+        complete: async () => {},
         sourcesRoot: "/unused",
         env: {},
         produces: ["LocationPaths", "LocationPathGeometries"],

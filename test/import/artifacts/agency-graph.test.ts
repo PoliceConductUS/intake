@@ -267,7 +267,7 @@ test("explicit roots traverse historical descendants, union ordinary roots, and 
   ]);
 });
 
-test("person-level discipline and education follow an included person without another agency", () => {
+test("person-level discipline admits its person independently of agency assignments", () => {
   expect(
     selected([
       node("Agency", "a"),
@@ -285,9 +285,9 @@ test("person-level discipline and education follow an included person without an
       node("Personnel", "p"),
       node("Personnel", "unassigned"),
       node("Discipline", "action", { personnel_id: "p" }),
-      node("Discipline", "excluded-action", { personnel_id: "unassigned" }),
+      node("Discipline", "unassigned-action", { personnel_id: "unassigned" }),
       node("PersonnelEducation", "course", { personnel_id: "p" }),
-      node("PersonnelEducation", "excluded-course", {
+      node("PersonnelEducation", "unassigned-course", {
         personnel_id: "unassigned",
       }),
     ]),
@@ -295,8 +295,11 @@ test("person-level discipline and education follow an included person without an
     "Agency:a",
     "AgencyPersonnel:open",
     "Discipline:action",
+    "Discipline:unassigned-action",
     "Personnel:p",
+    "Personnel:unassigned",
     "PersonnelEducation:course",
+    "PersonnelEducation:unassigned-course",
   ]);
 });
 
@@ -349,5 +352,32 @@ test("a stored federal parent admits a newly supplied office and later office de
     "Agency:old-office",
     "AgencyPhoneNumber:phone",
     "FederalAgency:federal",
+  ]);
+});
+
+test("standalone discipline admits its person and licenses without admitting unrelated personnel", () => {
+  expect(
+    selected([
+      node("Personnel", "revoked"),
+      node("Personnel", "unrelated"),
+      node("Discipline", "order", { personnel_id: "revoked" }),
+      node("License", "license", { personnel_id: "revoked" }),
+      node("License", "other", { personnel_id: "unrelated" }),
+    ]),
+  ).toEqual(["Discipline:order", "License:license", "Personnel:revoked"]);
+});
+
+test("explicit personnel roots retain license and education descendants without admitting unrelated people", () => {
+  const incoming = [
+    node("Personnel", "listed"),
+    node("Personnel", "unlisted"),
+    node("License", "license", { personnel_id: "listed" }),
+    node("PersonnelEducation", "course", { personnel_id: "listed" }),
+    node("PersonnelEducation", "other-course", { personnel_id: "unlisted" }),
+  ];
+  expect([...selectAgencyGraph([], incoming, [], ["listed"])].sort()).toEqual([
+    "License:license",
+    "Personnel:listed",
+    "PersonnelEducation:course",
   ]);
 });

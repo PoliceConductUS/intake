@@ -1,10 +1,11 @@
+import { completeTransform } from "../../src/cli/state/transform-completion.js";
 import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
 import { runImportArtifactsCommand } from "../../src/cli/index.js";
 import { GENERATED_MIGRATION_VERSIONS } from "../../src/shared/io/generated/entity-specs.js";
-import { importArtifacts } from "../../src/cli/import/artifacts/config.js";
+import { importArtifacts } from "./completed-artifacts.js";
 import { DataContext } from "../../src/cli/import/artifacts/data-context.js";
 import { applyOptionalArtifactMutation } from "../../src/cli/import/artifacts/artifact-mutation.js";
 import { ArtifactMutation } from "../../src/cli/import/artifacts/io/ArtifactMutation.js";
@@ -42,13 +43,21 @@ const agencyRecord = {
 
 async function writeSourceArtifactsFile(rootDir: string): Promise<string> {
   const writtenArtifacts = await Artifacts.write(
-    rootDir,
+    path.join(rootDir, "output"),
     Artifacts.new({
       metadata: { name: "test-run", namespace: "mn-post" },
       spec: { artifacts: [] },
     }),
   );
   return writtenArtifacts.path;
+}
+
+async function completedArtifacts(workspace: string) {
+  const file = await writeSourceArtifactsFile(
+    path.join(workspace, "transform"),
+  );
+  await completeTransform(path.join(workspace, "state", "mn-post"), file, null);
+  return file;
 }
 
 describe("importArtifacts", () => {
@@ -208,7 +217,7 @@ describe("importArtifacts", () => {
   test("reads inline Artifacts artifact references before transform", async () => {
     const rootDir = await mkdtemp(path.join(tmpdir(), "intake-artifacts-"));
     const writtenArtifacts = await Artifacts.write(
-      rootDir,
+      path.join(rootDir, "output"),
       Artifacts.new({
         metadata: { name: "test-run", namespace: "mn-post" },
         spec: {
@@ -615,13 +624,7 @@ describe("importArtifacts", () => {
   test("CLI writes import progress to terminal and pino log file idempotently", async () => {
     const rootDir = await mkdtemp(path.join(tmpdir(), "intake-logs-"));
     const workspace = path.join(rootDir, "workspace");
-    const artifactsPath = path.join(
-      workspace,
-      "mn-post",
-      "commands",
-      "test-run",
-      "artifacts.yaml",
-    );
+    const artifactsPath = await completedArtifacts(workspace);
     let terminalOutput = "";
 
     const result = await runImportArtifactsCommand(artifactsPath, {
@@ -631,6 +634,7 @@ describe("importArtifacts", () => {
       terminal: { write: (text) => (terminalOutput += text) },
       importArtifacts: async () => ({
         ok: true,
+        databaseMutationsPath: "current.DatabaseMutations.yaml",
         counts: {
           mutations: 15,
           recordsByEntityType: {
@@ -663,11 +667,12 @@ describe("importArtifacts", () => {
     const command = await CommandEnvelope.read(commandPath);
 
     expect(result.exitCode).toBe(0);
+    expect(result.databaseMutationsPath).toBe("current.DatabaseMutations.yaml");
     expect(command).toMatchObject({
       kind: "Command",
       metadata: {
         name: "tz4a98xxat96iws9zmbrgj3a",
-        namespace: "intake",
+        namespace: "mn-post",
       },
       spec: {
         path: ".",
@@ -713,27 +718,31 @@ describe("importArtifacts", () => {
     let terminalOutput = "";
     let receivedDryImport: boolean | undefined;
 
-    const result = await runImportArtifactsCommand("artifacts.yaml", {
-      env: { INTAKE_WORKSPACE: workspace },
-      dryImport: true,
-      terminal: { write: (text) => (terminalOutput += text) },
-      importArtifacts: async (input) => {
-        receivedDryImport = input.dryImport;
-        return {
-          ok: true,
-          counts: {
-            mutations: 15,
-            recordsByEntityType: {
-              Agency: 1,
-              AgencyPersonnel: 3,
-              LocationPath: 4,
-              LocationPathAlias: 5,
-              Personnel: 2,
+    const result = await runImportArtifactsCommand(
+      await completedArtifacts(workspace),
+      {
+        env: { INTAKE_WORKSPACE: workspace },
+        dryImport: true,
+        terminal: { write: (text) => (terminalOutput += text) },
+        importArtifacts: async (input) => {
+          receivedDryImport = input.dryImport;
+          return {
+            ok: true,
+            databaseMutationsPath: "current.DatabaseMutations.yaml",
+            counts: {
+              mutations: 15,
+              recordsByEntityType: {
+                Agency: 1,
+                AgencyPersonnel: 3,
+                LocationPath: 4,
+                LocationPathAlias: 5,
+                Personnel: 2,
+              },
             },
-          },
-        };
+          };
+        },
       },
-    });
+    );
 
     expect(receivedDryImport).toBe(true);
     expect(result.exitCode).toBe(0);
@@ -751,13 +760,7 @@ describe("importArtifacts", () => {
   test("CLI honors LOG_LEVEL for observable debug logging", async () => {
     const rootDir = await mkdtemp(path.join(tmpdir(), "intake-logs-"));
     const workspace = path.join(rootDir, "workspace");
-    const artifactsPath = path.join(
-      workspace,
-      "mn-post",
-      "commands",
-      "test-run",
-      "artifacts.yaml",
-    );
+    const artifactsPath = await completedArtifacts(workspace);
     let terminalOutput = "";
 
     const result = await runImportArtifactsCommand(artifactsPath, {
@@ -769,6 +772,7 @@ describe("importArtifacts", () => {
         input.logger?.debug({ debugVisible: true }, "Debug import detail.");
         return {
           ok: true,
+          databaseMutationsPath: "current.DatabaseMutations.yaml",
           counts: { mutations: 0, recordsByEntityType: {} },
         };
       },
@@ -807,11 +811,14 @@ describe("importArtifacts", () => {
       error: "duplicate key value violates unique constraint",
     } as const;
 
-    const cliResult = await runImportArtifactsCommand("artifacts.yaml", {
-      env: { INTAKE_WORKSPACE: workspace },
-      terminal: false,
-      importArtifacts: async () => importResult,
-    });
+    const cliResult = await runImportArtifactsCommand(
+      await completedArtifacts(workspace),
+      {
+        env: { INTAKE_WORKSPACE: workspace },
+        terminal: false,
+        importArtifacts: async () => importResult,
+      },
+    );
 
     expect(cliResult.exitCode).toBe(1);
     expect(cliResult.stderr).toContain(
