@@ -65,23 +65,16 @@ describe("isQuotaExhaustedBody", () => {
   });
 });
 
-function apiWith(
-  jsonByUrl: Record<string, unknown>,
-  textByUrl: Record<string, string> = {},
-) {
+function apiWith(jsonByUrl: Record<string, unknown>) {
   const jsonCalls: string[] = [];
   const api = createYoutubeApi({
-    fetchJson: async (url) => {
+    fetchJson: async (url: string) => {
       jsonCalls.push(url);
       const key = Object.keys(jsonByUrl).find((k) => url.includes(k));
       return (key === undefined ? {} : jsonByUrl[key]) as Record<
         string,
         unknown
       >;
-    },
-    fetchText: async (url) => {
-      const key = Object.keys(textByUrl).find((k) => url.includes(k));
-      return key === undefined ? "" : textByUrl[key];
     },
   });
   return { api, jsonCalls };
@@ -145,15 +138,13 @@ describe("youtube api client", () => {
     });
   });
 
-  it("extracts caption text and returns null when none exist", async () => {
-    const { api } = apiWith(
-      {},
-      {
-        "v=hascaps":
-          "<transcript><text start='0'>Officer Smith on scene</text></transcript>",
-      },
-    );
-    expect(await api.fetchCaptions("hascaps")).toBe("Officer Smith on scene");
-    expect(await api.fetchCaptions("nocaps")).toBeNull();
+  // No caption track: youtube.com/robots.txt disallows /api/, where
+  // /api/timedtext lives, so the client fetches the Data API only.
+  it("exposes only the Data API calls", () => {
+    const { api } = apiWith({});
+    expect(Object.keys(api).sort()).toEqual([
+      "resolveChannelId",
+      "searchChannelVideos",
+    ]);
   });
 });
