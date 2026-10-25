@@ -219,14 +219,16 @@ test("reports an end_date a lifetime after its start_date", () => {
     start_date: "2015-04-22",
     end_date: "2109-02-27",
   });
-  expect(result.defects).toEqual([
-    expect.objectContaining({
-      field: "end_date",
-      value: "2109-02-27",
-      omitted: false,
-      reason: expect.stringContaining(`${MAX_RANGE_YEARS}-year limit`),
-    }),
-  ]);
+  expect(result.defects).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        field: "end_date",
+        value: "2109-02-27",
+        omitted: false,
+        reason: expect.stringContaining(`${MAX_RANGE_YEARS}-year limit`),
+      }),
+    ]),
+  );
   expect(result.spec.end_date).toBe("2109-02-27");
 });
 test.each([
@@ -235,8 +237,6 @@ test.each([
   ["1974-01-15", "2024-11-01"],
   // A one-day appointment is real, not a defect.
   ["2024-06-03", "2024-06-03"],
-  // A scheduled separation is the build clock's problem, not the importer's.
-  ["2024-01-01", "2030-01-01"],
 ])("accepts the plausible range %s to %s", (start_date, end_date) => {
   expect(
     cleanSourceValues("AgencyPersonnel", {
@@ -323,5 +323,48 @@ test("validates corrected date pairs before blocking import", async () => {
   // Missing identity fails later, proving the corrected pair passes the date gate.
   await expect(context.toMutations()).rejects.toThrow(
     "source agency_id is missing",
+  );
+});
+
+test.each([
+  ["AgencyPersonnel", "start_date"],
+  ["AgencyPersonnel", "end_date"],
+  ["Agency", "status_date"],
+  ["Discipline", "expiration_date"],
+  ["CivilCase", "date_terminated"],
+])("guards future %s.%s without a paired date", (kind, field) => {
+  const raw = { [field]: "2026-10-26" };
+  const result = cleanSourceValues(kind, raw, new Date("2026-10-25T23:59:59Z"));
+  expect(result.defects).toEqual([
+    expect.objectContaining({
+      field,
+      omitted: false,
+      reason: expect.stringContaining("future date"),
+    }),
+  ]);
+  expect(raw[field]).toBe("2026-10-26");
+});
+test.each(["2026-10-24", "2026-10-25"])(
+  "accepts dates through the validation day: %s",
+  (start_date) => {
+    expect(
+      cleanSourceValues(
+        "AgencyPersonnel",
+        { start_date },
+        new Date("2026-10-25T00:00:00Z"),
+      ).defects,
+    ).toEqual([]);
+  },
+);
+test("blocks a future standalone date and tells the operator how to resolve it", async () => {
+  const context = new DataContext({
+    validationDate: new Date("2026-10-25T00:00:00Z"),
+  });
+  context.facadeFromSource("AgencyPersonnel", {
+    ...source,
+    spec: { start_date: "2026-11-16" },
+  });
+  await expect(context.toMutations()).rejects.toThrow(
+    /future date[\s\S]*cache set[\s\S]*data exclude/,
   );
 });

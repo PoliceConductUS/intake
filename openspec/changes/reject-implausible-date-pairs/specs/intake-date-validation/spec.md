@@ -19,3 +19,18 @@ Intake SHALL reject mutation generation if any input retains a reported date-pai
 
 - **WHEN** an invalid assignment already exists in the database
 - **THEN** rejecting an import does not claim to repair or remove that existing row
+
+### Requirement: Future dates require operator resolution
+
+Intake SHALL block mutation generation for every populated date property (`date`, `date_*`, or `*_date`) after the validation clock's UTC calendar day, including standalone start dates and future expiration dates. Conditional corrections SHALL run first. Operators SHALL be able to use the existing correction or record-exclusion CLI; no website behavior is part of this change.
+
+#### Scenario: Future standalone date
+
+- **WHEN** a date property is later than the validation day, even without a paired date
+- **THEN** import fails with the source identity and an instruction to correct or exclude the record
+
+#### Scenario: Operator excludes a record
+
+- **WHEN** the operator records an exclusion and regenerates artifacts
+- **THEN** that record does not enter mutation generation
+- **AND** the exclusion retains its reason and does not silently delete already-stored database rows

@@ -164,3 +164,58 @@ test("keeps exclusions in the selected workspace without reading or changing rep
   ).toBe(args[6]);
   expect(await readFile(repositoryFile, "utf8")).toBe(original);
 });
+
+test("operator can exclude a future-dated assignment before mutation generation", async () => {
+  const { DataContext } =
+    await import("../../src/cli/import/artifacts/data-context.js");
+  const { INTAKE_API_VERSION } =
+    await import("../../src/shared/io/import-types.js");
+  const spec = { start_date: "2015-04-22", end_date: "2109-02-27" };
+  const blocked = new DataContext({});
+  blocked.facadeFromSource("AgencyPersonnel", {
+    apiVersion: INTAKE_API_VERSION,
+    namespace: "test.source",
+    name: "bad-date",
+    spec,
+  });
+  await expect(blocked.toMutations()).rejects.toThrow("import blocked");
+  const result = await runIntake([
+    "data",
+    "exclude",
+    "test.source",
+    "AgencyPersonnel",
+    "bad-date",
+    "--reason",
+    "source separation date unresolved",
+  ]);
+  expect(result.exitCode).toBe(0);
+  const exclusions = await loadExcludedRecords(stateDir);
+  expect(exclusions.get("AgencyPersonnel:bad-date")?.reason).toBe(
+    "source separation date unresolved",
+  );
+  const { manifest } = excludeManifestRecords(
+    {
+      artifacts: [
+        { kind: "AgencyPersonnel", records: { "bad-date": { spec } } },
+      ],
+    },
+    exclusions,
+  );
+  const context = new DataContext({});
+  for (const [name, record] of Object.entries(manifest.artifacts[0].records)) {
+    if (
+      !("spec" in record) ||
+      typeof record.spec !== "object" ||
+      record.spec === null
+    )
+      throw new Error("Expected inline record");
+    context.facadeFromSource("AgencyPersonnel", {
+      apiVersion: INTAKE_API_VERSION,
+      namespace: "test.source",
+      name,
+      spec: { ...record.spec },
+    });
+  }
+  expect(await context.toMutations()).toEqual([]);
+  expect(spec.end_date).toBe("2109-02-27");
+});
