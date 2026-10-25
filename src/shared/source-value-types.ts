@@ -13,6 +13,10 @@ export type SourceValueDefect = {
   value: unknown;
   required: boolean;
   reason: string;
+  // Whether the value was dropped from the spec. False for a defect we record
+  // but keep as evidence while blocking import, because clearing it can assert a false status --
+  // see `dateRangeDefects`.
+  omitted: boolean;
 };
 
 const fieldsByKind = new Map<string, Field[]>();
@@ -69,12 +73,90 @@ function validUrl(value: string): boolean {
     return false;
   }
 }
+// Longest span we will accept as one real assignment. The TCOLE 2025-02-10
+// production's longest genuine completed assignment is 50.8 years and its next
+// longest "assignment" is a 93.9-year row created by a mistyped END_DATE, so the
+// threshold is a conservative review gate, not proof of the correct date.
+export const MAX_RANGE_YEARS = 70;
+const DAYS_PER_YEAR = 365.25;
+const MS_PER_DAY = 86_400_000;
+
+const asDate = (value: unknown): Date | undefined => {
+  if (typeof value !== "string" || value.trim() === "") return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+};
+
+/**
+ * Defects in a `start_date`/`end_date` pair that no clock can resolve: an end
+ * before its own start, or a span no career contains. Both mean the source's own
+ * record is wrong, so they are reported at ingest rather than discovered on a
+ * published page -- INS-88 shipped a live profile claiming a named jailer
+ * separated in 2109, which TCOLE's production really does say.
+ *
+ * The value is reported but kept. `end_date is null` is the corpus's encoding
+ * for *currently employed*, so dropping an impossible separation date here would
+ * trade a false date for a false present-tense employment claim about a named
+ * person. DataContext blocks mutation generation until the source is corrected
+ * or an evidence-backed conditional correction resolves the defect.
+ *
+ * Future dates are checked separately against the intake validation day.
+ */
+export function dateRangeDefects(
+  spec: Record<string, unknown>,
+): SourceValueDefect[] {
+  const start = asDate(spec.start_date);
+  const end = asDate(spec.end_date);
+  if (start === undefined || end === undefined) return [];
+  const defect = (reason: string): SourceValueDefect[] => [
+    {
+      field: "end_date",
+      value: spec.end_date,
+      required: false,
+      reason,
+      omitted: false,
+    },
+  ];
+  if (end.getTime() < start.getTime())
+    return defect(
+      `end_date precedes start_date ${JSON.stringify(spec.start_date)}`,
+    );
+  const years = (end.getTime() - start.getTime()) / MS_PER_DAY / DAYS_PER_YEAR;
+  return years > MAX_RANGE_YEARS
+    ? defect(
+        `end_date is ${years.toFixed(1)} years after start_date ${JSON.stringify(spec.start_date)}, over the ${MAX_RANGE_YEARS}-year limit`,
+      )
+    : [];
+}
+
 export function cleanSourceValues(
   kind: string,
   input: Record<string, unknown>,
+  validationDate: Date = new Date(),
 ): { spec: Record<string, unknown>; defects: SourceValueDefect[] } {
   let spec = input;
-  const defects: SourceValueDefect[] = [];
+  const today = validationDate.toISOString().slice(0, 10);
+  const defects: SourceValueDefect[] = [...dateRangeDefects(input)];
+  for (const [field, value] of Object.entries(input)) {
+    if (
+      !(
+        field === "date" ||
+        field.startsWith("date_") ||
+        field.endsWith("_date")
+      )
+    )
+      continue;
+    const date = asDate(value);
+    if (date !== undefined && date.toISOString().slice(0, 10) > today) {
+      defects.push({
+        field,
+        value,
+        required: false,
+        omitted: false,
+        reason: `future date exceeds validation day ${today}`,
+      });
+    }
+  }
   for (const field of fieldsFor(kind)) {
     const value = input[field.name];
     if (value === undefined || (value === null && field.nullable)) continue;
@@ -93,6 +175,7 @@ export function cleanSourceValues(
       value,
       required: field.required,
       reason: `invalid ${field.type} value`,
+      omitted: true,
     });
   }
   return { spec, defects };

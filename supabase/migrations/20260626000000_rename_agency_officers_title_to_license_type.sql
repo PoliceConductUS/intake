@@ -19,4 +19,4 @@ begin
 end $$;
 
 alter table public.agency_officers
-  alter column license_type set not null;
+alter column license_type set not null;
