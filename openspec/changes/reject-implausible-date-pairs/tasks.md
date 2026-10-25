@@ -1,0 +1,3 @@
+- [x] Add regression tests proving mutation generation rejects retained date defects, with or without a logger, and allows a valid conditional correction.
+- [x] Reject mutation generation when retained source defects exist, preserving inspectable source values and all diagnostic identities.
+- [x] Run focused tests, typecheck, formatting, and OpenSpec validation; update intake PR 83.
