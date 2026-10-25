@@ -13,7 +13,6 @@ function video(id: string) {
     publishedAt: "",
     channelId: "c",
     url: `https://www.youtube.com/watch?v=${id}`,
-    captions: null,
   };
 }
 

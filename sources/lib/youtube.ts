@@ -1,7 +1,15 @@
 // A small YouTube Data API v3 client for the video-coverage sources (issue #52).
-// Network access is injected (`fetchJson` for the Data API, `fetchText` for the
-// timedtext caption track) so a source's acquire wires the real, keyed, retrying
-// fetch and tests inject fakes — the client itself is deterministic.
+// Network access is injected (`fetchJson`) so a source's acquire wires the real,
+// keyed, retrying fetch and tests inject fakes — the client itself is
+// deterministic.
+//
+// This client only ever reaches the keyed Data API on `www.googleapis.com`,
+// which we use under an API key and the API terms. It deliberately has no path
+// to `www.youtube.com`: that host's robots.txt disallows `/api/` (and
+// `/timedtext_video`), and we do not request paths a publisher disallows
+// (INS-72). `assertDataApiUrl` enforces that at the one place requests are
+// made, so re-introducing such a call fails loudly instead of silently
+// shipping.
 
 export type YoutubeSearchHit = {
   videoId: string;
@@ -23,8 +31,6 @@ export type YoutubeApi = {
     query: string,
     window?: DateWindow,
   ): Promise<YoutubeSearchHit[]>;
-  /** The caption/transcript text for a video, or null when none is available. */
-  fetchCaptions(videoId: string): Promise<string | null>;
 };
 
 function str(value: unknown): string {
@@ -98,16 +104,33 @@ export function videoUrl(videoId: string): string {
   return `https://www.youtube.com/watch?v=${videoId}`;
 }
 
+export const DATA_API_BASE = "https://www.googleapis.com/youtube/v3";
+
+/**
+ * The only host this client may request. Anything else — notably
+ * `www.youtube.com`, whose robots.txt disallows `/api/` — is a bug, so it
+ * throws rather than reaching the network (INS-72).
+ */
+export function assertDataApiUrl(url: string): string {
+  if (!url.startsWith(`${DATA_API_BASE}/`)) {
+    throw new Error(
+      `youtube: refusing to request ${url} — this client may only call ${DATA_API_BASE} (INS-72: no robots-disallowed youtube.com paths).`,
+    );
+  }
+  return url;
+}
+
 export function createYoutubeApi(deps: {
   fetchJson: (url: string) => Promise<Record<string, unknown>>;
-  fetchText: (url: string) => Promise<string>;
 }): YoutubeApi {
-  const api = "https://www.googleapis.com/youtube/v3";
+  const api = DATA_API_BASE;
+  const fetchJson = (url: string): Promise<Record<string, unknown>> =>
+    deps.fetchJson(assertDataApiUrl(url));
 
   return {
     async resolveChannelId(handle) {
       const clean = handle.replace(/^@/, "");
-      const body = await deps.fetchJson(
+      const body = await fetchJson(
         `${api}/channels?part=id&forHandle=${encodeURIComponent(clean)}`,
       );
       const items = Array.isArray(body.items) ? body.items : [];
@@ -128,7 +151,7 @@ export function createYoutubeApi(deps: {
         params.set("publishedAfter", window.publishedAfter);
       if (window.publishedBefore !== undefined)
         params.set("publishedBefore", window.publishedBefore);
-      const body = await deps.fetchJson(`${api}/search?${params.toString()}`);
+      const body = await fetchJson(`${api}/search?${params.toString()}`);
       const hits: YoutubeSearchHit[] = [];
       const seen = new Set<string>();
       for (const item of Array.isArray(body.items) ? body.items : []) {
@@ -147,21 +170,6 @@ export function createYoutubeApi(deps: {
         });
       }
       return hits;
-    },
-
-    async fetchCaptions(videoId) {
-      // Best-effort English timedtext track. Empty body ⇒ no captions available.
-      const xml = await deps.fetchText(
-        `https://www.youtube.com/api/timedtext?lang=en&v=${encodeURIComponent(videoId)}`,
-      );
-      const text = xml
-        .replace(/<[^>]+>/g, " ")
-        .replace(/&#39;/g, "'")
-        .replace(/&quot;/g, '"')
-        .replace(/&amp;/g, "&")
-        .replace(/\s+/g, " ")
-        .trim();
-      return text === "" ? null : text;
     },
   };
 }
