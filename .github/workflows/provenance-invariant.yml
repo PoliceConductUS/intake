@@ -50,7 +50,7 @@ jobs:
         run: npm run supabase:reset
 
       # Real-schema mode: the suite detects the migrated database and asserts
-      # against the real agency/officers definitions rather than the fixture.
+      # against the real agency/personnel definitions rather than the fixture.
       - name: Schema tests
         run: npx vitest run test/schema
         env:

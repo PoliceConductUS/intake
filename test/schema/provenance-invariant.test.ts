@@ -202,21 +202,32 @@ describe.skipIf(!DATABASE_URL)("provenance structural invariant", () => {
           'Source classification; inconsistent across states, internal only', false)`,
     );
     if (realSchema) {
-      // The real `agency` carries two NOT NULL columns the fixture does not:
-      // `slug` and a restricted FK to `location_path`. Seeding them here is
-      // the difference between testing the real table and testing a stand-in.
+      // The real `agency` carries eleven NOT NULL columns without defaults that
+      // the fixture does not: `slug`, a restricted FK to `location_path`, and
+      // the postal/geo set. Seeding them here is the difference between testing
+      // the real table and testing a stand-in. Keep this list derived from the
+      // real table — `main` has added to it twice since this suite was written.
+      // `agency.location_path_level` is generated as the constant 'place' and
+      // paired with a composite FK to (location_path_id, level), so an agency
+      // can only hang off a place-level path. Seeding a state-level row here
+      // fails the FK, not a null check.
       await admin.query(
         `insert into public.location_path
-           (location_path_id, path, level, state_or_territory_slug,
-            state_or_territory_name)
-         values ($1, '/tx', 'state', 'tx', 'Texas')
+           (location_path_id, path, level, display_name)
+         values ($1, '/tx/austin', 'place', 'Austin')
          on conflict (location_path_id) do nothing`,
         [LOCATION_PATH],
       );
       await admin.query(
-        `insert into public.agency (id, name, state, slug, location_path_id)
-         values ($1, 'Test Police Department', 'TX', 'test-police-department', $3),
-                ($2, 'Other Police Department', 'TX', 'other-police-department', $3)`,
+        `insert into public.agency
+           (id, name, city, state, address, zip_code, slug, location_path_id,
+            latitude, longitude)
+         values ($1, 'Test Police Department', 'Austin', 'TX',
+                 '100 Test St', '78701', 'test-police-department', $3,
+                 30.2672, -97.7431),
+                ($2, 'Other Police Department', 'Austin', 'TX',
+                 '200 Test St', '78701', 'other-police-department', $3,
+                 30.2672, -97.7431)`,
         [AGENCY_A, AGENCY_B, LOCATION_PATH],
       );
     } else {
@@ -378,9 +389,15 @@ describe.skipIf(!DATABASE_URL)("provenance structural invariant", () => {
       ).rejects.toThrow(/permission denied/i);
     });
 
-    it("cannot read the legacy officers table directly", async () => {
+    it("cannot read the upstream personnel table directly", async () => {
+      // `main` renamed officers -> personnel in 20260825000100, which lands
+      // after this migration. The fixture still creates `officers` because the
+      // migration's legacy FK references it pre-rename, so the name the render
+      // role must be locked out of differs by mode. Asserting the wrong name
+      // would pass on "relation does not exist" instead of "permission denied".
+      const upstream = realSchema ? "personnel" : "officers";
       await expect(
-        renderer.query(`select first_name from public.officers`),
+        renderer.query(`select first_name from public.${upstream}`),
       ).rejects.toThrow(/permission denied/i);
     });
 
