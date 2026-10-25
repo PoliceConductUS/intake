@@ -4,5 +4,7 @@
 alter table public.review_officers rename to review_personnel;
 alter table public.review_officers_ratings rename to review_personnel_ratings;
 
-alter table public.review_personnel rename column agency_officer_id to agency_personnel_id;
-alter table public.review_personnel_ratings rename column review_officer_id to review_personnel_id;
+alter table public.review_personnel rename column agency_officer_id to
+agency_personnel_id;
+alter table public.review_personnel_ratings rename column review_officer_id to
+review_personnel_id;
