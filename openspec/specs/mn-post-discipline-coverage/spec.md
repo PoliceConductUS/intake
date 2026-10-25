@@ -1,8 +1,11 @@
 # mn-post-discipline-coverage Specification
 
 ## Purpose
+
 TBD - created by archiving change import-mn-post-discipline-list. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Collect disciplined personnel independently of agency rosters
 
 The MN POST source SHALL use license numbers from the supplied discipline workbook to collect personnel and actual discipline details regardless of license status or current agency assignment.
@@ -147,4 +150,3 @@ When no analyzed order document is present for an action, MN POST SHALL omit all
 
 - **WHEN** a present analyzed document supplies null for a narrative field
 - **THEN** the transformed record explicitly supplies that null
-

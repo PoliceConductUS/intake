@@ -6,7 +6,7 @@ import type {
   TransformDeps,
   SourceTransform,
 } from "../../src/cli/transform/source-transform.js";
-import { isPersonName } from "../lib/civil-defendants.js";
+import { officerMentions } from "../lib/officer-mentions.js";
 import type { AcquiredVideo } from "./video-cache.js";
 
 export const produces: readonly ImportArtifactKind[] = [
@@ -22,33 +22,16 @@ type VideoEnvelope = {
   videos?: AcquiredVideo[];
 };
 
-// A named officer the publisher asserts, and the passage asserting it. Names are
-// only ever CANDIDATES — the intake-owned resolver gates them against the agency
-// roster (confidence floor + ambiguity band); we never guess (#52).
-// The role prefix is case-insensitive (`(?i:…)`) so "Officer"/"OFFICER"/"officer"
-// all match; the name stays Title-case so only capitalized name words are
-// captured (it stops at the next lowercase word, e.g. "responds").
-const OFFICER_MENTION =
-  /\b(?i:officers?|deputies|deputy|sergeants?|sgt|detectives?|det|lieutenants?|lt|corporals?|cpl|troopers?|chiefs?|captains?|capt|sheriffs?|marshals?|patrol(?:man|woman|men)?)\.?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z'.-]+){1,2})/g;
-
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
 // The distinct officer mentions in a video, each with its first supporting
-// passage across the title, description, and captions.
-function officerMentions(
-  video: AcquiredVideo,
-): Array<{ name: string; passage: string }> {
-  const found = new Map<string, string>();
-  for (const field of [video.title, video.description, video.captions ?? ""]) {
-    for (const match of field.matchAll(OFFICER_MENTION)) {
-      const name = match[1].trim();
-      if (!isPersonName(name) || found.has(name)) continue;
-      found.set(name, match[0].trim());
-    }
-  }
-  return [...found].map(([name, passage]) => ({ name, passage }));
+// passage across the title, description, and captions. Names are only ever
+// CANDIDATES — the intake-owned resolver gates them against the agency roster
+// (confidence floor + ambiguity band); we never guess (#52).
+function videoOfficerMentions(video: AcquiredVideo) {
+  return officerMentions([video.title, video.description, video.captions]);
 }
 
 function normalizedUrl(url: string): string {
@@ -91,7 +74,7 @@ export const transform: SourceTransform = async ({
       // by acquire). A name resolving to no existing officer, or ambiguously,
       // yields no link — never a guess, never a new record.
       const resolved = new Map<string, string>();
-      for (const mention of officerMentions(video)) {
+      for (const mention of videoOfficerMentions(video)) {
         const match = await data.resolvePersonnel({
           agencyId,
           personnelName: mention.name,
