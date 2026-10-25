@@ -264,7 +264,7 @@ test.each([
     }).defects,
   ).toEqual([]);
 });
-test("logs a retained date defect without omitting the record", () => {
+test("blocks mutation generation for a retained date defect", async () => {
   const logs: string[] = [];
   const context = new DataContext({
     logger: { info: (message) => logs.push(message) },
@@ -280,10 +280,48 @@ test("logs a retained date defect without omitting the record", () => {
     },
   });
   expect(logs.join("\n")).toMatch(
-    /source data defect.*AgencyPersonnel.*end_date.*2109-02-27.*70-year limit.*value kept, not publishable/,
+    /source data defect.*AgencyPersonnel.*end_date.*2109-02-27.*70-year limit.*value retained; import blocked/,
   );
-  // Unlike an invalid phone number, this neither strips the value nor drops the
-  // assignment: the person did serve, and the start date is sound.
+  // Keep the evidence inspectable, but do not let it reach database mutations.
   expect(facade.raw("end_date")).toBe("2109-02-27");
   expect(facade.raw("start_date")).toBe("2015-04-22");
+  await expect(context.toMutations()).rejects.toThrow(
+    /test.source.*AgencyPersonnel.*one.*2109-02-27/,
+  );
+});
+
+test("blocks every defective pair without requiring a logger", async () => {
+  const context = new DataContext({});
+  for (const [name, start_date, end_date] of [
+    ["future", "2015-04-22", "2109-02-27"],
+    ["reversed", "2024-10-24", "2023-10-23"],
+  ]) {
+    const spec = { start_date, end_date };
+    context.facadeFromSource("AgencyPersonnel", { ...source, name, spec });
+    expect(spec).toEqual({ start_date, end_date });
+  }
+  await expect(context.toMutations()).rejects.toThrow(/future[\s\S]*reversed/);
+  await expect(context.toDatabaseMutationItems()).rejects.toThrow(
+    /import blocked/,
+  );
+});
+test("validates corrected date pairs before blocking import", async () => {
+  const original = { start_date: "2015-04-22", end_date: "2109-02-27" };
+  const context = new DataContext({
+    // Synthetic supported correction: this is not a proposed real replacement.
+    applyPropertyCorrections: (_kind, _name, spec) => ({
+      ...spec,
+      end_date: "2024-02-27",
+    }),
+  });
+  const facade = context.facadeFromSource("AgencyPersonnel", {
+    ...source,
+    spec: original,
+  });
+  expect(facade.raw("end_date")).toBe("2024-02-27");
+  expect(original.end_date).toBe("2109-02-27");
+  // Missing identity fails later, proving the corrected pair passes the date gate.
+  await expect(context.toMutations()).rejects.toThrow(
+    "source agency_id is missing",
+  );
 });

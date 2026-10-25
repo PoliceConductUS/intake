@@ -213,6 +213,7 @@ export class DataContext {
   private readonly slugs: SlugAllocator;
   /** Every facade built this command, grouped by kind then memo key. */
   private readonly invalidSourceRecords = new Set<string>();
+  private readonly blockingSourceDefects = new Set<string>();
   private readonly facadesByKind = new Map<
     string,
     Map<string, RegistryFacade>
@@ -391,17 +392,16 @@ export class DataContext {
     if (input.spec !== undefined) {
       const cleaned = cleanSourceValues(kind, input.spec);
       for (const defect of cleaned.defects) {
-        // A retained defect is stored as the source gave it and withheld at
-        // publication instead, because dropping it would assert something else
-        // that is false (see `dateRangeDefects`).
+        // Retained evidence must not become a database mutation merely because
+        // it cannot safely be replaced by NULL. Collect all defects before failing.
         const disposition = !defect.omitted
-          ? "value kept, not publishable"
+          ? "value retained; import blocked"
           : defect.required
             ? "record omitted"
             : "value omitted";
-        this.logger?.info?.(
-          `source data defect: ${input.namespace}/${kind}/${input.name}.${defect.field}: ${JSON.stringify(defect.value)}; ${defect.reason}; ${disposition}`,
-        );
+        const message = `source data defect: ${input.namespace}/${kind}/${input.name}.${defect.field}: ${JSON.stringify(defect.value)}; ${defect.reason}; ${disposition}`;
+        this.logger?.info?.(message);
+        if (!defect.omitted) this.blockingSourceDefects.add(message);
         if (defect.omitted && defect.required)
           this.invalidSourceRecords.add(key);
       }
@@ -664,6 +664,9 @@ export class DataContext {
   }
 
   async toMutations(): Promise<DatabaseMutationEnvelope[]> {
+    if (this.blockingSourceDefects.size > 0) {
+      throw new Error([...this.blockingSourceDefects].join("\n"));
+    }
     this.omitInvalidSourceRecords();
     // Every facade is registered during the add phase, so a FK find always locates
     // its target regardless of resolution order; the emitted plan is re-sorted by
