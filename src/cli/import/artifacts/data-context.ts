@@ -391,10 +391,19 @@ export class DataContext {
     if (input.spec !== undefined) {
       const cleaned = cleanSourceValues(kind, input.spec);
       for (const defect of cleaned.defects) {
+        // A retained defect is stored as the source gave it and withheld at
+        // publication instead, because dropping it would assert something else
+        // that is false (see `dateRangeDefects`).
+        const disposition = !defect.omitted
+          ? "value kept, not publishable"
+          : defect.required
+            ? "record omitted"
+            : "value omitted";
         this.logger?.info?.(
-          `source data defect: ${input.namespace}/${kind}/${input.name}.${defect.field}: ${JSON.stringify(defect.value)}; ${defect.reason}; ${defect.required ? "record omitted" : "value omitted"}`,
+          `source data defect: ${input.namespace}/${kind}/${input.name}.${defect.field}: ${JSON.stringify(defect.value)}; ${defect.reason}; ${disposition}`,
         );
-        if (defect.required) this.invalidSourceRecords.add(key);
+        if (defect.omitted && defect.required)
+          this.invalidSourceRecords.add(key);
       }
       input = { ...input, spec: cleaned.spec };
     }
