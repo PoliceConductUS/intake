@@ -344,6 +344,20 @@ const REGISTRY: Record<string, KindConfig> = {
       ) as AnyResolver,
     },
   },
+  AgencyArrestProfile: {
+    identityKind: "natural",
+    overrides: {
+      id: facadeBusinessKeyIdResolver<Row>(
+        "AgencyArrestProfile",
+        BUSINESS_KEYS.AgencyArrestProfile,
+      ) as AnyResolver,
+      agency_id: facadeLedgerForeignKeyResolver<Row>(
+        "AgencyArrestProfile",
+        "agency_id",
+        "Agency",
+      ) as AnyResolver,
+    },
+  },
   ArrestProfile: {
     // A per-officer arrest profile (ADR 0032). Identity is find-or-mint by the
     // unique agency_personnel_id business key, so a re-run updates the one row in

@@ -20,6 +20,7 @@ import { AuthorityLicenses } from "./AuthorityLicenses.js";
 import { Licenses } from "./Licenses.js";
 import { LicenseActions } from "./LicenseActions.js";
 import { PersonnelEducations } from "./PersonnelEducations.js";
+import { PersonnelPhotos } from "./PersonnelPhotos.js";
 import { Disciplines } from "./Disciplines.js";
 import { DisciplineAgencyPersonnel } from "./DisciplineAgencyPersonnel.js";
 import { CoverageLinks } from "./CoverageLinks.js";
@@ -33,6 +34,7 @@ import { Reviews } from "./Reviews.js";
 import { ReviewPersonnel } from "./ReviewPersonnel.js";
 import { ReviewLinks } from "./ReviewLinks.js";
 import { ArrestProfiles } from "./ArrestProfiles.js";
+import { AgencyArrestProfiles } from "./AgencyArrestProfiles.js";
 
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
@@ -113,6 +115,7 @@ const artifactSpecSchemas: Record<string, z.ZodType> = {
   Licenses: Licenses.schema.shape.spec,
   LicenseActions: LicenseActions.schema.shape.spec,
   PersonnelEducations: PersonnelEducations.schema.shape.spec,
+  PersonnelPhotos: PersonnelPhotos.schema.shape.spec,
   Disciplines: Disciplines.schema.shape.spec,
   DisciplineAgencyPersonnel: DisciplineAgencyPersonnel.schema.shape.spec,
   CoverageLinks: CoverageLinks.schema.shape.spec,
@@ -126,6 +129,7 @@ const artifactSpecSchemas: Record<string, z.ZodType> = {
   ReviewPersonnel: ReviewPersonnel.schema.shape.spec,
   ReviewLinks: ReviewLinks.schema.shape.spec,
   ArrestProfiles: ArrestProfiles.schema.shape.spec,
+  AgencyArrestProfiles: AgencyArrestProfiles.schema.shape.spec,
 };
 const artifactReferenceSchema = z
   .object({
