@@ -1,10 +1,11 @@
-import { appendFile, mkdir, writeFile } from "node:fs/promises";
+import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import type {
   AcquireDeps,
   SourceAcquire,
 } from "../../src/cli/transform/source-transform.js";
 import { slugify } from "../lib/civil-defendants.js";
+import { rollingWindow } from "../lib/rolling-window.js";
 import {
   createYoutubeApi,
   isQuotaExhaustedBody,
@@ -12,14 +13,23 @@ import {
   YoutubeQuotaError,
 } from "../lib/youtube.js";
 import {
+  CHANNEL_HANDLE,
+  CHANNEL_URL,
+  SOURCE_ID,
+  SOURCE_NAME,
+  stableChannelId,
+  WINDOW_YEARS,
+} from "./channel.js";
+import {
+  inWindowVideos,
   loadVideoCache,
-  mergedVideos,
-  nextYearToAcquire,
+  nextSliceToSearch,
+  recordSlice,
   saveVideoCache,
   type AcquiredVideo,
 } from "./video-cache.js";
+import { ENVELOPE_SUFFIX, writeVideoEnvelope } from "./video-envelope.js";
 
-const CHANNEL_HANDLE = "@PoliceActivity";
 const MAX_RETRIES = 5;
 const MAX_BACKOFF_MS = 60_000;
 // Be gentle: a small pause between agency searches (we are in no rush).
@@ -46,7 +56,7 @@ export const acquire: SourceAcquire = async ({
   const apiKey = env.YOUTUBE_API_KEY;
   if (apiKey === undefined || apiKey.trim() === "") {
     throw new Error(
-      "youtube.policeactivity: YOUTUBE_API_KEY is required to search the channel.",
+      `${SOURCE_ID}: YOUTUBE_API_KEY is required to search the channel.`,
     );
   }
   await mkdir(sourceDir, { recursive: true });
@@ -71,48 +81,37 @@ export const acquire: SourceAcquire = async ({
       if (response.ok) return body as Record<string, unknown>;
       if (isQuotaExhaustedBody(body)) {
         throw new YoutubeQuotaError(
-          `youtube.policeactivity: YouTube quota exhausted (${response.status}); ${quotaResetHint(body, new Date())}. Stopping (resumes next run).`,
+          `${SOURCE_ID}: YouTube quota exhausted (${response.status}); ${quotaResetHint(body, new Date())}. Stopping (resumes next run).`,
         );
       }
       const retryable = response.status === 429 || response.status >= 500;
       if (!retryable || attempt >= MAX_RETRIES) {
-        throw new Error(
-          `youtube.policeactivity: ${response.status} for ${url}`,
-        );
+        throw new Error(`${SOURCE_ID}: ${response.status} for ${url}`);
       }
       const waitMs = Math.min(MAX_BACKOFF_MS, 1000 * 2 ** attempt);
       log.info(
-        `youtube.policeactivity: ${response.status}; retrying in ${Math.round(waitMs / 1000)}s (attempt ${attempt + 1}/${MAX_RETRIES}).`,
+        `${SOURCE_ID}: ${response.status}; retrying in ${Math.round(waitMs / 1000)}s (attempt ${attempt + 1}/${MAX_RETRIES}).`,
       );
       await sleep(waitMs);
     }
   };
-  const fetchText = async (url: string): Promise<string> => {
-    const response = await fetch(url);
-    return response.ok ? response.text() : "";
+
+  const youtube = createYoutubeApi({ fetchJson });
+  const channelId = await stableChannelId(state, youtube.resolveChannelId);
+
+  // The rolling publication window this run considers, fixed once so every
+  // agency's searches and every envelope it writes share one window.
+  const window = rollingWindow(new Date(), WINDOW_YEARS);
+  const source = {
+    name: SOURCE_NAME,
+    handle: CHANNEL_HANDLE,
+    channelUrl: CHANNEL_URL,
+    channelId,
   };
 
-  const youtube = createYoutubeApi({ fetchJson, fetchText });
-  const channelId = await youtube.resolveChannelId(CHANNEL_HANDLE);
-  if (channelId === null) {
-    throw new Error(
-      `youtube.policeactivity: could not resolve channel id for ${CHANNEL_HANDLE}.`,
-    );
-  }
-  await writeFile(
-    path.join(sourceDir, "channel.json"),
-    JSON.stringify({ handle: CHANNEL_HANDLE, channelId }, null, 2),
-  );
-
-  // Backfill window: the current year by default; prod widens it (e.g. 5 years)
-  // via YOUTUBE_MIN_YEAR. Each run fetches one agency-year, newest first.
-  const currentYear = new Date().getFullYear();
-  const floorYear = Number(env.YOUTUBE_MIN_YEAR ?? currentYear);
-
   const cache = await loadVideoCache(state);
-  const nowIso = new Date().toISOString();
-  let searched = 0;
-  let upToDate = 0;
+  let backfilled = 0;
+  let refreshed = 0;
   let failed = 0;
 
   const processAgency = async (
@@ -124,66 +123,61 @@ export const acquire: SourceAcquire = async ({
   ): Promise<void> => {
     if (agencyName === "") return;
     const slug = slugify(agencyName);
-    const entry = cache.agencies[slug] ?? { years: {} };
+    const slice = nextSliceToSearch(cache.agencies[slug], window);
 
-    const year = nextYearToAcquire(entry, floorYear, currentYear);
-    if (year === null) {
-      upToDate += 1;
-    } else {
-      try {
-        const hits = await youtube.searchChannelVideos(
-          channelId,
-          agencyQuery(agencyName, place),
-          {
-            publishedAfter: `${year}-01-01T00:00:00Z`,
-            publishedBefore: `${year + 1}-01-01T00:00:00Z`,
-          },
-        );
-        const videos: AcquiredVideo[] = [];
-        for (const hit of hits) {
-          videos.push({
-            ...hit,
-            captions: await youtube.fetchCaptions(hit.videoId),
-          });
-        }
-        entry.years[String(year)] = { searchedAt: nowIso, videos };
-        cache.agencies[slug] = entry;
-        await saveVideoCache(state, cache);
-        searched += 1;
-        log.info(
-          `youtube.policeactivity: ${agencyName} ${year} — ${videos.length} video(s) [searched ${searched}]`,
-        );
-        await sleep(POLITE_DELAY_MS);
-      } catch (error) {
-        // Quota exhausted halts the whole run (every later call would 403 too);
-        // any other single-agency failure is logged and skipped, uncached so a
-        // later run retries it.
-        if (error instanceof YoutubeQuotaError) throw error;
-        failed += 1;
-        log.info(
-          `youtube.policeactivity: ${agencyName} ${year} — search failed, skipped (${error instanceof Error ? error.message : String(error)}).`,
-        );
-        return;
-      }
+    try {
+      const hits = await youtube.searchChannelVideos(
+        channelId,
+        agencyQuery(agencyName, place),
+        {
+          publishedAfter: slice.publishedAfter,
+          publishedBefore: slice.publishedBefore,
+        },
+      );
+      const retrievedAt = new Date().toISOString();
+      const videos: AcquiredVideo[] = hits.map((hit) => ({
+        ...hit,
+        retrievedAt,
+      }));
+      cache.agencies[slug] = recordSlice(
+        cache.agencies[slug],
+        slice,
+        retrievedAt,
+        videos,
+      );
+      await saveVideoCache(state, cache);
+      if (slice.refresh) refreshed += 1;
+      else backfilled += 1;
+      log.info(
+        `${SOURCE_ID}: ${agencyName} ${slice.year}${slice.refresh ? " (refresh)" : ""} — ${videos.length} video(s)`,
+      );
+      await sleep(POLITE_DELAY_MS);
+    } catch (error) {
+      // Quota exhausted halts the whole run (every later call would 403 too); any
+      // other single-agency failure is logged and the slice stays uncached so a
+      // later run retries it. The envelope is still written from the cache, so a
+      // previously skipped in-window video is still reconsidered this run.
+      if (error instanceof YoutubeQuotaError) throw error;
+      failed += 1;
+      log.info(
+        `${SOURCE_ID}: ${agencyName} ${slice.year} — search failed, skipped (${error instanceof Error ? error.message : String(error)}).`,
+      );
     }
 
-    await writeFile(
-      path.join(sourceDir, `${slug}.videos.json`),
-      JSON.stringify(
-        {
-          agency: {
-            id: agencyId,
-            name: agencyName,
-            state: agencyState,
-            county,
-            place,
-          },
-          channelId,
-          videos: mergedVideos(entry),
+    await writeVideoEnvelope(
+      path.join(sourceDir, `${slug}${ENVELOPE_SUFFIX}`),
+      {
+        source,
+        window,
+        agency: {
+          id: agencyId,
+          name: agencyName,
+          state: agencyState,
+          county,
+          place,
         },
-        null,
-        2,
-      ),
+        videos: inWindowVideos(cache.agencies[slug], window),
+      },
     );
   };
 
@@ -210,6 +204,8 @@ export const acquire: SourceAcquire = async ({
   }
 
   log.info(
-    `youtube.policeactivity: ${searched} agency-years searched, ${upToDate} already backfilled to ${floorYear}, ${failed} skipped after errors${quotaHit ? ", stopped on quota" : ""}. state=${state}`,
+    `${SOURCE_ID}: channel ${channelId}, window ${window.start}..${window.end} — ` +
+      `${backfilled} agency-year(s) backfilled, ${refreshed} refreshed, ${failed} skipped after errors` +
+      `${quotaHit ? ", stopped on quota" : ""}. state=${state}`,
   );
 };

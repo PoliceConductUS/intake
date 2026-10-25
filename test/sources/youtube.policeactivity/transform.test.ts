@@ -10,45 +10,73 @@ afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map((d) => rm(d, { recursive: true })));
 });
 
-const envelope = {
-  agency: { id: "a1", name: "Irving Police Department", state: "TX" },
-  channelId: "UCpolice",
-  videos: [
-    {
-      videoId: "v1",
-      url: "https://www.youtube.com/watch?v=v1",
-      title: "Bodycam: Irving PD arrest",
-      description: "Officer John Smith responds to a call. Case 3:23-cv-01234.",
-      publishedAt: "2024-03-05T12:00:00Z",
-      channelId: "UCpolice",
-      captions: "Sergeant Jane Wilson also arrived on scene.",
-    },
-    {
-      // Names an officer who does not resolve at this agency -> no link.
-      videoId: "v2",
-      url: "https://www.youtube.com/watch?v=v2",
-      title: "Traffic stop",
-      // A docket mention does not substitute for a resolved officer.
-      description:
-        "Officer Nobody Stranger writes a ticket. Case 3:23-cv-01234.",
-      publishedAt: "2024-01-01T00:00:00Z",
-      channelId: "UCpolice",
-      captions: null,
-    },
-    {
-      // Names no officer -> no link.
-      videoId: "v3",
-      url: "https://www.youtube.com/watch?v=v3",
-      title: "Dashcam highlights",
-      description: "General footage, no one named.",
-      publishedAt: "2024-02-02T00:00:00Z",
-      channelId: "UCpolice",
-      captions: null,
-    },
-  ],
+// The window a run on 2026-10-24 acquired this evidence under, stamped on the
+// envelope so the produce phase needs no clock of its own.
+const window = {
+  start: "2021-10-24T00:00:00.000Z",
+  end: "2026-10-24T00:00:00.000Z",
 };
 
-// Fake run-phase resolver: only John Smith and Jane Wilson exist at agency a1.
+const source = {
+  name: "PoliceActivity",
+  handle: "@PoliceActivity",
+  channelUrl: "https://www.youtube.com/PoliceActivity",
+  channelId: "UCpa123",
+};
+
+function video(overrides: Record<string, unknown>) {
+  return {
+    videoId: "v1",
+    url: "https://www.youtube.com/watch?v=v1",
+    title: "Bodycam: Irving PD arrest",
+    description: "Officer John Smith responds to a call.",
+    publishedAt: "2024-03-05T12:00:00Z",
+    channelId: "UCpa123",
+    retrievedAt: "2026-10-24T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+const videos = [
+  video({
+    description:
+      "Officer John Smith responds to a call. Sergeant Jane Wilson also arrived.",
+  }),
+  // Names an officer who does not resolve at this agency -> no link.
+  video({
+    videoId: "v2",
+    url: "https://www.youtube.com/watch?v=v2",
+    title: "Traffic stop",
+    description: "Officer Nobody Stranger writes a ticket.",
+    publishedAt: "2024-01-01T00:00:00Z",
+  }),
+  // Names no officer -> no link.
+  video({
+    videoId: "v3",
+    url: "https://www.youtube.com/watch?v=v3",
+    title: "Dashcam highlights",
+    description: "General footage, no one named.",
+    publishedAt: "2024-02-02T00:00:00Z",
+  }),
+];
+
+function envelope(overrides: Record<string, unknown> = {}) {
+  return {
+    source,
+    window,
+    agency: {
+      id: "a1",
+      name: "Irving Police Department",
+      state: "TX",
+      county: "Dallas",
+      place: "Irving",
+    },
+    videos,
+    ...overrides,
+  };
+}
+
+// Fake produce-phase resolver: only John Smith and Jane Wilson exist at agency a1.
 function fakeData(
   resolved: Record<string, string> = {
     "John Smith": "ao-1",
@@ -72,11 +100,14 @@ function fakeData(
   };
 }
 
-async function runWith(data = fakeData()) {
+async function runWith(
+  data: ReturnType<typeof fakeData> = fakeData(),
+  body: unknown = envelope(),
+) {
   const dir = await mkdtemp(path.join(tmpdir(), "youtube-pa-"));
   tempDirs.push(dir);
   const file = path.join(dir, "irving-police-department.videos.json");
-  await writeFile(file, JSON.stringify(envelope));
+  await writeFile(file, JSON.stringify(body));
   const manifest = await transform({
     paths: [file],
     readXlsx,
@@ -90,7 +121,7 @@ async function runWith(data = fakeData()) {
   return { manifest, byKind };
 }
 
-describe("youtube.policeactivity run", () => {
+describe("youtube.policeactivity produce", () => {
   it("links a video to every officer it names that resolves at the acquired agency", async () => {
     const { byKind } = await runWith();
 
@@ -102,7 +133,8 @@ describe("youtube.policeactivity run", () => {
       title: "Bodycam: Irving PD arrest",
       source_name: "PoliceActivity",
       published_at: "2024-03-05",
-      notes: "Officer John Smith responds to a call. Case 3:23-cv-01234.",
+      notes:
+        "Officer John Smith responds to a call. Sergeant Jane Wilson also arrived.",
     });
 
     // One link per resolved officer, each citing the naming passage.
@@ -132,7 +164,7 @@ describe("youtube.policeactivity run", () => {
     expect(Object.keys(byKind.CoverageLinks)).not.toContain("v3");
   });
 
-  it("emits only video coverage and personnel links when a video cites a docket", async () => {
+  it("emits only the two coverage kinds it declares", async () => {
     const { byKind } = await runWith();
     expect(Object.keys(byKind).sort()).toEqual([
       "CoverageLinkAgencyPersonnel",
@@ -148,9 +180,80 @@ describe("youtube.policeactivity run", () => {
     expect(data.calls.map((c) => c.personnelName)).toContain("John Smith");
   });
 
-  it("is deterministic", async () => {
+  it("ignores a video published outside the acquired window", async () => {
+    const data = fakeData();
+    const { byKind } = await runWith(
+      data,
+      envelope({
+        videos: [
+          video({
+            videoId: "aged-out",
+            publishedAt: "2021-10-23T00:00:00Z",
+            description: "Officer John Smith responds to a call.",
+          }),
+        ],
+      }),
+    );
+    expect(byKind.CoverageLinks).toEqual({});
+    // Out-of-window evidence is not even resolved against the database.
+    expect(data.calls).toEqual([]);
+  });
+
+  it("links a previously skipped video once the officer it names exists", async () => {
+    const skipped = envelope({
+      videos: [
+        video({
+          videoId: "v9",
+          url: "https://www.youtube.com/watch?v=v9",
+          title: "Bodycam: arrest",
+          description: "Officer Later Hire makes an arrest.",
+          publishedAt: "2024-06-01T00:00:00Z",
+        }),
+      ],
+    });
+
+    // First run: the officer is not in the database yet.
+    const before = await runWith(fakeData(), skipped);
+    expect(before.byKind.CoverageLinks).toEqual({});
+
+    // A later run over the same evidence, after the officer and agency exist.
+    const after = await runWith(fakeData({ "Later Hire": "ao-9" }), skipped);
+    expect(Object.keys(after.byKind.CoverageLinks)).toEqual(["v9"]);
+    expect(Object.keys(after.byKind.CoverageLinkAgencyPersonnel)).toEqual([
+      "v9|ao-9",
+    ]);
+  });
+
+  it("is deterministic, so a re-run over unchanged evidence duplicates nothing", async () => {
     const first = (await runWith()).manifest;
     const second = (await runWith()).manifest;
     expect(second).toEqual(first);
+  });
+
+  it("rejects evidence with no window stamp", async () => {
+    const { window: _dropped, ...noWindow } = envelope();
+    await expect(runWith(fakeData(), noWindow)).rejects.toThrow(
+      /not a valid video evidence envelope/,
+    );
+  });
+
+  it("rejects evidence with no retrieval time", async () => {
+    const { retrievedAt: _dropped, ...noRetrievedAt } = video({});
+    await expect(
+      runWith(fakeData(), envelope({ videos: [noRetrievedAt] })),
+    ).rejects.toThrow(/not a valid video evidence envelope/);
+  });
+
+  it("requires a data context to resolve officers against", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "youtube-pa-"));
+    tempDirs.push(dir);
+    await expect(
+      transform({
+        paths: [path.join(dir, "x.videos.json")],
+        readXlsx,
+        state: dir,
+        emit: async () => {},
+      }),
+    ).rejects.toThrow(/requires a data context/);
   });
 });

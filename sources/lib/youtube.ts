@@ -1,7 +1,10 @@
 // A small YouTube Data API v3 client for the video-coverage sources (issue #52).
-// Network access is injected (`fetchJson` for the Data API, `fetchText` for the
-// timedtext caption track) so a source's acquire wires the real, keyed, retrying
-// fetch and tests inject fakes — the client itself is deterministic.
+// Network access is injected (`fetchJson`) so a source's acquire wires the real,
+// keyed, retrying fetch and tests inject fakes — the client itself is
+// deterministic.
+//
+// Data API only. youtube.com/robots.txt disallows `/api/`, so the `/api/timedtext`
+// caption track is not fetched and captions are not available to these sources.
 
 export type YoutubeSearchHit = {
   videoId: string;
@@ -23,8 +26,6 @@ export type YoutubeApi = {
     query: string,
     window?: DateWindow,
   ): Promise<YoutubeSearchHit[]>;
-  /** The caption/transcript text for a video, or null when none is available. */
-  fetchCaptions(videoId: string): Promise<string | null>;
 };
 
 function str(value: unknown): string {
@@ -100,7 +101,6 @@ export function videoUrl(videoId: string): string {
 
 export function createYoutubeApi(deps: {
   fetchJson: (url: string) => Promise<Record<string, unknown>>;
-  fetchText: (url: string) => Promise<string>;
 }): YoutubeApi {
   const api = "https://www.googleapis.com/youtube/v3";
 
@@ -147,21 +147,6 @@ export function createYoutubeApi(deps: {
         });
       }
       return hits;
-    },
-
-    async fetchCaptions(videoId) {
-      // Best-effort English timedtext track. Empty body ⇒ no captions available.
-      const xml = await deps.fetchText(
-        `https://www.youtube.com/api/timedtext?lang=en&v=${encodeURIComponent(videoId)}`,
-      );
-      const text = xml
-        .replace(/<[^>]+>/g, " ")
-        .replace(/&#39;/g, "'")
-        .replace(/&quot;/g, '"')
-        .replace(/&amp;/g, "&")
-        .replace(/\s+/g, " ")
-        .trim();
-      return text === "" ? null : text;
     },
   };
 }
