@@ -100,9 +100,7 @@ const asDate = (value: unknown): Date | undefined => {
  * person. DataContext blocks mutation generation until the source is corrected
  * or an evidence-backed conditional correction resolves the defect.
  *
- * A future `end_date` is deliberately not a defect: a source may legitimately
- * record a scheduled separation, and whether it has happened yet is a question
- * for the build clock, not for the importer.
+ * Future dates are checked separately against the intake validation day.
  */
 export function dateRangeDefects(
   spec: Record<string, unknown>,
@@ -134,9 +132,31 @@ export function dateRangeDefects(
 export function cleanSourceValues(
   kind: string,
   input: Record<string, unknown>,
+  validationDate: Date = new Date(),
 ): { spec: Record<string, unknown>; defects: SourceValueDefect[] } {
   let spec = input;
+  const today = validationDate.toISOString().slice(0, 10);
   const defects: SourceValueDefect[] = [...dateRangeDefects(input)];
+  for (const [field, value] of Object.entries(input)) {
+    if (
+      !(
+        field === "date" ||
+        field.startsWith("date_") ||
+        field.endsWith("_date")
+      )
+    )
+      continue;
+    const date = asDate(value);
+    if (date !== undefined && date.toISOString().slice(0, 10) > today) {
+      defects.push({
+        field,
+        value,
+        required: false,
+        omitted: false,
+        reason: `future date exceeds validation day ${today}`,
+      });
+    }
+  }
   for (const field of fieldsFor(kind)) {
     const value = input[field.name];
     if (value === undefined || (value === null && field.nullable)) continue;
