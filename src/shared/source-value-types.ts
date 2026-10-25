@@ -14,7 +14,7 @@ export type SourceValueDefect = {
   required: boolean;
   reason: string;
   // Whether the value was dropped from the spec. False for a defect we record
-  // but keep, because dropping the value would itself assert something false --
+  // but keep as evidence while blocking import, because clearing it can assert a false status --
   // see `dateRangeDefects`.
   omitted: boolean;
 };
@@ -76,9 +76,7 @@ function validUrl(value: string): boolean {
 // Longest span we will accept as one real assignment. The TCOLE 2025-02-10
 // production's longest genuine completed assignment is 50.8 years and its next
 // longest "assignment" is a 93.9-year row created by a mistyped END_DATE, so the
-// threshold sits between them with room on both sides. Kept in step with
-// MAX_ASSIGNMENT_YEARS in policeconduct.org's src/lib/data/assignment-dates.js,
-// which decides the same question at publication time.
+// threshold is a conservative review gate, not proof of the correct date.
 export const MAX_RANGE_YEARS = 70;
 const DAYS_PER_YEAR = 365.25;
 const MS_PER_DAY = 86_400_000;
@@ -99,8 +97,8 @@ const asDate = (value: unknown): Date | undefined => {
  * The value is reported but kept. `end_date is null` is the corpus's encoding
  * for *currently employed*, so dropping an impossible separation date here would
  * trade a false date for a false present-tense employment claim about a named
- * person. The site withholds the unusable date from publication instead, while
- * still reading the assignment as ended.
+ * person. DataContext blocks mutation generation until the source is corrected
+ * or an evidence-backed conditional correction resolves the defect.
  *
  * A future `end_date` is deliberately not a defect: a source may legitimately
  * record a scheduled separation, and whether it has happened yet is a question
