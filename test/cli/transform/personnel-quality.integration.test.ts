@@ -14,7 +14,7 @@ import {
 } from "../../../src/shared/io/excluded-records.js";
 
 for (const namespace of ["gov.tx.tcole", "gov.or.dpsst", "example.future"]) {
-  test(`${namespace}: shared transform rejects numeric identity and preserves evidence`, async () => {
+  test(`${namespace}: shared transform preserves source name and suffix for generation corrections`, async () => {
     const root = await mkdtemp(path.join(tmpdir(), "name-quality-"));
     try {
       const manifest: SourceManifest = {
@@ -22,15 +22,21 @@ for (const namespace of ["gov.tx.tcole", "gov.or.dpsst", "example.future"]) {
           {
             kind: "Personnel",
             records: {
-              bad: { spec: { first_name: "9", last_name: "Townsend" } },
+              bad: {
+                spec: { first_name: "9", last_name: "Townsend", suffix: "N/A" },
+              },
             },
           },
         ],
       };
       const before = structuredClone(manifest);
       const result = await run(root, namespace, manifest);
-      expect(result).toMatchObject({
-        error: { exitCode: 1, stderr: expect.stringContaining("first_name") },
+      expect(result).toHaveProperty("artifactsPath");
+      if (!("artifactsPath" in result)) throw new Error(JSON.stringify(result));
+      const artifacts = await Artifacts.read(result.artifactsPath);
+      expect(artifacts.spec.artifacts[0]!.spec.records.bad).toEqual({
+        metadata: { name: "bad" },
+        spec: { first_name: "9", last_name: "Townsend", suffix: "N/A" },
       });
       expect(manifest).toEqual(before);
     } finally {

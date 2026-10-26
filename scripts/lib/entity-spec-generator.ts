@@ -150,12 +150,6 @@ const DESCRIPTORS: EntityDescriptor[] = [
     recordKind: "Personnel",
     table: "personnel",
     createRequired: ["id", "slug"],
-    fieldTypes: {
-      first_name: "personnelName",
-      middle_name: "personnelName",
-      last_name: "personnelName",
-      suffix: "personnelSuffix",
-    },
   },
   {
     recordKind: "AgencyPersonnel",
@@ -747,7 +741,6 @@ export function generateEntitySpecsModule(
   const preamble = `${header}import { z } from "zod";
 import { timestampWithTimezone } from "../../timestamp-schema.js";
 import { agencyAddressText, agencyZipCode } from "../../agency-address-schema.js";
-import { personnelName, personnelSuffix } from "../../personnel-name-schema.js";
 
 // Fingerprint of the applied database migrations these specs were generated
 // against. The importer refuses to run when the live database's migrations

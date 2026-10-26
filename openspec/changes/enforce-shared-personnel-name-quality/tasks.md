@@ -1,7 +1,6 @@
 ## Implementation
 
-- [x] Add cross-source failing boundary and exclusion tests.
-- [x] Enforce shared field schemas and preserve historical update evidence.
-- [x] Replace source-specific fixture inference with auditable exclusion workflow.
-- [x] Run focused tests, typecheck, formatting, build, full suite and OpenSpec validation.
-- [x] Open feature PR and record limitations; no rebuild or publication.
+- [x] Verify a regression test demonstrates source values surviving transform.
+- [x] Restore original generator contracts and regenerate canonical IO.
+- [x] Verify correction, unset, structural validation, and exclusion behavior.
+- [x] Run focused tests and OpenSpec validation; document limits.

@@ -1,3 +1,4 @@
+import { BeatBoundariesSchema } from "./beats.js";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
@@ -57,6 +58,7 @@ export const transform: SourceTransform = async ({
     throw new Error("Missing analytics-provenance.json (run acquire first).");
   const evidence = z
     .object({
+      beatBoundaries: BeatBoundariesSchema,
       provenance: z.record(z.string(), z.unknown()),
       audit: z.record(z.string(), z.unknown()),
     })
@@ -64,6 +66,16 @@ export const transform: SourceTransform = async ({
     .parse(JSON.parse(await readFile(provenanceFile, "utf8")));
   // Validate uniqueness even if a duplicate booking has no resolvable officer.
   const agencyProfile = buildProfile(arrests);
+  const beatCodes = new Set(evidence.beatBoundaries.map((beat) => beat.code));
+  for (const arrest of arrests) {
+    if (
+      arrest.enrichment.beat !== null &&
+      !beatCodes.has(arrest.enrichment.beat)
+    )
+      throw new Error(
+        `Missing patrol boundary for beat ${arrest.enrichment.beat}`,
+      );
+  }
   const agency = await data.resolveAgency?.({ agencyName: AGENCY_NAME });
   if (agency === undefined || agency === null) {
     throw new Error(
@@ -169,7 +181,10 @@ export const transform: SourceTransform = async ({
                 unresolvedNameCount: unresolvedNames.size,
                 arrestsWithNoResolvedOfficer: arrestsWithNoOfficer,
               },
-              breakdowns: agencyProfile.breakdowns,
+              breakdowns: {
+                ...agencyProfile.breakdowns,
+                arrest_beat_boundaries: evidence.beatBoundaries,
+              },
             },
           },
         },

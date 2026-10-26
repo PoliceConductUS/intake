@@ -10,23 +10,23 @@ The target is the configured local development PostgreSQL database at 127.0.0.1:
 
 Original workbook SHA256: `f1a85af8b6baf415c9385fd7ad8c37d85244c4abd7bb44e7b6d7714b13318272`.
 
-| Measure | Count |
-|---|---:|
-| Original arrest rows | 41,757 |
-| Distinct bookings | 41,211 |
-| Original charge rows | 179,916 |
-| Linked charge rows | 179,913 |
-| Orphan charge rows | 3 |
-| Distinct full linked charge tuples | 63,776 |
-| Bookings with matching charge records | 31,764 |
-| Bookings without matching charge records | 9,447 |
-| Original offense rows | 61,795 |
-| Linked offense rows | 61,792 |
-| Orphan offense rows | 3 |
-| Officer profiles | 322 |
-| Bookings without a resolved officer | 6,917 |
-| Bookings assigned an arrest beat | 28,744 |
-| Bookings assigned residential-area income | 29,154 |
+| Measure                                   |   Count |
+| ----------------------------------------- | ------: |
+| Original arrest rows                      |  41,757 |
+| Distinct bookings                         |  41,211 |
+| Original charge rows                      | 179,916 |
+| Linked charge rows                        | 179,913 |
+| Orphan charge rows                        |       3 |
+| Distinct full linked charge tuples        |  63,776 |
+| Bookings with matching charge records     |  31,764 |
+| Bookings without matching charge records  |   9,447 |
+| Original offense rows                     |  61,795 |
+| Linked offense rows                       |  61,792 |
+| Orphan offense rows                       |       3 |
+| Officer profiles                          |     322 |
+| Bookings without a resolved officer       |   6,917 |
+| Bookings assigned an arrest beat          |  28,744 |
+| Bookings assigned residential-area income |  29,154 |
 
 All bookings remain in agency totals. The agency data-quality finding explicitly reports 9,447 bookings without matching charge records; its reason is unknown. Missing links do not establish zero legal charges. All linked charge rows retain multiplicity; no primary charge is selected. Original workbook and orphan rows remain in private evidence.
 

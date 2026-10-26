@@ -10,6 +10,23 @@ import type {
   SourceManifest,
 } from "../../../src/cli/transform/source-transform.js";
 
+const boundaries = [
+  {
+    code: "1",
+    name: "1",
+    geometry: {
+      type: "Polygon",
+      coordinates: [
+        [
+          [0, 0],
+          [1, 0],
+          [1, 1],
+          [0, 0],
+        ],
+      ],
+    },
+  },
+];
 const tempDirs: string[] = [];
 afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map((d) => rm(d, { recursive: true })));
@@ -107,6 +124,7 @@ describe("arrests run", () => {
     await writeFile(
       path.join(dir, "analytics-provenance.json"),
       JSON.stringify({
+        beatBoundaries: boundaries,
         provenance: { workbookSha256: "hash" },
         audit: { sourceArrestRows: 4 },
       }),
@@ -126,6 +144,7 @@ describe("arrests run", () => {
       records(manifest, "AgencyArrestProfiles").irving?.spec,
     ).toMatchObject({
       agency_id: "irving",
+      breakdowns: { arrest_beat_boundaries: boundaries },
       coverage: {
         totalArrests: 4,
         arrestsWithNoResolvedOfficer: 1,
@@ -205,6 +224,7 @@ describe("arrests run", () => {
     await writeFile(
       provenancePath,
       JSON.stringify({
+        beatBoundaries: boundaries,
         provenance: {
           workbook: { sha256: "hash" },
           census: { vintage: "2024" },
@@ -281,7 +301,7 @@ describe("arrests run", () => {
     await writeFile(jsonl, JSON.stringify(arrest({})), "utf8");
     await writeFile(
       path.join(dir, "analytics-provenance.json"),
-      JSON.stringify({ provenance: {}, audit: {} }),
+      JSON.stringify({ provenance: {}, audit: {}, beatBoundaries: boundaries }),
     );
     await expect(
       transform({

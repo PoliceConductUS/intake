@@ -1,36 +1,37 @@
 ## ADDED Requirements
 
-### Requirement: Invalid date pairs block intake mutation generation
+### Requirement: Temporarily omit records with invalid source dates
 
-Intake SHALL reject mutation generation if any input retains a reported date-pair defect after conditional corrections. The error SHALL identify the source namespace, record kind, source name, field, original value, and reason. Raw inputs SHALL remain unchanged. No replacement date or employment-status inference SHALL be introduced.
+Root intake SHALL validate source dates after conditional corrections. A retained
+date-pair defect or future date SHALL omit the entire affected record and its
+dependents from the current generation, while allowing valid records to proceed.
+Each omission SHALL report namespace, kind, source name, field, original value,
+and reason. Raw inputs SHALL remain unchanged; invalid end dates SHALL NOT be
+cleared to imply current employment. No persistent exclusion SHALL be created.
 
-#### Scenario: Implausible retained date
+#### Scenario: Invalid date pair
 
 - **WHEN** an assignment ends before its start or spans more than 70 years
-- **THEN** mutation generation fails with the source identity and reason, even without a logger
-- **AND** the original date remains inspectable
-
-#### Scenario: Supported conditional correction
-
-- **WHEN** a conditional property correction yields a valid date pair
-- **THEN** date-pair validation does not block mutation generation
-
-#### Scenario: Previously stored invalid date
-
-- **WHEN** an invalid assignment already exists in the database
-- **THEN** rejecting an import does not claim to repair or remove that existing row
-
-### Requirement: Future dates require operator resolution
-
-Intake SHALL block mutation generation for every populated date property (`date`, `date_*`, or `*_date`) after the validation clock's UTC calendar day, including standalone start dates and future expiration dates. Conditional corrections SHALL run first. Operators SHALL be able to use the existing correction or record-exclusion CLI; no website behavior is part of this change.
+- **THEN** generation omits the assignment and reports the defect
+- **AND** the original dates remain inspectable
 
 #### Scenario: Future standalone date
 
-- **WHEN** a date property is later than the validation day, even without a paired date
-- **THEN** import fails with the source identity and an instruction to correct or exclude the record
+- **WHEN** a populated date property (`date`, `date_*`, or `*_date`) exceeds the validation clock's UTC day
+- **THEN** generation omits the record and reports its identity, value, and reason
 
-#### Scenario: Operator excludes a record
+#### Scenario: Corrected source on a later run
 
-- **WHEN** the operator records an exclusion and regenerates artifacts
-- **THEN** that record does not enter mutation generation
-- **AND** the exclusion retains its reason and does not silently delete already-stored database rows
+- **WHEN** a later source input or explicit conditional correction resolves the defect
+- **THEN** intake evaluates the corrected record normally without removing a persistent exclusion
+
+#### Scenario: Dependent records
+
+- **WHEN** another record references an omitted invalid record
+- **THEN** intake omits and reports that dependent record using the shared dependency filtering
+- **AND** unrelated valid records remain eligible
+
+#### Scenario: Existing database record
+
+- **WHEN** an omitted record already exists in the database
+- **THEN** omission does not claim to repair or delete that existing row

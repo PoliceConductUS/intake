@@ -1,3 +1,4 @@
+import { patrolBeatBoundaries } from "./beats.js";
 import { createHash } from "node:crypto";
 import {
   copyFile,
@@ -273,6 +274,7 @@ export const acquire: SourceAcquire = async ({ sourceDir, env, logger }) => {
     JSON.stringify(
       {
         provenance,
+        beatBoundaries: patrolBeatBoundaries(beatGeojson),
         audit: {
           ...normalized.audit,
           arrestBeatStatus: counts("beatStatus"),

@@ -185,7 +185,27 @@ export type ArtifactsInput = Omit<
 function parseArtifacts(value: unknown): ArtifactsEnvelope {
   const result = schema.safeParse(value);
   if (!result.success) {
-    throw new Error(formatError(result.error));
+    throw new Error(
+      result.error.issues
+        .map((issue) => {
+          let rejected: unknown = value;
+          for (const segment of issue.path) {
+            rejected =
+              rejected !== null && typeof rejected === "object"
+                ? Reflect.get(rejected, segment)
+                : undefined;
+          }
+          return (
+            formatError(new z.ZodError([issue])) +
+            " " +
+            issue.message +
+            " Received: " +
+            (JSON.stringify(rejected) ?? "undefined") +
+            "."
+          );
+        })
+        .join("\n"),
+    );
   }
   return result.data;
 }

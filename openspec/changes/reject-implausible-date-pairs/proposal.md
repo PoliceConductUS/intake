@@ -1,5 +1,18 @@
-# Reject implausible date pairs at intake
+## Why
 
-The existing date-pair check logs a defect but still permits database mutations. Intake must block mutation generation for every future calendar-date property, an end before its start, or a range over the existing 70-year review threshold. Use one UTC validation day for the import. All date, date\__, and _\_date properties are guarded, including standalone starts and expiration dates. Preserve the input for inspection, report every defect with source identity, and permit a provenance-backed conditional correction before validation. Operators resolve defects through the existing cache set conditional-correction command or data exclude command followed by regeneration. Do not automatically substitute a guessed year, clear the date, or infer employment status.
+Invalid source dates must not prevent valid records from completing generation
+and reset. Persistent record exclusions are inappropriate for defects that may
+be corrected in a later acquisition.
 
-This changes import validation only. No database migration, reset, generated contract change, or public-site change. It prevents new invalid writes; it does not correct already-stored rows. Those remain unresolved until a supported correction or an explicit representation of unknown separation is available.
+## What Changes
+
+Root intake applies existing conditional corrections, checks dates, and logs and
+omits records with retained date defects for the current generation. Existing
+shared dependency filtering also omits their dependents. Source values remain
+inspectable and a later run evaluates them anew. No guessed dates, cleared end
+dates, persistent exclusions, or source-specific rules are introduced.
+
+## Impact
+
+No database schema or migration change. Omission does not delete existing database
+rows. The existing date checks and generation-time correction placement remain.

@@ -1,22 +1,17 @@
 ## Why
 
-INS-96: Texas-only checks do not protect Oregon, future sources, manual imports,
-or mutation replay. Name-like placeholder words can also be real names.
+The added shared Personnel refinements reject source artifacts before existing
+generation-time corrections can run. The user requested restoration of the
+original implementation, without moving corrections or adding stages.
 
 ## What Changes
 
-- Enforce nonblank, letter-bearing first, middle, and last names in shared field
-  schemas; nullable optional components remain nullable. Validate suffixes against
-  the existing generational suffix vocabulary, without guessing replacements.
-- Reject invalid supplied values visibly before writing. Retain raw inputs and
-  field-scoped errors. Confirmed fixtures use existing reason-bearing exclusion
-  data, with dependency cascading, rather than a name-word blacklist.
-- Preserve historical update `from` values as evidence, validating `to` values.
-- Test Texas, Oregon, and an arbitrary future namespace through shared boundaries.
+- Restore database-derived Personnel string schemas and original update validation.
+- Remove the added letter-bearing-name and suffix-allowlist refinements.
+- Preserve source candidates, explicit audited exclusions, existing Model behavior,
+  generation-time corrections, explicit unset, and detailed validation errors.
 
 ## Impact
 
-No migration, seed changes, database reset, or production operations. Generated
-schema contracts change along with their generator. Existing invalid artifacts
-must be explicitly corrected or excluded before rerunning. Parent INS-69 owns
-corpus rebuild and publication verification.
+Regenerate envelope contracts. No migration, seed change, reset, or database write.
+This restores the original behavior; it does not relocate the removed refinements.

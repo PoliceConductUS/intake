@@ -5,7 +5,6 @@ import {
   agencyAddressText,
   agencyZipCode,
 } from "../../agency-address-schema.js";
-import { personnelName, personnelSuffix } from "../../personnel-name-schema.js";
 
 // Fingerprint of the applied database migrations these specs were generated
 // against. The importer refuses to run when the live database's migrations
@@ -682,11 +681,11 @@ export const AgencyCreateSpec = AgencySpec.omit({ location: true }).safeExtend({
 export const PersonnelSpec = z
   .object({
     id: nonEmptyString.optional(),
-    first_name: personnelName,
-    last_name: personnelName.nullable().optional(),
-    middle_name: personnelName.nullable().optional(),
+    first_name: nonEmptyString,
+    last_name: nullableNonEmptyString.optional(),
+    middle_name: nullableNonEmptyString.optional(),
     prefix: nullableNonEmptyString.optional(),
-    suffix: personnelSuffix.nullable().optional(),
+    suffix: nullableNonEmptyString.optional(),
     slug: nonEmptyString.optional(),
     deceased_on: nullableNonEmptyString.optional(),
     deceased_source: nullableNonEmptyString.optional(),

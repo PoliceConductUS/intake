@@ -10,6 +10,8 @@ import {
 // no new interview code. Canonical-identity updates are out of scope for now.
 export const HANDLED_RECORD_KINDS = [
   "PersonnelPhoto",
+  "CoverageLink",
+  "CoverageLinkAgencyPersonnel",
   "LocationPath",
   "LocationPathAlias",
   "LicensingAuthority",

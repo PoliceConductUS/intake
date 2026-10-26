@@ -68,7 +68,14 @@ function person(name: string) {
   };
 }
 
-export const transform: SourceTransform = async ({ paths, logger }) => {
+export const transform: SourceTransform = async ({
+  paths,
+  logger,
+  validationDate,
+}) => {
+  if (!validationDate)
+    throw Error("Oregon transform requires a validation date");
+  const validationDay = validationDate.toISOString().slice(0, 10);
   const manifests = paths.filter((p) => basename(p) === "manifest.json");
   if (manifests.length !== 1)
     throw Error("Oregon DPSST requires exactly one complete manifest.json");
@@ -190,6 +197,9 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
   }
   for (const a of affiliations)
     put(personnel, a.officerId, { id: a.officerId, ...person(a.name) });
+  const availableAgencyNames = new Set(
+    affiliations.filter((a) => agencies[a.agencyId]).map((a) => a.agencyName),
+  );
   for (const officer of manifest.officers) {
     if (!personnel[officer.id])
       throw Error(`Manifest officer ${officer.id} has no search evidence`);
@@ -199,17 +209,40 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
         `officer-${officer.id}-employment`,
       )
     ).flatMap((html) => parseEmployment(html, officer.id));
+    const scheduledHireDates = new Set<string>();
+    const effectiveEmployment = employment.filter((event) => {
+      const date = sourceDate(event.date);
+      if (event.action !== "Hired" || date <= validationDay) return true;
+      scheduledHireDates.add(date);
+      log(
+        `skipped scheduled hire ${officer.id}: ${event.agencyName} on ${date}`,
+      );
+      return false;
+    });
+    const missingAgencyRows = new Map<string, number>();
+    const identifiedEmployment = effectiveEmployment.filter((event) => {
+      if (availableAgencyNames.has(event.agencyName)) return true;
+      missingAgencyRows.set(
+        event.agencyName,
+        (missingAgencyRows.get(event.agencyName) ?? 0) + 1,
+      );
+      return false;
+    });
+    for (const [name, count] of missingAgencyRows)
+      omit(
+        `AgencyPersonnel for Personnel ${officer.id}: ${name}: missing Agency; ${count} source rows retained`,
+      );
     const episodes = buildEmploymentEpisodes(
-      employment,
+      identifiedEmployment,
       affiliations.filter((a) => a.officerId === officer.id),
       affiliations,
     );
     for (const issue of episodes.issues)
-      omit(`employment ${officer.id}: ${issue}`);
+      omit(`AgencyPersonnel for Personnel ${officer.id}: ${issue}`);
     for (const episode of episodes.assignments) {
       const key = `${officer.id}|${episode.agencyId}|${episode.startDate}`;
       if (!agencies[episode.agencyId]) {
-        omit(`assignment ${key}: missing agency ${episode.agencyId}`);
+        omit(`AgencyPersonnel ${key}: missing Agency ${episode.agencyId}`);
         continue;
       }
       put(assignments, key, {
@@ -241,6 +274,16 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
         c.probationDate,
       ])
         if (date) sourceDate(date);
+      if (
+        c.status === "Required" &&
+        c.statusDate &&
+        scheduledHireDates.has(sourceDate(c.statusDate))
+      ) {
+        log(
+          `skipped scheduled Required certificate ${officer.id}: ${c.certificate} ${c.level} on ${sourceDate(c.statusDate)}`,
+        );
+        continue;
+      }
       const type = canonicalLicenseType(`${c.certificate} ${c.level}`);
       const group = holdings.get(type) ?? [];
       group.push(c);

@@ -126,7 +126,7 @@ async function fixture(
     features: [
       {
         type: "Feature",
-        properties: { Code: "21", BattalionC: "PD1", IsActive: 1 },
+        properties: { Name: "21", Code: "21", BattalionC: "PD1", IsActive: 1 },
         geometry: {
           type: "Polygon",
           coordinates: [
@@ -257,6 +257,9 @@ describe("Irving complete acquisition", () => {
     const provenance = JSON.parse(
       await readFile(path.join(f.output, "analytics-provenance.json"), "utf8"),
     );
+    expect(provenance.beatBoundaries).toMatchObject([
+      { code: "21", name: "21", geometry: { type: "Polygon" } },
+    ]);
     expect(provenance.audit.sourceChargeRows).toBe(3);
     expect(JSON.stringify(provenance)).not.toContain("1 MAIN ST");
     expect(JSON.stringify(provenance)).not.toContain(f.workspace);
