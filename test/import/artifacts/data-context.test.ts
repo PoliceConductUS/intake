@@ -2309,6 +2309,12 @@ describe("CivilCase cross-source convergence (ADR 0028)", () => {
 describe("durable business-key identities", () => {
   const cases = [
     {
+      kind: "AgencyArrestProfile",
+      table: "public.agency_arrest_profile",
+      spec: { agency_id: "agency" },
+      row: { id: "original-agency-profile-id", agency_id: "agency-id" },
+    },
+    {
       kind: "AuthorityLicense",
       table: "public.authority_license",
       spec: { licensing_authority_id: "authority", name: "Peace Officer" },
@@ -2343,6 +2349,7 @@ describe("durable business-key identities", () => {
     for (const namespace of ["source-a", "source-b"]) {
       for (const [kind, name, canonicalId] of [
         ["LicensingAuthority", "authority", "authority-id"],
+        ["Agency", "agency", "agency-id"],
         ["Personnel", "person", "person-id"],
         ["AuthorityLicense", "type", "type-id"],
         ["AgencyPersonnel", "assignment", "assignment-id"],

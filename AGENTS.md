@@ -25,6 +25,10 @@ TDD, debugging, review, verification, branch finishing, and worktree setup.
 
 Build the smallest correct thing that produces the intended outcome.
 
+Dale Lotts's explicit working preference: **Fix the cause; never hide the
+evidence.** Always fix the underlying problem. Never suppress warnings, errors,
+or evidence to make a problem appear resolved.
+
 Use outcomes-driven development with an outside-in approach: start from the user
 or system outcome, define the observable behavior, then work inward to the
 smallest implementation that satisfies it.

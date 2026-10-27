@@ -150,12 +150,6 @@ const DESCRIPTORS: EntityDescriptor[] = [
     recordKind: "Personnel",
     table: "personnel",
     createRequired: ["id", "slug"],
-    fieldTypes: {
-      first_name: "personnelName",
-      middle_name: "personnelName",
-      last_name: "personnelName",
-      suffix: "personnelSuffix",
-    },
   },
   {
     recordKind: "AgencyPersonnel",
@@ -181,6 +175,11 @@ const DESCRIPTORS: EntityDescriptor[] = [
   {
     recordKind: "PersonnelEducation",
     table: "personnel_education",
+    createRequired: ["id"],
+  },
+  {
+    recordKind: "PersonnelPhoto",
+    table: "personnel_photo",
     createRequired: ["id"],
   },
   { recordKind: "Discipline", table: "discipline", createRequired: ["id"] },
@@ -265,6 +264,11 @@ const DESCRIPTORS: EntityDescriptor[] = [
     // id is find-or-mint by the business key; jsonb columns pass through.
     recordKind: "ArrestProfile",
     table: "arrest_profile",
+    createRequired: ["id"],
+  },
+  {
+    recordKind: "AgencyArrestProfile",
+    table: "agency_arrest_profile",
     createRequired: ["id"],
   },
 ];
@@ -417,6 +421,7 @@ const ENTITY_NAME_BY_RECORD_KIND: Record<string, string> = {
   License: "licenses",
   LicenseAction: "licenseActions",
   PersonnelEducation: "personnelEducations",
+  PersonnelPhoto: "personnelPhotos",
   Discipline: "disciplines",
   DisciplineAgencyPersonnel: "disciplineAgencyPersonnel",
   CoverageLink: "coverageLinks",
@@ -430,6 +435,7 @@ const ENTITY_NAME_BY_RECORD_KIND: Record<string, string> = {
   ReviewPersonnel: "reviewPersonnel",
   ReviewLink: "reviewLinks",
   ArrestProfile: "arrestProfiles",
+  AgencyArrestProfile: "agencyArrestProfiles",
 };
 
 function capitalizeFirst(value: string): string {
@@ -735,7 +741,6 @@ export function generateEntitySpecsModule(
   const preamble = `${header}import { z } from "zod";
 import { timestampWithTimezone } from "../../timestamp-schema.js";
 import { agencyAddressText, agencyZipCode } from "../../agency-address-schema.js";
-import { personnelName, personnelSuffix } from "../../personnel-name-schema.js";
 
 // Fingerprint of the applied database migrations these specs were generated
 // against. The importer refuses to run when the live database's migrations

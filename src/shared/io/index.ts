@@ -7,6 +7,9 @@ export { Command } from "./Command.js";
 export type { CommandEnvelope, CommandInput } from "./Command.js";
 export type { ImportArtifactKind } from "./import-types.js";
 export {
+  AgencyArrestProfiles,
+  ArrestProfiles,
+  AgencyArrestProfileSpec,
   Agencies,
   Agency,
   AgencySpec,
@@ -35,6 +38,8 @@ export {
   LicenseActions,
   LicenseAction,
   LicenseActionSpec,
+  PersonnelPhotos,
+  PersonnelPhotoSpec,
   PersonnelEducations,
   PersonnelEducationSpec,
   Disciplines,

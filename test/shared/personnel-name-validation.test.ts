@@ -67,19 +67,19 @@ for (const namespace of ["gov.tx.tcole", "gov.or.dpsst", "example.future"]) {
       correctionPropertySchema("Personnel", field).parse(value),
   };
   test.each(Object.entries(boundaries))(
-    `${namespace} %s rejects numeric and punctuation-only identities`,
+    `${namespace} %s preserves source string identities`,
     (_name, parse) => {
       for (const field of ["first_name", "last_name", "middle_name"]) {
         for (const value of ["9", "111", "１２３", "---", "."])
-          expect(() => parse(field, value)).toThrow();
+          expect(() => parse(field, value)).not.toThrow();
       }
     },
   );
   test.each(Object.entries(boundaries))(
-    `${namespace} %s rejects unsupported suffix without inference`,
+    `${namespace} %s preserves suffix strings without inference`,
     (_name, parse) => {
       for (const value of ["111", "N/A", "155"])
-        expect(() => parse("suffix", value)).toThrow();
+        expect(() => parse("suffix", value)).not.toThrow();
       for (const value of ["Jr.", "III", "sr", null])
         expect(() => parse("suffix", value)).not.toThrow();
     },

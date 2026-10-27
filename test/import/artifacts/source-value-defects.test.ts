@@ -264,7 +264,7 @@ test.each([
     }).defects,
   ).toEqual([]);
 });
-test("blocks mutation generation for a retained date defect", async () => {
+test("omits the record for a retained date defect", async () => {
   const logs: string[] = [];
   const context = new DataContext({
     logger: { info: (message) => logs.push(message) },
@@ -280,17 +280,15 @@ test("blocks mutation generation for a retained date defect", async () => {
     },
   });
   expect(logs.join("\n")).toMatch(
-    /source data defect.*AgencyPersonnel.*end_date.*2109-02-27.*70-year limit.*value retained; import blocked/,
+    /source data defect.*AgencyPersonnel.*end_date.*2109-02-27.*70-year limit.*value retained; record omitted/,
   );
   // Keep the evidence inspectable, but do not let it reach database mutations.
   expect(facade.raw("end_date")).toBe("2109-02-27");
   expect(facade.raw("start_date")).toBe("2015-04-22");
-  await expect(context.toMutations()).rejects.toThrow(
-    /test.source.*AgencyPersonnel.*one.*2109-02-27/,
-  );
+  await expect(context.toMutations()).resolves.toEqual([]);
 });
 
-test("blocks every defective pair without requiring a logger", async () => {
+test("omits every defective pair without requiring a logger", async () => {
   const context = new DataContext({});
   for (const [name, start_date, end_date] of [
     ["future", "2015-04-22", "2109-02-27"],
@@ -300,12 +298,10 @@ test("blocks every defective pair without requiring a logger", async () => {
     context.facadeFromSource("AgencyPersonnel", { ...source, name, spec });
     expect(spec).toEqual({ start_date, end_date });
   }
-  await expect(context.toMutations()).rejects.toThrow(/future[\s\S]*reversed/);
-  await expect(context.toDatabaseMutationItems()).rejects.toThrow(
-    /import blocked/,
-  );
+  await expect(context.toMutations()).resolves.toEqual([]);
+  await expect(context.toDatabaseMutationItems()).resolves.toEqual([]);
 });
-test("validates corrected date pairs before blocking import", async () => {
+test("validates corrected date pairs before deciding omission", async () => {
   const original = { start_date: "2015-04-22", end_date: "2109-02-27" };
   const context = new DataContext({
     // Synthetic supported correction: this is not a proposed real replacement.
@@ -356,15 +352,45 @@ test.each(["2026-10-24", "2026-10-25"])(
     ).toEqual([]);
   },
 );
-test("blocks a future standalone date and tells the operator how to resolve it", async () => {
+test("omits and reports a future standalone date", async () => {
+  const logs: string[] = [];
   const context = new DataContext({
     validationDate: new Date("2026-10-25T00:00:00Z"),
+    logger: { info: (message) => logs.push(message) },
   });
   context.facadeFromSource("AgencyPersonnel", {
     ...source,
     spec: { start_date: "2026-11-16" },
   });
-  await expect(context.toMutations()).rejects.toThrow(
-    /future date[\s\S]*cache set[\s\S]*data exclude/,
+  await expect(context.toMutations()).resolves.toEqual([]);
+  expect(logs.join("\n")).toMatch(/future date.*record omitted/);
+});
+
+test("date omissions cascade to dependents and a later corrected input is reconsidered", async () => {
+  const logs: string[] = [];
+  const context = new DataContext({
+    logger: { info: (message) => logs.push(message) },
+  });
+  context.facadeFromSource("AgencyPersonnel", {
+    ...source,
+    spec: { start_date: "2024-10-24", end_date: "2023-10-23" },
+  });
+  context.facadeFromSource("CoverageLinkAgencyPersonnel", {
+    ...source,
+    name: "dependent",
+    spec: { coverage_link_id: "article", agency_personnel_id: "one" },
+  });
+  await expect(context.toMutations()).resolves.toEqual([]);
+  expect(logs.join("\n")).toMatch(
+    /CoverageLinkAgencyPersonnel.*dependent.*record omitted/,
+  );
+  const nextRun = new DataContext({});
+  nextRun.facadeFromSource("AgencyPersonnel", {
+    ...source,
+    spec: { start_date: "2023-10-24", end_date: "2024-10-23" },
+  });
+  // A valid date pair reaches ordinary FK resolution, without an exclusion to undo.
+  await expect(nextRun.toMutations()).rejects.toThrow(
+    "source agency_id is missing",
   );
 });

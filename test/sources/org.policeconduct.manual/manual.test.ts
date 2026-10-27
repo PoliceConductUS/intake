@@ -8,7 +8,10 @@ import {
   readLatest,
 } from "../../../sources/org.policeconduct.manual/chain.js";
 import { acquire } from "../../../sources/org.policeconduct.manual/acquire.js";
-import { transform } from "../../../sources/org.policeconduct.manual/transform.js";
+import {
+  transform,
+  produces,
+} from "../../../sources/org.policeconduct.manual/transform.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {
@@ -232,6 +235,50 @@ describe("manual review restoration", () => {
       ],
     ).toEqual({ spec: entries[1].record });
   });
+});
+
+it("declares both coverage artifact kinds emitted from saved manual state", async () => {
+  const state = await tempDir();
+  const entries = [
+    {
+      kind: "CoverageLink",
+      record: {
+        id: "article",
+        url: "https://example.com/article",
+        normalized_url: "https://example.com/article",
+        title: "Article",
+      },
+    },
+    {
+      kind: "CoverageLinkAgencyPersonnel",
+      record: {
+        id: "association",
+        coverage_link_id: "article",
+        agency_personnel_id: "assignment",
+        confidence: "confirmed",
+      },
+    },
+  ];
+  for (const entry of entries) await appendEntry(state, entry, "id");
+  const manifest = await transform({
+    paths: [],
+    state,
+    emit: async () => {},
+  } as never);
+  expect(manifest.artifacts).toHaveLength(2);
+  expect(manifest.artifacts).toEqual(
+    expect.arrayContaining(
+      entries.map((entry) => ({
+        kind:
+          entry.kind === "CoverageLink"
+            ? "CoverageLinks"
+            : "CoverageLinkAgencyPersonnel",
+        records: { [entry.record.id]: { spec: entry.record } },
+      })),
+    ),
+  );
+  for (const artifact of manifest.artifacts)
+    expect(produces).toContain(artifact.kind);
 });
 
 it("acquires coverage articles and emits their existing personnel references unchanged", async () => {

@@ -107,6 +107,11 @@ export type {
   PersonnelEducationsEnvelope,
   PersonnelEducationsInput,
 } from "./PersonnelEducations.js";
+export { PersonnelPhotos, PersonnelPhotoSpec } from "./PersonnelPhotos.js";
+export type {
+  PersonnelPhotosEnvelope,
+  PersonnelPhotosInput,
+} from "./PersonnelPhotos.js";
 export { Disciplines, DisciplineSpec } from "./Disciplines.js";
 export type { DisciplinesEnvelope, DisciplinesInput } from "./Disciplines.js";
 export {
@@ -172,3 +177,11 @@ export type {
   ArrestProfilesEnvelope,
   ArrestProfilesInput,
 } from "./ArrestProfiles.js";
+export {
+  AgencyArrestProfiles,
+  AgencyArrestProfileSpec,
+} from "./AgencyArrestProfiles.js";
+export type {
+  AgencyArrestProfilesEnvelope,
+  AgencyArrestProfilesInput,
+} from "./AgencyArrestProfiles.js";

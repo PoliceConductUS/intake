@@ -113,9 +113,14 @@ npm run cli -- cache get <namespace> <kind> <source-id> <property>
 npm run cli -- cache set <namespace> <kind> <source-id> <property> <value>
 npm run cli -- cache set <namespace> <kind> <source-id> <property> <value> --from <existing-value>
 npm run cli -- cache set <namespace> <kind> <source-id> <property> <value> --force
+npm run cli -- cache unset <namespace> <kind> <source-id> <property> --from <existing-value>
 ```
 
-Use `cache set` for manual cache corrections. Source checkouts do not seed the
+Use `cache set` for manual cache corrections. String fields receive literal text:
+`set ... null` supplies the string `"null"`, never a clearing instruction. Use
+`cache unset` to explicitly clear a nullable field. An unset correction stores
+`operation: unset` without a value and follows the same `--from` and `--force`
+rules as set. Source checkouts do not seed the
 cache; cleared values are resolved again or supplied explicitly through the CLI.
 
 `set` refuses an existing value and displays it unless `--force` is supplied.

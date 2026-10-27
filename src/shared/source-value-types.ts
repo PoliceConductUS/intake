@@ -14,7 +14,7 @@ export type SourceValueDefect = {
   required: boolean;
   reason: string;
   // Whether the value was dropped from the spec. False for a defect we record
-  // but keep as evidence while blocking import, because clearing it can assert a false status --
+  // but keep as evidence while omitting the record, because clearing it can assert a false status --
   // see `dateRangeDefects`.
   omitted: boolean;
 };
@@ -97,8 +97,8 @@ const asDate = (value: unknown): Date | undefined => {
  * The value is reported but kept. `end_date is null` is the corpus's encoding
  * for *currently employed*, so dropping an impossible separation date here would
  * trade a false date for a false present-tense employment claim about a named
- * person. DataContext blocks mutation generation until the source is corrected
- * or an evidence-backed conditional correction resolves the defect.
+ * person. DataContext omits the record for this generation. A later run evaluates
+ * the source again after applying conditional corrections.
  *
  * Future dates are checked separately against the intake validation day.
  */

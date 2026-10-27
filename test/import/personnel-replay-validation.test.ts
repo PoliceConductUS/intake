@@ -37,11 +37,11 @@ for (const namespace of ["gov.tx.tcole", "gov.or.dpsst", "example.future"]) {
           }),
         );
         // Deliberately corrupt a canonical-IO fixture to represent an old artifact
-        // written before validation. No production writer may bypass canonical IO.
+        // with an incorrect field type. No production writer may bypass canonical IO.
         const target = storage === "inline" ? mutations.path : person.path;
         const invalid = (await readFile(target, "utf8")).replace(
           "ValidName",
-          '"9"',
+          "9",
         );
         await writeFile(target, invalid);
         const query = vi.fn(async () => {

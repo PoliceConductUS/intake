@@ -32,6 +32,9 @@ import { LicenseActionUpdate } from "./LicenseActionUpdate.js";
 import { PersonnelEducationCreate } from "./PersonnelEducationCreate.js";
 import { PersonnelEducationRead } from "./PersonnelEducationRead.js";
 import { PersonnelEducationUpdate } from "./PersonnelEducationUpdate.js";
+import { PersonnelPhotoCreate } from "./PersonnelPhotoCreate.js";
+import { PersonnelPhotoRead } from "./PersonnelPhotoRead.js";
+import { PersonnelPhotoUpdate } from "./PersonnelPhotoUpdate.js";
 import { DisciplineCreate } from "./DisciplineCreate.js";
 import { DisciplineRead } from "./DisciplineRead.js";
 import { DisciplineUpdate } from "./DisciplineUpdate.js";
@@ -71,6 +74,9 @@ import { ReviewLinkUpdate } from "./ReviewLinkUpdate.js";
 import { ArrestProfileCreate } from "./ArrestProfileCreate.js";
 import { ArrestProfileRead } from "./ArrestProfileRead.js";
 import { ArrestProfileUpdate } from "./ArrestProfileUpdate.js";
+import { AgencyArrestProfileCreate } from "./AgencyArrestProfileCreate.js";
+import { AgencyArrestProfileRead } from "./AgencyArrestProfileRead.js";
+import { AgencyArrestProfileUpdate } from "./AgencyArrestProfileUpdate.js";
 
 export const importMutationEnvelopeTypes = {
   LocationPathCreate,
@@ -106,6 +112,9 @@ export const importMutationEnvelopeTypes = {
   PersonnelEducationCreate,
   PersonnelEducationRead,
   PersonnelEducationUpdate,
+  PersonnelPhotoCreate,
+  PersonnelPhotoRead,
+  PersonnelPhotoUpdate,
   DisciplineCreate,
   DisciplineRead,
   DisciplineUpdate,
@@ -145,4 +154,7 @@ export const importMutationEnvelopeTypes = {
   ArrestProfileCreate,
   ArrestProfileRead,
   ArrestProfileUpdate,
+  AgencyArrestProfileCreate,
+  AgencyArrestProfileRead,
+  AgencyArrestProfileUpdate,
 };

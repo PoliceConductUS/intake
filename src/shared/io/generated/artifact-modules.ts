@@ -66,6 +66,12 @@ import {
   write as writePersonnelEducations,
 } from "./PersonnelEducations.js";
 import {
+  PersonnelPhotos,
+  PersonnelPhotoSpec,
+  read as readPersonnelPhotos,
+  write as writePersonnelPhotos,
+} from "./PersonnelPhotos.js";
+import {
   Disciplines,
   DisciplineSpec,
   read as readDisciplines,
@@ -143,6 +149,12 @@ import {
   read as readArrestProfiles,
   write as writeArrestProfiles,
 } from "./ArrestProfiles.js";
+import {
+  AgencyArrestProfiles,
+  AgencyArrestProfileSpec,
+  read as readAgencyArrestProfiles,
+  write as writeAgencyArrestProfiles,
+} from "./AgencyArrestProfiles.js";
 
 export const ARTIFACT_MODULES = {
   LocationPaths: {
@@ -210,6 +222,12 @@ export const ARTIFACT_MODULES = {
     recordSpec: PersonnelEducationSpec,
     read: readPersonnelEducations,
     write: writePersonnelEducations,
+  },
+  PersonnelPhotos: {
+    envelope: PersonnelPhotos,
+    recordSpec: PersonnelPhotoSpec,
+    read: readPersonnelPhotos,
+    write: writePersonnelPhotos,
   },
   Disciplines: {
     envelope: Disciplines,
@@ -288,5 +306,11 @@ export const ARTIFACT_MODULES = {
     recordSpec: ArrestProfileSpec,
     read: readArrestProfiles,
     write: writeArrestProfiles,
+  },
+  AgencyArrestProfiles: {
+    envelope: AgencyArrestProfiles,
+    recordSpec: AgencyArrestProfileSpec,
+    read: readAgencyArrestProfiles,
+    write: writeAgencyArrestProfiles,
   },
 } as const;

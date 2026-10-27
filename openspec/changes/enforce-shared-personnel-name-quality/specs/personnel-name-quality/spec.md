@@ -1,29 +1,24 @@
 ## ADDED Requirements
 
-### Requirement: Mandatory field-scoped personnel validation
+### Requirement: Preserve personnel source values through the original schema contract
 
-Shared intake schemas SHALL reject nonempty first, middle, or last names with no
-Unicode letters and suffixes outside the existing generational vocabulary.
-Validation SHALL apply to artifacts, creates, updates, corrections and replay
-without source opt-in. Names SHALL NOT be rejected merely for matching a
-placeholder word. Validation SHALL NOT infer corrected names or suffixes.
+Personnel schemas SHALL use the original database-derived string contracts,
+without the subsequently added letter-bearing-name refinements or suffix allowlist.
+Transforms SHALL preserve supplied values. Existing conditional property corrections
+SHALL apply during generation before Model resolution; transforms SHALL NOT load
+corrections or receive a correction hook. The existing Model resolution and
+validation behavior SHALL remain unchanged.
 
-#### Scenario: Numeric-only identity from any source
+#### Scenario: Source suffix needs an explicit correction
 
-- **WHEN** Texas, Oregon or a future source supplies first_name `9`
-- **THEN** shared validation rejects the field before a database write
-- **AND** the original evidence remains unchanged and the error identifies the field
+- **WHEN** a source supplies a string suffix such as `N/A` or `R`
+- **THEN** transform preserves it in the artifact
+- **AND** generation applies any matching explicit correction using the existing mechanism
 
-#### Scenario: Real surname resembles a placeholder
+#### Scenario: Incorrect field type
 
-- **WHEN** a person has surname `Null`, `Test`, `Tester`, `Sample` or `Guest`
-- **THEN** the name is accepted without a fixture inference
-
-#### Scenario: Repair historical invalid value
-
-- **WHEN** an update replaces an invalid name or suffix with a valid value
-- **THEN** its historical `from` value remains available for optimistic comparison
-- **AND** the replacement is validated
+- **WHEN** a source supplies a number rather than a string for first_name
+- **THEN** canonical IO rejects the field with its path and rejected value
 
 ### Requirement: Auditable exclusions
 
