@@ -13,7 +13,6 @@ export type AcquiredVideo = {
   publishedAt: string;
   channelId: string;
   url: string;
-  captions: string | null;
 };
 
 export type AgencyVideoCacheEntry = {
