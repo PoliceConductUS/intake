@@ -2,7 +2,6 @@ import { afterAll, beforeAll, expect, test } from "vitest";
 import { createRequire } from "node:module";
 import ts from "typescript";
 import * as timestampSchema from "../../src/shared/timestamp-schema.js";
-import * as personnelNameSchema from "../../src/shared/personnel-name-schema.js";
 import * as addressSchema from "../../src/shared/agency-address-schema.js";
 import { introspectSchema } from "../../scripts/lib/schema-introspection.js";
 import {
@@ -57,17 +56,8 @@ test("generated agency record and create schemas reject the database-owned colum
   new Function("require", "exports", code)((name: string) => {
     if (name === "../../timestamp-schema.js") return timestampSchema;
     if (name === "../../agency-address-schema.js") return addressSchema;
-    if (name === "../../personnel-name-schema.js") return personnelNameSchema;
     return localRequire(name);
   }, exports);
-  // Exercise regenerated contracts, not only the checked-in generated file.
-  expect(exports.PersonnelSpec.safeParse({ first_name: "9" }).success).toBe(
-    false,
-  );
-  expect(
-    exports.PersonnelSpec.safeParse({ first_name: "Jane", last_name: "Null" })
-      .success,
-  ).toBe(true);
   for (const name of ["AgencySpec", "AgencyCreateSpec"]) {
     const spec = exports[name];
     expect(Object.hasOwn(spec.shape, "location_path_level")).toBe(false);

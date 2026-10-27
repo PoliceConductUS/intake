@@ -1,3 +1,5 @@
-- [x] Add regression tests proving mutation generation rejects retained date defects, with or without a logger, and allows a valid conditional correction.
-- [x] Reject mutation generation when retained source defects exist, preserving inspectable source values and all diagnostic identities.
-- [x] Run focused tests, typecheck, formatting, and OpenSpec validation; update intake PR 83.
+- [x] Reproduce blocked generation with regression tests expecting temporary omissions.
+- [x] Use root intake invalid-record filtering after corrections; preserve values and diagnostics.
+- [x] Verify dependent omissions and reconsideration of later corrected input.
+- [x] Remove only the 25 persistent Texas date exclusions just added; retain the approved conditional date correction.
+- [x] Verify full Texas transform and generation, focused tests, formatting, typecheck, and OpenSpec.

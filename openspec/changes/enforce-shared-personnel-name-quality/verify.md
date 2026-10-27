@@ -49,3 +49,22 @@ The fixture packet must be applied through the exclusion CLI in the isolated
 parent rebuild workspace before using this change. Unsupported suffixes now stop
 instead of being silently removed. Reviewed corrections and rebuild/publication
 verification remain on INS-69. This is not evidence that the live corpus is fixed.
+
+## User-requested restoration — 2026-10-26
+
+- Restored the database-derived Personnel string fields from before c2cc615;
+  removed its currentValueOnly update exception and shared name schema module.
+- Preserved source candidate retention, audited exclusions, existing generation
+  correction order, explicit unset, saved corrections, and detailed IO errors.
+- Red: three cross-source transform regressions failed with the premature checks.
+- Green: 129 focused tests pass across eight files, including those regressions,
+  literal null text, explicit unset, corrections, exclusions, and structural replay validation.
+- OpenSpec: 50 passed, zero failed. git diff --check passes.
+- Type checking still fails on the existing readSourceName ledger API mismatch
+  and related test doubles; no remaining errors in the changed transform test.
+- Original Model resolvers perform casing; they do not enforce the removed
+  suffix allowlist. This restoration does not claim otherwise.
+- Full cached `data transform gov.tx.tcole` completed successfully (exit 0),
+  processing 129,973 personnel candidates. Output command:
+  `2026-10-26T05-57-00-791Z-i1gn8jqs94tefgsncssnbap9`.
+  No generation, database replay, or reset was run.

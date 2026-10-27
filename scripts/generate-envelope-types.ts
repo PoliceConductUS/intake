@@ -641,7 +641,20 @@ export type ArtifactsInput = Omit<z.infer<typeof schema>, "apiVersion" | "kind">
 function parseArtifacts(value: unknown): ArtifactsEnvelope {
   const result = schema.safeParse(value);
   if (!result.success) {
-    throw new Error(formatError(result.error));
+    throw new Error(
+      result.error.issues
+        .map((issue) => {
+          let rejected: unknown = value;
+          for (const segment of issue.path) {
+            rejected = rejected !== null && typeof rejected === "object"
+              ? Reflect.get(rejected, segment)
+              : undefined;
+          }
+          return formatError(new z.ZodError([issue])) + " " + issue.message
+            + " Received: " + (JSON.stringify(rejected) ?? "undefined") + ".";
+        })
+        .join("\\n"),
+    );
   }
   return result.data;
 }
@@ -820,9 +833,6 @@ const operationSchema = z.union([
         const result = fieldSchema.safeParse(operation[propertyName]);
         if (!result.success) {
           for (const issue of result.error.issues) {
-            // A newly introduced quality rule must not prevent repairing old data.
-            // Structural and historical type validation still apply.
-            if (propertyName === "from" && issue.code === "custom" && issue.params?.currentValueOnly === true) continue;
             context.addIssue({ ...issue, path: [propertyName, ...issue.path] });
           }
         }

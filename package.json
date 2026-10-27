@@ -41,7 +41,7 @@
     "@types/shapefile": "^0.6.4",
     "@types/yauzl": "^3.4.0",
     "prettier": "3.8.3",
-    "supabase": "2.105.0",
+    "supabase": "2.122.0",
     "tsx": "^4.22.3",
     "typescript": "^6.0.3",
     "vitest": "^4.1.6"

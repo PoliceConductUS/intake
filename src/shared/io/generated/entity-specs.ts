@@ -5,7 +5,6 @@ import {
   agencyAddressText,
   agencyZipCode,
 } from "../../agency-address-schema.js";
-import { personnelName, personnelSuffix } from "../../personnel-name-schema.js";
 
 // Fingerprint of the applied database migrations these specs were generated
 // against. The importer refuses to run when the live database's migrations
@@ -69,6 +68,7 @@ export const RECORD_KINDS_IN_DEPENDENCY_ORDER = [
   "AgencyPersonnel",
   "LicenseAction",
   "PersonnelEducation",
+  "PersonnelPhoto",
   "Discipline",
   "DisciplineAgencyPersonnel",
   "CoverageLink",
@@ -81,6 +81,7 @@ export const RECORD_KINDS_IN_DEPENDENCY_ORDER = [
   "ReviewPersonnel",
   "ReviewLink",
   "ArrestProfile",
+  "AgencyArrestProfile",
 ] as const;
 
 // Each record kind's foreign keys to other entity kinds (field → target kind),
@@ -117,6 +118,7 @@ export const FK_REFERENCES: Record<
   ],
   LicenseAction: [{ field: "license_id", targetKind: "License" }],
   PersonnelEducation: [{ field: "personnel_id", targetKind: "Personnel" }],
+  PersonnelPhoto: [{ field: "personnel_id", targetKind: "Personnel" }],
   Discipline: [
     { field: "licensing_authority_id", targetKind: "LicensingAuthority" },
     { field: "personnel_id", targetKind: "Personnel" },
@@ -145,6 +147,7 @@ export const FK_REFERENCES: Record<
   ArrestProfile: [
     { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
   ],
+  AgencyArrestProfile: [{ field: "agency_id", targetKind: "Agency" }],
 };
 
 // Each record kind that has a foreign key to itself (field name), e.g.
@@ -164,9 +167,11 @@ export const BUSINESS_KEYS: Record<string, readonly string[]> = {
   LocationPath: ["path"],
   AuthorityLicense: ["licensing_authority_id", "name"],
   License: ["personnel_id", "authority_license_id"],
+  PersonnelPhoto: ["personnel_id"],
   DisciplineAgencyPersonnel: ["discipline_id", "agency_personnel_id"],
   FederalAgency: ["slug"],
   ArrestProfile: ["agency_personnel_id"],
+  AgencyArrestProfile: ["agency_id"],
 };
 
 // Each record kind's properties resolved during import rather than supplied by
@@ -195,6 +200,7 @@ export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = {
   License: ["id"],
   LicenseAction: ["id"],
   PersonnelEducation: ["id"],
+  PersonnelPhoto: ["id"],
   Discipline: ["id"],
   DisciplineAgencyPersonnel: ["id"],
   CoverageLink: ["id"],
@@ -208,6 +214,7 @@ export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = {
   ReviewPersonnel: ["id"],
   ReviewLink: ["id"],
   ArrestProfile: ["id"],
+  AgencyArrestProfile: ["id"],
 };
 
 // Timestamp instants require value comparison across PostgreSQL and ISO string
@@ -229,6 +236,7 @@ export const TABLE_BY_KIND: Record<string, string> = {
   License: "public.license",
   LicenseAction: "public.license_action",
   PersonnelEducation: "public.personnel_education",
+  PersonnelPhoto: "public.personnel_photo",
   Discipline: "public.discipline",
   DisciplineAgencyPersonnel: "public.discipline_agency_personnel",
   CoverageLink: "public.coverage_links",
@@ -242,6 +250,7 @@ export const TABLE_BY_KIND: Record<string, string> = {
   ReviewPersonnel: "public.review_personnel",
   ReviewLink: "public.review_links",
   ArrestProfile: "public.arrest_profile",
+  AgencyArrestProfile: "public.agency_arrest_profile",
 };
 
 // Every entity table the database layer may read or write — the compile-time
@@ -259,6 +268,7 @@ export type SupportedTableName =
   | "public.license"
   | "public.license_action"
   | "public.personnel_education"
+  | "public.personnel_photo"
   | "public.discipline"
   | "public.discipline_agency_personnel"
   | "public.coverage_links"
@@ -271,7 +281,8 @@ export type SupportedTableName =
   | "public.reviews"
   | "public.review_personnel"
   | "public.review_links"
-  | "public.arrest_profile";
+  | "public.arrest_profile"
+  | "public.agency_arrest_profile";
 
 // Each record kind's primary-key column — the column a mutation keys existing
 // rows on (its identity in WHERE clauses). `id` for most tables; a natural key
@@ -288,6 +299,7 @@ export const PRIMARY_KEY_BY_KIND: Record<string, string> = {
   License: "id",
   LicenseAction: "id",
   PersonnelEducation: "id",
+  PersonnelPhoto: "id",
   Discipline: "id",
   DisciplineAgencyPersonnel: "id",
   CoverageLink: "id",
@@ -301,6 +313,7 @@ export const PRIMARY_KEY_BY_KIND: Record<string, string> = {
   ReviewPersonnel: "id",
   ReviewLink: "id",
   ArrestProfile: "id",
+  AgencyArrestProfile: "id",
 };
 
 // Import artifact metadata per kind: kind/entityName naming plus the FK-derived
@@ -383,6 +396,13 @@ export const importTypeMetadata = {
     recordKind: "PersonnelEducation",
     entityName: "personnelEducations",
     targetTable: "public.personnel_education",
+    dependsOn: ["Personnel"],
+  },
+  PersonnelPhotos: {
+    kind: "PersonnelPhotos",
+    recordKind: "PersonnelPhoto",
+    entityName: "personnelPhotos",
+    targetTable: "public.personnel_photo",
     dependsOn: ["Personnel"],
   },
   Disciplines: {
@@ -476,6 +496,13 @@ export const importTypeMetadata = {
     targetTable: "public.arrest_profile",
     dependsOn: ["AgencyPersonnel"],
   },
+  AgencyArrestProfiles: {
+    kind: "AgencyArrestProfiles",
+    recordKind: "AgencyArrestProfile",
+    entityName: "agencyArrestProfiles",
+    targetTable: "public.agency_arrest_profile",
+    dependsOn: ["Agencies"],
+  },
 } as const;
 
 export type ImportArtifactKind = keyof typeof importTypeMetadata;
@@ -494,6 +521,7 @@ export const IMPORT_ARTIFACT_KINDS = [
   "Licenses",
   "LicenseActions",
   "PersonnelEducations",
+  "PersonnelPhotos",
   "Disciplines",
   "DisciplineAgencyPersonnel",
   "CoverageLinks",
@@ -507,6 +535,7 @@ export const IMPORT_ARTIFACT_KINDS = [
   "ReviewPersonnel",
   "ReviewLinks",
   "ArrestProfiles",
+  "AgencyArrestProfiles",
 ] as const satisfies readonly ImportArtifactKind[];
 
 export type ImportEntityName =
@@ -652,11 +681,11 @@ export const AgencyCreateSpec = AgencySpec.omit({ location: true }).safeExtend({
 export const PersonnelSpec = z
   .object({
     id: nonEmptyString.optional(),
-    first_name: personnelName,
-    last_name: personnelName.nullable().optional(),
-    middle_name: personnelName.nullable().optional(),
+    first_name: nonEmptyString,
+    last_name: nullableNonEmptyString.optional(),
+    middle_name: nullableNonEmptyString.optional(),
     prefix: nullableNonEmptyString.optional(),
-    suffix: personnelSuffix.nullable().optional(),
+    suffix: nullableNonEmptyString.optional(),
     slug: nonEmptyString.optional(),
     deceased_on: nullableNonEmptyString.optional(),
     deceased_source: nullableNonEmptyString.optional(),
@@ -753,6 +782,28 @@ export const PersonnelEducationSpec = z
   .strict();
 
 export const PersonnelEducationCreateSpec = PersonnelEducationSpec.safeExtend({
+  id: z.string(),
+});
+
+export const PersonnelPhotoSpec = z
+  .object({
+    id: z.string().optional(),
+    personnel_id: z.string(),
+    workspace_path: nonEmptyString,
+    sha256: z.string(),
+    content_type: z.enum([
+      "image/webp",
+      "image/png",
+      "image/jpeg",
+      "image/avif",
+    ]),
+    byte_size: z.number().int(),
+    source_filename: nonEmptyString,
+    source_url: z.string().nullable().optional(),
+  })
+  .strict();
+
+export const PersonnelPhotoCreateSpec = PersonnelPhotoSpec.safeExtend({
   id: z.string(),
 });
 
@@ -980,3 +1031,18 @@ export const ArrestProfileSpec = z
 export const ArrestProfileCreateSpec = ArrestProfileSpec.safeExtend({
   id: z.string(),
 });
+
+export const AgencyArrestProfileSpec = z
+  .object({
+    id: z.string().optional(),
+    agency_id: z.string(),
+    coverage: z.record(z.string(), z.unknown()),
+    breakdowns: z.record(z.string(), z.unknown()),
+  })
+  .strict();
+
+export const AgencyArrestProfileCreateSpec = AgencyArrestProfileSpec.safeExtend(
+  {
+    id: z.string(),
+  },
+);

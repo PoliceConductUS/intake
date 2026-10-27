@@ -19,6 +19,7 @@ import { AuthorityLicenses } from "./AuthorityLicenses.js";
 import { Licenses } from "./Licenses.js";
 import { LicenseActions } from "./LicenseActions.js";
 import { PersonnelEducations } from "./PersonnelEducations.js";
+import { PersonnelPhotos } from "./PersonnelPhotos.js";
 import { Disciplines } from "./Disciplines.js";
 import { DisciplineAgencyPersonnel } from "./DisciplineAgencyPersonnel.js";
 import { CoverageLinks } from "./CoverageLinks.js";
@@ -32,6 +33,7 @@ import { Reviews } from "./Reviews.js";
 import { ReviewPersonnel } from "./ReviewPersonnel.js";
 import { ReviewLinks } from "./ReviewLinks.js";
 import { ArrestProfiles } from "./ArrestProfiles.js";
+import { AgencyArrestProfiles } from "./AgencyArrestProfiles.js";
 
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
@@ -112,6 +114,7 @@ const artifactSpecSchemas: Record<string, z.ZodType> = {
   Licenses: Licenses.schema.shape.spec,
   LicenseActions: LicenseActions.schema.shape.spec,
   PersonnelEducations: PersonnelEducations.schema.shape.spec,
+  PersonnelPhotos: PersonnelPhotos.schema.shape.spec,
   Disciplines: Disciplines.schema.shape.spec,
   DisciplineAgencyPersonnel: DisciplineAgencyPersonnel.schema.shape.spec,
   CoverageLinks: CoverageLinks.schema.shape.spec,
@@ -125,6 +128,7 @@ const artifactSpecSchemas: Record<string, z.ZodType> = {
   ReviewPersonnel: ReviewPersonnel.schema.shape.spec,
   ReviewLinks: ReviewLinks.schema.shape.spec,
   ArrestProfiles: ArrestProfiles.schema.shape.spec,
+  AgencyArrestProfiles: AgencyArrestProfiles.schema.shape.spec,
 };
 const artifactReferenceSchema = z
   .object({
@@ -181,7 +185,27 @@ export type ArtifactsInput = Omit<
 function parseArtifacts(value: unknown): ArtifactsEnvelope {
   const result = schema.safeParse(value);
   if (!result.success) {
-    throw new Error(formatError(result.error));
+    throw new Error(
+      result.error.issues
+        .map((issue) => {
+          let rejected: unknown = value;
+          for (const segment of issue.path) {
+            rejected =
+              rejected !== null && typeof rejected === "object"
+                ? Reflect.get(rejected, segment)
+                : undefined;
+          }
+          return (
+            formatError(new z.ZodError([issue])) +
+            " " +
+            issue.message +
+            " Received: " +
+            (JSON.stringify(rejected) ?? "undefined") +
+            "."
+          );
+        })
+        .join("\n"),
+    );
   }
   return result.data;
 }

@@ -46,6 +46,8 @@ export type TransformDataContext = {
 };
 
 export type TransformDeps = {
+  /** UTC clock supplied by the runner for date-sensitive sources. */
+  validationDate?: Date;
   paths: string[];
   readXlsx: typeof readXlsx;
   state: string;

@@ -215,7 +215,6 @@ export class DataContext {
   private readonly slugs: SlugAllocator;
   /** Every facade built this command, grouped by kind then memo key. */
   private readonly invalidSourceRecords = new Set<string>();
-  private readonly blockingSourceDefects = new Set<string>();
   private readonly validationDate: Date;
   private readonly facadesByKind = new Map<
     string,
@@ -396,17 +395,16 @@ export class DataContext {
     if (input.spec !== undefined) {
       const cleaned = cleanSourceValues(kind, input.spec, this.validationDate);
       for (const defect of cleaned.defects) {
-        // Retained evidence must not become a database mutation merely because
-        // it cannot safely be replaced by NULL. Collect all defects before failing.
+        // Keep invalid dates inspectable and omit the whole record for this run;
+        // clearing an end date would falsely imply current employment.
         const disposition = !defect.omitted
-          ? "value retained; import blocked"
+          ? "value retained; record omitted"
           : defect.required
             ? "record omitted"
             : "value omitted";
         const message = `source data defect: ${input.namespace}/${kind}/${input.name}.${defect.field}: ${JSON.stringify(defect.value)}; ${defect.reason}; ${disposition}`;
         this.logger?.info?.(message);
-        if (!defect.omitted) this.blockingSourceDefects.add(message);
-        if (defect.omitted && defect.required)
+        if (!defect.omitted || defect.required)
           this.invalidSourceRecords.add(key);
       }
       input = { ...input, spec: cleaned.spec };
@@ -564,7 +562,7 @@ export class DataContext {
             if (!this.invalidSourceRecords.has(target)) continue;
             this.invalidSourceRecords.add(key);
             this.logger?.info?.(
-              `source data defect: ${facade.sourceIdentity.namespace}/${kind}/${facade.sourceIdentity.name}.${field}: ${JSON.stringify(value)}; referenced record has an invalid required value; record omitted`,
+              `source data defect: ${facade.sourceIdentity.namespace}/${kind}/${facade.sourceIdentity.name}.${field}: ${JSON.stringify(value)}; referenced record has an invalid source value; record omitted`,
             );
             changed = true;
             break;
@@ -668,14 +666,6 @@ export class DataContext {
   }
 
   async toMutations(): Promise<DatabaseMutationEnvelope[]> {
-    if (this.blockingSourceDefects.size > 0) {
-      throw new Error(
-        [
-          ...this.blockingSourceDefects,
-          "Resolve each defect with cache set <source> <kind> <source-id> <property> <value> --from <original-value>, then rerun data generate <source>; or data exclude <source> <kind> <source-id> --reason <reason>, then rerun data transform <source> and data generate <source>. Existing database rows are not removed by exclusion.",
-        ].join("\n"),
-      );
-    }
     this.omitInvalidSourceRecords();
     // Every facade is registered during the add phase, so a FK find always locates
     // its target regardless of resolution order; the emitted plan is re-sorted by

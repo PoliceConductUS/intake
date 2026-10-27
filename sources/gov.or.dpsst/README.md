@@ -35,8 +35,9 @@ five years and is updated nightly.
 ## Meaning and identity
 
 - DPSST numbers identify people; agency codes identify organizations.
-- Explicit hire dates identify employment episodes. Promotions, leave and rank
-  changes do not invent new hire dates. Missing or ambiguous employment evidence
+- AgencyPersonnel represents active service. Leave ends active service; return
+  from leave starts a new AgencyPersonnel record. Promotions and rank changes
+  do not invent new start dates. Missing or ambiguous source evidence
   is reported and remains inspectable in the raw pages.
 - Certificate type and level identify a license type. Source status dates produce
   license actions; certification status is separate from employment status.
@@ -47,6 +48,6 @@ five years and is updated nightly.
 
 The source contains other public-safety disciplines as well as police. Raw source
 records are retained even when the shared import rules do not admit them. An
-explicit missing agency response or an unresolved employment episode must not be
+explicit missing agency response or an unresolved AgencyPersonnel record must not be
 mistaken for a fully imported record. Inspect command logs and compare acquired,
 transformed and applied counts.
