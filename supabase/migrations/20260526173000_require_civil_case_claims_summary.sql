@@ -13,8 +13,8 @@ begin
 end $$;
 
 alter table public.civil_cases
-  alter column claims_summary set not null;
+alter column claims_summary set not null;
 
 alter table public.civil_cases
-  add constraint civil_cases_claims_summary_not_blank
-  check (btrim(claims_summary) <> '');
+add constraint civil_cases_claims_summary_not_blank
+check (btrim(claims_summary) <> '');
