@@ -45,6 +45,10 @@ It describes coverage, not a required file format.
 - [ ] Beats, shifts, organizational history and geographic shapes.
 - [ ] Task forces, memberships, agreements and deployments.
 - [ ] Funding, grants, budgets, expenses, contracts, payments and revenue.
+- [ ] Civil asset forfeiture: seizures, proceedings, returns and distributions.
+- [ ] Killings of animals, including dogs, by law-enforcement personnel.
+- [ ] Sexual-assault kit inventories, tracking, custody, submission, processing,
+      testing, results, delays and disposition history.
 - [ ] All other maintained datasets identified in your complete data catalog.
 
 These details extend the checklist across other systems; availability varies.

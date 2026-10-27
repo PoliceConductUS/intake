@@ -18,6 +18,8 @@ export const HANDLED_RECORD_KINDS = [
   "CivilCase",
   "CivilCasePersonnel",
   "CivilCaseLink",
+  "CoverageLink",
+  "CoverageLinkAgencyPersonnel",
   "Review",
   "ReviewPersonnel",
   "ReviewLink",

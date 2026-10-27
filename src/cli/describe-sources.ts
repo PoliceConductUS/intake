@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import { consumesOf } from "./transform/source-order.js";
 import type { ImportArtifactKind } from "../shared/io/index.js";
 
-export type SourcePhase = "acquire" | "transform";
+export type SourcePhase = "acquire" | "transform" | "request";
 
 export type SourceDescription = {
   id: string;
@@ -61,20 +61,28 @@ export async function describeSources(
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     const transformPath = path.join(sourcesRoot, entry.name, "transform.ts");
-    if (!(await fileExists(transformPath))) continue;
+    const hasTransform = await fileExists(transformPath);
+    const requestPath = path.join(sourcesRoot, entry.name, "request.ts");
+    const hasRequest = await fileExists(requestPath);
+    if (!hasTransform && !hasRequest) continue;
     const acquirePath = path.join(sourcesRoot, entry.name, "acquire.ts");
     const phases: SourcePhase[] = [];
     if (await fileExists(acquirePath)) phases.push("acquire");
-    phases.push("transform");
+    if (hasTransform) phases.push("transform");
+    if (hasRequest) phases.push("request");
     sources.push({
       id: entry.name,
       description:
-        (await readPhaseDescription(transformPath)) ??
+        (hasTransform
+          ? await readPhaseDescription(transformPath)
+          : await readPhaseDescription(requestPath)) ??
         ((await fileExists(acquirePath))
           ? await readPhaseDescription(acquirePath)
           : undefined),
       phases,
-      produces: await readPhaseProduces(transformPath),
+      produces: hasTransform
+        ? await readPhaseProduces(transformPath)
+        : undefined,
     });
   }
   sources.sort((left, right) => left.id.localeCompare(right.id));
