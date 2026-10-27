@@ -1,10 +1,8 @@
 import type { Command } from "commander";
 import type { CliCommandDependencies } from "../../shared/cli/types.js";
 import { appendEntry } from "../state/manual-records.js";
-import {
-  defaultDatabaseClientFactory,
-  rowsFromResult,
-} from "../database/index.js";
+import { defaultDatabaseClientFactory } from "../database/index.js";
+import { readDatabaseRecordsByColumns } from "../database/entities.js";
 import {
   intakeWorkspace,
   createCommandDirectory,
@@ -49,11 +47,12 @@ export function registerCliCommand(
               filename,
               {
                 findPersonnel: async (id) =>
-                  rowsFromResult(
-                    await client.query(
-                      "select id from public.personnel where id = $1",
-                      [id],
-                    ),
+                  (
+                    await readDatabaseRecordsByColumns(
+                      client,
+                      "public.personnel",
+                      { id },
+                    )
                   ).length === 1,
                 sourceIdFor: (id) =>
                   ledger.sourceIdFor(namespace, "Personnel", id),
