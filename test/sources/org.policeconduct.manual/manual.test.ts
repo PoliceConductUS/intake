@@ -233,3 +233,57 @@ describe("manual review restoration", () => {
     ).toEqual({ spec: entries[1].record });
   });
 });
+
+it("acquires coverage articles and emits their existing personnel references unchanged", async () => {
+  const state = await tempDir();
+  const article = {
+    id: "manual-article",
+    url: "https://example.org/news/officer-report",
+    normalized_url: "https://example.org/news/officer-report",
+    title: "Officer report",
+    source_name: "Example News",
+    published_at: "2026-10-25",
+    notes: "Source reports allegations; no finding inferred.",
+  };
+  const relationship = {
+    id: "manual-article-personnel",
+    coverage_link_id: "manual-article",
+    agency_personnel_id: "existing-roster-source-reference",
+    confidence: "confirmed",
+    notes:
+      "Existing agency personnel identified by the supplied source reference.",
+  };
+  const entries = [
+    { kind: "CoverageLink", record: article },
+    { kind: "CoverageLinkAgencyPersonnel", record: relationship },
+  ];
+  for (const entry of entries)
+    await acquire({
+      sourceDir: state,
+      state,
+      env: {
+        MANUAL_KIND: entry.kind,
+        MANUAL_RECORD: JSON.stringify(entry.record),
+      },
+      data: {} as never,
+    });
+  expect((await readLatest(state)).entries).toHaveLength(2);
+  expect((await readLatest(state)).entries).toEqual(
+    expect.arrayContaining(entries),
+  );
+  const manifest = await transform({
+    state,
+    paths: [],
+    emit: async () => {},
+  } as never);
+  expect(
+    Object.fromEntries(
+      manifest.artifacts.map((artifact) => [artifact.kind, artifact.records]),
+    ),
+  ).toEqual({
+    CoverageLinks: { "manual-article": { spec: article } },
+    CoverageLinkAgencyPersonnel: {
+      "manual-article-personnel": { spec: relationship },
+    },
+  });
+});

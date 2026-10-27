@@ -1,6 +1,6 @@
 ## Raw source-data request model
 
-**Request-model revision: `2026-09-28.1`.** This revision identifies the requested
+**Request-model revision: `2026-10-23.1`.** This revision identifies the requested
 source-data model independently of the Simplified Export Format version in the appendix. These are
 requested export tables, not implemented database tables or canonical envelope
 kinds. Native exports with a field mapping are welcome; agencies do not need to
@@ -376,6 +376,32 @@ and leave-payout amounts; do not add annual totals to the pay periods they summa
 Keep original allegations, findings, discipline, appeals, and reversals distinct.
 Link supervisors and FTOs using the relationship in effect at the event date.
 
+### Animal killings and sexual-assault kit tracking
+
+Request existing records of animals killed by law-enforcement personnel,
+including dogs, with the linked incident, personnel, discharge/force report,
+and review records. Animal encounters may be documented separately from force
+against people. The [DOJ COPS dog-encounter toolkit](https://portal.cops.usdoj.gov/resourcecenter/content.ashx/cops-w0881-pub.pdf)
+provides context for these requests; it does not establish that every agency
+maintains the same reporting fields.
+
+Request sexual-assault kit inventory and lifecycle records from the agency's
+evidence system, kit-tracking system, and laboratory records it holds. The
+[SAKI inventory guidance](https://www.sakitta.org/toolkit/docs/Conducting-a-Sexual-Assault-Kit-Inventory.pdf)
+and [evidence-tracking manual](https://www.sakitta.org/toolkit/docs/Sexual-Assault-Kit-Initiative-Introductory-Tool-for-Evidence-Tracking-and-Case-Management.pdf)
+describe kit identifiers, inventory, custody, and testing information. Confirm
+the actual custodian and available fields; request existing status and event
+history rather than requiring a newly computed backlog or turnaround measure.
+
+The fields below are requested only when maintained and publicly releasable,
+under the same availability and redaction conventions as the other categories.
+
+| Requested table | One row represents | Requested fields in addition to common identity/provenance |
+| --- | --- | --- |
+| `AnimalKilling` | One animal killed in an incident | animal/event ID; species, including dog; incident/call ID; agency and involved employee IDs; date/time and location; method/weapon and discharge/force-report links; recorded circumstances and reason; death date; investigation/review findings and report references |
+| `SexualAssaultKit` | One kit in the source inventory | releasable kit ID; evidence-item and incident/case links; collecting facility/agency; collection date; responsible agency; current custodian/location and status; laboratory and submission identifiers; retention/disposition dates and reason |
+| `SexualAssaultKitEvent` | One tracking, custody, processing, or testing event | kit ID; event ID/type/date; from/to custodian or facility; previous/new status; submission, laboratory receipt, processing start, testing completion and result-report dates; testing outcome/status; recorded CODIS submission and hit status/dates; delay, rejection, non-submission or non-testing reason; return, transfer or destruction event; linked laboratory/evidence/case record |
+
 ### Shapes, task forces, funding, expenses, and other maintained records
 
 Request native geospatial data wherever it exists, not only latitude/longitude:
@@ -409,7 +435,7 @@ jurisdiction through the source's feature keys.
 | `AssetService`                 | One maintenance/fuel/repair transaction                      | asset ID; date; service type; mileage/usage; quantity/unit; cost/currency; vendor; expense/payment link                                                                                                                                                                                           |
 | `PropertyEvidence`             | One property/evidence item                                   | item ID; incident/case/search link; type/description; seized/recovered timestamp/location; seizing employee; value/currency as recorded; current custody/status; disposition/date; forfeiture-case link                                                                                           |
 | `EvidenceCustodyEvent`         | One evidence transfer/status event                           | item ID; timestamp; from/to custodian/location; action/reason; employee; laboratory submission/result reference; source receipt                                                                                                                                                                   |
-| `ForfeitureCase`               | One forfeiture proceeding                                    | case ID; civil/criminal/administrative type; property/seizure IDs; agency/court; filed/resolved dates; outcome; returned/forfeited/distributed amounts; recipient/fund; expense/revenue references                                                                                                |
+| `ForfeitureCase`               | One forfeiture proceeding                                    | case ID; civil/criminal/administrative type; property/seizure IDs and dates; recorded seizure/forfeiture basis; agency/court; filed/resolved dates; related criminal-case ID and outcome when recorded; forfeiture outcome; property returned and return dates; forfeited/distributed amounts and dates; federal adoption/equitable-sharing references; recipient/fund; expense/revenue references                                                                                                |
 | `Warrant`                      | One warrant/order and its history links                      | warrant ID; type; issuing court/case; issue/expiry/service/return/recall dates; status; subject source key; executing employee/activity; source document                                                                                                                                          |
 | `Pursuit`                      | One pursuit                                                  | pursuit ID; incident/call links; start/end; route/geometry; units/personnel; reason; supervisory authorization/termination; collision/injury/outcome                                                                                                                                              |
 | `Collision`                    | One crash report                                             | crash ID; timestamp/location/geometry; incident/pursuit links; involved personnel/vehicle/person roles; injury/fatality; contributing factors and findings as recorded                                                                                                                            |
