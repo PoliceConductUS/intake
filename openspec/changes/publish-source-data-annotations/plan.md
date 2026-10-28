@@ -63,7 +63,7 @@
 
 - [ ] Read sibling AGENTS and OpenSpec contracts before edits; add the corresponding site change artifacts.
 - [ ] Write failing fixtures for negative tenure, 125-year tenure, unparseable literal dates, and exact provider attribution, plus a corrected address with a concurrent warning.
-- [ ] Add annotation loading and shared rendering beside affected fields; preserve signed duration calculations and source attribution.
+- [ ] Add annotation loading and shared rendering beside affected fields; preserve reported dates and source attribution without calculated tenure.
 - [ ] Build the shared collector and explicit authority/source mapping, verifying links point to the owning record display.
 - [ ] Run focused site fixture tests through the repository's configured e2e runner and generated type checks; commit scoped site changes.
 

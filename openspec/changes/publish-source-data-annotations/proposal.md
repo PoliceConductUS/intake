@@ -6,7 +6,7 @@ Source defects currently make employment records and sometimes entire personnel 
 
 - Preserve source data and import affected records with a `data_annotations` array instead of omitting records for factual defects.
 - Store field, original value, type (`warning`, `error`, or `correction`), explanation, source namespace and source record ID with each annotation.
-- Display annotations beside affected values and continue showing calculated tenure, including negative or very long durations.
+- Display annotations beside affected values and show reported dates without calculated tenure.
 - Generate `/data-annotations/`: pagination, provider/type filters, and CSV download of all matching annotations across pages.
 - Add a paginated annotations subpage linked from each licensing-authority page, listing annotations originating in that authority's data and offering the same full-result download.
 - Carry correction annotations in generated mutations, replacing only the owning record/source namespace/source record ID contribution processed in the run, even when corrected values are unchanged. Unprocessed contributions survive; an empty replacement clears only that contribution.

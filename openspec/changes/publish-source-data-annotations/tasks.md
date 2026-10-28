@@ -16,7 +16,7 @@
 
 ## 3. Website display and publication
 
-- [ ] 3.1 Add shared annotation loading/rendering beside affected data, including signed and unusually long calculated durations, correction explanations, original/replacement values and supplied evidence.
+- [ ] 3.1 Add shared annotation loading/rendering beside affected data, including reported dates, correction explanations, original/replacement values and supplied evidence.
 - [ ] 3.2 Build the shared annotation collection with original values, source identifiers, record labels and public URLs.
 - [ ] 3.3 Generate the central paginated provider/type-filtered index and all-matching CSV downloads.
 - [ ] 3.4 Add explicit source-to-authority attribution and linked authority annotation subpages, type filters, empty states and full-result downloads.

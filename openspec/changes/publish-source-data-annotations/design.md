@@ -4,7 +4,7 @@
 
 ## Goals / Non-Goals
 
-**Goals:** Preserve source-reported values and identifiable records; expose our findings beside those values and through downloadable central/provider views. Display calculated negative or unusually long tenure.
+**Goals:** Preserve source-reported values and identifiable records; expose our findings beside those values and through downloadable central/provider views. Display reported dates without calculated tenure.
 
 **Non-Goals:** Automated provider outreach, manual issue workflows, annotation IDs/history/statuses, new annotation types beyond warning/error/correction, or guesses about correct values.
 
@@ -49,7 +49,7 @@ This is replacement metadata within canonical generated mutations, not a separat
 
 ### Public display and index
 
-The profile shows reported values and calculations as facts attributed to the provider, with a separately labelled “Our warning”, “Data error”, or “Our correction” message. A correction shows original and replacement values, why it was applied, and supporting evidence when supplied; it is attributed to us, with the source identified as the provider of the original value. Negative duration and 125-year duration remain visible. Unparseable dates have no mathematical duration; show the literal date value and finding.
+The profile shows reported values attributed to the provider, with a separately labelled “Our warning”, “Data error”, or “Our correction” message. A correction shows original and replacement values, why it was applied, and supporting evidence when supplied; it is attributed to us, with the source identified as the provider of the original value. Show the reported date pair and its finding, including contradictory or unusually distant dates. Do not display calculated tenure. For unparseable dates, show the literal date value and finding.
 
 A shared build-time collector emits one index entry per stored annotation, using the owning entity's public display URL (for employment, the personnel profile showing the assignment), label, source and value. Both profile display and index use the stored finding rather than independent detection rules.
 
