@@ -78,3 +78,7 @@ Add columns/necessary descriptive-field changes through a new migration. Regener
 ## Geography decision
 
 The user resolved geography scope on 2026-10-27: retain existing required geography and routes. An unresolvable record requires an explicit correction or explicit exclusion; do not invent coordinates or introduce nullable geography/new routes. Corrections produce annotations on the corrected record. Exclusions preserve the source key, kind, optional recorded name, and explicit reason on the source's licensing authority, since the excluded record has no page. Authority attribution must use explicit source namespace mapping and fail loudly when exclusion ownership is missing or ambiguous. Reruns replace only that provider's exclusions, including clearing its old findings when the exclusion set becomes empty. The final annotation scan renders those explicit exclusions as warnings, preserving the reason without asserting the source fact is false. Authority subpages follow `/[category]/licensing-authority/data-annotations/`.
+
+### Bounded replay inserts
+
+Replay limits each INSERT to 1,000 rows, 4 MiB of serialized parameter payload, and the existing 60,000-parameter ceiling. A single row larger than the payload budget is sent alone without alteration. These statement boundaries do not change the enclosing transaction, mutation ordering, conflict checks, or source values. This prevents Census geometry batches from exhausting PostgreSQL memory merely because large geometry values use few parameters.

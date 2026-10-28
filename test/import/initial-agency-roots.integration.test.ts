@@ -196,6 +196,7 @@ describeWithDocker("initial agency roots in the shared import pipeline", () => {
       await recalculateDataAnnotations(db, new Date("2026-10-27"));
       expect(await read()).toEqual(first);
     },
+    30_000,
   );
 
   async function agencyNames() {
