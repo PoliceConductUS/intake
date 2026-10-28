@@ -34,3 +34,8 @@
 - [x] Verify absence, replay safety, and preservation of the unrelated timestamp function in disposable PostgreSQL.
 
 Verification scope: the audited date pairs and scheduled employment pass synthetic generation/apply regressions; original source artifacts and identities were inspected read-only. Original-corpus regeneration and production rollout in 2.4/4.4 remain release work. Disposable schema validation and local browser verification pass; a complete seeded/static production build in 4.1/4.2 is not claimed.
+
+## Follow-up: POST source issue annotations
+
+- [ ] Capture structured POST-source issues, including automatic omissions and explicit exclusions, and attach them to the explicitly identified licensing authority with source identifiers, reasons, and evidence references. Preserve unverified identity status and trace dependent omissions to their cause.
+- [ ] Verify DPSST missing-agency omissions, explicit personnel exclusions and their dependents, rerun replacement, and authority HTML/CSV visibility. Existing explicit-exclusion support covers only part of this requirement; automatic DPSST omission logs are not yet annotations.

@@ -99,3 +99,27 @@ Correction replacement SHALL be scoped by owning entity kind/canonical ID plus s
 
 - **WHEN** a correction applies but the resulting effective value still triggers a warning
 - **THEN** the final scan SHALL retain the correction annotation and publish the warning for the resulting value
+
+### Requirement: POST source issues attach to the licensing authority
+
+Data issues detected while processing a POST source SHALL be retained as annotations on that source's explicitly identified licensing authority. This includes automatic omissions caused by missing identities or relationships, ambiguous source records, and explicit operator exclusions. A log message or aggregate omission count alone SHALL NOT satisfy this requirement. Each annotation SHALL preserve source attribution, the available source record identifiers, the issue or exclusion reason, and the retained source evidence reference. Unverified identity matches SHALL remain explicitly unverified. Annotation creation SHALL NOT fabricate a missing record or relationship.
+
+#### Scenario: Employment omitted because its agency cannot be identified
+
+- **WHEN** a POST source employment row cannot produce an AgencyPersonnel record because its agency is missing
+- **THEN** the licensing authority SHALL receive an annotation identifying the source row or group of rows and the missing-agency issue
+- **AND** the original source evidence SHALL remain inspectable
+- **AND** no employment relationship SHALL be invented to create an annotation owner
+
+#### Scenario: Explicitly excluded personnel and dependent records
+
+- **WHEN** an operator excludes a POST source personnel record with a recorded reason
+- **THEN** the licensing authority SHALL retain an annotation with that source identifier and reason
+- **AND** any dependent omissions SHALL remain traceable to the exclusion that caused them
+- **AND** a suggested but unverified identity match SHALL NOT be represented as an established identity
+
+#### Scenario: Source issues change on rerun
+
+- **WHEN** the same POST source is successfully reprocessed
+- **THEN** its authority annotations SHALL reflect the current issues without accumulating duplicate findings
+- **AND** annotations contributed by other sources SHALL remain intact
