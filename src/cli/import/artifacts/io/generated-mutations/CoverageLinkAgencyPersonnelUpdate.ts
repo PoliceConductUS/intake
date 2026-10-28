@@ -12,6 +12,7 @@ import {
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
 import { CoverageLinkAgencyPersonnelSpec } from "../../../../../shared/io/generated/entity-specs.js";
+import { SourceContribution } from "../../../../../shared/data-annotations.js";
 
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
@@ -189,6 +190,7 @@ const operationSchema = z
 export const specSchema = z
   .object({
     operations: z.array(operationSchema).min(1),
+    source_contribution: SourceContribution.optional(),
   })
   .strict();
 

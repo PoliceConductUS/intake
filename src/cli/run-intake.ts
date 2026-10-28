@@ -1,3 +1,4 @@
+import type { DatabaseClient } from "./database/index.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command, CommanderError } from "commander";
@@ -6,6 +7,7 @@ import type { CommandResult } from "../shared/cli/types.js";
 
 export type IntakeCliDependencies = {
   useInitialAgencyRoots?: boolean;
+  finalizeMutations?: (client: DatabaseClient) => Promise<void>;
   runImportArtifactsCommand?: (
     artifactsRef: string,
     dependencies?: { dryImport?: boolean },

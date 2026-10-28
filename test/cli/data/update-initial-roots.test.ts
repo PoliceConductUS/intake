@@ -39,15 +39,18 @@ test.each([true, false])(
       version: "1",
       mutationCount: 1,
     });
+    const finalizeMutations = vi.fn(async () => {});
     const program = new Command();
     let result: CommandResult | undefined;
     registerCliCommand(program, {
+      finalizeMutations,
       setResult: (value) => {
         result = value;
       },
     });
     await program.parseAsync(["data", "update"], { from: "user" });
     expect(result).toMatchObject({ exitCode: 0 });
+    expect(finalizeMutations).toHaveBeenCalledTimes(1);
     expect(agencyTableIsEmpty).toHaveBeenCalledTimes(1);
     expect(
       vi

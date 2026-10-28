@@ -1,3 +1,4 @@
+import type { DatabaseClient } from "../../cli/database/index.js";
 import type { Command } from "commander";
 
 export type CommandResult = {
@@ -8,6 +9,7 @@ export type CommandResult = {
 
 export type CliCommandDependencies = {
   useInitialAgencyRoots?: boolean;
+  finalizeMutations?: (client: DatabaseClient) => Promise<void>;
   runImportArtifactsCommand?: (
     artifactsRef: string,
     dependencies?: { dryImport?: boolean },

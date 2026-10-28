@@ -1,3 +1,4 @@
+import { recalculateDataAnnotations } from "../database/recalculate-data-annotations.js";
 import { IdentityRestoration } from "../../shared/io/IdentityRestoration.js";
 import type { Command } from "commander";
 import path from "node:path";
@@ -285,9 +286,16 @@ export function registerCliCommand(
     .option("--to <version>", "apply through this version, then stop")
     .action(async (options: { to?: string }): Promise<void> => {
       try {
-        const applied = await withClient((client) =>
-          applyPending(client, { to: options.to, logger: consoleLogger }),
-        );
+        const applied = await withClient(async (client) => {
+          const result = await applyPending(client, {
+            to: options.to,
+            logger: consoleLogger,
+          });
+          await (dependencies.finalizeMutations ?? recalculateDataAnnotations)(
+            client,
+          );
+          return result;
+        });
         dependencies.setResult({
           exitCode: 0,
           stdout:
@@ -396,6 +404,10 @@ export function registerCliCommand(
           );
           done.push(`${generated.version} ${source}`);
         }
+        if (errored.length === 0)
+          await withClient(
+            dependencies.finalizeMutations ?? recalculateDataAnnotations,
+          );
         const total = done.length + emptyDiff.length + errored.length;
         const summary =
           `data update: ${total} source(s) — ${done.length} appended, ` +

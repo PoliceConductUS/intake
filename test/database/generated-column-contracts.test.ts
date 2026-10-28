@@ -1,3 +1,4 @@
+import * as annotationSchema from "../../src/shared/data-annotations.js";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { createRequire } from "node:module";
 import ts from "typescript";
@@ -54,6 +55,7 @@ test("generated agency record and create schemas reject the database-owned colum
   const localRequire = createRequire(import.meta.url);
   const exports: Record<string, any> = {};
   new Function("require", "exports", code)((name: string) => {
+    if (name === "../../data-annotations.js") return annotationSchema;
     if (name === "../../timestamp-schema.js") return timestampSchema;
     if (name === "../../agency-address-schema.js") return addressSchema;
     return localRequire(name);

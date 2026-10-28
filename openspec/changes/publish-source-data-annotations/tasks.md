@@ -1,6 +1,6 @@
 ## 1. Shared contracts and migration
 
-- [ ] 1.1 Resolve the documented unresolvable-agency-geography storage/routing decision before implementing invalid-address retention; reconcile the superseded date-omission change and audit affected canonical contracts before implementation.
+- [ ] 1.1 Keep existing required geography/routes per the user decision; require explicit correction or exclusion and attach exclusion findings to the explicitly mapped licensing authority. Reconcile the superseded date-omission change and audit affected canonical contracts.
 - [ ] 1.2 Add the shared annotation schema and record-owned JSON columns through a new migration; retain original literals where typed columns cannot represent them.
 - [ ] 1.3 Regenerate envelope/mutation/database types from their owning generators; verify strict shared IO and stable identity.
 

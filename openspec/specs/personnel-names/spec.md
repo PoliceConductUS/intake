@@ -1,8 +1,11 @@
 # personnel-names Specification
 
 ## Purpose
+
 TBD - created by archiving change normalize-personnel-names. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Consistent generational suffix display
 
 Every source's Personnel suffix resolver SHALL normalize case-insensitive JR with

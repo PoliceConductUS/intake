@@ -1,8 +1,11 @@
 # tcole-source-import Specification
 
 ## Purpose
+
 TBD - created by archiving change add-tx-post-tcole. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: TCOLE source emits all six kinds from the single workbook
 
 The `sources/gov.tx.tcole/config.ts` source MUST read the single 02-10 workbook and

@@ -114,14 +114,68 @@ describe("transformSource", () => {
         loadExcludedRecords,
         logger,
       };
+      const authority = {
+        kind: "LicensingAuthorities" as const,
+        records: {
+          board: {
+            spec: {
+              name: "Test board",
+              location_path_id: "test",
+              source_namespaces: ["gov.azpost.roster"],
+            },
+          },
+        },
+      };
+      const originalModule = await deps.loadSourceModule();
+      const originalManifest = await originalModule({});
+      const exclusionsDeps = {
+        ...deps,
+        produces: [...deps.produces, "LicensingAuthorities"] as const,
+        loadSourceModule: async () => async () => ({
+          artifacts: [...originalManifest.artifacts, authority],
+        }),
+      };
       expect(
-        await transformSource("gov.azpost.roster", ["file.xlsx"], {}, deps),
+        await transformSource(
+          "gov.azpost.roster",
+          ["file.xlsx"],
+          {},
+          exclusionsDeps,
+        ),
       ).toEqual({ artifactsPath: "/ws/artifacts.yaml" });
       expect(deps.writeEnvelope).toHaveBeenCalledWith(
         "/ws",
         "gov.azpost.roster",
         "testdigest",
-        { artifacts: [{ kind: "Personnel", records: {} }] },
+        {
+          artifacts: [
+            { kind: "Personnel", records: {} },
+            {
+              ...authority,
+              records: {
+                board: {
+                  spec: {
+                    ...authority.records.board.spec,
+                    source_exclusions: {
+                      "gov.azpost.roster": [
+                        {
+                          kind: "Personnel",
+                          key: "1001",
+                          reason: "workspace exclusion",
+                        },
+                        {
+                          kind: "Personnel",
+                          key: "9999",
+                          reason: "absent from source",
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
         testRefItems,
       );
       expect(logger.info).toHaveBeenCalledWith(

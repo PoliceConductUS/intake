@@ -1,3 +1,4 @@
+import { CorrectionAnnotation } from "../data-annotations.js";
 import type { AgencyLocationPathLookup } from "../agency-location-path.js";
 import { isDeepStrictEqual } from "node:util";
 import { readdir, stat } from "node:fs/promises";
@@ -131,7 +132,10 @@ export type ApplyPropertyCorrections = (
   kind: string,
   sourceId: string,
   spec: Record<string, unknown>,
-  applied?: (property: string) => void,
+  applied?: (
+    property: string,
+    annotation?: z.infer<typeof CorrectionAnnotation>,
+  ) => void,
 ) => Record<string, unknown>;
 export async function loadPropertyCorrections(
   root: string | undefined,
@@ -181,7 +185,23 @@ export async function loadPropertyCorrections(
           : isDeepStrictEqual(value, entry.from);
       if (matches) {
         result[correction.targetProperty] = correctionValue(entry);
-        applied?.(correction.targetProperty);
+        applied?.(
+          correction.targetProperty,
+          CorrectionAnnotation.parse({
+            field: correction.targetProperty,
+            value: value ?? null,
+            replacement_value: correctionValue(entry),
+            type: "correction",
+            message:
+              entry.message ??
+              "Applied an explicit conditional source correction.",
+            source_namespace: namespace,
+            source_record_id: sourceId,
+            ...(entry.evidence === undefined
+              ? {}
+              : { evidence: entry.evidence }),
+          }),
+        );
         log?.(
           `cache: applied ${namespace}/${kind}/${sourceId}.${correction.targetProperty}: ${JSON.stringify(value ?? null)} → ${JSON.stringify(correctionValue(entry))}`,
         );

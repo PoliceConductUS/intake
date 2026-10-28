@@ -91,7 +91,7 @@ describe("Oregon transform", () => {
     expect(Object.keys(get("LicenseActions"))).toHaveLength(4);
     expect(await f.run()).toEqual(result);
   });
-  it("skips scheduled hires and their Required certificate rows only until the hire date", async () => {
+  it("retains scheduled hires and their Required certificate rows before the hire date", async () => {
     const f = await fixture();
     await writeFile(
       join(f.dir, "search-Smith-1.html"),
@@ -115,12 +115,9 @@ describe("Oregon transform", () => {
         .replace(/(?:7\/31\/1986|8\/24\/1981|4\/12\/1982|6\/1\/2005)/g, ""),
     );
     const before = await f.run();
-    for (const kind of ["AgencyPersonnel", "Licenses", "LicenseActions"])
-      expect(
-        before.artifacts.find((artifact) => artifact.kind === kind)!.records,
-      ).toEqual({});
-    expect(f.logs.join("\n")).toMatch(/skipped.*13177.*2026-10-27/);
     const onDate = await f.run(new Date("2026-10-27T00:00:00Z"));
+    expect(before.artifacts).toEqual(onDate.artifacts);
+    expect(f.logs.join("\n")).not.toMatch(/skipped scheduled/);
     expect(
       Object.keys(
         onDate.artifacts.find(

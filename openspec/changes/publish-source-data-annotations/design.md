@@ -15,12 +15,23 @@
 Add `data_annotations` as a JSON array, default `[]`, to source-imported entity rows. Use one canonical annotation schema across envelope, mutation, database and site contracts:
 
 ```json
-{"field":"end_date","value":"2024-05-22","type":"error","message":"End date precedes start date.","source_namespace":"gov.tx.tcole","source_record_id":"1741748"}
+{
+  "field": "end_date",
+  "value": "2024-05-22",
+  "type": "error",
+  "message": "End date precedes start date.",
+  "source_namespace": "gov.tx.tcole",
+  "source_record_id": "1741748"
+}
 ```
 
 `value` is the inspected JSON-compatible value for warnings/errors and the original source value for corrections; correction entries additionally require `replacement_value` and carry optional `evidence` when supplied. An invalid unrepresentable literal remains the inspected value via its source evidence. `source_record_id` is the producing record's source-local identity, not necessarily a person ID (an employment annotation uses the employment source key). The owner already supplies canonical identity; no annotation ID is necessary. The namespace identifies the provider; authority labels/links use explicit source-to-authority metadata, never the person's current employer or name matching.
 
 An end-before-start contradiction is an error. Existing duration-over-70-years detection becomes a warning, with wording that identifies our concern without declaring the reported fact false. Future dates likewise warrant a warning rather than automatic exclusion. Scheduled source employment must remain visible with its future date. Thresholds are detection policy, not truth constraints. No new thresholds are introduced.
+
+### Validation scope
+
+The annotation mechanism must support any record type. Each record type may have its own validators, or none. Shared storage and display do not require identical validation across tables. Add validators only where this change specifies a rule; a blanket audit or validation of every date column is not an acceptance requirement.
 
 ### Preserve values and update findings
 
@@ -64,6 +75,6 @@ Add an annotations link and a paginated `data-annotations/` subpage under each e
 
 Add columns/necessary descriptive-field changes through a new migration. Regenerate canonical IO and downstream types. Validate migration, reset and seed assertions in a disposable database. Apply the forward migration to the configured environment through the normal release process; regenerate/apply affected imports from retained sources without resetting production, then rebuild the site. Verify restored IDs/slugs and public annotations. A rollback must not delete restored evidence; retain additive columns if application code is reverted.
 
-## Open Questions
+## Geography decision
 
-The annotation/publication model is specified. One broader storage/routing decision remains before implementation of all invalid-address cases: AgencyCreate currently requires location_path_id, latitude and longitude, and agency URLs depend on geography. Retaining agencies with unresolvable geography requires an explicit decision on nullable geography and a public route for those records. Do not invent coordinates, weaken foreign keys, or introduce a new route scheme as an incidental implementation choice. Contradictory representable employment dates do not require that decision. Authority subpages follow `/[category]/licensing-authority/data-annotations/`. The recommended 50-row size and existing warning threshold are implementation defaults, not newly asserted data-validity rules.
+The user resolved geography scope on 2026-10-27: retain existing required geography and routes. An unresolvable record requires an explicit correction or explicit exclusion; do not invent coordinates or introduce nullable geography/new routes. Corrections produce annotations on the corrected record. Exclusions preserve the source key, kind, optional recorded name, and explicit reason on the source's licensing authority, since the excluded record has no page. Authority attribution must use explicit source namespace mapping and fail loudly when exclusion ownership is missing or ambiguous. Reruns replace only that provider's exclusions, including clearing its old findings when the exclusion set becomes empty. The final annotation scan renders those explicit exclusions as warnings, preserving the reason without asserting the source fact is false. Authority subpages follow `/[category]/licensing-authority/data-annotations/`.

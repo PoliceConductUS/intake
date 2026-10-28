@@ -735,12 +735,13 @@ function mutationSpecExpression(
   operation: ImportOperation,
 ): string {
   if (operation === "create") {
-    return `${specBaseName}CreateSpec`;
+    return `${specBaseName}CreateSpec.safeExtend({ source_contribution: SourceContribution.optional() })`;
   }
   if (operation === "update") {
     return `z
   .object({
     operations: z.array(operationSchema).min(1),
+    source_contribution: SourceContribution.optional(),
   })
   .strict()`;
   }
@@ -758,7 +759,10 @@ function mutationModule(
     operation === "create" || operation === "update"
       ? `import { ${specBaseName}Spec${operation === "create" ? `, ${specBaseName}CreateSpec` : ""} } from "../../../../../shared/io/generated/entity-specs.js";\n`
       : "";
-  const operationImport = "";
+  const operationImport =
+    operation === "read"
+      ? ""
+      : `import { SourceContribution } from "../../../../../shared/data-annotations.js";\n`;
   const updateValidation =
     operation === "update"
       ? `

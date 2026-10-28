@@ -1,8 +1,11 @@
 # license-import Specification
 
 ## Purpose
+
 TBD - created by archiving change add-tx-post-tcole. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Licensing authority entity from a curated dataset
 
 The system MUST add a `licensing_authority` table (`name`, `abbreviation`,

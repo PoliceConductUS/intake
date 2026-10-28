@@ -1,8 +1,11 @@
 # personnel-name-quality Specification
 
 ## Purpose
+
 TBD - created by archiving change enforce-shared-personnel-name-quality. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Preserve personnel source values through the original schema contract
 
 Personnel schemas SHALL use the original database-derived string contracts,

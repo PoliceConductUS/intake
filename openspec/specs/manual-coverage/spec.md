@@ -1,8 +1,11 @@
 # manual-coverage Specification
 
 ## Purpose
+
 TBD - created by archiving change declare-manual-coverage-kinds. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Declare manual coverage output
 
 The manual source SHALL declare CoverageLinks and CoverageLinkAgencyPersonnel

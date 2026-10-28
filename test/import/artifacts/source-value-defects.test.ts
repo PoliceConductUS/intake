@@ -12,13 +12,13 @@ const source = {
   name: "one",
 } as const;
 test.each(["(000) 000-0000", "0000000000", "0", "N/A", "123"])(
-  "omits invalid phone %s",
+  "retains invalid phone %s for annotation",
   (phone_number) => {
     const result = cleanSourceValues("AgencyPhoneNumber", {
       phone_number,
       agency_id: "agency",
     });
-    expect(result.spec).toEqual({ agency_id: "agency" });
+    expect(result.spec).toEqual({ agency_id: "agency", phone_number });
     expect(result.defects).toEqual([
       expect.objectContaining({
         field: "phone_number",
@@ -38,11 +38,9 @@ test.each([
     cleanSourceValues("AgencyPhoneNumber", { phone_number }).defects,
   ).toEqual([]);
 });
-test("removes optional bad email and website without mutating raw input", () => {
+test("preserves optional bad email and website without mutating raw input", () => {
   const original = { contact_email: "not an email", name: "Agency" };
-  expect(cleanSourceValues("Agency", original).spec).toEqual({
-    name: "Agency",
-  });
+  expect(cleanSourceValues("Agency", original).spec).toEqual(original);
   expect(original.contact_email).toBe("not an email");
   expect(
     cleanSourceValues("LicensingAuthority", {
@@ -79,19 +77,14 @@ test("accepts valid email, absent fields and null optional values", () => {
   );
   expect(cleanSourceValues("Review", {}).defects).toEqual([]);
 });
-test("logs and omits invalid phone records from generation", async () => {
-  const logs: string[] = [];
-  const context = new DataContext({
-    logger: { info: (message) => logs.push(message) },
-  });
-  context.facadeFromSource("AgencyPhoneNumber", {
+test("factual contact defects do not suppress structural resolution failures", async () => {
+  const context = new DataContext({});
+  const facade = context.facadeFromSource("AgencyPhoneNumber", {
     ...source,
-    spec: { agency_id: "agency", phone_number: "0000000000" },
+    spec: { phone_number: "0000000000" },
   });
-  expect(await context.toMutations()).toEqual([]);
-  expect(logs.join("\n")).toMatch(
-    /source data defect.*test.source.*AgencyPhoneNumber.*one.*phone_number.*0000000000/i,
-  );
+  expect(facade.raw("phone_number")).toBe("0000000000");
+  await expect(context.toMutations()).rejects.toThrow();
 });
 test("cached corrections precede validation", () => {
   const logs: string[] = [];
@@ -109,12 +102,9 @@ test("cached corrections precede validation", () => {
   expect(facade.raw("phone_number")).toBe("(703) 697-9603");
   expect(logs).toEqual([]);
 });
-test("invalid evidence URL omits dependent links without trying to resolve them", async () => {
-  const logs: string[] = [];
-  const context = new DataContext({
-    logger: { info: (message) => logs.push(message) },
-  });
-  context.facadeFromSource("CoverageLink", {
+test("invalid evidence URLs remain inspectable without suppressing dependent structural errors", async () => {
+  const context = new DataContext({});
+  const facade = context.facadeFromSource("CoverageLink", {
     ...source,
     spec: { url: "broken URL", normalized_url: "broken URL" },
   });
@@ -123,8 +113,8 @@ test("invalid evidence URL omits dependent links without trying to resolve them"
     name: "link",
     spec: { coverage_link_id: "one", agency_personnel_id: "assignment" },
   });
-  expect(await context.toMutations()).toEqual([]);
-  expect(logs.join("\n")).toContain("CoverageLinkAgencyPersonnel");
+  expect(facade.raw("url")).toBe("broken URL");
+  await expect(context.toMutations()).rejects.toThrow();
 });
 
 test.each(["", "   "])(
@@ -178,7 +168,7 @@ test.each(["", "   "])(
         spec: record.spec,
       });
       expect(facade.raw("name")).toBe("Keep this agency");
-      expect(facade.raw("contact_email")).toBeUndefined();
+      expect(facade.raw("contact_email")).toBe(contact_email);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
@@ -225,7 +215,9 @@ test("reports an end_date a lifetime after its start_date", () => {
         field: "end_date",
         value: "2109-02-27",
         omitted: false,
-        reason: expect.stringContaining(`${MAX_RANGE_YEARS}-year limit`),
+        reason: expect.stringContaining(
+          `${MAX_RANGE_YEARS}-year review threshold`,
+        ),
       }),
     ]),
   );
@@ -264,59 +256,13 @@ test.each([
     }).defects,
   ).toEqual([]);
 });
-test("omits the record for a retained date defect", async () => {
-  const logs: string[] = [];
-  const context = new DataContext({
-    logger: { info: (message) => logs.push(message) },
-  });
-  const facade = context.facadeFromSource("AgencyPersonnel", {
-    ...source,
-    spec: {
-      agency_id: "245825",
-      personnel_id: "1491092",
-      title: "Contract Jailer",
-      start_date: "2015-04-22",
-      end_date: "2109-02-27",
-    },
-  });
-  expect(logs.join("\n")).toMatch(
-    /source data defect.*AgencyPersonnel.*end_date.*2109-02-27.*70-year limit.*value retained; record omitted/,
-  );
-  // Keep the evidence inspectable, but do not let it reach database mutations.
-  expect(facade.raw("end_date")).toBe("2109-02-27");
-  expect(facade.raw("start_date")).toBe("2015-04-22");
-  await expect(context.toMutations()).resolves.toEqual([]);
-});
-
-test("omits every defective pair without requiring a logger", async () => {
+test("a contradictory assignment remains eligible for generation", async () => {
   const context = new DataContext({});
-  for (const [name, start_date, end_date] of [
-    ["future", "2015-04-22", "2109-02-27"],
-    ["reversed", "2024-10-24", "2023-10-23"],
-  ]) {
-    const spec = { start_date, end_date };
-    context.facadeFromSource("AgencyPersonnel", { ...source, name, spec });
-    expect(spec).toEqual({ start_date, end_date });
-  }
-  await expect(context.toMutations()).resolves.toEqual([]);
-  await expect(context.toDatabaseMutationItems()).resolves.toEqual([]);
-});
-test("validates corrected date pairs before deciding omission", async () => {
-  const original = { start_date: "2015-04-22", end_date: "2109-02-27" };
-  const context = new DataContext({
-    // Synthetic supported correction: this is not a proposed real replacement.
-    applyPropertyCorrections: (_kind, _name, spec) => ({
-      ...spec,
-      end_date: "2024-02-27",
-    }),
-  });
   const facade = context.facadeFromSource("AgencyPersonnel", {
     ...source,
-    spec: original,
+    spec: { start_date: "2020-01-01", end_date: "2019-01-01" },
   });
-  expect(facade.raw("end_date")).toBe("2024-02-27");
-  expect(original.end_date).toBe("2109-02-27");
-  // Missing identity fails later, proving the corrected pair passes the date gate.
+  expect(facade.raw("end_date")).toBe("2019-01-01");
   await expect(context.toMutations()).rejects.toThrow(
     "source agency_id is missing",
   );
@@ -352,45 +298,14 @@ test.each(["2026-10-24", "2026-10-25"])(
     ).toEqual([]);
   },
 );
-test("omits and reports a future standalone date", async () => {
-  const logs: string[] = [];
-  const context = new DataContext({
-    validationDate: new Date("2026-10-25T00:00:00Z"),
-    logger: { info: (message) => logs.push(message) },
-  });
-  context.facadeFromSource("AgencyPersonnel", {
+test("scheduled employment stays eligible and still requires structural identity", async () => {
+  const context = new DataContext({});
+  const facade = context.facadeFromSource("AgencyPersonnel", {
     ...source,
     spec: { start_date: "2026-11-16" },
   });
-  await expect(context.toMutations()).resolves.toEqual([]);
-  expect(logs.join("\n")).toMatch(/future date.*record omitted/);
-});
-
-test("date omissions cascade to dependents and a later corrected input is reconsidered", async () => {
-  const logs: string[] = [];
-  const context = new DataContext({
-    logger: { info: (message) => logs.push(message) },
-  });
-  context.facadeFromSource("AgencyPersonnel", {
-    ...source,
-    spec: { start_date: "2024-10-24", end_date: "2023-10-23" },
-  });
-  context.facadeFromSource("CoverageLinkAgencyPersonnel", {
-    ...source,
-    name: "dependent",
-    spec: { coverage_link_id: "article", agency_personnel_id: "one" },
-  });
-  await expect(context.toMutations()).resolves.toEqual([]);
-  expect(logs.join("\n")).toMatch(
-    /CoverageLinkAgencyPersonnel.*dependent.*record omitted/,
-  );
-  const nextRun = new DataContext({});
-  nextRun.facadeFromSource("AgencyPersonnel", {
-    ...source,
-    spec: { start_date: "2023-10-24", end_date: "2024-10-23" },
-  });
-  // A valid date pair reaches ordinary FK resolution, without an exclusion to undo.
-  await expect(nextRun.toMutations()).rejects.toThrow(
+  expect(facade.raw("start_date")).toBe("2026-11-16");
+  await expect(context.toMutations()).rejects.toThrow(
     "source agency_id is missing",
   );
 });

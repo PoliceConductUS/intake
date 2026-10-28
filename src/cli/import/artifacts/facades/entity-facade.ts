@@ -1,3 +1,9 @@
+import { DATE_PROPERTIES } from "../../../../shared/io/generated/entity-specs.js";
+import { representableDate } from "../../../../shared/inspect-data-annotations.js";
+import {
+  SourceContribution,
+  type DataAnnotation,
+} from "../../../../shared/data-annotations.js";
 import {
   Resolver,
   valueAsString,
@@ -50,7 +56,10 @@ export type MutationConstructors<Env> = {
   update?: {
     new: (input: {
       metadata: EnvelopeMetadata;
-      spec: { operations: MutationOperation[] };
+      spec: {
+        operations: MutationOperation[];
+        source_contribution?: SourceContribution;
+      };
     }) => Env;
   };
 };
@@ -107,6 +116,54 @@ export class EntityFacade<
 > implements PropertyResolutionFacade<Row> {
   private readonly spec: Record<string, unknown> = {};
   private readonly correctedProperties = new Set<string>();
+  private sourceValues: Record<string, unknown> | undefined;
+  private readonly corrections = new Map<string, DataAnnotation>();
+
+  recordSourceContribution(
+    values: Record<string, unknown>,
+    corrections: readonly DataAnnotation[],
+  ): void {
+    this.sourceValues = { ...this.sourceValues, ...values };
+    for (const entry of corrections) {
+      this.corrections.set(entry.field, entry);
+      if (!Object.hasOwn(this.sourceValues, entry.field))
+        this.sourceValues[entry.field] = entry.value;
+    }
+  }
+
+  private contribution(
+    resolved: Record<string, unknown>,
+  ): SourceContribution | undefined {
+    if (this.sourceValues === undefined) return undefined;
+    const source = {
+      source_namespace: this.source.namespace,
+      source_record_id: this.source.name,
+    };
+    return SourceContribution.parse({
+      ...source,
+      corrections: [...this.corrections.values()],
+      values: Object.fromEntries(
+        Object.entries(this.sourceValues)
+          .filter(
+            ([field, value]) =>
+              value !== undefined &&
+              resolved[field] !== undefined &&
+              field !== "data_annotations" &&
+              field !== "data_source_values",
+          )
+          .map(([field, value]) => [
+            field,
+            {
+              ...source,
+              value,
+              effective_value: DATE_PROPERTIES[this.kind]?.includes(field)
+                ? this.spec[field]
+                : resolved[field],
+            },
+          ]),
+      ),
+    });
+  }
   private readonly memo = new Map<keyof Row, Promise<unknown>>();
   private readonly inProgress = new Set<keyof Row>();
   private readonly current?: Record<string, unknown>;
@@ -372,13 +429,21 @@ export class EntityFacade<
       if (value === undefined) {
         continue;
       }
-      resolved[column] = timestampValue(this.kind, column, value);
+      resolved[column] =
+        DATE_PROPERTIES[this.kind]?.includes(column) &&
+        value !== null &&
+        !representableDate(value)
+          ? null
+          : timestampValue(this.kind, column, value);
     }
     return { identityValue, resolved };
   }
 
   async toMutation(): Promise<Env> {
     const { identityValue, resolved } = await this.resolvedRow();
+    const contribution = this.contribution(resolved);
+    const sourcePayload =
+      contribution === undefined ? {} : { source_contribution: contribution };
 
     const current =
       this.current ?? (await this.backend.existingRow(identityValue));
@@ -394,7 +459,11 @@ export class EntityFacade<
     if (current === undefined) {
       return this.mutations.create.new({
         metadata,
-        spec: { [this.identity]: identityValue, ...resolved } as never,
+        spec: {
+          [this.identity]: identityValue,
+          ...resolved,
+          ...sourcePayload,
+        } as never,
       });
     }
 
@@ -440,7 +509,7 @@ export class EntityFacade<
 
     return this.mutations.update.new({
       metadata,
-      spec: { operations },
+      spec: { operations, ...sourcePayload },
     });
   }
 }

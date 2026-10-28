@@ -49,7 +49,10 @@ async function fixture() {
     runDataCommand: vi.fn(
       async (
         args: readonly string[],
-        _context?: { useInitialAgencyRoots: boolean },
+        _context?: {
+          useInitialAgencyRoots: boolean;
+          finalizeMutations?: unknown;
+        },
       ) => {
         calls.push(args.join(" "));
         expect(await readdir(chain).catch(() => [])).toEqual([]);
@@ -80,7 +83,17 @@ test("no-acquire rebuilds in dependency order, applies manual records, and retai
     "data transform org.policeconduct.manual",
     "data generate org.policeconduct.manual",
     "data up",
+    "data up",
   ]);
+  const upCalls = f.deps.runDataCommand.mock.calls.filter(
+    ([args]) => args[1] === "up",
+  );
+  expect(
+    upCalls
+      .slice(0, -1)
+      .every(([, context]) => typeof context?.finalizeMutations === "function"),
+  ).toBe(true);
+  expect(upCalls.at(-1)?.[1]?.finalizeMutations).toBeUndefined();
   expect(await readFile(path.join(f.state, "keep.txt"), "utf8")).toBe(
     "identity, slug, and manual state",
   );

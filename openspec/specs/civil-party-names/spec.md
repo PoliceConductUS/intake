@@ -1,8 +1,11 @@
 # civil-party-names Specification
 
 ## Purpose
+
 TBD - created by archiving change fix-civil-party-name-resolution. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Resolve titled party names consistently
 
 The pipeline SHALL collapse whitespace before person-name filtering, distinguish Officer from the institution word office, and score Officer and Chief prefixed parties by their personal names. It SHALL preserve existing match thresholds and anonymous-party exclusions.
