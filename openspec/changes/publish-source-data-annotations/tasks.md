@@ -27,3 +27,8 @@
 - [ ] 4.2 Run focused site tests for display, filters, pagination, attribution and CSV completeness, then verify a generated preview across profile/central/authority routes.
 - [ ] 4.3 Run `npm run openspec:validate`; reconcile specification conflicts before archiving.
 - [ ] 4.4 Apply the forward migration and regenerated imports through normal release procedures, rebuild the site and verify published counts/links. Do not reset production.
+
+## Follow-up: retired scoring cleanup
+
+- [x] Remove the disabled agency scoring trigger and 15 unused scoring functions with a forward migration, without CASCADE.
+- [x] Verify absence, replay safety, and preservation of unrelated timestamp behavior in disposable PostgreSQL.
