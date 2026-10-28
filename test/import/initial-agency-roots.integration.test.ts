@@ -1,3 +1,4 @@
+import { recalculateDataAnnotations } from "../../src/cli/database/recalculate-data-annotations.js";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -77,7 +78,14 @@ describeWithDocker("initial agency roots in the shared import pipeline", () => {
       }),
     );
   }
-  async function load(useInitialAgencyRoots?: boolean) {
+  async function load(
+    useInitialAgencyRoots?: boolean,
+    dates = {
+      start_date: "2000-01-01",
+      end_date: "2001-01-01" as string | null,
+    },
+    runName = "bootstrap",
+  ) {
     const agency = (name: string) => ({
       spec: {
         name,
@@ -93,7 +101,7 @@ describeWithDocker("initial agency roots in the shared import pipeline", () => {
     const input = await Artifacts.write(
       path.join(root, "output"),
       Artifacts.new({
-        metadata: { namespace: "source.one", name: "source" },
+        metadata: { namespace: "source.one", name: runName },
         spec: {
           artifacts: [
             {
@@ -123,8 +131,7 @@ describeWithDocker("initial agency roots in the shared import pipeline", () => {
                     spec: {
                       agency_id: "historical",
                       personnel_id: "past",
-                      start_date: "2000-01-01",
-                      end_date: "2001-01-01",
+                      ...dates,
                       title: "Officer",
                     },
                   },
@@ -148,10 +155,49 @@ describeWithDocker("initial agency roots in the shared import pipeline", () => {
       artifactsPath: input.path,
       useInitialAgencyRoots,
       env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE_TEST: root },
-      commandName: "bootstrap",
+      commandName: runName,
       commandDirectory: path.join(root, "command"),
     });
   }
+  test.each([
+    ["2024-06-03", "2024-05-22", "error"],
+    ["2024-06-17", "2024-06-14", "error"],
+    ["2024-01-22", "2024-01-17", "error"],
+    ["2024-08-15", "2024-08-05", "error"],
+    ["2024-08-19", "2024-08-07", "error"],
+    ["2026-11-16", null, "warning"],
+  ])(
+    "preserves assignment %s to %s and stable identities through repeated generation/apply",
+    async (start_date, end_date, findingType) => {
+      await writeRoots();
+      const dates = { start_date: start_date!, end_date };
+      expect(await load(undefined, dates)).toMatchObject({ ok: true });
+      await recalculateDataAnnotations(db, new Date("2026-10-27"));
+      const read = async () =>
+        (
+          await db.query(
+            "select p.id, p.slug, ap.id as assignment_id, ap.start_date::text, ap.end_date::text, ap.data_annotations from personnel p join agency_personnel ap on ap.personnel_id=p.id where ap.agency_id='canonical-historical'",
+          )
+        ).rows;
+      const first = await read();
+      expect(first).toHaveLength(1);
+      expect(first[0]).toMatchObject({
+        ...dates,
+        data_annotations: expect.arrayContaining([
+          expect.objectContaining({
+            type: findingType,
+            source_namespace: "source.one",
+            source_record_id: "past",
+          }),
+        ]),
+      });
+      const rerun = await load(undefined, dates, "rerun");
+      expect(rerun, JSON.stringify(rerun)).toMatchObject({ ok: true });
+      await recalculateDataAnnotations(db, new Date("2026-10-27"));
+      expect(await read()).toEqual(first);
+    },
+  );
+
   async function agencyNames() {
     return (
       await db.query("select name from public.agency order by name")
