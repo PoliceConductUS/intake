@@ -82,3 +82,5 @@ The user resolved geography scope on 2026-10-27: retain existing required geogra
 ### Bounded replay inserts
 
 Replay limits each INSERT to 1,000 rows, 4 MiB of serialized parameter payload, and the existing 60,000-parameter ceiling. A single row larger than the payload budget is sent alone without alteration. These statement boundaries do not change the enclosing transaction, mutation ordering, conflict checks, or source values. This prevents Census geometry batches from exhausting PostgreSQL memory merely because large geometry values use few parameters.
+
+Kind-scoped transforms apply the same requested kind scope to saved exclusions before annotation ownership checks. Exclusions for other kinds remain unchanged in workspace state and are still checked during a full transform. This allows reset to prepare manual locations without processing unrelated agency exclusions.
