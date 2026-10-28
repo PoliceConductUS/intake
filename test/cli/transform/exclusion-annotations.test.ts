@@ -78,3 +78,40 @@ test("rerun clears only its provider, retaining other providers", () => {
     b: [{ kind: "Agency", key: "y", reason: "documented exclusion" }],
   });
 });
+
+test("explicit record ownership supports mixed manual sources without claiming the namespace", () => {
+  const input = manifest();
+  input.artifacts[0].records.board.spec = {
+    name: "Test board",
+    source_namespaces: ["test.provider"],
+    source_exclusions: {
+      manual: [{ kind: "Agency", key: "bad", reason: "previous reason" }],
+    },
+  };
+  const result = attachExclusionEvidence(input, excluded, "manual");
+  expect(result.artifacts[0].records.board.spec).toMatchObject({
+    source_namespaces: ["test.provider"],
+    source_exclusions: { manual: [...excluded.values()] },
+  });
+  expect(
+    attachExclusionEvidence(input, new Map(), "manual").artifacts[0].records
+      .board.spec,
+  ).toMatchObject({ source_exclusions: { manual: [] } });
+  const unassigned = new Map([
+    ...excluded,
+    [
+      "Agency:another",
+      { kind: "Agency", key: "another", reason: "another exclusion" },
+    ],
+  ]);
+  expect(() => attachExclusionEvidence(input, unassigned, "manual")).toThrow(
+    /exactly one/,
+  );
+  const duplicate = structuredClone(input);
+  duplicate.artifacts[0].records.other = structuredClone(
+    input.artifacts[0].records.board,
+  );
+  expect(() => attachExclusionEvidence(duplicate, excluded, "manual")).toThrow(
+    /exactly one/,
+  );
+});
