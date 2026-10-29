@@ -91,3 +91,23 @@ test("stored null with an unrepresentable end date is not current employment", a
     reportedFieldValue(null, { ...evidence("invalid"), effective_value: null }),
   ).toBeNull();
 });
+
+test("finding identities distinguish rules and survive changing values and validation days", async () => {
+  const { inspectDataAnnotationFindings } =
+    await import("../../../src/shared/inspect-data-annotations.js");
+  const inspectFindings = (end: string, day: string) =>
+    inspectDataAnnotationFindings(
+      "AgencyPersonnel",
+      { start_date: "1900-01-01", end_date: end },
+      { start_date: evidence("1900-01-01"), end_date: evidence(end) },
+      new Date(day),
+    );
+  const first = inspectFindings("2030-01-01", "2026-10-27");
+  const second = inspectFindings("2031-01-01", "2026-10-28");
+  expect(first).toHaveLength(2);
+  expect(new Set(first.map((item) => item.key)).size).toBe(2);
+  expect(second.map((item) => item.key)).toEqual(first.map((item) => item.key));
+  expect(second.map((item) => item.annotation.message)).not.toEqual(
+    first.map((item) => item.annotation.message),
+  );
+});

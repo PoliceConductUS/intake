@@ -40,6 +40,7 @@ const importMutationOutputDirectory = path.join(
 // a kind can be opted out without reintroducing the `recordKind !== kind`
 // heuristic.
 const RECORD_ENVELOPE_KINDS = new Set<ImportArtifactKind>([
+  "DataAnnotations",
   "LocationPaths",
   "LocationPathGeometries",
   "LocationPathAliases",
@@ -174,9 +175,10 @@ export const recordSchema = z
         selector: z.record(z.string(), z.unknown()).optional(),
       })
       .strict(),
-    spec: ${recordSpecName}Spec,
+    spec: z.strictObject(${recordSpecName}Spec.shape).partial(),
   })
-  .strict();
+  .strict()
+  .superRefine((record, ctx) => refineRecordSpec(record, ctx));
 
 export type ${recordEnvelopeKind}Envelope = z.infer<typeof recordSchema>;
 export type ${recordEnvelopeKind}Input = Omit<${recordEnvelopeKind}Envelope, "apiVersion" | "kind">;
@@ -367,7 +369,7 @@ export type RecordMetadata = z.infer<typeof recordMetadataSchema>;
 // set — a partial update). ADR 0034. The partial keeps the strict mode, so an
 // unknown column is still rejected under every verb.
 function recordSpecSchema(action?: "PUT" | "PATCH" | "POST") {
-  return action === "PATCH" ? ${recordSpecName}Spec.partial() : ${recordSpecName}Spec;
+  return action === "PATCH" ? z.strictObject(${recordSpecName}Spec.shape).partial() : ${recordSpecName}Spec;
 }
 function refineRecordSpec(
   item: { metadata?: { action?: "PUT" | "PATCH" | "POST" }; spec: unknown },
@@ -735,13 +737,12 @@ function mutationSpecExpression(
   operation: ImportOperation,
 ): string {
   if (operation === "create") {
-    return `${specBaseName}CreateSpec.safeExtend({ source_contribution: SourceContribution.optional() })`;
+    return `${specBaseName}CreateSpec`;
   }
   if (operation === "update") {
     return `z
   .object({
     operations: z.array(operationSchema).min(1),
-    source_contribution: SourceContribution.optional(),
   })
   .strict()`;
   }
@@ -759,10 +760,7 @@ function mutationModule(
     operation === "create" || operation === "update"
       ? `import { ${specBaseName}Spec${operation === "create" ? `, ${specBaseName}CreateSpec` : ""} } from "../../../../../shared/io/generated/entity-specs.js";\n`
       : "";
-  const operationImport =
-    operation === "read"
-      ? ""
-      : `import { SourceContribution } from "../../../../../shared/data-annotations.js";\n`;
+  const operationImport = "";
   const updateValidation =
     operation === "update"
       ? `

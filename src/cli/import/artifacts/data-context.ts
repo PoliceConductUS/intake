@@ -1,4 +1,9 @@
-import type { DataAnnotation } from "../../../shared/data-annotations.js";
+import { createHash } from "node:crypto";
+import { inspectDataAnnotationFindings } from "../../../shared/inspect-data-annotations.js";
+import {
+  SourceValues,
+  type DataAnnotation,
+} from "../../../shared/data-annotations.js";
 import type { AgencyLocationPathLookup } from "../../../shared/agency-location-path.js";
 import type { InitialAgencyRootsEnvelope } from "../../../shared/io/index.js";
 import {
@@ -210,6 +215,7 @@ export class DataContext {
   private readonly resolveAddressFn?: DataContextOptions["resolveAddress"];
   private readonly resolvedPropertyStore?: ResolvedPropertyStore;
   private readonly commandName?: string;
+  private readonly validationDate: Date;
   private readonly ledger?: SourceNameToCanonicalIdLedger;
   private readonly slugs: SlugAllocator;
   /** Every facade built this command, grouped by kind then memo key. */
@@ -242,6 +248,7 @@ export class DataContext {
     this.resolveAddressFn = options.resolveAddress;
     this.resolvedPropertyStore = options.resolvedPropertyStore;
     this.commandName = options.commandName;
+    this.validationDate = options.validationDate ?? new Date();
     this.ledger = options.ledger;
     this.slugs = new SlugAllocator(async (kind, slug) => {
       const [row, cachedOwner] = await Promise.all([
@@ -338,8 +345,21 @@ export class DataContext {
       findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
       getLocationPathByPath: (path) => this.locationPaths.getByPath(path),
       getLocationPathById: (id) => this.locationPaths.getById(id),
-      findRowsByColumns: (targetKind, columnValues) =>
-        this.rows.getRowsByColumns(targetKind, columnValues),
+      findRowsByColumns: (targetKind, columnValues) => {
+        const identity = columnValues[identityColumnForKind(targetKind)];
+        const emitted =
+          typeof identity === "string"
+            ? this.emittedRows.get(DataContext.emittedKey(targetKind, identity))
+            : undefined;
+        if (
+          emitted !== undefined &&
+          Object.entries(columnValues).every(
+            ([key, value]) => emitted[key] === value,
+          )
+        )
+          return Promise.resolve([emitted]);
+        return this.rows.getRowsByColumns(targetKind, columnValues);
+      },
       ensureUniqueSlug: (input) =>
         this.slugs.ensureUnique(input.kind, {
           base: input.base,
@@ -626,6 +646,83 @@ export class DataContext {
     // the FK-derived topological sort in toDatabaseMutationItems. Draining in the
     // generated dependency order keeps the pre-sort output stable and legible.
     const mutations: DatabaseMutationEnvelope[] = [];
+    const annotationScopes = new Set<string>();
+    const correctionFieldsByScope = new Map<string, ReadonlySet<string>>();
+    const recordsByScope = new Map<
+      string,
+      Map<string, Record<string, unknown>>
+    >();
+    const inspectFacade = async (kind: string, facade: RegistryFacade) => {
+      const { identityValue, resolved } = await facade.resolvedRow();
+      this.emittedRows.set(
+        DataContext.emittedKey(kind, identityValue),
+        facade.inspectionValues,
+      );
+      const contribution = facade.contribution(resolved);
+      // Only entity kinds carrying source evidence participate in automatic inspection.
+      // Native annotations have no such column and do not recursively annotate themselves.
+      if (contribution === undefined || !facade.supportsSourceEvidence) return;
+      const groups = [
+        {
+          owner: [
+            "correction",
+            contribution.source_namespace,
+            contribution.source_record_id,
+          ],
+          processedFields: new Set(Object.keys(contribution.values)),
+          findings: contribution.corrections.map((annotation) => ({
+            key: JSON.stringify(["correction", annotation.field]),
+            annotation,
+          })),
+        },
+        {
+          owner: ["validation"],
+          findings: inspectDataAnnotationFindings(
+            kind,
+            facade.inspectionValues,
+            SourceValues.parse(
+              facade.inspectionValues.data_source_values ?? {},
+            ),
+            this.validationDate,
+          ),
+        },
+      ];
+      for (const group of groups) {
+        const scope =
+          createHash("sha256")
+            .update(JSON.stringify([kind, identityValue, ...group.owner]))
+            .digest("hex") + "/";
+        annotationScopes.add(scope);
+        if (group.processedFields !== undefined)
+          correctionFieldsByScope.set(scope, group.processedFields);
+        const records = new Map<string, Record<string, unknown>>();
+        recordsByScope.set(scope, records);
+        for (const { key, annotation: finding } of group.findings) {
+          const name =
+            scope +
+            createHash("sha256")
+              .update(
+                JSON.stringify([
+                  key,
+                  finding.source_namespace,
+                  finding.source_record_id,
+                ]),
+              )
+              .digest("hex");
+          records.set(name, {
+            ...finding,
+            replacement_value:
+              finding.type === "correction" ? finding.replacement_value : null,
+            evidence: finding.evidence ?? null,
+            subject_kind: kind,
+            subject_id: identityValue,
+            producer_namespace: "intake",
+            producer_record_id: name,
+            status: "active",
+          });
+        }
+      }
+    };
     const urlOwners = new Map<string, { owner: string; sourceKey: string }>();
     for (const kind of RECORD_KINDS_IN_DEPENDENCY_ORDER) {
       const facades = this.facadesByKind.get(kind);
@@ -704,8 +801,13 @@ export class DataContext {
 
       // A single kind can hold >100k rows (tcole assignments); spreading that into
       // push() arguments overflows the call stack, so append in place.
-      const singleMutations = await resolveInBatches(singles, (facade) =>
-        facade.toMutation(),
+      const singleMutations = await resolveInBatches(
+        singles,
+        async (facade) => {
+          const mutation = await facade.toMutation();
+          await inspectFacade(kind, facade);
+          return mutation;
+        },
       );
       for (const mutation of singleMutations) {
         mutations.push(mutation);
@@ -714,13 +816,48 @@ export class DataContext {
       for (const group of recurring) {
         for (const facade of group) {
           mutations.push(await facade.toMutation());
+          await inspectFacade(kind, facade);
           const { identityValue, resolved } = await facade.resolvedRow();
           this.emittedRows.set(
             DataContext.emittedKey(kind, identityValue),
-            resolved,
+            facade.inspectionValues,
           );
         }
       }
+    }
+    const annotationRecords = new Map(
+      [...recordsByScope.values()].flatMap((records) => [...records]),
+    );
+    const existingAnnotations =
+      annotationScopes.size === 0 || this.client === undefined
+        ? []
+        : await this.rows.getRowsByColumns("DataAnnotation", {
+            producer_namespace: "intake",
+          });
+    for (const existing of existingAnnotations) {
+      const name = String(existing.producer_record_id);
+      const scope = name.split("/")[0] + "/";
+      if (
+        !annotationScopes.has(scope) ||
+        annotationRecords.has(name) ||
+        existing.status !== "active"
+      )
+        continue;
+      if (
+        existing.type === "correction" &&
+        !correctionFieldsByScope.get(scope)?.has(String(existing.field))
+      )
+        continue;
+      annotationRecords.set(name, { ...existing, status: "resolved" });
+    }
+    for (const [name, spec] of annotationRecords) {
+      const facade = this.facadeFromSource("DataAnnotation", {
+        apiVersion: INTAKE_API_VERSION,
+        namespace: "intake",
+        name,
+        spec,
+      });
+      mutations.push(await facade.toMutation());
     }
     return mutations;
   }

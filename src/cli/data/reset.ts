@@ -1,4 +1,3 @@
-import type { DatabaseClient } from "../database/index.js";
 import { spawn } from "node:child_process";
 import { rename } from "node:fs/promises";
 import path from "node:path";
@@ -20,7 +19,6 @@ type ResetDependencies = {
     args: readonly string[],
     context?: {
       useInitialAgencyRoots: boolean;
-      finalizeMutations?: (client: DatabaseClient) => Promise<void>;
     },
   ) => Promise<CommandResult>;
   prepareManualLocations?: () => Promise<CommandResult>;
@@ -107,7 +105,6 @@ export async function resetData(
       logger.info(`data reset: ${phase}`);
       const result = await runDataCommand(args, {
         useInitialAgencyRoots: true,
-        finalizeMutations: async () => {},
       });
       if (result.exitCode !== 0)
         throw new Error(result.stderr?.trim() || `${phase} failed.`);
@@ -148,12 +145,6 @@ export async function resetData(
         await executePhase(["data", "up"]);
       }
     }
-    phase = "final annotation scan";
-    const finalized = await runDataCommand(["data", "up"], {
-      useInitialAgencyRoots: true,
-    });
-    if (finalized.exitCode !== 0)
-      throw new Error(finalized.stderr?.trim() || "Annotation scan failed.");
     return {
       exitCode: 0,
       stdout: `data reset: rebuilt ${sources.length} source(s) and manual records${options.acquire ? "" : " without acquisition"}.\n`,

@@ -46,7 +46,7 @@ describe("same-run identity convergence (natural-key kinds)", () => {
     });
   }
 
-  it("LocationPathAlias first creates, then omits the matching update", async () => {
+  it("LocationPathAlias first creates, then records the second source provenance", async () => {
     const data = context();
     // Same-run LocationPath so the alias FK resolves.
     data.facadeFromSource("LocationPath", {
@@ -78,7 +78,10 @@ describe("same-run identity convergence (natural-key kinds)", () => {
       .map((m) => ("kind" in m ? m.kind : m.ref.kind))
       .filter((kind) => kind.startsWith("LocationPathAlias"));
 
-    expect(kinds).toEqual(["LocationPathAliasCreate"]);
+    expect(kinds).toEqual([
+      "LocationPathAliasCreate",
+      "LocationPathAliasUpdate",
+    ]);
   });
 
   it("CivilCase (upsert:update): first creates, second updates last-wins — through the same lookup as a cross-run row", async () => {

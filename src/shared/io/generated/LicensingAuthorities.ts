@@ -101,7 +101,7 @@ export type RecordMetadata = z.infer<typeof recordMetadataSchema>;
 // unknown column is still rejected under every verb.
 function recordSpecSchema(action?: "PUT" | "PATCH" | "POST") {
   return action === "PATCH"
-    ? LicensingAuthoritySpec.partial()
+    ? z.strictObject(LicensingAuthoritySpec.shape).partial()
     : LicensingAuthoritySpec;
 }
 function refineRecordSpec(
@@ -248,9 +248,10 @@ export const recordSchema = z
         selector: z.record(z.string(), z.unknown()).optional(),
       })
       .strict(),
-    spec: LicensingAuthoritySpec,
+    spec: z.strictObject(LicensingAuthoritySpec.shape).partial(),
   })
-  .strict();
+  .strict()
+  .superRefine((record, ctx) => refineRecordSpec(record, ctx));
 
 export type LicensingAuthorityEnvelope = z.infer<typeof recordSchema>;
 export type LicensingAuthorityInput = Omit<

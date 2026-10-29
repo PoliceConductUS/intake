@@ -2,6 +2,8 @@ import { DATE_PROPERTIES } from "../../../../shared/io/generated/entity-specs.js
 import { representableDate } from "../../../../shared/inspect-data-annotations.js";
 import {
   SourceContribution,
+  SourceValues,
+  replaceSourceExclusions,
   type DataAnnotation,
 } from "../../../../shared/data-annotations.js";
 import {
@@ -58,7 +60,6 @@ export type MutationConstructors<Env> = {
       metadata: EnvelopeMetadata;
       spec: {
         operations: MutationOperation[];
-        source_contribution?: SourceContribution;
       };
     }) => Env;
   };
@@ -118,6 +119,19 @@ export class EntityFacade<
   private readonly correctedProperties = new Set<string>();
   private sourceValues: Record<string, unknown> | undefined;
   private readonly corrections = new Map<string, DataAnnotation>();
+  private effectiveValues: Record<string, unknown> | undefined;
+
+  get inspectionValues(): Record<string, unknown> {
+    if (this.effectiveValues === undefined)
+      throw new Error(
+        "Generate the subject mutation before inspecting its effective values.",
+      );
+    return this.effectiveValues;
+  }
+
+  get supportsSourceEvidence(): boolean {
+    return this.columns.includes("data_source_values" as keyof Row & string);
+  }
 
   recordSourceContribution(
     values: Record<string, unknown>,
@@ -131,7 +145,7 @@ export class EntityFacade<
     }
   }
 
-  private contribution(
+  contribution(
     resolved: Record<string, unknown>,
   ): SourceContribution | undefined {
     if (this.sourceValues === undefined) return undefined;
@@ -148,7 +162,6 @@ export class EntityFacade<
             ([field, value]) =>
               value !== undefined &&
               resolved[field] !== undefined &&
-              field !== "data_annotations" &&
               field !== "data_source_values",
           )
           .map(([field, value]) => [
@@ -442,11 +455,31 @@ export class EntityFacade<
   async toMutation(): Promise<Env> {
     const { identityValue, resolved } = await this.resolvedRow();
     const contribution = this.contribution(resolved);
-    const sourcePayload =
-      contribution === undefined ? {} : { source_contribution: contribution };
 
     const current =
       this.current ?? (await this.backend.existingRow(identityValue));
+
+    if (
+      contribution !== undefined &&
+      this.columns.includes("data_source_values" as keyof Row & string)
+    ) {
+      resolved.data_source_values = {
+        ...SourceValues.parse(current?.data_source_values ?? {}),
+        ...contribution.values,
+      };
+    }
+    if (resolved.source_exclusions !== undefined) {
+      resolved.source_exclusions = replaceSourceExclusions(
+        current?.source_exclusions ?? {},
+        resolved.source_exclusions,
+      );
+    }
+
+    this.effectiveValues = {
+      ...current,
+      ...resolved,
+      [this.identity]: identityValue,
+    };
 
     // The envelope name is the target row's key value (ADR 0027): the pair
     // (kind, name) is (which table/op, which row), and replay locates an
@@ -462,7 +495,6 @@ export class EntityFacade<
         spec: {
           [this.identity]: identityValue,
           ...resolved,
-          ...sourcePayload,
         } as never,
       });
     }
@@ -509,7 +541,7 @@ export class EntityFacade<
 
     return this.mutations.update.new({
       metadata,
-      spec: { operations, ...sourcePayload },
+      spec: { operations },
     });
   }
 }

@@ -22,20 +22,26 @@ export function representableDate(value: unknown): boolean {
 }
 
 /** Pure inspection of final effective values; provenance is an input, never inferred. */
-export function inspectDataAnnotations(
+export function inspectDataAnnotationFindings(
   kind: string,
   values: Record<string, unknown>,
   sourceValues: SourceValues,
   validationDate: Date,
-): DataAnnotation[] {
-  const findings: DataAnnotation[] = [];
+): { key: string; annotation: DataAnnotation }[] {
+  const findings: { key: string; annotation: DataAnnotation }[] = [];
   if (kind === "LicensingAuthority" && values.source_exclusions !== undefined) {
     for (const [namespace, exclusions] of Object.entries(
       SourceExclusions.parse(values.source_exclusions),
     )) {
       for (const exclusion of exclusions)
-        findings.push(
-          DataAnnotation.parse({
+        findings.push({
+          key: JSON.stringify([
+            "explicit-exclusion",
+            namespace,
+            exclusion.kind,
+            exclusion.key,
+          ]),
+          annotation: DataAnnotation.parse({
             type: "warning",
             field: "excluded_records",
             value: {
@@ -47,7 +53,7 @@ export function inspectDataAnnotations(
             source_record_id: exclusion.key,
             message: `Explicitly excluded ${exclusion.kind}: ${exclusion.reason}`,
           }),
-        );
+        });
     }
   }
   for (const [field, source] of Object.entries(sourceValues)) {
@@ -57,8 +63,9 @@ export function inspectDataAnnotations(
       source.effective_value !== null &&
       !representableDate(source.effective_value)
     ) {
-      findings.push(
-        DataAnnotation.parse({
+      findings.push({
+        key: JSON.stringify(["invalid-date", field]),
+        annotation: DataAnnotation.parse({
           source_namespace: source.source_namespace,
           source_record_id: source.source_record_id,
           value: source.effective_value,
@@ -66,7 +73,7 @@ export function inspectDataAnnotations(
           type: "error",
           message: "The reported value is not a valid date.",
         }),
-      );
+      });
     }
   }
   for (const defect of cleanSourceValues(kind, values, validationDate)
@@ -74,8 +81,9 @@ export function inspectDataAnnotations(
     const source = sourceValues[defect.field];
     if (source === undefined)
       throw new Error(`Missing source evidence for ${kind}.${defect.field}.`);
-    findings.push(
-      DataAnnotation.parse({
+    findings.push({
+      key: JSON.stringify([defect.rule, defect.field]),
+      annotation: DataAnnotation.parse({
         source_namespace: source.source_namespace,
         source_record_id: source.source_record_id,
         field: defect.field,
@@ -83,7 +91,7 @@ export function inspectDataAnnotations(
         type: defect.type,
         message: defect.reason,
       }),
-    );
+    });
   }
   return findings;
 }
@@ -96,4 +104,19 @@ export function reportedFieldValue(
   return stored === null && evidence !== undefined
     ? evidence.effective_value
     : stored;
+}
+
+/** Payload-only view for callers that do not assign native record identities. */
+export function inspectDataAnnotations(
+  kind: string,
+  values: Record<string, unknown>,
+  sourceValues: SourceValues,
+  validationDate: Date,
+): DataAnnotation[] {
+  return inspectDataAnnotationFindings(
+    kind,
+    values,
+    sourceValues,
+    validationDate,
+  ).map((finding) => finding.annotation);
 }

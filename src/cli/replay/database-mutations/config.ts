@@ -1,4 +1,3 @@
-import { recalculateDataAnnotations } from "../../database/recalculate-data-annotations.js";
 import {
   type DatabaseClient,
   type DatabaseClientFactory,
@@ -53,7 +52,6 @@ export async function replayDatabaseMutations(
       input.databaseMutationsPath,
     );
     await client.query("commit");
-    await recalculateDataAnnotations(client);
     return { ok: true, counts };
   } catch (error) {
     try {

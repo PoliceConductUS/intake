@@ -1,8 +1,5 @@
 import { describe, expect, test } from "vitest";
-import {
-  DataAnnotation,
-  replaceCorrectionAnnotations,
-} from "../../../src/shared/data-annotations.js";
+import { DataAnnotation } from "../../../src/shared/data-annotations.js";
 
 const correction = (namespace: string, id: string) => ({
   field: "end_date",
@@ -38,48 +35,6 @@ describe("record-owned annotations", () => {
     expect(
       DataAnnotation.safeParse({ ...entry, value: undefined }).success,
     ).toBe(false);
-  });
-
-  test("replaces only the processed contribution, retaining warnings and other providers", () => {
-    const a1 = correction("provider.a", "assignment-1");
-    const a2 = correction("provider.a", "assignment-2");
-    const b1 = correction("provider.b", "assignment-1");
-    const warning = {
-      field: "end_date",
-      value: "2109-01-01",
-      type: "warning" as const,
-      message: "Future date.",
-      source_namespace: "provider.a",
-      source_record_id: "assignment-1",
-    };
-    const existing = [a1, a2, b1, warning];
-    expect(
-      replaceCorrectionAnnotations(existing, {
-        source_namespace: "provider.a",
-        source_record_id: "assignment-1",
-        corrections: [],
-      }),
-    ).toEqual([a2, b1, warning]);
-    const changed = { ...a1, message: "Updated explanation." };
-    const scope = {
-      source_namespace: "provider.a",
-      source_record_id: "assignment-1",
-      corrections: [changed],
-    };
-    const replaced = replaceCorrectionAnnotations(existing, scope);
-    expect(replaced).toEqual([a2, b1, warning, changed]);
-    expect(replaceCorrectionAnnotations(replaced, scope)).toEqual(replaced);
-    expect(existing).toEqual([a1, a2, b1, warning]);
-  });
-
-  test("rejects replacement entries attributed to a different contribution", () => {
-    expect(() =>
-      replaceCorrectionAnnotations([], {
-        source_namespace: "provider.a",
-        source_record_id: "assignment-1",
-        corrections: [correction("provider.b", "assignment-1")],
-      }),
-    ).toThrow();
   });
 });
 

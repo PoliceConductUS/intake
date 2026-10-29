@@ -1,4 +1,3 @@
-import { recalculateDataAnnotations } from "../../src/cli/database/recalculate-data-annotations.js";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -172,11 +171,10 @@ describeWithDocker("initial agency roots in the shared import pipeline", () => {
       await writeRoots();
       const dates = { start_date: start_date!, end_date };
       expect(await load(undefined, dates)).toMatchObject({ ok: true });
-      await recalculateDataAnnotations(db, new Date("2026-10-27"));
       const read = async () =>
         (
           await db.query(
-            "select p.id, p.slug, ap.id as assignment_id, ap.start_date::text, ap.end_date::text, ap.data_annotations from personnel p join agency_personnel ap on ap.personnel_id=p.id where ap.agency_id='canonical-historical'",
+            "select p.id, p.slug, ap.id as assignment_id, ap.start_date::text, ap.end_date::text, (select coalesce(jsonb_agg(to_jsonb(ann)), '[]'::jsonb) from data_annotation ann where ann.subject_kind='AgencyPersonnel' and ann.subject_id=ap.id and ann.status='active') as data_annotations from personnel p join agency_personnel ap on ap.personnel_id=p.id where ap.agency_id='canonical-historical'",
           )
         ).rows;
       const first = await read();
@@ -193,7 +191,6 @@ describeWithDocker("initial agency roots in the shared import pipeline", () => {
       });
       const rerun = await load(undefined, dates, "rerun");
       expect(rerun, JSON.stringify(rerun)).toMatchObject({ ok: true });
-      await recalculateDataAnnotations(db, new Date("2026-10-27"));
       expect(await read()).toEqual(first);
     },
     30_000,

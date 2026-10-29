@@ -553,9 +553,7 @@ describe("source annotation mutation contributions", () => {
       },
     ]);
     const mutation = await facade.toMutation();
-    expect(
-      AgencyPersonnelUpdate.schema.parse(mutation).spec.source_contribution,
-    ).toEqual({
+    expect(facade.contribution((await facade.resolvedRow()).resolved)).toEqual({
       source_namespace: "provider.a",
       source_record_id: "assignment",
       values: {
@@ -597,7 +595,7 @@ describe("unrepresentable reported dates", () => {
       await facade.toMutation(),
     );
     expect(mutation.spec.end_date).toBeNull();
-    expect(mutation.spec.source_contribution?.values.end_date).toMatchObject({
+    expect(mutation.spec.data_source_values?.end_date).toMatchObject({
       value: "not a date",
       effective_value: "not a date",
     });

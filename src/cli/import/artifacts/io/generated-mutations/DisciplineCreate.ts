@@ -15,7 +15,6 @@ import {
   DisciplineSpec,
   DisciplineCreateSpec,
 } from "../../../../../shared/io/generated/entity-specs.js";
-import { SourceContribution } from "../../../../../shared/data-annotations.js";
 
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
@@ -81,9 +80,7 @@ const metadataSchema = z
   })
   .strict();
 
-export const specSchema = DisciplineCreateSpec.safeExtend({
-  source_contribution: SourceContribution.optional(),
-});
+export const specSchema = DisciplineCreateSpec;
 
 export const schema = z
   .object({

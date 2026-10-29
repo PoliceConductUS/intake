@@ -1,4 +1,3 @@
-import { recalculateDataAnnotations } from "../database/recalculate-data-annotations.js";
 import { IdentityRestoration } from "../../shared/io/IdentityRestoration.js";
 import type { Command } from "commander";
 import path from "node:path";
@@ -291,9 +290,6 @@ export function registerCliCommand(
             to: options.to,
             logger: consoleLogger,
           });
-          await (dependencies.finalizeMutations ?? recalculateDataAnnotations)(
-            client,
-          );
           return result;
         });
         dependencies.setResult({
@@ -404,10 +400,6 @@ export function registerCliCommand(
           );
           done.push(`${generated.version} ${source}`);
         }
-        if (errored.length === 0)
-          await withClient(
-            dependencies.finalizeMutations ?? recalculateDataAnnotations,
-          );
         const total = done.length + emptyDiff.length + errored.length;
         const summary =
           `data update: ${total} source(s) — ${done.length} appended, ` +

@@ -1,11 +1,12 @@
 import { writeFile } from "node:fs/promises";
 import { z } from "zod";
 import {
-  DataAnnotation,
   SourceValues,
+  DataAnnotation,
 } from "../src/shared/data-annotations.js";
 import {
   TABLE_BY_KIND,
+  DataAnnotationSpec,
   PRIMARY_KEY_BY_KIND,
 } from "../src/shared/io/generated/entity-specs.js";
 const output = process.argv[2];
@@ -19,12 +20,15 @@ await writeFile(
     {
       generatedBy: "intake/scripts/publish-data-annotation-contract.ts",
       annotation: z.toJSONSchema(DataAnnotation),
+      annotationRecord: z.toJSONSchema(DataAnnotationSpec),
       sourceValues: z.toJSONSchema(SourceValues),
-      records: Object.entries(TABLE_BY_KIND).map(([kind, table]) => ({
-        kind,
-        table,
-        primaryKey: PRIMARY_KEY_BY_KIND[kind],
-      })),
+      records: Object.entries(TABLE_BY_KIND)
+        .filter(([kind]) => kind !== "DataAnnotation")
+        .map(([kind, table]) => ({
+          kind,
+          table,
+          primaryKey: PRIMARY_KEY_BY_KIND[kind],
+        })),
     },
     null,
     2,

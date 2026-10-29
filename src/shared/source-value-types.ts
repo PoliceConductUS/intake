@@ -9,6 +9,7 @@ type Field = {
   nullable: boolean;
 };
 export type SourceValueDefect = {
+  rule: string;
   type: "warning" | "error";
   field: string;
   value: unknown;
@@ -94,10 +95,12 @@ export function dateRangeDefects(
   if (start === undefined || end === undefined) return [];
   const defect = (
     reason: string,
+    rule: string,
     type: "warning" | "error",
   ): SourceValueDefect[] => [
     {
       type,
+      rule,
       field: "end_date",
       value: spec.end_date,
       required: false,
@@ -108,12 +111,14 @@ export function dateRangeDefects(
   if (end.getTime() < start.getTime())
     return defect(
       `end_date precedes start_date ${JSON.stringify(spec.start_date)}`,
+      "reversed-date-range",
       "error",
     );
   const years = (end.getTime() - start.getTime()) / MS_PER_DAY / DAYS_PER_YEAR;
   return years > MAX_RANGE_YEARS
     ? defect(
         `end_date is ${years.toFixed(1)} years after start_date ${JSON.stringify(spec.start_date)}, over the ${MAX_RANGE_YEARS}-year review threshold`,
+        "long-date-range",
         "warning",
       )
     : [];
@@ -140,6 +145,7 @@ export function cleanSourceValues(
     if (date !== undefined && date.toISOString().slice(0, 10) > today) {
       defects.push({
         type: "warning",
+        rule: "future-date",
         field,
         value,
         required: false,
@@ -163,6 +169,7 @@ export function cleanSourceValues(
     if (valid) continue;
     defects.push({
       type: "error",
+      rule: `invalid-${field.type}`,
       field: field.name,
       value,
       required: field.required,

@@ -10,7 +10,7 @@ Publish source-reported values, including questionable values, with annotations 
 
 ## Agreed Approach
 
-Use a `data_annotations` JSON array on imported records. Each item carries `field`, `value`, `type` (`warning`, `error`, or `correction`), `message`, `source_namespace`, and `source_record_id`. Generate `/data-annotations/` with pagination, source-provider/type filters, and CSV downloads of every matching annotation across pages. Correction items also carry replacement_value and supplied evidence. Profile displays and index consume the same annotations.
+Use ordinary native DataAnnotation records with canonical IDs and polymorphic subject links. Each item carries `field`, `value`, `type` (`warning`, `error`, or `correction`), `message`, `source_namespace`, and `source_record_id`. Generate `/data-annotations/` with pagination, source-provider/type filters, and CSV downloads of every matching annotation across pages. Correction items also carry replacement_value and supplied evidence. Profile displays and index consume the same annotations.
 
 ## Key Decisions
 

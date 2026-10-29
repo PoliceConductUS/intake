@@ -100,7 +100,9 @@ export type RecordMetadata = z.infer<typeof recordMetadataSchema>;
 // set — a partial update). ADR 0034. The partial keeps the strict mode, so an
 // unknown column is still rejected under every verb.
 function recordSpecSchema(action?: "PUT" | "PATCH" | "POST") {
-  return action === "PATCH" ? AgencySpec.partial() : AgencySpec;
+  return action === "PATCH"
+    ? z.strictObject(AgencySpec.shape).partial()
+    : AgencySpec;
 }
 function refineRecordSpec(
   item: { metadata?: { action?: "PUT" | "PATCH" | "POST" }; spec: unknown },
@@ -236,9 +238,10 @@ export const recordSchema = z
         selector: z.record(z.string(), z.unknown()).optional(),
       })
       .strict(),
-    spec: AgencySpec,
+    spec: z.strictObject(AgencySpec.shape).partial(),
   })
-  .strict();
+  .strict()
+  .superRefine((record, ctx) => refineRecordSpec(record, ctx));
 
 export type AgencyEnvelope = z.infer<typeof recordSchema>;
 export type AgencyInput = Omit<AgencyEnvelope, "apiVersion" | "kind">;

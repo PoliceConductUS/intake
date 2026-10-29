@@ -100,7 +100,9 @@ export type RecordMetadata = z.infer<typeof recordMetadataSchema>;
 // set — a partial update). ADR 0034. The partial keeps the strict mode, so an
 // unknown column is still rejected under every verb.
 function recordSpecSchema(action?: "PUT" | "PATCH" | "POST") {
-  return action === "PATCH" ? DisciplineSpec.partial() : DisciplineSpec;
+  return action === "PATCH"
+    ? z.strictObject(DisciplineSpec.shape).partial()
+    : DisciplineSpec;
 }
 function refineRecordSpec(
   item: { metadata?: { action?: "PUT" | "PATCH" | "POST" }; spec: unknown },

@@ -8,13 +8,13 @@ const finding = {
   field: z.string().trim().min(1),
   value: z.json(),
   message: z.string().trim().min(1),
+  evidence: z.array(z.record(z.string(), z.json())).optional(),
   ...sourceContribution,
 };
 export const CorrectionAnnotation = z.strictObject({
   ...finding,
   type: z.literal("correction"),
   replacement_value: z.json(),
-  evidence: z.array(z.record(z.string(), z.json())).optional(),
 });
 export const DataAnnotation = z.discriminatedUnion("type", [
   z.strictObject({ ...finding, type: z.literal("warning") }),
@@ -43,23 +43,6 @@ export const CorrectionReplacement = z
     });
   });
 export type CorrectionReplacement = z.infer<typeof CorrectionReplacement>;
-
-/** Called with the owning row's current array, inside its mutation transaction. */
-export function replaceCorrectionAnnotations(
-  current: readonly DataAnnotation[],
-  input: CorrectionReplacement,
-): DataAnnotation[] {
-  const replacement = CorrectionReplacement.parse(input);
-  return [
-    ...current.filter(
-      (entry) =>
-        entry.type !== "correction" ||
-        entry.source_namespace !== replacement.source_namespace ||
-        entry.source_record_id !== replacement.source_record_id,
-    ),
-    ...replacement.corrections,
-  ];
-}
 
 export const SourceFieldEvidence = z.strictObject({
   value: z.json(),

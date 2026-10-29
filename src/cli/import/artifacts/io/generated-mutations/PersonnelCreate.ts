@@ -15,7 +15,6 @@ import {
   PersonnelSpec,
   PersonnelCreateSpec,
 } from "../../../../../shared/io/generated/entity-specs.js";
-import { SourceContribution } from "../../../../../shared/data-annotations.js";
 
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
@@ -81,9 +80,7 @@ const metadataSchema = z
   })
   .strict();
 
-export const specSchema = PersonnelCreateSpec.safeExtend({
-  source_contribution: SourceContribution.optional(),
-});
+export const specSchema = PersonnelCreateSpec;
 
 export const schema = z
   .object({

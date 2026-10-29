@@ -1,11 +1,3 @@
-import { z } from "zod";
-import {
-  DataAnnotation,
-  SourceContribution,
-  SourceValues,
-  replaceCorrectionAnnotations,
-  replaceSourceExclusions,
-} from "../../../shared/data-annotations.js";
 import { rowsFromResult } from "../../database/index.js";
 import {
   createDatabaseRecords,
@@ -21,6 +13,8 @@ import {
 import type { SupportedTableName } from "../../database/schema.js";
 import {
   PRIMARY_KEY_BY_KIND,
+  JSON_PROPERTIES,
+  JSON_REQUIRED_PROPERTIES,
   TABLE_BY_KIND,
 } from "../../../shared/io/generated/entity-specs.js";
 import { valuesEqual } from "../../../shared/values-equal.js";
@@ -135,6 +129,12 @@ function databaseFieldValue(
   fieldName: string,
   value: unknown,
 ): unknown {
+  if (JSON_PROPERTIES[recordKind]?.includes(fieldName) && value !== undefined) {
+    return value === null &&
+      !JSON_REQUIRED_PROPERTIES[recordKind]?.includes(fieldName)
+      ? null
+      : JSON.stringify(value);
+  }
   if (recordKind !== "LocationPath") {
     return timestampValue(recordKind, fieldName, value);
   }
@@ -225,20 +225,6 @@ async function executeUpdate(
   }
 
   const values: Record<string, unknown> = {};
-  if (spec.source_contribution !== undefined) {
-    const contribution = SourceContribution.parse(spec.source_contribution);
-    const { values: sourceValues, ...replacement } = contribution;
-    values.data_annotations = JSON.stringify(
-      replaceCorrectionAnnotations(
-        z.array(DataAnnotation).parse(current.data_annotations),
-        replacement,
-      ),
-    );
-    values.data_source_values = {
-      ...SourceValues.parse(current.data_source_values),
-      ...sourceValues,
-    };
-  }
   for (const operation of operations) {
     if (
       typeof operation !== "object" ||
@@ -268,13 +254,6 @@ async function executeUpdate(
       throw new Error(
         `DatabaseMutation ${mutationName} operation action is unsupported.`,
       );
-    }
-    if (fieldName === "source_exclusions") {
-      values[fieldName] = replaceSourceExclusions(
-        current[fieldName],
-        typedOperation.to,
-      );
-      continue;
     }
     assertExpectedValue(
       mutationName,
@@ -384,15 +363,7 @@ export async function executeDatabaseMutations(
   )) {
     const { operation, recordKind } = parseDatabaseMutationKind(mutation.kind);
     if (operation === "create") {
-      const { source_contribution, ...recordSpec } = mutation.spec;
-      const databaseSpec = databaseSpecForMutation(recordKind, recordSpec);
-      if (source_contribution !== undefined) {
-        const contribution = SourceContribution.parse(source_contribution);
-        databaseSpec.data_annotations = JSON.stringify(
-          contribution.corrections,
-        );
-        databaseSpec.data_source_values = contribution.values;
-      }
+      const databaseSpec = databaseSpecForMutation(recordKind, mutation.spec);
       const columns = definedColumns(databaseSpec);
       const signature = `${recordKind}(${columns.join(",")})`;
       const rowCap = Math.max(

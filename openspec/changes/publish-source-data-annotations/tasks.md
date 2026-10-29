@@ -1,17 +1,17 @@
 ## 1. Shared contracts and migration
 
 - [x] 1.1 Keep existing required geography/routes per the user decision; require explicit correction or exclusion and attach exclusion findings to the explicitly mapped licensing authority. Reconcile the superseded date-omission change and audit affected canonical contracts.
-- [x] 1.2 Add the shared annotation schema and record-owned JSON columns through a new migration; retain original literals where typed columns cannot represent them.
+- [x] 1.2 Add the native annotation schema and forward migration preserving old evidence; retain original literals where typed columns cannot represent them.
 - [x] 1.3 Regenerate envelope/mutation/database types from their owning generators; verify strict shared IO and stable identity.
 
 ## 2. Import preservation
 
-- [x] 2.1 Preserve negative/long/future date values and their source evidence during import; reuse detection rules in the final database scan.
+- [x] 2.1 Preserve negative/long/future date values and their source evidence during import; reuse detection rules during ordinary generation.
 - [x] 2.2 Remove factual-defect omission at source and shared pipeline gates while retaining structural integrity failures and explicit exclusions.
-- [x] 2.3 Add one post-mutation annotation stage after the full batch succeeds; inspect final records and atomically replace warnings/errors, clearing obsolete findings while preserving correction annotations. Test failed batches, failed scans, and no-pending-mutations refresh.
+- [x] 2.3 Generate native findings from effective values in the existing generate stage; ordinary up/replay apply only recorded mutations.
 - [ ] 2.4 Exercise the five audited TCOLE records and scheduled Oregon employment through generation/apply; verify stable canonical IDs and retained personnel/assignments.
 
-- [x] 2.5 Capture applied correction details in generated mutations, with explicit per-owner/namespace/source-ID replacement scopes and empty sets; support annotation-only updates when corrected values are unchanged.
+- [x] 2.5 Capture applied correction details in generated mutations, with independent canonical identities and scoped status updates; support annotation-only updates when corrected values are unchanged.
 - [x] 2.6 Test two providers and two source IDs in one namespace mutating the same owner, unprocessed contributions, nonmatching overrides, multiple mutations in one run, and correction/warning coexistence.
 
 ## 3. Website display and publication
@@ -44,3 +44,9 @@ Verification scope: the audited date pairs and scheduled employment pass synthet
 
 - [x] Accept semicolon-separated valid email addresses without altering source evidence; retain errors for invalid or empty members.
 - [x] Verify full intake validation and downstream separate email rendering.
+
+- [x] Generate annotations within normal source generation; verify unchanged source values can clear obsolete findings and up/replay apply only recorded changes.
+
+- [x] Add native singular/plural canonical IO, registry and source-name ledger integration.
+- [x] Produce annotation records during ordinary generation and apply them through ordinary mutations.
+- [x] Verify manual/source coexistence, stable IDs, resolve/reactivate lifecycle, JSON evidence, and subject references in disposable PostgreSQL.
