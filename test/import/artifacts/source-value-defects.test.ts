@@ -309,3 +309,30 @@ test("scheduled employment stays eligible and still requires structural identity
     "source agency_id is missing",
   );
 });
+
+test.each([
+  "office@example.org;records@example.org",
+  " Office@example.org ; records@example.org ",
+])("accepts email lists without altering evidence: %s", (contact_email) => {
+  const input = { contact_email };
+  const result = cleanSourceValues("Agency", input);
+  expect(result.spec).toEqual(input);
+  expect(result.defects).toEqual([]);
+});
+test.each([
+  "office@example.org;bad",
+  "office@example.org;",
+  ";office@example.org",
+  "office@example.org;;records@example.org",
+])("retains invalid email list for annotation: %s", (contact_email) => {
+  const result = cleanSourceValues("Agency", { contact_email });
+  expect(result.spec.contact_email).toBe(contact_email);
+  expect(result.defects).toEqual([
+    expect.objectContaining({
+      field: "contact_email",
+      value: contact_email,
+      reason: "invalid email value",
+      omitted: false,
+    }),
+  ]);
+});

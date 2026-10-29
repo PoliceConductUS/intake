@@ -156,7 +156,9 @@ export function cleanSourceValues(
       (field.type === "phone"
         ? validPhone(value)
         : field.type === "email"
-          ? email.safeParse(value).success
+          ? value
+              .split(";")
+              .every((address) => email.safeParse(address.trim()).success)
           : validUrl(value));
     if (valid) continue;
     defects.push({

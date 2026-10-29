@@ -123,3 +123,17 @@ Data issues detected while processing a POST source SHALL be retained as annotat
 - **WHEN** the same POST source is successfully reprocessed
 - **THEN** its authority annotations SHALL reflect the current issues without accumulating duplicate findings
 - **AND** annotations contributed by other sources SHALL remain intact
+
+### Requirement: Preserve and validate multiple contact email addresses
+
+Intake SHALL accept a semicolon-separated list of email addresses wherever source email fields are inspected. Every trimmed member MUST be a valid email address; an empty or invalid member SHALL retain the existing invalid-email annotation. The original source value SHALL remain intact. Separate source name and email fields MUST NOT be interpreted as verified name/address pairs.
+
+#### Scenario: Multiple valid addresses in one source field
+
+- **WHEN** an agency reports `office@example.org; records@example.org`
+- **THEN** intake retains the source value without an invalid-email annotation
+
+#### Scenario: A list contains an invalid member
+
+- **WHEN** an email field contains `office@example.org; not-an-email`
+- **THEN** intake retains the complete value and emits an invalid-email annotation

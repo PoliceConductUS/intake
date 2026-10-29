@@ -39,3 +39,8 @@ Verification scope: the audited date pairs and scheduled employment pass synthet
 
 - [ ] Capture structured POST-source issues, including automatic omissions and explicit exclusions, and attach them to the explicitly identified licensing authority with source identifiers, reasons, and evidence references. Preserve unverified identity status and trace dependent omissions to their cause.
 - [ ] Verify DPSST missing-agency omissions, explicit personnel exclusions and their dependents, rerun replacement, and authority HTML/CSV visibility. Existing explicit-exclusion support covers only part of this requirement; automatic DPSST omission logs are not yet annotations.
+
+## Multiple source contact emails
+
+- [x] Accept semicolon-separated valid email addresses without altering source evidence; retain errors for invalid or empty members.
+- [x] Verify full intake validation and downstream separate email rendering.
