@@ -265,3 +265,50 @@ test("native PATCH validates the effective subject pair when either half changes
     ],
   });
 });
+
+test("a later converging source can clear a finding created earlier in the same generation", async () => {
+  class AuthorityClient extends EmptyDatabaseClient {
+    async query(text = "") {
+      return {
+        rows: text.includes("from public.licensing_authority")
+          ? [
+              {
+                id: "authority",
+                name: "Authority",
+                location_path_id: "test",
+                website: "https://example.org/",
+              },
+            ]
+          : [],
+      };
+    }
+  }
+  const ctx = new DataContext({
+    client: new AuthorityClient(),
+    commandName: "convergence",
+  });
+  for (const [namespace, website] of [
+    ["first", "invalid"],
+    ["second", "https://example.org/"],
+  ]) {
+    ctx.facadeFromSource("LicensingAuthority", {
+      apiVersion: INTAKE_API_VERSION,
+      namespace,
+      name: "authority",
+      action: "PATCH",
+      selector: { id: "authority" },
+      spec: { website },
+    });
+  }
+  const mutations = await ctx.toDatabaseMutationItems();
+  expect(
+    mutations.some(
+      (item) => "kind" in item && item.kind === "LicensingAuthorityUpdate",
+    ),
+  ).toBe(true);
+  expect(
+    mutations.filter(
+      (item) => "kind" in item && item.kind.startsWith("DataAnnotation"),
+    ),
+  ).toEqual([]);
+});

@@ -27,3 +27,25 @@ test("retains 100,000 unresolved education facades within a 384 MiB heap", () =>
     lastName: "Training 99999",
   });
 }, 60_000);
+
+test("generates an unchanged 100,000-record education update within a 512 MiB heap", () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      "--expose-gc",
+      "--max-old-space-size=512",
+      "--import",
+      "tsx",
+      fileURLToPath(
+        new URL("./fixtures/generate-unchanged-education.ts", import.meta.url),
+      ),
+    ],
+    { encoding: "utf8", timeout: 55_000 },
+  );
+  expect(result.error).toBeUndefined();
+  expect(
+    result.status,
+    `${result.signal ?? ""}\n${result.stderr.slice(0, 1_000)}`,
+  ).toBe(0);
+  expect(JSON.parse(result.stdout)).toMatchObject({ count: 0 });
+}, 60_000);

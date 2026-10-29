@@ -166,7 +166,9 @@ function sortByDependencyOrder(
  * carries a `set` keeps its sibling `check`s as per-row drift guards, and creates
  * (which have no `operations`) are never affected.
  */
-function isCheckOnlyUpdateItem(item: DatabaseMutationItem): boolean {
+export function isCheckOnlyUpdateItem(
+  item: DatabaseMutationItem | DatabaseMutationEnvelope,
+): boolean {
   if (!("spec" in item)) {
     return false;
   }

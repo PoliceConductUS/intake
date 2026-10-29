@@ -36,7 +36,10 @@ import { INTAKE_API_VERSION } from "../../../shared/io/import-types.js";
 import type { DatabaseClient } from "../../database/index.js";
 import { SlugAllocator } from "./slug.js";
 import { CurrentRowReader } from "./current-row-reader.js";
-import { planDatabaseMutationItems } from "./mutation-plan.js";
+import {
+  isCheckOnlyUpdateItem,
+  planDatabaseMutationItems,
+} from "./mutation-plan.js";
 import {
   LocationDataContext,
   LocationPathDataContext,
@@ -641,11 +644,29 @@ export class DataContext {
   }
 
   async toMutations(): Promise<DatabaseMutationEnvelope[]> {
+    const mutations: DatabaseMutationEnvelope[] = [];
+    await this.visitMutations((mutation) => mutations.push(mutation));
+    return mutations;
+  }
+
+  private async visitMutations(
+    visit: (mutation: DatabaseMutationEnvelope) => void,
+  ): Promise<void> {
     // Every facade is registered during the add phase, so a FK find always locates
     // its target regardless of resolution order; the emitted plan is re-sorted by
     // the FK-derived topological sort in toDatabaseMutationItems. Draining in the
     // generated dependency order keeps the pre-sort output stable and legible.
-    const mutations: DatabaseMutationEnvelope[] = [];
+    const existingAnnotations =
+      this.client === undefined
+        ? []
+        : await this.rows.getRowsByColumns("DataAnnotation", {
+            producer_namespace: "intake",
+          });
+    const existingScopes = new Set(
+      existingAnnotations.map(
+        (row) => String(row.producer_record_id).split("/")[0] + "/",
+      ),
+    );
     const annotationScopes = new Set<string>();
     const correctionFieldsByScope = new Map<string, ReadonlySet<string>>();
     const recordsByScope = new Map<
@@ -692,9 +713,15 @@ export class DataContext {
           createHash("sha256")
             .update(JSON.stringify([kind, identityValue, ...group.owner]))
             .digest("hex") + "/";
-        annotationScopes.add(scope);
-        if (group.processedFields !== undefined)
+        // Only existing findings need retirement bookkeeping. Valid records
+        // with no prior findings must not allocate retained empty maps/sets.
+        if (existingScopes.has(scope)) annotationScopes.add(scope);
+        if (existingScopes.has(scope) && group.processedFields !== undefined)
           correctionFieldsByScope.set(scope, group.processedFields);
+        if (group.findings.length === 0 && !existingScopes.has(scope)) {
+          recordsByScope.delete(scope);
+          continue;
+        }
         const records = new Map<string, Record<string, unknown>>();
         recordsByScope.set(scope, records);
         for (const { key, annotation: finding } of group.findings) {
@@ -801,21 +828,22 @@ export class DataContext {
 
       // A single kind can hold >100k rows (tcole assignments); spreading that into
       // push() arguments overflows the call stack, so append in place.
-      const singleMutations = await resolveInBatches(
-        singles,
-        async (facade) => {
-          const mutation = await facade.toMutation();
-          await inspectFacade(kind, facade);
-          return mutation;
-        },
-      );
-      for (const mutation of singleMutations) {
-        mutations.push(mutation);
+      // Drain one batch at a time so the caller can discard check-only
+      // updates before another batch is allocated. Keep registration order.
+      for (let offset = 0; offset < singles.length; offset += 1000) {
+        const batch = await Promise.all(
+          singles.slice(offset, offset + 1000).map(async (facade) => {
+            const mutation = await facade.toMutation();
+            await inspectFacade(kind, facade);
+            return mutation;
+          }),
+        );
+        for (const mutation of batch) visit(mutation);
       }
 
       for (const group of recurring) {
         for (const facade of group) {
-          mutations.push(await facade.toMutation());
+          visit(await facade.toMutation());
           await inspectFacade(kind, facade);
           const { identityValue, resolved } = await facade.resolvedRow();
           this.emittedRows.set(
@@ -828,12 +856,6 @@ export class DataContext {
     const annotationRecords = new Map(
       [...recordsByScope.values()].flatMap((records) => [...records]),
     );
-    const existingAnnotations =
-      annotationScopes.size === 0 || this.client === undefined
-        ? []
-        : await this.rows.getRowsByColumns("DataAnnotation", {
-            producer_namespace: "intake",
-          });
     for (const existing of existingAnnotations) {
       const name = String(existing.producer_record_id);
       const scope = name.split("/")[0] + "/";
@@ -857,13 +879,15 @@ export class DataContext {
         name,
         spec,
       });
-      mutations.push(await facade.toMutation());
+      visit(await facade.toMutation());
     }
-    return mutations;
   }
 
   async toDatabaseMutationItems(): Promise<DatabaseMutationItem[]> {
-    const mutations = await this.toMutations();
+    const mutations: DatabaseMutationEnvelope[] = [];
+    await this.visitMutations((mutation) => {
+      if (!isCheckOnlyUpdateItem(mutation)) mutations.push(mutation);
+    });
     // Every facade has been drained into `mutations` (FK values already resolved
     // to primitives), so the facade graph is dead weight. A large source holds
     // hundreds of thousands of facades, each with its property caches — release
