@@ -179,9 +179,10 @@ Core invariants:
 - `data generate` calculates changes; `data up` only applies recorded mutations.
   Repeating `up` with the same applied chain changes nothing. With no pending
   entries, it makes no data changes and never recalculates annotations or IDs.
-- Annotations are ordinary records with canonical IDs backed by the durable
-  source-name mapping. Their IDs remain stable across runs, content changes,
-  resolution, and reactivation.
+- Every record retains its native canonical ID across runs, content changes,
+  and lifecycle changes, including resolution, retirement, and reactivation.
+  This applies to every record type and producer; annotations follow the same
+  rule. Imported canonical IDs are backed by the durable source-name mapping.
 - Raw source artifacts are preserved unchanged.
 - Post-transformation artifacts are preserved.
 - Archive snapshots are write/append-only.

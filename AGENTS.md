@@ -129,7 +129,11 @@ call out the conflict instead of guessing.
 
 The database must never generate IDs for durable records. Every ID written by
 migrations, seed data, data-loading scripts, or intake filing must be explicit
-before the database write and stable across database resets.
+before the database write and stable across database resets. Every record must
+retain its native canonical ID across runs, content changes, and lifecycle
+changes. This applies to all record types and all producers, including manual
+records, source records, and root-intake-generated records. A change in status,
+resolution, retirement, or reactivation does not create a new record identity.
 
 Seed and migration IDs must be checked in directly. Imported records may use
 canonical cuid2 IDs assigned by intake, but only through a durable source-name
@@ -219,11 +223,10 @@ no data changes. `up` must never calculate new records, findings, corrections,
 annotation resolutions, or IDs. Validation changes require normal generation
 before application, not recalculation during `up`.
 
-Annotations are ordinary first-class records with stable IDs, regardless of
-whether they are created manually, by a source, or by root intake. Resolve their
-canonical IDs through the existing durable source-name mapping before writing
-mutations. Repeated runs and changes to an annotation's content or lifecycle
-must retain its ID; never use a run timestamp or fresh per-run ID as its identity.
+All records, including annotations, follow the stable-ID requirements above.
+Resolve imported canonical IDs through the existing durable source-name mapping
+before writing mutations. Never use a run timestamp or fresh per-run ID as a
+record's identity.
 
 ## Intake Envelopes And Workspace State
 
