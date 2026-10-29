@@ -115,3 +115,24 @@ test("explicit record ownership supports mixed manual sources without claiming t
     /exactly one/,
   );
 });
+
+test("excluded record names come from the source before removal", () => {
+  const input = manifest();
+  input.artifacts.push({
+    kind: "Agencies",
+    records: { bad: { spec: { name: "Excluded Agency" } } },
+  });
+  const result = attachExclusionEvidence(input, excluded, "test.provider");
+  expect(result.artifacts[0].records.board.spec).toMatchObject({
+    source_exclusions: {
+      "test.provider": [
+        {
+          kind: "Agency",
+          key: "bad",
+          name: "Excluded Agency",
+          reason: "Unresolvable geography",
+        },
+      ],
+    },
+  });
+});

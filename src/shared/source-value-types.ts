@@ -163,7 +163,9 @@ export function cleanSourceValues(
         ? validPhone(value)
         : field.type === "email"
           ? value
-              .split(";")
+              .trim()
+              .replace(/\.$/, "")
+              .split(/[;,]/)
               .every((address) => email.safeParse(address.trim()).success)
           : validUrl(value));
     if (valid) continue;

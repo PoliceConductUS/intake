@@ -1,3 +1,4 @@
+import { importTypeMetadata } from "../../shared/io/import-type-metadata.js";
 import { SourceExclusions } from "../../shared/data-annotations.js";
 import type {
   ExcludedRecord,
@@ -47,7 +48,20 @@ export function attachExclusionEvidence(
       throw new Error(
         `Exclusion evidence for ${namespace} requires exactly one explicitly mapped licensing authority for ${exclusion.kind}:${exclusion.key}.`,
       );
-    owners[0].incoming.push(exclusion);
+    const sourceRecord = manifest.artifacts.find(
+      (artifact) =>
+        importTypeMetadata[artifact.kind].recordKind === exclusion.kind &&
+        Object.hasOwn(artifact.records, exclusion.key),
+    )?.records[exclusion.key];
+    const sourceName = (
+      sourceRecord?.spec as Record<string, unknown> | undefined
+    )?.name;
+    owners[0].incoming.push({
+      ...exclusion,
+      ...(typeof sourceName === "string" && sourceName.trim()
+        ? { name: sourceName }
+        : {}),
+    });
   }
   const replacements = new Map(
     authorities

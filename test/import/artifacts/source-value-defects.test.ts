@@ -312,6 +312,8 @@ test("scheduled employment stays eligible and still requires structural identity
 
 test.each([
   "office@example.org;records@example.org",
+  "office@example.org, records@example.org",
+  "office@example.org;records@example.org.",
   " Office@example.org ; records@example.org ",
 ])("accepts email lists without altering evidence: %s", (contact_email) => {
   const input = { contact_email };
