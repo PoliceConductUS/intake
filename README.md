@@ -174,7 +174,14 @@ do not delete records already in the database.
 
 Core invariants:
 
-- Intake is idempotent.
+- Persisted data enters the database only through canonical envelopes and
+  recorded mutations, including manual, source-produced, and root-intake records.
+- `data generate` calculates changes; `data up` only applies recorded mutations.
+  Repeating `up` with the same applied chain changes nothing. With no pending
+  entries, it makes no data changes and never recalculates annotations or IDs.
+- Annotations are ordinary records with canonical IDs backed by the durable
+  source-name mapping. Their IDs remain stable across runs, content changes,
+  resolution, and reactivation.
 - Raw source artifacts are preserved unchanged.
 - Post-transformation artifacts are preserved.
 - Archive snapshots are write/append-only.

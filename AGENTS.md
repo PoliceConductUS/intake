@@ -204,6 +204,27 @@ explicit and auditable. Do not normalize away evidence.
 Every derived record should be traceable to its source. If provenance is missing,
 fail or mark the record incomplete; do not guess.
 
+## Database Writes And Apply
+
+The only path for persisted data into the database is through canonical
+envelopes and recorded mutations. Manual records, source-produced records, and
+root-intake-generated records all use this same path. Do not introduce direct
+SQL writes, post-apply scans, or special persistence hooks to bypass it.
+
+`data generate` calculates and records changes. `data up` only applies the
+already-recorded mutations and tracks their application in the chain ledger.
+It must be fully idempotent: repeating `up` with the same chain and applied
+ledger leaves database records unchanged; with no pending entries, it performs
+no data changes. `up` must never calculate new records, findings, corrections,
+annotation resolutions, or IDs. Validation changes require normal generation
+before application, not recalculation during `up`.
+
+Annotations are ordinary first-class records with stable IDs, regardless of
+whether they are created manually, by a source, or by root intake. Resolve their
+canonical IDs through the existing durable source-name mapping before writing
+mutations. Repeated runs and changes to an annotation's content or lifecycle
+must retain its ID; never use a run timestamp or fresh per-run ID as its identity.
+
 ## Intake Envelopes And Workspace State
 
 Every YAML envelope read or write must go through that envelope kind's
