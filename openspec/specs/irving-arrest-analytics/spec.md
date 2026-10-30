@@ -1,8 +1,11 @@
 # irving-arrest-analytics Specification
 
 ## Purpose
+
 TBD - created by archiving change complete-irving-arrest-analytics. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Preserve complete arrest and charge evidence
 
 Intake SHALL preserve the original workbook and every supplied charge and offense row. An arrest SHALL be counted once per Booking_No. No charge SHALL be selected as primary or discarded because another row exists. Source charge row counts, distinct complete charge tuples, and bookings involving a charge category SHALL be separately named and reconciled. Raw repeated rows SHALL remain inspectable.

@@ -1,8 +1,11 @@
 # mn-post-discipline-orders Specification
 
 ## Purpose
+
 TBD - created by archiving change mn-post-discipline-orders. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Discipline identifies its person and issuing authority
 
 Every Discipline MUST carry required personnel_id and licensing_authority_id

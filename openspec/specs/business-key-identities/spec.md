@@ -1,8 +1,11 @@
 # business-key-identities Specification
 
 ## Purpose
+
 TBD - created by archiving change preserve-business-key-identities. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Business-key identities survive database resets
 
 The shared business-key identity resolver SHALL persist IDs in the existing

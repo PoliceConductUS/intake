@@ -129,7 +129,11 @@ call out the conflict instead of guessing.
 
 The database must never generate IDs for durable records. Every ID written by
 migrations, seed data, data-loading scripts, or intake filing must be explicit
-before the database write and stable across database resets.
+before the database write and stable across database resets. Every record must
+retain its native canonical ID across runs, content changes, and lifecycle
+changes. This applies to all record types and all producers, including manual
+records, source records, and root-intake-generated records. A change in status,
+resolution, retirement, or reactivation does not create a new record identity.
 
 Seed and migration IDs must be checked in directly. Imported records may use
 canonical cuid2 IDs assigned by intake, but only through a durable source-name
@@ -203,6 +207,26 @@ explicit and auditable. Do not normalize away evidence.
 
 Every derived record should be traceable to its source. If provenance is missing,
 fail or mark the record incomplete; do not guess.
+
+## Database Writes And Apply
+
+The only path for persisted data into the database is through canonical
+envelopes and recorded mutations. Manual records, source-produced records, and
+root-intake-generated records all use this same path. Do not introduce direct
+SQL writes, post-apply scans, or special persistence hooks to bypass it.
+
+`data generate` calculates and records changes. `data up` only applies the
+already-recorded mutations and tracks their application in the chain ledger.
+It must be fully idempotent: repeating `up` with the same chain and applied
+ledger leaves database records unchanged; with no pending entries, it performs
+no data changes. `up` must never calculate new records, findings, corrections,
+annotation resolutions, or IDs. Validation changes require normal generation
+before application, not recalculation during `up`.
+
+All records, including annotations, follow the stable-ID requirements above.
+Resolve imported canonical IDs through the existing durable source-name mapping
+before writing mutations. Never use a run timestamp or fresh per-run ID as a
+record's identity.
 
 ## Intake Envelopes And Workspace State
 
@@ -338,3 +362,13 @@ back to trunk.
 
 Use Conventional Commit messages for all commits. See
 `docs/adr/0007-use-conventional-commits.md` for accepted types and examples.
+
+## CLI-only cache changes
+
+All cache changes must go through the intake CLI. Do not edit cache files directly
+or use ad hoc scripts that call cache/correction writers to bypass the CLI. This
+includes correction messages, evidence, values, and other cache metadata. Normal
+CLI pipeline operations may use their internal cache adapters. If the CLI lacks a
+needed operation, implement and validate that CLI capability first, then invoke
+it. Use `cache set` or `cache unset` with the required `--message` for manual
+corrections; retain command provenance and correction history.

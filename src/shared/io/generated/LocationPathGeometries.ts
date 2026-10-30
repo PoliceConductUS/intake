@@ -101,7 +101,7 @@ export type RecordMetadata = z.infer<typeof recordMetadataSchema>;
 // unknown column is still rejected under every verb.
 function recordSpecSchema(action?: "PUT" | "PATCH" | "POST") {
   return action === "PATCH"
-    ? LocationPathGeometrySpec.partial()
+    ? z.strictObject(LocationPathGeometrySpec.shape).partial()
     : LocationPathGeometrySpec;
 }
 function refineRecordSpec(
@@ -251,9 +251,10 @@ export const recordSchema = z
         selector: z.record(z.string(), z.unknown()).optional(),
       })
       .strict(),
-    spec: LocationPathGeometrySpec,
+    spec: z.strictObject(LocationPathGeometrySpec.shape).partial(),
   })
-  .strict();
+  .strict()
+  .superRefine((record, ctx) => refineRecordSpec(record, ctx));
 
 export type LocationPathGeometryEnvelope = z.infer<typeof recordSchema>;
 export type LocationPathGeometryInput = Omit<

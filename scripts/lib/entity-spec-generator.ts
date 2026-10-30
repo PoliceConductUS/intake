@@ -159,6 +159,10 @@ const DESCRIPTORS: EntityDescriptor[] = [
   {
     recordKind: "LicensingAuthority",
     table: "licensing_authority",
+    override: {
+      source_namespaces: "z.array(nonEmptyString).optional()",
+      source_exclusions: "SourceExclusions.optional()",
+    },
     createRequired: ["id"],
   },
   {
@@ -270,6 +274,21 @@ const DESCRIPTORS: EntityDescriptor[] = [
     recordKind: "AgencyArrestProfile",
     table: "agency_arrest_profile",
     createRequired: ["id"],
+  },
+  {
+    recordKind: "DataAnnotation",
+    table: "data_annotation",
+    superRefine: `.superRefine((row, context) => {
+      if (row.type === "correction" && row.replacement_value === undefined) {
+        context.addIssue({code: "custom", path: ["replacement_value"], message: "Corrections require an explicit replacement_value, including null when intended."});
+      }
+    })`,
+    createRequired: ["id"],
+    override: {
+      value: "z.json()",
+      replacement_value: "z.json().nullable().optional()",
+      evidence: "z.array(z.record(z.string(), z.json())).nullable().optional()",
+    },
   },
 ];
 
@@ -418,6 +437,7 @@ const ENTITY_NAME_BY_RECORD_KIND: Record<string, string> = {
   AgencyPersonnel: "agencyPersonnel",
   LicensingAuthority: "licensingAuthorities",
   AuthorityLicense: "authorityLicenses",
+  DataAnnotation: "dataAnnotations",
   License: "licenses",
   LicenseAction: "licenseActions",
   PersonnelEducation: "personnelEducations",
@@ -516,6 +536,7 @@ type Column = IntrospectedTable["columns"][number];
 
 /** The base zod type for a column, from its database type + non-blank/enum. */
 function baseType(column: Column, table: IntrospectedTable): string {
+  if (column.name === "data_source_values") return "SourceValues.optional()";
   const enumValues = table.enums.get(column.name);
   if (enumValues !== undefined) {
     return `z.enum([${enumValues.map((v) => JSON.stringify(v)).join(", ")}])`;
@@ -534,6 +555,7 @@ function baseType(column: Column, table: IntrospectedTable): string {
       return "nonEmptyString";
     // Dates/times travel as ISO strings in the envelope; the value is never blank.
     case "date":
+      return "z.string()";
     case "timestamp":
     case "time":
     case "timetz":
@@ -740,6 +762,7 @@ export function generateEntitySpecsModule(
 ): string {
   const preamble = `${header}import { z } from "zod";
 import { timestampWithTimezone } from "../../timestamp-schema.js";
+import { SourceValues, SourceExclusions } from "../../data-annotations.js";
 import { agencyAddressText, agencyZipCode } from "../../agency-address-schema.js";
 
 // Fingerprint of the applied database migrations these specs were generated
@@ -794,6 +817,47 @@ export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = ${JSON.str
       DESCRIPTORS.map((descriptor) => [
         descriptor.recordKind,
         descriptor.createRequired ?? [],
+      ]),
+    ),
+  )};
+
+export const JSON_REQUIRED_PROPERTIES: Record<string, readonly string[]> = ${JSON.stringify(
+    Object.fromEntries(
+      DESCRIPTORS.map((descriptor) => [
+        descriptor.recordKind,
+        schema.tables
+          .get(descriptor.table)!
+          .columns.filter(
+            (column) =>
+              ["json", "jsonb"].includes(column.udtName) && !column.nullable,
+          )
+          .map((column) => column.name),
+      ]),
+    ),
+  )};
+
+export const JSON_PROPERTIES: Record<string, readonly string[]> = ${JSON.stringify(
+    Object.fromEntries(
+      DESCRIPTORS.map((descriptor) => [
+        descriptor.recordKind,
+        schema.tables
+          .get(descriptor.table)!
+          .columns.filter((column) =>
+            ["json", "jsonb"].includes(column.udtName),
+          )
+          .map((column) => column.name),
+      ]),
+    ),
+  )};
+
+export const DATE_PROPERTIES: Record<string, readonly string[]> = ${JSON.stringify(
+    Object.fromEntries(
+      DESCRIPTORS.map((descriptor) => [
+        descriptor.recordKind,
+        schema.tables
+          .get(descriptor.table)!
+          .columns.filter((column) => column.udtName === "date")
+          .map((column) => column.name),
       ]),
     ),
   )};

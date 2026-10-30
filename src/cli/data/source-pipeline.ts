@@ -1,4 +1,5 @@
 import path from "node:path";
+import { importTypeMetadata } from "../../shared/io/import-type-metadata.js";
 import {
   requireTransformCompletion,
   beginTransform,
@@ -47,6 +48,16 @@ export async function transformOneSource(
     logger,
   });
   if (kinds !== undefined) {
+    const recordKinds = new Set<string>(
+      kinds.map((kind) => importTypeMetadata[kind].recordKind),
+    );
+    const loadExclusions = deps.loadExcludedRecords;
+    deps.loadExcludedRecords = async (state) =>
+      new Map(
+        [...(await loadExclusions(state))].filter(([, record]) =>
+          recordKinds.has(record.kind),
+        ),
+      );
     const load = deps.loadSourceModule;
     deps.loadSourceModule = async (...args) => {
       const transform = await load(...args);

@@ -1,3 +1,5 @@
+import { SourceValues } from "../../shared/data-annotations.js";
+import { reportedFieldValue } from "../../shared/inspect-data-annotations.js";
 import { rowsFromResult, type DatabaseClient } from "./index.js";
 import {
   TABLE_BY_KIND,
@@ -37,7 +39,11 @@ export async function readExistingAgencyGraph(
   const queried = new Map<string, Set<string>>();
 
   function projection(kind: string, alias?: string): string {
-    return [PRIMARY_KEY_BY_KIND[kind]!, ...AGENCY_GRAPH_COLUMNS.get(kind)!]
+    return [
+      PRIMARY_KEY_BY_KIND[kind]!,
+      "data_source_values",
+      ...AGENCY_GRAPH_COLUMNS.get(kind)!,
+    ]
       .map((column) => (alias ? `${alias}.${column}` : column))
       .join(", ");
   }
@@ -47,6 +53,19 @@ export async function readExistingAgencyGraph(
     rows: Record<string, unknown>[],
   ): AgencyGraphRecord[] {
     return rows.map((values) => {
+      if (
+        kind === AGENCY_GRAPH_ROOT.assignmentKind &&
+        values.data_source_values !== undefined
+      ) {
+        const evidence = SourceValues.parse(values.data_source_values);
+        values = {
+          ...values,
+          [AGENCY_GRAPH_ROOT.endField]: reportedFieldValue(
+            values[AGENCY_GRAPH_ROOT.endField],
+            evidence[AGENCY_GRAPH_ROOT.endField],
+          ),
+        };
+      }
       const record = {
         kind,
         id: String(values[PRIMARY_KEY_BY_KIND[kind]!]),

@@ -334,3 +334,48 @@ it("acquires coverage articles and emits their existing personnel references unc
     },
   });
 });
+
+it("creates and updates native annotations through the normal manual chain", async () => {
+  const state = await tempDir();
+  const record = {
+    id: "manual-finding",
+    subject_kind: "Agency",
+    subject_id: "agency-source-id",
+    producer_namespace: "org.policeconduct.manual",
+    producer_record_id: "manual-finding",
+    source_namespace: "source.provider",
+    source_record_id: "record-1",
+    type: "warning",
+    field: "name",
+    value: "Reported agency name",
+    message: "Name needs review against the attached source.",
+    evidence: [{ ref: "source-page-1" }],
+    status: "active",
+  };
+  for (const status of ["active", "resolved"]) {
+    await acquire({
+      sourceDir: state,
+      state,
+      env: {
+        MANUAL_KIND: "DataAnnotation",
+        MANUAL_RECORD: JSON.stringify({ ...record, status }),
+      },
+      data: {} as never,
+    });
+    expect((await readLatest(state)).entries).toEqual([
+      { kind: "DataAnnotation", record: { ...record, status } },
+    ]);
+    const manifest = await transform({
+      paths: [],
+      state,
+      emit: async () => {},
+    } as never);
+    expect(produces).toContain("DataAnnotations");
+    expect(manifest.artifacts).toEqual([
+      {
+        kind: "DataAnnotations",
+        records: { "manual-finding": { spec: { ...record, status } } },
+      },
+    ]);
+  }
+});

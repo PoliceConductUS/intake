@@ -68,14 +68,7 @@ function person(name: string) {
   };
 }
 
-export const transform: SourceTransform = async ({
-  paths,
-  logger,
-  validationDate,
-}) => {
-  if (!validationDate)
-    throw Error("Oregon transform requires a validation date");
-  const validationDay = validationDate.toISOString().slice(0, 10);
+export const transform: SourceTransform = async ({ paths, logger }) => {
   const manifests = paths.filter((p) => basename(p) === "manifest.json");
   if (manifests.length !== 1)
     throw Error("Oregon DPSST requires exactly one complete manifest.json");
@@ -209,18 +202,8 @@ export const transform: SourceTransform = async ({
         `officer-${officer.id}-employment`,
       )
     ).flatMap((html) => parseEmployment(html, officer.id));
-    const scheduledHireDates = new Set<string>();
-    const effectiveEmployment = employment.filter((event) => {
-      const date = sourceDate(event.date);
-      if (event.action !== "Hired" || date <= validationDay) return true;
-      scheduledHireDates.add(date);
-      log(
-        `skipped scheduled hire ${officer.id}: ${event.agencyName} on ${date}`,
-      );
-      return false;
-    });
     const missingAgencyRows = new Map<string, number>();
-    const identifiedEmployment = effectiveEmployment.filter((event) => {
+    const identifiedEmployment = employment.filter((event) => {
       if (availableAgencyNames.has(event.agencyName)) return true;
       missingAgencyRows.set(
         event.agencyName,
@@ -274,16 +257,6 @@ export const transform: SourceTransform = async ({
         c.probationDate,
       ])
         if (date) sourceDate(date);
-      if (
-        c.status === "Required" &&
-        c.statusDate &&
-        scheduledHireDates.has(sourceDate(c.statusDate))
-      ) {
-        log(
-          `skipped scheduled Required certificate ${officer.id}: ${c.certificate} ${c.level} on ${sourceDate(c.statusDate)}`,
-        );
-        continue;
-      }
       const type = canonicalLicenseType(`${c.certificate} ${c.level}`);
       const group = holdings.get(type) ?? [];
       group.push(c);
@@ -346,6 +319,7 @@ export const transform: SourceTransform = async ({
           spec: {
             name: "Oregon Department of Public Safety Standards and Training",
             abbreviation: "DPSST",
+            source_namespaces: ["gov.or.dpsst"],
             website: "https://www.oregon.gov/dpsst/",
             location_path_id: "or",
           },

@@ -3,7 +3,9 @@
 ## Purpose
 
 TBD - created by archiving change redesign-config-driven-intake. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Config-Driven Source Run Command
 
 The intake CLI MUST provide `intake run <source-id> <path...> [--dry-run]` accepting one

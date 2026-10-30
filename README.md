@@ -110,11 +110,15 @@ Inspect or correct any declared record property using its source identity:
 
 ```bash
 npm run cli -- cache get <namespace> <kind> <source-id> <property>
-npm run cli -- cache set <namespace> <kind> <source-id> <property> <value>
-npm run cli -- cache set <namespace> <kind> <source-id> <property> <value> --from <existing-value>
-npm run cli -- cache set <namespace> <kind> <source-id> <property> <value> --force
-npm run cli -- cache unset <namespace> <kind> <source-id> <property> --from <existing-value>
+npm run cli -- cache set <namespace> <kind> <source-id> <property> <value> --message "Explain why this correction is needed"
+npm run cli -- cache set <namespace> <kind> <source-id> <property> <value> --from <existing-value> --message "Explain why this correction is needed"
+npm run cli -- cache set <namespace> <kind> <source-id> <property> <value> --force --message "Explain why this correction is needed"
+npm run cli -- cache unset <namespace> <kind> <source-id> <property> --from <existing-value> --message "Explain why this correction is needed"
 ```
+
+All cache changes must go through the intake CLI, including correction messages and other metadata. Do not edit cache files directly or bypass the CLI by calling internal writers from ad hoc scripts. Add a missing CLI capability before using it.
+
+Both `cache set` and `cache unset` require `--message`: a nonblank explanation of at least 10 characters after trimming whitespace. The message is stored with the correction and published with its annotation.
 
 Use `cache set` for manual cache corrections. String fields receive literal text:
 `set ... null` supplies the string `"null"`, never a clearing instruction. Use
@@ -146,7 +150,7 @@ Paths and alternate-county aliases are derived from corrected names during gener
 For example:
 
 ```bash
-npm run cli -- cache set us-census-gazetteer LocationPath place:GEOID:2416620 display_name 'Chevy Chase town' --from 'Chevy Chase'
+npm run cli -- cache set us-census-gazetteer LocationPath place:GEOID:2416620 display_name 'Chevy Chase town' --from 'Chevy Chase' --message "Explain why this correction is needed"
 npm run cli -- data generate us-census-gazetteer
 ```
 
@@ -174,7 +178,15 @@ do not delete records already in the database.
 
 Core invariants:
 
-- Intake is idempotent.
+- Persisted data enters the database only through canonical envelopes and
+  recorded mutations, including manual, source-produced, and root-intake records.
+- `data generate` calculates changes; `data up` only applies recorded mutations.
+  Repeating `up` with the same applied chain changes nothing. With no pending
+  entries, it makes no data changes and never recalculates annotations or IDs.
+- Every record retains its native canonical ID across runs, content changes,
+  and lifecycle changes, including resolution, retirement, and reactivation.
+  This applies to every record type and producer; annotations follow the same
+  rule. Imported canonical IDs are backed by the durable source-name mapping.
 - Raw source artifacts are preserved unchanged.
 - Post-transformation artifacts are preserved.
 - Archive snapshots are write/append-only.

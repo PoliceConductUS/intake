@@ -388,6 +388,7 @@ function buildLicensingAuthorities(): EmittedRecords {
       spec: {
         name: "Texas Commission on Law Enforcement",
         abbreviation: "TCOLE",
+        source_namespaces: ["gov.tx.tcole"],
         website: "https://www.tcole.texas.gov",
         location_path_id: "tx",
       },

@@ -118,7 +118,7 @@ describe("validateArtifactRecords", () => {
     ["agencies", agency.id, "name"],
     ["agencies", agency.id, "state"],
     ["personnel", personnel.id, "first_name"],
-    ["agencyPersonnel", roster.id, "start_date"],
+    ["agencyPersonnel", roster.id, "personnel_id"],
   ] as const)(
     "fails before returning rows when %s source record %s has an invalid required field %s",
     async (entityName, sourceName, fieldName) => {

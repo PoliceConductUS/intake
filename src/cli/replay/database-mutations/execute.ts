@@ -1,6 +1,7 @@
+import { rowsFromResult } from "../../database/index.js";
 import {
   createDatabaseRecords,
-  readDatabaseRecordByColumn,
+  databaseRecordProjection,
   updateDatabaseRecordFields,
 } from "../../database/entities.js";
 import type { DatabaseClient } from "../../database/index.js";
@@ -12,6 +13,8 @@ import {
 import type { SupportedTableName } from "../../database/schema.js";
 import {
   PRIMARY_KEY_BY_KIND,
+  JSON_PROPERTIES,
+  JSON_REQUIRED_PROPERTIES,
   TABLE_BY_KIND,
 } from "../../../shared/io/generated/entity-specs.js";
 import { valuesEqual } from "../../../shared/values-equal.js";
@@ -126,6 +129,12 @@ function databaseFieldValue(
   fieldName: string,
   value: unknown,
 ): unknown {
+  if (JSON_PROPERTIES[recordKind]?.includes(fieldName) && value !== undefined) {
+    return value === null &&
+      !JSON_REQUIRED_PROPERTIES[recordKind]?.includes(fieldName)
+      ? null
+      : JSON.stringify(value);
+  }
   if (recordKind !== "LocationPath") {
     return timestampValue(recordKind, fieldName, value);
   }
@@ -145,6 +154,19 @@ type PendingCreate = {
 
 // Postgres caps a statement at 65535 bind parameters; keep a margin.
 const MAX_INSERT_PARAMETERS = 60000;
+// Geometry/JSON values can be megabytes each despite using one parameter.
+// Bound statement working memory independently of the protocol parameter cap.
+const MAX_INSERT_ROWS = 1000;
+const MAX_INSERT_BYTES = 4 * 1024 * 1024;
+
+function insertPayloadBytes(spec: Record<string, unknown>): number {
+  return Object.values(spec).reduce<number>((total, value) => {
+    if (value === undefined || value === null) return total;
+    const serialized =
+      typeof value === "string" ? value : JSON.stringify(value);
+    return total + Buffer.byteLength(serialized, "utf8");
+  }, 0);
+}
 
 function definedColumns(spec: Record<string, unknown>): string[] {
   return Object.entries(spec)
@@ -190,12 +212,12 @@ async function executeUpdate(
       `DatabaseMutation ${mutationName} update operations are malformed.`,
     );
   }
-  const current = await readDatabaseRecordByColumn(
-    client,
-    metadata.tableName,
-    metadata.keyColumnName,
-    mutationName,
-  );
+  const current = rowsFromResult(
+    await client.query(
+      `select ${databaseRecordProjection(metadata.tableName)} from ${metadata.tableName} where ${metadata.keyColumnName} = $1 for update`,
+      [mutationName],
+    ),
+  )[0];
   if (current === undefined) {
     throw new Error(
       `DatabaseMutation ${mutationName} cannot update missing ${recordKind}.`,
@@ -318,9 +340,14 @@ export async function executeDatabaseMutations(
 
   // Creates are emitted contiguously and ahead of every update (ADR 0020), so
   // buffer a run of same-kind, same-column creates and flush it as one multi-row
-  // insert — on a kind/column change, the parameter cap, or the first non-create.
+  // insert — on kind/column changes, row/byte/parameter caps, or non-creates.
   let pending:
-    | { recordKind: string; signature: string; creates: PendingCreate[] }
+    | {
+        recordKind: string;
+        signature: string;
+        creates: PendingCreate[];
+        bytes: number;
+      }
     | undefined;
   const flushPending = async (): Promise<void> => {
     if (pending !== undefined) {
@@ -341,17 +368,25 @@ export async function executeDatabaseMutations(
       const signature = `${recordKind}(${columns.join(",")})`;
       const rowCap = Math.max(
         1,
-        Math.floor(MAX_INSERT_PARAMETERS / columns.length),
+        Math.min(
+          MAX_INSERT_ROWS,
+          Math.floor(MAX_INSERT_PARAMETERS / columns.length),
+        ),
       );
+      const rowBytes = insertPayloadBytes(databaseSpec);
       if (
         pending !== undefined &&
-        (pending.signature !== signature || pending.creates.length >= rowCap)
+        (pending.signature !== signature ||
+          pending.creates.length >= rowCap ||
+          pending.bytes + rowBytes > MAX_INSERT_BYTES)
       ) {
         await flushPending();
       }
       if (pending === undefined) {
-        pending = { recordKind, signature, creates: [] };
+        pending = { recordKind, signature, creates: [], bytes: 0 };
       }
+      // An oversized individual row is sent alone, never omitted or truncated.
+      pending.bytes += rowBytes;
       pending.creates.push({
         mutationName: mutation.metadata.name,
         databaseSpec,

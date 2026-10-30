@@ -49,7 +49,10 @@ async function fixture() {
     runDataCommand: vi.fn(
       async (
         args: readonly string[],
-        _context?: { useInitialAgencyRoots: boolean },
+        _context?: {
+          useInitialAgencyRoots: boolean;
+          finalizeMutations?: unknown;
+        },
       ) => {
         calls.push(args.join(" "));
         expect(await readdir(chain).catch(() => [])).toEqual([]);

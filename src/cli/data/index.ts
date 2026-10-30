@@ -285,9 +285,13 @@ export function registerCliCommand(
     .option("--to <version>", "apply through this version, then stop")
     .action(async (options: { to?: string }): Promise<void> => {
       try {
-        const applied = await withClient((client) =>
-          applyPending(client, { to: options.to, logger: consoleLogger }),
-        );
+        const applied = await withClient(async (client) => {
+          const result = await applyPending(client, {
+            to: options.to,
+            logger: consoleLogger,
+          });
+          return result;
+        });
         dependencies.setResult({
           exitCode: 0,
           stdout:
