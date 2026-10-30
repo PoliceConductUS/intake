@@ -110,11 +110,13 @@ Inspect or correct any declared record property using its source identity:
 
 ```bash
 npm run cli -- cache get <namespace> <kind> <source-id> <property>
-npm run cli -- cache set <namespace> <kind> <source-id> <property> <value>
-npm run cli -- cache set <namespace> <kind> <source-id> <property> <value> --from <existing-value>
-npm run cli -- cache set <namespace> <kind> <source-id> <property> <value> --force
-npm run cli -- cache unset <namespace> <kind> <source-id> <property> --from <existing-value>
+npm run cli -- cache set <namespace> <kind> <source-id> <property> <value> --message "Explain why this correction is needed"
+npm run cli -- cache set <namespace> <kind> <source-id> <property> <value> --from <existing-value> --message "Explain why this correction is needed"
+npm run cli -- cache set <namespace> <kind> <source-id> <property> <value> --force --message "Explain why this correction is needed"
+npm run cli -- cache unset <namespace> <kind> <source-id> <property> --from <existing-value> --message "Explain why this correction is needed"
 ```
+
+Both `cache set` and `cache unset` require `--message`: a nonblank explanation of at least 10 characters after trimming whitespace. The message is stored with the correction and published with its annotation.
 
 Use `cache set` for manual cache corrections. String fields receive literal text:
 `set ... null` supplies the string `"null"`, never a clearing instruction. Use
@@ -146,7 +148,7 @@ Paths and alternate-county aliases are derived from corrected names during gener
 For example:
 
 ```bash
-npm run cli -- cache set us-census-gazetteer LocationPath place:GEOID:2416620 display_name 'Chevy Chase town' --from 'Chevy Chase'
+npm run cli -- cache set us-census-gazetteer LocationPath place:GEOID:2416620 display_name 'Chevy Chase town' --from 'Chevy Chase' --message "Explain why this correction is needed"
 npm run cli -- data generate us-census-gazetteer
 ```
 

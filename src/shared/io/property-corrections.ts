@@ -79,7 +79,12 @@ export async function setPropertyCorrection(input: {
   operation?: "unset";
   force: boolean;
   commandId: string;
+  message?: string;
 }): Promise<void> {
+  const message =
+    input.message === undefined
+      ? undefined
+      : z.string().trim().min(10).parse(input.message);
   const schema = correctionPropertySchema(input.kind, input.property);
   const value = input.operation === "unset" ? null : input.value;
   if (input.operation !== "unset" && value === null)
@@ -119,6 +124,7 @@ export async function setPropertyCorrection(input: {
             ...(input.operation === "unset"
               ? { operation: "unset" as const }
               : { value: z.json().parse(input.value) }),
+            ...(message === undefined ? {} : { message }),
             commandId: input.commandId,
             recordedAt: new Date().toISOString(),
           },

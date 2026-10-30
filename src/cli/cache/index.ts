@@ -196,6 +196,10 @@ export const registerCliCommand: RegisterCliCommand = (
     if (action === "set") command.argument("<value>");
     if (action !== "get")
       command
+        .requiredOption(
+          "--message <message>",
+          "explain the correction (at least 10 characters)",
+        )
         .option(
           "--from <existing-value>",
           "replace only this exact typed input value; default: absent/null",
@@ -215,10 +219,14 @@ export const registerCliCommand: RegisterCliCommand = (
         sourceId: string,
         property: string,
         valueOrOptions: string | object,
-        options?: { force?: boolean; from?: string },
+        options?: { force?: boolean; from?: string; message?: string },
       ) => {
         if (action === "unset")
-          options = valueOrOptions as { force?: boolean; from?: string };
+          options = valueOrOptions as {
+            force?: boolean;
+            from?: string;
+            message?: string;
+          };
         let locationClient: DatabaseClient | undefined;
         const getLocationPathById = async (id: string) => {
           if (locationClient === undefined) {
@@ -234,6 +242,12 @@ export const registerCliCommand: RegisterCliCommand = (
         };
         try {
           const schema = correctionPropertySchema(kind, property);
+          if (action !== "get")
+            options!.message = z
+              .string()
+              .trim()
+              .min(10, "Message must contain at least 10 characters.")
+              .parse(options?.message);
           const rootDir = intakeWorkspace(process.env);
           const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
           const id = await ledger.read(
@@ -302,6 +316,8 @@ export const registerCliCommand: RegisterCliCommand = (
                       ? []
                       : ["--from", options.from]),
                     ...(options?.force ? ["--force"] : []),
+                    "--message",
+                    options!.message!,
                   ],
                 },
               );
@@ -318,6 +334,7 @@ export const registerCliCommand: RegisterCliCommand = (
                 from,
                 commandId: commandName,
                 force: options?.force === true,
+                message: options!.message!,
               });
               if (id !== undefined)
                 await retireManualResolvedProperty({
