@@ -362,3 +362,13 @@ back to trunk.
 
 Use Conventional Commit messages for all commits. See
 `docs/adr/0007-use-conventional-commits.md` for accepted types and examples.
+
+## CLI-only cache changes
+
+All cache changes must go through the intake CLI. Do not edit cache files directly
+or use ad hoc scripts that call cache/correction writers to bypass the CLI. This
+includes correction messages, evidence, values, and other cache metadata. Normal
+CLI pipeline operations may use their internal cache adapters. If the CLI lacks a
+needed operation, implement and validate that CLI capability first, then invoke
+it. Use `cache set` or `cache unset` with the required `--message` for manual
+corrections; retain command provenance and correction history.

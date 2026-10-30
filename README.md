@@ -116,6 +116,8 @@ npm run cli -- cache set <namespace> <kind> <source-id> <property> <value> --for
 npm run cli -- cache unset <namespace> <kind> <source-id> <property> --from <existing-value> --message "Explain why this correction is needed"
 ```
 
+All cache changes must go through the intake CLI, including correction messages and other metadata. Do not edit cache files directly or bypass the CLI by calling internal writers from ad hoc scripts. Add a missing CLI capability before using it.
+
 Both `cache set` and `cache unset` require `--message`: a nonblank explanation of at least 10 characters after trimming whitespace. The message is stored with the correction and published with its annotation.
 
 Use `cache set` for manual cache corrections. String fields receive literal text:
