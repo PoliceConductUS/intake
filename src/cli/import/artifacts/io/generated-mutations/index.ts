@@ -77,6 +77,9 @@ import { ArrestProfileUpdate } from "./ArrestProfileUpdate.js";
 import { AgencyArrestProfileCreate } from "./AgencyArrestProfileCreate.js";
 import { AgencyArrestProfileRead } from "./AgencyArrestProfileRead.js";
 import { AgencyArrestProfileUpdate } from "./AgencyArrestProfileUpdate.js";
+import { DataAnnotationCreate } from "./DataAnnotationCreate.js";
+import { DataAnnotationRead } from "./DataAnnotationRead.js";
+import { DataAnnotationUpdate } from "./DataAnnotationUpdate.js";
 
 export const importMutationEnvelopeTypes = {
   LocationPathCreate,
@@ -157,4 +160,7 @@ export const importMutationEnvelopeTypes = {
   AgencyArrestProfileCreate,
   AgencyArrestProfileRead,
   AgencyArrestProfileUpdate,
+  DataAnnotationCreate,
+  DataAnnotationRead,
+  DataAnnotationUpdate,
 };

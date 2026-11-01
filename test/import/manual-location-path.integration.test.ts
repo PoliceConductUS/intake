@@ -176,7 +176,7 @@ describeWithDocker("manual community creation and reconstruction", () => {
         )
       ).rows,
     ).toEqual(expectedAlias);
-  });
+  }, 30_000);
 
   test("rejects an unresolved county without creating the community or its alias", async () => {
     const artifacts = await prepare("/tx/nonexistent-county/");

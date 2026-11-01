@@ -21,6 +21,17 @@ import {
 } from "./parse.js";
 import { buildEmploymentEpisodes, sourceDate } from "./employment.js";
 
+// Publication eligibility is based on discipline, not current certification status.
+const preservedDisciplines = new Set([
+  "Police Officer",
+  "Retired Police Officer",
+  "Corrections Officer",
+  "Parole & Probation Officer",
+  "Regulatory Specialist",
+  "Telecommunicator",
+  "Telecommunicator Maintenance",
+]);
+
 export const description =
   "Oregon DPSST public roster, employment history and certifications.";
 export const produces: readonly ImportArtifactKind[] = [
@@ -68,14 +79,7 @@ function person(name: string) {
   };
 }
 
-export const transform: SourceTransform = async ({
-  paths,
-  logger,
-  validationDate,
-}) => {
-  if (!validationDate)
-    throw Error("Oregon transform requires a validation date");
-  const validationDay = validationDate.toISOString().slice(0, 10);
+export const transform: SourceTransform = async ({ paths, logger }) => {
   const manifests = paths.filter((p) => basename(p) === "manifest.json");
   if (manifests.length !== 1)
     throw Error("Oregon DPSST requires exactly one complete manifest.json");
@@ -203,24 +207,26 @@ export const transform: SourceTransform = async ({
   for (const officer of manifest.officers) {
     if (!personnel[officer.id])
       throw Error(`Manifest officer ${officer.id} has no search evidence`);
+    const certificates = (
+      await readPages(
+        officer.certificateFiles,
+        `officer-${officer.id}-certificates`,
+      )
+    ).flatMap((html) => parseCertificates(html, officer.id));
+    if (
+      !certificates.some((c) => preservedDisciplines.has(c.certificate.trim()))
+    ) {
+      delete personnel[officer.id];
+      continue;
+    }
     const employment = (
       await readPages(
         officer.employmentFiles,
         `officer-${officer.id}-employment`,
       )
     ).flatMap((html) => parseEmployment(html, officer.id));
-    const scheduledHireDates = new Set<string>();
-    const effectiveEmployment = employment.filter((event) => {
-      const date = sourceDate(event.date);
-      if (event.action !== "Hired" || date <= validationDay) return true;
-      scheduledHireDates.add(date);
-      log(
-        `skipped scheduled hire ${officer.id}: ${event.agencyName} on ${date}`,
-      );
-      return false;
-    });
     const missingAgencyRows = new Map<string, number>();
-    const identifiedEmployment = effectiveEmployment.filter((event) => {
+    const identifiedEmployment = employment.filter((event) => {
       if (availableAgencyNames.has(event.agencyName)) return true;
       missingAgencyRows.set(
         event.agencyName,
@@ -253,12 +259,6 @@ export const transform: SourceTransform = async ({
         title: episode.title,
       });
     }
-    const certificates = (
-      await readPages(
-        officer.certificateFiles,
-        `officer-${officer.id}-certificates`,
-      )
-    ).flatMap((html) => parseCertificates(html, officer.id));
     const holdings = new Map<string, Certificate[]>();
     for (const c of new Map(
       certificates.map((c) => [JSON.stringify(c), c]),
@@ -274,16 +274,6 @@ export const transform: SourceTransform = async ({
         c.probationDate,
       ])
         if (date) sourceDate(date);
-      if (
-        c.status === "Required" &&
-        c.statusDate &&
-        scheduledHireDates.has(sourceDate(c.statusDate))
-      ) {
-        log(
-          `skipped scheduled Required certificate ${officer.id}: ${c.certificate} ${c.level} on ${sourceDate(c.statusDate)}`,
-        );
-        continue;
-      }
       const type = canonicalLicenseType(`${c.certificate} ${c.level}`);
       const group = holdings.get(type) ?? [];
       group.push(c);
@@ -338,6 +328,23 @@ export const transform: SourceTransform = async ({
       });
     }
   }
+  // Only agencies with a retained employment relationship belong to this output.
+  const retainedAgencies = new Set(
+    Object.values(assignments).map(
+      (record) => (record.spec as { agency_id: string }).agency_id,
+    ),
+  );
+  let filteredAgencies = 0;
+  for (const id of Object.keys(agencies)) {
+    if (!retainedAgencies.has(id)) {
+      delete agencies[id];
+      delete phones[`${id}|Phone`];
+      filteredAgencies++;
+    }
+  }
+  log(
+    `publication scope: ${manifest.officers.length - Object.keys(personnel).length} personnel and ${filteredAgencies} agencies filtered; no scope annotations`,
+  );
   const artifacts = [
     {
       kind: "LicensingAuthorities" as const,
@@ -346,6 +353,7 @@ export const transform: SourceTransform = async ({
           spec: {
             name: "Oregon Department of Public Safety Standards and Training",
             abbreviation: "DPSST",
+            source_namespaces: ["gov.or.dpsst"],
             website: "https://www.oregon.gov/dpsst/",
             location_path_id: "or",
           },

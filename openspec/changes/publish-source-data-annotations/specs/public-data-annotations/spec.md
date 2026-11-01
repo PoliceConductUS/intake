@@ -2,17 +2,17 @@
 
 ### Requirement: Show findings where reported data appears
 
-The site SHALL show source-reported values and their annotations together on the affected public record display. It SHALL identify the source provider and source record ID and distinguish our warning/error/correction from the provider's reported data. Calculated tenure SHALL remain visible for parseable dates even when negative or unusually long. An unparseable annotated date SHALL display its original literal value without treating an empty typed end date as current employment.
+The site SHALL show source-reported values and their annotations together on the affected public record display. It SHALL identify the source provider and source record ID and distinguish our warning/error/correction from the provider's reported data. The site SHALL display reported dates without calculated tenure totals or assignment durations. An unparseable annotated date SHALL display its original literal value without treating an empty typed end date as current employment.
 
 #### Scenario: Negative tenure
 
 - **WHEN** the supplied dates produce a duration of minus 12 days
-- **THEN** the page SHALL show the supplied dates, reported duration of minus 12 days and the end-before-start error
+- **THEN** the page SHALL show the supplied dates and the end-before-start error without a calculated duration
 
 #### Scenario: Long tenure
 
 - **WHEN** the supplied dates produce 125 years
-- **THEN** the page SHALL show 125 years with source attribution and the unusual-duration warning
+- **THEN** the page SHALL show the supplied dates with source attribution and the unusual-duration warning, without a calculated duration
 
 ### Requirement: One public annotation index
 

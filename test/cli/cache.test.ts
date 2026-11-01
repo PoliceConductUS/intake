@@ -71,6 +71,9 @@ const args = (action: string, property = "location_path_id") => [
   "Agency",
   "source-one",
   property,
+  ...(action === "get"
+    ? []
+    : ["--message", "Correct the supplied record value."]),
 ];
 
 test("sets and reads a manual resolution by source identity, including new resolver fingerprints", async () => {
@@ -168,9 +171,11 @@ test("requires force, shows existing values, and retains prior resolved entries 
   const command = await Command.read(path.join(directory, commandFile));
   expect(command.metadata.name).toBe(current.commandId);
   expect(command.spec.args).toEqual([
-    ...args("set"),
+    ...args("set").slice(0, 6),
     "another-place-id",
     "--force",
+    "--message",
+    "Correct the supplied record value.",
   ]);
   expect(
     (await runIntake([...args("set"), "final-place-id", "--force"])).exitCode,
@@ -304,6 +309,8 @@ test("accepts a conditional correction for a source property before a canonical 
     "Correct Name",
     "--from",
     "Wrong Name",
+    "--message",
+    "Correct the supplied agency name.",
   ];
   expect(await runIntake(base)).toMatchObject({ exitCode: 0 });
   const read = await runIntake([
@@ -602,6 +609,8 @@ test("unset rejects a required property and set stores null text literally for a
         "null",
         "--from",
         "N/A",
+        "--message",
+        "Preserve the explicitly supplied text.",
       ])
     ).exitCode,
   ).toBe(0);
@@ -630,6 +639,8 @@ test("a CLI name correction is applied before a location path is derived during 
     "Chevy Chase town",
     "--from",
     "Chevy Chase",
+    "--message",
+    "Distinguish the town from other places.",
   ]);
   expect(result.exitCode).toBe(0);
   const ledger = createSourceNameToCanonicalIdLedger({ rootDir: workspace });
@@ -859,5 +870,71 @@ test.each(["county-id", "state-id"])(
         placeLookup,
       ),
     ).toBeUndefined();
+  },
+);
+
+test.each(["set", "unset"])(
+  "%s requires a meaningful correction message",
+  async (action) => {
+    const base = [
+      "cache",
+      action,
+      "test.source",
+      "Agency",
+      "source-one",
+      "contact_name",
+      ...(action === "set" ? ["Test City"] : []),
+    ];
+    expect((await runIntake(base)).exitCode).not.toBe(0);
+    for (const message of ["", "null", "short", "          ", " 123456789 "]) {
+      expect(
+        (await runIntake([...base, "--message", message])).exitCode,
+      ).not.toBe(0);
+    }
+    expect(
+      (
+        await runIntake([
+          ...base,
+          "--message",
+          "  Use the source mailing locality.  ",
+        ])
+      ).exitCode,
+    ).toBe(0);
+    const saved = await inspectPropertyCorrection(
+      workspace,
+      "test.source",
+      "Agency",
+      "source-one",
+      "contact_name",
+    );
+    expect(saved?.spec.entries.at(-1)?.message).toBe(
+      "Use the source mailing locality.",
+    );
+    const messages: string[] = [];
+    const apply = await loadPropertyCorrections(workspace, "test.source");
+    apply(
+      "Agency",
+      "source-one",
+      { contact_name: null },
+      (_field, annotation) => {
+        if (annotation) messages.push(annotation.message);
+      },
+    );
+    expect(messages).toEqual(["Use the source mailing locality."]);
+    expect(
+      (await runIntake([...base, "--force", "--message", " 1234567890 "]))
+        .exitCode,
+    ).toBe(0);
+    expect(
+      (
+        await inspectPropertyCorrection(
+          workspace,
+          "test.source",
+          "Agency",
+          "source-one",
+          "contact_name",
+        )
+      )?.spec.entries.at(-1)?.message,
+    ).toBe("1234567890");
   },
 );
