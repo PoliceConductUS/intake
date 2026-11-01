@@ -21,6 +21,17 @@ import {
 } from "./parse.js";
 import { buildEmploymentEpisodes, sourceDate } from "./employment.js";
 
+// Publication eligibility is based on discipline, not current certification status.
+const preservedDisciplines = new Set([
+  "Police Officer",
+  "Retired Police Officer",
+  "Corrections Officer",
+  "Parole & Probation Officer",
+  "Regulatory Specialist",
+  "Telecommunicator",
+  "Telecommunicator Maintenance",
+]);
+
 export const description =
   "Oregon DPSST public roster, employment history and certifications.";
 export const produces: readonly ImportArtifactKind[] = [
@@ -196,6 +207,18 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
   for (const officer of manifest.officers) {
     if (!personnel[officer.id])
       throw Error(`Manifest officer ${officer.id} has no search evidence`);
+    const certificates = (
+      await readPages(
+        officer.certificateFiles,
+        `officer-${officer.id}-certificates`,
+      )
+    ).flatMap((html) => parseCertificates(html, officer.id));
+    if (
+      !certificates.some((c) => preservedDisciplines.has(c.certificate.trim()))
+    ) {
+      delete personnel[officer.id];
+      continue;
+    }
     const employment = (
       await readPages(
         officer.employmentFiles,
@@ -236,12 +259,6 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
         title: episode.title,
       });
     }
-    const certificates = (
-      await readPages(
-        officer.certificateFiles,
-        `officer-${officer.id}-certificates`,
-      )
-    ).flatMap((html) => parseCertificates(html, officer.id));
     const holdings = new Map<string, Certificate[]>();
     for (const c of new Map(
       certificates.map((c) => [JSON.stringify(c), c]),
@@ -311,6 +328,23 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
       });
     }
   }
+  // Only agencies with a retained employment relationship belong to this output.
+  const retainedAgencies = new Set(
+    Object.values(assignments).map(
+      (record) => (record.spec as { agency_id: string }).agency_id,
+    ),
+  );
+  let filteredAgencies = 0;
+  for (const id of Object.keys(agencies)) {
+    if (!retainedAgencies.has(id)) {
+      delete agencies[id];
+      delete phones[`${id}|Phone`];
+      filteredAgencies++;
+    }
+  }
+  log(
+    `publication scope: ${manifest.officers.length - Object.keys(personnel).length} personnel and ${filteredAgencies} agencies filtered; no scope annotations`,
+  );
   const artifacts = [
     {
       kind: "LicensingAuthorities" as const,
