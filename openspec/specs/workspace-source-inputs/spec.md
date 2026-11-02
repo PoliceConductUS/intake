@@ -1,8 +1,11 @@
 # workspace-source-inputs Specification
 
 ## Purpose
+
 TBD - created by archiving change use-irving-workspace-input. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Irving workbook acquisition input
 
 The Irving arrests source MUST read its FOIA workbook from `$INTAKE_WORKSPACE/gov.irvingtx.arrests/source/arrests.xlsx`. It MUST NOT require an Irving-specific environment variable or search alternative paths. The acquired normalized JSONL MUST continue to be written through the existing command acquisition output flow.
