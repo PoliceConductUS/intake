@@ -19,6 +19,7 @@ import {
   status,
   verify,
   generateIdentityRestorationEntry,
+  generateCaseSlugMigrationEntry,
 } from "./chain.js";
 import {
   generateOneSource,
@@ -67,6 +68,29 @@ export function registerCliCommand(
     .description(
       "The data pipeline (ADR 0033/0034): acquire → transform → generate → up.",
     );
+
+  group
+    .command("citation-slugs")
+    .description(
+      "Plan an audited citation slug migration; review the chain event, then run data up.",
+    )
+    .requiredOption(
+      "--evidence <reference>",
+      "reference authorizing the URL migration",
+    )
+    .action(async (options: { evidence: string }) => {
+      try {
+        const result = await withClient((client) =>
+          generateCaseSlugMigrationEntry(client, options.evidence),
+        );
+        dependencies.setResult({
+          exitCode: 0,
+          stdout: `${JSON.stringify(result ?? { mutationCount: 0 })}\n`,
+        });
+      } catch (error) {
+        dependencies.setResult(errorResult(error));
+      }
+    });
 
   group
     .command("restore-identity")
@@ -396,6 +420,20 @@ export function registerCliCommand(
           );
           done.push(`${generated.version} ${source}`);
         }
+        let citationSummary = "";
+        if (errored.length === 0) {
+          const migration = await withClient(async (client) => {
+            const entry = await generateCaseSlugMigrationEntry(
+              client,
+              "data update: Indigo Book citation URL policy v1",
+            );
+            if (entry) await applyPending(client, { logger: consoleLogger });
+            return entry;
+          });
+          citationSummary = migration
+            ? `case URLs: ${migration.mutationCount} slug(s) changed; historical URLs retained.\n`
+            : "case URLs: already up to date.\n";
+        }
         const total = done.length + emptyDiff.length + errored.length;
         const summary =
           `data update: ${total} source(s) — ${done.length} appended, ` +
@@ -408,7 +446,8 @@ export function registerCliCommand(
           (emptyDiff.length > 0
             ? `already up to date (no change): ${emptyDiff.join(", ")}\n`
             : "") +
-          (errored.length > 0 ? `errored: ${errored.join(", ")}\n` : "");
+          (errored.length > 0 ? `errored: ${errored.join(", ")}\n` : "") +
+          citationSummary;
         // Any errored source fails the whole update loud (non-zero); empty diffs
         // are fine.
         dependencies.setResult(

@@ -1,3 +1,4 @@
+import { CaseUrlHistory } from "../../../src/shared/io/CaseUrlHistory.js";
 import {
   mkdtemp,
   mkdir,
@@ -163,4 +164,25 @@ test("schema failure retains the active chain and does not start sources", async
   expect(await readFile(path.join(f.chain, "old.txt"), "utf8")).toBe(
     "old generated data",
   );
+});
+
+test("reset restores retained URL history after rebuilding all sources", async () => {
+  const f = await fixture();
+  const workspace = f.deps.env.INTAKE_WORKSPACE!;
+  await CaseUrlHistory.write(
+    path.join(workspace, "state/intake/namespaces/intake/CaseUrlHistory"),
+    CaseUrlHistory.new([
+      {
+        oldPath: "/civil-cases/old/",
+        caseId: "stable-case",
+        evidence: "test evidence",
+        recordedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ]),
+  );
+  expect((await resetData({ acquire: false }, f.deps)).exitCode).toBe(0);
+  expect(f.calls.at(-2)).toBe(
+    "data citation-slugs --evidence Restore retained case URL history after data reset",
+  );
+  expect(f.calls.at(-1)).toBe("data up");
 });

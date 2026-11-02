@@ -1,4 +1,14 @@
 import {
+  CaseSlugMigration,
+  type CaseSlugMigrationEnvelope,
+} from "../../shared/io/CaseSlugMigration.js";
+import {
+  prepareCaseSlugMigration,
+  assertCaseSlugState,
+  completeCaseSlugState,
+  applyCaseSlugDatabase,
+} from "../database/case-slugs.js";
+import {
   IdentityRestoration,
   type IdentityRestorationEnvelope,
 } from "../../shared/io/IdentityRestoration.js";
@@ -18,7 +28,7 @@ import path from "node:path";
 import { DatabaseMutations } from "../import/artifacts/io/DatabaseMutations.js";
 import type { DatabaseMutationsEnvelope } from "../import/artifacts/io/DatabaseMutations.js";
 import { executeDatabaseMutations } from "../replay/database-mutations/execute.js";
-import type { DatabaseClient } from "../database/index.js";
+import { rowsFromResult, type DatabaseClient } from "../database/index.js";
 import {
   readAppliedDataMutationChecksums,
   readAppliedDataMutationVersions,
@@ -53,7 +63,7 @@ export function chainDir(root: string = defaultChainRoot()): string {
 }
 
 export type ChainEntry = {
-  kind?: "DatabaseMutations" | "IdentityRestoration";
+  kind?: "DatabaseMutations" | "IdentityRestoration" | "CaseSlugMigration";
   version: string;
   previous: string;
   minSchemaVersion: string;
@@ -62,7 +72,10 @@ export type ChainEntry = {
 };
 
 function annotationsOf(
-  envelope: DatabaseMutationsEnvelope | IdentityRestorationEnvelope,
+  envelope:
+    | DatabaseMutationsEnvelope
+    | IdentityRestorationEnvelope
+    | CaseSlugMigrationEnvelope,
 ): Record<string, string> {
   return (envelope.metadata.annotations ?? {}) as Record<string, string>;
 }
@@ -70,9 +83,12 @@ function annotationsOf(
 // The highest schema-migration version the entry was generated against — the
 // minimum the database must already have applied to run it (ADR 0033).
 function minSchemaVersion(
-  envelope: DatabaseMutationsEnvelope | IdentityRestorationEnvelope,
+  envelope:
+    | DatabaseMutationsEnvelope
+    | IdentityRestorationEnvelope
+    | CaseSlugMigrationEnvelope,
 ): string {
-  if (envelope.kind === "IdentityRestoration")
+  if (envelope.kind !== "DatabaseMutations")
     return annotationsOf(envelope)["data-mutation/min-schema"] ?? "";
   const schema = envelope.metadata.databaseSchema as
     | { appliedMigrations?: { version: string }[] }
@@ -101,18 +117,24 @@ export async function listEntries(root?: string): Promise<ChainEntry[]> {
     .filter(
       (file) =>
         file.endsWith(".DatabaseMutations.yaml") ||
-        file.endsWith(".IdentityRestoration.yaml"),
+        file.endsWith(".IdentityRestoration.yaml") ||
+        file.endsWith(".CaseSlugMigration.yaml"),
     )
     .sort();
   const entries: ChainEntry[] = [];
   for (const fileName of files) {
     const filePath = path.join(dir, fileName);
-    const envelope = fileName.endsWith(".IdentityRestoration.yaml")
-      ? await IdentityRestoration.read(filePath)
-      : await DatabaseMutations.read(filePath, { raw: true });
+    const envelope = fileName.endsWith(".CaseSlugMigration.yaml")
+      ? await CaseSlugMigration.read(filePath)
+      : fileName.endsWith(".IdentityRestoration.yaml")
+        ? await IdentityRestoration.read(filePath)
+        : await DatabaseMutations.read(filePath, { raw: true });
     const annotations = annotationsOf(envelope);
     entries.push({
-      kind: envelope.kind as "DatabaseMutations" | "IdentityRestoration",
+      kind: envelope.kind as
+        | "DatabaseMutations"
+        | "IdentityRestoration"
+        | "CaseSlugMigration",
       version: annotations[VERSION_KEY] ?? fileName,
       previous: annotations[PREVIOUS_KEY] ?? "",
       minSchemaVersion: minSchemaVersion(envelope),
@@ -154,6 +176,55 @@ export async function generateIdentityRestorationEntry(
     stamped,
   );
   return { written, version, mutationCount: 1 };
+}
+
+export async function generateCaseSlugMigrationEntry(
+  client: DatabaseClient,
+  evidence: string,
+  root?: string,
+) {
+  await assertAtHead(client, root);
+  const workspace = path.dirname(root ?? defaultChainRoot());
+  const event = await prepareCaseSlugMigration(client, workspace, evidence);
+  if (event.spec.rows.every((r) => r.before.slug === r.newSlug)) {
+    const existing = new Map(
+      rowsFromResult(
+        await client.query(
+          "select old_path,civil_case_id from public.civil_case_url_alias",
+        ),
+      ).map((a) => [String(a.old_path), String(a.civil_case_id)]),
+    );
+    if (
+      event.spec.rows.every((r) =>
+        r.oldPaths.every((p) => existing.get(p) === r.id),
+      )
+    )
+      return undefined;
+  }
+  const entries = await listEntries(root);
+  const version = String(entries.length + 1).padStart(6, "0");
+  const stamped = CaseSlugMigration.new({
+    ...event,
+    metadata: {
+      ...event.metadata,
+      name: `${version}-intake`,
+      annotations: {
+        [VERSION_KEY]: version,
+        [PREVIOUS_KEY]: entries.at(-1)?.version ?? "",
+        "data-mutation/min-schema": await readCurrentSchemaVersion(client),
+      },
+    },
+  });
+  const { path: written } = await CaseSlugMigration.write(
+    chainDir(root),
+    stamped,
+  );
+  return {
+    written,
+    version,
+    mutationCount: event.spec.rows.filter((r) => r.before.slug !== r.newSlug)
+      .length,
+  };
 }
 
 async function fileChecksum(filePath: string): Promise<string> {
@@ -217,7 +288,21 @@ export async function assertAtHead(
 ): Promise<void> {
   const entries = await listEntries(root);
   const applied = await readAppliedDataMutationVersions(client);
+  const lastCaseSlugVersion = entries
+    .filter((e) => e.kind === "CaseSlugMigration")
+    .at(-1)?.version;
   for (const entry of entries) {
+    if (
+      entry.kind === "CaseSlugMigration" &&
+      entry.version === lastCaseSlugVersion &&
+      applied.has(entry.version)
+    ) {
+      await assertCaseSlugState(
+        await CaseSlugMigration.read(entry.filePath),
+        path.dirname(root ?? defaultChainRoot()),
+        true,
+      );
+    }
     if (entry.kind === "IdentityRestoration" && applied.has(entry.version)) {
       await assertIdentityRestorationComplete(
         await IdentityRestoration.read(entry.filePath),
@@ -252,9 +337,17 @@ export async function applyPending(
   } = {},
 ): Promise<ApplyResult> {
   const entries = await listEntries(options.root);
+  const lastCaseSlugEntry = entries
+    .filter((e) => e.kind === "CaseSlugMigration")
+    .at(-1);
+  const lastCaseSlugEvent = lastCaseSlugEntry
+    ? await CaseSlugMigration.read(lastCaseSlugEntry.filePath)
+    : undefined;
   const applied = await readAppliedDataMutationVersions(client);
   const restorationChecksums = entries.some(
-    (entry) => entry.kind === "IdentityRestoration",
+    (entry) =>
+      entry.kind === "IdentityRestoration" ||
+      entry.kind === "CaseSlugMigration",
   )
     ? await readAppliedDataMutationChecksums(client)
     : new Map<string, string>();
@@ -276,6 +369,20 @@ export async function applyPending(
   let index = 0;
   for (const entry of entries) {
     if (applied.has(entry.version)) {
+      if (entry.kind === "CaseSlugMigration") {
+        if (
+          restorationChecksums.get(entry.version) !==
+          (await fileChecksum(entry.filePath))
+        )
+          throw new Error(
+            `data: checksum drift on applied case slug migration ${entry.version}.`,
+          );
+        if (entry.version === lastCaseSlugEntry?.version)
+          await completeCaseSlugState(
+            await CaseSlugMigration.read(entry.filePath),
+            path.dirname(options.root ?? defaultChainRoot()),
+          );
+      }
       if (entry.kind === "IdentityRestoration") {
         if (
           restorationChecksums.get(entry.version) !==
@@ -317,13 +424,24 @@ export async function applyPending(
         restoration,
         path.dirname(options.root ?? defaultChainRoot()),
       );
+    const caseSlugs =
+      entry.kind === "CaseSlugMigration"
+        ? await CaseSlugMigration.read(entry.filePath)
+        : undefined;
+    if (caseSlugs)
+      await assertCaseSlugState(
+        lastCaseSlugEvent!,
+        path.dirname(options.root ?? defaultChainRoot()),
+      );
     await client.query("begin");
     try {
       const counts =
-        restoration === undefined
-          ? await executeDatabaseMutations(client, entry.filePath)
-          : (await restoreDatabaseIdentity(client, restoration),
-            { mutations: 1 });
+        caseSlugs !== undefined
+          ? { mutations: await applyCaseSlugDatabase(client, caseSlugs) }
+          : restoration === undefined
+            ? await executeDatabaseMutations(client, entry.filePath)
+            : (await restoreDatabaseIdentity(client, restoration),
+              { mutations: 1 });
       await recordDataMutationApplied(client, {
         version: entry.version,
         previousVersion: entry.previous === "" ? null : entry.previous,
@@ -339,6 +457,11 @@ export async function applyPending(
       throw error;
     }
     applied.add(entry.version);
+    if (caseSlugs && entry.version === lastCaseSlugEntry?.version)
+      await completeCaseSlugState(
+        caseSlugs,
+        path.dirname(options.root ?? defaultChainRoot()),
+      );
     if (restoration !== undefined)
       await completeIdentityRestoration(
         restoration,

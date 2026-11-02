@@ -33,6 +33,7 @@ import {
 } from "../resolver-kit.js";
 import {
   personnelSlugResolver,
+  civilCaseSlugResolver,
   agencySlugResolver,
   entitySlugResolver,
 } from "./agency-personnel-resolvers.js";
@@ -245,6 +246,7 @@ const REGISTRY: Record<string, KindConfig> = {
     // key (ADR 0028). Never mint a replacement for an existing case.
     identityKind: "natural",
     overrides: {
+      slug: civilCaseSlugResolver() as AnyResolver,
       id: new Resolver<string, ResolverContext<Row, EntityFacadeBackend>>(
         async ({ source, facade, backend }) =>
           (await backend.findCanonicalId({

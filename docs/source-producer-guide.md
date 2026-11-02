@@ -151,3 +151,19 @@ run `npm run openspec:validate`.
 - [Replayable data chain](adr/0033-data-mutations-as-a-replayable-chain.md)
 - [Workspace-coupled chain](adr/0034-manual-updates-by-selector-and-workspace-coupled-chain.md)
 - [Current data commands](adr/0035-one-data-command-group-replaces-run-and-import.md)
+
+### Case URL updates
+
+After all source phases succeed, `data update` appends and applies any case
+citation slug changes in the existing data chain. It preserves case IDs, saves
+canonical slug state, and retains old URL ownership for redirects. Repeating the
+command with unchanged inputs makes no changes. `data reset` keeps that workspace
+state while replacing database contents and regenerating the data chain; it
+restores historical URL aliases after the sources are rebuilt. Keep workspace
+state in backups along with acquired source artifacts.
+
+Citation slugs use a sourced full citation when supplied, or an explicitly labelled
+docket reference (title, docket number, court abbreviation, and filing date).
+Missing citation inputs and URL ownership conflicts fail the command. Apply the
+case citation schema migration before updating, and deploy the coordinated website
+redirect support when publishing the new URLs.

@@ -3,6 +3,8 @@ import { Command } from "commander";
 import { registerCliCommand } from "../../../src/cli/data/index.js";
 import type { CommandResult } from "../../../src/shared/cli/types.js";
 import { agencyTableIsEmpty } from "../../../src/cli/database/agency-graph.js";
+import { generateCaseSlugMigrationEntry } from "../../../src/cli/data/chain.js";
+import { transformOneSource } from "../../../src/cli/data/source-pipeline.js";
 import { generateOneSource } from "../../../src/cli/data/source-pipeline.js";
 
 vi.mock("../../../src/cli/database/index.js", () => ({
@@ -15,12 +17,15 @@ vi.mock("../../../src/cli/database/agency-graph.js", () => ({
   agencyTableIsEmpty: vi.fn(),
 }));
 vi.mock("../../../src/cli/data/chain.js", () => ({
+  generateCaseSlugMigrationEntry: vi.fn(async () => undefined),
   assertAtHead: async () => {},
   applyPending: async () => [],
 }));
 vi.mock("../../../src/cli/data/source-pipeline.js", () => ({
   orderedSourceIds: async () => ["first", "later"],
-  transformOneSource: async () => ({ artifactsPath: "source.Artifacts.yaml" }),
+  transformOneSource: vi.fn(async () => ({
+    artifactsPath: "source.Artifacts.yaml",
+  })),
   generateOneSource: vi.fn(async () => ({ version: "1", mutationCount: 1 })),
 }));
 afterEach(() => {
@@ -32,6 +37,9 @@ test.each([true, false])(
   "update holds initial-root eligibility for the whole run (starts empty: %s)",
   async (startsEmpty) => {
     vi.stubEnv("DATABASE_URL", "postgresql://test");
+    vi.mocked(transformOneSource).mockResolvedValue({
+      artifactsPath: "source.Artifacts.yaml",
+    });
     vi.mocked(agencyTableIsEmpty)
       .mockResolvedValueOnce(startsEmpty)
       .mockResolvedValue(false);
@@ -49,6 +57,7 @@ test.each([true, false])(
     await program.parseAsync(["data", "update"], { from: "user" });
     expect(result).toMatchObject({ exitCode: 0 });
     expect(agencyTableIsEmpty).toHaveBeenCalledTimes(1);
+    expect(generateCaseSlugMigrationEntry).toHaveBeenCalledTimes(1);
     expect(
       vi
         .mocked(generateOneSource)
@@ -59,3 +68,20 @@ test.each([true, false])(
     ]);
   },
 );
+
+test("an errored source prevents citation migration", async () => {
+  vi.stubEnv("DATABASE_URL", "postgresql://test");
+  vi.mocked(transformOneSource).mockResolvedValue({
+    error: { exitCode: 1, stderr: "invalid source" },
+  });
+  const program = new Command();
+  let result: CommandResult | undefined;
+  registerCliCommand(program, {
+    setResult: (value) => {
+      result = value;
+    },
+  });
+  await program.parseAsync(["data", "update"], { from: "user" });
+  expect(result?.exitCode).toBe(1);
+  expect(generateCaseSlugMigrationEntry).not.toHaveBeenCalled();
+});

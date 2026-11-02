@@ -48,9 +48,10 @@ export const GENERATED_MIGRATION_VERSIONS = [
   "20260929190000",
   "20261006000000",
   "20261010000000",
+  "20261102010000",
 ] as const;
 export const GENERATED_MIGRATION_FINGERPRINT =
-  "037c3d207df432826eff97b2b17734cf482df24ef9fbd4468849f17fa77272fa";
+  "97405bd157ccf88331678d109b916e1cbc4b86db510d3096142eeaf37fad9a10";
 
 // Entity record kinds in database-dependency order (topological sort of the
 // foreign-key graph): a referenced entity precedes its referrer, so mutations
@@ -912,6 +913,8 @@ export const CivilCaseSpec = z
     primary_source_url: z.string().nullable().optional(),
     date_terminated: nullableNonEmptyString.optional(),
     location_path_id: nonEmptyString.optional(),
+    full_citation: nullableNonEmptyString.optional(),
+    citation_source_url: z.string().nullable().optional(),
   })
   .strict();
 

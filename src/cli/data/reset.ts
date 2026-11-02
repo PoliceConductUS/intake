@@ -1,3 +1,4 @@
+import { readCaseUrlHistory } from "../database/case-slugs.js";
 import { spawn } from "node:child_process";
 import { rename } from "node:fs/promises";
 import path from "node:path";
@@ -142,6 +143,15 @@ export async function resetData(
         await executePhase(["data", "generate", "org.policeconduct.manual"]);
         await executePhase(["data", "up"]);
       }
+    }
+    if (await readCaseUrlHistory(workspace)) {
+      await executePhase([
+        "data",
+        "citation-slugs",
+        "--evidence",
+        "Restore retained case URL history after data reset",
+      ]);
+      await executePhase(["data", "up"]);
     }
     return {
       exitCode: 0,

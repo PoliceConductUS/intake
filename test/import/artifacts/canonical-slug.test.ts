@@ -47,6 +47,9 @@ function setup(kind: string, currentSlug?: string, cachedSlug?: string) {
     first_name: "Changed",
     last_name: "Name",
     title: "Changed Title",
+    cause_number: "123",
+    court: "txnd",
+    filed_date: "2025-01-02",
     slug: "producer-slug",
   });
   return { facade, allocator, values };
@@ -84,9 +87,11 @@ describe.each(kinds)("%s canonical slugs", (kind) => {
     expect(slug).toBe(
       kind === "Personnel"
         ? "changed-name-icalid"
-        : kind === "CivilCase" || kind === "Review"
-          ? "changed-title"
-          : "changed-name",
+        : kind === "CivilCase"
+          ? "changed-title-no-123-n-d-tex-filed-jan-2-2025"
+          : kind === "Review"
+            ? "changed-title"
+            : "changed-name",
     );
     expect(values.get("slug")).toBe(slug);
   });

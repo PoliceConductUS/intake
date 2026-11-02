@@ -1,3 +1,4 @@
+import { caseCitationSlug } from "../../../../shared/case-citation.js";
 import {
   Resolver,
   valueAsString,
@@ -55,6 +56,7 @@ function slugResolver(
     id: string,
     source: FacadeSource,
   ) => string,
+  collisionPolicy: "disambiguate" | "error" = "disambiguate",
 ): Resolver<string, ResolverContext<Row, SlugBackend>> {
   return new Resolver(async ({ facade, source, backend, cache, current }) => {
     const id = String(await facade.value("id"));
@@ -89,14 +91,13 @@ function slugResolver(
         `Canonical slug conflict for ${kind} ${id}: correction ${String(correction)} differs from established slug ${String(established)}.`,
       );
     }
-    const slug =
-      established ??
-      valueAsString(correction) ??
-      (await backend.ensureUniqueSlug({
-        kind,
-        base: deriveBase(facade, id, source),
-        canonicalId: id,
-      }));
+    let slug = established ?? valueAsString(correction);
+    if (slug === undefined) {
+      const base = deriveBase(facade, id, source);
+      slug = await backend.ensureUniqueSlug({ kind, base, canonicalId: id });
+      if (collisionPolicy === "error" && slug !== base)
+        throw new Error(`Citation slug collision for ${kind} ${id}: ${base}`);
+    }
     await backend.registerSlug({ kind, slug, canonicalId: id });
     if (cached === undefined) {
       await cache?.write(
@@ -158,4 +159,24 @@ export function agencySlugResolver(): Resolver<
     }
     return slugify(name);
   });
+}
+
+/** Citation policy applies uniformly to every CivilCase producer. */
+export function civilCaseSlugResolver(): Resolver<
+  string,
+  ResolverContext<Row, SlugBackend>
+> {
+  return slugResolver(
+    "CivilCase",
+    (facade) =>
+      caseCitationSlug({
+        title: valueAsString(facade.raw("title")) ?? "",
+        cause_number: valueAsString(facade.raw("cause_number")) ?? "",
+        court: valueAsString(facade.raw("court")),
+        filed_date: valueAsString(facade.raw("filed_date")) ?? "",
+        full_citation: valueAsString(facade.raw("full_citation")),
+        citation_source_url: valueAsString(facade.raw("citation_source_url")),
+      }),
+    "error",
+  );
 }
