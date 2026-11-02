@@ -145,6 +145,8 @@ type PendingCreate = {
 
 // Postgres caps a statement at 65535 bind parameters; keep a margin.
 const MAX_INSERT_PARAMETERS = 60000;
+// Bound server-side parsing memory independently of the bind-parameter count.
+const MAX_INSERT_PAYLOAD_BYTES = 1024 * 1024;
 
 function definedColumns(spec: Record<string, unknown>): string[] {
   return Object.entries(spec)
@@ -320,7 +322,12 @@ export async function executeDatabaseMutations(
   // buffer a run of same-kind, same-column creates and flush it as one multi-row
   // insert — on a kind/column change, the parameter cap, or the first non-create.
   let pending:
-    | { recordKind: string; signature: string; creates: PendingCreate[] }
+    | {
+        recordKind: string;
+        signature: string;
+        creates: PendingCreate[];
+        payloadBytes: number;
+      }
     | undefined;
   const flushPending = async (): Promise<void> => {
     if (pending !== undefined) {
@@ -337,6 +344,10 @@ export async function executeDatabaseMutations(
     const { operation, recordKind } = parseDatabaseMutationKind(mutation.kind);
     if (operation === "create") {
       const databaseSpec = databaseSpecForMutation(recordKind, mutation.spec);
+      const payloadBytes = Buffer.byteLength(
+        JSON.stringify(databaseSpec),
+        "utf8",
+      );
       const columns = definedColumns(databaseSpec);
       const signature = `${recordKind}(${columns.join(",")})`;
       const rowCap = Math.max(
@@ -345,13 +356,16 @@ export async function executeDatabaseMutations(
       );
       if (
         pending !== undefined &&
-        (pending.signature !== signature || pending.creates.length >= rowCap)
+        (pending.signature !== signature ||
+          pending.creates.length >= rowCap ||
+          pending.payloadBytes + payloadBytes > MAX_INSERT_PAYLOAD_BYTES)
       ) {
         await flushPending();
       }
       if (pending === undefined) {
-        pending = { recordKind, signature, creates: [] };
+        pending = { recordKind, signature, creates: [], payloadBytes: 0 };
       }
+      pending.payloadBytes += payloadBytes;
       pending.creates.push({
         mutationName: mutation.metadata.name,
         databaseSpec,
