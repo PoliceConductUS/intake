@@ -3,4 +3,4 @@
 - [x] Implement guarded, replayable slug-state migration and alias persistence.
 - [x] Update website redirects and test collisions, missing destinations, and old URL forms.
 - [x] Run migration twice in isolated data, verify all IDs, old URLs, and data diffs.
-- [ ] Create reviewable PRs and retain release holds.
+- [x] Create reviewable PRs and retain release holds.
