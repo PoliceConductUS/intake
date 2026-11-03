@@ -98,6 +98,30 @@ test("selects unavailable amended complaint from later page instead of older ava
   expect(result.complaint_summary_unavailability?.reason).toBe("missing_copy");
   expect(s.analyze).not.toHaveBeenCalled();
 });
+test("recognizes an amended complaint from the entry despite a generic document label", async () => {
+  const s = await setup([
+    { entry_number: 1, date_filed: "2025-01-01", recap_documents: [doc] },
+    {
+      entry_number: 12,
+      date_filed: "2025-02-01",
+      description: "FIRST AMENDED COMPLAINT by Plaintiff",
+      recap_documents: [
+        {
+          ...doc,
+          id: 124,
+          document_number: "12",
+          description: "Amended Document (NOT Motion)",
+          is_available: false,
+        },
+      ],
+    },
+  ]);
+  const result = await acquireComplaintSummary(s.args);
+  expect(result.ai_complaint_summary).toBeNull();
+  expect(result.complaint_summary_unavailability?.reason).toBe("missing_copy");
+  expect(s.fetchPdf).not.toHaveBeenCalled();
+  expect(s.analyze).not.toHaveBeenCalled();
+});
 test("rejects hash mismatch before analysis", async () => {
   const s = await setup([
     {

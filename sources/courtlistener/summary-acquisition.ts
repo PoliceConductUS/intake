@@ -96,13 +96,13 @@ export async function prepareComplaint(
         .array(z.record(z.string(), z.unknown()))
         .parse(entry.recap_documents)
         .flatMap((raw) => {
-          const label = String(
-            raw.description || entry.description || "",
-          ).trim();
+          const labels = [raw.description, entry.description];
           if (
             raw.attachment_number != null ||
-            !/^(?:(?:first|second|third|fourth|fifth|\d+(?:st|nd|rd|th))\s+)?(?:(?:amended|corrected|supplemental)\s+)*complaint\b/i.test(
-              label,
+            !labels.some((label) =>
+              /^(?:(?:first|second|third|fourth|fifth|\d+(?:st|nd|rd|th))\s+)?(?:(?:amended|corrected|supplemental)\s+)*complaint\b/i.test(
+                String(label ?? "").trim(),
+              ),
             )
           )
             return [];
