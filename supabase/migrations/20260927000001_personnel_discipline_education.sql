@@ -61,7 +61,9 @@ create table public.personnel_education (
         id
     ) on delete restrict,
     -- Keep the approved source field name; quoting conflicts with RF06.
-    name text not null check (char_length(btrim(name)) > 0), -- noqa: RF04
+    -- RF04: This existing schema identifier is consumed by migrations and
+    -- clients. Renaming it requires a coordinated schema/API change.
+    name text not null check (char_length(btrim(name)) > 0),
     completion_date date,
     credits numeric,
     sponsor_name text,

@@ -1,3 +1,17 @@
+import {
+  IdentityRestoration,
+  type IdentityRestorationEnvelope,
+} from "../../shared/io/IdentityRestoration.js";
+import {
+  assertIdentityRestorationReady,
+  assertIdentityRestorationReplayable,
+  assertIdentityRestorationComplete,
+  completeIdentityRestoration,
+} from "../state/source-name-to-canonical-id/restore.js";
+import {
+  assertDatabaseIdentityRestorationReady,
+  restoreDatabaseIdentity,
+} from "../database/restore-identity.js";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
@@ -39,6 +53,7 @@ export function chainDir(root: string = defaultChainRoot()): string {
 }
 
 export type ChainEntry = {
+  kind?: "DatabaseMutations" | "IdentityRestoration";
   version: string;
   previous: string;
   minSchemaVersion: string;
@@ -47,14 +62,18 @@ export type ChainEntry = {
 };
 
 function annotationsOf(
-  envelope: DatabaseMutationsEnvelope,
+  envelope: DatabaseMutationsEnvelope | IdentityRestorationEnvelope,
 ): Record<string, string> {
   return (envelope.metadata.annotations ?? {}) as Record<string, string>;
 }
 
 // The highest schema-migration version the entry was generated against — the
 // minimum the database must already have applied to run it (ADR 0033).
-function minSchemaVersion(envelope: DatabaseMutationsEnvelope): string {
+function minSchemaVersion(
+  envelope: DatabaseMutationsEnvelope | IdentityRestorationEnvelope,
+): string {
+  if (envelope.kind === "IdentityRestoration")
+    return annotationsOf(envelope)["data-mutation/min-schema"] ?? "";
   const schema = envelope.metadata.databaseSchema as
     | { appliedMigrations?: { version: string }[] }
     | undefined;
@@ -79,14 +98,21 @@ async function readChainDir(dir: string): Promise<string[]> {
 export async function listEntries(root?: string): Promise<ChainEntry[]> {
   const dir = chainDir(root);
   const files = (await readChainDir(dir))
-    .filter((file) => file.endsWith(".DatabaseMutations.yaml"))
+    .filter(
+      (file) =>
+        file.endsWith(".DatabaseMutations.yaml") ||
+        file.endsWith(".IdentityRestoration.yaml"),
+    )
     .sort();
   const entries: ChainEntry[] = [];
   for (const fileName of files) {
     const filePath = path.join(dir, fileName);
-    const envelope = await DatabaseMutations.read(filePath, { raw: true });
+    const envelope = fileName.endsWith(".IdentityRestoration.yaml")
+      ? await IdentityRestoration.read(filePath)
+      : await DatabaseMutations.read(filePath, { raw: true });
     const annotations = annotationsOf(envelope);
     entries.push({
+      kind: envelope.kind as "DatabaseMutations" | "IdentityRestoration",
       version: annotations[VERSION_KEY] ?? fileName,
       previous: annotations[PREVIOUS_KEY] ?? "",
       minSchemaVersion: minSchemaVersion(envelope),
@@ -95,6 +121,39 @@ export async function listEntries(root?: string): Promise<ChainEntry[]> {
     });
   }
   return entries;
+}
+
+export async function generateIdentityRestorationEntry(
+  client: DatabaseClient,
+  event: IdentityRestorationEnvelope,
+  root?: string,
+): Promise<{ written: string; version: string; mutationCount: number }> {
+  const parsed = IdentityRestoration.schema.parse(event);
+  await assertAtHead(client, root);
+  const workspace = path.dirname(root ?? defaultChainRoot());
+  await assertIdentityRestorationReady(parsed, workspace);
+  await assertDatabaseIdentityRestorationReady(client, parsed);
+  const entries = await listEntries(root);
+  const version = String(entries.length + 1).padStart(6, "0");
+  const previous = entries.at(-1)?.version ?? "";
+  const schema = await readCurrentSchemaVersion(client);
+  const stamped = IdentityRestoration.new({
+    ...parsed,
+    metadata: {
+      ...parsed.metadata,
+      name: `${version}-${parsed.metadata.namespace}`,
+      annotations: {
+        [VERSION_KEY]: version,
+        [PREVIOUS_KEY]: previous,
+        "data-mutation/min-schema": schema,
+      },
+    },
+  });
+  const { path: written } = await IdentityRestoration.write(
+    chainDir(root),
+    stamped,
+  );
+  return { written, version, mutationCount: 1 };
 }
 
 async function fileChecksum(filePath: string): Promise<string> {
@@ -158,6 +217,14 @@ export async function assertAtHead(
 ): Promise<void> {
   const entries = await listEntries(root);
   const applied = await readAppliedDataMutationVersions(client);
+  for (const entry of entries) {
+    if (entry.kind === "IdentityRestoration" && applied.has(entry.version)) {
+      await assertIdentityRestorationComplete(
+        await IdentityRestoration.read(entry.filePath),
+        path.dirname(root ?? defaultChainRoot()),
+      );
+    }
+  }
   const pending = entries.filter((entry) => !applied.has(entry.version));
   if (pending.length > 0) {
     throw new Error(
@@ -186,6 +253,11 @@ export async function applyPending(
 ): Promise<ApplyResult> {
   const entries = await listEntries(options.root);
   const applied = await readAppliedDataMutationVersions(client);
+  const restorationChecksums = entries.some(
+    (entry) => entry.kind === "IdentityRestoration",
+  )
+    ? await readAppliedDataMutationChecksums(client)
+    : new Map<string, string>();
   const schema = await readCurrentSchemaVersion(client);
   const result: ApplyResult = [];
 
@@ -204,6 +276,19 @@ export async function applyPending(
   let index = 0;
   for (const entry of entries) {
     if (applied.has(entry.version)) {
+      if (entry.kind === "IdentityRestoration") {
+        if (
+          restorationChecksums.get(entry.version) !==
+          (await fileChecksum(entry.filePath))
+        )
+          throw new Error(
+            `data: checksum drift on applied identity restoration ${entry.version}.`,
+          );
+        await completeIdentityRestoration(
+          await IdentityRestoration.read(entry.filePath),
+          path.dirname(options.root ?? defaultChainRoot()),
+        );
+      }
       continue;
     }
     if (entry.previous !== "" && !applied.has(entry.previous)) {
@@ -223,9 +308,22 @@ export async function applyPending(
       `[${index}/${targetCount}] applying ${entry.version} (${entry.fileName})…`,
     );
     const checksum = await fileChecksum(entry.filePath);
+    const restoration =
+      entry.kind === "IdentityRestoration"
+        ? await IdentityRestoration.read(entry.filePath)
+        : undefined;
+    if (restoration !== undefined)
+      await assertIdentityRestorationReplayable(
+        restoration,
+        path.dirname(options.root ?? defaultChainRoot()),
+      );
     await client.query("begin");
     try {
-      const counts = await executeDatabaseMutations(client, entry.filePath);
+      const counts =
+        restoration === undefined
+          ? await executeDatabaseMutations(client, entry.filePath)
+          : (await restoreDatabaseIdentity(client, restoration),
+            { mutations: 1 });
       await recordDataMutationApplied(client, {
         version: entry.version,
         previousVersion: entry.previous === "" ? null : entry.previous,
@@ -241,6 +339,11 @@ export async function applyPending(
       throw error;
     }
     applied.add(entry.version);
+    if (restoration !== undefined)
+      await completeIdentityRestoration(
+        restoration,
+        path.dirname(options.root ?? defaultChainRoot()),
+      );
     if (options.to !== undefined && entry.version === options.to) {
       break;
     }

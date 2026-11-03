@@ -4,7 +4,8 @@
 -- back to `title`. The rename preserves every row and its id, and keeps the
 -- NOT NULL constraint (every assignment has a role).
 --
--- Also add a nullable `license_id` for the "held under a license" link. It stays
+-- Also add a nullable `license_id` for the "held under a license" link. It
+-- stays
 -- null until the licensing phase emits License entities; the foreign-key
 -- constraint to public.license is added alongside that table.
 
@@ -29,4 +30,4 @@ begin
 end $$;
 
 alter table public.agency_officers
-  add column if not exists license_id text;
+add column if not exists license_id text;
