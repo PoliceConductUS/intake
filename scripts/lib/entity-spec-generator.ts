@@ -177,6 +177,11 @@ const DESCRIPTORS: EntityDescriptor[] = [
     table: "personnel_education",
     createRequired: ["id"],
   },
+  {
+    recordKind: "PersonnelPhoto",
+    table: "personnel_photo",
+    createRequired: ["id"],
+  },
   { recordKind: "Discipline", table: "discipline", createRequired: ["id"] },
   {
     recordKind: "DisciplineAgencyPersonnel",
@@ -259,6 +264,11 @@ const DESCRIPTORS: EntityDescriptor[] = [
     // id is find-or-mint by the business key; jsonb columns pass through.
     recordKind: "ArrestProfile",
     table: "arrest_profile",
+    createRequired: ["id"],
+  },
+  {
+    recordKind: "AgencyArrestProfile",
+    table: "agency_arrest_profile",
     createRequired: ["id"],
   },
 ];
@@ -411,6 +421,7 @@ const ENTITY_NAME_BY_RECORD_KIND: Record<string, string> = {
   License: "licenses",
   LicenseAction: "licenseActions",
   PersonnelEducation: "personnelEducations",
+  PersonnelPhoto: "personnelPhotos",
   Discipline: "disciplines",
   DisciplineAgencyPersonnel: "disciplineAgencyPersonnel",
   CoverageLink: "coverageLinks",
@@ -424,6 +435,7 @@ const ENTITY_NAME_BY_RECORD_KIND: Record<string, string> = {
   ReviewPersonnel: "reviewPersonnel",
   ReviewLink: "reviewLinks",
   ArrestProfile: "arrestProfiles",
+  AgencyArrestProfile: "agencyArrestProfiles",
 };
 
 function capitalizeFirst(value: string): string {

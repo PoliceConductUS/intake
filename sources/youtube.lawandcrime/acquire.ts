@@ -89,13 +89,13 @@ export const acquire: SourceAcquire = async ({
   }
   await mkdir(sourceDir, { recursive: true });
 
-  const { fetchJson, fetchText } = createKeyedYoutubeFetchers({
+  const { fetchJson } = createKeyedYoutubeFetchers({
     sourceId: SOURCE_ID,
     apiKey,
     apiLogPath: path.join(sourceDir, ".api-calls.jsonl"),
     logger: log,
   });
-  const youtube = createYoutubeApi({ fetchJson, fetchText });
+  const youtube = createYoutubeApi({ fetchJson });
   const channel = await verifiedChannel(youtube, log);
   await writeFile(
     path.join(sourceDir, "channel.json"),

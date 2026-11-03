@@ -1,5 +1,7 @@
+import { BeatBoundariesSchema } from "./beats.js";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { z } from "zod";
 import type { ImportArtifactKind } from "../../src/shared/io/index.js";
 import type {
   EmittedRecords,
@@ -7,12 +9,15 @@ import type {
   SourceTransform,
 } from "../../src/cli/transform/source-transform.js";
 import {
-  buildBreakdowns,
-  coverageOf,
+  buildProfile,
+  parseNormalizedArrest,
   type NormalizedArrest,
 } from "./arrest.js";
 
-export const produces: readonly ImportArtifactKind[] = ["ArrestProfiles"];
+export const produces: readonly ImportArtifactKind[] = [
+  "ArrestProfiles",
+  "AgencyArrestProfiles",
+];
 
 // The per-officer summary resolves names against the imported roster, so it must
 // run after AgencyPersonnel is applied. That ordering falls out of the FK
@@ -44,8 +49,33 @@ export const transform: SourceTransform = async ({
   const arrests = (await readFile(file, "utf8"))
     .split("\n")
     .filter((line) => line.trim() !== "")
-    .map((line) => JSON.parse(line) as NormalizedArrest);
+    .map((line) => parseNormalizedArrest(JSON.parse(line)));
 
+  const provenanceFile = paths.find((candidate) =>
+    candidate.endsWith("analytics-provenance.json"),
+  );
+  if (provenanceFile === undefined)
+    throw new Error("Missing analytics-provenance.json (run acquire first).");
+  const evidence = z
+    .object({
+      beatBoundaries: BeatBoundariesSchema,
+      provenance: z.record(z.string(), z.unknown()),
+      audit: z.record(z.string(), z.unknown()),
+    })
+    .strict()
+    .parse(JSON.parse(await readFile(provenanceFile, "utf8")));
+  // Validate uniqueness even if a duplicate booking has no resolvable officer.
+  const agencyProfile = buildProfile(arrests);
+  const beatCodes = new Set(evidence.beatBoundaries.map((beat) => beat.code));
+  for (const arrest of arrests) {
+    if (
+      arrest.enrichment.beat !== null &&
+      !beatCodes.has(arrest.enrichment.beat)
+    )
+      throw new Error(
+        `Missing patrol boundary for beat ${arrest.enrichment.beat}`,
+      );
+  }
   const agency = await data.resolveAgency?.({ agencyName: AGENCY_NAME });
   if (agency === undefined || agency === null) {
     throw new Error(
@@ -65,13 +95,14 @@ export const transform: SourceTransform = async ({
     officerByName.set(name, resolved?.agencyPersonnelId ?? null);
   }
 
-  // Every arrest resolves to an officer or it does not count (ADR 0032): group by
-  // each resolved arresting officer.
+  // Agency coverage includes every booking; officer coverage includes each booking
+  // once for each resolved assignment.
   const byOfficer = new Map<string, NormalizedArrest[]>();
   const unresolvedNames = new Set<string>();
   let arrestsWithNoOfficer = 0;
   for (const arrest of arrests) {
     let linked = false;
+    const assignments = new Set<string>();
     for (const name of arrest.officerNames) {
       const officerId = officerByName.get(name) ?? null;
       if (officerId === null) {
@@ -79,6 +110,8 @@ export const transform: SourceTransform = async ({
         continue;
       }
       linked = true;
+      if (assignments.has(officerId)) continue;
+      assignments.add(officerId);
       const list = byOfficer.get(officerId);
       if (list === undefined) byOfficer.set(officerId, [arrest]);
       else list.push(arrest);
@@ -88,16 +121,18 @@ export const transform: SourceTransform = async ({
 
   const records: EmittedRecords = {};
   for (const [officerId, officerArrests] of byOfficer) {
+    const profile = buildProfile(officerArrests);
     records[officerId] = {
-      spec: {
+      spec: structuredClone({
         agency_personnel_id: officerId,
         coverage: {
           source: "gov.irvingtx.arrests",
           agency: AGENCY_NAME,
-          ...coverageOf(officerArrests),
+          ...profile.coverage,
+          provenance: evidence.provenance,
         },
-        breakdowns: buildBreakdowns(officerArrests),
-      },
+        breakdowns: profile.breakdowns,
+      }),
     };
   }
 
@@ -119,5 +154,41 @@ export const transform: SourceTransform = async ({
     `gov.irvingtx.arrests: ${byOfficer.size} officer profiles from ${arrests.length} arrests; ${unresolvedNames.size} unresolved names.`,
   );
 
-  return { artifacts: [{ kind: "ArrestProfiles", records }] };
+  return {
+    artifacts: [
+      { kind: "ArrestProfiles", records },
+      {
+        kind: "AgencyArrestProfiles",
+        records: {
+          [agency.agencyId]: {
+            spec: {
+              agency_id: agency.agencyId,
+              coverage: {
+                source: "gov.irvingtx.arrests",
+                agency: AGENCY_NAME,
+                ...agencyProfile.coverage,
+                provenance: evidence.provenance,
+                audit: evidence.audit,
+                dataQualityFindings: [
+                  {
+                    code: "bookings_without_matching_charge_records",
+                    count: agencyProfile.coverage.arrestsWithoutLinkedCharges,
+                    totalBookings: agencyProfile.coverage.totalArrests,
+                    reason: "unknown",
+                  },
+                ],
+                officersProfiled: byOfficer.size,
+                unresolvedNameCount: unresolvedNames.size,
+                arrestsWithNoResolvedOfficer: arrestsWithNoOfficer,
+              },
+              breakdowns: {
+                ...agencyProfile.breakdowns,
+                arrest_beat_boundaries: evidence.beatBoundaries,
+              },
+            },
+          },
+        },
+      },
+    ],
+  };
 };
