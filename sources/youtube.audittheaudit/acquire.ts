@@ -66,11 +66,6 @@ export const acquire: SourceAcquire = async ({
     // This source reads no captions: the timedtext track lives under `/api/`,
     // which youtube.com/robots.txt disallows. Refused outright rather than
     // merely left uncalled, so it cannot be reached by accident.
-    fetchText: () => {
-      throw new Error(
-        `${SOURCE_ID}: caption access is not permitted (youtube.com/robots.txt disallows /api/).`,
-      );
-    },
   });
 
   // The handle is re-resolved every run and must still answer with the channel id

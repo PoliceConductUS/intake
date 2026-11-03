@@ -1,28 +1,36 @@
-// Officer-name candidates a publisher asserts in free text, with the passage
-// asserting each one. Shared by every coverage source so one channel cannot
-// drift into a looser reading of "this text names an officer" than another.
+// Candidate officer names a publisher asserts in free text (a video title,
+// or description), each with the passage that asserts it.
 //
-// Names are only ever CANDIDATES — the intake-owned resolver gates them against
-// the agency roster (confidence floor + ambiguity band); we never guess (#52).
-
+// This heuristic lives here, once, on purpose. Every video-coverage source needs
+// it, and it is the most safety-critical guess in the pipeline: a name pulled out
+// of prose written for an audience is a CANDIDATE and nothing else. Whether it
+// corresponds to a real person is decided downstream by the intake-owned resolver
+// (ADR 0022/0023), which gates against the acquired agency's roster with a
+// confidence floor and an ambiguity band. A source carrying its own copy of this
+// regex would be a second, unreviewed gate on claims about named human beings.
 import { isPersonName } from "./civil-defendants.js";
 
-// The role prefix is case-insensitive (`(?i:…)`) so "Officer"/"OFFICER"/"officer"
-// all match; the name stays Title-case so only capitalized name words are
-// captured (it stops at the next lowercase word, e.g. "responds").
-const OFFICER_MENTION =
+// A role word followed by a Title-case name. The role prefix is case-insensitive
+// (`(?i:…)`) so "Officer"/"OFFICER"/"officer" all match; the name stays Title-case
+// so only capitalized name words are captured (it stops at the next lowercase
+// word, e.g. "responds").
+export const OFFICER_MENTION =
   /\b(?i:officers?|deputies|deputy|sergeants?|sgt|detectives?|det|lieutenants?|lt|corporals?|cpl|troopers?|chiefs?|captains?|capt|sheriffs?|marshals?|patrol(?:man|woman|men)?)\.?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z'.-]+){1,2})/g;
 
+/** A name a publisher asserts, and the first passage asserting it. */
 export type OfficerMention = { name: string; passage: string };
 
 /**
- * The distinct officer mentions across `fields` (e.g. a video's title then
- * description), each with the first passage that supports it. Fields are read in
- * order, so the earliest passage naming an officer is the one cited.
+ * The distinct officer mentions across `fields`, in the order the fields are
+ * given, each keeping its first supporting passage. Fields are searched in order,
+ * so callers pass title, then description, never captions — the passage recorded for a name is the first one found.
  */
-export function officerMentions(fields: readonly string[]): OfficerMention[] {
+export function officerMentions(
+  fields: readonly (string | null | undefined)[],
+): OfficerMention[] {
   const found = new Map<string, string>();
   for (const field of fields) {
+    if (typeof field !== "string" || field === "") continue;
     for (const match of field.matchAll(OFFICER_MENTION)) {
       const name = match[1].trim();
       if (!isPersonName(name) || found.has(name)) continue;

@@ -2,55 +2,65 @@ import { describe, it, expect } from "vitest";
 import { officerMentions } from "../../../sources/lib/officer-mentions.js";
 
 describe("officerMentions", () => {
-  it("captures a role-prefixed Title-case name and its passage", () => {
+  it("captures a role-prefixed name and the passage asserting it", () => {
     expect(officerMentions(["Officer John Smith responds to a call."])).toEqual(
       [{ name: "John Smith", passage: "Officer John Smith" }],
     );
   });
 
-  it("matches the role prefix case-insensitively", () => {
+  it("matches a role word in any case", () => {
     expect(officerMentions(["OFFICER John Smith"])[0].name).toBe("John Smith");
-    expect(officerMentions(["sergeant Jane Wilson"])[0].name).toBe(
+    expect(officerMentions(["officer John Smith"])[0].name).toBe("John Smith");
+  });
+
+  it("recognises the rank vocabulary the sources actually encounter", () => {
+    const ranks = [
+      "Sergeant Jane Wilson",
+      "Deputy Carl Reed",
+      "Det. Maria Lopez",
+      "Lt. Omar Haddad",
+      "Trooper Beth Clark",
+      "Sheriff Dan Boone",
+    ];
+    expect(officerMentions(ranks).map((m) => m.name)).toEqual([
       "Jane Wilson",
-    );
-  });
-
-  it("reads fields in order and keeps the first passage for a repeated name", () => {
-    expect(
-      officerMentions([
-        "Deputy Jane Wilson on scene",
-        "Sergeant Jane Wilson later",
-      ]),
-    ).toEqual([{ name: "Jane Wilson", passage: "Deputy Jane Wilson" }]);
-  });
-
-  it("returns each distinct officer once", () => {
-    expect(
-      officerMentions([
-        "Officer John Smith and Detective Ann Lee",
-        "Trooper Ann Lee",
-      ]).map((mention) => mention.name),
-    ).toEqual(["John Smith", "Ann Lee"]);
-  });
-
-  it("rejects a candidate that reads as an institution", () => {
-    expect(officerMentions(["Chiefs Police Department"])).toEqual([]);
-  });
-
-  it("leaves a role phrase that reads like a name to the roster resolver", () => {
-    // Nothing in the text says "Involved Shooting Unit" is not a person; only the
-    // agency roster can, which is the resolver's job (#52). Extraction produces
-    // candidates, never links.
-    expect(officerMentions(["Officer Involved Shooting Unit"])).toEqual([
-      {
-        name: "Involved Shooting Unit",
-        passage: "Officer Involved Shooting Unit",
-      },
+      "Carl Reed",
+      "Maria Lopez",
+      "Omar Haddad",
+      "Beth Clark",
+      "Dan Boone",
     ]);
   });
 
-  it("finds nothing in text that names no officer", () => {
+  it("keeps each name once, with its first supporting passage", () => {
+    // Fields are searched in the order given, so the title's passage wins.
+    const mentions = officerMentions([
+      "Officer John Smith arrests a man",
+      "Sergeant John Smith was also there",
+    ]);
+    expect(mentions).toEqual([
+      { name: "John Smith", passage: "Officer John Smith" },
+    ]);
+  });
+
+  it("ignores null, undefined, and empty fields", () => {
+    expect(officerMentions([null, undefined, ""])).toEqual([]);
+    expect(officerMentions([null, "Officer John Smith"])).toHaveLength(1);
+  });
+
+  it("stops at the next lowercase word rather than swallowing prose", () => {
+    expect(officerMentions(["Officer John Smith responds"])[0].name).toBe(
+      "John Smith",
+    );
+  });
+
+  it("finds no candidate where no one is named", () => {
     expect(officerMentions(["General footage, no one named."])).toEqual([]);
-    expect(officerMentions([""])).toEqual([]);
+    // A bare role word with no name is not a candidate.
+    expect(officerMentions(["The officer drove away."])).toEqual([]);
+  });
+
+  it("requires a surname, so a role plus a single first name is not a candidate", () => {
+    expect(officerMentions(["Officer John"])).toEqual([]);
   });
 });

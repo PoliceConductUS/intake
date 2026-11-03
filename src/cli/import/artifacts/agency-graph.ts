@@ -24,6 +24,12 @@ export type InclusionEdge = {
 
 export const AGENCY_GRAPH_EDGES: readonly InclusionEdge[] = [
   {
+    parent: "Agency",
+    child: "AgencyArrestProfile",
+    holder: "child",
+    field: "agency_id",
+  },
+  {
     parent: "FederalAgency",
     child: "Agency",
     holder: "child",
@@ -32,6 +38,12 @@ export const AGENCY_GRAPH_EDGES: readonly InclusionEdge[] = [
   {
     parent: "Personnel",
     child: "Discipline",
+    holder: "child",
+    field: "personnel_id",
+  },
+  {
+    parent: "Personnel",
+    child: "PersonnelPhoto",
     holder: "child",
     field: "personnel_id",
   },

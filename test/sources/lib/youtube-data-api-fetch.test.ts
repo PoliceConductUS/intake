@@ -36,35 +36,51 @@ async function fetchWith(responses: Response[]) {
 }
 
 describe("createDataApiFetch", () => {
+  it("rejects disallowed paths before reaching the transport", async () => {
+    const { fetchJson, urls } = await fetchWith([]);
+    await expect(
+      fetchJson("https://www.youtube.com/api/timedtext?v=v1"),
+    ).rejects.toThrow(/refusing to request/);
+    expect(urls).toEqual([]);
+  });
+
   it("appends the api key and returns the parsed body", async () => {
     const { fetchJson, urls } = await fetchWith([
       response(200, { items: [{ id: "UC1" }] }),
     ]);
 
-    expect(await fetchJson("https://api.test/channels?part=id")).toEqual({
+    expect(
+      await fetchJson("https://www.googleapis.com/youtube/v3/channels?part=id"),
+    ).toEqual({
       items: [{ id: "UC1" }],
     });
-    expect(urls).toEqual(["https://api.test/channels?part=id&key=KEY123"]);
+    expect(urls).toEqual([
+      "https://www.googleapis.com/youtube/v3/channels?part=id&key=KEY123",
+    ]);
   });
 
   it("starts the query string when the url has none", async () => {
     const { fetchJson, urls } = await fetchWith([response(200, {})]);
-    await fetchJson("https://api.test/channels");
-    expect(urls[0]).toBe("https://api.test/channels?key=KEY123");
+    await fetchJson("https://www.googleapis.com/youtube/v3/channels");
+    expect(urls[0]).toBe(
+      "https://www.googleapis.com/youtube/v3/channels?key=KEY123",
+    );
   });
 
   it("logs every request and its verbatim body for audit", async () => {
     const { fetchJson, apiLogPath } = await fetchWith([
       response(200, { items: [] }),
     ]);
-    await fetchJson("https://api.test/search?q=x");
+    await fetchJson("https://www.googleapis.com/youtube/v3/search?q=x");
 
     const logged = (await readFile(apiLogPath, "utf8"))
       .trim()
       .split("\n")
       .map((line) => JSON.parse(line));
     expect(logged).toHaveLength(1);
-    expect(logged[0].url).toBe("https://api.test/search?q=x");
+    expect(logged[0].url).toBe(
+      "https://www.googleapis.com/youtube/v3/search?q=x",
+    );
     expect(logged[0].status).toBe(200);
     expect(logged[0].body).toEqual({ items: [] });
     expect(typeof logged[0].at).toBe("string");
@@ -77,7 +93,9 @@ describe("createDataApiFetch", () => {
       response(200, { items: [1] }),
     ]);
 
-    expect(await fetchJson("https://api.test/search")).toEqual({ items: [1] });
+    expect(
+      await fetchJson("https://www.googleapis.com/youtube/v3/search"),
+    ).toEqual({ items: [1] });
     expect(waits).toEqual([1000, 2000]);
   });
 
@@ -86,8 +104,10 @@ describe("createDataApiFetch", () => {
       Array.from({ length: 6 }, () => response(503, { error: {} })),
     );
 
-    await expect(fetchJson("https://api.test/search")).rejects.toThrow(
-      /^youtube\.test: 503 for https:\/\/api\.test\/search$/,
+    await expect(
+      fetchJson("https://www.googleapis.com/youtube/v3/search"),
+    ).rejects.toThrow(
+      "youtube.test: 503 for https://www.googleapis.com/youtube/v3/search",
     );
   });
 
@@ -96,9 +116,9 @@ describe("createDataApiFetch", () => {
       response(404, { error: { errors: [{ reason: "notFound" }] } }),
     ]);
 
-    await expect(fetchJson("https://api.test/channels")).rejects.toThrow(
-      /youtube\.test: 404/,
-    );
+    await expect(
+      fetchJson("https://www.googleapis.com/youtube/v3/channels"),
+    ).rejects.toThrow(/youtube\.test: 404/);
     expect(urls).toHaveLength(1);
   });
 
@@ -107,9 +127,9 @@ describe("createDataApiFetch", () => {
       response(403, { error: { errors: [{ reason: "quotaExceeded" }] } }),
     ]);
 
-    await expect(fetchJson("https://api.test/search")).rejects.toThrow(
-      YoutubeQuotaError,
-    );
+    await expect(
+      fetchJson("https://www.googleapis.com/youtube/v3/search"),
+    ).rejects.toThrow(YoutubeQuotaError);
     expect(urls).toHaveLength(1);
   });
 
@@ -123,9 +143,9 @@ describe("createDataApiFetch", () => {
       }),
     ]);
 
-    await expect(fetchJson("https://api.test/search")).rejects.toThrow(
-      YoutubeQuotaError,
-    );
+    await expect(
+      fetchJson("https://www.googleapis.com/youtube/v3/search"),
+    ).rejects.toThrow(YoutubeQuotaError);
     expect(urls).toHaveLength(1);
   });
 });

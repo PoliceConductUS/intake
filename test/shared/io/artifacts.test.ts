@@ -17,6 +17,68 @@ function sha256(contents: string): string {
 }
 
 describe("Artifacts shared IO", () => {
+  test.each([
+    [null, "null"],
+    [undefined, "undefined"],
+    [123, "123"],
+  ])("reports rejected value %s without losing its type", (value, rendered) => {
+    expect(() =>
+      Artifacts.new({
+        metadata: { name: "bad-value", namespace: "test-source" },
+        spec: {
+          artifacts: [
+            {
+              kind: "Personnel",
+              spec: {
+                records: {
+                  "1016014": {
+                    spec: {
+                      first_name: value,
+                      last_name: "Martin",
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      }),
+    ).toThrow(`Received: ${rendered}.`);
+  });
+
+  test("includes every validation issue with its field path", () => {
+    expect(() =>
+      Artifacts.new({
+        metadata: { name: "name-validation", namespace: "test-source" },
+        spec: {
+          artifacts: [
+            {
+              kind: "Personnel",
+              spec: {
+                records: {
+                  "65000": {
+                    spec: {
+                      first_name: 9,
+                      last_name: 8,
+                      middle_name: "R.",
+                      suffix: 111,
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      }),
+    ).toThrow(
+      [
+        "Artifacts is malformed at spec.artifacts.0.spec.records.65000.spec.first_name. Invalid input: expected string, received number Received: 9.",
+        "Artifacts is malformed at spec.artifacts.0.spec.records.65000.spec.last_name. Invalid input: expected string, received number Received: 8.",
+        "Artifacts is malformed at spec.artifacts.0.spec.records.65000.spec.suffix. Invalid input: expected string, received number Received: 111.",
+      ].join("\n"),
+    );
+  });
+
   test.each(["AgencyLinks", "FederalAgencyBranches", "CoverageLinkCivilCases"])(
     "rejects retired %s artifacts",
     async (kind) => {

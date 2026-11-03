@@ -3,9 +3,7 @@
 ## Purpose
 
 Select new records through qualifying agency roots across sources while preserving stored records, factual updates, canonical identities, and source evidence.
-
 ## Requirements
-
 ### Requirement: Open assignments and civil cases determine agency roots
 
 Shared intake SHALL select the unique UNION of agency IDs referenced by assignments whose effective end_date is exactly null, agency IDs linked to a civil case, and office Agency IDs linked to a federal organization through `parent_federal_agency_id`. The current schema represents case-agency connections through CivilCasePersonnel -> AgencyPersonnel -> Agency; selection SHALL use that relationship without introducing a CaseAgency table. Agency STATUS SHALL NOT determine selection. All current and past assignments at a selected agency SHALL be included, along with their personnel. For each import, assignment/case root agencies SHALL be the union of agencies qualifying before and after incoming records are overlaid on the stored canonical graph. Federal office inclusion SHALL follow the effective parent reference. Traversal SHALL follow the effective incoming graph. This retains the agency as a root for the dataset that closes its last open assignment. Later sources can attach data to previously imported assignments. Missing end_date in a new candidate SHALL NOT independently establish a qualifying assignment.
@@ -213,3 +211,12 @@ The federal office source names `fbi-headquarters`, `dea-headquarters`, `atf-hea
 - **WHEN** federal intake resolves one of the four confirmed office source names
 - **THEN** it resolves to the selected existing TCOLE Agency identity
 - **AND** it does not recreate the alternate agency ID or replace the established slug
+
+### Requirement: Include agency arrest aggregate descendants
+
+Intake SHALL include AgencyArrestProfile records through a declared Agency to AgencyArrestProfile agency_id edge in the shared agency graph.
+
+#### Scenario: Eligible agency with complete arrest aggregate
+
+- **WHEN** an agency is selected and an agency arrest profile references it
+- **THEN** its aggregate is selected through the same shared graph as its other descendants

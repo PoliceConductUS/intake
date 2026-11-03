@@ -5,6 +5,7 @@
 
 import { appendFile } from "node:fs/promises";
 import {
+  assertDataApiUrl,
   isQuotaExhaustedBody,
   quotaResetHint,
   YoutubeQuotaError,
@@ -35,6 +36,7 @@ export function createDataApiFetch(
     ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
 
   return async (url) => {
+    assertDataApiUrl(url);
     const keyed = `${url}${url.includes("?") ? "&" : "?"}key=${deps.apiKey}`;
     for (let attempt = 0; ; attempt += 1) {
       const response = await doFetch(keyed);
