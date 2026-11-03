@@ -12,7 +12,8 @@ import {
   saveDocketCache,
   type Docket,
 } from "./docket-cache.js";
-import { fetchComplaintIntro } from "./complaint.js";
+import { acquireComplaintSummary } from "./summary-acquisition.js";
+import { createComplaintAnalyzer } from "./summary-analysis.js";
 
 const API = "https://www.courtlistener.com/api/rest/v4";
 // Every state/territory → its active federal district courts plus its circuit
@@ -267,13 +268,6 @@ export const acquire: SourceAcquire = async ({
         );
         return;
       }
-      // Pull each docket's operative complaint intro (verbatim from RECAP,
-      // best-effort). Cached with the docket so it is fetched once per refresh.
-      for (const docket of dockets) {
-        if (docket.id === "" || docket.complaint_intro !== undefined) continue;
-        const intro = await fetchComplaintIntro(docket.id, fetchJson);
-        if (intro !== undefined) docket.complaint_intro = intro;
-      }
       cache.agencies[slug] = { lastSearchedAt: nowIso, dockets };
       await saveDocketCache(state, cache);
       searched += 1;
@@ -284,6 +278,24 @@ export const acquire: SourceAcquire = async ({
       dockets = cache.agencies[slug].dockets;
       cached += 1;
     }
+
+    for (const docket of dockets) {
+      const result = await acquireComplaintSummary({
+        docketId: docket.id,
+        sourceDir,
+        state,
+        fetchJson,
+        analyzer: createComplaintAnalyzer(env.ANTHROPIC_API_KEY),
+        fetchPdf: async (url) => {
+          const response = await fetch(url);
+          if (!response.ok)
+            throw new Error(`Complaint download failed: ${response.status}`);
+          return Buffer.from(await response.arrayBuffer());
+        },
+      });
+      Object.assign(docket, result);
+    }
+    await saveDocketCache(state, cache);
 
     await writeFile(
       path.join(sourceDir, `${slug}.dockets.json`),

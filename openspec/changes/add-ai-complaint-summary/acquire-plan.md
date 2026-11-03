@@ -1,0 +1,7 @@
+# Acquire complaint summaries
+
+Extend the existing CourtListener acquisition path to select the latest complaint before checking availability, paginate all docket entries, retrieve the free PDF, verify its SHA-1 against metadata, retain the PDF and extracted text, and generate a structured summary through the existing Anthropic SDK pattern. Persist analysis by PDF hash, model and prompt version; each acquisition retains its own source metadata and result. Transform reads the result without network or model calls. Existing correction records remain preserved. No schema migration or database reset is required.
+
+No complaint identified is pending assessment, not confirmed missing. An identified complaint without a public copy is missing_copy. Authentication, retrieval, verification and generation failures fail visibly and retain diagnostic artifacts; they must not become missing_copy. Never substitute an available older complaint when a later amended complaint is unavailable. Source text is untrusted data and cannot instruct the analyzer. Only free records are retrieved. No deployment or paid-model execution is included in offline validation.
+
+Validation: synthetic tests for pagination, newest unavailable amendment, checksum mismatch, retained cache replay, structured page support, and deterministic transform propagation. Then final intake validation and coordinated local handoff.

@@ -32,3 +32,25 @@ The system SHALL distinguish confirmed missing complaint copies from retrieval, 
 
 - **WHEN** no summary exists but the copy is not confirmed missing
 - **THEN** the page states a complaint-based summary is not yet available without claiming the complaint is missing, and offers the same donation navigation
+
+### Requirement: Acquire and retain complaint evidence and analysis
+
+CourtListener acquire SHALL paginate docket entries, select the latest identified complaint before checking availability, retrieve a free available PDF and verify its SHA-1 against source metadata. It SHALL retain the PDF, extracted text, docket evidence and provenance-bearing AI summary in acquisition output. It SHALL cache analysis by document identity, content, model and prompt version. Transform SHALL consume saved summaries without network or model calls. A missing identified copy SHALL remain distinct from an unidentified complaint, unavailable text, authentication failure, retrieval failure or analysis failure. Failures SHALL be visible and SHALL NOT fabricate a missing-copy result.
+
+#### Scenario: Replay without model access
+
+- **WHEN** an acquisition has saved a valid complaint summary
+- **THEN** transformation reproduces that summary offline
+- **AND** database regeneration can consume it through the ordinary import pipeline
+
+#### Scenario: Newer amendment has no copy
+
+- **WHEN** an older complaint is available but a later identified amendment is unavailable
+- **THEN** acquisition records the missing current copy
+- **AND** does not summarize the older complaint as the selected complaint
+
+#### Scenario: Missing extracted text
+
+- **WHEN** the PDF is available and verifies but text extraction is absent
+- **THEN** acquisition retains the PDF and reports the extraction failure
+- **AND** does not generate a summary from a title or cause code
