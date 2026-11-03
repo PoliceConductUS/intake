@@ -1,4 +1,4 @@
-import type { ChannelSourceConfig } from "../lib/youtube-channel.js";
+import type { ChannelSourceConfig } from "../lib/youtube-rolling-channel.js";
 
 // LegalEagle — rank 6 of the board's subscriber-ordered YouTube intake queue
 // (INS-52).

@@ -457,7 +457,7 @@ test("explicit identity changes fail instead of silently bypassing the durable m
   );
 });
 
-test("accepts an explicit null replacement for a nullable property", async () => {
+test("set preserves literal null text for a nullable string property", async () => {
   expect(
     (
       await runIntake([
@@ -468,6 +468,18 @@ test("accepts an explicit null replacement for a nullable property", async () =>
       ])
     ).exitCode,
   ).toBe(0);
+  const saved = await inspectPropertyCorrection(
+    workspace,
+    "test.source",
+    "Agency",
+    "source-one",
+    "contact_name",
+  );
+  expect(saved?.spec.entries[0]).toMatchObject({
+    value: "null",
+    from: "Unknown",
+  });
+  expect(saved?.spec.entries[0]).not.toHaveProperty("operation");
   const apply = await loadPropertyCorrections(
     workspace,
     "test.source",
@@ -476,7 +488,134 @@ test("accepts an explicit null replacement for a nullable property", async () =>
   );
   expect(
     apply("Agency", "source-one", { contact_name: "Unknown" }).contact_name,
-  ).toBeNull();
+  ).toBe("null");
+});
+
+test("set null fails normal validation for numeric fields without creating a correction", async () => {
+  const result = await runIntake([
+    ...args("set", "latitude"),
+    "null",
+    "--from",
+    "32",
+  ]);
+  expect(result.exitCode).toBe(1);
+  expect(result.stderr).toContain("Value must be a number.");
+  expect(
+    await inspectPropertyCorrection(
+      workspace,
+      "test.source",
+      "Agency",
+      "source-one",
+      "latitude",
+    ),
+  ).toBeUndefined();
+});
+
+test("a literal null source string is matched as text", async () => {
+  expect(
+    (
+      await runIntake([
+        ...args("set", "contact_name"),
+        "Known",
+        "--from",
+        "null",
+      ])
+    ).exitCode,
+  ).toBe(0);
+  const apply = await loadPropertyCorrections(
+    workspace,
+    "test.source",
+    undefined,
+    placeLookup,
+  );
+  expect(apply("Agency", "source-one", { contact_name: "null" })).toEqual({
+    contact_name: "Known",
+  });
+  expect(apply("Agency", "source-one", { contact_name: null })).toEqual({
+    contact_name: null,
+  });
+});
+
+test("unset persists an explicit operation and clears only matching input", async () => {
+  const result = await runIntake([
+    ...args("unset", "contact_name"),
+    "--from",
+    "Unknown",
+  ]);
+  expect(result.exitCode, result.stderr).toBe(0);
+  const saved = await inspectPropertyCorrection(
+    workspace,
+    "test.source",
+    "Agency",
+    "source-one",
+    "contact_name",
+  );
+  expect(saved?.spec.entries[0]).toMatchObject({
+    operation: "unset",
+    from: "Unknown",
+  });
+  expect(saved?.spec.entries[0]).not.toHaveProperty("value");
+  const apply = await loadPropertyCorrections(
+    workspace,
+    "test.source",
+    undefined,
+    placeLookup,
+  );
+  const marked: string[] = [];
+  expect(
+    apply("Agency", "source-one", { contact_name: "Unknown" }, (p) =>
+      marked.push(p),
+    ),
+  ).toEqual({ contact_name: null });
+  expect(marked).toEqual(["contact_name"]);
+  expect(apply("Agency", "source-one", { contact_name: "Known" })).toEqual({
+    contact_name: "Known",
+  });
+  const context = new DataContext({
+    client: new PlaceClient(),
+    ledger: createSourceNameToCanonicalIdLedger({ rootDir: workspace }),
+    applyPropertyCorrections: apply,
+  });
+  const facade = context.facadeFromSource("Agency", {
+    apiVersion: INTAKE_API_VERSION,
+    namespace: "test.source",
+    name: "source-one",
+    current: { contact_name: "Old database value" },
+    spec: { contact_name: "Unknown" },
+  });
+  expect(await facade.value("contact_name")).toBeNull();
+});
+
+test("unset rejects a required property and set stores null text literally for a suffix", async () => {
+  expect(
+    (await runIntake([...args("unset", "name"), "--from", "Old"])).exitCode,
+  ).toBe(1);
+  expect(
+    (
+      await runIntake([
+        "cache",
+        "set",
+        "test.source",
+        "Personnel",
+        "person",
+        "suffix",
+        "null",
+        "--from",
+        "N/A",
+      ])
+    ).exitCode,
+  ).toBe(0);
+  const entry = await inspectPropertyCorrection(
+    workspace,
+    "test.source",
+    "Personnel",
+    "person",
+    "suffix",
+  );
+  expect(entry?.spec.entries.at(-1)).toMatchObject({
+    value: "null",
+    from: "N/A",
+  });
 });
 
 test("a CLI name correction is applied before a location path is derived during generation", async () => {

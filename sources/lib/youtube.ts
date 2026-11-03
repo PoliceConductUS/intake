@@ -1,7 +1,17 @@
+import { appendFile } from "node:fs/promises";
+
 // A small YouTube Data API v3 client for the video-coverage sources (issue #52).
-// Network access is injected (`fetchJson` for the Data API, `fetchText` for the
-// timedtext caption track) so a source's acquire wires the real, keyed, retrying
-// fetch and tests inject fakes — the client itself is deterministic.
+// Network access is injected (`fetchJson`) so a source's acquire wires the real,
+// keyed, retrying fetch and tests inject fakes — the client itself is
+// deterministic.
+//
+// This client only ever reaches the keyed Data API on `www.googleapis.com`,
+// which we use under an API key and the API terms. It deliberately has no path
+// to `www.youtube.com`: that host's robots.txt disallows `/api/` (and
+// `/timedtext_video`), and we do not request paths a publisher disallows
+// (INS-72). `assertDataApiUrl` enforces that at the one place requests are
+// made, so re-introducing such a call fails loudly instead of silently
+// shipping.
 
 export type YoutubeSearchHit = {
   videoId: string;
@@ -14,17 +24,28 @@ export type YoutubeSearchHit = {
 
 export type DateWindow = { publishedAfter?: string; publishedBefore?: string };
 
+/** A channel's identity: its immutable id, plus its mutable display provenance. */
+export type YoutubeChannel = {
+  channelId: string;
+  handle: string;
+  title: string;
+};
+
 export type YoutubeApi = {
   /** The immutable channel id for a handle like `@PoliceActivity`, or null. */
   resolveChannelId(handle: string): Promise<string | null>;
+  /**
+   * The channel with this immutable id, or null when the id resolves to nothing.
+   * Selecting by id is the stable way to name a channel: a handle can be renamed
+   * or transferred to a different channel, an id cannot.
+   */
+  fetchChannelById(channelId: string): Promise<YoutubeChannel | null>;
   /** One search call (up to 50 hits) within a channel, optionally date-bounded. */
   searchChannelVideos(
     channelId: string,
     query: string,
     window?: DateWindow,
   ): Promise<YoutubeSearchHit[]>;
-  /** The caption/transcript text for a video, or null when none is available. */
-  fetchCaptions(videoId: string): Promise<string | null>;
 };
 
 function str(value: unknown): string {
@@ -98,21 +119,116 @@ export function videoUrl(videoId: string): string {
   return `https://www.youtube.com/watch?v=${videoId}`;
 }
 
+const MAX_RETRIES = 5;
+const MAX_BACKOFF_MS = 60_000;
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * The real network fetchers a channel source's acquire wires into
+ * `createYoutubeApi`: the API key is appended, every response is appended
+ * verbatim to `apiLogPath` as evidence, 429/5xx retry with capped backoff, and an
+ * exhausted quota throws `YoutubeQuotaError` to halt the run rather than hammer
+ * the same spent quota on the next agency.
+ */
+export function createKeyedYoutubeFetchers(deps: {
+  sourceId: string;
+  apiKey: string;
+  apiLogPath: string;
+  logger?: { info: (message: string) => void };
+}): {
+  fetchJson: (url: string) => Promise<Record<string, unknown>>;
+} {
+  const log = deps.logger ?? { info() {} };
+  return {
+    async fetchJson(url) {
+      assertDataApiUrl(url);
+      const keyed = `${url}${url.includes("?") ? "&" : "?"}key=${deps.apiKey}`;
+      for (let attempt = 0; ; attempt += 1) {
+        const response = await fetch(keyed);
+        const text = await response.text();
+        let body: unknown;
+        try {
+          body = JSON.parse(text);
+        } catch {
+          body = text;
+        }
+        await appendFile(
+          // codeql[js/http-to-file-access] This fixed JSONL file preserves the source response for audit; downstream transforms parse JSON and never execute it.
+          deps.apiLogPath,
+          `${JSON.stringify({ at: new Date().toISOString(), url, status: response.status, body })}\n`,
+        );
+        if (response.ok) return body as Record<string, unknown>;
+        if (isQuotaExhaustedBody(body)) {
+          throw new YoutubeQuotaError(
+            `${deps.sourceId}: YouTube quota exhausted (${response.status}); ${quotaResetHint(body, new Date())}. Stopping (resumes next run).`,
+          );
+        }
+        const retryable = response.status === 429 || response.status >= 500;
+        if (!retryable || attempt >= MAX_RETRIES) {
+          throw new Error(`${deps.sourceId}: ${response.status} for ${url}`);
+        }
+        const waitMs = Math.min(MAX_BACKOFF_MS, 1000 * 2 ** attempt);
+        log.info(
+          `${deps.sourceId}: ${response.status}; retrying in ${Math.round(waitMs / 1000)}s (attempt ${attempt + 1}/${MAX_RETRIES}).`,
+        );
+        await sleep(waitMs);
+      }
+    },
+  };
+}
+
+export const DATA_API_BASE = "https://www.googleapis.com/youtube/v3";
+
+/**
+ * The only host this client may request. Anything else — notably
+ * `www.youtube.com`, whose robots.txt disallows `/api/` — is a bug, so it
+ * throws rather than reaching the network (INS-72).
+ */
+export function assertDataApiUrl(url: string): string {
+  if (!url.startsWith(`${DATA_API_BASE}/`)) {
+    throw new Error(
+      `youtube: refusing to request ${url} — this client may only call ${DATA_API_BASE} (INS-72: no robots-disallowed youtube.com paths).`,
+    );
+  }
+  return url;
+}
+
 export function createYoutubeApi(deps: {
   fetchJson: (url: string) => Promise<Record<string, unknown>>;
-  fetchText: (url: string) => Promise<string>;
 }): YoutubeApi {
-  const api = "https://www.googleapis.com/youtube/v3";
+  const api = DATA_API_BASE;
+  const fetchJson = (url: string): Promise<Record<string, unknown>> =>
+    deps.fetchJson(assertDataApiUrl(url));
 
   return {
     async resolveChannelId(handle) {
       const clean = handle.replace(/^@/, "");
-      const body = await deps.fetchJson(
+      const body = await fetchJson(
         `${api}/channels?part=id&forHandle=${encodeURIComponent(clean)}`,
       );
       const items = Array.isArray(body.items) ? body.items : [];
       const id = str(record(items[0]).id);
       return id === "" ? null : id;
+    },
+
+    async fetchChannelById(channelId) {
+      const body = await deps.fetchJson(
+        assertDataApiUrl(
+          `${api}/channels?part=snippet&id=${encodeURIComponent(channelId)}`,
+        ),
+      );
+      const items = Array.isArray(body.items) ? body.items : [];
+      const entry = record(items[0]);
+      const id = str(entry.id);
+      if (id === "") return null;
+      const snippet = record(entry.snippet);
+      return {
+        channelId: id,
+        handle: str(snippet.customUrl),
+        title: str(snippet.title),
+      };
     },
 
     async searchChannelVideos(channelId, query, window = {}) {
@@ -128,7 +244,7 @@ export function createYoutubeApi(deps: {
         params.set("publishedAfter", window.publishedAfter);
       if (window.publishedBefore !== undefined)
         params.set("publishedBefore", window.publishedBefore);
-      const body = await deps.fetchJson(`${api}/search?${params.toString()}`);
+      const body = await fetchJson(`${api}/search?${params.toString()}`);
       const hits: YoutubeSearchHit[] = [];
       const seen = new Set<string>();
       for (const item of Array.isArray(body.items) ? body.items : []) {
@@ -147,21 +263,6 @@ export function createYoutubeApi(deps: {
         });
       }
       return hits;
-    },
-
-    async fetchCaptions(videoId) {
-      // Best-effort English timedtext track. Empty body ⇒ no captions available.
-      const xml = await deps.fetchText(
-        `https://www.youtube.com/api/timedtext?lang=en&v=${encodeURIComponent(videoId)}`,
-      );
-      const text = xml
-        .replace(/<[^>]+>/g, " ")
-        .replace(/&#39;/g, "'")
-        .replace(/&quot;/g, '"')
-        .replace(/&amp;/g, "&")
-        .replace(/\s+/g, " ")
-        .trim();
-      return text === "" ? null : text;
     },
   };
 }

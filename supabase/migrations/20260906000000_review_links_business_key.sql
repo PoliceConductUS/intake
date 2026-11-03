@@ -4,7 +4,7 @@
 -- re-run, and require the review a link belongs to (a link with no review is
 -- meaningless). The table is otherwise unchanged from the initial schema.
 alter table public.review_links
-    alter column review_id set not null;
+alter column review_id set not null;
 
 create unique index if not exists review_links_review_url_key
-    on public.review_links (review_id, url);
+on public.review_links (review_id, url);

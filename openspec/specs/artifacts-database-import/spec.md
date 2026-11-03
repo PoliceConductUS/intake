@@ -3,9 +3,7 @@
 ## Purpose
 
 TBD - created by archiving change import-artifacts-to-database. Update Purpose after archive.
-
 ## Requirements
-
 ### Requirement: Manifest Import Command
 
 The intake CLI MUST provide `intake import artifacts <artifacts-ref>` to import an existing local `Artifacts` envelope without running a source module.
@@ -408,6 +406,13 @@ The artifacts import pipeline MUST resolve every supported source entity key to 
 - **AND** the database does not contain that `public.location_path` row
 - **THEN** intake fails during import preparation before resolving a replacement location path
 - **AND** intake reports the missing cached canonical `locationPathId`
+
+#### Scenario: Unorganized territories fill local place coverage
+
+- **WHEN** COUSUB contains a Z3 unorganized territory within supported coverage
+- **THEN** intake treats it as a website place with county-subdivision resolution precedence and its full original Census polygon, subject to the existing fully-covered subdivision rule
+- **AND** Fort Snelling UT, GEOID 2705321965, belongs beneath Hennepin County, GEOID 27053
+- **AND** its stable identity comes from the Census source key, not the mailing city or county identity
 
 ### Requirement: MN POST Mapping Shape
 
@@ -897,3 +902,218 @@ The slug correction SHALL match reference and current records by exact canonical
 - **WHEN** reference and current rows share an ID but their slugs differ
 - **THEN** explicit correction restores the reference slug in the database and canonical property cache
 - **AND** verification reports remaining mismatches and preserves the original correction evidence
+
+### Requirement: Conditional source-property corrections
+
+The cache CLI SHALL accept every declared entity property and an optional `--from` value. A conditional correction SHALL apply only when the typed input equals that value; without it a correction SHALL fill absent/null values, not empty strings. Source-addressed corrections SHALL survive resets without requiring an existing canonical mapping. Unknown properties and invalid values SHALL fail. Replacement SHALL require `--force`, retain previous entries, and record command ID and timestamp. Existing resolved caches SHALL remain available.
+
+#### Scenario: Correct a present source value
+
+- **WHEN** a source property equals the persisted `--from` value
+- **THEN** its replacement is used before dependent generation
+- **AND** a changed input no longer matches that correction
+- **AND** raw acquired files remain unchanged
+
+#### Scenario: Fill missing input
+
+- **WHEN** an input property is absent or null and a default correction exists
+- **THEN** the supplied value is used
+- **AND** a present value, including an empty string, is not replaced
+
+### Requirement: Distinct Census place identities and boundaries
+
+Distinct Census GEOIDs SHALL remain separate place records and geometries. Property corrections SHALL apply during generation only; transforms SHALL NOT load corrections or receive a correction hook. Path collisions SHALL fail with the colliding GEOIDs and labels instead of merging, discarding or automatically renaming records. Existing common names remain the default.
+
+#### Scenario: Correct a colliding place name
+
+- **WHEN** two distinct GEOIDs have the same common name and county
+- **THEN** transform emits separate records keyed by geography type plus GEOID
+- **AND** generation applies the shared name corrections before deriving paths
+- **AND** unresolved path collisions fail with both source identities
+- **AND** no records or boundaries are merged to hide the collision
+
+#### Scenario: One active rule and explicit precedence
+
+- **WHEN** either form of cache set replaces an existing rule with force
+- **THEN** the old entry is archived, never evaluated, and the new rule is the only active manual rule for that source property
+- **AND** a match supplies its value before dependent resolution without chaining
+- **AND** a nonmatch resumes normal source, matching automatic cache, and resolver behavior
+- **AND** a replaced old canonical manual override is retired rather than acting as an unconditional fallback
+- **AND** normal durable identity and slug ownership conflicts still fail loudly
+
+#### Scenario: Transform does not receive property corrections
+
+- **WHEN** a source transform runs
+- **THEN** its dependencies contain no property-correction hook
+- **AND** existing workspace corrections remain unchanged for generation
+
+#### Scenario: Stable source keys and existing canonical identities
+
+- **WHEN** a Census name or generated path changes
+- **THEN** the source key remains geography type plus GEOID
+- **AND** parent and boundary references use those same source keys
+- **AND** alternate-county aliases use the place and county source keys and derive their paths from the corrected place name
+- **AND** an explicit workspace mapping migration preserves the existing canonical IDs without a runtime compatibility path
+
+#### Scenario: Corrected references and conflicting URL ownership
+
+- **WHEN** a property correction replaces a source reference
+- **THEN** the ordinary reference resolver resolves it to the canonical target ID
+- **AND** URLs derived from that reference use the same resolved target
+- **WHEN** two different locations claim a URL through canonical paths or alternate-county aliases
+- **THEN** generation fails before any alias target can be silently discarded
+
+### Requirement: Agency location resolution accepts only places
+
+Every agency location path resolver MUST return only an ID referencing an existing location path with `level: place`. Supplied IDs, cached results, point containment, and postal rules MUST obey the same requirement. A non-place result MUST fail before it is assigned or cached as an agency location.
+
+#### Scenario: Reject a non-place location
+
+- **WHEN** an agency location candidate references a state or administrative-area row
+- **THEN** resolution fails with the agency ID, location path ID, and invalid level
+- **AND** the resolver does not return or cache the invalid ID
+
+#### Scenario: Accept an existing place
+
+- **WHEN** the candidate references an existing place row
+- **THEN** the resolver returns that place ID
+
+#### Scenario: Manual cache updates and reads validate the referenced type
+
+- **WHEN** an agency location-path cache entry is read or written through canonical IO, including a manual update
+- **THEN** the referenced location MUST be verified as an existing place
+- **AND** missing validation capability or a non-place reference fails before returning or persisting the value
+
+#### Scenario: Database enforces place-only references
+
+- **WHEN** an agency is inserted or its location path changes
+- **THEN** the database MUST reject any location path whose level is not place
+- **AND** a referenced place MUST NOT be reclassified to another level
+
+#### Scenario: Database-generated place level is not intake input
+
+- **WHEN** intake generates writable record schemas, mutation contracts, foreign-key resolution metadata, or provider data requests
+- **THEN** it MUST exclude database-generated columns, including `agency.location_path_level`
+- **AND** intake MUST NOT set or update that field; PostgreSQL generates `place`
+- **AND** enforcement-only uniqueness that includes the primary key MUST NOT become an intake business key
+
+### Requirement: Invalid source contact values are omitted visibly
+
+Intake SHALL apply manual cached corrections before validating phone numbers, email addresses and all URL fields, including evidence and link URLs for every source. All-zero phone numbers and clearly malformed contact values SHALL be omitted and logged as source data defects, identifying source namespace, record kind, source key, field, original value and reason. Invalid optional contacts SHALL NOT exclude the agency or other owning record. A record with an invalid required typed value SHALL emit no mutation; dependent records SHALL also be omitted with a source-defect log rather than written with missing references. Raw source artifacts SHALL remain intact, and these omissions SHALL NOT create persistent exclusions. Corrected valid source values SHALL be accepted on later runs.
+
+#### Scenario: Corrected zero phone
+
+- **WHEN** a source phone contains `(000) 000-0000` and a matching cached correction supplies a valid number
+- **THEN** generation retains the phone record with the corrected number
+
+#### Scenario: Uncorrected zero phone
+
+- **WHEN** an AgencyPhoneNumber has an all-zero number without a valid cached correction
+- **THEN** generation logs a source data defect and omits only that phone record
+
+#### Scenario: Invalid optional contact
+
+- **WHEN** an optional email or URL field is clearly malformed
+- **THEN** generation logs the defect and omits that property while retaining its owner
+
+#### Scenario: Invalid evidence URL
+
+- **WHEN** a source supplies a malformed required evidence or link URL
+- **THEN** generation logs the defect and omits that record and its dependent links, preserving independent agencies and personnel
+
+### Requirement: Census local jurisdictions are website places
+
+The Census namespace SHALL import PLACE features, legal and nonfunctioning local county subdivisions, unorganized territories (Z3), and consolidated cities within the existing 50 states and District of Columbia coverage. It SHALL exclude statistical subdivisions (S2, S3, Z5), and undefined areas (Z9). C2/C5/C7/T5/Z7 representations already covered by PLACE polygons SHALL not create duplicates. Classification MUST use Census CLASSFP and boundary data, not guessed names. Unknown subdivision class codes MUST fail visibly.
+
+#### Scenario: Alba township
+
+- **WHEN** Minnesota COUSUB contains Alba township, GEOID 2706300604
+- **THEN** intake emits a place under Jackson County with its full original Census polygon and readable township name
+- **AND** county parent comes from COUSUB STATEFP/COUNTYFP, not a name match
+
+#### Scenario: Statistical divisions
+
+- **WHEN** COUSUB contains a CCD, census subarea, or undefined area
+- **THEN** it is excluded with an inspectable reason in the source transform report
+
+#### Scenario: Fully covered subdivision
+
+- **WHEN** one or more imported PLACE polygons fully cover a county subdivision
+- **THEN** intake skips that subdivision and records the reason
+- **AND** does not alias a whole subdivision to one constituent place
+
+#### Scenario: Partially covered subdivision
+
+- **WHEN** imported PLACE polygons cover only part of a county subdivision
+- **THEN** intake emits the subdivision's full original Census boundary without clipping
+- **AND** overlapping city/CDP boundaries are handled by containing geography precedence
+
+#### Scenario: Existing identity and distinct geography
+
+- **WHEN** supplemental geographies are added
+- **THEN** existing PLACE paths and source names remain unchanged
+- **AND** a township and a same-named city with different extents remain distinct
+- **AND** consolidated cities remain distinct from their balance geographies
+
+#### Scenario: Incomplete source set
+
+- **WHEN** COUSUB or required CONCITY files are missing for the PLACE states or have a different vintage
+- **THEN** transformation fails with the missing role/state or vintage rather than producing incomplete coverage
+
+### Requirement: Containing geography precedence
+
+Address resolution MUST prefer a containing primary place (Census PLACE), then a containing county subdivision, then a containing consolidated city. It MUST select exactly one distinct canonical location in the first nonempty class, otherwise fail with ambiguity. Every candidate MUST contain the address point. No hard-coded ZIP or place exceptions may substitute for containment. Cached resolutions from the previous policy MUST be invalidated.
+
+#### Scenario: City inside township
+
+- **WHEN** an address is inside a city or CDP and a township
+- **THEN** the city or CDP resolves the address
+
+#### Scenario: Rural township address
+
+- **WHEN** an address is outside every primary place but inside exactly one imported township
+- **THEN** that township resolves the address
+
+#### Scenario: Same-class ambiguity
+
+- **WHEN** two primary places contain the point
+- **THEN** resolution fails even if a township also contains it
+
+#### Scenario: No containing location
+
+- **WHEN** no imported place contains the point
+- **THEN** resolution fails without statewide-name or nearest-place substitution
+
+### Requirement: Manual location creation
+
+The manual source SHALL accept LocationPath records through its existing acquisition interface and emit LocationPaths artifacts using canonical shared IO. A manually supplied place MAY omit geometry, centroid, and bounding box. Import SHALL resolve its parent by the supplied location path and assign or reuse its canonical ID through the durable source mapping ledger. Existing paths and IDs SHALL remain stable on re-import and database reconstruction.
+
+#### Scenario: Community without a Census polygon
+
+- **WHEN** an operator acquires a manual place with its source-local identity, path, display name, and existing county parent path
+- **THEN** import creates the location under that county without requiring or inventing geometry
+- **AND** aliases may reference the new place in the same import
+
+#### Scenario: Re-import and reconstruction
+
+- **WHEN** the manual artifacts are imported again or their saved mutations are replayed into a database with the same parent records
+- **THEN** the place retains its canonical ID, path, parent, and aliases
+
+#### Scenario: Missing parent
+
+- **WHEN** the supplied parent path does not resolve
+- **THEN** import fails visibly before creating the manual place
+- **AND** no parent is guessed or minted
+
+#### Scenario: Automatic resolution remains unchanged
+
+- **WHEN** a manual place has no boundary
+- **THEN** its existence does not make it a point-in-boundary candidate
+- **AND** agency assignments that cannot resolve automatically still require the existing explicit manual-resolution mechanism
+
+#### Scenario: Standalone manual source
+
+- **WHEN** the full update command orders automatic sources
+- **THEN** it excludes sources declared standalone, including the manual source
+- **AND** manual acquisition, transformation, generation, and replay remain available explicitly
+- **AND** manual location production cannot create a dependency cycle in automatic source ordering

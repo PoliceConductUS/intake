@@ -1,7 +1,7 @@
 import {
   CHANNEL_SOURCE_PRODUCES,
   createChannelTransform,
-} from "../lib/youtube-channel.js";
+} from "../lib/youtube-rolling-channel.js";
 import { config } from "./config.js";
 
 export const produces = CHANNEL_SOURCE_PRODUCES;

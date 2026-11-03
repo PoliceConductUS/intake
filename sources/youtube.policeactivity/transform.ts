@@ -1,4 +1,4 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import path from "node:path";
 import type { ImportArtifactKind } from "../../src/shared/io/index.js";
 import type {
@@ -7,7 +7,14 @@ import type {
   SourceTransform,
 } from "../../src/cli/transform/source-transform.js";
 import { isPersonName } from "../lib/civil-defendants.js";
+import { isWithinWindow } from "../lib/rolling-window.js";
+import { SOURCE_ID } from "./channel.js";
 import type { AcquiredVideo } from "./video-cache.js";
+import {
+  ENVELOPE_SUFFIX,
+  readVideoEnvelope,
+  type VideoEnvelope,
+} from "./video-envelope.js";
 
 export const produces: readonly ImportArtifactKind[] = [
   "CoverageLinks",
@@ -15,12 +22,7 @@ export const produces: readonly ImportArtifactKind[] = [
 ];
 
 export const description =
-  "PoliceActivity (YouTube) — videos found by searching the channel per agency, linked to any officer at that agency the video names (resolved via the fuzzy agency_personnel resolver, ADR 0022/0023). The channel's framing is an attributed claim; only the resolved officer link is a fact, cited to the naming passage.";
-
-type VideoEnvelope = {
-  agency: { id?: string; name?: string; state?: string };
-  videos?: AcquiredVideo[];
-};
+  "PoliceActivity (YouTube) — videos found by searching the channel per agency, linked to any officer at that agency the video names (resolved via the fuzzy agency_personnel resolver, ADR 0022/0023). The channel's framing is an attributed claim; only the resolved officer link is a fact, cited to the naming passage. Each run considers only the rolling five-year window its evidence was acquired under.";
 
 // A named officer the publisher asserts, and the passage asserting it. Names are
 // only ever CANDIDATES — the intake-owned resolver gates them against the agency
@@ -31,17 +33,14 @@ type VideoEnvelope = {
 const OFFICER_MENTION =
   /\b(?i:officers?|deputies|deputy|sergeants?|sgt|detectives?|det|lieutenants?|lt|corporals?|cpl|troopers?|chiefs?|captains?|capt|sheriffs?|marshals?|patrol(?:man|woman|men)?)\.?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z'.-]+){1,2})/g;
 
-function text(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
-}
-
 // The distinct officer mentions in a video, each with its first supporting
-// passage across the title, description, and captions.
+// passage across the title and description. Captions are not a source:
+// youtube.com/robots.txt disallows /api/, where the timedtext track lives.
 function officerMentions(
   video: AcquiredVideo,
 ): Array<{ name: string; passage: string }> {
   const found = new Map<string, string>();
-  for (const field of [video.title, video.description, video.captions ?? ""]) {
+  for (const field of [video.title, video.description]) {
     for (const match of field.matchAll(OFFICER_MENTION)) {
       const name = match[1].trim();
       if (!isPersonName(name) || found.has(name)) continue;
@@ -55,6 +54,15 @@ function normalizedUrl(url: string): string {
   return url.trim().replace(/\/+$/, "").toLowerCase();
 }
 
+// The videos this run considers: the ones the evidence's own rolling window
+// covers. The window travels on the envelope, so this stays deterministic — the
+// produce phase never reads the clock.
+function consideredVideos(envelope: VideoEnvelope): AcquiredVideo[] {
+  return envelope.videos.filter((video) =>
+    isWithinWindow(video.publishedAt, envelope.window),
+  );
+}
+
 export const transform: SourceTransform = async ({
   paths,
   data,
@@ -63,10 +71,10 @@ export const transform: SourceTransform = async ({
   const log = logger ?? { info() {} };
   if (data === undefined) {
     throw new Error(
-      "youtube.policeactivity: run requires a data context (DATABASE_URL) to resolve officers (ADR 0023).",
+      `${SOURCE_ID}: run requires a data context (DATABASE_URL) to resolve officers (ADR 0023).`,
     );
   }
-  const envelopePaths = paths.filter((p) => p.endsWith(".videos.json"));
+  const envelopePaths = paths.filter((p) => p.endsWith(ENVELOPE_SUFFIX));
   const files =
     envelopePaths.length > 0
       ? envelopePaths
@@ -74,18 +82,24 @@ export const transform: SourceTransform = async ({
 
   const coverageLinks: EmittedRecords = {};
   const coverageLinkAgencyPersonnel: EmittedRecords = {};
+  let considered = 0;
+  let outOfWindow = 0;
+  let untitled = 0;
+  let unmatched = 0;
 
   for (const file of files) {
-    const envelope = JSON.parse(await readFile(file, "utf8")) as VideoEnvelope;
-    const agencyId = text(envelope.agency.id);
-    const agencyName = text(envelope.agency.name);
-    if (agencyId === "" || agencyName === "") continue;
+    const envelope = await readVideoEnvelope(file);
+    const agencyId = envelope.agency.id;
+    const videos = consideredVideos(envelope);
+    outOfWindow += envelope.videos.length - videos.length;
 
-    for (const video of envelope.videos ?? []) {
-      const videoId = text(video.videoId);
-      const url = text(video.url);
-      const title = text(video.title);
-      if (videoId === "" || url === "" || title === "") continue;
+    for (const video of videos) {
+      considered += 1;
+      if (video.title.trim() === "") {
+        // No title means no renderable coverage link; visible, not silent.
+        untitled += 1;
+        continue;
+      }
 
       // Resolve every officer the video names AT THIS AGENCY (the agency is fixed
       // by acquire). A name resolving to no existing officer, or ambiguously,
@@ -100,26 +114,32 @@ export const transform: SourceTransform = async ({
           resolved.set(match.agencyPersonnelId, mention.passage);
         }
       }
-      if (resolved.size === 0) continue;
+      if (resolved.size === 0) {
+        // Skipped for this run only: the video stays in the evidence and is
+        // reconsidered on every later run while it is in the window, so it
+        // becomes a link once the officer and agency exist.
+        unmatched += 1;
+        continue;
+      }
 
-      const publishedAt = text(video.publishedAt).slice(0, 10);
-      coverageLinks[videoId] = {
+      const publishedAt = video.publishedAt.slice(0, 10);
+      coverageLinks[video.videoId] = {
         spec: {
-          url,
-          normalized_url: normalizedUrl(url),
-          title,
-          source_name: "PoliceActivity",
+          url: video.url,
+          normalized_url: normalizedUrl(video.url),
+          title: video.title.trim(),
+          source_name: envelope.source.name,
           published_at: /^\d{4}-\d{2}-\d{2}$/.test(publishedAt)
             ? publishedAt
             : null,
           // The publisher's framing, kept as an attributed claim (#52).
-          notes: text(video.description) || null,
+          notes: video.description.trim() || null,
         },
       };
       for (const [agencyPersonnelId, passage] of resolved) {
-        coverageLinkAgencyPersonnel[`${videoId}|${agencyPersonnelId}`] = {
+        coverageLinkAgencyPersonnel[`${video.videoId}|${agencyPersonnelId}`] = {
           spec: {
-            coverage_link_id: videoId,
+            coverage_link_id: video.videoId,
             agency_personnel_id: agencyPersonnelId,
             confidence: "named-in-video",
             notes: passage,
@@ -130,8 +150,11 @@ export const transform: SourceTransform = async ({
   }
 
   log.info(
-    `youtube.policeactivity: ${Object.keys(coverageLinks).length} videos with a resolved officer, ` +
-      `${Object.keys(coverageLinkAgencyPersonnel).length} video-officer links`,
+    `${SOURCE_ID}: ${considered} in-window video(s) considered — ` +
+      `${Object.keys(coverageLinks).length} with a resolved officer, ` +
+      `${Object.keys(coverageLinkAgencyPersonnel).length} video-officer link(s); ` +
+      `${unmatched} unmatched (retried next run), ${untitled} untitled, ` +
+      `${outOfWindow} outside the acquired window`,
   );
 
   return {
@@ -150,7 +173,7 @@ async function collectEnvelopePaths(paths: string[]): Promise<string[]> {
   for (const base of paths) {
     try {
       for (const entry of await readdir(base)) {
-        if (entry.endsWith(".videos.json")) files.push(path.join(base, entry));
+        if (entry.endsWith(ENVELOPE_SUFFIX)) files.push(path.join(base, entry));
       }
     } catch {
       // A non-directory path is not an envelope root; skip it.

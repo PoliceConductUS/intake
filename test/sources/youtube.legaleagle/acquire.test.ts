@@ -12,7 +12,7 @@ import {
   CACHE_FILE,
   type ChannelCache,
 } from "../../../sources/lib/youtube-channel-cache.js";
-import type { VideoEnvelope } from "../../../sources/lib/youtube-channel.js";
+import type { VideoEnvelope } from "../../../sources/lib/youtube-rolling-channel.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {
