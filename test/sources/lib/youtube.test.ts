@@ -145,6 +145,7 @@ describe("youtube api client", () => {
   it("exposes only the Data API calls", () => {
     const { api } = apiWith({});
     expect(Object.keys(api).sort()).toEqual([
+      "fetchChannelById",
       "resolveChannelId",
       "searchChannelVideos",
     ]);
