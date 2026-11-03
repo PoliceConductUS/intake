@@ -65,12 +65,11 @@ describe("normalizeVideoUrl", () => {
 });
 
 describe("officerMentions", () => {
-  it("finds distinct role-prefixed names across title, description and captions", () => {
+  it("finds distinct role-prefixed names across title and description", () => {
     expect(
       officerMentions({
         title: "Officer John Smith on patrol",
         description: "Sergeant Jane Wilson responds.",
-        captions: "Deputy John Smith again.",
       }),
     ).toEqual([
       { name: "John Smith", passage: "Officer John Smith" },
@@ -83,7 +82,6 @@ describe("officerMentions", () => {
       officerMentions({
         title: "Dashcam highlights",
         description: "General footage.",
-        captions: null,
       }),
     ).toEqual([]);
   });
@@ -132,7 +130,6 @@ describe("cache maintenance", () => {
     channelId: "UC1",
     url: canonicalVideoUrl(videoId),
     retrievedAt: "2026-10-24T00:00:00Z",
-    captions: null,
   });
 
   it("drops year buckets that fell out of the window", () => {

@@ -33,7 +33,7 @@ function video(overrides: Partial<Record<string, unknown>>) {
     channelId: CODE_BLUE_CAM.channelId,
     url: "https://www.youtube.com/watch?v=v0",
     retrievedAt: RETRIEVED_AT,
-    captions: null,
+
     ...overrides,
   };
 }
@@ -43,9 +43,9 @@ const videos = [
   video({
     videoId: "inWindowMatch",
     title: "Bodycam: Irving PD arrest",
-    description: "Officer John Smith responds to a call.",
+    description:
+      "Officer John Smith responds to a call. Sergeant Jane Wilson also arrived on scene.",
     publishedAt: "2024-03-05T12:34:56Z",
-    captions: "Sergeant Jane Wilson also arrived on scene.",
   }),
   // In window, but the named officer is not in the database yet -> skipped.
   video({
@@ -65,7 +65,8 @@ const videos = [
   video({
     videoId: "beforeWindow",
     title: "Older incident",
-    description: "Officer John Smith responds to a call.",
+    description:
+      "Officer John Smith responds to a call. Sergeant Jane Wilson also arrived on scene.",
     publishedAt: "2021-10-23T23:59:59Z",
   }),
 ];
@@ -131,6 +132,23 @@ async function runWith(
 }
 
 describe("youtube.codebluecam transform", () => {
+  it("ignores caption-only names retained in old evidence", async () => {
+    const data = fakeData();
+    const { byKind } = await runWith(data, {
+      videos: [
+        {
+          ...videos[0],
+          title: "Bodycam release",
+          description: "No officer named.",
+          captions: "Officer John Smith responds.",
+        },
+      ],
+    });
+    expect(byKind.CoverageLinks).toEqual({});
+    expect(byKind.CoverageLinkAgencyPersonnel).toEqual({});
+    expect(data.calls).toEqual([]);
+  });
+
   it("links an in-window video to every officer it names that resolves at the acquired agency", async () => {
     const { byKind } = await runWith();
 

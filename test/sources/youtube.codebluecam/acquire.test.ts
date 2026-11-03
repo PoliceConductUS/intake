@@ -50,8 +50,7 @@ function stubYoutube(handleResolvesTo: string) {
         ],
       });
     }
-    // timedtext captions
-    return new Response("", { status: 404 });
+    throw new Error(`Unexpected request: ${url}`);
   });
   return calls;
 }
@@ -154,7 +153,6 @@ describe("youtube.codebluecam acquire", () => {
     expect(envelope.videos[0].retrievedAt).toBe("2026-10-24T00:00:00.000Z");
     // No video media is stored — only metadata and the link.
     expect(Object.keys(envelope.videos[0]).sort()).toEqual([
-      "captions",
       "channelId",
       "description",
       "publishedAt",

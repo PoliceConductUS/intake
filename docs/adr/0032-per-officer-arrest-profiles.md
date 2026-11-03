@@ -2,7 +2,11 @@
 
 ## Status
 
-Accepted
+Amended by `openspec/changes/complete-irving-arrest-analytics` (2026-10-06).
+
+The original first-charge-only decision below is superseded. Intake now preserves all supplied charge and offense rows, counts distinct bookings, and reports source charge rows and distinct full charge tuples separately. Full agency aggregates include unmatched-officer bookings; officer aggregates retain resolved assignment links. Arrest beat comes from arrest-location evidence and official police polygons. Residential tract income comes from Census ACS evidence. Raw inputs remain private and inspectable, while the database receives aggregates with provenance and explicit source-quality findings.
+
+## Historical decision (superseded where described above)
 
 > An intake source that turns an agency's arrest records into a per-officer
 > analytic. Applies the same acquire/run split

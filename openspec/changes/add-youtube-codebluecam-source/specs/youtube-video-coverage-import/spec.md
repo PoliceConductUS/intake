@@ -105,3 +105,12 @@ other or attach officer links to the wrong video.
 
 - **WHEN** two watch URLs whose video ids differ only in letter case are canonicalized
 - **THEN** their normalized URLs differ
+
+### Requirement: Only sanctioned Data API metadata supports links
+
+Acquire MUST NOT retrieve timedtext or caption text. Officer candidates MUST come only from title and description, even when retained evidence contains captions.
+
+#### Scenario: Retained caption names an officer
+
+- **WHEN** only a caption field names a resolvable officer
+- **THEN** no officer link is emitted for that passage

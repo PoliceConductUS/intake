@@ -1,13 +1,10 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-// Per-agency, per-year search cache shared by the YouTube channel sources. A run
-// does one search call per agency, so re-runs skip years already fetched and
-// backfill older years one at a time (gentle on the YouTube search quota).
-//
-// Year buckets are a quota device, not the window: the rolling window is recorded
-// by acquire in each envelope and enforced in transform. Buckets older than the
-// window's floor year are pruned so state does not grow without bound.
+// Per-agency, per-year search cache shared by the YouTube channel sources: a run
+// does one search call per agency for one year, so re-runs skip years already
+// fetched and backfill older years one at a time (gentle on the YouTube search
+// quota). The cached video payload is each source's own shape.
 export const CACHE_FILE = "video-cache.json";
 
 export type AcquiredVideo = {
@@ -19,37 +16,66 @@ export type AcquiredVideo = {
   url: string;
   /** When this video's metadata was retrieved from the API. */
   retrievedAt: string;
-  captions: string | null;
 };
 
-export type AgencyVideoCacheEntry = {
-  years: Record<string, { searchedAt: string; videos: AcquiredVideo[] }>;
+export type AgencyVideoCacheEntry<TVideo = AcquiredVideo> = {
+  years: Record<string, { searchedAt: string; videos: TVideo[] }>;
 };
 
-export type VideoCache = {
-  agencies: Record<string, AgencyVideoCacheEntry>;
+export type VideoCache<TVideo = AcquiredVideo> = {
+  agencies: Record<string, AgencyVideoCacheEntry<TVideo>>;
 };
 
-export async function loadVideoCache(stateDir: string): Promise<VideoCache> {
+export async function loadVideoCache<TVideo = AcquiredVideo>(
+  stateDir: string,
+): Promise<VideoCache<TVideo>> {
   try {
     const parsed = JSON.parse(
       await readFile(path.join(stateDir, CACHE_FILE), "utf8"),
-    ) as VideoCache;
+    ) as VideoCache<TVideo>;
     return { agencies: parsed.agencies ?? {} };
   } catch {
     return { agencies: {} };
   }
 }
 
-export async function saveVideoCache(
+export async function saveVideoCache<TVideo>(
   stateDir: string,
-  cache: VideoCache,
+  cache: VideoCache<TVideo>,
 ): Promise<void> {
   await mkdir(stateDir, { recursive: true });
   await writeFile(
     path.join(stateDir, CACHE_FILE),
-    `${JSON.stringify(cache, null, 2)}\n`,
+    JSON.stringify(cache, null, 2),
   );
+}
+
+// The newest year in [floorYear, currentYear] this agency has not searched yet,
+// or null when it is backfilled to the floor.
+export function nextYearToAcquire<TVideo>(
+  entry: AgencyVideoCacheEntry<TVideo> | undefined,
+  floorYear: number,
+  currentYear: number,
+): number | null {
+  for (let year = currentYear; year >= floorYear; year -= 1) {
+    if (entry === undefined || entry.years[String(year)] === undefined) {
+      return year;
+    }
+  }
+  return null;
+}
+
+// Every cached year's videos for an agency, de-duplicated by videoId.
+export function mergedVideos<TVideo extends { videoId: string }>(
+  entry: AgencyVideoCacheEntry<TVideo> | undefined,
+): TVideo[] {
+  const byId = new Map<string, TVideo>();
+  for (const year of Object.values(entry?.years ?? {})) {
+    for (const video of year.videos) {
+      if (!byId.has(video.videoId)) byId.set(video.videoId, video);
+    }
+  }
+  return [...byId.values()];
 }
 
 const MS_PER_DAY = 86_400_000;
@@ -95,19 +121,4 @@ export function pruneYearsBefore(
     if (Number(year) >= floorYear) years[year] = bucket;
   }
   return { years };
-}
-
-/** Every cached year's videos for an agency, de-duplicated by videoId. */
-export function mergedVideos(
-  entry: AgencyVideoCacheEntry | undefined,
-): AcquiredVideo[] {
-  const byId = new Map<string, AcquiredVideo>();
-  for (const year of Object.keys(entry?.years ?? {}).sort()) {
-    for (const video of entry?.years[year]?.videos ?? []) {
-      if (!byId.has(video.videoId)) byId.set(video.videoId, video);
-    }
-  }
-  return [...byId.values()].sort((a, b) =>
-    a.videoId < b.videoId ? -1 : a.videoId > b.videoId ? 1 : 0,
-  );
 }

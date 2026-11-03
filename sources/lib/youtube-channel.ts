@@ -121,13 +121,13 @@ function text(value: unknown): string {
 
 /**
  * The distinct officer mentions in a video, each with its first supporting
- * passage across the title, description, and captions.
+ * passage across the title and description.
  */
 export function officerMentions(
-  video: Pick<AcquiredVideo, "title" | "description" | "captions">,
+  video: Pick<AcquiredVideo, "title" | "description">,
 ): Array<{ name: string; passage: string }> {
   const found = new Map<string, string>();
-  for (const field of [video.title, video.description, video.captions ?? ""]) {
+  for (const field of [video.title, video.description]) {
     for (const match of field.matchAll(OFFICER_MENTION)) {
       const name = match[1].trim();
       if (!isPersonName(name) || found.has(name)) continue;
@@ -219,12 +219,8 @@ export function createChannelAcquire(
         await sleep(waitMs);
       }
     };
-    const fetchText = async (url: string): Promise<string> => {
-      const response = await fetch(url);
-      return response.ok ? response.text() : "";
-    };
 
-    const youtube = createYoutubeApi({ fetchJson, fetchText });
+    const youtube = createYoutubeApi({ fetchJson });
     const resolved = await youtube.resolveChannelId(config.channelHandle);
     if (resolved === null) {
       throw new Error(
@@ -321,7 +317,6 @@ export function createChannelAcquire(
               ...hit,
               url: canonicalVideoUrl(hit.videoId),
               retrievedAt: nowIso,
-              captions: await youtube.fetchCaptions(hit.videoId),
             });
           }
           entry.years[String(year)] = { searchedAt: nowIso, videos };
@@ -365,7 +360,9 @@ export function createChannelAcquire(
               channelId,
             },
             window,
-            videos: mergedVideos(entry),
+            videos: mergedVideos(entry).sort((a, b) =>
+              a.videoId < b.videoId ? -1 : a.videoId > b.videoId ? 1 : 0,
+            ),
           },
           null,
           2,

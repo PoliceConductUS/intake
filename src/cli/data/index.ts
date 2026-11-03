@@ -1,3 +1,4 @@
+import { IdentityRestoration } from "../../shared/io/IdentityRestoration.js";
 import type { Command } from "commander";
 import path from "node:path";
 import { appendExcludedRecord } from "../../shared/io/excluded-records.js";
@@ -12,7 +13,13 @@ import {
   defaultDatabaseClientFactory,
   type DatabaseClient,
 } from "../database/index.js";
-import { applyPending, assertAtHead, status, verify } from "./chain.js";
+import {
+  applyPending,
+  assertAtHead,
+  status,
+  verify,
+  generateIdentityRestorationEntry,
+} from "./chain.js";
 import {
   generateOneSource,
   orderedSourceIds,
@@ -59,6 +66,57 @@ export function registerCliCommand(
     .command("data")
     .description(
       "The data pipeline (ADR 0033/0034): acquire → transform → generate → up.",
+    );
+
+  group
+    .command("restore-identity")
+    .description(
+      "Append a guarded restoration of an established canonical ID; review the event, then run data up.",
+    )
+    .argument("<namespace>", "source namespace")
+    .argument("<kind>", "singular entity kind")
+    .argument("<source-name>", "exact source-local identity")
+    .requiredOption(
+      "--expected-current-id <id>",
+      "erroneous canonical ID currently assigned",
+    )
+    .requiredOption("--original-id <id>", "established original canonical ID")
+    .requiredOption(
+      "--reason <reason>",
+      "why the established ID must be restored",
+    )
+    .requiredOption(
+      "--evidence <evidence>",
+      "evidence establishing the original ID",
+    )
+    .action(
+      async (
+        namespace: string,
+        kind: string,
+        sourceName: string,
+        options: {
+          expectedCurrentId: string;
+          originalId: string;
+          reason: string;
+          evidence: string;
+        },
+      ) => {
+        try {
+          const event = IdentityRestoration.new({
+            metadata: { name: "restore-identity", namespace },
+            spec: { entityKind: kind, sourceName, ...options },
+          });
+          const result = await withClient((client) =>
+            generateIdentityRestorationEntry(client, event),
+          );
+          dependencies.setResult({
+            exitCode: 0,
+            stdout: `data: appended identity restoration ${result.version}: ${result.written}\nReview this event before running data up.\n`,
+          });
+        } catch (error) {
+          dependencies.setResult(errorResult(error));
+        }
+      },
     );
 
   // acquire → transform → generate → up: the phases, in order. acquire lives in its

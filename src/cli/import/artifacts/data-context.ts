@@ -79,6 +79,8 @@ type DataContextLogger = {
 };
 
 export type DataContextOptions = {
+  /** One UTC validation day for the whole import, injectable for reproducible tests. */
+  validationDate?: Date;
   applyPropertyCorrections?: ApplyPropertyCorrections;
   propertyCorrectionNamespace?: string;
   client?: DatabaseClient;
@@ -213,6 +215,7 @@ export class DataContext {
   private readonly slugs: SlugAllocator;
   /** Every facade built this command, grouped by kind then memo key. */
   private readonly invalidSourceRecords = new Set<string>();
+  private readonly validationDate: Date;
   private readonly facadesByKind = new Map<
     string,
     Map<string, RegistryFacade>
@@ -234,6 +237,7 @@ export class DataContext {
   private readonly businessKeyIds = new Map<string, Promise<string>>();
 
   constructor(options: DataContextOptions) {
+    this.validationDate = new Date(options.validationDate ?? Date.now());
     this.applyPropertyCorrections = options.applyPropertyCorrections;
     this.propertyCorrectionNamespace = options.propertyCorrectionNamespace;
     this.client = options.client;
@@ -389,12 +393,19 @@ export class DataContext {
     }
     const key = [input.apiVersion, input.namespace, kind, input.name].join(":");
     if (input.spec !== undefined) {
-      const cleaned = cleanSourceValues(kind, input.spec);
+      const cleaned = cleanSourceValues(kind, input.spec, this.validationDate);
       for (const defect of cleaned.defects) {
-        this.logger?.info?.(
-          `source data defect: ${input.namespace}/${kind}/${input.name}.${defect.field}: ${JSON.stringify(defect.value)}; ${defect.reason}; ${defect.required ? "record omitted" : "value omitted"}`,
-        );
-        if (defect.required) this.invalidSourceRecords.add(key);
+        // Keep invalid dates inspectable and omit the whole record for this run;
+        // clearing an end date would falsely imply current employment.
+        const disposition = !defect.omitted
+          ? "value retained; record omitted"
+          : defect.required
+            ? "record omitted"
+            : "value omitted";
+        const message = `source data defect: ${input.namespace}/${kind}/${input.name}.${defect.field}: ${JSON.stringify(defect.value)}; ${defect.reason}; ${disposition}`;
+        this.logger?.info?.(message);
+        if (!defect.omitted || defect.required)
+          this.invalidSourceRecords.add(key);
       }
       input = { ...input, spec: cleaned.spec };
     }
@@ -551,7 +562,7 @@ export class DataContext {
             if (!this.invalidSourceRecords.has(target)) continue;
             this.invalidSourceRecords.add(key);
             this.logger?.info?.(
-              `source data defect: ${facade.sourceIdentity.namespace}/${kind}/${facade.sourceIdentity.name}.${field}: ${JSON.stringify(value)}; referenced record has an invalid required value; record omitted`,
+              `source data defect: ${facade.sourceIdentity.namespace}/${kind}/${facade.sourceIdentity.name}.${field}: ${JSON.stringify(value)}; referenced record has an invalid source value; record omitted`,
             );
             changed = true;
             break;
