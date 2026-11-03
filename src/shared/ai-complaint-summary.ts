@@ -57,6 +57,7 @@ export const complaintSummaryUnavailability = z
       "retrieval_failed",
       "authentication_failed",
       "generation_failed",
+      "available_unsummarized",
     ]),
     sourceUrl: url,
     checkedAt: timestamp,

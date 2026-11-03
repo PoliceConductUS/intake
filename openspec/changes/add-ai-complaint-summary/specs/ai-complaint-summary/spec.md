@@ -64,3 +64,43 @@ Acquisition SHALL complete complaint collection before model analysis. It SHALL 
 - **WHEN** a verified complaint has a matching reviewed summary receipt
 - **THEN** acquisition retains that summary and receipt without a model call
 - **AND** transform reads the retained summary offline
+
+### Requirement: Available complaint without a reliable summary
+
+The system SHALL retain an `available_unsummarized` disposition with the complaint document URL when a copy is available but automated review cannot produce a reliable summary. This disposition SHALL NOT be treated as a completed AI summary or require user review.
+
+#### Scenario: Complaint cannot be summarized reliably
+
+- **WHEN** a retained complaint cannot be summarized reliably
+- **THEN** the case page states "The complaint is available, but we were unable to summarize it." and links to the complaint document
+- **AND** the disposition is applied through the final intake run after summary calculation is complete
+
+#### Scenario: Reviewed local PDF extraction
+
+- **WHEN** a verified PDF has no usable source API text but an explicit review includes locally extracted text
+- **THEN** the review retains the extraction method and text, binds its hash to the verified PDF receipt, and validates paragraph page references against that text
+- **AND** acquisition replays the reviewed summary without requiring API text or a model call
+- **AND** altered extraction text or source metadata fails verification; raw API text is preserved
+
+#### Scenario: Complaint filed as an explicitly labelled attachment
+
+- **WHEN** a docket entry contains an attachment explicitly labelled as the complete complaint and a generic main document
+- **THEN** acquisition selects that complaint attachment ahead of the main document
+- **AND** attachments labelled as parties lists or exhibits are not treated as complete complaints
+- **AND** an unavailable newer complaint attachment prevents using an older complaint.
+- **AND** the parent entry must itself identify a filed complaint; a proposed complaint attached to a motion for leave is not selected.
+
+#### Scenario: Duplicate unavailable complaint event stub
+
+- **WHEN** an unnumbered complaint has unavailable document metadata with no document number, PACER identifier, source path, hash, or URL
+- **AND** its nonempty docket, filing date, filing time, and RECAP sequence exactly match a numbered complaint entry
+- **THEN** acquisition excludes that duplicate stub from selection while preserving the raw entries
+- **AND** unmatched or incomplete event identities continue to fail closed.
+
+#### Scenario: Source-bound unsummarized review replay
+
+- **WHEN** a verified complaint has an explicit `available_unsummarized` review bound to its docket ID, document ID and number, source page, PDF URL, filing date, SHA-1, SHA-256, and current prompt version
+- **THEN** acquisition returns the exact disposition with a null summary, retains the receipt and result, and makes no model call whether source API text is empty or readable
+- **AND** the disposition links to the verified PDF and does not require human review
+- **AND** mismatched source identity, hash, prompt version, or disposition URL fails visibly
+- **AND** existing reviewed summaries and local extraction receipts continue to validate under their existing contract.

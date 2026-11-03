@@ -97,25 +97,81 @@ export async function prepareComplaint(
         .parse(entry.recap_documents)
         .flatMap((raw) => {
           const labels = [raw.description, entry.description];
+          const explicitAttachment =
+            raw.attachment_number != null &&
+            /^(?:(?:first|second|third|fourth|fifth|\d+(?:st|nd|rd|th))\s+)?(?:(?:amended|corrected|supplemental)\s+)*complaint\b/i.test(
+              String(entry.description ?? "").trim(),
+            ) &&
+            /^(?:Additional Page\(s\)\s+)?(?:Plaintiff(?:s|['’]s)?\s+)?(?:(?:first|second|third|fourth|fifth|\d+(?:st|nd|rd|th))\s+)?(?:(?:amended|corrected|supplemental)\s+)*complaint\s*$/i.test(
+              String(raw.description ?? "").trim(),
+            );
           if (
-            raw.attachment_number != null ||
-            !labels.some((label) =>
-              /^(?:(?:first|second|third|fourth|fifth|\d+(?:st|nd|rd|th))\s+)?(?:(?:amended|corrected|supplemental)\s+)*complaint\b/i.test(
-                String(label ?? "").trim(),
-              ),
-            )
+            !explicitAttachment &&
+            (raw.attachment_number != null ||
+              !labels.some((label) =>
+                /^(?:(?:first|second|third|fourth|fifth|\d+(?:st|nd|rd|th))\s+)?(?:(?:amended|corrected|supplemental)\s+)*complaint\b/i.test(
+                  String(label ?? "").trim(),
+                ),
+              ))
           )
             return [];
+          // Some RECAP events retain an empty, unnumbered duplicate alongside
+          // the numbered complaint. Exclude only a proven exact-event stub;
+          // the untouched entries.json above remains the source evidence.
+          const eventKeys = [
+            "docket",
+            "date_filed",
+            "time_filed",
+            "recap_sequence_number",
+          ];
+          const isDuplicateStub =
+            entry.entry_number === null &&
+            raw.attachment_number == null &&
+            raw.is_available === false &&
+            [
+              "document_number",
+              "pacer_doc_id",
+              "filepath_local",
+              "sha1",
+              "absolute_url",
+            ].every((key) => raw[key] == null || raw[key] === "") &&
+            eventKeys.every(
+              (key) => entry[key] != null && String(entry[key]).trim() !== "",
+            ) &&
+            entries.some(
+              (other) =>
+                typeof other.entry_number === "number" &&
+                Number.isFinite(other.entry_number) &&
+                eventKeys.every((key) => other[key] === entry[key]) &&
+                z
+                  .array(z.record(z.string(), z.unknown()))
+                  .parse(other.recap_documents)
+                  .some(
+                    (otherDoc) =>
+                      otherDoc.attachment_number == null &&
+                      [otherDoc.description, other.description].some((label) =>
+                        /^(?:(?:first|second|third|fourth|fifth|\d+(?:st|nd|rd|th))\s+)?(?:(?:amended|corrected|supplemental)\s+)*complaint\b/i.test(
+                          String(label ?? "").trim(),
+                        ),
+                      ),
+                  ),
+            );
+          if (isDuplicateStub) return [];
           return [
             {
               doc: documentSchema.parse(raw),
               date: z.iso.date().parse(entry.date_filed),
               number: z.number().parse(entry.entry_number),
+              explicitAttachment,
             },
           ];
         }),
     )
-    .sort((a, b) => b.number - a.number);
+    .sort(
+      (a, b) =>
+        b.number - a.number ||
+        Number(b.explicitAttachment) - Number(a.explicitAttachment),
+    );
   const selected = candidates[0];
   const unavailable = async (
     reason: "pending" | "missing_copy",
@@ -179,20 +235,17 @@ export async function finishComplaint(
 ): Promise<ComplaintResult> {
   if (prepared.kind === "unavailable") return prepared.result;
   const { doc, date, url, hash, now, sourceUrl, dir, docketId } = prepared;
-  if (!doc.plain_text?.trim())
-    throw new Error("Complaint text extraction is pending");
-  const reviewed = await readReviewedSummary(prepared, input);
+  const reviewed = await readReviewedResult(prepared, input);
   if (reviewed) {
-    const result = {
-      ai_complaint_summary: reviewed,
-      complaint_summary_unavailability: null,
-    };
+    const result = reviewed;
     await writeFile(
       path.join(dir, "result.json"),
       JSON.stringify(result, null, 2),
     );
     return result;
   }
+  if (!doc.plain_text?.trim())
+    throw new Error("Complaint text extraction is pending");
   const key = createHash("sha256")
     .update(
       JSON.stringify([
@@ -276,9 +329,19 @@ export async function acquireComplaintSummary(
 ): Promise<ComplaintResult> {
   return finishComplaint(await prepareComplaint(input), input);
 }
+const extractionSchema = z
+  .object({
+    method: z.string().trim().min(1),
+    text: z
+      .string()
+      .min(1)
+      .refine((text) => text.trim().length > 0),
+  })
+  .strict();
 const reviewSchema = z
   .object({
     summary: aiComplaintSummary,
+    extraction: extractionSchema.optional(),
     receipt: z
       .object({
         method: z.literal("codex-document-review"),
@@ -291,7 +354,7 @@ const reviewSchema = z
       .strict(),
   })
   .strict();
-async function readReviewedSummary(
+async function readReviewedResult(
   prepared: Extract<PreparedComplaint, { kind: "ready" }>,
   input: { state: string; analyzer: ComplaintAnalyzer },
 ) {
@@ -307,11 +370,29 @@ async function readReviewedSummary(
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
     throw error;
   }
-  const review = reviewSchema.parse(JSON.parse(content));
-  const { summary, receipt } = review;
-  validateReview(prepared, input.analyzer.promptVersion, review);
+  const review = z
+    .union([reviewSchema, unavailabilityReviewSchema])
+    .parse(JSON.parse(content));
+  let result: ComplaintResult;
+  if ("unavailability" in review) {
+    validateUnavailabilityReview(
+      prepared,
+      input.analyzer.promptVersion,
+      review,
+    );
+    result = {
+      ai_complaint_summary: null,
+      complaint_summary_unavailability: review.unavailability,
+    };
+  } else {
+    validateReview(prepared, input.analyzer.promptVersion, review);
+    result = {
+      ai_complaint_summary: review.summary,
+      complaint_summary_unavailability: null,
+    };
+  }
   await writeFile(path.join(prepared.dir, "review.json"), content);
-  return summary;
+  return result;
 }
 
 function validateReview(
@@ -320,13 +401,12 @@ function validateReview(
   review: z.infer<typeof reviewSchema>,
 ) {
   const { summary, receipt } = review;
+  const text = review.extraction?.text ?? prepared.doc.plain_text ?? "";
   if (
+    !text.trim() ||
     receipt.promptVersion !== promptVersion ||
     receipt.sourceSha256 !== prepared.hash ||
-    receipt.textSha256 !==
-      createHash("sha256")
-        .update(prepared.doc.plain_text ?? "")
-        .digest("hex") ||
+    receipt.textSha256 !== createHash("sha256").update(text).digest("hex") ||
     summary.source.sha256 !== prepared.hash ||
     summary.source.sha1 !== prepared.doc.sha1 ||
     summary.source.documentId !== prepared.doc.id ||
@@ -344,9 +424,7 @@ function validateReview(
         p.paragraph !== i + 1 ||
         !/^[\d\s,–—-]+$/.test(p.pages) ||
         (p.pages.match(/\d+/g) ?? []).some(
-          (n) =>
-            Number(n) < 1 ||
-            Number(n) > (prepared.doc.plain_text ?? "").split("\f").length,
+          (n) => Number(n) < 1 || Number(n) > text.split("\f").length,
         ),
     )
   )
@@ -359,24 +437,114 @@ export async function recordComplaintReview(
   state: string,
   summary: unknown,
   promptVersion: string,
+  extraction?: z.infer<typeof extractionSchema>,
 ): Promise<void> {
   if (prepared.kind !== "ready")
     throw new Error("A verified complaint is required to record a review");
   const parsed = aiComplaintSummary.parse(summary);
   const review = reviewSchema.parse({
     summary: parsed,
+    ...(extraction ? { extraction } : {}),
     receipt: {
       method: "codex-document-review",
       recordedAt: new Date().toISOString(),
       promptVersion,
       sourceSha256: prepared.hash,
       textSha256: createHash("sha256")
-        .update(prepared.doc.plain_text ?? "")
+        .update(extraction?.text ?? prepared.doc.plain_text ?? "")
         .digest("hex"),
       paragraphEvidence: parsed.support,
     },
   });
   validateReview(prepared, promptVersion, review);
+  const dir = path.join(state, "complaint-reviews");
+  await mkdir(dir, { recursive: true });
+  await writeFile(
+    path.join(dir, `${prepared.doc.id}-${prepared.hash}.json`),
+    JSON.stringify(review, null, 2),
+  );
+}
+
+const unavailabilityReviewSchema = z
+  .object({
+    unavailability: complaintSummaryUnavailability.extend({
+      reason: z.literal("available_unsummarized"),
+    }),
+    source: aiComplaintSummary.shape.source
+      .pick({
+        documentId: true,
+        documentNumber: true,
+        sourcePage: true,
+        url: true,
+        filingDate: true,
+        sha1: true,
+        sha256: true,
+      })
+      .extend({ docketId: z.string().regex(/^\d+$/) }),
+    receipt: z
+      .object({
+        method: z.literal("codex-document-review"),
+        recordedAt: z.iso.datetime({ offset: true }),
+        promptVersion: z.string().min(1),
+      })
+      .strict(),
+  })
+  .strict();
+
+function unavailabilitySource(
+  prepared: Extract<PreparedComplaint, { kind: "ready" }>,
+) {
+  return {
+    docketId: prepared.docketId,
+    documentId: prepared.doc.id,
+    documentNumber: prepared.doc.document_number,
+    sourcePage: new URL(
+      prepared.doc.absolute_url,
+      "https://www.courtlistener.com",
+    ).href,
+    url: prepared.url.href,
+    filingDate: prepared.date,
+    sha1: prepared.doc.sha1,
+    sha256: prepared.hash,
+  };
+}
+
+function validateUnavailabilityReview(
+  prepared: Extract<PreparedComplaint, { kind: "ready" }>,
+  promptVersion: string,
+  review: z.infer<typeof unavailabilityReviewSchema>,
+) {
+  const source = unavailabilitySource(prepared);
+  if (
+    review.receipt.promptVersion !== promptVersion ||
+    review.unavailability.sourceUrl !== prepared.url.href ||
+    (Object.keys(source) as Array<keyof typeof source>).some(
+      (key) => review.source[key] !== source[key],
+    )
+  )
+    throw new Error(
+      "Complaint unavailability review does not match the acquired evidence or current contract",
+    );
+}
+
+export async function recordComplaintUnavailability(
+  prepared: PreparedComplaint,
+  state: string,
+  unavailability: unknown,
+  promptVersion: string,
+): Promise<void> {
+  if (prepared.kind !== "ready")
+    throw new Error("A verified complaint is required to record a review");
+  const review = unavailabilityReviewSchema.parse({
+    unavailability,
+    source: unavailabilitySource(prepared),
+    receipt: {
+      method: "codex-document-review",
+      recordedAt: new Date().toISOString(),
+      promptVersion,
+    },
+  });
+  validateUnavailabilityReview(prepared, promptVersion, review);
   const dir = path.join(state, "complaint-reviews");
   await mkdir(dir, { recursive: true });
   await writeFile(

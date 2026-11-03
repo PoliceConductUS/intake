@@ -105,6 +105,7 @@ describe("complaint summary unavailability", () => {
       "retrieval_failed",
       "authentication_failed",
       "generation_failed",
+      "available_unsummarized",
     ]) {
       expect(
         CivilCaseSpec.safeParse({

@@ -16,3 +16,9 @@
 - [x] Complete final validation and source review for acquisition integration.
 - [x] Support hash-bound reviewed summaries and collect evidence before analysis.
 - [x] Replay all 19 retained summaries through acquisition preparation and review registration with zero model calls.
+
+## Source-bound unsummarized reviews
+
+- [x] Add failing synthetic receipt replay and source-binding tests.
+- [x] Implement explicit unsummarized receipt registration and paired acquisition replay.
+- [x] Run focused tests, typecheck, and OpenSpec validation without real state registration.

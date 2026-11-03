@@ -9,3 +9,7 @@ Validation: synthetic tests for pagination, newest unavailable amendment, checks
 ## Retained reviews and two-pass acquisition
 
 Match Minnesota POST's two-pass behavior: collect available complaint PDFs and text for discovered dockets before invoking analysis. Accept an explicit `codex-document-review` receipt tied to the PDF hash, extracted-text hash, current prompt contract and every summary paragraph's page support. Reuse the original summary and model attribution unchanged. Invalid or stale receipts fail visibly; they never trigger a silent replacement. Store reviewed results under source acquisition state and copy the selected receipt into each completed acquisition. Existing private reviewed summaries may be registered through this evidence contract without another model call.
+
+## Reviewed unsummarized dispositions
+
+Extend the existing receipt reader to accept a source-bound unsummarized disposition as an alternative to a reviewed summary. A separate registration helper validates the available verified PDF, all source identity fields, current prompt version, and exact PDF link. Store the alternative in the same document/hash receipt slot so a later explicit review replaces the prior disposition. Replay returns both result fields before text requirements or model analysis. This adds no database or published contract changes. Test empty/readable text, exact result replay, invalid source binding, and existing summary/local extraction behavior using synthetic temporary state only.

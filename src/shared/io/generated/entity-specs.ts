@@ -54,9 +54,10 @@ export const GENERATED_MIGRATION_VERSIONS = [
   "20261010000000",
   "20261103020000",
   "20261103021000",
+  "20261103062000",
 ] as const;
 export const GENERATED_MIGRATION_FINGERPRINT =
-  "15940fa4f8120f88a4ead270de5348d8633dad6936bfc29bea4b7975b4ac0c28";
+  "9e02fbeb7c1574b731e7b48465b87b3f70611da1764ecf7afe9b833bd606a91f";
 
 // Entity record kinds in database-dependency order (topological sort of the
 // foreign-key graph): a referenced entity precedes its referrer, so mutations
