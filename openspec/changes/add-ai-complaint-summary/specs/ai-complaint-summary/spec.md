@@ -54,3 +54,13 @@ CourtListener acquire SHALL paginate docket entries, select the latest identifie
 - **WHEN** the PDF is available and verifies but text extraction is absent
 - **THEN** acquisition retains the PDF and reports the extraction failure
 - **AND** does not generate a summary from a title or cause code
+
+### Requirement: Reuse evidence-backed reviews
+
+Acquisition SHALL complete complaint collection before model analysis. It SHALL accept an explicit Codex document-review receipt only when the current prompt version, source PDF hash, extracted-text hash, source identity and paragraph evidence match. Reviewed summaries SHALL retain their original text and model attribution. Invalid receipts SHALL fail visibly.
+
+#### Scenario: Reviewed complaint without API access
+
+- **WHEN** a verified complaint has a matching reviewed summary receipt
+- **THEN** acquisition retains that summary and receipt without a model call
+- **AND** transform reads the retained summary offline

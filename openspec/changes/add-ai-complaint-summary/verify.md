@@ -11,3 +11,9 @@ Earlier failures are retained in private logs: mise workspace/TMPDIR overrides, 
 Full intake validation passed: 165 test files, 1,639 tests, typecheck, build, formatting and 44 OpenSpec checks. Synthetic end-to-end coverage invokes ordinary acquire against a cached docket, verifies and retains its PDF, generates a structured summary through the analyzer adapter, and transforms the retained output twice without network/model calls. Seven focused tests cover pagination, missing latest amendment, hash rejection, nonexistent page references, hostile pagination origins, retaining PDFs without extracted text, and analysis reuse.
 
 Live model execution was not performed: the local execution environment has no configured Anthropic API credential. This follows the existing intake AI-provider SDK pattern but does not establish live provider/model availability. Existing private summary corrections and local records were not changed by this code integration.
+
+## Reviewed acquisition replay
+
+All 19 existing private summaries passed the production preparation, review-registration and finish stages using retained source metadata and PDFs. The replay made zero model calls and compared each result to its original summary exactly. This is retained-source replay, not a fresh CourtListener download or a full database reset. Receipt files are stored in the existing source acquisition state; copied source evidence, receipts and results are retained privately under `artifacts/ins115-summary/acquisition-replay`. Existing database corrections remain intact.
+
+Final reviewed-acquisition validation passed: 165 test files, 1,640 tests, build, typecheck, formatting and 44 OpenSpec checks. The local database remained at 551 cases and 19 summaries; all 18 added case pages passed content/citation checks.

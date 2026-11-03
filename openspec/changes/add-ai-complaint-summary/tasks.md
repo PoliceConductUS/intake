@@ -14,4 +14,5 @@
 - [x] Integrate structured AI analysis and persistent analysis cache into ordinary acquire, including cached docket discovery.
 - [x] Verify transform consumes saved summaries offline and repeats deterministically.
 - [x] Complete final validation and source review for acquisition integration.
-- [ ] Execute live model acquisition after provider access is configured.
+- [x] Support hash-bound reviewed summaries and collect evidence before analysis.
+- [x] Replay all 19 retained summaries through acquisition preparation and review registration with zero model calls.

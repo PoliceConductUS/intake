@@ -56,6 +56,24 @@ test("ordinary acquire enriches a cached docket and transform replays the saved 
       },
     }),
   );
+  const cachePath = path.join(state, "docket-cache.json");
+  const cached = JSON.parse(await readFile(cachePath, "utf8"));
+  cached.agencies["example-police"].dockets.push({
+    ...cached.agencies["example-police"].dockets[0],
+    id: "13",
+    docket_number: "0:25-cv-002",
+  });
+  await writeFile(cachePath, JSON.stringify(cached));
+  analyze.mockImplementation(async () => {
+    expect(
+      await readFile(path.join(sourceDir, "complaints/13/complaint.pdf")),
+    ).toBeDefined();
+    return {
+      paragraphs: [
+        { text: "The plaintiff alleges an unlawful detention.", pages: [1] },
+      ],
+    };
+  });
   const pdf = Buffer.from("%PDF-1.7 synthetic");
   const fetcher = vi.fn(async (url: string, options?: RequestInit) => {
     if (url.startsWith("https://storage.courtlistener.com")) {
@@ -104,7 +122,7 @@ test("ordinary acquire enriches a cached docket and transform replays the saved 
       }),
     },
   });
-  expect(analyze).toHaveBeenCalledTimes(1);
+  expect(analyze).toHaveBeenCalledTimes(2);
   const file = path.join(sourceDir, "example-police.dockets.json");
   const acquired = JSON.parse(await readFile(file, "utf8"));
   vi.stubGlobal("fetch", () => {
@@ -127,5 +145,5 @@ test("ordinary acquire enriches a cached docket and transform replays the saved 
     ai_complaint_summary: acquired.dockets[0].ai_complaint_summary,
     complaint_summary_unavailability: null,
   });
-  expect(analyze).toHaveBeenCalledTimes(1);
+  expect(analyze).toHaveBeenCalledTimes(2);
 });

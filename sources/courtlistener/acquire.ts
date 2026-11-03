@@ -12,7 +12,7 @@ import {
   saveDocketCache,
   type Docket,
 } from "./docket-cache.js";
-import { acquireComplaintSummary } from "./summary-acquisition.js";
+import { prepareComplaint, finishComplaint } from "./summary-acquisition.js";
 import { createComplaintAnalyzer } from "./summary-analysis.js";
 
 const API = "https://www.courtlistener.com/api/rest/v4";
@@ -232,6 +232,23 @@ export const acquire: SourceAcquire = async ({
   const cache = await loadDocketCache(state);
   const nowMs = Date.now();
   const nowIso = new Date(nowMs).toISOString();
+  const prepared = new Map<
+    string,
+    Awaited<ReturnType<typeof prepareComplaint>>
+  >();
+  const outputs: Array<{
+    file: string;
+    envelope: {
+      agency: {
+        id: string;
+        name: string;
+        state: string;
+        county: string;
+        place: string;
+      };
+      dockets: Docket[];
+    };
+  }> = [];
   let searched = 0;
   let cached = 0;
   let failed = 0;
@@ -280,12 +297,12 @@ export const acquire: SourceAcquire = async ({
     }
 
     for (const docket of dockets) {
-      const result = await acquireComplaintSummary({
+      if (prepared.has(docket.id)) continue;
+      const result = await prepareComplaint({
         docketId: docket.id,
         sourceDir,
         state,
         fetchJson,
-        analyzer: createComplaintAnalyzer(env.ANTHROPIC_API_KEY),
         fetchPdf: async (url) => {
           const response = await fetch(url);
           if (!response.ok)
@@ -293,27 +310,23 @@ export const acquire: SourceAcquire = async ({
           return Buffer.from(await response.arrayBuffer());
         },
       });
-      Object.assign(docket, result);
+      prepared.set(docket.id, result);
     }
     await saveDocketCache(state, cache);
 
-    await writeFile(
-      path.join(sourceDir, `${slug}.dockets.json`),
-      JSON.stringify(
-        {
-          agency: {
-            id: agencyId,
-            name: agencyName,
-            state: agencyState,
-            county,
-            place,
-          },
-          dockets,
+    outputs.push({
+      file: path.join(sourceDir, `${slug}.dockets.json`),
+      envelope: {
+        agency: {
+          id: agencyId,
+          name: agencyName,
+          state: agencyState,
+          county,
+          place,
         },
-        null,
-        2,
-      ),
-    );
+        dockets,
+      },
+    });
   };
 
   let cursor: string | undefined;
@@ -335,6 +348,26 @@ export const acquire: SourceAcquire = async ({
     }
     cursor = page.nextCursor;
   } while (cursor !== undefined);
+
+  const completed = new Map<
+    string,
+    Awaited<ReturnType<typeof finishComplaint>>
+  >();
+  for (const [id, document] of prepared) {
+    completed.set(
+      id,
+      await finishComplaint(document, {
+        state,
+        analyzer: createComplaintAnalyzer(env.ANTHROPIC_API_KEY),
+      }),
+    );
+  }
+  for (const output of outputs) {
+    for (const docket of output.envelope.dockets)
+      Object.assign(docket, completed.get(docket.id));
+    await writeFile(output.file, JSON.stringify(output.envelope, null, 2));
+  }
+  await saveDocketCache(state, cache);
 
   log.info(
     `courtlistener: ${searched} agencies searched, ${cached} served from cache (< ${REFRESH_DAYS} days), ${failed} skipped after errors.`,

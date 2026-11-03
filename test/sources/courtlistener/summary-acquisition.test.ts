@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -149,4 +149,38 @@ test("does not follow pagination onto another host", async () => {
   } as never);
   await expect(acquireComplaintSummary(s.args)).rejects.toThrow("pagination");
   expect(s.fetchJson).toHaveBeenCalledTimes(1);
+});
+
+test("reuses a hash-bound reviewed summary without calling the configured model", async () => {
+  const s = await setup([
+    { entry_number: 1, date_filed: "2025-01-01", recap_documents: [doc] },
+  ]);
+  const first = await acquireComplaintSummary(s.args);
+  const summary = first.ai_complaint_summary!;
+  const dir = path.join(s.args.state, "complaint-reviews");
+  await mkdir(dir, { recursive: true });
+  const receipt = {
+    method: "codex-document-review",
+    recordedAt: new Date().toISOString(),
+    promptVersion: "1",
+    sourceSha256: summary.source.sha256,
+    textSha256: createHash("sha256").update(doc.plain_text).digest("hex"),
+    paragraphEvidence: summary.support,
+  };
+  await writeFile(
+    path.join(dir, `123-${summary.source.sha256}.json`),
+    JSON.stringify({ summary, receipt }),
+  );
+  s.args.analyzer.model = "different-provider";
+  s.analyze.mockRejectedValue(new Error("Must not call model"));
+  expect((await acquireComplaintSummary(s.args)).ai_complaint_summary).toEqual(
+    summary,
+  );
+  expect(s.analyze).toHaveBeenCalledTimes(1);
+  receipt.textSha256 = "0".repeat(64);
+  await writeFile(
+    path.join(dir, `123-${summary.source.sha256}.json`),
+    JSON.stringify({ summary, receipt }),
+  );
+  await expect(acquireComplaintSummary(s.args)).rejects.toThrow("review");
 });

@@ -43,14 +43,29 @@ const documentSchema = z.object({
   plain_text: z.string().nullish(),
   absolute_url: z.string(),
 });
-export async function acquireComplaintSummary(input: {
+type AcquisitionInput = {
   docketId: string;
   sourceDir: string;
   state: string;
   fetchJson: (url: string) => Promise<Record<string, unknown>>;
   fetchPdf: (url: string) => Promise<Buffer>;
-  analyzer: ComplaintAnalyzer;
-}): Promise<ComplaintResult> {
+};
+type PreparedComplaint =
+  | {
+      kind: "ready";
+      doc: z.infer<typeof documentSchema>;
+      date: string;
+      url: URL;
+      hash: string;
+      now: string;
+      sourceUrl: string;
+      dir: string;
+      docketId: string;
+    }
+  | { kind: "unavailable"; result: ComplaintResult };
+export async function prepareComplaint(
+  input: AcquisitionInput,
+): Promise<PreparedComplaint> {
   if (!/^\d+$/.test(input.docketId))
     throw new Error("Invalid docket identifier");
   const dir = path.join(input.sourceDir, "complaints", input.docketId);
@@ -119,7 +134,7 @@ export async function acquireComplaintSummary(input: {
       path.join(dir, "result.json"),
       JSON.stringify(result, null, 2),
     );
-    return result;
+    return { kind: "unavailable" as const, result };
   };
   if (!selected)
     return unavailable(
@@ -144,13 +159,44 @@ export async function acquireComplaintSummary(input: {
     throw new Error("Complaint SHA-1 mismatch");
   const hash = createHash("sha256").update(pdf).digest("hex");
   await writeFile(path.join(dir, "complaint.pdf"), pdf);
+  await writeFile(path.join(dir, "complaint.txt"), doc.plain_text ?? "");
+  return {
+    kind: "ready",
+    doc,
+    date,
+    url,
+    hash,
+    now,
+    sourceUrl,
+    dir,
+    docketId: input.docketId,
+  };
+}
+
+export async function finishComplaint(
+  prepared: PreparedComplaint,
+  input: { state: string; analyzer: ComplaintAnalyzer },
+): Promise<ComplaintResult> {
+  if (prepared.kind === "unavailable") return prepared.result;
+  const { doc, date, url, hash, now, sourceUrl, dir, docketId } = prepared;
   if (!doc.plain_text?.trim())
     throw new Error("Complaint text extraction is pending");
-  await writeFile(path.join(dir, "complaint.txt"), doc.plain_text);
+  const reviewed = await readReviewedSummary(prepared, input);
+  if (reviewed) {
+    const result = {
+      ai_complaint_summary: reviewed,
+      complaint_summary_unavailability: null,
+    };
+    await writeFile(
+      path.join(dir, "result.json"),
+      JSON.stringify(result, null, 2),
+    );
+    return result;
+  }
   const key = createHash("sha256")
     .update(
       JSON.stringify([
-        input.docketId,
+        docketId,
         doc.id,
         doc.document_number,
         doc.absolute_url,
@@ -223,4 +269,118 @@ export async function acquireComplaintSummary(input: {
     JSON.stringify(result, null, 2),
   );
   return result;
+}
+
+export async function acquireComplaintSummary(
+  input: AcquisitionInput & { analyzer: ComplaintAnalyzer },
+): Promise<ComplaintResult> {
+  return finishComplaint(await prepareComplaint(input), input);
+}
+const reviewSchema = z
+  .object({
+    summary: aiComplaintSummary,
+    receipt: z
+      .object({
+        method: z.literal("codex-document-review"),
+        recordedAt: z.iso.datetime({ offset: true }),
+        promptVersion: z.string().min(1),
+        sourceSha256: z.string().regex(/^[a-f0-9]{64}$/),
+        textSha256: z.string().regex(/^[a-f0-9]{64}$/),
+        paragraphEvidence: aiComplaintSummary.shape.support,
+      })
+      .strict(),
+  })
+  .strict();
+async function readReviewedSummary(
+  prepared: Extract<PreparedComplaint, { kind: "ready" }>,
+  input: { state: string; analyzer: ComplaintAnalyzer },
+) {
+  const file = path.join(
+    input.state,
+    "complaint-reviews",
+    `${prepared.doc.id}-${prepared.hash}.json`,
+  );
+  let content: string;
+  try {
+    content = await readFile(file, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
+  const review = reviewSchema.parse(JSON.parse(content));
+  const { summary, receipt } = review;
+  validateReview(prepared, input.analyzer.promptVersion, review);
+  await writeFile(path.join(prepared.dir, "review.json"), content);
+  return summary;
+}
+
+function validateReview(
+  prepared: Extract<PreparedComplaint, { kind: "ready" }>,
+  promptVersion: string,
+  review: z.infer<typeof reviewSchema>,
+) {
+  const { summary, receipt } = review;
+  if (
+    receipt.promptVersion !== promptVersion ||
+    receipt.sourceSha256 !== prepared.hash ||
+    receipt.textSha256 !==
+      createHash("sha256")
+        .update(prepared.doc.plain_text ?? "")
+        .digest("hex") ||
+    summary.source.sha256 !== prepared.hash ||
+    summary.source.sha1 !== prepared.doc.sha1 ||
+    summary.source.documentId !== prepared.doc.id ||
+    summary.source.sourcePage !==
+      new URL(prepared.doc.absolute_url, "https://www.courtlistener.com")
+        .href ||
+    summary.source.documentNumber !== prepared.doc.document_number ||
+    summary.source.filingDate !== prepared.date ||
+    summary.source.url !== prepared.url.href ||
+    JSON.stringify(receipt.paragraphEvidence) !==
+      JSON.stringify(summary.support) ||
+    summary.support.length !== summary.summary.split(/\n\s*\n/).length ||
+    summary.support.some(
+      (p, i) =>
+        p.paragraph !== i + 1 ||
+        !/^[\d\s,–—-]+$/.test(p.pages) ||
+        (p.pages.match(/\d+/g) ?? []).some(
+          (n) =>
+            Number(n) < 1 ||
+            Number(n) > (prepared.doc.plain_text ?? "").split("\f").length,
+        ),
+    )
+  )
+    throw new Error(
+      "Complaint review does not match the acquired evidence or current contract",
+    );
+}
+export async function recordComplaintReview(
+  prepared: PreparedComplaint,
+  state: string,
+  summary: unknown,
+  promptVersion: string,
+): Promise<void> {
+  if (prepared.kind !== "ready")
+    throw new Error("A verified complaint is required to record a review");
+  const parsed = aiComplaintSummary.parse(summary);
+  const review = reviewSchema.parse({
+    summary: parsed,
+    receipt: {
+      method: "codex-document-review",
+      recordedAt: new Date().toISOString(),
+      promptVersion,
+      sourceSha256: prepared.hash,
+      textSha256: createHash("sha256")
+        .update(prepared.doc.plain_text ?? "")
+        .digest("hex"),
+      paragraphEvidence: parsed.support,
+    },
+  });
+  validateReview(prepared, promptVersion, review);
+  const dir = path.join(state, "complaint-reviews");
+  await mkdir(dir, { recursive: true });
+  await writeFile(
+    path.join(dir, `${prepared.doc.id}-${prepared.hash}.json`),
+    JSON.stringify(review, null, 2),
+  );
 }
