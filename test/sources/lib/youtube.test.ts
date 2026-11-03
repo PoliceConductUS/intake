@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
+  assertDataApiUrl,
   createYoutubeApi,
+  DATA_API_BASE,
   isQuotaExhaustedBody,
   quotaResetHint,
   videoUrl,
@@ -65,10 +67,7 @@ describe("isQuotaExhaustedBody", () => {
   });
 });
 
-function apiWith(
-  jsonByUrl: Record<string, unknown>,
-  textByUrl: Record<string, string> = {},
-) {
+function apiWith(jsonByUrl: Record<string, unknown>) {
   const jsonCalls: string[] = [];
   const api = createYoutubeApi({
     fetchJson: async (url) => {
@@ -78,10 +77,6 @@ function apiWith(
         string,
         unknown
       >;
-    },
-    fetchText: async (url) => {
-      const key = Object.keys(textByUrl).find((k) => url.includes(k));
-      return key === undefined ? "" : textByUrl[key];
     },
   });
   return { api, jsonCalls };
@@ -145,15 +140,30 @@ describe("youtube api client", () => {
     });
   });
 
-  it("extracts caption text and returns null when none exist", async () => {
-    const { api } = apiWith(
-      {},
-      {
-        "v=hascaps":
-          "<transcript><text start='0'>Officer Smith on scene</text></transcript>",
-      },
+  // INS-72: www.youtube.com/robots.txt disallows /api/, so this client must
+  // never reach that host — only the keyed Data API on googleapis.com.
+  it("only ever requests the keyed Data API host", async () => {
+    const { api, jsonCalls } = apiWith({
+      "channels?part=id": { items: [{ id: "UCpa123" }] },
+      "channelId=UCpa123": { items: [{ id: { videoId: "v1" } }] },
+    });
+
+    await api.resolveChannelId("@PoliceActivity");
+    await api.searchChannelVideos("UCpa123", "Irving Police");
+
+    expect(jsonCalls.length).toBeGreaterThan(0);
+    for (const url of jsonCalls) {
+      expect(new URL(url).host).toBe("www.googleapis.com");
+    }
+    expect(jsonCalls.some((u) => u.includes("youtube.com/api/"))).toBe(false);
+  });
+
+  it("refuses a request aimed anywhere but the Data API", () => {
+    expect(() =>
+      assertDataApiUrl("https://www.youtube.com/api/timedtext?lang=en&v=v1"),
+    ).toThrow(/refusing to request/);
+    expect(assertDataApiUrl(`${DATA_API_BASE}/search?part=snippet`)).toBe(
+      `${DATA_API_BASE}/search?part=snippet`,
     );
-    expect(await api.fetchCaptions("hascaps")).toBe("Officer Smith on scene");
-    expect(await api.fetchCaptions("nocaps")).toBeNull();
   });
 });

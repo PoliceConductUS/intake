@@ -87,12 +87,7 @@ export const acquire: SourceAcquire = async ({
       await sleep(waitMs);
     }
   };
-  const fetchText = async (url: string): Promise<string> => {
-    const response = await fetch(url);
-    return response.ok ? response.text() : "";
-  };
-
-  const youtube = createYoutubeApi({ fetchJson, fetchText });
+  const youtube = createYoutubeApi({ fetchJson });
   const channelId = await youtube.resolveChannelId(CHANNEL_HANDLE);
   if (channelId === null) {
     throw new Error(
@@ -139,13 +134,10 @@ export const acquire: SourceAcquire = async ({
             publishedBefore: `${year + 1}-01-01T00:00:00Z`,
           },
         );
-        const videos: AcquiredVideo[] = [];
-        for (const hit of hits) {
-          videos.push({
-            ...hit,
-            captions: await youtube.fetchCaptions(hit.videoId),
-          });
-        }
+        // Title and description only — the Data API snippet. Captions are not
+        // retrieved: the timedtext track lives on a youtube.com path robots.txt
+        // disallows (INS-72).
+        const videos: AcquiredVideo[] = hits.map((hit) => ({ ...hit }));
         entry.years[String(year)] = { searchedAt: nowIso, videos };
         cache.agencies[slug] = entry;
         await saveVideoCache(state, cache);
