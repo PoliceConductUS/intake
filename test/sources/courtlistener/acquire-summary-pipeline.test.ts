@@ -76,7 +76,7 @@ test("ordinary acquire enriches a cached docket and transform replays the saved 
   });
   const pdf = Buffer.from("%PDF-1.7 synthetic");
   const fetcher = vi.fn(async (url: string, options?: RequestInit) => {
-    if (url.startsWith("https://storage.courtlistener.com")) {
+    if (new URL(url).origin === "https://storage.courtlistener.com") {
       expect(options?.headers).toBeUndefined();
       return new Response(pdf);
     }
