@@ -3,8 +3,13 @@
 // keyed, retrying fetch and tests inject fakes — the client itself is
 // deterministic.
 //
-// Data API only. youtube.com/robots.txt disallows `/api/`, so the `/api/timedtext`
-// caption track is not fetched and captions are not available to these sources.
+// This client only ever reaches the keyed Data API on `www.googleapis.com`,
+// which we use under an API key and the API terms. It deliberately has no path
+// to `www.youtube.com`: that host's robots.txt disallows `/api/` (and
+// `/timedtext_video`), and we do not request paths a publisher disallows
+// (INS-72). `assertDataApiUrl` enforces that at the one place requests are
+// made, so re-introducing such a call fails loudly instead of silently
+// shipping.
 
 export type YoutubeSearchHit = {
   videoId: string;
@@ -99,15 +104,33 @@ export function videoUrl(videoId: string): string {
   return `https://www.youtube.com/watch?v=${videoId}`;
 }
 
+export const DATA_API_BASE = "https://www.googleapis.com/youtube/v3";
+
+/**
+ * The only host this client may request. Anything else — notably
+ * `www.youtube.com`, whose robots.txt disallows `/api/` — is a bug, so it
+ * throws rather than reaching the network (INS-72).
+ */
+export function assertDataApiUrl(url: string): string {
+  if (!url.startsWith(`${DATA_API_BASE}/`)) {
+    throw new Error(
+      `youtube: refusing to request ${url} — this client may only call ${DATA_API_BASE} (INS-72: no robots-disallowed youtube.com paths).`,
+    );
+  }
+  return url;
+}
+
 export function createYoutubeApi(deps: {
   fetchJson: (url: string) => Promise<Record<string, unknown>>;
 }): YoutubeApi {
-  const api = "https://www.googleapis.com/youtube/v3";
+  const api = DATA_API_BASE;
+  const fetchJson = (url: string): Promise<Record<string, unknown>> =>
+    deps.fetchJson(assertDataApiUrl(url));
 
   return {
     async resolveChannelId(handle) {
       const clean = handle.replace(/^@/, "");
-      const body = await deps.fetchJson(
+      const body = await fetchJson(
         `${api}/channels?part=id&forHandle=${encodeURIComponent(clean)}`,
       );
       const items = Array.isArray(body.items) ? body.items : [];
@@ -128,7 +151,7 @@ export function createYoutubeApi(deps: {
         params.set("publishedAfter", window.publishedAfter);
       if (window.publishedBefore !== undefined)
         params.set("publishedBefore", window.publishedBefore);
-      const body = await deps.fetchJson(`${api}/search?${params.toString()}`);
+      const body = await fetchJson(`${api}/search?${params.toString()}`);
       const hits: YoutubeSearchHit[] = [];
       const seen = new Set<string>();
       for (const item of Array.isArray(body.items) ? body.items : []) {

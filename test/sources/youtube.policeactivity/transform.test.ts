@@ -180,6 +180,25 @@ describe("youtube.policeactivity produce", () => {
     expect(data.calls.map((c) => c.personnelName)).toContain("John Smith");
   });
 
+  it("rejects retained caption evidence before resolving any officer", async () => {
+    const data = fakeData();
+    await expect(
+      runWith(
+        data,
+        envelope({
+          videos: [
+            video({
+              title: "Bodycam release",
+              description: "No one is named here.",
+              captions: "Officer John Smith cleared the scene.",
+            }),
+          ],
+        }),
+      ),
+    ).rejects.toThrow(/Unrecognized key: "captions"/);
+    expect(data.calls).toEqual([]);
+  });
+
   it("ignores a video published outside the acquired window", async () => {
     const data = fakeData();
     const { byKind } = await runWith(

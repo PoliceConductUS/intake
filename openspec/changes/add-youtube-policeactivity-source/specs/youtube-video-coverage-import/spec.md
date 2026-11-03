@@ -76,6 +76,11 @@ disallows, and it MUST NOT download or store video media.
 - **WHEN** acquire searches the channel for a given agency and gets a video hit
 - **THEN** the video is stored with its videoId, title, description, publishedAt, channelId, url, retrieval time, and the agency source id it was found for
 
+#### Scenario: no request leaves the sanctioned API host
+
+- **WHEN** acquire runs any phase of the channel search
+- **THEN** every request goes to `https://www.googleapis.com/youtube/v3`, and a request aimed elsewhere fails before being sent
+
 #### Scenario: no media and no disallowed path is fetched
 
 - **WHEN** acquire collects evidence for a video

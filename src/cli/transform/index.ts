@@ -178,6 +178,7 @@ export async function transformSource(
             )
           : undefined;
       manifest = await transform({
+        validationDate: new Date(),
         paths,
         readXlsx: deps.readXlsx,
         state: deps.state,

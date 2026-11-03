@@ -1,0 +1,4 @@
+- [x] Reproduce literal-null and explicit-unset behavior with CLI and correction tests.
+- [x] Implement explicit unset entries and shared application.
+- [x] Document CLI behavior and migrate approved null corrections through canonical IO.
+- [x] Verify focused tests and OpenSpec; report pipeline limitations separately.

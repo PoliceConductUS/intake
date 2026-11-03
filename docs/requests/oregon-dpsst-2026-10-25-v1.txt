@@ -1,0 +1,320 @@
+DRAFT v1 — NOT SUBMITTED
+Prepared: October 25, 2026
+Recipient: Oregon DPSST Public Records
+Email: dpsst.records@dpsst.oregon.gov
+Portal: https://oregondpsst.govqa.us/WEBAPP/_rs/
+Request procedure: https://www.oregon.gov/dpsst/PoliciesProcedures/129.1%20-%20Procedure%20-%20Public%20Records%20Requests.pdf
+
+Subject: Oregon DPSST statewide structured records, source identifiers, certification history, and data model
+
+Good afternoon,
+
+Please treat this as a new public-records request under Oregon Public Records Law, ORS 192.311–192.478.
+
+I am submitting this request to the Oregon Department of Public Safety Standards and Training because DPSST, or related state systems maintain statewide law-enforcement agency, officer, licensing, certification, employment, appointment, training, transfer, and related public records.
+
+This request seeks existing public records in structured, machine-readable form. It does not ask the Oregon Department of Public Safety Standards and Training to create new analysis, summaries, rankings, conclusions, statistics, or narrative explanations.
+
+1. Requested Records
+
+I request the broadest existing statewide structured records, exports, tables, reports, spreadsheets, datasets, data dictionaries, code tables, schema documentation, report layouts, field definitions, and export definitions maintained by DPSST, Criminal Justice IRIS and the underlying systems supplying its public records, DPSST training-record systems, or related systems concerning:
+
+1. Oregon law-enforcement agencies tracked by DPSST or related systems;
+2. current and former licensed, registered, certified, appointed, employed, separated, inactive, suspended, revoked, expired, or otherwise tracked law-enforcement officers or personnel;
+3. officer/personnel roster, license, certification, appointment, employment, separation, transfer, and agency-history records;
+4. training and continuing-education records;
+5. Field Training Officer, trainee, probationary officer, supervision, and training-assignment relationship records, if maintained in structured form;
+6. in-state transfer, out-of-state transfer, reciprocity, waiver, equivalency, prior-certification, and prior-law-enforcement-employment records, if maintained in structured form;
+7. license-action, disciplinary, decertification, suspension, revocation, reinstatement, restriction, complaint, investigation, or accountability records, to the extent maintained in structured public form; and
+8. data dictionaries, code tables, schema documentation, field definitions, table layouts, report layouts, export definitions, and documentation needed to interpret the produced data.
+
+2. Date Range
+
+For this request, please produce records covering the past five years, plus the most current available statewide agency roster, officer/personnel roster, license/certification status records, employment/appointment status records, training records, FTO records, transfer records, and related data dictionaries or code tables.
+
+For purposes of this request, “past five years” means records created, submitted, effective, completed, updated, changed, approved, denied, expired, closed, separated, transferred, revoked, suspended, reinstated, or otherwise modified during the five-year period preceding the date of this request.
+
+If a record was created before the five-year period but remained active, current, effective, open, reportable, or necessary to understand a record changed during the five-year period, please include the record or the minimum fields necessary to interpret the current or changed record.
+
+3. Preferred Format
+
+Please produce responsive records in the native or reasonably exportable electronic format in which they are maintained, including CSV, XLS, XLSX, JSON, XML, TXT, fixed-width text, database export, ZIP file, or another structured format with field names preserved.
+
+Please do not convert structured electronic records into PDF.
+
+Please do not provide scanned records, image files, or PDFs for records that exist in structured electronic form.
+
+4. Existing Exports First
+
+Please identify and produce the broadest existing statewide export, report, table, dataset, or query output that contains responsive public fields, even if it does not include every requested field.
+
+If multiple exports or reports exist, please produce the set of existing exports that requires the least manual review and best preserves the structure of the underlying data.
+
+If there is uncertainty about scope, cost, or available exports, please produce data dictionaries, field lists, schema documentation, report layouts, table names, export names, and code tables first so I can further narrow the request.
+
+5. Agency Records
+
+For each agency, please include all public structured fields maintained, including, if maintained:
+
+- agency name;
+- agency type;
+- agency status;
+- DPSST agency identifier and any underlying agency primary key;
+- ORI number;
+- NCIC number;
+- public mailing address;
+- public physical address;
+- city;
+- county;
+- state;
+- ZIP code;
+- public phone number;
+- public email address;
+- website;
+- social media accounts;
+- agency head, chief, sheriff, executive, or public contact;
+- parent agency;
+- predecessor agency;
+- successor agency;
+- date added;
+- date approved;
+- date activated;
+- date inactivated;
+- date closed;
+- merger or consolidation information; and
+- any other public structured fields sufficient to uniquely identify and distinguish agencies.
+
+6. Officer / Personnel Records
+
+For each officer or other tracked person, please include all public structured fields maintained, including, if maintained:
+
+- name;
+- DPSST number and any underlying personnel primary key;
+- public unique identifier;
+- POST number;
+- license number;
+- certification number;
+- personnel identifier;
+- roster identifier;
+- current or most recent agency;
+- agency identifier;
+- license or certification status;
+- status dates;
+- date first licensed or certified;
+- effective dates;
+- expiration dates;
+- appointment dates;
+- employment or service start dates;
+- separation or end dates;
+- separation type or code, if public;
+- transfer dates;
+- prior agency;
+- receiving or new agency;
+- transaction effective dates;
+- transaction submitted dates;
+- transaction status; and
+- license, certification, employment, or status before and after each structured transaction.
+
+7. Training and Continuing-Education Records
+
+For training and continuing-education records, please include all public structured fields maintained, including, if maintained:
+
+- officer/person identifier;
+- officer name, if public;
+- agency identifier;
+- agency name;
+- course name;
+- course code;
+- training category or topic;
+- provider;
+- training date;
+- completion date;
+- hours or credits;
+- completion/pass/fail status;
+- continuing-education credit;
+- mandatory-training indicator;
+- compliance period;
+- requirement satisfied;
+- expiration date, if any; and
+- any structured indicators for crisis intervention, de-escalation, use of force, firearms, ethics, supervision, wellness, bias, civil rights, community policing, misconduct prevention, accountability, or related training categories.
+
+8. FTO, Trainee, Supervision, and Training-Relationship Records
+
+Please include any structured fields, tables, transaction records, history records, relationship records, or code tables showing:
+
+- Field Training Officer or FTO status;
+- FTO assignment history;
+- trainee/probationary officer assignment history;
+- FTO-to-trainee relationships;
+- supervising officer or training supervisor relationships;
+- agency, academy, or training-program identifiers associated with FTO assignments;
+- FTO assignment start dates;
+- FTO assignment end dates;
+- probationary or field-training completion dates;
+- FTO-related status codes;
+- result codes;
+- completion codes; and
+- related lookup tables, code tables, or data dictionaries.
+
+9. Transfers, Reciprocity, Waivers, and Prior Certification
+
+Please include any structured fields, tables, transaction records, history records, relationship records, or code tables showing:
+
+- transfers between agencies;
+- transfers into Oregon from another state;
+- transfers out of Oregon to another state, if maintained;
+- prior out-of-state law-enforcement certification;
+- prior out-of-state law-enforcement license;
+- prior out-of-state law-enforcement employment;
+- prior academy records, if maintained in structured form;
+- reciprocity records;
+- waiver records;
+- equivalency records;
+- recognition of prior certification or training;
+- sending state;
+- receiving state;
+- prior agency;
+- receiving agency;
+- transaction dates;
+- effective dates;
+- approval dates;
+- denial dates; and
+- status codes for transfer, reciprocity, waiver, equivalency, or prior-certification review records.
+
+10. Discipline, License Action, Accountability, and Compliance Records
+
+Please include license-action, disciplinary, decertification, suspension, revocation, reinstatement, restriction, complaint, investigation, accountability, agency-compliance, audit, certification, policy-compliance, or training-compliance records only to the extent they are maintained in structured public form or can be included in an existing structured export.
+
+This request does not ask the Oregon Department of Public Safety Standards and Training to manually search individual PDF-only files, scanned files, image files, paper files, or narrative files for this category unless needed to identify a structured table, export, field list, data dictionary, report layout, export definition, or code table.
+
+
+
+11. Data Dictionaries and Interpretive Records
+
+Please provide all existing records needed to interpret the produced data, including:
+
+- data dictionaries;
+- schema documentation;
+- table names;
+- field names;
+- field definitions;
+- report layouts;
+- export definitions;
+- code tables;
+- lookup tables;
+- status-code definitions;
+- transaction-code definitions;
+- agency-type definitions;
+- separation-code definitions;
+- training-category definitions;
+- license-status definitions;
+- certification-status definitions;
+- discipline or license-action code definitions;
+- field-value descriptions; and
+- documentation describing how tables, identifiers, or records relate to each other.
+
+In particular, please include existing documentation and releasable source fields identifying:
+
+- stable native primary keys for each personnel record, agency, certificate/license holding, employment/service transaction, certification action, and regulatory action;
+- foreign keys and relationship tables connecting each action to the affected person and, where recorded, the affected certificate(s), certificate type(s), and level(s);
+- the meaning and relationship of DPSST number, RecID, RecNum, AgcyID, and underlying record identifiers;
+- definitions of CertDenied, Cert Riens, CertRevoke, CertSuspnd, Hired, Resigned, Promotion, LOA, Return LOA, Mil-LOA, Retrn MLOA, LveNonCert, Transfered, DOC-Transf, and DPSSTRecla;
+- distinctions among event date, status date, effective date, entry date, update date, certificate date, expiration date, and probation date;
+- actual employer identifiers and names associated with records displayed as Out of State Employment, where maintained and releasable;
+- existing sequence, version, correction, supersession, deletion, and change-tracking fields needed to preserve history and distinguish a corrected record from a new record; and
+- existing bulk-export, API, data-feed, and incremental-update documentation, including available formats and access procedures. This request does not require creation of a new feed or service.
+
+Please preserve existing historical action rows and their identifiers, rather than replacing action history with only each certificate's current status. If an action is recorded only against the person and has no recorded certificate association, please preserve that fact in the export. We are requesting the relationships as maintained, not inferred relationships.
+
+12. Public and Nonpublic Fields
+
+I am not requesting private identity data such as Social Security numbers, home addresses, personal phone numbers, personal email addresses, dates of birth, driver’s license numbers, medical records, or similar nonpublic information.
+
+Please redact, omit, mask, suppress, or replace nonpublic fields as necessary and produce all reasonably segregable public fields and rows.
+
+Please do not withhold an entire table, export, row, or record merely because one field may be exempt or nonpublic.
+
+If a field is withheld, redacted, omitted, renamed, coded, masked, suppressed, or replaced with a code, please identify the field name, provide a brief description of the withheld or altered field, and provide the legal basis for the withholding, redaction, omission, alteration, coding, masking, or suppression.
+
+
+
+13. Prior Productions
+
+Please identify whether DPSST, Criminal Justice IRIS and the underlying systems supplying its public records, DPSST training-record systems, or another state custodian has previously produced any of the same or substantially similar records, exports, tables, datasets, reports, field lists, data dictionaries, or code tables in response to another public-records request, media request, academic request, legislative request, interagency request, data-sharing request, or public-data publication.
+
+For any such prior production known to the records custodian or reasonably identifiable without a separate burdensome search, please provide:
+
+- date of prior production;
+- request or tracking number, if public;
+- general description of records produced;
+- format produced;
+- whether production was statewide or agency-specific;
+- whether the same export, report, table, or dataset can be reused for this request;
+- fee charged, if any;
+- basis for any fee charged; and
+- whether the records were produced at no charge, reduced charge, or as part of a routine export.
+
+If the agency contends that this section is itself a separate request requiring additional search or review, please do not delay production of the underlying data. Instead, produce the underlying data first and separately identify any additional time, cost, or search the agency believes would be required to answer this section.
+
+14. State-Specific Public Interest Context
+
+DPSST makes criminal-justice personnel, certification, and training information available through its public records services: https://www.oregon.gov/dpsst/pages/publicrecords.aspx . This request seeks the underlying structured public records and documentation, including identifiers and relationships not shown in the public display.
+
+The public value of these records is substantial. Structured statewide agency, officer, licensing, employment-history, transfer, FTO, and training records allow the public to understand the law-enforcement workforce, training, licensure, mobility, agency structure, and public-accountability infrastructure.
+
+Please waive or reduce fees in the public interest. The records will support public access to information about certification, service history, and public accountability.
+
+I am requesting these records on behalf of the Institute for Police Conduct, Inc., for public-information work.
+
+15. Narrowing and Clarification
+
+If any part of this request is unclear, overbroad, or difficult to fulfill as written, please contact me before denying, delaying, or materially narrowing the request so I can clarify, prioritize, or narrow it.
+
+Please process all clear portions of the request while clarification is pending on any unclear portion.
+
+Please do not treat examples of fields as limiting the request. The request includes the listed fields and any substantially similar public structured fields maintained by the agency or related systems.
+
+16. Cost Control
+
+Please use the lowest-cost method available to produce the records.
+
+Please use the lowest-paid employee capable of performing each necessary task.
+
+Before performing any work that would materially increase the fee, please identify:
+
+- the work;
+- the records affected;
+- the estimated cost;
+- the reason the work is necessary; and
+- any lower-cost alternative.
+
+If a fee is assessed, please provide an itemized estimate separating:
+
+1. structured data export or report-generation time;
+2. programming, query, or technical extraction time;
+3. redaction time for structured fields;
+4. duplication or transmission cost;
+5. legal review time, if any;
+6. time associated with identifying prior productions, if any; and
+7. any other category of work.
+
+If the estimated fee exceeds $0, please do not incur the fee without my written approval. Instead, please identify specific fields, tables, date ranges, record categories, exports, or formats that could be omitted or narrowed to materially reduce the fee.
+
+We are requesting a response at no cost and do not authorize any charges. If no responsive records can be supplied at no cost, please let us know without incurring charges.
+
+17. Rolling Production
+
+I agree to rolling production.
+
+Please produce easier structured exports, data dictionaries, field lists, code tables, and existing reports as they become available. Please do not delay production of easier records while evaluating more difficult categories.
+
+18. Delivery
+
+Please provide records by electronic attachment or a downloadable electronic file through the request portal or reply email.
+
+If upload size is an issue, please contact me and I can provide a secure upload location.
+
+Thank you,
+
+Dale Lotts
+Institute for Police Conduct, Inc.

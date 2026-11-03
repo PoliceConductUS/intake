@@ -3,10 +3,10 @@
 -- constraint still guarantees a given agency belongs to at most one federal
 -- parent, so pair-uniqueness is preserved without the composite primary key.
 alter table public.federal_agency_branch
-  drop constraint federal_agency_branch_pkey;
+drop constraint federal_agency_branch_pkey;
 
 alter table public.federal_agency_branch
-  add column id text not null default public.generate_cuid();
+add column id text not null default public.generate_cuid();
 
 alter table public.federal_agency_branch
-  add constraint federal_agency_branch_pkey primary key (id);
+add constraint federal_agency_branch_pkey primary key (id);

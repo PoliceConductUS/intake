@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
+  assertDataApiUrl,
   createYoutubeApi,
+  DATA_API_BASE,
   isQuotaExhaustedBody,
   quotaResetHint,
   videoUrl,
@@ -146,5 +148,31 @@ describe("youtube api client", () => {
       "resolveChannelId",
       "searchChannelVideos",
     ]);
+  });
+  // INS-72: www.youtube.com/robots.txt disallows /api/, so this client must
+  // never reach that host — only the keyed Data API on googleapis.com.
+  it("only ever requests the keyed Data API host", async () => {
+    const { api, jsonCalls } = apiWith({
+      "channels?part=id": { items: [{ id: "UCpa123" }] },
+      "channelId=UCpa123": { items: [{ id: { videoId: "v1" } }] },
+    });
+
+    await api.resolveChannelId("@PoliceActivity");
+    await api.searchChannelVideos("UCpa123", "Irving Police");
+
+    expect(jsonCalls.length).toBeGreaterThan(0);
+    for (const url of jsonCalls) {
+      expect(new URL(url).host).toBe("www.googleapis.com");
+    }
+    expect(jsonCalls.some((u) => u.includes("youtube.com/api/"))).toBe(false);
+  });
+
+  it("refuses a request aimed anywhere but the Data API", () => {
+    expect(() =>
+      assertDataApiUrl("https://www.youtube.com/api/timedtext?lang=en&v=v1"),
+    ).toThrow(/refusing to request/);
+    expect(assertDataApiUrl(`${DATA_API_BASE}/search?part=snippet`)).toBe(
+      `${DATA_API_BASE}/search?part=snippet`,
+    );
   });
 });
