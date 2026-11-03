@@ -102,11 +102,7 @@ export const transform: SourceTransform = async ({
         continue;
       }
 
-      const mentions = officerMentions([
-        video.title,
-        video.description,
-        video.captions,
-      ]);
+      const mentions = officerMentions([video.title, video.description]);
       if (mentions.length === 0) {
         unnamed += 1;
         continue;

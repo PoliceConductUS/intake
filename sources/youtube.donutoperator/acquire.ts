@@ -96,12 +96,8 @@ export const acquire: SourceAcquire = async ({
       await sleep(waitMs);
     }
   };
-  const fetchText = async (url: string): Promise<string> => {
-    const response = await fetch(url);
-    return response.ok ? response.text() : "";
-  };
 
-  const youtube = createYoutubeApi({ fetchJson, fetchText });
+  const youtube = createYoutubeApi({ fetchJson });
 
   // Identity: the handle must still resolve to the pinned channel id. If it does
   // not, the handle has moved and continuing would ingest a different channel's
@@ -174,7 +170,6 @@ export const acquire: SourceAcquire = async ({
         }
         videos.push({
           ...hit,
-          captions: await youtube.fetchCaptions(hit.videoId),
           retrievedAt: new Date().toISOString(),
         });
       }

@@ -150,7 +150,7 @@ describe("youtube.donutoperator transform", () => {
       notes: "Officer John Smith responds to a call.",
     });
 
-    // One link per resolved officer, each citing the naming passage.
+    // The caption-only Jane Wilson mention must not emit a link.
     expect(byKind.CoverageLinkAgencyPersonnel).toEqual({
       "v1|ao-1": {
         spec: {
@@ -158,14 +158,6 @@ describe("youtube.donutoperator transform", () => {
           agency_personnel_id: "ao-1",
           confidence: "named-in-video",
           notes: "Officer John Smith",
-        },
-      },
-      "v1|ao-2": {
-        spec: {
-          coverage_link_id: "v1",
-          agency_personnel_id: "ao-2",
-          confidence: "named-in-video",
-          notes: "Sergeant Jane Wilson",
         },
       },
     });

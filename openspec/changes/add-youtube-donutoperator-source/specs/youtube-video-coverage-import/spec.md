@@ -7,8 +7,8 @@ The `sources/youtube.donutoperator/acquire.ts` phase MUST resolve the
 pinned channel id `UCwkm_Wcyh0pc7UUmZZfL-6w`. It MUST search **within that
 channel** per agency, paging agencies via the acquire `agencies(...)` facade, and
 MUST store each hit with its `videoId`, `title`, `description`, `publishedAt`,
-`channelId`, canonical `url`, retrieval time, and available caption text (or an
-explicit no-captions marker), stamped with the agency's namespace-local source id.
+`channelId`, canonical `url`, and retrieval time, stamped with the agency's namespace-local source id.
+Acquire MUST use only the sanctioned Data API. It MUST NOT retrieve captions or timedtext; transform MUST ignore retained caption fields.
 It MUST require `YOUTUBE_API_KEY`. No video media is downloaded or stored — links
 and metadata only. All network access lives in acquire.
 

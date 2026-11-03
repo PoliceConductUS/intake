@@ -26,7 +26,6 @@ export type AcquiredVideo = {
   publishedAt: string;
   channelId: string;
   url: string;
-  captions: string | null;
   /** When this source observed the video — link provenance, kept in the archive. */
   retrievedAt: string;
 };

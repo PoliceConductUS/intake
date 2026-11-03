@@ -15,7 +15,6 @@ function video(id: string, over: Record<string, unknown> = {}) {
     publishedAt: "",
     channelId: "UCwkm_Wcyh0pc7UUmZZfL-6w",
     url: `https://www.youtube.com/watch?v=${id}`,
-    captions: null,
     retrievedAt: "2026-06-01T00:00:00Z",
     ...over,
   };
