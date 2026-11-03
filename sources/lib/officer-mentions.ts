@@ -1,5 +1,5 @@
 // Candidate officer names a publisher asserts in free text (a video title,
-// description, or caption track), each with the passage that asserts it.
+// or description), each with the passage that asserts it.
 //
 // This heuristic lives here, once, on purpose. Every video-coverage source needs
 // it, and it is the most safety-critical guess in the pipeline: a name pulled out
@@ -23,8 +23,7 @@ export type OfficerMention = { name: string; passage: string };
 /**
  * The distinct officer mentions across `fields`, in the order the fields are
  * given, each keeping its first supporting passage. Fields are searched in order,
- * so callers should pass them most-authoritative first (title, then description,
- * then captions) — the passage recorded for a name is the first one found.
+ * so callers pass title, then description, never captions — the passage recorded for a name is the first one found.
  */
 export function officerMentions(
   fields: readonly (string | null | undefined)[],
