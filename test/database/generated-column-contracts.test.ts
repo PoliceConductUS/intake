@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, test } from "vitest";
 import { createRequire } from "node:module";
 import ts from "typescript";
 import * as timestampSchema from "../../src/shared/timestamp-schema.js";
+import * as complaintSummarySchema from "../../src/shared/ai-complaint-summary.js";
 import * as addressSchema from "../../src/shared/agency-address-schema.js";
 import { introspectSchema } from "../../scripts/lib/schema-introspection.js";
 import {
@@ -56,6 +57,7 @@ test("generated agency record and create schemas reject the database-owned colum
   new Function("require", "exports", code)((name: string) => {
     if (name === "../../timestamp-schema.js") return timestampSchema;
     if (name === "../../agency-address-schema.js") return addressSchema;
+    if (name === "../../ai-complaint-summary.js") return complaintSummarySchema;
     return localRequire(name);
   }, exports);
   for (const name of ["AgencySpec", "AgencyCreateSpec"]) {

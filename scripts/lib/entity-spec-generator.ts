@@ -214,7 +214,12 @@ const DESCRIPTORS: EntityDescriptor[] = [
     createRequired: ["id", "slug", "location_path_id"],
     // The source supplies a namespace-local state value in location_path_id
     // (resolved-or-fail to the canonical state path at import, ADR 0006/0015).
-    override: { location_path_id: "nonEmptyString.optional()" },
+    override: {
+      location_path_id: "nonEmptyString.optional()",
+      ai_complaint_summary: "aiComplaintSummary.nullable().optional()",
+      complaint_summary_unavailability:
+        "complaintSummaryUnavailability.nullable().optional()",
+    },
   },
   {
     recordKind: "CivilCasePersonnel",
@@ -740,6 +745,7 @@ export function generateEntitySpecsModule(
 ): string {
   const preamble = `${header}import { z } from "zod";
 import { timestampWithTimezone } from "../../timestamp-schema.js";
+import { aiComplaintSummary, complaintSummaryUnavailability } from "../../ai-complaint-summary.js";
 import { agencyAddressText, agencyZipCode } from "../../agency-address-schema.js";
 
 // Fingerprint of the applied database migrations these specs were generated

@@ -2,6 +2,10 @@
 import { z } from "zod";
 import { timestampWithTimezone } from "../../timestamp-schema.js";
 import {
+  aiComplaintSummary,
+  complaintSummaryUnavailability,
+} from "../../ai-complaint-summary.js";
+import {
   agencyAddressText,
   agencyZipCode,
 } from "../../agency-address-schema.js";
@@ -48,9 +52,11 @@ export const GENERATED_MIGRATION_VERSIONS = [
   "20260929190000",
   "20261006000000",
   "20261010000000",
+  "20261103020000",
+  "20261103021000",
 ] as const;
 export const GENERATED_MIGRATION_FINGERPRINT =
-  "037c3d207df432826eff97b2b17734cf482df24ef9fbd4468849f17fa77272fa";
+  "15940fa4f8120f88a4ead270de5348d8633dad6936bfc29bea4b7975b4ac0c28";
 
 // Entity record kinds in database-dependency order (topological sort of the
 // foreign-key graph): a referenced entity precedes its referrer, so mutations
@@ -912,6 +918,10 @@ export const CivilCaseSpec = z
     primary_source_url: z.string().nullable().optional(),
     date_terminated: nullableNonEmptyString.optional(),
     location_path_id: nonEmptyString.optional(),
+    ai_complaint_summary: aiComplaintSummary.nullable().optional(),
+    complaint_summary_unavailability: complaintSummaryUnavailability
+      .nullable()
+      .optional(),
   })
   .strict();
 
