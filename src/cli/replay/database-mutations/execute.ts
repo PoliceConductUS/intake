@@ -1,6 +1,7 @@
+import { rowsFromResult } from "../../database/index.js";
 import {
   createDatabaseRecords,
-  readDatabaseRecordByColumn,
+  databaseRecordProjection,
   updateDatabaseRecordFields,
 } from "../../database/entities.js";
 import type { DatabaseClient } from "../../database/index.js";
@@ -12,6 +13,8 @@ import {
 import type { SupportedTableName } from "../../database/schema.js";
 import {
   PRIMARY_KEY_BY_KIND,
+  JSON_PROPERTIES,
+  JSON_REQUIRED_PROPERTIES,
   TABLE_BY_KIND,
 } from "../../../shared/io/generated/entity-specs.js";
 import { valuesEqual } from "../../../shared/values-equal.js";
@@ -126,6 +129,12 @@ function databaseFieldValue(
   fieldName: string,
   value: unknown,
 ): unknown {
+  if (JSON_PROPERTIES[recordKind]?.includes(fieldName) && value !== undefined) {
+    return value === null &&
+      !JSON_REQUIRED_PROPERTIES[recordKind]?.includes(fieldName)
+      ? null
+      : JSON.stringify(value);
+  }
   if (recordKind !== "LocationPath") {
     return timestampValue(recordKind, fieldName, value);
   }
@@ -147,6 +156,7 @@ type PendingCreate = {
 const MAX_INSERT_PARAMETERS = 60000;
 // Bound server-side parsing memory independently of the bind-parameter count.
 const MAX_INSERT_PAYLOAD_BYTES = 1024 * 1024;
+const MAX_INSERT_ROWS = 1000;
 
 function definedColumns(spec: Record<string, unknown>): string[] {
   return Object.entries(spec)
@@ -192,12 +202,12 @@ async function executeUpdate(
       `DatabaseMutation ${mutationName} update operations are malformed.`,
     );
   }
-  const current = await readDatabaseRecordByColumn(
-    client,
-    metadata.tableName,
-    metadata.keyColumnName,
-    mutationName,
-  );
+  const current = rowsFromResult(
+    await client.query(
+      `select ${databaseRecordProjection(metadata.tableName)} from ${metadata.tableName} where ${metadata.keyColumnName} = $1 for update`,
+      [mutationName],
+    ),
+  )[0];
   if (current === undefined) {
     throw new Error(
       `DatabaseMutation ${mutationName} cannot update missing ${recordKind}.`,
@@ -320,7 +330,7 @@ export async function executeDatabaseMutations(
 
   // Creates are emitted contiguously and ahead of every update (ADR 0020), so
   // buffer a run of same-kind, same-column creates and flush it as one multi-row
-  // insert — on a kind/column change, the parameter cap, or the first non-create.
+  // insert — on kind/column changes, row/byte/parameter caps, or non-creates.
   let pending:
     | {
         recordKind: string;
@@ -352,7 +362,10 @@ export async function executeDatabaseMutations(
       const signature = `${recordKind}(${columns.join(",")})`;
       const rowCap = Math.max(
         1,
-        Math.floor(MAX_INSERT_PARAMETERS / columns.length),
+        Math.min(
+          MAX_INSERT_ROWS,
+          Math.floor(MAX_INSERT_PARAMETERS / columns.length),
+        ),
       );
       if (
         pending !== undefined &&

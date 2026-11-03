@@ -145,3 +145,37 @@ test("persisted date correction resolves the intake date guard without changing 
     "source agency_id is missing",
   );
 });
+
+test("reports annotations only for corrections that actually match", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "correction-annotations-"));
+  roots.push(root);
+  await setPropertyCorrection({
+    rootDir: root,
+    namespace: "test",
+    kind: "Agency",
+    sourceId: "one",
+    property: "name",
+    from: "OLD",
+    value: "New",
+    force: false,
+    commandId: "cmd",
+  });
+  const apply = await loadPropertyCorrections(root, "test");
+  const applied: unknown[] = [];
+  apply("Agency", "one", { name: "OLD" }, (_field, annotation) =>
+    applied.push(annotation),
+  );
+  apply("Agency", "one", { name: "Other" }, (_field, annotation) =>
+    applied.push(annotation),
+  );
+  expect(applied).toEqual([
+    expect.objectContaining({
+      field: "name",
+      value: "OLD",
+      replacement_value: "New",
+      type: "correction",
+      source_namespace: "test",
+      source_record_id: "one",
+    }),
+  ]);
+});

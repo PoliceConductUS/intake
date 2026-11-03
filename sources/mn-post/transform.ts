@@ -223,6 +223,7 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
         name: "Minnesota Board of Peace Officer Standards and Training",
         abbreviation: "MN POST",
         website: "https://dps.mn.gov/entity/post",
+        source_namespaces: ["mn-post"],
         location_path_id: "mn",
       },
     },

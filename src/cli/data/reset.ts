@@ -25,7 +25,9 @@ type ResetDependencies = {
   resetDatabase?: (env: Record<string, string | undefined>) => Promise<void>;
   runDataCommand?: (
     args: readonly string[],
-    context?: { useInitialAgencyRoots: boolean },
+    context?: {
+      useInitialAgencyRoots: boolean;
+    },
   ) => Promise<CommandResult>;
   prepareManualLocations?: () => Promise<CommandResult>;
 };
