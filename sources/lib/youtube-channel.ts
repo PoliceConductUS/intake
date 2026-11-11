@@ -1,3 +1,4 @@
+import { officerMentions as mentionsInFields } from "./officer-mentions.js";
 // One accountability YouTube channel as a coverage source, parameterized.
 //
 // Six channels are being added as independent sources (issue #52 family). They
@@ -21,7 +22,7 @@ import type {
   SourceTransform,
   TransformDeps,
 } from "../../src/cli/transform/source-transform.js";
-import { isPersonName, slugify } from "./civil-defendants.js";
+import { slugify } from "./civil-defendants.js";
 import {
   createYoutubeApi,
   isQuotaExhaustedBody,
@@ -112,29 +113,14 @@ export function normalizeVideoUrl(url: string): string {
 // The role prefix is case-insensitive (`(?i:…)`) so "Officer"/"OFFICER"/"officer"
 // all match; the name stays Title-case so only capitalized name words are
 // captured (it stops at the next lowercase word, e.g. "responds").
-const OFFICER_MENTION =
-  /\b(?i:officers?|deputies|deputy|sergeants?|sgt|detectives?|det|lieutenants?|lt|corporals?|cpl|troopers?|chiefs?|captains?|capt|sheriffs?|marshals?|patrol(?:man|woman|men)?)\.?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z'.-]+){1,2})/g;
-
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-/**
- * The distinct officer mentions in a video, each with its first supporting
- * passage across the title and description.
- */
 export function officerMentions(
   video: Pick<AcquiredVideo, "title" | "description">,
 ): Array<{ name: string; passage: string }> {
-  const found = new Map<string, string>();
-  for (const field of [video.title, video.description]) {
-    for (const match of field.matchAll(OFFICER_MENTION)) {
-      const name = match[1].trim();
-      if (!isPersonName(name) || found.has(name)) continue;
-      found.set(name, match[0].trim());
-    }
-  }
-  return [...found].map(([name, passage]) => ({ name, passage }));
+  return mentionsInFields([video.title, video.description]);
 }
 
 /**
