@@ -466,7 +466,7 @@ describe("DataContext", () => {
     });
   });
 
-  test("omits a matching existing location path from the envelope", async () => {
+  test("records missing source evidence even when the existing location values match", async () => {
     const existingLocationPath = locationPaths[0]!;
     const context = new DataContext({
       client: new EmptyDatabaseClient(),
@@ -485,7 +485,7 @@ describe("DataContext", () => {
         licenseActions: {},
       }),
     });
-    // Matching source fields produce no mutation for the existing census row.
+    // Missing provenance is a real row change even when the source values match.
     context.facadeFromSource("LocationPath", {
       apiVersion: INTAKE_API_VERSION,
       namespace: "mn-post",
@@ -512,7 +512,19 @@ describe("DataContext", () => {
       }),
     ).toMatchObject({
       spec: {
-        mutations: [],
+        mutations: [
+          expect.objectContaining({
+            kind: "LocationPathUpdate",
+            spec: expect.objectContaining({
+              operations: expect.arrayContaining([
+                expect.objectContaining({
+                  action: "set",
+                  path: "data_source_values",
+                }),
+              ]),
+            }),
+          }),
+        ],
       },
     });
   });
@@ -846,6 +858,7 @@ describe("DataContext", () => {
             path: "location_path_id",
             value: "tx-location-path-id",
           },
+          { action: "set", path: "data_source_values" },
         ],
       },
     });
@@ -942,6 +955,7 @@ describe("DataContext", () => {
             path: "location_path_id",
             value: "tx-location-path-id",
           },
+          { action: "set", path: "data_source_values" },
         ],
       },
     });
@@ -1157,6 +1171,7 @@ describe("DataContext", () => {
             path: "authority_license_id",
             value: "authority-license-canonical-id",
           },
+          { action: "set", path: "data_source_values" },
         ],
       },
     });
@@ -2309,6 +2324,12 @@ describe("CivilCase cross-source convergence (ADR 0028)", () => {
 describe("durable business-key identities", () => {
   const cases = [
     {
+      kind: "AgencyArrestProfile",
+      table: "public.agency_arrest_profile",
+      spec: { agency_id: "agency" },
+      row: { id: "original-agency-profile-id", agency_id: "agency-id" },
+    },
+    {
       kind: "AuthorityLicense",
       table: "public.authority_license",
       spec: { licensing_authority_id: "authority", name: "Peace Officer" },
@@ -2343,6 +2364,7 @@ describe("durable business-key identities", () => {
     for (const namespace of ["source-a", "source-b"]) {
       for (const [kind, name, canonicalId] of [
         ["LicensingAuthority", "authority", "authority-id"],
+        ["Agency", "agency", "agency-id"],
         ["Personnel", "person", "person-id"],
         ["AuthorityLicense", "type", "type-id"],
         ["AgencyPersonnel", "assignment", "assignment-id"],

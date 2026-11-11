@@ -39,16 +39,24 @@ function valueError(error: z.ZodError): Error {
 }
 
 function parseValue(schema: z.ZodType, text: string): unknown {
-  if (text === "null" && schema.safeParse(null).success) return null;
-  const direct = schema.safeParse(text);
+  // Set supplies a present value. Optional/null states belong to unset, and
+  // string fields receive the command-line text without JSON interpretation.
+  let valueSchema = schema;
+  while (
+    valueSchema instanceof z.ZodNullable ||
+    valueSchema instanceof z.ZodOptional
+  )
+    valueSchema = valueSchema.unwrap() as z.ZodType;
+  const direct = valueSchema.safeParse(text);
   if (direct.success) return direct.data;
+  if (valueSchema instanceof z.ZodString) throw valueError(direct.error);
   let value: unknown;
   try {
     value = JSON.parse(text);
   } catch {
     throw valueError(direct.error);
   }
-  const parsed = schema.safeParse(value);
+  const parsed = valueSchema.safeParse(value);
   if (!parsed.success) throw valueError(parsed.error);
   return parsed.data;
 }
@@ -178,16 +186,20 @@ export const registerCliCommand: RegisterCliCommand = (
         }
       },
     );
-  for (const action of ["get", "set"] as const) {
+  for (const action of ["get", "set", "unset"] as const) {
     const command = cache
       .command(action)
       .argument("<namespace>")
       .argument("<kind>")
       .argument("<source-id>")
       .argument("<property>");
-    if (action === "set")
+    if (action === "set") command.argument("<value>");
+    if (action !== "get")
       command
-        .argument("<value>")
+        .requiredOption(
+          "--message <message>",
+          "explain the correction (at least 10 characters)",
+        )
         .option(
           "--from <existing-value>",
           "replace only this exact typed input value; default: absent/null",
@@ -198,7 +210,7 @@ export const registerCliCommand: RegisterCliCommand = (
         )
         .addHelpText(
           "after",
-          "\nOne active manual rule per source property. --from and no --from replace the same rule with --force; rules never chain. A nonmatching rule leaves normal source/cache/resolver behavior unchanged.\nRun data generate <namespace> to use record corrections. Corrections apply before dependent property resolution; transforms do not read corrections.\n",
+          "\nSet stores a value; the text null is not a clearing instruction. Unset explicitly clears a nullable field. One active manual rule per source property. --from and no --from replace the same rule with --force; rules never chain. A nonmatching rule leaves normal source/cache/resolver behavior unchanged.\nRun data generate <namespace> to use record corrections. Corrections apply before dependent property resolution; transforms do not read corrections.\n",
         );
     command.action(
       async (
@@ -207,8 +219,14 @@ export const registerCliCommand: RegisterCliCommand = (
         sourceId: string,
         property: string,
         valueOrOptions: string | object,
-        options?: { force?: boolean; from?: string },
+        options?: { force?: boolean; from?: string; message?: string },
       ) => {
+        if (action === "unset")
+          options = valueOrOptions as {
+            force?: boolean;
+            from?: string;
+            message?: string;
+          };
         let locationClient: DatabaseClient | undefined;
         const getLocationPathById = async (id: string) => {
           if (locationClient === undefined) {
@@ -224,6 +242,12 @@ export const registerCliCommand: RegisterCliCommand = (
         };
         try {
           const schema = correctionPropertySchema(kind, property);
+          if (action !== "get")
+            options!.message = z
+              .string()
+              .trim()
+              .min(10, "Message must contain at least 10 characters.")
+              .parse(options?.message);
           const rootDir = intakeWorkspace(process.env);
           const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
           const id = await ledger.read(
@@ -240,12 +264,15 @@ export const registerCliCommand: RegisterCliCommand = (
             getLocationPathById,
           );
           const conditional =
-            action === "set" || correction !== undefined || id === undefined;
+            action !== "get" || correction !== undefined || id === undefined;
           if (conditional) {
-            if (action === "set") {
-              const value = parseValue(schema, String(valueOrOptions));
+            if (action !== "get") {
+              const value =
+                action === "unset"
+                  ? schema.parse(null)
+                  : parseValue(schema, String(valueOrOptions));
               let from: unknown = null;
-              if (options?.from !== undefined && options.from !== "null") {
+              if (options?.from !== undefined) {
                 if (schema.safeParse(options.from).success) from = options.from;
                 else {
                   try {
@@ -279,16 +306,18 @@ export const registerCliCommand: RegisterCliCommand = (
                 {
                   args: [
                     "cache",
-                    "set",
+                    action,
                     namespace,
                     kind,
                     sourceId,
                     property,
-                    String(valueOrOptions),
+                    ...(action === "set" ? [String(valueOrOptions)] : []),
                     ...(options?.from === undefined
                       ? []
                       : ["--from", options.from]),
                     ...(options?.force ? ["--force"] : []),
+                    "--message",
+                    options!.message!,
                   ],
                 },
               );
@@ -299,10 +328,13 @@ export const registerCliCommand: RegisterCliCommand = (
                 kind,
                 sourceId,
                 property,
-                value,
+                ...(action === "unset"
+                  ? { operation: "unset" as const }
+                  : { value }),
                 from,
                 commandId: commandName,
                 force: options?.force === true,
+                message: options!.message!,
               });
               if (id !== undefined)
                 await retireManualResolvedProperty({

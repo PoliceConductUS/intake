@@ -2,10 +2,12 @@
 
 set check_function_bodies = off;
 
-CREATE OR REPLACE FUNCTION public.calculate_agency_officer_stats(agency_officer_id text)
- RETURNS void
- LANGUAGE plpgsql
-AS $function$
+create or replace function public.calculate_agency_officer_stats(
+    agency_officer_id text
+)
+returns void
+language plpgsql
+as $function$
 DECLARE
     ao record;
     stats jsonb;
@@ -46,13 +48,14 @@ BEGIN
         updated_at = now()
     WHERE id = agency_officer_id;
 END;
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION public.calculate_overall_rating_stats(rating_stats jsonb)
- RETURNS jsonb
- LANGUAGE plpgsql
-AS $function$
+create or replace function public.calculate_overall_rating_stats(
+    rating_stats jsonb
+)
+returns jsonb
+language plpgsql
+as $function$
 DECLARE
   overall_stats jsonb;
   stat record;
@@ -126,7 +129,8 @@ BEGIN
         ARRAY[stat.key, 'average'],
         '5'::jsonb  -- Set to maximum for the category
       );
-      -- We could implement a more sophisticated weighted average calculation here if needed
+      -- We could implement a more sophisticated weighted average calculation
+      -- here if needed
       overall_stats := jsonb_set(
         overall_stats,
         ARRAY[stat.key, 'weighted_average'],
@@ -137,13 +141,14 @@ BEGIN
 
   RETURN jsonb_build_object('overall', overall_stats);
 END;
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION public.calculate_rating_stats(review_officers_ratings_array jsonb)
- RETURNS jsonb
- LANGUAGE plpgsql
-AS $function$
+create or replace function public.calculate_rating_stats(
+    review_officers_ratings_array jsonb
+)
+returns jsonb
+language plpgsql
+as $function$
 DECLARE
   stats jsonb;
 BEGIN
@@ -185,13 +190,12 @@ BEGIN
 
   RETURN coalesce(stats, '{}'::jsonb);
 END;
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION public.generate_cuid()
- RETURNS text
- LANGUAGE plpgsql
-AS $function$
+create or replace function public.generate_cuid()
+returns text
+language plpgsql
+as $function$
 BEGIN
     RETURN LOWER(
         'c' || 
@@ -199,13 +203,12 @@ BEGIN
         SUBSTRING(MD5(RANDOM()::TEXT) FOR 8)
     );
 END;
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION public.handle_agency_officer_change()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
+create or replace function public.handle_agency_officer_change()
+returns trigger
+language plpgsql
+as $function$
 BEGIN
     IF TG_OP = 'UPDATE' THEN
         -- Recalculate stats for the agency officer
@@ -224,27 +227,25 @@ BEGIN
     
     RETURN NEW;
 END;
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION public.handle_new_user()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
 begin
   insert into public.profiles (id)
   values (new.id);
   return new;
 end;
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION public.handle_review_rating_change()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
+create or replace function public.handle_review_rating_change()
+returns trigger
+language plpgsql
+as $function$
 DECLARE
     review_officer record;
     agency_officer record;
@@ -272,26 +273,24 @@ BEGIN
 
     RETURN NEW;
 END;
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION public.prevent_trait_deletion()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
+create or replace function public.prevent_trait_deletion()
+returns trigger
+language plpgsql
+as $function$
 BEGIN
     IF EXISTS (SELECT 1 FROM review_officers_ratings WHERE trait_id = OLD.id) THEN
         RAISE EXCEPTION 'Cannot delete trait with existing ratings';
     END IF;
     RETURN OLD;
 END;
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION public.prevent_trait_modification()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
+create or replace function public.prevent_trait_modification()
+returns trigger
+language plpgsql
+as $function$
 BEGIN
     IF EXISTS (SELECT 1 FROM review_officers_ratings WHERE trait_id = NEW.id) 
        AND (OLD.label != NEW.label) THEN
@@ -299,24 +298,22 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION public.trigger_set_timestamp()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
+create or replace function public.trigger_set_timestamp()
+returns trigger
+language plpgsql
+as $function$
 BEGIN
     NEW.updated_at = timezone('utc'::text, now());
     RETURN NEW;
 END;
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION public.update_agency_overall_rating(agency_id text)
- RETURNS void
- LANGUAGE plpgsql
-AS $function$
+create or replace function public.update_agency_overall_rating(agency_id text)
+returns void
+language plpgsql
+as $function$
 DECLARE
     overall_rating numeric;
 BEGIN
@@ -332,13 +329,12 @@ BEGIN
     SET rating_overall = COALESCE(overall_rating, 0)
     WHERE id = agency_id;
 END;
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION public.update_officer_overall_rating(officer_id text)
- RETURNS void
- LANGUAGE plpgsql
-AS $function$
+create or replace function public.update_officer_overall_rating(officer_id text)
+returns void
+language plpgsql
+as $function$
 DECLARE
     overall_rating numeric;
 BEGIN
@@ -356,31 +352,30 @@ BEGIN
     SET rating_overall = COALESCE(overall_rating, 0)
     WHERE id = officer_id;
 END;
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION public.update_overall_stats()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
+create or replace function public.update_overall_stats()
+returns trigger
+language plpgsql
+as $function$
 BEGIN
   -- Calculate and merge the overall stats with existing review_stats
   NEW.review_stats := NEW.review_stats || calculate_overall_rating_stats(NEW.review_stats);
   RETURN NEW;
 END;
-$function$
-;
-
+$function$;
 
 
 -- Collapsed from 20250304020837_remote_schema.sql
 
 set check_function_bodies = off;
 
-CREATE OR REPLACE FUNCTION public.calculate_agency_officer_stats(agency_officer_id text)
- RETURNS void
- LANGUAGE plpgsql
-AS $function$
+create or replace function public.calculate_agency_officer_stats(
+    agency_officer_id text
+)
+returns void
+language plpgsql
+as $function$
 DECLARE
     ao record;
     stats jsonb;
@@ -430,30 +425,35 @@ BEGIN
         updated_at = now()
     WHERE id = agency_officer_id;
 END;
-$function$
-;
-
+$function$;
 
 
 -- Collapsed from 20250304093111_remote_schema.sql
 
-drop trigger if exists "agency_officer_change" on "public"."agency_officers";
+drop trigger if exists agency_officer_change on public.agency_officers;
 
-drop trigger if exists "review_rating_change" on "public"."review_officers_ratings";
+drop trigger if exists review_rating_change on public.review_officers_ratings;
 
-alter table "public"."review_officers" add column "rating_overall" numeric default 0;
+alter table public.review_officers add column rating_overall numeric default 0;
 
-CREATE UNIQUE INDEX review_officers_ratings_review_officer_trait_unique ON public.review_officers_ratings USING btree (review_officer_id, trait_id);
+create unique index review_officers_ratings_review_officer_trait_unique on
+public.review_officers_ratings using btree (
+    review_officer_id, trait_id
+);
 
-alter table "public"."review_officers_ratings" add constraint "review_officers_ratings_review_officer_trait_unique" UNIQUE using index "review_officers_ratings_review_officer_trait_unique";
+alter table public.review_officers_ratings add constraint
+review_officers_ratings_review_officer_trait_unique unique using index
+review_officers_ratings_review_officer_trait_unique;
 
 set check_function_bodies = off;
 
-CREATE OR REPLACE FUNCTION public.calculate_agency_officer_stats(agency_officer_id text)
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
+create or replace function public.calculate_agency_officer_stats(
+    agency_officer_id text
+)
+returns void
+language plpgsql
+security definer
+as $function$
 DECLARE
     ao record;
     stats jsonb;
@@ -502,14 +502,13 @@ BEGIN
     -- Log the update for debugging
     RAISE NOTICE 'Updated agency_officer % with rating %', agency_officer_id, overall_rating;
 END;
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION public.handle_agency_officer_change()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
+create or replace function public.handle_agency_officer_change()
+returns trigger
+language plpgsql
+security definer
+as $function$
 BEGIN
     IF TG_OP = 'UPDATE' THEN
         -- Recalculate stats for the agency officer
@@ -528,14 +527,13 @@ BEGIN
     
     RETURN NEW;
 END;
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION public.update_agency_overall_rating(agency_id text)
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
+create or replace function public.update_agency_overall_rating(agency_id text)
+returns void
+language plpgsql
+security definer
+as $function$
 DECLARE
     overall_rating numeric;
 BEGIN
@@ -551,114 +549,157 @@ BEGIN
     SET rating_overall = COALESCE(overall_rating, 0)
     WHERE id = agency_id;
 END;
-$function$
-;
+$function$;
 
-CREATE TRIGGER agency_officer_change AFTER INSERT OR DELETE OR UPDATE ON public.agency_officers FOR EACH ROW EXECUTE FUNCTION handle_agency_officer_change();
-ALTER TABLE "public"."agency_officers" DISABLE TRIGGER "agency_officer_change";
+create trigger agency_officer_change after insert or delete or update on
+public.agency_officers for each row execute function
+handle_agency_officer_change();
+alter table public.agency_officers disable trigger "agency_officer_change";
 
-CREATE TRIGGER review_rating_change AFTER INSERT OR DELETE OR UPDATE ON public.review_officers_ratings FOR EACH ROW EXECUTE FUNCTION handle_review_rating_change();
-ALTER TABLE "public"."review_officers_ratings" DISABLE TRIGGER "review_rating_change";
-
+create trigger review_rating_change after insert or delete or update on
+public.review_officers_ratings for each row execute function
+handle_review_rating_change();
+alter table public.review_officers_ratings disable trigger
+"review_rating_change";
 
 
 -- Collapsed from 20250322033735_remote_schema.sql
 
 
-create or replace view "public"."agency_states" as  SELECT DISTINCT agency.state
-   FROM agency
-  ORDER BY agency.state;
+create or replace view public.agency_states as select distinct agency.state
+from agency
+order by agency.state;
 
 -- Collapsed from 20250403042228_remote_schema.sql
 
-drop trigger if exists "update_agency_overall_stats" on "public"."agency";
+drop trigger if exists update_agency_overall_stats on public.agency;
 
-drop trigger if exists "update_officers_overall_stats" on "public"."officers";
+drop trigger if exists update_officers_overall_stats on public.officers;
 
-alter table "public"."rating_values" drop constraint "rating_values_pkey";
+alter table public.rating_values drop constraint "rating_values_pkey";
 
-drop table "public"."rating_values";
+drop table public.rating_values;
 
-create table "public"."agency_officers_stats" (
-    "id" text not null,
-    "review_stats" jsonb default '{}'::jsonb,
-    "rating_overall" numeric default 0,
-    "review_count" integer default 0,
-    "average" numeric default 0,
-    "weighted_average" numeric default 0,
-    "created_at" timestamp with time zone not null default timezone('utc'::text, now()),
-    "updated_at" timestamp with time zone not null default timezone('utc'::text, now())
+create table public.agency_officers_stats (
+    id text not null,
+    review_stats jsonb default '{}'::jsonb,
+    rating_overall numeric default 0,
+    review_count integer default 0,
+    average numeric default 0,
+    weighted_average numeric default 0,
+    created_at timestamp with time zone not null default timezone(
+        'utc'::text, now()
+    ),
+    updated_at timestamp with time zone not null default timezone(
+        'utc'::text, now()
+    )
 );
 
 
-create table "public"."agency_stats" (
-    "id" text not null,
-    "review_stats" jsonb default '{}'::jsonb,
-    "rating_overall" numeric default 0,
-    "review_count" integer default 0,
-    "average" numeric default 0,
-    "weighted_average" numeric default 0,
-    "created_at" timestamp with time zone not null default timezone('utc'::text, now()),
-    "updated_at" timestamp with time zone not null default timezone('utc'::text, now())
+create table public.agency_stats (
+    id text not null,
+    review_stats jsonb default '{}'::jsonb,
+    rating_overall numeric default 0,
+    review_count integer default 0,
+    average numeric default 0,
+    weighted_average numeric default 0,
+    created_at timestamp with time zone not null default timezone(
+        'utc'::text, now()
+    ),
+    updated_at timestamp with time zone not null default timezone(
+        'utc'::text, now()
+    )
 );
 
 
-create table "public"."officers_stats" (
-    "id" text not null,
-    "review_stats" jsonb default '{}'::jsonb,
-    "rating_overall" numeric default 0,
-    "review_count" integer default 0,
-    "average" numeric default 0,
-    "weighted_average" numeric default 0,
-    "created_at" timestamp with time zone not null default timezone('utc'::text, now()),
-    "updated_at" timestamp with time zone not null default timezone('utc'::text, now())
+create table public.officers_stats (
+    id text not null,
+    review_stats jsonb default '{}'::jsonb,
+    rating_overall numeric default 0,
+    review_count integer default 0,
+    average numeric default 0,
+    weighted_average numeric default 0,
+    created_at timestamp with time zone not null default timezone(
+        'utc'::text, now()
+    ),
+    updated_at timestamp with time zone not null default timezone(
+        'utc'::text, now()
+    )
 );
 
 
-create table "public"."rubric_labels" (
-    "label" rating_label not null,
-    "value" integer not null
+create table public.rubric_labels (
+    -- RF04: This existing schema identifier is consumed by migrations and
+    -- clients. Renaming it requires a coordinated schema/API change.
+    label rating_label not null,
+    -- RF04: This existing schema identifier is consumed by migrations and
+    -- clients. Renaming it requires a coordinated schema/API change.
+    value integer not null
 );
 
 
-alter table "public"."rubrics" drop column "label";
+alter table public.rubrics drop column label;
 
-alter table "public"."rubrics" add column "rubric_value" integer not null;
+alter table public.rubrics add column rubric_value integer not null;
 
-CREATE UNIQUE INDEX agency_officers_stats_pkey ON public.agency_officers_stats USING btree (id);
+create unique index agency_officers_stats_pkey on public.agency_officers_stats
+using btree (
+    id
+);
 
-CREATE UNIQUE INDEX agency_stats_pkey ON public.agency_stats USING btree (id);
+create unique index agency_stats_pkey on public.agency_stats using btree (id);
 
-CREATE UNIQUE INDEX officers_stats_pkey ON public.officers_stats USING btree (id);
+create unique index officers_stats_pkey on public.officers_stats using btree (
+    id
+);
 
-CREATE UNIQUE INDEX rating_values_pkey ON public.rubric_labels USING btree (label);
+create unique index rating_values_pkey on public.rubric_labels using btree (
+    label
+);
 
-alter table "public"."agency_officers_stats" add constraint "agency_officers_stats_pkey" PRIMARY KEY using index "agency_officers_stats_pkey";
+alter table public.agency_officers_stats add constraint
+agency_officers_stats_pkey primary key using index
+agency_officers_stats_pkey;
 
-alter table "public"."agency_stats" add constraint "agency_stats_pkey" PRIMARY KEY using index "agency_stats_pkey";
+alter table public.agency_stats add constraint agency_stats_pkey primary key
+using index agency_stats_pkey;
 
-alter table "public"."officers_stats" add constraint "officers_stats_pkey" PRIMARY KEY using index "officers_stats_pkey";
+alter table public.officers_stats add constraint officers_stats_pkey primary
+key using index officers_stats_pkey;
 
-alter table "public"."rubric_labels" add constraint "rating_values_pkey" PRIMARY KEY using index "rating_values_pkey";
+alter table public.rubric_labels add constraint rating_values_pkey primary key
+using index rating_values_pkey;
 
-alter table "public"."agency_officers_stats" add constraint "agency_officers_stats_id_fkey" FOREIGN KEY (id) REFERENCES agency_officers(id) ON DELETE CASCADE not valid;
+alter table public.agency_officers_stats add constraint
+agency_officers_stats_id_fkey foreign key (
+    id
+) references agency_officers (id) on delete cascade not valid;
 
-alter table "public"."agency_officers_stats" validate constraint "agency_officers_stats_id_fkey";
+alter table public.agency_officers_stats validate constraint
+"agency_officers_stats_id_fkey";
 
-alter table "public"."agency_stats" add constraint "agency_stats_id_fkey" FOREIGN KEY (id) REFERENCES agency(id) ON DELETE CASCADE not valid;
+alter table public.agency_stats add constraint agency_stats_id_fkey foreign key
+(
+    id
+) references agency (id) on delete cascade not valid;
 
-alter table "public"."agency_stats" validate constraint "agency_stats_id_fkey";
+alter table public.agency_stats validate constraint "agency_stats_id_fkey";
 
-alter table "public"."officers_stats" add constraint "officers_stats_id_fkey" FOREIGN KEY (id) REFERENCES officers(id) ON DELETE CASCADE not valid;
+alter table public.officers_stats add constraint officers_stats_id_fkey foreign
+key (
+    id
+) references officers (id) on delete cascade not valid;
 
-alter table "public"."officers_stats" validate constraint "officers_stats_id_fkey";
+alter table public.officers_stats validate constraint "officers_stats_id_fkey";
 
 set check_function_bodies = off;
 
-CREATE OR REPLACE FUNCTION public.calculate_agency_officer_stats(agency_officer_id text)
- RETURNS void
- LANGUAGE plpgsql
-AS $function$
+create or replace function public.calculate_agency_officer_stats(
+    agency_officer_id text
+)
+returns void
+language plpgsql
+as $function$
 DECLARE
     ao record;
     stats jsonb;
@@ -691,7 +732,8 @@ BEGIN
     IF ratings_data IS NOT NULL THEN
         stats := calculate_rating_stats(ratings_data);
         
-        -- Calculate overall rating as weighted average using rubric_value directly
+        -- Calculate overall rating as weighted average using rubric_value
+        -- directly
         SELECT ROUND(AVG(rubric_value)::numeric, 1)
         INTO overall_rating
         FROM (
@@ -709,13 +751,14 @@ BEGIN
         updated_at = now()
     WHERE id = agency_officer_id;
 END;
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION public.calculate_rating_stats(review_officers_ratings_array jsonb)
- RETURNS jsonb
- LANGUAGE plpgsql
-AS $function$
+create or replace function public.calculate_rating_stats(
+    review_officers_ratings_array jsonb
+)
+returns jsonb
+language plpgsql
+as $function$
 DECLARE
   stats jsonb;
 BEGIN
@@ -757,13 +800,12 @@ BEGIN
 
   RETURN coalesce(stats, '{}'::jsonb);
 END;
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION public.update_officer_overall_rating(officer_id text)
- RETURNS void
- LANGUAGE plpgsql
-AS $function$
+create or replace function public.update_officer_overall_rating(officer_id text)
+returns void
+language plpgsql
+as $function$
 DECLARE
     overall_rating numeric;
 BEGIN
@@ -780,47 +822,48 @@ BEGIN
     SET rating_overall = COALESCE(overall_rating, 0)
     WHERE id = officer_id;
 END;
-$function$
-;
+$function$;
 
-CREATE TRIGGER update_agency_stats_overall_stats BEFORE UPDATE ON public.agency_stats FOR EACH ROW EXECUTE FUNCTION update_overall_stats();
+create trigger update_agency_stats_overall_stats before update on
+public.agency_stats for each row execute function update_overall_stats();
 
-CREATE TRIGGER update_officers_stats_overall_stats BEFORE UPDATE ON public.officers_stats FOR EACH ROW EXECUTE FUNCTION update_overall_stats();
+create trigger update_officers_stats_overall_stats before update on
+public.officers_stats for each row execute function update_overall_stats();
 
 
 -- Collapsed from 20250404174652_remote_schema.sql
 
-drop trigger if exists "agency_officer_change" on "public"."agency_officers";
+drop trigger if exists agency_officer_change on public.agency_officers;
 
-drop trigger if exists "review_rating_change" on "public"."review_officers_ratings";
+drop trigger if exists review_rating_change on public.review_officers_ratings;
 
-drop view if exists "public"."agency_states";
+drop view if exists public.agency_states;
 
-alter table "public"."agency" drop column "rating_overall";
+alter table public.agency drop column rating_overall;
 
-alter table "public"."agency" drop column "review_count";
+alter table public.agency drop column review_count;
 
-alter table "public"."agency" drop column "review_stats";
+alter table public.agency drop column review_stats;
 
-alter table "public"."agency_officers" drop column "rating_overall";
+alter table public.agency_officers drop column rating_overall;
 
-alter table "public"."agency_officers" drop column "review_stats";
+alter table public.agency_officers drop column review_stats;
 
-alter table "public"."agency_stats" add column "reviewed_employees" integer default 0;
+alter table public.agency_stats add column reviewed_employees integer default 0;
 
-alter table "public"."agency_stats" add column "total_employees" integer default 0;
+alter table public.agency_stats add column total_employees integer default 0;
 
-alter table "public"."officers" drop column "rating_overall";
+alter table public.officers drop column rating_overall;
 
-alter table "public"."officers" drop column "review_stats";
+alter table public.officers drop column review_stats;
 
 set check_function_bodies = off;
 
-CREATE OR REPLACE FUNCTION public.update_agency_stats(target_agency_id text)
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
+create or replace function public.update_agency_stats(target_agency_id text)
+returns void
+language plpgsql
+security definer
+as $function$
 DECLARE
     overall_rating numeric;
     total_review_count integer;
@@ -854,7 +897,8 @@ BEGIN
     JOIN agency_officers ao ON ao.id = aos.id
     WHERE ao.agency_id = target_agency_id;
     
-    -- Collect all ratings to calculate review_stats, using rubric_value directly
+    -- Collect all ratings to calculate review_stats, using rubric_value
+    -- directly
     WITH ratings_collection AS (
         SELECT 
             ror.*,
@@ -888,19 +932,18 @@ BEGIN
     SET review_stats = review_stats || calculate_overall_rating_stats(review_stats)
     WHERE id = target_agency_id;
 END;
-$function$
-;
+$function$;
 
-create or replace view "public"."agency_states" as  SELECT DISTINCT agency.state
-   FROM agency
-  ORDER BY agency.state;
+create or replace view public.agency_states as select distinct agency.state
+from agency
+order by agency.state;
 
 
-CREATE OR REPLACE FUNCTION public.handle_agency_officer_change()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
+create or replace function public.handle_agency_officer_change()
+returns trigger
+language plpgsql
+security definer
+as $function$
 BEGIN
     IF TG_OP = 'UPDATE' OR TG_OP = 'INSERT' THEN
         -- Calculate officer's rating for this agency and time period
@@ -954,14 +997,13 @@ BEGIN
     
     RETURN NEW;
 END;
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION public.handle_review_rating_change()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
+create or replace function public.handle_review_rating_change()
+returns trigger
+language plpgsql
+security definer
+as $function$
 DECLARE
     review_officer record;
     current_officer_id text;
@@ -1030,14 +1072,13 @@ BEGIN
     
     RETURN NEW;
 END;
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION public.update_agency_overall_rating(agency_id text)
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
+create or replace function public.update_agency_overall_rating(agency_id text)
+returns void
+language plpgsql
+security definer
+as $function$
 DECLARE
     overall_rating numeric;
 BEGIN
@@ -1054,14 +1095,13 @@ BEGIN
         updated_at = now()
     WHERE id = agency_id;
 END;
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION public.update_officer_overall_rating(officer_id text)
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
+create or replace function public.update_officer_overall_rating(officer_id text)
+returns void
+language plpgsql
+security definer
+as $function$
 DECLARE
     overall_rating numeric;
 BEGIN
@@ -1079,28 +1119,31 @@ BEGIN
         updated_at = now()
     WHERE id = officer_id;
 END;
-$function$
-;
+$function$;
 
-CREATE TRIGGER agency_officer_change AFTER INSERT OR DELETE OR UPDATE ON public.agency_officers FOR EACH ROW EXECUTE FUNCTION handle_agency_officer_change();
+create trigger agency_officer_change after insert or delete or update on
+public.agency_officers for each row execute function
+handle_agency_officer_change();
 
-CREATE TRIGGER review_rating_change AFTER INSERT OR DELETE OR UPDATE ON public.review_officers_ratings FOR EACH ROW EXECUTE FUNCTION handle_review_rating_change();
-
+create trigger review_rating_change after insert or delete or update on
+public.review_officers_ratings for each row execute function
+handle_review_rating_change();
 
 
 -- Collapsed from 20250405021229_remote_schema.sql
 
-drop trigger if exists "update_agency_stats_overall_stats" on "public"."agency_stats";
+drop trigger if exists update_agency_stats_overall_stats on public.agency_stats;
 
-drop trigger if exists "update_officers_stats_overall_stats" on "public"."officers_stats";
+drop trigger if exists update_officers_stats_overall_stats on
+public.officers_stats;
 
 set check_function_bodies = off;
 
-CREATE OR REPLACE FUNCTION public.get_rating_category(rating_value numeric)
- RETURNS text
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
+create or replace function public.get_rating_category(rating_value numeric)
+returns text
+language plpgsql
+security definer
+as $function$
 BEGIN
     -- Return the appropriate category based on the numeric value
     IF rating_value IS NULL OR rating_value < 1 THEN 
@@ -1117,14 +1160,13 @@ BEGIN
         RETURN 'Unacceptable';
     END IF;
 END;
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION public.get_rating_category(rating_value text)
- RETURNS text
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
+create or replace function public.get_rating_category(rating_value text)
+returns text
+language plpgsql
+security definer
+as $function$
 DECLARE
     rating_num numeric;
 BEGIN
@@ -1151,19 +1193,19 @@ BEGIN
         RETURN 'Unacceptable';
     END IF;
 END;
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION public.recalculate_all_officer_stats()
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
+create or replace function public.recalculate_all_officer_stats()
+returns void
+language plpgsql
+security definer
+as $function$
 DECLARE
     officer_rec RECORD;
 BEGIN
     FOR officer_rec IN SELECT id FROM officers LOOP
-        -- Trigger a recalculation by finding a rating for this officer and updating it
+        -- Trigger a recalculation by finding a rating for this officer and
+        -- updating it
         WITH officer_rating AS (
             SELECT ror.id
             FROM review_officers ro
@@ -1176,7 +1218,8 @@ BEGIN
         FROM officer_rating
         WHERE review_officers_ratings.id = officer_rating.id;
         
-        -- If no ratings exist, ensure we at least have a stats record with empty values
+        -- If no ratings exist, ensure we at least have a stats record with
+        -- empty values
         IF NOT EXISTS (
             SELECT 1 FROM officers_stats WHERE id = officer_rec.id
         ) THEN
@@ -1197,14 +1240,15 @@ BEGIN
         END IF;
     END LOOP;
 END;
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION public.calculate_agency_officer_stats(agency_officer_id text)
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
+create or replace function public.calculate_agency_officer_stats(
+    agency_officer_id text
+)
+returns void
+language plpgsql
+security definer
+as $function$
 DECLARE
     ao record;
     overall_rating numeric;
@@ -1273,13 +1317,14 @@ BEGIN
         review_count = COALESCE((SELECT count FROM agency_review_count), 0),
         updated_at = now();
 END;
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION public.calculate_rating_stats(review_officers_ratings_array jsonb)
- RETURNS jsonb
- LANGUAGE plpgsql
-AS $function$
+create or replace function public.calculate_rating_stats(
+    review_officers_ratings_array jsonb
+)
+returns jsonb
+language plpgsql
+as $function$
 DECLARE
   stats jsonb;
 BEGIN
@@ -1304,14 +1349,13 @@ BEGIN
 
   RETURN COALESCE(stats, '{}'::jsonb);
 END;
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION public.handle_review_rating_change()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
+create or replace function public.handle_review_rating_change()
+returns trigger
+language plpgsql
+security definer
+as $function$
 DECLARE
     review_officer record;
     current_officer_id text;
@@ -1389,14 +1433,13 @@ BEGIN
     
     RETURN NEW;
 END;
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION public.update_agency_stats(target_agency_id text)
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
+create or replace function public.update_agency_stats(target_agency_id text)
+returns void
+language plpgsql
+security definer
+as $function$
 DECLARE
     overall_rating numeric;
     total_review_count integer;
@@ -1479,24 +1522,25 @@ BEGIN
         reviewed_employees = COALESCE(reviewed_employees_count, 0),
         updated_at = now();
 END;
-$function$
-;
-
+$function$;
 
 
 -- Collapsed from 20250412000131_remote_schema.sql
 
-alter table "public"."officers_stats" add column "trait_stats" jsonb default '{}'::jsonb;
+alter table public.officers_stats add column trait_stats jsonb default
+'{}'::jsonb;
 
-alter table "public"."traits" add column "description" text;
+alter table public.traits add column description text;
 
 set check_function_bodies = off;
 
-CREATE OR REPLACE FUNCTION public.calculate_officer_trait_stats(in_officer_id text)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
+create or replace function public.calculate_officer_trait_stats(
+    in_officer_id text
+)
+returns jsonb
+language plpgsql
+security definer
+as $function$
 DECLARE
     trait_stats_data jsonb;
 BEGIN
@@ -1583,7 +1627,8 @@ BEGIN
     ) INTO trait_stats_data
     FROM jsonb_each(trait_stats_data);
 
-    -- For traits with no data, ensure they have the meta field with weighted_average
+    -- For traits with no data, ensure they have the meta field with
+    -- weighted_average
     SELECT jsonb_object_agg(
         key,
         CASE 
@@ -1596,14 +1641,13 @@ BEGIN
 
     RETURN trait_stats_data;
 END;
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION public.handle_review_rating_change()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
+create or replace function public.handle_review_rating_change()
+returns trigger
+language plpgsql
+security definer
+as $function$
 DECLARE
     review_officer record;
     current_officer_id text;
@@ -1686,9 +1730,7 @@ BEGIN
     
     RETURN NEW;
 END;
-$function$
-;
-
+$function$;
 
 
 -- Collapsed from 20250812130000_add_civil_cases.sql
@@ -1699,50 +1741,72 @@ create table if not exists public.civil_cases (
     cause_number text not null,
     court text,
     filed_date date not null,
+    -- RF04: This existing schema identifier is consumed by migrations and
+    -- clients. Renaming it requires a coordinated schema/API change.
     summary text,
-    created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-    updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    updated_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
     primary key (id)
 );
 
 create unique index if not exists civil_cases_cause_number_key
-    on public.civil_cases(cause_number);
+on public.civil_cases (cause_number);
 
 create table if not exists public.civil_case_links (
     id text not null,
-    civil_case_id text not null references public.civil_cases(id) on delete cascade,
+    civil_case_id text not null references public.civil_cases (
+        id
+    ) on delete cascade,
+    -- RF04: This existing schema identifier is consumed by migrations and
+    -- clients. Renaming it requires a coordinated schema/API change.
     label text,
     url text not null,
-    created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-    updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    updated_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
     primary key (id)
 );
 
 create unique index if not exists civil_case_links_case_url_key
-    on public.civil_case_links(civil_case_id, url);
+on public.civil_case_links (civil_case_id, url);
 
 create table if not exists public.civil_case_agencies (
-    civil_case_id text not null references public.civil_cases(id) on delete cascade,
-    agency_id text not null references public.agency(id) on delete cascade,
-    created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+    civil_case_id text not null references public.civil_cases (
+        id
+    ) on delete cascade,
+    agency_id text not null references public.agency (id) on delete cascade,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
     primary key (civil_case_id, agency_id)
 );
 
 create table if not exists public.civil_case_officers (
-    civil_case_id text not null references public.civil_cases(id) on delete cascade,
-    officer_id text not null references public.officers(id) on delete cascade,
-    created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+    civil_case_id text not null references public.civil_cases (
+        id
+    ) on delete cascade,
+    officer_id text not null references public.officers (id) on delete cascade,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
     primary key (civil_case_id, officer_id)
 );
 
 create index if not exists civil_case_links_case_id_idx
-    on public.civil_case_links(civil_case_id);
+on public.civil_case_links (civil_case_id);
 
 create index if not exists civil_case_agencies_agency_id_idx
-    on public.civil_case_agencies(agency_id);
+on public.civil_case_agencies (agency_id);
 
 create index if not exists civil_case_officers_officer_id_idx
-    on public.civil_case_officers(officer_id);
+on public.civil_case_officers (officer_id);
 
 -- Civil cases data is seeded in seed.sql with explicit IDs
 
@@ -1792,50 +1856,52 @@ as $$
 $$;
 
 alter table public.agency
-  add column if not exists slug text;
+add column if not exists slug text;
 
 alter table public.officers
-  add column if not exists slug text;
+add column if not exists slug text;
 
 alter table public.reviews
-  add column if not exists slug text;
+add column if not exists slug text;
 
 update public.agency
 set slug = public.slugify(name) || '-' || public.hash_id(id)
 where slug is null;
 
 update public.officers
-set slug = public.slugify(trim(concat_ws(' ', first_name, last_name, suffix)))
-  || '-' || public.hash_id(id)
+set
+    slug = public.slugify(trim(concat_ws(' ', first_name, last_name, suffix)))
+    || '-' || public.hash_id(id)
 where slug is null;
 
 update public.reviews
-set slug = concat_ws(
-  '-',
-  coalesce(to_char(incident_date, 'YYYY-MM-DD'), 'unknown-date'),
-  coalesce(substring(address from '(\\d{5})'), '75061'),
-  public.slugify(title),
-  public.hash_id(id)
-)
+set
+    slug = concat_ws(
+        '-',
+        coalesce(to_char(incident_date, 'YYYY-MM-DD'), 'unknown-date'),
+        coalesce(substring(address from '(\\d{5})'), '75061'),
+        public.slugify(title),
+        public.hash_id(id)
+    )
 where slug is null;
 
 alter table public.agency
-  alter column slug set not null;
+alter column slug set not null;
 
 alter table public.officers
-  alter column slug set not null;
+alter column slug set not null;
 
 alter table public.reviews
-  alter column slug set not null;
+alter column slug set not null;
 
 create unique index if not exists agency_slug_key
-  on public.agency(slug);
+on public.agency (slug);
 
 create unique index if not exists officers_slug_key
-  on public.officers(slug);
+on public.officers (slug);
 
 create unique index if not exists reviews_slug_key
-  on public.reviews(slug);
+on public.reviews (slug);
 
 -- Collapsed from 20250820133000_add_agency_category.sql
 
@@ -1852,7 +1918,7 @@ end;
 $$;
 
 alter table public.agency
-  add column if not exists category text;
+add column if not exists category text;
 
 update public.agency
 set category = lower(state)
@@ -1874,19 +1940,19 @@ end;
 $$;
 
 alter table public.agency
-  alter column category set not null;
+alter column category set not null;
 
 -- Collapsed from 20250820143000_add_review_category.sql
 
 alter table public.reviews
-  add column if not exists category text;
+add column if not exists category text;
 
 update public.reviews
 set category = 'tx'
 where category is null;
 
 alter table public.reviews
-  alter column category set not null;
+alter column category set not null;
 
 -- Collapsed from 20250914000000_add_review_charges.sql
 
@@ -1899,25 +1965,27 @@ add column if not exists charges text;
 -- This links reviews directly to the officer-at-agency context
 
 -- Step 1: Add new column
-ALTER TABLE public.review_officers
-  ADD COLUMN IF NOT EXISTS agency_officer_id text;
+alter table public.review_officers
+add column if not exists agency_officer_id text;
 
 -- Step 2: Populate new column from existing data
--- Maps officer_id + review.incident_date to the appropriate agency_officers record
-UPDATE review_officers ro
-SET agency_officer_id = (
-  SELECT ao.id
-  FROM agency_officers ao
-  JOIN reviews r ON r.id = ro.review_id
-  WHERE ao.officer_id = ro.officer_id
-    AND r.incident_date >= ao.start_date
-    AND (ao.end_date IS NULL OR r.incident_date <= ao.end_date)
-  ORDER BY ao.start_date DESC
-  LIMIT 1
+-- Maps officer_id + review.incident_date to the appropriate agency_officers
+-- record
+update review_officers ro
+set agency_officer_id = (
+    select ao.id
+    from agency_officers as ao
+    inner join reviews as r on r.id = ro.review_id
+    where
+        ao.officer_id = ro.officer_id
+        and r.incident_date >= ao.start_date
+        and (ao.end_date is null or r.incident_date <= ao.end_date)
+    order by ao.start_date desc
+    limit 1
 );
 
 -- Step 3: Verify no orphaned records (fail if any exist)
-DO $$
+do $$
 DECLARE
   orphan_count integer;
   orphan_details text;
@@ -1933,46 +2001,46 @@ BEGIN
 END $$;
 
 -- Step 4: Add NOT NULL constraint
-ALTER TABLE public.review_officers
-  ALTER COLUMN agency_officer_id SET NOT NULL;
+alter table public.review_officers
+alter column agency_officer_id set not null;
 
 -- Step 5: Add foreign key constraint
-ALTER TABLE public.review_officers
-  ADD CONSTRAINT review_officers_agency_officer_id_fkey
-  FOREIGN KEY (agency_officer_id) REFERENCES agency_officers(id);
+alter table public.review_officers
+add constraint review_officers_agency_officer_id_fkey
+foreign key (agency_officer_id) references agency_officers (id);
 
 -- Step 6: Create index on new column
-CREATE INDEX IF NOT EXISTS review_officers_agency_officer_id_idx
-  ON public.review_officers(agency_officer_id);
+create index if not exists review_officers_agency_officer_id_idx
+on public.review_officers (agency_officer_id);
 
 -- Step 7: Drop old column and index
-DROP INDEX IF EXISTS review_officers_officer_id_idx;
-ALTER TABLE public.review_officers
-  DROP CONSTRAINT IF EXISTS review_officers_officer_id_fkey;
-ALTER TABLE public.review_officers
-  DROP COLUMN IF EXISTS officer_id;
+drop index if exists review_officers_officer_id_idx;
+alter table public.review_officers
+drop constraint if exists review_officers_officer_id_fkey;
+alter table public.review_officers
+drop column if exists officer_id;
 
 -- Step 8: Disable stats-related triggers (stats are pre-calculated in seed)
 -- These can be re-enabled later after updating the functions
-DO $$
+do $$
 BEGIN
   ALTER TABLE public.agency_officers DISABLE TRIGGER agency_officer_change;
 EXCEPTION WHEN undefined_object THEN NULL;
 END $$;
 
-DO $$
+do $$
 BEGIN
   ALTER TABLE public.review_officers_ratings DISABLE TRIGGER review_rating_change;
 EXCEPTION WHEN undefined_object THEN NULL;
 END $$;
 
-DO $$
+do $$
 BEGIN
   ALTER TABLE public.agency_stats DISABLE TRIGGER update_agency_stats_overall_stats;
 EXCEPTION WHEN undefined_object THEN NULL;
 END $$;
 
-DO $$
+do $$
 BEGIN
   ALTER TABLE public.officers_stats DISABLE TRIGGER update_officers_stats_overall_stats;
 EXCEPTION WHEN undefined_object THEN NULL;
@@ -1981,116 +2049,144 @@ END $$;
 -- Collapsed from 20260127023839_make_reviews_user_id_not_null.sql
 
 -- Set user_id for all existing reviews
-UPDATE public.reviews
-SET user_id = 'ccce35fb-938c-4c94-8724-492367b17ce5'
-WHERE user_id IS NULL;
+update public.reviews
+set user_id = 'ccce35fb-938c-4c94-8724-492367b17ce5'
+where user_id is null;
 
 -- Make user_id NOT NULL
-ALTER TABLE public.reviews
-ALTER COLUMN user_id SET NOT NULL;
+alter table public.reviews
+alter column user_id set not null;
 
--- Update the foreign key constraint to ON DELETE RESTRICT (since NULL is no longer allowed)
-ALTER TABLE public.reviews
-DROP CONSTRAINT reviews_user_id_fkey;
+-- Update the foreign key constraint to ON DELETE RESTRICT (since NULL is no
+-- longer allowed)
+alter table public.reviews
+drop constraint reviews_user_id_fkey;
 
-ALTER TABLE public.reviews
-ADD CONSTRAINT reviews_user_id_fkey
-FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE RESTRICT;
+alter table public.reviews
+add constraint reviews_user_id_fkey
+foreign key (user_id) references public.profiles (id) on delete restrict;
 
 -- Collapsed from 20260127044838_remove_duplicate_ice_agency.sql
 
 -- Consolidate duplicate ICE agencies
--- Keep the one with reports, rename it to include "(ICE)", delete the empty duplicate
+-- Keep the one with reports, rename it to include "(ICE)", delete the empty
+-- duplicate
 
--- First, rename the agency that has linked officers/reports to include "(ICE)" and use abbreviation slug
-UPDATE public.agency
-SET name = 'U.S. Immigration and Customs Enforcement (ICE)',
+-- First, rename the agency that has linked officers/reports to include "(ICE)"
+-- and use abbreviation slug
+update public.agency
+set
+    name = 'U.S. Immigration and Customs Enforcement (ICE)',
     slug = 'ice',
-    updated_at = NOW()
-WHERE name = 'U.S. Immigration and Customs Enforcement'
-AND id IN (SELECT DISTINCT agency_id FROM public.agency_officers WHERE agency_id IS NOT NULL);
+    updated_at = now()
+where
+    name = 'U.S. Immigration and Customs Enforcement'
+    and id in (
+        select distinct agency_id from public.agency_officers
+        where agency_id is not null
+    );
 
 -- Delete agency_stats for the duplicate (the one with no linked officers)
-DELETE FROM public.agency_stats
-WHERE id IN (
-  SELECT id FROM public.agency
-  WHERE name = 'U.S. Immigration and Customs Enforcement (ICE)'
-  AND id NOT IN (SELECT DISTINCT agency_id FROM public.agency_officers WHERE agency_id IS NOT NULL)
+delete from public.agency_stats
+where id in (
+    select id from public.agency
+    where
+        name = 'U.S. Immigration and Customs Enforcement (ICE)'
+        and id not in (
+            select distinct agency_officers.agency_id
+            from public.agency_officers
+            where agency_officers.agency_id is not null
+        )
 );
 
 -- Delete the duplicate agency (the one with no linked officers)
-DELETE FROM public.agency
-WHERE name = 'U.S. Immigration and Customs Enforcement (ICE)'
-AND id NOT IN (SELECT DISTINCT agency_id FROM public.agency_officers WHERE agency_id IS NOT NULL);
+delete from public.agency
+where
+    name = 'U.S. Immigration and Customs Enforcement (ICE)'
+    and id not in (
+        select distinct agency_id from public.agency_officers
+        where agency_id is not null
+    );
 
 -- Update other federal agency slugs to use common abbreviations
-UPDATE public.agency SET slug = 'fbi', updated_at = NOW()
-WHERE name = 'Federal Bureau of Investigation (FBI)' AND slug != 'fbi';
+update public.agency set slug = 'fbi', updated_at = now()
+where name = 'Federal Bureau of Investigation (FBI)' and slug != 'fbi';
 
-UPDATE public.agency SET slug = 'dea', updated_at = NOW()
-WHERE name = 'Drug Enforcement Administration (DEA)' AND slug != 'dea';
+update public.agency set slug = 'dea', updated_at = now()
+where name = 'Drug Enforcement Administration (DEA)' and slug != 'dea';
 
-UPDATE public.agency SET slug = 'atf', updated_at = NOW()
-WHERE name = 'Bureau of Alcohol, Tobacco, Firearms and Explosives (ATF)' AND slug != 'atf';
+update public.agency set slug = 'atf', updated_at = now()
+where
+    name = 'Bureau of Alcohol, Tobacco, Firearms and Explosives (ATF)' and slug
+    != 'atf';
 
-UPDATE public.agency SET slug = 'usms', updated_at = NOW()
-WHERE name = 'U.S. Marshals Service' AND slug != 'usms';
+update public.agency set slug = 'usms', updated_at = now()
+where name = 'U.S. Marshals Service' and slug != 'usms';
 
-UPDATE public.agency SET slug = 'cbp', updated_at = NOW()
-WHERE name = 'U.S. Customs and Border Protection (CBP)' AND slug != 'cbp';
+update public.agency set slug = 'cbp', updated_at = now()
+where name = 'U.S. Customs and Border Protection (CBP)' and slug != 'cbp';
 
-UPDATE public.agency SET slug = 'usss', updated_at = NOW()
-WHERE name = 'U.S. Secret Service (USSS)' AND slug != 'usss';
+update public.agency set slug = 'usss', updated_at = now()
+where name = 'U.S. Secret Service (USSS)' and slug != 'usss';
 
-UPDATE public.agency SET slug = 'tsa', updated_at = NOW()
-WHERE name = 'Transportation Security Administration (TSA)' AND slug != 'tsa';
+update public.agency set slug = 'tsa', updated_at = now()
+where name = 'Transportation Security Administration (TSA)' and slug != 'tsa';
 
-UPDATE public.agency SET slug = 'uscg', updated_at = NOW()
-WHERE name = 'U.S. Coast Guard (USCG)' AND slug != 'uscg';
+update public.agency set slug = 'uscg', updated_at = now()
+where name = 'U.S. Coast Guard (USCG)' and slug != 'uscg';
 
 -- Collapsed from 20260127050000_refactor_civil_case_officers.sql
 
 -- Refactor civil_case_officers to use agency_officer_id instead of officer_id
--- This mirrors the review_officers pattern where agency_officer_id links to both officer and agency
+-- This mirrors the review_officers pattern where agency_officer_id links to
+-- both officer and agency
 
 -- Add category column to civil_cases (like agency and reviews have)
-ALTER TABLE public.civil_cases
-  ADD COLUMN IF NOT EXISTS category text;
+alter table public.civil_cases
+add column if not exists category text;
 
 -- Drop civil_case_agencies (agency is now inferred from agency_officer_id)
-DROP TABLE IF EXISTS public.civil_case_agencies;
+drop table if exists public.civil_case_agencies;
 
 -- Drop old civil_case_officers table
-DROP TABLE IF EXISTS public.civil_case_officers;
+drop table if exists public.civil_case_officers;
 
 -- Create new civil_case_officers table with agency_officer_id
-CREATE TABLE public.civil_case_officers (
-    id text NOT NULL,
-    civil_case_id text NOT NULL REFERENCES public.civil_cases(id) ON DELETE CASCADE,
-    agency_officer_id text NOT NULL REFERENCES public.agency_officers(id) ON DELETE CASCADE,
-    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
-    updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
-    PRIMARY KEY (id)
+create table public.civil_case_officers (
+    id text not null,
+    civil_case_id text not null references public.civil_cases (
+        id
+    ) on delete cascade,
+    agency_officer_id text not null references public.agency_officers (
+        id
+    ) on delete cascade,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    updated_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    primary key (id)
 );
 
 -- Unique constraint on civil_case_id + agency_officer_id pair
-CREATE UNIQUE INDEX civil_case_officers_case_agency_officer_unique
-    ON public.civil_case_officers(civil_case_id, agency_officer_id);
+create unique index civil_case_officers_case_agency_officer_unique
+on public.civil_case_officers (civil_case_id, agency_officer_id);
 
 -- Index for lookups by agency_officer_id
-CREATE INDEX civil_case_officers_agency_officer_id_idx
-    ON public.civil_case_officers(agency_officer_id);
+create index civil_case_officers_agency_officer_id_idx
+on public.civil_case_officers (agency_officer_id);
 
 -- Index for lookups by civil_case_id
-CREATE INDEX civil_case_officers_civil_case_id_idx
-    ON public.civil_case_officers(civil_case_id);
+create index civil_case_officers_civil_case_id_idx
+on public.civil_case_officers (civil_case_id);
 
 -- Collapsed from 20260224120000_add_officer_deceased_fields.sql
 
 alter table public.officers
-  add column if not exists deceased_on date null,
-  add column if not exists deceased_source text null,
-  add column if not exists deceased_message text null;
+add column if not exists deceased_on date null,
+add column if not exists deceased_source text null,
+add column if not exists deceased_message text null;
 
 do $$
 begin
@@ -2106,199 +2202,239 @@ begin
 end $$;
 
 alter table public.officers
-  add constraint officers_deceased_on_not_future_check
-  check (deceased_on is null or deceased_on <= current_date);
+add constraint officers_deceased_on_not_future_check
+check (deceased_on is null or deceased_on <= current_date);
 
 update public.officers
 set
-  deceased_on = date '2026-02-08',
-  deceased_source = 'https://www.ktre.com/2026/02/08/san-augustine-police-officer-dies-duty/',
-  deceased_message = 'Reported deceased on February 8, 2026.'
+    deceased_on = date '2026-02-08',
+    deceased_source
+    = 'https://www.ktre.com/2026/02/08/san-augustine-police-officer-dies-duty/',
+    deceased_message = 'Reported deceased on February 8, 2026.'
 where slug = 'cody-levassar-3403af';
 
 update public.officers
 set
-  deceased_on = date '2026-02-18',
-  deceased_source = 'https://abc13.com/post/off-duty-hcso-deputy-killed-crash-aldine-westfield-north-harris-county-sheriff-says/18615911/',
-  deceased_message = 'Reported deceased on February 18, 2026.'
+    deceased_on = date '2026-02-18',
+    deceased_source
+    =
+    'https://abc13.com/post/off-duty-hcso-deputy-killed-crash-'
+    || 'aldine-westfield-north-harris-county-sheriff-says/18615911/',
+    deceased_message = 'Reported deceased on February 18, 2026.'
 where slug = 'ricky-zaragosa-fb1f53';
 
 -- Collapsed from 20260321190000_upgrade_civil_cases_for_detail_pages.sql
 
 alter table public.civil_cases
-  add column if not exists slug text,
-  add column if not exists outcome text,
-  add column if not exists primary_source_url text,
-  add column if not exists date_terminated date;
+add column if not exists slug text,
+add column if not exists outcome text,
+add column if not exists primary_source_url text,
+add column if not exists date_terminated date;
 
 alter table public.civil_cases
-  rename column summary to claims_summary;
+rename column summary to claims_summary;
 
 update public.civil_cases civil_case
-set slug = concat(
-  coalesce(
-    nullif(
-      lower(
-        regexp_replace(
-          regexp_replace(
-            coalesce(civil_case.cause_number, civil_case.title, 'civil-case'),
-            '[^a-zA-Z0-9]+',
-            '-',
-            'g'
-          ),
-          '(^-|-$)',
-          '',
-          'g'
-        )
-      ),
-      ''
-    ),
-    'civil-case'
-  ),
-  '-',
-  substr(md5(civil_case.id), 1, 6)
-)
+set
+    slug = concat(
+        coalesce(
+            nullif(
+                lower(
+                    regexp_replace(
+                        regexp_replace(
+                            coalesce(
+                                civil_case.cause_number,
+                                civil_case.title,
+                                'civil-case'
+                            ),
+                            '[^a-zA-Z0-9]+',
+                            '-',
+                            'g'
+                        ),
+                        '(^-|-$)',
+                        '',
+                        'g'
+                    )
+                ),
+                ''
+            ),
+            'civil-case'
+        ),
+        '-',
+        substr(md5(civil_case.id), 1, 6)
+    )
 where civil_case.slug is null;
 
 update public.civil_cases civil_case
 set category = category_data.category
 from (
-  select
-    cco.civil_case_id,
-    case
-      when bool_or(lower(agency.category) = 'federal') then 'federal'
-      else min(lower(agency.category))
-    end as category
-  from public.civil_case_officers cco
-  join public.agency_officers agency_officer
-    on agency_officer.id = cco.agency_officer_id
-  join public.agency agency
-    on agency.id = agency_officer.agency_id
-  group by cco.civil_case_id
+    select
+        cco.civil_case_id,
+        case
+            when bool_or(lower(agency.category) = 'federal') then 'federal'
+            else min(lower(agency.category))
+        end as category
+    from public.civil_case_officers as cco
+    inner join public.agency_officers as agency_officer
+        on cco.agency_officer_id = agency_officer.id
+    inner join public.agency as agency
+        on agency_officer.agency_id = agency.id
+    group by cco.civil_case_id
 ) as category_data
-where civil_case.id = category_data.civil_case_id
-  and civil_case.category is null;
+where
+    civil_case.id = category_data.civil_case_id
+    and civil_case.category is null;
 
 update public.civil_cases civil_case
 set primary_source_url = primary_link.url
 from (
-  select distinct on (civil_case_id)
-    civil_case_id,
-    url
-  from public.civil_case_links
-  order by
-    civil_case_id,
-    case when coalesce(label, '') = 'CourtListener' then 0 else 1 end,
-    created_at,
-    id
+    select distinct on (civil_case_id)
+        civil_case_id,
+        url
+    from public.civil_case_links
+    order by
+        civil_case_id,
+        case when coalesce(label, '') = 'CourtListener' then 0 else 1 end,
+        created_at,
+        id
 ) as primary_link
-where civil_case.id = primary_link.civil_case_id
-  and civil_case.primary_source_url is null;
+where
+    civil_case.id = primary_link.civil_case_id
+    and civil_case.primary_source_url is null;
 
 alter table public.civil_case_links
-  add column if not exists title text;
+add column if not exists title text;
 
 update public.civil_case_links
-set title = coalesce(
-  nullif(title, ''),
-  nullif(label, ''),
-  regexp_replace(url, '^https?://(www\.)?([^/]+)/?.*$', '\2')
-)
+set
+    title = coalesce(
+        nullif(title, ''),
+        nullif(label, ''),
+        regexp_replace(url, '^https?://(www\.)?([^/]+)/?.*$', '\2')
+    )
 where title is null;
 
 delete from public.civil_case_links link
 using public.civil_cases civil_case
-where link.civil_case_id = civil_case.id
-  and civil_case.primary_source_url = link.url;
+where
+    link.civil_case_id = civil_case.id
+    and civil_case.primary_source_url = link.url;
 
 alter table public.civil_case_links
-  alter column title set not null;
+alter column title set not null;
 
 alter table public.civil_case_links
-  drop column if exists label;
+drop column if exists label;
 
 alter table public.civil_cases
-  alter column slug set not null,
-  alter column category set not null;
+alter column slug set not null,
+alter column category set not null;
 
 create unique index if not exists civil_cases_slug_key
-  on public.civil_cases(slug);
+on public.civil_cases (slug);
 
 -- Collapsed from 20260505120000_add_video_collection.sql
 
 create table if not exists public.coverage_links (
-  id text not null,
-  url text not null,
-  normalized_url text not null,
-  title text not null,
-  source_name text,
-  published_at timestamp with time zone,
-  notes text,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  primary key (id)
+    id text not null,
+    url text not null,
+    normalized_url text not null,
+    title text not null,
+    source_name text,
+    published_at timestamp with time zone,
+    notes text,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    updated_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    primary key (id)
 );
 
 create unique index if not exists coverage_links_normalized_url_key
-  on public.coverage_links(normalized_url);
+on public.coverage_links (normalized_url);
 
 create table if not exists public.coverage_link_agency_officers (
-  id text not null,
-  coverage_link_id text not null references public.coverage_links(id) on delete cascade,
-  agency_officer_id text not null references public.agency_officers(id) on delete cascade,
-  confidence text not null default 'documented',
-  notes text,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  primary key (id)
+    id text not null,
+    coverage_link_id text not null references public.coverage_links (
+        id
+    ) on delete cascade,
+    agency_officer_id text not null references public.agency_officers (
+        id
+    ) on delete cascade,
+    confidence text not null default 'documented',
+    notes text,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    updated_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    primary key (id)
 );
 
-create unique index if not exists coverage_link_agency_officers_unique_relationship
-  on public.coverage_link_agency_officers(coverage_link_id, agency_officer_id);
+create unique index if not exists
+coverage_link_agency_officers_unique_relationship
+on public.coverage_link_agency_officers (coverage_link_id, agency_officer_id);
 
 create index if not exists coverage_link_agency_officers_coverage_link_id_idx
-  on public.coverage_link_agency_officers(coverage_link_id);
+on public.coverage_link_agency_officers (coverage_link_id);
 
 create index if not exists coverage_link_agency_officers_agency_officer_id_idx
-  on public.coverage_link_agency_officers(agency_officer_id);
+on public.coverage_link_agency_officers (agency_officer_id);
 
 create table if not exists public.coverage_link_civil_cases (
-  id text not null,
-  coverage_link_id text not null references public.coverage_links(id) on delete cascade,
-  civil_case_id text not null references public.civil_cases(id) on delete cascade,
-  notes text,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  primary key (id)
+    id text not null,
+    coverage_link_id text not null references public.coverage_links (
+        id
+    ) on delete cascade,
+    civil_case_id text not null references public.civil_cases (
+        id
+    ) on delete cascade,
+    notes text,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    updated_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    primary key (id)
 );
 
 create unique index if not exists coverage_link_civil_cases_unique_relationship
-  on public.coverage_link_civil_cases(coverage_link_id, civil_case_id);
+on public.coverage_link_civil_cases (coverage_link_id, civil_case_id);
 
 create index if not exists coverage_link_civil_cases_coverage_link_id_idx
-  on public.coverage_link_civil_cases(coverage_link_id);
+on public.coverage_link_civil_cases (coverage_link_id);
 
 create index if not exists coverage_link_civil_cases_civil_case_id_idx
-  on public.coverage_link_civil_cases(civil_case_id);
+on public.coverage_link_civil_cases (civil_case_id);
 
 create table if not exists public.coverage_link_reports (
-  id text not null,
-  coverage_link_id text not null references public.coverage_links(id) on delete cascade,
-  review_id text not null references public.reviews(id) on delete cascade,
-  notes text,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  primary key (id)
+    id text not null,
+    coverage_link_id text not null references public.coverage_links (
+        id
+    ) on delete cascade,
+    review_id text not null references public.reviews (id) on delete cascade,
+    notes text,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    updated_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    primary key (id)
 );
 
 create unique index if not exists coverage_link_reports_unique_relationship
-  on public.coverage_link_reports(coverage_link_id, review_id);
+on public.coverage_link_reports (coverage_link_id, review_id);
 
 create index if not exists coverage_link_reports_coverage_link_id_idx
-  on public.coverage_link_reports(coverage_link_id);
+on public.coverage_link_reports (coverage_link_id);
 
 create index if not exists coverage_link_reports_review_id_idx
-  on public.coverage_link_reports(review_id);
+on public.coverage_link_reports (review_id);
 
 -- Collapsed from 20260507210000_add_personnel_coverage_links.sql
 
@@ -2308,110 +2444,152 @@ create index if not exists coverage_link_reports_review_id_idx
 -- Collapsed from 20260508120000_require_agency_link_labels.sql
 
 alter table public.agency_links
-  add column if not exists label text;
+add column if not exists label text;
 
 update public.agency_links
-set label = case
-  when url ~* '(^|//)(www\.)?youtube\.com/' then 'YouTube'
-  when url ~* '(^|//)(www\.)?facebook\.com/' then 'Facebook'
-  when url ~* '(^|//)(www\.)?(twitter|x)\.com/' then 'X'
-  when url ~* '(^|//)(www\.)?instagram\.com/' then 'Instagram'
-  else 'Website'
-end
+set
+    label = case
+        when url ~* '(^|//)(www\.)?youtube\.com/' then 'YouTube'
+        when url ~* '(^|//)(www\.)?facebook\.com/' then 'Facebook'
+        when url ~* '(^|//)(www\.)?(twitter|x)\.com/' then 'X'
+        when url ~* '(^|//)(www\.)?instagram\.com/' then 'Instagram'
+        else 'Website'
+    end
 where label is null or btrim(label) = '';
 
 alter table public.agency_links
-  alter column label set not null;
+alter column label set not null;
 
 comment on column public.agency_links.label is
-  'Short display label for the agency link. The URL remains the href.';
+'Short display label for the agency link. The URL remains the href.';
 
 -- Collapsed from 20260510120000_add_location_build_projections.sql
 
 create table if not exists public.location_path (
-  location_path_id text primary key,
-  path text not null unique,
-  level text not null check (level in ('state', 'administrative_area', 'place')),
-  state_or_territory_slug text not null,
-  administrative_area_slug text,
-  place_slug text,
-  state_or_territory_name text not null,
-  administrative_area_name text,
-  place_name text,
-  parent_location_path_id text references public.location_path(location_path_id),
-  centroid geography(Point, 4326),
-  bbox geometry(Polygon, 4326),
-  created_at timestamp with time zone not null default timezone('utc'::text, now()),
-  updated_at timestamp with time zone not null default timezone('utc'::text, now())
+    location_path_id text primary key,
+    -- RF04: This existing schema identifier is consumed by migrations and
+    -- clients. Renaming it requires a coordinated schema/API change.
+    path text not null unique,
+    -- RF04: This existing schema identifier is consumed by migrations and
+    -- clients. Renaming it requires a coordinated schema/API change.
+    level text not null check (
+        level in ('state', 'administrative_area', 'place')
+    ),
+    state_or_territory_slug text not null,
+    administrative_area_slug text,
+    place_slug text,
+    state_or_territory_name text not null,
+    administrative_area_name text,
+    place_name text,
+    parent_location_path_id text references public.location_path (
+        location_path_id
+    ),
+    centroid geography (point, 4326),
+    bbox geometry (polygon, 4326),
+    created_at timestamp with time zone not null default timezone(
+        'utc'::text, now()
+    ),
+    updated_at timestamp with time zone not null default timezone(
+        'utc'::text, now()
+    )
 );
 
 create table if not exists public.location_path_geometry (
-  location_path_id text primary key references public.location_path(location_path_id) on delete cascade,
-  boundary geometry(Geometry, 4326) not null
+    location_path_id text primary key references public.location_path (
+        location_path_id
+    ) on delete cascade,
+    boundary geometry (geometry, 4326) not null
 );
 
 create index if not exists location_path_geometry_boundary_gist
-  on public.location_path_geometry using gist (boundary);
+on public.location_path_geometry using gist (boundary);
 
 create table if not exists public.location_path_closure (
-  ancestor_location_path_id text not null references public.location_path(location_path_id) on delete cascade,
-  descendant_location_path_id text not null references public.location_path(location_path_id) on delete cascade,
-  depth integer not null check (depth >= 0),
-  primary key (ancestor_location_path_id, descendant_location_path_id)
+    ancestor_location_path_id text not null references public.location_path (
+        location_path_id
+    ) on delete cascade,
+    descendant_location_path_id text not null references public.location_path (
+        location_path_id
+    ) on delete cascade,
+    -- RF04: This existing schema identifier is consumed by migrations and
+    -- clients. Renaming it requires a coordinated schema/API change.
+    depth integer not null check (depth >= 0),
+    primary key (ancestor_location_path_id, descendant_location_path_id)
 );
 
 create table if not exists public.build_page_payload (
-  path text primary key,
-  page_type text not null,
-  entity_id text,
-  payload jsonb not null,
-  content_hash text not null,
-  content_updated_at timestamp with time zone,
-  generated_at timestamp with time zone not null default timezone('utc'::text, now())
+    -- RF04: This existing schema identifier is consumed by migrations and
+    -- clients. Renaming it requires a coordinated schema/API change.
+    path text primary key,
+    page_type text not null,
+    entity_id text,
+    payload jsonb not null,
+    content_hash text not null,
+    content_updated_at timestamp with time zone,
+    generated_at timestamp with time zone not null default timezone(
+        'utc'::text, now()
+    )
 );
 
 create table if not exists public.agency_zip_index (
-  postal_code text not null,
-  agency_id text not null references public.agency(id) on delete cascade,
-  relationship_type text not null check (relationship_type in ('official_address')),
-  primary key (postal_code, agency_id, relationship_type)
+    postal_code text not null,
+    agency_id text not null references public.agency (id) on delete cascade,
+    relationship_type text not null check (
+        relationship_type in ('official_address')
+    ),
+    primary key (postal_code, agency_id, relationship_type)
 );
 
 alter table public.agency
-  add column if not exists location_path_id text not null references public.location_path(location_path_id) on delete restrict,
-  add column if not exists latitude double precision,
-  add column if not exists longitude double precision;
+add column if not exists location_path_id text not null references
+public.location_path (
+    location_path_id
+) on delete restrict,
+add column if not exists latitude double precision,
+add column if not exists longitude double precision;
 
 create index if not exists location_path_parent_idx
-  on public.location_path (parent_location_path_id);
+on public.location_path (parent_location_path_id);
 
 create index if not exists location_path_closure_descendant_idx
-  on public.location_path_closure (descendant_location_path_id);
+on public.location_path_closure (descendant_location_path_id);
 
 create index if not exists build_page_payload_page_type_idx
-  on public.build_page_payload (page_type);
+on public.build_page_payload (page_type);
 
 -- Collapsed from 20260510130000_add_federal_agency_branches.sql
 
 create table if not exists public.federal_agency (
-  id text primary key,
-  name text not null,
-  slug text not null unique,
-  created_at timestamp with time zone not null default timezone('utc'::text, now()),
-  updated_at timestamp with time zone not null default timezone('utc'::text, now())
+    id text primary key,
+    -- RF04: This existing schema identifier is consumed by migrations and
+    -- clients. Renaming it requires a coordinated schema/API change.
+    name text not null,
+    slug text not null unique,
+    created_at timestamp with time zone not null default timezone(
+        'utc'::text, now()
+    ),
+    updated_at timestamp with time zone not null default timezone(
+        'utc'::text, now()
+    )
 );
 
 create table if not exists public.federal_agency_branch (
-  federal_agency_id text not null references public.federal_agency(id) on delete cascade,
-  agency_id text not null references public.agency(id) on delete cascade,
-  created_at timestamp with time zone not null default timezone('utc'::text, now()),
-  updated_at timestamp with time zone not null default timezone('utc'::text, now()),
-  primary key (federal_agency_id, agency_id),
-  unique (agency_id)
+    federal_agency_id text not null references public.federal_agency (
+        id
+    ) on delete cascade,
+    agency_id text not null references public.agency (id) on delete cascade,
+    created_at timestamp with time zone not null default timezone(
+        'utc'::text, now()
+    ),
+    updated_at timestamp with time zone not null default timezone(
+        'utc'::text, now()
+    ),
+    primary key (federal_agency_id, agency_id),
+    unique (agency_id)
 );
 
 create index if not exists federal_agency_branch_federal_agency_idx
-  on public.federal_agency_branch (federal_agency_id);
+on public.federal_agency_branch (federal_agency_id);
 
 -- Collapsed from 20260510140000_remove_agency_category.sql
 
@@ -2419,43 +2597,49 @@ drop trigger if exists agency_set_category on public.agency;
 drop function if exists public.set_agency_category();
 
 alter table public.agency
-  drop column if exists category;
+drop column if exists category;
 
 -- Collapsed from 20260510141000_add_record_location_paths.sql
 
 alter table public.reviews
-  add column if not exists location_path_id text not null references public.location_path(location_path_id) on delete restrict;
+add column if not exists location_path_id text not null references
+public.location_path (
+    location_path_id
+) on delete restrict;
 
 alter table public.civil_cases
-  add column if not exists location_path_id text not null references public.location_path(location_path_id) on delete restrict;
+add column if not exists location_path_id text not null references
+public.location_path (
+    location_path_id
+) on delete restrict;
 
 alter table public.reviews
-  alter column location_path_id set not null;
+alter column location_path_id set not null;
 
 alter table public.civil_cases
-  alter column location_path_id set not null;
+alter column location_path_id set not null;
 
 create index if not exists reviews_location_path_id_idx
-  on public.reviews(location_path_id);
+on public.reviews (location_path_id);
 
 create index if not exists civil_cases_location_path_id_idx
-  on public.civil_cases(location_path_id);
+on public.civil_cases (location_path_id);
 
 alter table public.reviews
-  drop column if exists category;
+drop column if exists category;
 
 alter table public.civil_cases
-  drop column if exists category;
+drop column if exists category;
 
 -- Collapsed from 20260510142000_add_review_coordinates.sql
 
 alter table public.reviews
-  add column if not exists latitude double precision,
-  add column if not exists longitude double precision;
+add column if not exists latitude double precision,
+add column if not exists longitude double precision;
 
 create index if not exists reviews_location_coordinates_idx
-  on public.reviews(latitude, longitude)
-  where latitude is not null and longitude is not null;
+on public.reviews (latitude, longitude)
+where latitude is not null and longitude is not null;
 
 -- Collapsed from 20260514153500_require_civil_cases_filed_date.sql
 
@@ -2467,4 +2651,4 @@ begin
 end $$;
 
 alter table public.civil_cases
-  alter column filed_date set not null;
+alter column filed_date set not null;

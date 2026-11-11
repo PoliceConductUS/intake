@@ -108,3 +108,74 @@ test("canonical correction IO rejects malformed envelopes and multiple active ru
   ])
     expect(PropertyCorrection.schema.safeParse(bad).success).toBe(false);
 });
+
+test("persisted date correction resolves the intake date guard without changing raw evidence", async () => {
+  const { DataContext } =
+    await import("../../src/cli/import/artifacts/data-context.js");
+  const { INTAKE_API_VERSION } =
+    await import("../../src/shared/io/import-types.js");
+  const root = await mkdtemp(path.join(tmpdir(), "date-correction-"));
+  roots.push(root);
+  await setPropertyCorrection({
+    rootDir: root,
+    namespace: "test",
+    kind: "AgencyPersonnel",
+    sourceId: "one",
+    property: "end_date",
+    from: "2109-02-27",
+    value: "2024-02-27",
+    commandId: "synthetic-supported-correction",
+    force: false,
+  });
+  const original = { start_date: "2015-04-22", end_date: "2109-02-27" };
+  const context = new DataContext({
+    validationDate: new Date("2026-10-25T00:00:00Z"),
+    applyPropertyCorrections: await loadPropertyCorrections(root, "test"),
+  });
+  const facade = context.facadeFromSource("AgencyPersonnel", {
+    apiVersion: INTAKE_API_VERSION,
+    namespace: "test",
+    name: "one",
+    spec: original,
+  });
+  expect(facade.raw("end_date")).toBe("2024-02-27");
+  expect(original.end_date).toBe("2109-02-27");
+  // The date guard passed; this minimal fixture intentionally lacks agency identity.
+  await expect(context.toMutations()).rejects.toThrow(
+    "source agency_id is missing",
+  );
+});
+
+test("reports annotations only for corrections that actually match", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "correction-annotations-"));
+  roots.push(root);
+  await setPropertyCorrection({
+    rootDir: root,
+    namespace: "test",
+    kind: "Agency",
+    sourceId: "one",
+    property: "name",
+    from: "OLD",
+    value: "New",
+    force: false,
+    commandId: "cmd",
+  });
+  const apply = await loadPropertyCorrections(root, "test");
+  const applied: unknown[] = [];
+  apply("Agency", "one", { name: "OLD" }, (_field, annotation) =>
+    applied.push(annotation),
+  );
+  apply("Agency", "one", { name: "Other" }, (_field, annotation) =>
+    applied.push(annotation),
+  );
+  expect(applied).toEqual([
+    expect.objectContaining({
+      field: "name",
+      value: "OLD",
+      replacement_value: "New",
+      type: "correction",
+      source_namespace: "test",
+      source_record_id: "one",
+    }),
+  ]);
+});

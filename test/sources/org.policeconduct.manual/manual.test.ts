@@ -8,7 +8,10 @@ import {
   readLatest,
 } from "../../../sources/org.policeconduct.manual/chain.js";
 import { acquire } from "../../../sources/org.policeconduct.manual/acquire.js";
-import { transform } from "../../../sources/org.policeconduct.manual/transform.js";
+import {
+  transform,
+  produces,
+} from "../../../sources/org.policeconduct.manual/transform.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {
@@ -232,4 +235,147 @@ describe("manual review restoration", () => {
       ],
     ).toEqual({ spec: entries[1].record });
   });
+});
+
+it("declares both coverage artifact kinds emitted from saved manual state", async () => {
+  const state = await tempDir();
+  const entries = [
+    {
+      kind: "CoverageLink",
+      record: {
+        id: "article",
+        url: "https://example.com/article",
+        normalized_url: "https://example.com/article",
+        title: "Article",
+      },
+    },
+    {
+      kind: "CoverageLinkAgencyPersonnel",
+      record: {
+        id: "association",
+        coverage_link_id: "article",
+        agency_personnel_id: "assignment",
+        confidence: "confirmed",
+      },
+    },
+  ];
+  for (const entry of entries) await appendEntry(state, entry, "id");
+  const manifest = await transform({
+    paths: [],
+    state,
+    emit: async () => {},
+  } as never);
+  expect(manifest.artifacts).toHaveLength(2);
+  expect(manifest.artifacts).toEqual(
+    expect.arrayContaining(
+      entries.map((entry) => ({
+        kind:
+          entry.kind === "CoverageLink"
+            ? "CoverageLinks"
+            : "CoverageLinkAgencyPersonnel",
+        records: { [entry.record.id]: { spec: entry.record } },
+      })),
+    ),
+  );
+  for (const artifact of manifest.artifacts)
+    expect(produces).toContain(artifact.kind);
+});
+
+it("acquires coverage articles and emits their existing personnel references unchanged", async () => {
+  const state = await tempDir();
+  const article = {
+    id: "manual-article",
+    url: "https://example.org/news/officer-report",
+    normalized_url: "https://example.org/news/officer-report",
+    title: "Officer report",
+    source_name: "Example News",
+    published_at: "2026-10-25",
+    notes: "Source reports allegations; no finding inferred.",
+  };
+  const relationship = {
+    id: "manual-article-personnel",
+    coverage_link_id: "manual-article",
+    agency_personnel_id: "existing-roster-source-reference",
+    confidence: "confirmed",
+    notes:
+      "Existing agency personnel identified by the supplied source reference.",
+  };
+  const entries = [
+    { kind: "CoverageLink", record: article },
+    { kind: "CoverageLinkAgencyPersonnel", record: relationship },
+  ];
+  for (const entry of entries)
+    await acquire({
+      sourceDir: state,
+      state,
+      env: {
+        MANUAL_KIND: entry.kind,
+        MANUAL_RECORD: JSON.stringify(entry.record),
+      },
+      data: {} as never,
+    });
+  expect((await readLatest(state)).entries).toHaveLength(2);
+  expect((await readLatest(state)).entries).toEqual(
+    expect.arrayContaining(entries),
+  );
+  const manifest = await transform({
+    state,
+    paths: [],
+    emit: async () => {},
+  } as never);
+  expect(
+    Object.fromEntries(
+      manifest.artifacts.map((artifact) => [artifact.kind, artifact.records]),
+    ),
+  ).toEqual({
+    CoverageLinks: { "manual-article": { spec: article } },
+    CoverageLinkAgencyPersonnel: {
+      "manual-article-personnel": { spec: relationship },
+    },
+  });
+});
+
+it("creates and updates native annotations through the normal manual chain", async () => {
+  const state = await tempDir();
+  const record = {
+    id: "manual-finding",
+    subject_kind: "Agency",
+    subject_id: "agency-source-id",
+    producer_namespace: "org.policeconduct.manual",
+    producer_record_id: "manual-finding",
+    source_namespace: "source.provider",
+    source_record_id: "record-1",
+    type: "warning",
+    field: "name",
+    value: "Reported agency name",
+    message: "Name needs review against the attached source.",
+    evidence: [{ ref: "source-page-1" }],
+    status: "active",
+  };
+  for (const status of ["active", "resolved"]) {
+    await acquire({
+      sourceDir: state,
+      state,
+      env: {
+        MANUAL_KIND: "DataAnnotation",
+        MANUAL_RECORD: JSON.stringify({ ...record, status }),
+      },
+      data: {} as never,
+    });
+    expect((await readLatest(state)).entries).toEqual([
+      { kind: "DataAnnotation", record: { ...record, status } },
+    ]);
+    const manifest = await transform({
+      paths: [],
+      state,
+      emit: async () => {},
+    } as never);
+    expect(produces).toContain("DataAnnotations");
+    expect(manifest.artifacts).toEqual([
+      {
+        kind: "DataAnnotations",
+        records: { "manual-finding": { spec: { ...record, status } } },
+      },
+    ]);
+  }
 });

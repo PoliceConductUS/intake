@@ -213,3 +213,12 @@ The federal office source names `fbi-headquarters`, `dea-headquarters`, `atf-hea
 - **WHEN** federal intake resolves one of the four confirmed office source names
 - **THEN** it resolves to the selected existing TCOLE Agency identity
 - **AND** it does not recreate the alternate agency ID or replace the established slug
+
+### Requirement: Include agency arrest aggregate descendants
+
+Intake SHALL include AgencyArrestProfile records through a declared Agency to AgencyArrestProfile agency_id edge in the shared agency graph.
+
+#### Scenario: Eligible agency with complete arrest aggregate
+
+- **WHEN** an agency is selected and an agency arrest profile references it
+- **THEN** its aggregate is selected through the same shared graph as its other descendants

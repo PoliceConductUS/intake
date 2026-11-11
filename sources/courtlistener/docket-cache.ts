@@ -4,7 +4,9 @@ import path from "node:path";
 export const CACHE_FILE = "docket-cache.json";
 export const REFRESH_DAYS = 120;
 
-export type Docket = {
+import type { ComplaintResult } from "./summary-acquisition.js";
+
+export type Docket = Partial<ComplaintResult> & {
   id: string;
   case_name: string;
   docket_number: string;

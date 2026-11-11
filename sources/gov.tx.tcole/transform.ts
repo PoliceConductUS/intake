@@ -8,7 +8,6 @@ import {
   type ImportArtifactKind,
 } from "../../src/shared/io/index.js";
 import { canonicalLicenseType } from "../../src/shared/license.js";
-
 export const produces: readonly ImportArtifactKind[] = [
   "LicensingAuthorities",
   "AuthorityLicenses",
@@ -253,6 +252,7 @@ function buildPersonnel(rows: Array<Record<string, string>>): EmittedRecords {
     // nullable: TCOLE sometimes has no last name (sentinel "NULL"), and dropping
     // those would drop real (often active) officers.
     if (publicGuid === "" || firstName === null) continue;
+    // Preserve candidates for mandatory shared validation and audited exclusions.
     records[publicGuid] = {
       spec: {
         id: publicGuid,
@@ -277,7 +277,6 @@ function buildAgencies(
     const state = (row[DEPARTMENT.state] ?? "").trim();
     // Agency spec requires a non-empty name and state; the key must be stable.
     if (departmentNumber === "" || name === "" || state === "") continue;
-
     const address = [row[DEPARTMENT.addressLine1], row[DEPARTMENT.addressLine2]]
       .map((part) => (part ?? "").trim())
       .filter((part) => part !== "")
@@ -389,6 +388,7 @@ function buildLicensingAuthorities(): EmittedRecords {
       spec: {
         name: "Texas Commission on Law Enforcement",
         abbreviation: "TCOLE",
+        source_namespaces: ["gov.tx.tcole"],
         website: "https://www.tcole.texas.gov",
         location_path_id: "tx",
       },

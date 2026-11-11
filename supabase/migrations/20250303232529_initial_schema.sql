@@ -1,33 +1,33 @@
 -- Collapsed from 20250303232529_remote_schema.sql
--- Portable (non-Supabase) form: Supabase extensions/roles/RLS/privileges/audit removed.
+-- Portable (non-Supabase) form: Supabase extensions/roles/RLS/privileges/audit
+-- removed.
 
 set search_path to public;
 create extension if not exists postgis;
 
 -- Collapsed from 20250303232529_remote_schema.sql
 
-SET
+set
 statement_timeout = 0;
-SET
+set
 lock_timeout = 0;
-SET
+set
 idle_in_transaction_session_timeout = 0;
-SET
+set
 client_encoding = 'UTF8';
-SET
+set
 standard_conforming_strings = on;
-SET
+set
 check_function_bodies = false;
-SET
+set
 xmloption = content;
-SET
+set
 client_min_messages = warning;
-SET
+set
 row_security = off;
 
 
-
-CREATE TYPE "public"."rating_label" AS ENUM (
+create type public.rating_label as enum (
     'Outstanding',
     'Good',
     'Adequate',
@@ -36,9 +36,11 @@ CREATE TYPE "public"."rating_label" AS ENUM (
 );
 
 
-CREATE OR REPLACE FUNCTION "public"."calculate_agency_officer_stats"("agency_officer_id" "text") RETURNS "void"
-    LANGUAGE "plpgsql"
-    AS $$
+create or replace function public.calculate_agency_officer_stats(
+    "agency_officer_id" text
+) returns void
+language plpgsql
+as $$
 DECLARE
 ao record;
     stats
@@ -83,9 +85,11 @@ END;
 $$;
 
 
-CREATE OR REPLACE FUNCTION "public"."calculate_overall_rating_stats"("rating_stats" "jsonb") RETURNS "jsonb"
-    LANGUAGE "plpgsql"
-    AS $$
+create or replace function public.calculate_overall_rating_stats(
+    "rating_stats" jsonb
+) returns jsonb
+language plpgsql
+as $$
 DECLARE
 overall_stats jsonb;
   stat
@@ -163,7 +167,8 @@ FROM jsonb_each(overall_stats) LOOP IF (stat.value->>'count')::integer > 0 THEN
         ARRAY[stat.key, 'average'],
         '5'::jsonb  -- Set to maximum for the category
       );
--- We could implement a more sophisticated weighted average calculation here if needed
+-- We could implement a more sophisticated weighted average calculation here if
+-- needed
 overall_stats
 := jsonb_set(
         overall_stats,
@@ -178,9 +183,11 @@ END;
 $$;
 
 
-CREATE OR REPLACE FUNCTION "public"."calculate_rating_stats"("review_officers_ratings_array" "jsonb") RETURNS "jsonb"
-    LANGUAGE "plpgsql"
-    AS $$
+create or replace function public.calculate_rating_stats(
+    "review_officers_ratings_array" jsonb
+) returns jsonb
+language plpgsql
+as $$
 DECLARE
 stats jsonb;
 BEGIN
@@ -222,9 +229,9 @@ END;
 $$;
 
 
-CREATE OR REPLACE FUNCTION "public"."generate_cuid"() RETURNS "text"
-    LANGUAGE "plpgsql"
-    AS $$
+create or replace function public.generate_cuid() returns text
+language plpgsql
+as $$
 BEGIN
 RETURN LOWER(
         'c' ||
@@ -235,9 +242,9 @@ END;
 $$;
 
 
-CREATE OR REPLACE FUNCTION "public"."handle_agency_officer_change"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
-    AS $$
+create or replace function public.handle_agency_officer_change() returns trigger
+language plpgsql
+as $$
 BEGIN
     IF
 TG_OP = 'UPDATE' THEN
@@ -264,10 +271,10 @@ END;
 $$;
 
 
-CREATE OR REPLACE FUNCTION "public"."handle_new_user"() RETURNS "trigger"
-    LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO 'public'
-    AS $$
+create or replace function public.handle_new_user() returns trigger
+language plpgsql security definer
+set "search_path" to 'public'
+as $$
 begin
 insert into public.profiles (id)
 values (new.id);
@@ -276,9 +283,9 @@ end;
 $$;
 
 
-CREATE OR REPLACE FUNCTION "public"."handle_review_rating_change"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
-    AS $$
+create or replace function public.handle_review_rating_change() returns trigger
+language plpgsql
+as $$
 DECLARE
 review_officer record;
     agency_officer
@@ -312,9 +319,9 @@ END;
 $$;
 
 
-CREATE OR REPLACE FUNCTION "public"."prevent_trait_deletion"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
-    AS $$
+create or replace function public.prevent_trait_deletion() returns trigger
+language plpgsql
+as $$
 BEGIN
     IF
 EXISTS (SELECT 1 FROM review_ratings WHERE trait_id = OLD.id) THEN
@@ -325,9 +332,9 @@ END;
 $$;
 
 
-CREATE OR REPLACE FUNCTION "public"."prevent_trait_modification"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
-    AS $$
+create or replace function public.prevent_trait_modification() returns trigger
+language plpgsql
+as $$
 BEGIN
     IF
 EXISTS (SELECT 1 FROM review_ratings WHERE trait_id = NEW.id)
@@ -339,9 +346,9 @@ END;
 $$;
 
 
-CREATE OR REPLACE FUNCTION "public"."trigger_set_timestamp"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
-    AS $$
+create or replace function public.trigger_set_timestamp() returns trigger
+language plpgsql
+as $$
 BEGIN
     NEW.updated_at
 = timezone('utc'::text, now());
@@ -350,9 +357,11 @@ END;
 $$;
 
 
-CREATE OR REPLACE FUNCTION "public"."update_agency_overall_rating"("agency_id" "text") RETURNS "void"
-    LANGUAGE "plpgsql"
-    AS $$
+create or replace function public.update_agency_overall_rating(
+    "agency_id" text
+) returns void
+language plpgsql
+as $$
 DECLARE
 overall_rating numeric;
 BEGIN
@@ -371,9 +380,11 @@ END;
 $$;
 
 
-CREATE OR REPLACE FUNCTION "public"."update_officer_overall_rating"("officer_id" "text") RETURNS "void"
-    LANGUAGE "plpgsql"
-    AS $$
+create or replace function public.update_officer_overall_rating(
+    "officer_id" text
+) returns void
+language plpgsql
+as $$
 DECLARE
 overall_rating numeric;
 BEGIN
@@ -394,9 +405,9 @@ END;
 $$;
 
 
-CREATE OR REPLACE FUNCTION "public"."update_overall_stats"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
-    AS $$
+create or replace function public.update_overall_stats() returns trigger
+language plpgsql
+as $$
 BEGIN
   -- Calculate and merge the overall stats with existing review_stats
   NEW.review_stats
@@ -405,617 +416,688 @@ RETURN NEW;
 END;
 $$;
 
-SET
+set
 default_tablespace = '';
 
-SET default_table_access_method = "heap";
+set default_table_access_method = heap;
 
-CREATE TABLE IF NOT EXISTS "public"."agency" (
-    "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL,
-    "name" "text" NOT NULL,
-    "city" "text",
-    "state" "text" NOT NULL,
-    "address" "text",
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "zip_code" "text",
-    "contact_name" "text",
-    "contact_email" "text",
-    "review_stats" "jsonb" DEFAULT '{}'::"jsonb",
-    "review_count" integer DEFAULT 0,
-    "rating_overall" numeric DEFAULT 0
+create table if not exists public.agency (
+    id text default public.generate_cuid() not null,
+    -- RF04: This existing schema identifier is consumed by migrations and
+    -- clients. Renaming it requires a coordinated schema/API change.
+    name text not null,
+    city text,
+    state text not null,
+    address text,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    updated_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    zip_code text,
+    contact_name text,
+    contact_email text,
+    review_stats jsonb default '{}'::jsonb,
+    review_count integer default 0,
+    rating_overall numeric default 0
 );
 
 
-COMMENT
-ON COLUMN "public"."agency"."contact_name" IS 'Name of the primary contact person for the agency';
+comment
+on column public.agency.contact_name is
+'Name of the primary contact person for the agency';
 
 
+comment
+on column public.agency.contact_email is
+'Email address of the primary contact person for the agency';
 
-COMMENT
-ON COLUMN "public"."agency"."contact_email" IS 'Email address of the primary contact person for the agency';
 
-
-
-CREATE TABLE IF NOT EXISTS "public"."agency_links" (
-    "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL,
-    "agency_id" "text",
-    "url" "text" NOT NULL,
-    "description" "text",
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL
+create table if not exists public.agency_links (
+    id text default public.generate_cuid() not null,
+    agency_id text,
+    url text not null,
+    description text,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null
 );
 
 
-CREATE TABLE IF NOT EXISTS "public"."agency_officers" (
-    "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL,
-    "agency_id" "text",
-    "officer_id" "text" NOT NULL,
-    "badge_number" "text",
-    "start_date" "date" NOT NULL,
-    "end_date" "date",
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "license_type" "text" NOT NULL,
-    "rating_overall" numeric DEFAULT 0,
-    "review_stats" "jsonb" DEFAULT '{}'::"jsonb"
+create table if not exists public.agency_officers (
+    id text default public.generate_cuid() not null,
+    agency_id text,
+    officer_id text not null,
+    badge_number text,
+    start_date date not null,
+    end_date date,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    updated_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    license_type text not null,
+    rating_overall numeric default 0,
+    review_stats jsonb default '{}'::jsonb
 );
 
 
-CREATE TABLE IF NOT EXISTS "public"."agency_phone_numbers" (
-    "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL,
-    "agency_id" "text",
-    "phone_number" "text" NOT NULL,
-    "description" "text",
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL
+create table if not exists public.agency_phone_numbers (
+    id text default public.generate_cuid() not null,
+    agency_id text,
+    phone_number text not null,
+    description text,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null
 );
 
 
-CREATE TABLE IF NOT EXISTS "public"."audit_logs" (
-    "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL,
-    "table_name" "text" NOT NULL,
-    "record_id" "text" NOT NULL,
-    "action" "text" NOT NULL,
-    "old_values" "jsonb",
-    "new_values" "jsonb",
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "created_by" "uuid"
+create table if not exists public.audit_logs (
+    id text default public.generate_cuid() not null,
+    table_name text not null,
+    record_id text not null,
+    -- RF04: This existing schema identifier is consumed by migrations and
+    -- clients. Renaming it requires a coordinated schema/API change.
+    action text not null,
+    old_values jsonb,
+    new_values jsonb,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    created_by uuid
 );
 
 
-CREATE TABLE IF NOT EXISTS "public"."officers" (
-    "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL,
-    "first_name" "text" NOT NULL,
-    "last_name" "text" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "middle_name" "text",
-    "prefix" "text",
-    "suffix" "text",
-    "review_stats" "jsonb" DEFAULT '{}'::"jsonb",
-    "rating_overall" numeric DEFAULT 0
+create table if not exists public.officers (
+    id text default public.generate_cuid() not null,
+    first_name text not null,
+    last_name text not null,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    updated_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    middle_name text,
+    -- RF04: This existing schema identifier is consumed by migrations and
+    -- clients. Renaming it requires a coordinated schema/API change.
+    prefix text,
+    suffix text,
+    review_stats jsonb default '{}'::jsonb,
+    rating_overall numeric default 0
 );
 
 
-CREATE TABLE IF NOT EXISTS "public"."profile_emails" (
-    "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL,
-    "profile_id" "uuid",
-    "email" "text" NOT NULL,
-    "is_primary" boolean DEFAULT false,
-    "verified" boolean DEFAULT false,
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "label" "text"
+create table if not exists public.profile_emails (
+    id text default public.generate_cuid() not null,
+    profile_id uuid,
+    email text not null,
+    is_primary boolean default false,
+    verified boolean default false,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    -- RF04: This existing schema identifier is consumed by migrations and
+    -- clients. Renaming it requires a coordinated schema/API change.
+    label text
 );
 
 
-CREATE TABLE IF NOT EXISTS "public"."profile_links" (
-    "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL,
-    "profile_id" "uuid",
-    "url" "text" NOT NULL,
-    "label" "text" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL
+create table if not exists public.profile_links (
+    id text default public.generate_cuid() not null,
+    profile_id uuid,
+    url text not null,
+    -- RF04: This existing schema identifier is consumed by migrations and
+    -- clients. Renaming it requires a coordinated schema/API change.
+    label text not null,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null
 );
 
 
-CREATE TABLE IF NOT EXISTS "public"."profile_phone_numbers" (
-    "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL,
-    "profile_id" "uuid",
-    "phone_number" "text" NOT NULL,
-    "is_primary" boolean DEFAULT false,
-    "can_receive_sms" boolean DEFAULT false,
-    "is_verified" boolean DEFAULT false,
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "label" "text"
+create table if not exists public.profile_phone_numbers (
+    id text default public.generate_cuid() not null,
+    profile_id uuid,
+    phone_number text not null,
+    is_primary boolean default false,
+    can_receive_sms boolean default false,
+    is_verified boolean default false,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    -- RF04: This existing schema identifier is consumed by migrations and
+    -- clients. Renaming it requires a coordinated schema/API change.
+    label text
 );
 
 
-CREATE TABLE IF NOT EXISTS "public"."profiles" (
-    "id" "uuid" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text","now"()) NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "phone_number" "text",
-    "avatar_url" "text",
-    "street_address" "text",
-    "city" "text",
-    "state" "text",
-    "zip_code" "text",
-    "primary_phone_id" "text",
-    "primary_email_id" "text",
-    "mailing_address_street" "text",
-    "mailing_address_city" "text",
-    "mailing_address_state" "text",
-    "mailing_address_zip" "text",
-    "physical_address_street" "text",
-    "physical_address_city" "text",
-    "physical_address_state" "text",
-    "physical_address_zip" "text",
-    "languages" "text"[]
+create table if not exists public.profiles (
+    id uuid not null,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    updated_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    phone_number text,
+    avatar_url text,
+    street_address text,
+    city text,
+    state text,
+    zip_code text,
+    primary_phone_id text,
+    primary_email_id text,
+    mailing_address_street text,
+    mailing_address_city text,
+    mailing_address_state text,
+    mailing_address_zip text,
+    physical_address_street text,
+    physical_address_city text,
+    physical_address_state text,
+    physical_address_zip text,
+    languages text []
 );
 
 
-CREATE TABLE IF NOT EXISTS "public"."rating_values" (
-    "label" "public"."rating_label" NOT NULL,
-    "value" integer NOT NULL
+create table if not exists public.rating_values (
+    -- RF04: This existing schema identifier is consumed by migrations and
+    -- clients. Renaming it requires a coordinated schema/API change.
+    label public.rating_label not null,
+    -- RF04: This existing schema identifier is consumed by migrations and
+    -- clients. Renaming it requires a coordinated schema/API change.
+    value integer not null
 );
 
 
-CREATE TABLE IF NOT EXISTS "public"."review_attachments" (
-    "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL,
-    "review_id" "text",
-    "file_path" "text" NOT NULL,
-    "file_name" "text" NOT NULL,
-    "content_type" "text" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL
+create table if not exists public.review_attachments (
+    id text default public.generate_cuid() not null,
+    review_id text,
+    file_path text not null,
+    file_name text not null,
+    content_type text not null,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null
 );
 
 
-CREATE TABLE IF NOT EXISTS "public"."review_links" (
-    "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL,
-    "review_id" "text",
-    "url" "text" NOT NULL,
-    "title" "text" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "created_by" "uuid",
-    "updated_by" "uuid"
+create table if not exists public.review_links (
+    id text default public.generate_cuid() not null,
+    review_id text,
+    url text not null,
+    title text not null,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    updated_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    created_by uuid,
+    updated_by uuid
 );
 
 
-CREATE TABLE IF NOT EXISTS "public"."review_officers" (
-    "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL,
-    "review_id" "text" NOT NULL,
-    "officer_id" "text" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "created_by" "uuid",
-    "updated_by" "uuid"
+create table if not exists public.review_officers (
+    id text default public.generate_cuid() not null,
+    review_id text not null,
+    officer_id text not null,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    updated_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    created_by uuid,
+    updated_by uuid
 );
 
 
-CREATE TABLE IF NOT EXISTS "public"."review_officers_ratings" (
-    "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL,
-    "review_officer_id" "text",
-    "trait_id" "text",
-    "rubric_id" "text",
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "created_by" "uuid",
-    "updated_by" "uuid"
+create table if not exists public.review_officers_ratings (
+    id text default public.generate_cuid() not null,
+    review_officer_id text,
+    trait_id text,
+    rubric_id text,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    updated_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    created_by uuid,
+    updated_by uuid
 );
 
 
-CREATE TABLE IF NOT EXISTS "public"."review_tags" (
-    "review_id" "text" NOT NULL,
-    "tag_id" "text" NOT NULL,
-    "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL
+create table if not exists public.review_tags (
+    review_id text not null,
+    tag_id text not null,
+    id text default public.generate_cuid() not null
 );
 
 
-CREATE TABLE IF NOT EXISTS "public"."review_witnesses" (
-    "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL,
-    "review_id" "text",
-    "profile_id" "uuid",
-    "statement" "text",
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL
+create table if not exists public.review_witnesses (
+    id text default public.generate_cuid() not null,
+    review_id text,
+    profile_id uuid,
+    -- RF04: This existing schema identifier is consumed by migrations and
+    -- clients. Renaming it requires a coordinated schema/API change.
+    statement text,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    updated_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null
 );
 
 
-CREATE TABLE IF NOT EXISTS "public"."reviews" (
-    "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL,
-    "user_id" "uuid",
-    "title" "text" NOT NULL,
-    "description" "text",
-    "incident_date" timestamp with time zone,
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "desired_outcome" "text",
-    "address" "text",
-    "thumbnail_url" "text"
+create table if not exists public.reviews (
+    id text default public.generate_cuid() not null,
+    user_id uuid,
+    title text not null,
+    description text,
+    incident_date timestamp with time zone,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    updated_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    desired_outcome text,
+    address text,
+    thumbnail_url text
 );
 
 
-CREATE TABLE IF NOT EXISTS "public"."rubrics" (
-    "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL,
-    "trait_id" "text" NOT NULL,
-    "label" "public"."rating_label" NOT NULL,
-    "description" "text" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "created_by" "uuid",
-    "updated_by" "uuid",
-    "help" "text" NOT NULL
+create table if not exists public.rubrics (
+    id text default public.generate_cuid() not null,
+    trait_id text not null,
+    -- RF04: This existing schema identifier is consumed by migrations and
+    -- clients. Renaming it requires a coordinated schema/API change.
+    label public.rating_label not null,
+    description text not null,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    updated_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    created_by uuid,
+    updated_by uuid,
+    help text not null
 );
 
 
-CREATE TABLE IF NOT EXISTS "public"."tags" (
-    "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL,
-    "label" "text" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+create table if not exists public.tags (
+    id text default public.generate_cuid() not null,
+    -- RF04: This existing schema identifier is consumed by migrations and
+    -- clients. Renaming it requires a coordinated schema/API change.
+    label text not null,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    updated_at timestamp with time zone default now() not null
 );
 
 
-CREATE TABLE IF NOT EXISTS "public"."traits" (
-    "id" "text" DEFAULT "public"."generate_cuid"() NOT NULL,
-    "label" "text" NOT NULL,
-    "active" boolean DEFAULT true,
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "created_by" "uuid",
-    "updated_by" "uuid"
+create table if not exists public.traits (
+    id text default public.generate_cuid() not null,
+    -- RF04: This existing schema identifier is consumed by migrations and
+    -- clients. Renaming it requires a coordinated schema/API change.
+    label text not null,
+    active boolean default true,
+    created_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    updated_at timestamp with time zone default timezone(
+        'utc'::text, now()
+    ) not null,
+    created_by uuid,
+    updated_by uuid
 );
 
 
-ALTER TABLE ONLY "public"."agency_links"
-    ADD CONSTRAINT "agency_links_pkey" PRIMARY KEY ("id");
+alter table only public.agency_links
+add constraint agency_links_pkey primary key (id);
 
 
+alter table only public.agency_officers
+add constraint agency_officers_pkey primary key (id);
 
-ALTER TABLE ONLY "public"."agency_officers"
-    ADD CONSTRAINT "agency_officers_pkey" PRIMARY KEY ("id");
 
+alter table only public.agency_phone_numbers
+add constraint agency_phone_numbers_pkey primary key (id);
 
 
-ALTER TABLE ONLY "public"."agency_phone_numbers"
-    ADD CONSTRAINT "agency_phone_numbers_pkey" PRIMARY KEY ("id");
+alter table only public.agency
+add constraint agency_pkey primary key (id);
 
 
+alter table only public.audit_logs
+add constraint audit_logs_pkey primary key (id);
 
-ALTER TABLE ONLY "public"."agency"
-    ADD CONSTRAINT "agency_pkey" PRIMARY KEY ("id");
 
+alter table only public.officers
+add constraint officers_pkey primary key (id);
 
 
-ALTER TABLE ONLY "public"."audit_logs"
-    ADD CONSTRAINT "audit_logs_pkey" PRIMARY KEY ("id");
+alter table only public.profile_emails
+add constraint profile_emails_pkey primary key (id);
 
 
+alter table only public.profile_links
+add constraint profile_links_pkey primary key (id);
 
-ALTER TABLE ONLY "public"."officers"
-    ADD CONSTRAINT "officers_pkey" PRIMARY KEY ("id");
 
+alter table only public.profile_phone_numbers
+add constraint profile_phone_numbers_pkey primary key (id);
 
 
-ALTER TABLE ONLY "public"."profile_emails"
-    ADD CONSTRAINT "profile_emails_pkey" PRIMARY KEY ("id");
+alter table only public.profiles
+add constraint profiles_pkey primary key (id);
 
 
+alter table only public.rating_values
+add constraint rating_values_pkey primary key (label);
 
-ALTER TABLE ONLY "public"."profile_links"
-    ADD CONSTRAINT "profile_links_pkey" PRIMARY KEY ("id");
 
+alter table only public.review_attachments
+add constraint review_attachments_pkey primary key (id);
 
 
-ALTER TABLE ONLY "public"."profile_phone_numbers"
-    ADD CONSTRAINT "profile_phone_numbers_pkey" PRIMARY KEY ("id");
+alter table only public.review_links
+add constraint review_links_pkey primary key (id);
 
 
+alter table only public.review_officers
+add constraint review_officers_pkey primary key (id);
 
-ALTER TABLE ONLY "public"."profiles"
-    ADD CONSTRAINT "profiles_pkey" PRIMARY KEY ("id");
 
+alter table only public.review_officers_ratings
+add constraint review_officers_ratings_pkey primary key (id);
 
 
-ALTER TABLE ONLY "public"."rating_values"
-    ADD CONSTRAINT "rating_values_pkey" PRIMARY KEY ("label");
+alter table only public.review_tags
+add constraint review_tags_id_key unique (id);
 
 
+alter table only public.review_tags
+add constraint review_tags_pkey primary key (id);
 
-ALTER TABLE ONLY "public"."review_attachments"
-    ADD CONSTRAINT "review_attachments_pkey" PRIMARY KEY ("id");
 
+alter table only public.review_tags
+add constraint review_tags_review_id_tag_id_key unique (
+    review_id, tag_id
+);
 
 
-ALTER TABLE ONLY "public"."review_links"
-    ADD CONSTRAINT "review_links_pkey" PRIMARY KEY ("id");
+alter table only public.review_witnesses
+add constraint review_witnesses_pkey primary key (id);
 
 
+alter table only public.reviews
+add constraint reviews_pkey primary key (id);
 
-ALTER TABLE ONLY "public"."review_officers"
-    ADD CONSTRAINT "review_officers_pkey" PRIMARY KEY ("id");
 
+alter table only public.rubrics
+add constraint rubrics_pkey primary key (id);
 
 
-ALTER TABLE ONLY "public"."review_officers_ratings"
-    ADD CONSTRAINT "review_officers_ratings_pkey" PRIMARY KEY ("id");
+alter table only public.tags
+add constraint tags_pkey primary key (id);
 
 
+alter table only public.traits
+add constraint traits_name_key unique (label);
 
-ALTER TABLE ONLY "public"."review_tags"
-    ADD CONSTRAINT "review_tags_id_key" UNIQUE ("id");
 
+alter table only public.traits
+add constraint traits_pkey primary key (id);
 
 
-ALTER TABLE ONLY "public"."review_tags"
-    ADD CONSTRAINT "review_tags_pkey" PRIMARY KEY ("id");
+create index review_links_review_id_idx on public.review_links using btree (
+    review_id
+);
 
 
+create index review_officers_officer_id_idx on public.review_officers using
+btree (
+    officer_id
+);
 
-ALTER TABLE ONLY "public"."review_tags"
-    ADD CONSTRAINT "review_tags_review_id_tag_id_key" UNIQUE ("review_id", "tag_id");
 
+create index review_officers_ratings_review_officer_id_idx on
+public.review_officers_ratings using btree (
+    review_officer_id
+);
 
 
-ALTER TABLE ONLY "public"."review_witnesses"
-    ADD CONSTRAINT "review_witnesses_pkey" PRIMARY KEY ("id");
+create index review_officers_ratings_rubric_id_idx on
+public.review_officers_ratings using btree (
+    rubric_id
+);
 
 
+create index review_officers_ratings_trait_id_idx on
+public.review_officers_ratings using btree (
+    trait_id
+);
 
-ALTER TABLE ONLY "public"."reviews"
-    ADD CONSTRAINT "reviews_pkey" PRIMARY KEY ("id");
 
+create index review_officers_review_id_idx on public.review_officers using
+btree (
+    review_id
+);
 
 
-ALTER TABLE ONLY "public"."rubrics"
-    ADD CONSTRAINT "rubrics_pkey" PRIMARY KEY ("id");
+create or replace trigger agency_officer_change after insert or delete or update
+on public.agency_officers for each row execute function
+public.handle_agency_officer_change();
 
 
+create or replace trigger review_rating_change after insert or delete or update
+on public.review_officers_ratings for each row execute function
+public.handle_review_rating_change();
 
-ALTER TABLE ONLY "public"."tags"
-    ADD CONSTRAINT "tags_pkey" PRIMARY KEY ("id");
 
+create or replace trigger update_agency_overall_stats before update of
+review_stats
+on public.agency for each row execute function public.update_overall_stats();
 
+alter table public.agency disable trigger "update_agency_overall_stats";
 
-ALTER TABLE ONLY "public"."traits"
-    ADD CONSTRAINT "traits_name_key" UNIQUE ("label");
 
+create or replace trigger update_officers_overall_stats before update of
+review_stats
+on public.officers for each row execute function public.update_overall_stats();
 
+alter table public.officers disable trigger "update_officers_overall_stats";
 
-ALTER TABLE ONLY "public"."traits"
-    ADD CONSTRAINT "traits_pkey" PRIMARY KEY ("id");
 
+alter table only public.agency_links
+add constraint agency_links_agency_id_fkey foreign key (
+    agency_id
+) references public.agency (id);
 
 
-CREATE INDEX "review_links_review_id_idx" ON "public"."review_links" USING "btree" ("review_id");
+alter table only public.agency_officers
+add constraint agency_officers_agency_id_fkey foreign key (
+    agency_id
+) references public.agency (id);
 
 
+alter table only public.agency_officers
+add constraint agency_officers_officer_id_fkey foreign key (
+    officer_id
+) references public.officers (id) on
+delete
+cascade;
 
-CREATE INDEX "review_officers_officer_id_idx" ON "public"."review_officers" USING "btree" ("officer_id");
 
+alter table only public.agency_phone_numbers
+add constraint agency_phone_numbers_agency_id_fkey foreign key (
+    agency_id
+) references public.agency (id);
 
 
-CREATE INDEX "review_officers_ratings_review_officer_id_idx" ON "public"."review_officers_ratings" USING "btree" ("review_officer_id");
+alter table only public.audit_logs
+add constraint audit_logs_created_by_fkey foreign key (
+    created_by
+) references public.profiles (id) on
+delete
+set null;
 
 
+alter table only public.profile_emails
+add constraint profile_emails_profile_id_fkey foreign key (
+    profile_id
+) references public.profiles (id) on
+delete
+cascade;
 
-CREATE INDEX "review_officers_ratings_rubric_id_idx" ON "public"."review_officers_ratings" USING "btree" ("rubric_id");
 
+alter table only public.profile_links
+add constraint profile_links_profile_id_fkey foreign key (
+    profile_id
+) references public.profiles (id) on
+delete
+cascade;
 
 
-CREATE INDEX "review_officers_ratings_trait_id_idx" ON "public"."review_officers_ratings" USING "btree" ("trait_id");
+alter table only public.profile_phone_numbers
+add constraint profile_phone_numbers_profile_id_fkey foreign key (
+    profile_id
+) references public.profiles (id) on
+delete
+cascade;
 
 
+alter table only public.review_attachments
+add constraint review_attachments_review_id_fkey foreign key (
+    review_id
+) references public.reviews (id) on
+delete
+cascade;
 
-CREATE INDEX "review_officers_review_id_idx" ON "public"."review_officers" USING "btree" ("review_id");
 
+alter table only public.review_links
+add constraint review_links_review_id_fkey foreign key (
+    review_id
+) references public.reviews (id);
 
 
-CREATE OR REPLACE TRIGGER "agency_officer_change" AFTER INSERT OR DELETE OR UPDATE 
-ON "public"."agency_officers" FOR EACH ROW EXECUTE FUNCTION "public"."handle_agency_officer_change"();
+alter table only public.review_officers
+add constraint review_officers_officer_id_fkey foreign key (
+    officer_id
+) references public.officers (id);
 
 
+alter table only public.review_officers_ratings
+add constraint review_officers_ratings_review_officer_id_fkey foreign key (
+    review_officer_id
+) references public.review_officers (id);
 
-CREATE OR REPLACE TRIGGER "review_rating_change" AFTER INSERT OR DELETE OR UPDATE 
-ON "public"."review_officers_ratings" FOR EACH ROW EXECUTE FUNCTION "public"."handle_review_rating_change"();
 
+alter table only public.review_officers_ratings
+add constraint review_officers_ratings_rubric_id_fkey foreign key (
+    rubric_id
+) references public.rubrics (id);
 
 
-CREATE OR REPLACE TRIGGER "update_agency_overall_stats" BEFORE UPDATE OF "review_stats"
-ON "public"."agency" FOR EACH ROW EXECUTE FUNCTION "public"."update_overall_stats"();
+alter table only public.review_officers_ratings
+add constraint review_officers_ratings_trait_id_fkey foreign key (
+    trait_id
+) references public.traits (id);
 
-ALTER TABLE "public"."agency" DISABLE TRIGGER "update_agency_overall_stats";
 
+alter table only public.review_officers
+add constraint review_officers_review_id_fkey foreign key (
+    review_id
+) references public.reviews (id);
 
 
-CREATE OR REPLACE TRIGGER "update_officers_overall_stats" BEFORE UPDATE OF "review_stats"
-ON "public"."officers" FOR EACH ROW EXECUTE FUNCTION "public"."update_overall_stats"();
+alter table only public.review_tags
+add constraint review_tags_review_id_fkey foreign key (
+    review_id
+) references public.reviews (id) on
+delete
+cascade;
 
-ALTER TABLE "public"."officers" DISABLE TRIGGER "update_officers_overall_stats";
 
+alter table only public.review_tags
+add constraint review_tags_tag_id_fkey foreign key (
+    tag_id
+) references public.tags (id) on
+delete
+cascade;
 
 
-ALTER TABLE ONLY "public"."agency_links"
-    ADD CONSTRAINT "agency_links_agency_id_fkey" FOREIGN KEY ("agency_id") REFERENCES "public"."agency"("id");
+alter table only public.review_witnesses
+add constraint review_witnesses_profile_id_fkey foreign key (
+    profile_id
+) references public.profiles (id) on
+delete
+set null;
 
 
+alter table only public.review_witnesses
+add constraint review_witnesses_review_id_fkey foreign key (
+    review_id
+) references public.reviews (id) on
+delete
+cascade;
 
-ALTER TABLE ONLY "public"."agency_officers"
-    ADD CONSTRAINT "agency_officers_agency_id_fkey" FOREIGN KEY ("agency_id") REFERENCES "public"."agency"("id");
 
+alter table only public.reviews
+add constraint reviews_user_id_fkey foreign key (
+    user_id
+) references public.profiles (id) on
+delete
+set null;
 
 
-ALTER TABLE ONLY "public"."agency_officers"
-    ADD CONSTRAINT "agency_officers_officer_id_fkey" FOREIGN KEY ("officer_id") REFERENCES "public"."officers"("id") ON
-DELETE
-CASCADE;
+alter table only public.rubrics
+add constraint rubrics_created_by_fkey foreign key (
+    created_by
+) references public.profiles (id) on
+delete
+set null;
 
 
+alter table only public.rubrics
+add constraint rubrics_trait_id_fkey foreign key (
+    trait_id
+) references public.traits (id) on
+delete
+cascade;
 
-ALTER TABLE ONLY "public"."agency_phone_numbers"
-    ADD CONSTRAINT "agency_phone_numbers_agency_id_fkey" FOREIGN KEY ("agency_id") REFERENCES "public"."agency"("id");
 
+alter table only public.rubrics
+add constraint rubrics_updated_by_fkey foreign key (
+    updated_by
+) references public.profiles (id) on
+delete
+set null;
 
 
-ALTER TABLE ONLY "public"."audit_logs"
-    ADD CONSTRAINT "audit_logs_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "public"."profiles"("id") ON
-DELETE
-SET NULL;
+alter table only public.traits
+add constraint traits_created_by_fkey foreign key (
+    created_by
+) references public.profiles (id) on
+delete
+set null;
 
 
+alter table only public.traits
+add constraint traits_updated_by_fkey foreign key (
+    updated_by
+) references public.profiles (id) on
+delete
+set null;
 
-ALTER TABLE ONLY "public"."profile_emails"
-    ADD CONSTRAINT "profile_emails_profile_id_fkey" FOREIGN KEY ("profile_id") REFERENCES "public"."profiles"("id") ON
-DELETE
-CASCADE;
 
-
-
-ALTER TABLE ONLY "public"."profile_links"
-    ADD CONSTRAINT "profile_links_profile_id_fkey" FOREIGN KEY ("profile_id") REFERENCES "public"."profiles"("id") ON
-DELETE
-CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."profile_phone_numbers"
-    ADD CONSTRAINT "profile_phone_numbers_profile_id_fkey" FOREIGN KEY ("profile_id") REFERENCES "public"."profiles"("id") ON
-DELETE
-CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."review_attachments"
-    ADD CONSTRAINT "review_attachments_review_id_fkey" FOREIGN KEY ("review_id") REFERENCES "public"."reviews"("id") ON
-DELETE
-CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."review_links"
-    ADD CONSTRAINT "review_links_review_id_fkey" FOREIGN KEY ("review_id") REFERENCES "public"."reviews"("id");
-
-
-
-ALTER TABLE ONLY "public"."review_officers"
-    ADD CONSTRAINT "review_officers_officer_id_fkey" FOREIGN KEY ("officer_id") REFERENCES "public"."officers"("id");
-
-
-
-ALTER TABLE ONLY "public"."review_officers_ratings"
-    ADD CONSTRAINT "review_officers_ratings_review_officer_id_fkey" FOREIGN KEY ("review_officer_id") REFERENCES "public"."review_officers"("id");
-
-
-
-ALTER TABLE ONLY "public"."review_officers_ratings"
-    ADD CONSTRAINT "review_officers_ratings_rubric_id_fkey" FOREIGN KEY ("rubric_id") REFERENCES "public"."rubrics"("id");
-
-
-
-ALTER TABLE ONLY "public"."review_officers_ratings"
-    ADD CONSTRAINT "review_officers_ratings_trait_id_fkey" FOREIGN KEY ("trait_id") REFERENCES "public"."traits"("id");
-
-
-
-ALTER TABLE ONLY "public"."review_officers"
-    ADD CONSTRAINT "review_officers_review_id_fkey" FOREIGN KEY ("review_id") REFERENCES "public"."reviews"("id");
-
-
-
-ALTER TABLE ONLY "public"."review_tags"
-    ADD CONSTRAINT "review_tags_review_id_fkey" FOREIGN KEY ("review_id") REFERENCES "public"."reviews"("id") ON
-DELETE
-CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."review_tags"
-    ADD CONSTRAINT "review_tags_tag_id_fkey" FOREIGN KEY ("tag_id") REFERENCES "public"."tags"("id") ON
-DELETE
-CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."review_witnesses"
-    ADD CONSTRAINT "review_witnesses_profile_id_fkey" FOREIGN KEY ("profile_id") REFERENCES "public"."profiles"("id") ON
-DELETE
-SET NULL;
-
-
-
-ALTER TABLE ONLY "public"."review_witnesses"
-    ADD CONSTRAINT "review_witnesses_review_id_fkey" FOREIGN KEY ("review_id") REFERENCES "public"."reviews"("id") ON
-DELETE
-CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."reviews"
-    ADD CONSTRAINT "reviews_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."profiles"("id") ON
-DELETE
-SET NULL;
-
-
-
-ALTER TABLE ONLY "public"."rubrics"
-    ADD CONSTRAINT "rubrics_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "public"."profiles"("id") ON
-DELETE
-SET NULL;
-
-
-
-ALTER TABLE ONLY "public"."rubrics"
-    ADD CONSTRAINT "rubrics_trait_id_fkey" FOREIGN KEY ("trait_id") REFERENCES "public"."traits"("id") ON
-DELETE
-CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."rubrics"
-    ADD CONSTRAINT "rubrics_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "public"."profiles"("id") ON
-DELETE
-SET NULL;
-
-
-
-ALTER TABLE ONLY "public"."traits"
-    ADD CONSTRAINT "traits_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "public"."profiles"("id") ON
-DELETE
-SET NULL;
-
-
-
-ALTER TABLE ONLY "public"."traits"
-    ADD CONSTRAINT "traits_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "public"."profiles"("id") ON
-DELETE
-SET NULL;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-RESET ALL;
+reset all;

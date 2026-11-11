@@ -1,3 +1,4 @@
+import { CorrectionAnnotation } from "../data-annotations.js";
 import type { AgencyLocationPathLookup } from "../agency-location-path.js";
 import { isDeepStrictEqual } from "node:util";
 import { readdir, stat } from "node:fs/promises";
@@ -6,6 +7,7 @@ import { z } from "zod";
 import * as specs from "./generated/entity-specs.js";
 import {
   PropertyCorrection,
+  correctionValue,
   type PropertyCorrectionEnvelope,
 } from "./PropertyCorrection.js";
 import { yamlResourceFileName } from "./resource.js";
@@ -73,12 +75,21 @@ export async function setPropertyCorrection(input: {
   sourceId: string;
   property: string;
   from: unknown;
-  value: unknown;
+  value?: unknown;
+  operation?: "unset";
   force: boolean;
   commandId: string;
+  message?: string;
 }): Promise<void> {
+  const message =
+    input.message === undefined
+      ? undefined
+      : z.string().trim().min(10).parse(input.message);
   const schema = correctionPropertySchema(input.kind, input.property);
-  schema.parse(input.value);
+  const value = input.operation === "unset" ? null : input.value;
+  if (input.operation !== "unset" && value === null)
+    throw new Error("Use cache unset to clear a value.");
+  schema.parse(value);
   const existing = await inspectPropertyCorrection(
     input.rootDir,
     input.namespace,
@@ -110,7 +121,10 @@ export async function setPropertyCorrection(input: {
           ...entries,
           {
             from: z.json().parse(input.from),
-            value: z.json().parse(input.value),
+            ...(input.operation === "unset"
+              ? { operation: "unset" as const }
+              : { value: z.json().parse(input.value) }),
+            ...(message === undefined ? {} : { message }),
             commandId: input.commandId,
             recordedAt: new Date().toISOString(),
           },
@@ -124,7 +138,10 @@ export type ApplyPropertyCorrections = (
   kind: string,
   sourceId: string,
   spec: Record<string, unknown>,
-  applied?: (property: string) => void,
+  applied?: (
+    property: string,
+    annotation?: z.infer<typeof CorrectionAnnotation>,
+  ) => void,
 ) => Record<string, unknown>;
 export async function loadPropertyCorrections(
   root: string | undefined,
@@ -154,7 +171,7 @@ export async function loadPropertyCorrections(
       throw new Error(`PropertyCorrection identity mismatch: ${file}`);
     const schema = correctionPropertySchema(subject.kind, targetProperty);
     for (const entry of entries) {
-      schema.parse(entry.value);
+      schema.parse(correctionValue(entry));
     }
     const key = JSON.stringify([subject.kind, subject.name]);
     byRecord.set(key, [...(byRecord.get(key) ?? []), envelope]);
@@ -173,10 +190,26 @@ export async function loadPropertyCorrections(
           ? value === null || value === undefined
           : isDeepStrictEqual(value, entry.from);
       if (matches) {
-        result[correction.targetProperty] = entry.value;
-        applied?.(correction.targetProperty);
+        result[correction.targetProperty] = correctionValue(entry);
+        applied?.(
+          correction.targetProperty,
+          CorrectionAnnotation.parse({
+            field: correction.targetProperty,
+            value: value ?? null,
+            replacement_value: correctionValue(entry),
+            type: "correction",
+            message:
+              entry.message ??
+              "Applied an explicit conditional source correction.",
+            source_namespace: namespace,
+            source_record_id: sourceId,
+            ...(entry.evidence === undefined
+              ? {}
+              : { evidence: entry.evidence }),
+          }),
+        );
         log?.(
-          `cache: applied ${namespace}/${kind}/${sourceId}.${correction.targetProperty}: ${JSON.stringify(value ?? null)} → ${JSON.stringify(entry.value)}`,
+          `cache: applied ${namespace}/${kind}/${sourceId}.${correction.targetProperty}: ${JSON.stringify(value ?? null)} → ${JSON.stringify(correctionValue(entry))}`,
         );
       } else {
         log?.(

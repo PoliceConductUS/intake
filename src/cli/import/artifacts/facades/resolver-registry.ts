@@ -11,6 +11,7 @@ import {
 import { importMutationEnvelopeTypes } from "../io/generated-mutations/index.js";
 import {
   Resolver,
+  resolveReference,
   valueAsString,
   facadeCanonicalIdResolver,
   facadeComposedIdResolver,
@@ -49,8 +50,12 @@ import {
 // facade's row is a plain string-keyed record at this layer, and the value/context
 // generics are erased on purpose.
 type Row = Record<string, unknown>;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyResolver = Resolver<any, any>;
+// Backend context must remain erased here: slug and location resolvers require
+// different capabilities not present on EntityFacadeBackend. Replacing it with
+// that base context fails TS2352; using unknown rejects the narrower callbacks.
+// Removing this exception requires a kind-indexed registry/backend contract.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Heterogeneous resolver contexts cannot share the base backend type.
+type AnyResolver = Resolver<unknown, any>;
 
 /**
  * The per-kind resolution nuance that is NOT derivable from the schema. A kind
@@ -92,7 +97,73 @@ const STRUCTURED_TEXT_PROPERTIES = new Set([
   "action",
 ]);
 
+/** Resolve the effective polymorphic reference, including a PATCH's stored half. */
+function annotationSubjectResolver(
+  property: "subject_kind" | "subject_id",
+): AnyResolver {
+  return new Resolver(
+    async (context: ResolverContext<Row, EntityFacadeBackend>) => {
+      const rawKind = context.facade.raw("subject_kind");
+      const rawId = context.facade.raw("subject_id");
+      const current =
+        rawKind === undefined || rawId === undefined
+          ? await context.backend.existingRow(
+              String(await context.facade.value("id")),
+            )
+          : undefined;
+      const kind = valueAsString(
+        rawKind === undefined ? current?.subject_kind : rawKind,
+      );
+      const id = valueAsString(
+        rawId === undefined ? current?.subject_id : rawId,
+      );
+      if (
+        kind === undefined ||
+        PRIMARY_KEY_BY_KIND[kind] === undefined ||
+        id === undefined
+      )
+        throw new Error(
+          "Annotation requires a known subject kind and subject identity.",
+        );
+      const pending = context.backend.findForeignKeyTarget({
+        kind,
+        namespace: context.source.namespace,
+        sourceId: id,
+      });
+      const canonicalId =
+        pending === undefined
+          ? await resolveReference(
+              kind,
+              { [PRIMARY_KEY_BY_KIND[kind]!]: id },
+              context,
+            )
+          : await pending.value("id");
+      return property === "subject_kind" ? kind : canonicalId;
+    },
+  ) as AnyResolver;
+}
+
 const REGISTRY: Record<string, KindConfig> = {
+  DataAnnotation: {
+    overrides: {
+      type: new Resolver(
+        async (context: ResolverContext<Row, EntityFacadeBackend>) => {
+          const type = context.facade.raw("type");
+          if (
+            type === "correction" &&
+            context.facade.raw("replacement_value") === undefined
+          ) {
+            throw new Error(
+              "Supplying annotation type correction requires an explicit replacement_value, including null when intended.",
+            );
+          }
+          return type;
+        },
+      ) as AnyResolver,
+      subject_kind: annotationSubjectResolver("subject_kind"),
+      subject_id: annotationSubjectResolver("subject_id"),
+    },
+  },
   Personnel: {
     overrides: {
       slug: personnelSlugResolver() as AnyResolver,
@@ -341,6 +412,20 @@ const REGISTRY: Record<string, KindConfig> = {
         "ReviewPersonnel",
         "agency_personnel_id",
         "AgencyPersonnel",
+      ) as AnyResolver,
+    },
+  },
+  AgencyArrestProfile: {
+    identityKind: "natural",
+    overrides: {
+      id: facadeBusinessKeyIdResolver<Row>(
+        "AgencyArrestProfile",
+        BUSINESS_KEYS.AgencyArrestProfile,
+      ) as AnyResolver,
+      agency_id: facadeLedgerForeignKeyResolver<Row>(
+        "AgencyArrestProfile",
+        "agency_id",
+        "Agency",
       ) as AnyResolver,
     },
   },

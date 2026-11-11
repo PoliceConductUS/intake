@@ -1,3 +1,4 @@
+import { attachExclusionEvidence } from "./exclusion-annotations.js";
 import {
   beginTransform,
   completeTransform,
@@ -178,6 +179,7 @@ export async function transformSource(
             )
           : undefined;
       manifest = await transform({
+        validationDate: new Date(),
         paths,
         readXlsx: deps.readXlsx,
         state: deps.state,
@@ -193,7 +195,7 @@ export async function transformSource(
     // excluded record never enters the Artifacts — the import then sees a clean
     // envelope and needs no exclusion of its own.
     const { manifest: filteredManifest, removed } = excludeManifestRecords(
-      manifest,
+      attachExclusionEvidence(manifest, excludedRecords, sourceId),
       excludedRecords,
     );
     for (const exclusion of excludedRecords.values()) {

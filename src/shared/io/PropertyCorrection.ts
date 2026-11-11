@@ -11,6 +11,34 @@ import {
 } from "./internal/yaml-document.js";
 
 const nonEmptyString = z.string().trim().min(1);
+const entryProvenance = {
+  from: z.json(),
+  recordedAt: z.string().datetime(),
+  commandId: nonEmptyString,
+  inputFingerprint: nonEmptyString.optional(),
+  message: nonEmptyString.optional(),
+  evidence: z.array(z.record(z.string(), z.json())).optional(),
+};
+const correctionEntry = z.union([
+  z
+    .object({
+      ...entryProvenance,
+      value: z
+        .json()
+        .refine(
+          (value): boolean => value !== null,
+          "Use an explicit unset operation to clear a value",
+        ),
+    })
+    .strict(),
+  z.object({ ...entryProvenance, operation: z.literal("unset") }).strict(),
+]);
+
+export function correctionValue(
+  entry: z.infer<typeof correctionEntry>,
+): unknown {
+  return "operation" in entry ? null : entry.value;
+}
 
 export const schema = z
   .object({
@@ -31,17 +59,7 @@ export const schema = z
           .strict(),
         targetProperty: nonEmptyString,
         entries: z
-          .array(
-            z
-              .object({
-                from: z.json(),
-                value: z.json(),
-                recordedAt: z.string().datetime(),
-                commandId: nonEmptyString,
-                inputFingerprint: nonEmptyString.optional(),
-              })
-              .strict(),
-          )
+          .array(correctionEntry)
           .refine(
             (entries) =>
               entries.filter((e) => e.inputFingerprint === undefined).length ===
@@ -123,7 +141,7 @@ async function validateAgencyLocations(
     for (const entry of envelope.spec.entries) {
       await requireAgencyPlaceLocationPath(
         envelope.spec.subject.name,
-        entry.value,
+        correctionValue(entry),
         lookup,
       );
     }

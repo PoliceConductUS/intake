@@ -9,10 +9,16 @@ type Field = {
   nullable: boolean;
 };
 export type SourceValueDefect = {
+  rule: string;
+  type: "warning" | "error";
   field: string;
   value: unknown;
   required: boolean;
   reason: string;
+  // Whether the value was dropped from the spec. False for a defect we record
+  // but keep as evidence while omitting the record, because clearing it can assert a false status --
+  // see `dateRangeDefects`.
+  omitted: boolean;
 };
 
 const fieldsByKind = new Map<string, Field[]>();
@@ -69,12 +75,85 @@ function validUrl(value: string): boolean {
     return false;
   }
 }
+// Existing duration threshold identifies a review concern, not proof of error.
+export const MAX_RANGE_YEARS = 70;
+const DAYS_PER_YEAR = 365.25;
+const MS_PER_DAY = 86_400_000;
+
+const asDate = (value: unknown): Date | undefined => {
+  if (typeof value !== "string" || value.trim() === "") return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+};
+
+/** Findings preserve reported values; duration concerns are warnings. */
+export function dateRangeDefects(
+  spec: Record<string, unknown>,
+): SourceValueDefect[] {
+  const start = asDate(spec.start_date);
+  const end = asDate(spec.end_date);
+  if (start === undefined || end === undefined) return [];
+  const defect = (
+    reason: string,
+    rule: string,
+    type: "warning" | "error",
+  ): SourceValueDefect[] => [
+    {
+      type,
+      rule,
+      field: "end_date",
+      value: spec.end_date,
+      required: false,
+      reason,
+      omitted: false,
+    },
+  ];
+  if (end.getTime() < start.getTime())
+    return defect(
+      `end_date precedes start_date ${JSON.stringify(spec.start_date)}`,
+      "reversed-date-range",
+      "error",
+    );
+  const years = (end.getTime() - start.getTime()) / MS_PER_DAY / DAYS_PER_YEAR;
+  return years > MAX_RANGE_YEARS
+    ? defect(
+        `end_date is ${years.toFixed(1)} years after start_date ${JSON.stringify(spec.start_date)}, over the ${MAX_RANGE_YEARS}-year review threshold`,
+        "long-date-range",
+        "warning",
+      )
+    : [];
+}
+
 export function cleanSourceValues(
   kind: string,
   input: Record<string, unknown>,
+  validationDate: Date = new Date(),
 ): { spec: Record<string, unknown>; defects: SourceValueDefect[] } {
-  let spec = input;
-  const defects: SourceValueDefect[] = [];
+  const spec = input;
+  const today = validationDate.toISOString().slice(0, 10);
+  const defects: SourceValueDefect[] = [...dateRangeDefects(input)];
+  for (const [field, value] of Object.entries(input)) {
+    if (
+      !(
+        field === "date" ||
+        field.startsWith("date_") ||
+        field.endsWith("_date")
+      )
+    )
+      continue;
+    const date = asDate(value);
+    if (date !== undefined && date.toISOString().slice(0, 10) > today) {
+      defects.push({
+        type: "warning",
+        rule: "future-date",
+        field,
+        value,
+        required: false,
+        omitted: false,
+        reason: `future date exceeds validation day ${today}`,
+      });
+    }
+  }
   for (const field of fieldsFor(kind)) {
     const value = input[field.name];
     if (value === undefined || (value === null && field.nullable)) continue;
@@ -83,16 +162,21 @@ export function cleanSourceValues(
       (field.type === "phone"
         ? validPhone(value)
         : field.type === "email"
-          ? email.safeParse(value).success
+          ? value
+              .trim()
+              .replace(/\.$/, "")
+              .split(/[;,]/)
+              .every((address) => email.safeParse(address.trim()).success)
           : validUrl(value));
     if (valid) continue;
-    if (spec === input) spec = { ...input };
-    delete spec[field.name];
     defects.push({
+      type: "error",
+      rule: `invalid-${field.type}`,
       field: field.name,
       value,
       required: field.required,
       reason: `invalid ${field.type} value`,
+      omitted: false,
     });
   }
   return { spec, defects };
