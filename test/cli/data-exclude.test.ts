@@ -178,7 +178,9 @@ test("operator can exclude a future-dated assignment before mutation generation"
     name: "bad-date",
     spec,
   });
-  await expect(blocked.toMutations()).resolves.toEqual([]);
+  await expect(blocked.toMutations()).rejects.toThrow(
+    "source agency_id is missing",
+  );
   const result = await runIntake([
     "data",
     "exclude",

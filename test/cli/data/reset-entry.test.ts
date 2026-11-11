@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { expect, test } from "vitest";
 
-test("the executable reset dispatches transform instead of awaiting its own entry module", async () => {
+test("the executable reset reaches acquisition inventory instead of awaiting its own entry module", async () => {
   const workspace = await mkdtemp(path.join(tmpdir(), "reset-entry-"));
   const root = fileURLToPath(new URL("../../../", import.meta.url));
   const schemaReset = path.join(workspace, "schema-reset");
@@ -33,10 +33,10 @@ test("the executable reset dispatches transform instead of awaiting its own entr
     expect(result.stderr).not.toContain("unsettled top-level await");
     expect(result.code).toBe(1);
     expect(result.stderr).toContain(
-      "us-census-gazetteer has no acquired input",
+      "us-census-gazetteer: no completed acquisition.",
     );
     expect(result.stderr).toContain(
-      "rebuild incomplete at data transform us-census-gazetteer",
+      "rebuild incomplete at inventory acquisitions us-census-gazetteer",
     );
   } finally {
     await rm(workspace, { recursive: true, force: true });

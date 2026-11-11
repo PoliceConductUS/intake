@@ -9,6 +9,7 @@ import {
 // ordering, so the handled set is declared here — add a kind to extend coverage,
 // no new interview code. Canonical-identity updates are out of scope for now.
 export const HANDLED_RECORD_KINDS = [
+  "DataAnnotation",
   "PersonnelPhoto",
   "CoverageLink",
   "CoverageLinkAgencyPersonnel",
@@ -18,6 +19,8 @@ export const HANDLED_RECORD_KINDS = [
   "CivilCase",
   "CivilCasePersonnel",
   "CivilCaseLink",
+  "CoverageLink",
+  "CoverageLinkAgencyPersonnel",
   "Review",
   "ReviewPersonnel",
   "ReviewLink",
