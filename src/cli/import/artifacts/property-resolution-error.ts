@@ -34,7 +34,7 @@ export class CacheCorrectionError extends Error {
       .join(" ");
     const commands = input.properties.flatMap((property) => [
       `npm run cli -- cache get ${identity} ${shellArgument(property)}`,
-      `npm run cli -- cache set ${identity} ${shellArgument(property)} 'REPLACE_WITH_VERIFIED_VALUE'`,
+      `npm run cli -- cache set ${identity} ${shellArgument(property)} 'REPLACE_WITH_VERIFIED_VALUE' --message 'EXPLAIN_WHY_THIS_CORRECTION_IS_NEEDED'`,
     ]);
     super(
       [

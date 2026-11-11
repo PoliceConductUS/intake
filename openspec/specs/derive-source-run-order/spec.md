@@ -1,8 +1,11 @@
 # derive-source-run-order Specification
 
 ## Purpose
+
 TBD - created by archiving change derive-source-run-order. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Sources Declare Produced Kinds; Consumed Kinds Are Derived
 
 A source module MUST export `produces`, a list of `ImportArtifactKind` values —

@@ -63,6 +63,10 @@ rank/title, salary/payroll, timesheets, overtime, education/training, FTO,
 supervisory, complaint, commendation and discipline history; organizational
 structure, beats, shifts and geographic shapes; task forces and agreements;
 funding, grants, budgets, revenue, expenses, contracts, payments and assets;
+civil asset forfeiture, including seizures, proceedings, returns and distributions;
+killings of animals, including dogs, by law-enforcement personnel;
+sexual-assault kit inventories, tracking and custody history, submission,
+processing, testing, results, delays and disposition;
 policies, audits, and other maintained datasets. This list is illustrative,
 not a limit on the requested releasable data.
 

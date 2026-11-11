@@ -40,6 +40,7 @@ async function fixture() {
     },
     logger: { info: vi.fn() },
     orderedSourceIds: async () => ["places", "agencies"],
+    acquiredInputs: async (_source: string): Promise<string[] | null> => null,
     resetDatabase: vi.fn(async () => {
       calls.push("schema reset");
       expect(await readFile(path.join(chain, "old.txt"), "utf8")).toBe(
@@ -49,7 +50,10 @@ async function fixture() {
     runDataCommand: vi.fn(
       async (
         args: readonly string[],
-        _context?: { useInitialAgencyRoots: boolean },
+        _context?: {
+          useInitialAgencyRoots: boolean;
+          finalizeMutations?: unknown;
+        },
       ) => {
         calls.push(args.join(" "));
         expect(await readdir(chain).catch(() => [])).toEqual([]);
@@ -163,4 +167,66 @@ test("schema failure retains the active chain and does not start sources", async
   expect(await readFile(path.join(f.chain, "old.txt"), "utf8")).toBe(
     "old generated data",
   );
+});
+
+test("replays retained snapshots oldest first, retaining older-only rows and restoring the pointer", async () => {
+  const f = await fixture();
+  const { writeCommandPointer, readCommandPointer } =
+    await import("../../../src/cli/state/command-pointer.js");
+  const state = path.join(f.workspace, "state", "agencies");
+  await writeCommandPointer(state, "acquire", { latest: "newer" });
+  const rows = new Map<string, string>();
+  const selected: string[] = [];
+  const result = await resetData(
+    { acquire: false },
+    {
+      ...f.deps,
+      orderedSourceIds: async () => ["agencies"],
+      acquiredInputs: async (source: string) =>
+        source === "agencies" ? ["older", "newer"] : null,
+      runDataCommand: async (args: readonly string[]) => {
+        if (args[1] === "transform" && args[2] === "agencies") {
+          const { latest } = await readCommandPointer(state, "acquire");
+          selected.push(latest!);
+          if (latest === "older") rows.set("older-only", "retained");
+          rows.set("shared", latest!);
+        }
+        return { exitCode: 0 };
+      },
+    },
+  );
+  expect(result.exitCode).toBe(0);
+  expect(selected).toEqual(["older", "newer"]);
+  expect([...rows]).toEqual([
+    ["older-only", "retained"],
+    ["shared", "newer"],
+  ]);
+  expect(await readCommandPointer(state, "acquire")).toMatchObject({
+    latest: "newer",
+  });
+});
+
+test("restores the acquisition pointer and stops when an older snapshot fails", async () => {
+  const f = await fixture();
+  const { writeCommandPointer, readCommandPointer } =
+    await import("../../../src/cli/state/command-pointer.js");
+  const state = path.join(f.workspace, "state", "agencies");
+  await writeCommandPointer(state, "acquire", { latest: "newer" });
+  const result = await resetData(
+    { acquire: false },
+    {
+      ...f.deps,
+      orderedSourceIds: async () => ["agencies"],
+      acquiredInputs: async () => ["older", "newer"],
+      runDataCommand: async () => ({
+        exitCode: 1,
+        stderr: "older snapshot failed",
+      }),
+    },
+  );
+  expect(result.exitCode).toBe(1);
+  expect(result.stderr).toContain("older snapshot failed");
+  expect(await readCommandPointer(state, "acquire")).toMatchObject({
+    latest: "newer",
+  });
 });

@@ -1,8 +1,11 @@
 # assignment-identities Specification
 
 ## Purpose
+
 TBD - created by archiving change preserve-assignment-identities. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: POST assignments use their source-provided identity
 
 MN POST SHALL join each roster contact and agency to activeEmployment entries in

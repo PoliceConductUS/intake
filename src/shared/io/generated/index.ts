@@ -185,3 +185,14 @@ export type {
   AgencyArrestProfilesEnvelope,
   AgencyArrestProfilesInput,
 } from "./AgencyArrestProfiles.js";
+export {
+  DataAnnotations,
+  DataAnnotation,
+  DataAnnotationSpec,
+} from "./DataAnnotations.js";
+export type {
+  DataAnnotationsEnvelope,
+  DataAnnotationsInput,
+  DataAnnotationEnvelope,
+  DataAnnotationInput,
+} from "./DataAnnotations.js";

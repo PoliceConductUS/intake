@@ -71,6 +71,12 @@ withDocker("data reset against disposable Postgres", () => {
       "old data",
     );
     const commands: string[] = [];
+    let personnelRecords: Record<
+      string,
+      { spec: { first_name: string; last_name: string } }
+    > = {
+      "person-one": { spec: { first_name: "Chris", last_name: "True" } },
+    };
     const runDataCommand = async (
       args: readonly string[],
       context?: { useInitialAgencyRoots: boolean },
@@ -122,11 +128,7 @@ withDocker("data reset against disposable Postgres", () => {
               },
               {
                 kind: "Personnel",
-                records: {
-                  "person-one": {
-                    spec: { first_name: "Chris", last_name: "True" },
-                  },
-                },
+                records: personnelRecords,
               },
               {
                 kind: "Agencies",
@@ -148,6 +150,19 @@ withDocker("data reset against disposable Postgres", () => {
               {
                 kind: "AgencyPersonnel",
                 records: {
+                  ...("old-only" in personnelRecords
+                    ? {
+                        "old-assignment": {
+                          spec: {
+                            agency_id: "agency-one",
+                            personnel_id: "old-only",
+                            start_date: "2019-01-01",
+                            end_date: null,
+                            title: "Officer",
+                          },
+                        },
+                      }
+                    : {}),
                   "assignment-one": {
                     spec: {
                       agency_id: "agency-one",
@@ -174,9 +189,13 @@ withDocker("data reset against disposable Postgres", () => {
     return {
       env,
       commands,
+      setPersonnelRecords: (records: typeof personnelRecords) => {
+        personnelRecords = records;
+      },
       runDataCommand,
       logger: { info: () => {} },
       orderedSourceIds: async () => ["us-census-gazetteer", "fixture-agencies"],
+      acquiredInputs: async (): Promise<string[] | null> => null,
     };
   }
 
@@ -237,6 +256,62 @@ withDocker("data reset against disposable Postgres", () => {
         )
       ).rows,
     ).toEqual(first);
+  }, 180000);
+
+  test("replays history into Postgres: older-only records survive and newer supplied fields update", async () => {
+    const deps = await fixture();
+    const { readCommandPointer, writeCommandPointer } =
+      await import("../../../src/cli/state/command-pointer.js");
+    const state = path.join(
+      deps.env.INTAKE_WORKSPACE,
+      "state",
+      "fixture-agencies",
+    );
+    await writeCommandPointer(state, "acquire", { latest: "newer" });
+    const result = await resetData(
+      { acquire: false },
+      {
+        ...deps,
+        acquiredInputs: async (source) =>
+          source === "fixture-agencies" ? ["older", "newer"] : null,
+        runDataCommand: async (args, context) => {
+          if (args[1] === "transform" && args[2] === "fixture-agencies") {
+            const { latest } = await readCommandPointer(state, "acquire");
+            deps.setPersonnelRecords(
+              latest === "older"
+                ? {
+                    "person-one": {
+                      spec: { first_name: "Chris", last_name: "Earlier" },
+                    },
+                    "old-only": {
+                      spec: { first_name: "Sam", last_name: "Original" },
+                    },
+                  }
+                : {
+                    "person-one": {
+                      spec: { first_name: "Chris", last_name: "Updated" },
+                    },
+                  },
+            );
+          }
+          return deps.runDataCommand(args, context);
+        },
+      },
+    );
+    expect(result).toMatchObject({ exitCode: 0 });
+    expect(
+      (
+        await db.query(
+          "select first_name,last_name from public.personnel order by first_name",
+        )
+      ).rows,
+    ).toEqual([
+      { first_name: "Chris", last_name: "Updated" },
+      { first_name: "Sam", last_name: "Original" },
+    ]);
+    expect(await readCommandPointer(state, "acquire")).toMatchObject({
+      latest: "newer",
+    });
   }, 180000);
 
   test("a real missing-location failure returns nonzero without replaying old data", async () => {
