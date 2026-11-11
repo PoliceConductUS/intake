@@ -1,3 +1,7 @@
+import {
+  aiComplaintSummary,
+  complaintSummaryUnavailability,
+} from "../../src/shared/ai-complaint-summary.js";
 import { readdir, readFile } from "node:fs/promises";
 import type { ImportArtifactKind } from "../../src/shared/io/index.js";
 
@@ -34,6 +38,8 @@ type Docket = {
   absolute_url?: string;
   parties?: string[];
   complaint_intro?: string;
+  ai_complaint_summary?: unknown;
+  complaint_summary_unavailability?: unknown;
 };
 
 type AgencyDockets = {
@@ -121,6 +127,16 @@ export const transform: SourceTransform = async ({
           // else the PACER cause code, else the title.
           claims_summary:
             text(docket.complaint_intro) || text(docket.cause) || title,
+          ...(docket.ai_complaint_summary === undefined
+            ? {}
+            : {
+                ai_complaint_summary: aiComplaintSummary
+                  .nullable()
+                  .parse(docket.ai_complaint_summary),
+                complaint_summary_unavailability: complaintSummaryUnavailability
+                  .nullable()
+                  .parse(docket.complaint_summary_unavailability),
+              }),
           slug: slugify(`${title}-${caseId}`),
           outcome: null,
           primary_source_url: url || null,
