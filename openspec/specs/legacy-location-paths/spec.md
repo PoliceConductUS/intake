@@ -1,8 +1,11 @@
 # legacy-location-paths Specification
 
 ## Purpose
+
 TBD - created by archiving change restore-legacy-location-aliases. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Confirmed legacy spelling paths resolve to existing places
 
 The system SHALL store the twenty reviewed spelling paths in `aliases.json` and

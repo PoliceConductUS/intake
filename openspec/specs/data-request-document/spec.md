@@ -3,7 +3,9 @@
 ## Purpose
 
 TBD - created by archiving change request-raw-activity-data. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Request raw records and histories
 
 The generated document SHALL omit the derived ArrestProfile record type and include a linked raw source-data model covering CAD calls, units and employees, incidents, stops, searches, citations, arrests, jail admissions and custody episodes, housing, holds, bond, transfers, release, grievances, services, in-custody deaths, use of force, charges, prosecution, court cases, and dated status/outcome history. It SHALL include event demographics and employee badge, title, salary, complaint, commendation, discipline, education, field-training, supervisor, and organization history, beats and historical boundaries, shifts, timesheets, and overtime authorization and earnings, historical GIS shapes, task forces and membership, funding/grants/budgets, expenses/contracts/payments, assets, and a complete maintained-system/table/field catalog.

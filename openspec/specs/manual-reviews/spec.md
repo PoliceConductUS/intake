@@ -1,8 +1,11 @@
 # manual-reviews Specification
 
 ## Purpose
+
 TBD - created by archiving change manual-review-restoration. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Manual intake can restore a published review
 
 The manual source SHALL accept Review and ReviewPersonnel records using their

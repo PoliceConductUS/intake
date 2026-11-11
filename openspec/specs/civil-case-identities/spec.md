@@ -1,8 +1,11 @@
 # civil-case-identities Specification
 
 ## Purpose
+
 TBD - created by archiving change preserve-civil-case-identities. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Established civil-case mappings take precedence
 
 CivilCase SHALL resolve an existing source-name mapping before using its

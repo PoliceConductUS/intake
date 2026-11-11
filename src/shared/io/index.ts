@@ -7,6 +7,9 @@ export { Command } from "./Command.js";
 export type { CommandEnvelope, CommandInput } from "./Command.js";
 export type { ImportArtifactKind } from "./import-types.js";
 export {
+  DataAnnotation,
+  DataAnnotations,
+  DataAnnotationSpec,
   AgencyArrestProfiles,
   ArrestProfiles,
   AgencyArrestProfileSpec,
@@ -62,6 +65,10 @@ export {
   CivilCaseLinkSpec,
 } from "./generated/index.js";
 export type {
+  DataAnnotationEnvelope,
+  DataAnnotationInput,
+  DataAnnotationsEnvelope,
+  DataAnnotationsInput,
   AgenciesEnvelope,
   AgenciesInput,
   AgencyEnvelope,

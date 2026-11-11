@@ -4,13 +4,13 @@ Source defects currently make employment records and sometimes entire personnel 
 
 ## What Changes
 
-- Preserve source data and import affected records with a `data_annotations` array instead of omitting records for factual defects.
+- Preserve source data and import affected records with native `DataAnnotation` records instead of omitting records for factual defects.
 - Store field, original value, type (`warning`, `error`, or `correction`), explanation, source namespace and source record ID with each annotation.
-- Display annotations beside affected values and continue showing calculated tenure, including negative or very long durations.
+- Display annotations beside affected values and show reported dates without calculated tenure.
 - Generate `/data-annotations/`: pagination, provider/type filters, and CSV download of all matching annotations across pages.
 - Add a paginated annotations subpage linked from each licensing-authority page, listing annotations originating in that authority's data and offering the same full-result download.
 - Carry correction annotations in generated mutations, replacing only the owning record/source namespace/source record ID contribution processed in the run, even when corrected values are unchanged. Unprocessed contributions survive; an empty replacement clears only that contribution.
-- Run one post-mutation scan after the complete batch succeeds; recalculate warnings/errors from final effective values and preserve correction annotations.
+- Generate native annotations during the existing generate stage from effective values and corrections; up/replay only apply ordinary recorded mutations.
 
 ## Capabilities
 
@@ -27,7 +27,7 @@ Source defects currently make employment records and sometimes entire personnel 
 
 ## Impact
 
-Intake: shared source-value detection, post-mutation annotation stage, DataContext, graph selection, source transform gates that discard factual defects, canonical envelope generators and mutation contracts. Add a forward Supabase migration for `data_annotations` on source-imported entity tables; adjust affected value constraints only as needed to retain reported values. Preserve durable IDs, references and provenance.
+Intake: shared source-value detection, generation-stage annotation production, DataContext, graph selection, source transform gates that discard factual defects, canonical envelope generators and mutation contracts. Add a forward Supabase migration for public.data_annotation and archive prior array evidence before dropping obsolete array columns; adjust affected value constraints only as needed to retain reported values. Preserve durable IDs, references and provenance.
 
 Site: `../policeconduct.org` data loaders, affected record displays, licensing-authority routes, new central annotation routes and static CSV generation. Generated database/envelope types must be refreshed from their owners. No dependency, separate annotation table, annotation IDs, API, or notification workflow is proposed.
 

@@ -101,7 +101,7 @@ export type RecordMetadata = z.infer<typeof recordMetadataSchema>;
 // unknown column is still rejected under every verb.
 function recordSpecSchema(action?: "PUT" | "PATCH" | "POST") {
   return action === "PATCH"
-    ? ReviewPersonnelSpec.partial()
+    ? z.strictObject(ReviewPersonnelSpec.shape).partial()
     : ReviewPersonnelSpec;
 }
 function refineRecordSpec(

@@ -1,6 +1,6 @@
 ## Design Summary
 
-Publish source-reported values, including questionable values, with annotations beside the data and in one public downloadable index. The conversation establishes the desired behavior: bad employment dates must not make a person disappear, calculated negative or unusually long tenure remains visible, and an unusual value is not automatically an error.
+Publish source-reported values, including questionable values, with annotations beside the data and in one public downloadable index. The conversation establishes the desired behavior: bad employment dates must not make a person disappear, reported dates remain visible without calculated tenure, and an unusual value is not automatically an error.
 
 ## Alternatives Considered
 
@@ -10,13 +10,13 @@ Publish source-reported values, including questionable values, with annotations 
 
 ## Agreed Approach
 
-Use a `data_annotations` JSON array on imported records. Each item carries `field`, `value`, `type` (`warning`, `error`, or `correction`), `message`, `source_namespace`, and `source_record_id`. Generate `/data-annotations/` with pagination, source-provider/type filters, and CSV downloads of every matching annotation across pages. Correction items also carry replacement_value and supplied evidence. Profile displays and index consume the same annotations.
+Use ordinary native DataAnnotation records with canonical IDs and polymorphic subject links. Each item carries `field`, `value`, `type` (`warning`, `error`, or `correction`), `message`, `source_namespace`, and `source_record_id`. Generate `/data-annotations/` with pagination, source-provider/type filters, and CSV downloads of every matching annotation across pages. Correction items also carry replacement_value and supplied evidence. Profile displays and index consume the same annotations.
 
 ## Key Decisions
 
 - `type`, not `level` or `severity`; warning/error/correction are currently needed.
 - Errors describe demonstrable contradictions/invalid values; warnings identify concerns without claiming they are wrong.
-- Show source dates and calculated tenure, including negative or unusually long durations. Clearly attribute the source facts and our annotation.
+- Show source dates without calculated tenure. Clearly attribute the source facts and our annotation.
 - Recalculate warnings/errors once after the entire mutation batch succeeds from final effective values. Correction annotations travel in generated mutations and are replaced per owning record, source namespace and source record ID; other source contributions survive.
 - No separate annotation IDs/table/API, notification delivery, or issue-management workflow.
 - Source values that a typed database column cannot represent remain literal annotation values; do not invent a replacement.
