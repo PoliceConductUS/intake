@@ -115,3 +115,5 @@ export {
   initialAgencyRootsDirectory,
   loadInitialAgencyRoots,
 } from "./initial-agency-roots.js";
+export { RecordsRequest } from "./RecordsRequest.js";
+export type { RecordsRequestEnvelope } from "./RecordsRequest.js";
