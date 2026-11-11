@@ -1,8 +1,11 @@
 # oregon-dpsst Specification
 
 ## Purpose
+
 TBD - created by archiving change add-oregon-dpsst. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Preserve and enumerate public source evidence
 
 The source SHALL acquire all pages for each configured name prefix (A-Z by default),

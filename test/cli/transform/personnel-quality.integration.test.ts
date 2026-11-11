@@ -29,12 +29,27 @@ for (const namespace of ["gov.tx.tcole", "gov.or.dpsst", "example.future"]) {
           },
         ],
       };
+      manifest.artifacts.push({
+        kind: "LicensingAuthorities",
+        records: {
+          board: {
+            spec: {
+              name: "Test board",
+              location_path_id: "test",
+              source_namespaces: [namespace],
+            },
+          },
+        },
+      });
       const before = structuredClone(manifest);
       const result = await run(root, namespace, manifest);
       expect(result).toHaveProperty("artifactsPath");
       if (!("artifactsPath" in result)) throw new Error(JSON.stringify(result));
       const artifacts = await Artifacts.read(result.artifactsPath);
-      expect(artifacts.spec.artifacts[0]!.spec.records.bad).toEqual({
+      expect(
+        artifacts.spec.artifacts.find((item) => item.kind === "Personnel")!.spec
+          .records.bad,
+      ).toEqual({
         metadata: { name: "bad" },
         spec: { first_name: "9", last_name: "Townsend", suffix: "N/A" },
       });
@@ -80,18 +95,48 @@ for (const namespace of ["gov.tx.tcole", "gov.or.dpsst", "example.future"]) {
           },
         ],
       };
+      manifest.artifacts.push({
+        kind: "LicensingAuthorities",
+        records: {
+          board: {
+            spec: {
+              name: "Test board",
+              location_path_id: "test",
+              source_namespaces: [namespace],
+            },
+          },
+        },
+      });
       const before = structuredClone(manifest);
       const logs: string[] = [];
       const result = await run(root, namespace, manifest, logs);
       expect(result, JSON.stringify(result)).toHaveProperty("artifactsPath");
       if (!("artifactsPath" in result)) throw new Error(JSON.stringify(result));
       const artifacts = await Artifacts.read(result.artifactsPath);
-      expect(Object.keys(artifacts.spec.artifacts[0]!.spec.records)).toEqual([
-        "real",
-      ]);
-      expect(Object.keys(artifacts.spec.artifacts[1]!.spec.records)).toEqual([
-        "retained",
-      ]);
+      expect(
+        Object.keys(
+          artifacts.spec.artifacts.find((item) => item.kind === "Personnel")!
+            .spec.records,
+        ),
+      ).toEqual(["real"]);
+      expect(
+        Object.keys(
+          artifacts.spec.artifacts.find(
+            (item) => item.kind === "AgencyPersonnel",
+          )!.spec.records,
+        ),
+      ).toEqual(["retained"]);
+      expect(
+        artifacts.spec.artifacts.find(
+          (item) => item.kind === "LicensingAuthorities",
+        )!.spec.records.board,
+      ).toMatchObject({
+        spec: {
+          source_exclusions: {
+            [namespace]: [expect.objectContaining({ key: "fixture", reason })],
+          },
+        },
+      });
       expect(artifacts.metadata.namespace).toBe(namespace);
       expect(logs.join("\n")).toContain(
         `${namespace}: excluded Personnel fixture: ${reason}`,
@@ -120,7 +165,7 @@ async function run(
       sourcesRoot: root,
       state: root,
       env: {},
-      produces: ["Personnel", "AgencyPersonnel"],
+      produces: ["Personnel", "AgencyPersonnel", "LicensingAuthorities"],
       beginCompletion: async () => {},
       complete: async () => {},
       loadSourceModule: async () => async () => manifest,

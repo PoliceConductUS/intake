@@ -9,15 +9,25 @@ import {
 } from "../command-directory.js";
 import { orderedSourceIds, transformOneSource } from "./source-pipeline.js";
 
+import { retainedAcquiredInputs } from "./acquired-inputs.js";
+import { loadSourceStandalone } from "../transform/load-source-module.js";
+import {
+  readCommandPointer,
+  writeCommandPointer,
+} from "../state/command-pointer.js";
+
 type ResetOptions = { acquire: boolean };
 type ResetDependencies = {
   env: Record<string, string | undefined>;
   logger: { info(message: string): void };
   orderedSourceIds?: () => Promise<string[]>;
+  acquiredInputs?: (source: string) => Promise<string[] | null>;
   resetDatabase?: (env: Record<string, string | undefined>) => Promise<void>;
   runDataCommand?: (
     args: readonly string[],
-    context?: { useInitialAgencyRoots: boolean },
+    context?: {
+      useInitialAgencyRoots: boolean;
+    },
   ) => Promise<CommandResult>;
   prepareManualLocations?: () => Promise<CommandResult>;
 };
@@ -109,16 +119,37 @@ export async function resetData(
       if (result.stdout?.trim()) logger.info(result.stdout.trim());
     };
     for (const source of [...sources, "org.policeconduct.manual"]) {
-      const phases = [
-        ...(options.acquire && source !== "org.policeconduct.manual"
-          ? [["data", "acquire", source]]
-          : []),
-        ["data", "transform", source],
-        ["data", "generate", source],
-        ["data", "up"],
-      ];
-      for (const args of phases) {
-        await executePhase(args);
+      if (options.acquire && source !== "org.policeconduct.manual")
+        await executePhase(["data", "acquire", source]);
+      phase = `inventory acquisitions ${source}`;
+      const inputs = await (
+        dependencies.acquiredInputs ??
+        (async (id: string) =>
+          (await loadSourceStandalone(id, path.join(process.cwd(), "sources")))
+            ? null
+            : retainedAcquiredInputs(workspace, id))
+      )(source);
+      const state = path.join(workspace, "state", source);
+      const pointer =
+        inputs === null ? null : await readCommandPointer(state, "acquire");
+      try {
+        for (const input of inputs ?? [null]) {
+          if (input !== null) {
+            logger.info(`data reset: replaying ${source} acquisition ${input}`);
+            await writeCommandPointer(state, "acquire", {
+              ...pointer,
+              latest: input,
+            });
+          }
+          for (const action of ["transform", "generate", "up"]) {
+            await executePhase(
+              action === "up" ? ["data", action] : ["data", action, source],
+            );
+          }
+        }
+      } finally {
+        if (pointer !== null)
+          await writeCommandPointer(state, "acquire", pointer);
       }
       if (source === "us-census-gazetteer") {
         phase = "preparing manual locations";

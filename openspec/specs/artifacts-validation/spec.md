@@ -1,8 +1,11 @@
 # artifacts-validation Specification
 
 ## Purpose
+
 TBD - created by archiving change preserve-artifacts-validation-message. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Explain Artifacts validation failures
 
 The canonical Artifacts IO SHALL include every validation issue with its failing field path, original rejected value, and corresponding validator message when rejecting an envelope. Values SHALL be JSON-encoded so strings, nulls, and numbers remain distinguishable; absent values SHALL be displayed as undefined.

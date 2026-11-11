@@ -218,6 +218,12 @@ withDocker("manual report updates through the data CLI", () => {
       titleOperations.filter((operation) => operation.action === "set"),
     ).toEqual([
       expect.objectContaining({ path: "title", to: "Title-only revision" }),
+      expect.objectContaining({
+        path: "data_source_values",
+        to: expect.objectContaining({
+          title: expect.objectContaining({ value: "Title-only revision" }),
+        }),
+      }),
     ]);
     await command("up");
     await generate();
@@ -258,7 +264,7 @@ withDocker("manual report updates through the data CLI", () => {
       incident_date: "2023-12-04T08:00:01.123Z",
     });
     await generate();
-    expect(await listEntries()).toHaveLength(5);
+    expect(await listEntries()).toHaveLength(6);
 
     const conflict = await runIntake([
       "replay",
