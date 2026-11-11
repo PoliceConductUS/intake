@@ -1,8 +1,11 @@
 # intake-date-validation Specification
 
 ## Purpose
+
 TBD - created by archiving change reject-implausible-date-pairs. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Temporarily omit records with invalid source dates
 
 Root intake SHALL validate source dates after conditional corrections. A retained

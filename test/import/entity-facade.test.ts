@@ -1,3 +1,4 @@
+import { AgencyPersonnelUpdate } from "../../src/cli/import/artifacts/io/generated-mutations/AgencyPersonnelUpdate.js";
 import { describe, it, expect } from "vitest";
 import {
   buildFacadeForKind,
@@ -510,5 +511,94 @@ describe("schema-derived foreign key nullability", () => {
     await expect(facade.value("agency_id")).rejects.toThrow(
       /source agency_id is missing/,
     );
+  });
+});
+
+describe("source annotation mutation contributions", () => {
+  it("carries original and effective values even when the database value is unchanged", async () => {
+    const options = backend({
+      "canon:assignment": {
+        id: "canon:assignment",
+        agency_id: "fk:Agency:a",
+        personnel_id: "fk:Personnel:p",
+        start_date: "2020-01-01",
+        end_date: "2021-01-01",
+        title: "Officer",
+      },
+    });
+    const facade = buildFacadeForKind("AgencyPersonnel", {
+      ...options,
+      source: {
+        namespace: "provider.a",
+        name: "assignment",
+        commandName: "run-1",
+      },
+    });
+    facade.merge({
+      agency_id: "a",
+      personnel_id: "p",
+      start_date: "2020-01-01",
+      end_date: "2021-01-01",
+      title: "Officer",
+    });
+    facade.recordSourceContribution({ end_date: "2101-01-01" }, [
+      {
+        field: "end_date",
+        value: "2101-01-01",
+        replacement_value: "2021-01-01",
+        type: "correction",
+        message: "Corrected from evidence.",
+        source_namespace: "provider.a",
+        source_record_id: "assignment",
+      },
+    ]);
+    const mutation = await facade.toMutation();
+    expect(facade.contribution((await facade.resolvedRow()).resolved)).toEqual({
+      source_namespace: "provider.a",
+      source_record_id: "assignment",
+      values: {
+        end_date: {
+          value: "2101-01-01",
+          effective_value: "2021-01-01",
+          source_namespace: "provider.a",
+          source_record_id: "assignment",
+        },
+      },
+      corrections: [
+        expect.objectContaining({
+          field: "end_date",
+          replacement_value: "2021-01-01",
+        }),
+      ],
+    });
+  });
+});
+
+describe("unrepresentable reported dates", () => {
+  it("keeps original end-date evidence without turning graph input into current employment", async () => {
+    const facade = buildFacadeForKind("AgencyPersonnel", {
+      ...backend(),
+      source: { namespace: "test", name: "assignment", commandName: "run" },
+    });
+    const values = {
+      agency_id: "a",
+      personnel_id: "p",
+      start_date: "2020-01-01",
+      end_date: "not a date",
+      title: "Officer",
+    };
+    facade.merge(values);
+    facade.recordSourceContribution(values, []);
+    const { AgencyPersonnelCreate } =
+      await import("../../src/cli/import/artifacts/io/generated-mutations/AgencyPersonnelCreate.js");
+    const mutation = AgencyPersonnelCreate.schema.parse(
+      await facade.toMutation(),
+    );
+    expect(mutation.spec.end_date).toBeNull();
+    expect(mutation.spec.data_source_values?.end_date).toMatchObject({
+      value: "not a date",
+      effective_value: "not a date",
+    });
+    expect(facade.raw("end_date")).toBe("not a date");
   });
 });

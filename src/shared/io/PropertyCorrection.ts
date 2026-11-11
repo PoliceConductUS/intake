@@ -16,6 +16,8 @@ const entryProvenance = {
   recordedAt: z.string().datetime(),
   commandId: nonEmptyString,
   inputFingerprint: nonEmptyString.optional(),
+  message: nonEmptyString.optional(),
+  evidence: z.array(z.record(z.string(), z.json())).optional(),
 };
 const correctionEntry = z.union([
   z
