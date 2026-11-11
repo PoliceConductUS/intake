@@ -155,6 +155,12 @@ import {
   read as readAgencyArrestProfiles,
   write as writeAgencyArrestProfiles,
 } from "./AgencyArrestProfiles.js";
+import {
+  DataAnnotations,
+  DataAnnotationSpec,
+  read as readDataAnnotations,
+  write as writeDataAnnotations,
+} from "./DataAnnotations.js";
 
 export const ARTIFACT_MODULES = {
   LocationPaths: {
@@ -312,5 +318,11 @@ export const ARTIFACT_MODULES = {
     recordSpec: AgencyArrestProfileSpec,
     read: readAgencyArrestProfiles,
     write: writeAgencyArrestProfiles,
+  },
+  DataAnnotations: {
+    envelope: DataAnnotations,
+    recordSpec: DataAnnotationSpec,
+    read: readDataAnnotations,
+    write: writeDataAnnotations,
   },
 } as const;

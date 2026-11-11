@@ -1,0 +1,716 @@
+{
+  "date": "2026-10-23",
+  "requester": {
+    "name": "Dale Lotts",
+    "organization": "Institute for Police Conduct, Inc.",
+    "email": "hello@policeconduct.org",
+    "address": "5900 Balcones Drive # 19816, Austin, TX 78731",
+    "phone": "612-208-9601"
+  },
+  "template": "docs/data-request-format.md",
+  "states": [
+    {
+      "state": "ak",
+      "agency": "Alaska Police Standards Council",
+      "authority_website": "https://dps.alaska.gov/apsc/",
+      "status": "form_load_recaptcha_connection_error",
+      "request_channel": "https://dpsalaska.justfoia.com/Forms/Launch/d705cbd6-1396-49b7-939e-8d86c5a87deb",
+      "submitted": false,
+      "notes": "Form displays Could not connect to the reCAPTCHA service. No request submitted."
+    },
+    {
+      "state": "al",
+      "agency": "Alabama Peace Officers\u2019 Standards and Training Commission",
+      "authority_website": "https://www.apostc.alabama.gov/",
+      "status": "gmail_draft_saved_unsent",
+      "submitted": false,
+      "channel_source": "https://www.apostc.alabama.gov/contact/",
+      "notes": "Official contact email apostc@apostc.alabama.gov verified. Request for Information link is RFI-1 PDF for individual officer certification inquiries, with officer identifiers and sworn signature. General statewide data request added to local email queue; not saved in Gmail or sent.",
+      "gmail_draft_id": "r4879080643174448043",
+      "gmail_message_id": "1a16c152617036fa",
+      "gmail_account": "dale.lotts@gmail.com",
+      "draft_attachments_verified": [
+        {
+          "filename": "public-data-request-2026-10-23.txt",
+          "size": 102359
+        }
+      ]
+    },
+    {
+      "state": "ar",
+      "agency": "Arkansas Commission on Law Enforcement Standards and Training",
+      "authority_website": "https://dps.arkansas.gov/law-enforcement/clest/",
+      "status": "submission_confirmed",
+      "submitted": true,
+      "request_channel": "https://dps.arkansas.gov/law-enforcement/clest/contact-us/",
+      "channel_source": "https://dps.arkansas.gov/law-enforcement/clest/",
+      "confirmation_url": "https://dps.arkansas.gov/law-enforcement/clest/contact-us/?",
+      "confirmation_text": "Thanks for contacting us! We will get in touch with you shortly.",
+      "notes": "Submitted official CLEST contact form. Complete standard source prose plus Arkansas agency/officer scope and requester signature, 7349 characters; exact request text verified before submit. No attachment control or generated appendices. Dale Lotts and hello@policeconduct.org entered; correct email and Austin address also in verified body. Success message observed after submission. No reference number; do not duplicate."
+    },
+    {
+      "state": "az",
+      "agency": "Arizona Peace Officer Standards and Training Board",
+      "authority_website": "https://post.az.gov/",
+      "status": "gmail_draft_saved_unsent",
+      "submitted": false,
+      "channel_source": "https://post.az.gov/resources/pr",
+      "notes": "Official August 2025 PDF visually inspected in browser: acting custodian Daniel Romero, records@azpost.gov. Form requires purpose declaration, commercial/noncommercial selection and signature. Local email request with full standard TXT prepared; agency form unfilled. Browser download clicked but no local file located. No Gmail draft or email sent.",
+      "gmail_draft_id": "r-3880387167239969050",
+      "gmail_message_id": "1a16c15843b8c32c",
+      "gmail_account": "dale.lotts@gmail.com",
+      "draft_attachments_verified": [
+        {
+          "filename": "public-data-request-2026-10-23.txt",
+          "size": 102359
+        }
+      ]
+    },
+    {
+      "state": "ca",
+      "agency": "California Commission on Peace Officer Standards and Training",
+      "authority_website": "https://post.ca.gov/",
+      "status": "awaiting_anonymous_portal_terms_confirmation",
+      "request_channel": "https://postca.govqa.us/WEBAPP/_rs/",
+      "submitted": false,
+      "channel_source": "https://post.ca.gov/CPRA-Requests",
+      "notes": "Submission route requires account or INTERACT ANONYMOUSLY. Asked user for permission to use anonymous option; login page says logging in agrees to GovQA terms."
+    },
+    {
+      "state": "co",
+      "agency": "Peace Officer Standards and Training Board",
+      "authority_website": "https://post.colorado.gov/",
+      "status": "gmail_draft_saved_unsent",
+      "submitted": false,
+      "channel_source": "https://post.colorado.gov/le-resources/media-center",
+      "notes": "Recipient-specific email request prepared in local queue with full standard TXT attachment. Awaiting Gmail mailbox selection; no draft saved in Gmail and no email sent.",
+      "route_findings": "POST records policy directs written requests by email/fax to Department of Law; no online form shown. User authorized online forms only.",
+      "gmail_draft_id": "r4539376439823723091",
+      "gmail_message_id": "1a16c14e6045aabb",
+      "gmail_account": "dale.lotts@gmail.com",
+      "draft_attachments_verified": [
+        {
+          "filename": "public-data-request-2026-10-23.txt",
+          "size": 102359
+        }
+      ]
+    },
+    {
+      "state": "ct",
+      "agency": "Police Officer Standards and Training Council",
+      "authority_website": "https://portal.ct.gov/despp/services/post",
+      "status": "online_portal_account_required",
+      "submitted": false,
+      "channel_source": "https://portal.ct.gov/despp/about-us",
+      "request_channel": "https://desppct.govqa.us/",
+      "notes": "Official DESPP About page identifies POSTC among six divisions and directs general FOIA requests to GovQA. Following its Submit FOIA link opens required login/create-account page. This establishes general DESPP records routing beyond the previously inspected State Police report search. No account created, request submitted, or fee authorized."
+    },
+    {
+      "state": "de",
+      "agency": "Police Officer Standards and Training Commission",
+      "authority_website": "https://post.delaware.gov/",
+      "status": "submission_confirmed",
+      "submitted": true,
+      "request_channel": "https://degovforms.formstack.com/forms/foia",
+      "channel_source": "https://post.delaware.gov/",
+      "confirmation_url": "https://delaware.gov/message-success/",
+      "confirmation_text": "Your message has been sent successfully!",
+      "notes": "Selected Safety & Homeland Security, as POST official site identifies parent. Entered Dale Lotts, hello@policeconduct.org, Austin address and cost threshold 0. Entered 7386 characters: complete standard source prose with Delaware POST scope and contact signature, no generated appendices or attachment. Text equality verified before submit. Email readback was redacted and equality probe returned false; field value not independently verified, but correct email also included in verified request body. Success page observed after Submit Request. No reference number displayed; do not duplicate."
+    },
+    {
+      "state": "fl",
+      "agency": "Criminal Justice Standards & Training Commission",
+      "authority_website": "https://www.fdle.state.fl.us/CJSTC/Commission",
+      "status": "submission_confirmed_attachment_unverified",
+      "request_channel": "https://fdle.justfoia.com/publicportal/home/newrequest",
+      "submitted": true,
+      "confirmation_url": "https://fdle.justfoia.com/publicportal/Requests/1b5778c1-265b-4e94-bcfb-f3f6cb789d15/Confirm/7BF9FF4F/",
+      "notes": "Submitted status, request body, hello@policeconduct.org, Austin address verified on request-detail page. Requested Documents table says No documents have been added; attachment receipt remains unverified. Do not duplicate request.",
+      "reference_number": "GRR-2026-5434"
+    },
+    {
+      "state": "ga",
+      "agency": "Georgia Peace Officer Standards & Training Council",
+      "authority_website": "https://gapost.org/",
+      "status": "gmail_draft_saved_unsent",
+      "submitted": false,
+      "channel_source": "https://gapost.org/divisions/operations-division/",
+      "notes": "Recipient-specific email request prepared in local queue with full standard TXT attachment. Awaiting Gmail mailbox selection; no draft saved in Gmail and no email sent.",
+      "route_findings": "Official Operations Division handles Open Records Requests and identifies records custodian. Homepage, forms and contact pages inspected; no online records request form located. No email sent.",
+      "gmail_draft_id": "r-2998515157803327883",
+      "gmail_message_id": "1a16c14f3f9bfba5",
+      "gmail_account": "dale.lotts@gmail.com",
+      "draft_attachments_verified": [
+        {
+          "filename": "public-data-request-2026-10-23.txt",
+          "size": 102359
+        }
+      ]
+    },
+    {
+      "state": "hi",
+      "agency": "Hawai\u02bbi Law Enforcement Standards Board",
+      "authority_website": "https://lesb.hawaii.gov/",
+      "status": "gmail_draft_saved_unsent",
+      "submitted": false,
+      "channel_source": "https://lesb.hawaii.gov/contact/",
+      "notes": "Live official board homepage, contact and meetings/records pages inspected. Board contact email verified; no request submission form shown. Prepared local email request with full standard attachment; not saved in Gmail or sent.",
+      "gmail_draft_id": "r-5743717932516466845",
+      "gmail_message_id": "1a16c152de9c3242",
+      "gmail_account": "dale.lotts@gmail.com",
+      "draft_attachments_verified": [
+        {
+          "filename": "public-data-request-2026-10-23.txt",
+          "size": 102359
+        }
+      ]
+    },
+    {
+      "state": "ia",
+      "agency": "Iowa Law Enforcement Academy Council",
+      "authority_website": "https://ilea.iowa.gov/about/academy-council",
+      "status": "gmail_draft_saved_unsent",
+      "submitted": false,
+      "channel_source": "https://ilea.iowa.gov/about/staff",
+      "notes": "Official director email verified in live staff-page mailto link. Contact/policies pages contain no records form; feedback link opens website satisfaction survey. Prepared local request addressed to director with full standard attachment. Not saved in Gmail or sent.",
+      "gmail_draft_id": "r-7604266675214019254",
+      "gmail_message_id": "1a16c155e1cafb74",
+      "gmail_account": "dale.lotts@gmail.com",
+      "draft_attachments_verified": [
+        {
+          "filename": "public-data-request-2026-10-23.txt",
+          "size": 102359
+        }
+      ]
+    },
+    {
+      "state": "id",
+      "agency": "Idaho Peace Officer Standards and Training Council",
+      "authority_website": "https://post.idaho.gov/",
+      "status": "online_portal_browser_security_block",
+      "submitted": false,
+      "channel_source": "https://post.idaho.gov/",
+      "notes": "Official POST homepage links this JustFOIA portal. Opening the link created a blank tab; browser security policy rejected acquiring that tab as invalid URL. No form entered or submitted.",
+      "request_channel": "https://idahostatepolice.justfoia.com/publicportal/home/track"
+    },
+    {
+      "state": "il",
+      "agency": "Illinois Law Enforcement Training and Standards Board",
+      "authority_website": "https://www.ptb.illinois.gov/",
+      "status": "gmail_draft_saved_unsent",
+      "submitted": false,
+      "channel_source": "https://www.ptb.illinois.gov/resources/foia-information/",
+      "notes": "Recipient-specific email request prepared in local queue with full standard TXT attachment. Awaiting Gmail mailbox selection; no draft saved in Gmail and no email sent.",
+      "route_findings": "Official FOIA page lists email, mail/hand delivery and fax only. User authorized online forms only; no email sent.",
+      "gmail_draft_id": "r-4746534738779729944",
+      "gmail_message_id": "1a16c14714557180",
+      "gmail_account": "dale.lotts@gmail.com",
+      "draft_attachments_verified": [
+        {
+          "filename": "public-data-request-2026-10-23.txt",
+          "size": 102359
+        }
+      ]
+    },
+    {
+      "state": "in",
+      "agency": "Law Enforcement Training Board",
+      "authority_website": "https://www.in.gov/ilea/about-the-academy/training-board/",
+      "status": "online_portal_account_required",
+      "submitted": false,
+      "channel_source": "https://www.in.gov/ilea/legal-notices/",
+      "notes": "Official Public Information page links ILEA APRA portal. Request form requires Access Indiana login. No requester data or request submitted. Portal also publishes publicrecords@ilea.in.gov for questions.",
+      "request_channel": "https://in.accessgov.com/ilea-apra"
+    },
+    {
+      "state": "ks",
+      "agency": "Kansas Commission on Peace Officers\u2019 Standards and Training",
+      "authority_website": "https://kscpost.gov/",
+      "status": "gmail_draft_saved_unsent",
+      "submitted": false,
+      "channel_source": "https://kscpost.gov/kora/",
+      "notes": "Recipient-specific email request prepared in local queue with full standard TXT attachment. Awaiting Gmail mailbox selection; no draft saved in Gmail and no email sent. KORA policy requires identity proof and signed noncommercial-use certification; do not assert or sign on user behalf.",
+      "route_findings": "Official KORA page requires written request, lists telephone/mail contact and written certification; no online submission form listed. No request submitted.",
+      "gmail_draft_id": "r-1775025887953578861",
+      "gmail_message_id": "1a16c1518e3d6669",
+      "gmail_account": "dale.lotts@gmail.com",
+      "draft_attachments_verified": [
+        {
+          "filename": "public-data-request-2026-10-23.txt",
+          "size": 102359
+        }
+      ]
+    },
+    {
+      "state": "ky",
+      "agency": "Kentucky Law Enforcement Council",
+      "authority_website": "https://justice.ky.gov/Boards-Commissions/Pages/klec.aspx",
+      "status": "gmail_draft_saved_unsent",
+      "submitted": false,
+      "channel_source": "https://justice.ky.gov/Boards-Commissions/KLEC/connect/Pages/open-records-requests.aspx",
+      "notes": "Recipient-specific email request prepared in local queue with full standard TXT attachment. Awaiting Gmail mailbox selection; no draft saved in Gmail and no email sent. Agency requests signed standard form or official letterhead and commercial/noncommercial designation; prepare draft but user must complete signature before sending.",
+      "route_findings": "Official KLEC page inspected in preceding research directs signed standardized PDF or letterhead requests to custodian by in-person, mail or email. No online submission form listed; no request sent.",
+      "gmail_draft_id": "r-8397934780272189114",
+      "gmail_message_id": "1a16c150a9b6b191",
+      "gmail_account": "dale.lotts@gmail.com",
+      "draft_attachments_verified": [
+        {
+          "filename": "public-data-request-2026-10-23.txt",
+          "size": 102359
+        }
+      ]
+    },
+    {
+      "state": "la",
+      "agency": "Council on Peace Officer Standards and Training",
+      "authority_website": "https://lcle.la.gov/programs/post/",
+      "status": "prepared_phone_and_captcha_required",
+      "submitted": false,
+      "request_channel": "https://lcle.la.gov/public-records-request/",
+      "channel_source": "https://lcle.la.gov/",
+      "notes": "Selected P.O.S.T. Officer Training Records. Filled Dale Lotts, hello@policeconduct.org and 7390-character standard request with Louisiana scope, email, Austin address and no-cost terms. Description equality verified. Required phone unknown; CAPTCHA not completed. Not submitted; tab retained for handoff."
+    },
+    {
+      "state": "ma",
+      "agency": "Massachusetts Peace Officer Standards and Training Commission",
+      "authority_website": "https://mapostcommission.gov/",
+      "status": "prepared_awaiting_electronic_signature_confirmation",
+      "request_channel": "https://certificationforms.formstack.com/forms/public_records_request",
+      "submitted": false,
+      "notes": "Filled organization, hello email and Austin address; selected full standard request TXT attachment. Declaration explicitly constitutes electronic signature; awaiting user confirmation before checking and submitting."
+    },
+    {
+      "state": "md",
+      "agency": "Police Training and Standards Commission",
+      "authority_website": "https://mpctc.dpscs.maryland.gov/ptsc.htm",
+      "status": "gmail_draft_saved_unsent",
+      "submitted": false,
+      "channel_source": "https://dpscs.maryland.gov/publicinfo/pia.shtml",
+      "notes": "Recipient-specific email request prepared in local queue with full standard TXT attachment. Awaiting Gmail mailbox selection; no draft saved in Gmail and no email sent.",
+      "route_findings": "Official DPSCS page supplies fillable PDF application and written/contact routes; no online submission form located.",
+      "gmail_draft_id": "r-9146611809224825193",
+      "gmail_message_id": "1a16c15038bfa5f4",
+      "gmail_account": "dale.lotts@gmail.com",
+      "draft_attachments_verified": [
+        {
+          "filename": "public-data-request-2026-10-23.txt",
+          "size": 102359
+        }
+      ]
+    },
+    {
+      "state": "me",
+      "agency": "Maine Criminal Justice Academy Board of Trustees",
+      "authority_website": "https://www.maine.gov/dps/mcja/about/board",
+      "status": "gmail_draft_saved_unsent",
+      "submitted": false,
+      "channel_source": "https://www.maine.gov/dps/mcja/about/contact",
+      "notes": "Official contact destination verified and complete standard request queued locally as attachment. Not saved in Gmail or sent. ",
+      "gmail_draft_id": "r7341960577903927734",
+      "gmail_message_id": "1a16c15354e9125e",
+      "gmail_account": "dale.lotts@gmail.com",
+      "draft_attachments_verified": [
+        {
+          "filename": "public-data-request-2026-10-23.txt",
+          "size": 102359
+        }
+      ]
+    },
+    {
+      "state": "mi",
+      "agency": "Michigan Commission on Law Enforcement Standards",
+      "authority_website": "https://www.michigan.gov/mcoles",
+      "status": "parent_agency_portal_account_phone_required",
+      "submitted": false,
+      "channel_source": "https://www.michigan.gov/msp/services/foia/requestor-user-guide",
+      "request_channel": "https://milogin.michigan.gov/",
+      "notes": "MCOLES records page directs to MSP FOIA. Official MSP guide requires MiLogin account, service terms acceptance, and phone/email verification. No account or request created."
+    },
+    {
+      "state": "mn",
+      "agency": "Board of Peace Officer Standards and Training",
+      "authority_website": "https://mn.gov/post/",
+      "status": "gmail_draft_saved_unsent",
+      "submitted": false,
+      "channel_source": "https://mn.gov/post/assets/POST%20Data%20Practices%20Contact%20page%202026_tcm1189-764509.pdf",
+      "notes": "Official contact destination verified and complete standard request queued locally as attachment. Not saved in Gmail or sent. Recipient is named Data Practices Designee in current POST contact document.",
+      "gmail_draft_id": "r5962485218533150883",
+      "gmail_message_id": "1a16c153b8da85e1",
+      "gmail_account": "dale.lotts@gmail.com",
+      "draft_attachments_verified": [
+        {
+          "filename": "public-data-request-2026-10-23.txt",
+          "size": 102359
+        }
+      ]
+    },
+    {
+      "state": "mo",
+      "agency": "Peace Officer Standards and Training Program",
+      "authority_website": "https://dps.mo.gov/dir/programs/post/",
+      "status": "online_portal_account_required",
+      "submitted": false,
+      "request_channel": "https://dpsmo.govqa.us/WEBAPP/_rs/SupportHome.aspx",
+      "channel_source": "https://dps.mo.gov/sunshine.php",
+      "notes": "Official DPS portal opened; selected Public Safety request for Office of the Director. Live request login requires account; Create Account offered, no guest option displayed. No data entered or request submitted."
+    },
+    {
+      "state": "ms",
+      "agency": "Board on Law Enforcement Officer Standards and Training",
+      "authority_website": "https://www.dps.ms.gov/public-safety-planning/standards-and-training/BLEOST",
+      "status": "submission_confirmed",
+      "submitted": true,
+      "request_channel": "https://mdpsms.nextrequest.com/requests/new",
+      "channel_source": "https://www.nibrs.dps.ms.gov/contact",
+      "notes": "Submitted with user-provided phone 612-208-9601. Account Setup page confirmed email updates to hello@policeconduct.org and linked request 26-3320. Chose Do this later; request page confirms number, access limited until sign-in. Full standard source prose and Mississippi scope submitted; generated appendices not attached because chooser remained disabled. No password entered or established.",
+      "reference": "26-3320",
+      "confirmation_url": "https://mdpsms.nextrequest.com/requests/26-3320"
+    },
+    {
+      "state": "mt",
+      "agency": "Public Safety Officer Standards and Training Council",
+      "authority_website": "https://dojmt.gov/post/",
+      "status": "gmail_draft_saved_unsent",
+      "submitted": false,
+      "channel_source": "https://dojmt.gov/post/contactpost/",
+      "notes": "Verified POST-specific policy requires public information request form emailed to mtpost@mt.gov or mailed to POST Administrative Assistant. General DOJ account route superseded by this specific route. Local cover and full TXT prepared; required signed form remains pending after HTTP403 downloading PDF. No email saved in Gmail or sent.",
+      "gmail_draft_id": "r-8401317316409287858",
+      "gmail_message_id": "1a16c157f80bb5fb",
+      "gmail_account": "dale.lotts@gmail.com",
+      "draft_attachments_verified": [
+        {
+          "filename": "public-data-request-2026-10-23.txt",
+          "size": 102359
+        }
+      ]
+    },
+    {
+      "state": "nc",
+      "agency": "North Carolina Criminal Justice Education and Training Standards Commission",
+      "authority_website": "https://ncdoj.gov/law-enforcement-training/criminal-justice/",
+      "status": "online_form_standard_request_exceeds_limit",
+      "submitted": false,
+      "request_channel": "https://forms.office.com/g/Z76LS93FfK",
+      "channel_source": "https://ncdoj.gov/open-government/",
+      "notes": "Live Microsoft form accepted name and email. Description input maxlength=4000, no attachment field on final page. Standard request exceeds limit; attempted full text rejected and field remains empty. Not submitted."
+    },
+    {
+      "state": "nd",
+      "agency": "North Dakota Peace Officer Standards and Training Board",
+      "authority_website": "https://www.post.nd.gov/",
+      "status": "gmail_draft_saved_unsent",
+      "submitted": false,
+      "channel_source": "https://www.post.nd.gov/ContactUs/ContactUs.html",
+      "notes": "Official contact destination verified and complete standard request queued locally as attachment. Not saved in Gmail or sent. ",
+      "gmail_draft_id": "r2867421229597203969",
+      "gmail_message_id": "1a16c1540a783ea7",
+      "gmail_account": "dale.lotts@gmail.com",
+      "draft_attachments_verified": [
+        {
+          "filename": "public-data-request-2026-10-23.txt",
+          "size": 102359
+        }
+      ]
+    },
+    {
+      "state": "ne",
+      "agency": "Police Standards Advisory Council",
+      "authority_website": "https://ncc.nebraska.gov/police-standards-advisory-council",
+      "status": "gmail_draft_saved_unsent",
+      "submitted": false,
+      "channel_source": "https://ncc.nebraska.gov/staff",
+      "notes": "Official staff directory verifies NLETC Director Mark Stephenson email. Prepared local request addressed to director with full standard attachment; no dedicated records submission form located. Not saved in Gmail or sent.",
+      "gmail_draft_id": "r1517409000928504250",
+      "gmail_message_id": "1a16c1557e5c1871",
+      "gmail_account": "dale.lotts@gmail.com",
+      "draft_attachments_verified": [
+        {
+          "filename": "public-data-request-2026-10-23.txt",
+          "size": 102359
+        }
+      ]
+    },
+    {
+      "state": "nh",
+      "agency": "New Hampshire Police Standards and Training Council",
+      "authority_website": "https://www.pstc.nh.gov/",
+      "status": "gmail_draft_saved_unsent",
+      "submitted": false,
+      "channel_source": "https://www.pstc.nh.gov/contact-us",
+      "notes": "Live official contact page verifies Robert Collman as Records and Technology Specialist and published email Robert.C.Collman@pst.nh.gov. Local email request prepared with full standard TXT attachment; not saved in Gmail or sent.",
+      "gmail_draft_id": "r2955002727474435327",
+      "gmail_message_id": "1a16c1570d4edd67",
+      "gmail_account": "dale.lotts@gmail.com",
+      "draft_attachments_verified": [
+        {
+          "filename": "public-data-request-2026-10-23.txt",
+          "size": 102359
+        }
+      ]
+    },
+    {
+      "state": "nj",
+      "agency": "Police Training Commission",
+      "authority_website": "https://www.njoag.gov/about/divisions-and-offices/office-of-public-integrity-and-accountability-home/police-training-commission/",
+      "status": "online_form_text_limit_and_certifications",
+      "submitted": false,
+      "request_channel": "https://www-njlib.nj.gov/NJ_OPRA/department.jsp",
+      "channel_source": "https://nj.gov/opra/",
+      "notes": "Live state OPRA form inspected under Law and Public Safety / Office of the Attorney General. Request textarea maxlength=4000; no request attachment control shown. Requires certifications under penalty concerning indictable offenses, commercial use and legal proceedings. No contact or request data entered; no certifications made; not submitted. Full standard source prose exceeds field limit."
+    },
+    {
+      "state": "nm",
+      "agency": "Law Enforcement Certification Board",
+      "authority_website": "https://www.lea.nm.gov/law-enforcement-certification-board/",
+      "status": "online_portal_account_required",
+      "submitted": false,
+      "channel_source": "https://www.dps.nm.gov/law-enforcement-records-bureau/",
+      "notes": "Rechecked official DPS records page and followed portal request route. Live login page now fully loads with email/password and Create Account; no guest option. Bare portal domain redirects to vendor marketing page; use official full portal link. No account or request created.",
+      "request_channel": "https://nmdps.govqa.us/WEBAPP/_rs/RequestSelect.aspx"
+    },
+    {
+      "state": "nv",
+      "agency": "Nevada Commission on Peace Officer Standards and Training",
+      "authority_website": "https://post.nv.gov/",
+      "status": "gmail_draft_saved_unsent",
+      "submitted": false,
+      "channel_source": "https://www.post.nv.gov/contact-us/",
+      "notes": "Official contact destination verified and complete standard request queued locally as attachment. Not saved in Gmail or sent. ",
+      "gmail_draft_id": "r-5136959188821264215",
+      "gmail_message_id": "1a16c1551c7d28ab",
+      "gmail_account": "dale.lotts@gmail.com",
+      "draft_attachments_verified": [
+        {
+          "filename": "public-data-request-2026-10-23.txt",
+          "size": 102359
+        }
+      ]
+    },
+    {
+      "state": "ny",
+      "agency": "New York State Division of Criminal Justice Services",
+      "authority_website": "https://criminaljustice.ny.gov/Officer_Decertification.htm",
+      "status": "online_portal_account_required",
+      "submitted": false,
+      "channel_source": "https://criminaljustice.ny.gov/foil",
+      "request_channel": "https://dcjsny.govqa.us/WEBAPP/_rs/",
+      "notes": "Live GovQA portal and Submit a FOIL Request inspected successfully. Login page requires email/password or Create Account; no guest option shown. Logging in states agreement to GovQA terms. No login, new account, or request submitted."
+    },
+    {
+      "state": "oh",
+      "agency": "Ohio Peace Officer Training Commission",
+      "authority_website": "https://www.ohioattorneygeneral.gov/Law-Enforcement/Ohio-Peace-Officer-Training-Academy/OPOTC-Forms-and-Resources",
+      "status": "form_length_limit",
+      "submitted": false,
+      "channel_source": "https://ohioattorneygeneral.gov/About-AG/Public-Records-Access",
+      "request_channel": "https://inquiries.ohioattorneygeneral.gov/",
+      "notes": "Contact details entered with user-provided phone, hello email and Austin/Texas address. Selected General Help. Exact 7443-character standard source prose verified in Nature of Concern field. Next blocked by explicit maximum 3000 characters. No attachment control on details stage. Not submitted; full standard request exceeds limit."
+    },
+    {
+      "state": "ok",
+      "agency": "Council on Law Enforcement Education and Training",
+      "authority_website": "https://oklahoma.gov/cleet.html",
+      "status": "online_form_verified_signature_required",
+      "submitted": false,
+      "channel_source": "https://oklahoma.gov/cleet/contact-cleet/open-records-act-information-request.html",
+      "request_channel": "https://oklahoma.gov/cleet/contact-cleet/open-records-act-information-request.html",
+      "notes": "Live Paperform embedded at cleet-open-records-act-information-request.paperform.co. Requires requester type, request text, purpose and signature. No data entered or submitted. Signature needs action-time confirmation after preparation."
+    },
+    {
+      "state": "or",
+      "agency": "Department of Public Safety Standards and Training",
+      "authority_website": "https://www.oregon.gov/dpsst/cj/Pages/default.aspx",
+      "status": "account_contact_fields_prepared_credentials_captcha_handoff",
+      "request_channel": "https://oregondpsst.govqa.us/WEBAPP/_rs/",
+      "submitted": false,
+      "notes": "Registration form loaded. Filled hello@policeconduct.org, Dale Lotts, Institute for Police Conduct, Inc., Austin address and ZIP; TX option observed selected. Password, confirmation and CAPTCHA remain blank. Phone optional. Account not submitted; user must enter and submit new credentials under browser-control rules. Tab preserved for handoff."
+    },
+    {
+      "state": "pa",
+      "agency": "Municipal Police Officers' Education and Training Commission",
+      "authority_website": "https://www.pa.gov/agencies/mpoetc/programs",
+      "status": "gmail_draft_saved_unsent",
+      "submitted": false,
+      "channel_source": "https://www.pa.gov/services/psp/submit-a-pennsylvania-state-police-right-to-know-request",
+      "notes": "PSP email recipient verified; required interactive PDF completed and visually checked with full standard TXT attachment queued. Date blank for user to set when sending. Not saved in Gmail or sent.",
+      "gmail_draft_id": "r8078022447944778878",
+      "gmail_message_id": "1a16c156487f3be2",
+      "gmail_account": "dale.lotts@gmail.com",
+      "draft_attachments_verified": [
+        {
+          "filename": "public-data-request-2026-10-23.txt",
+          "size": 102359
+        },
+        {
+          "filename": "pennsylvania-public-records-request.pdf",
+          "size": 74051
+        }
+      ]
+    },
+    {
+      "state": "ri",
+      "agency": "Rhode Island Police Officers Commission on Standards and Training",
+      "authority_website": "https://rimpa.ri.gov/",
+      "status": "gmail_draft_saved_unsent",
+      "submitted": false,
+      "channel_source": "https://rimpa.ri.gov/legal",
+      "notes": "Recipient-specific email request prepared in local queue with full standard TXT attachment. Awaiting Gmail mailbox selection; no draft saved in Gmail and no email sent. Required agency form prepared; submission date remains blank for user to set when sending.",
+      "route_findings": "Official academy APRA page lists PDF form submitted by fax, email, postal mail or in person. No online submission form listed. No email sent.",
+      "gmail_draft_id": "r2505992697652050723",
+      "gmail_message_id": "1a16c1511cd7a568",
+      "gmail_account": "dale.lotts@gmail.com",
+      "draft_attachments_verified": [
+        {
+          "filename": "public-data-request-2026-10-23.txt",
+          "size": 102359
+        },
+        {
+          "filename": "rhode-island-public-records-request.pdf",
+          "size": 31048
+        }
+      ]
+    },
+    {
+      "state": "sc",
+      "agency": "South Carolina Law Enforcement Training Council",
+      "authority_website": "https://sccja.sc.gov/law-enforcement-training-council/",
+      "status": "submission_confirmed",
+      "submitted": true,
+      "channel_source": "https://sccja.sc.gov/freedom-of-information-act/",
+      "notes": "Submitted with provided phone, hello email, Austin address, Texas, and Other documents selected. Exact 7439-character standard source prose and statewide agency/officer scope verified before submission. No attachment control; generated appendices not included. Confirmation shown; no reference number provided.",
+      "request_channel": "https://www.cognitoforms.com/SCCriminalJusticeAcademy/FOIARequest",
+      "confirmation": "Thank you for filling out the form. Your response has been recorded."
+    },
+    {
+      "state": "sd",
+      "agency": "South Dakota Law Enforcement Officers Standards and Training Commission",
+      "authority_website": "https://atg.sd.gov/LawEnforcement/training/faq.aspx",
+      "status": "formal_request_requires_postal_mail",
+      "submitted": false,
+      "channel_source": "https://atg.sd.gov/legal/opengovernment/publicrecords.aspx",
+      "notes": "Official Attorney General records procedure retrieved and inspected. Requires formal requests by hard-copy postal mail to Office of Attorney General, 1302 S.D. Hwy 1889, Suite 1, Pierre, SD 57501-8501; expressly says email/oral requests are not formal requests. No online form and no submission. Postal mailing outside current authorized online/email-draft scope."
+    },
+    {
+      "state": "tn",
+      "agency": "Tennessee Peace Officer Standards and Training Commission",
+      "authority_website": "https://www.tn.gov/commerce/post.html",
+      "status": "online_form_text_limit_citizenship_signature",
+      "submitted": false,
+      "request_channel": "https://www.tn.gov/commerce/contact-us/public-records-request.html",
+      "channel_source": "https://www.tn.gov/commerce/post/contact.html",
+      "notes": "Live Commerce and Insurance form includes Peace Officer Standards and Training Commission program. Nonbinding notice read acknowledgment checked to reveal form. Requires Tennessee citizenship answer; requests ID with Tennessee address, shows signature control and 500-character request field. No requester information entered, citizenship assertion made, signature applied or request submitted."
+    },
+    {
+      "state": "tx",
+      "agency": "Texas Commission on Law Enforcement",
+      "authority_website": "https://tcole.texas.gov/",
+      "status": "online_portal_verified_account_required",
+      "request_channel": "https://tcole.texas.gov/content/public-information-act",
+      "submitted": false
+    },
+    {
+      "state": "ut",
+      "agency": "Division of Peace Officer Standards and Training",
+      "authority_website": "https://post.utah.gov/",
+      "status": "account_contact_fields_prepared_phone_credentials_handoff",
+      "submitted": false,
+      "channel_source": "https://post.utah.gov/grama-requests/",
+      "request_channel": "https://publicsafetyutah.govqa.us/",
+      "notes": "Registration form loaded. Filled hello@policeconduct.org, Dale Lotts, Institute for Police Conduct, Inc., Austin street/city/ZIP; state field displays TX. Required phone unknown. Password and confirmation remain blank; no account submitted. User must enter and submit new credentials under browser-control rules. Tab preserved for handoff."
+    },
+    {
+      "state": "va",
+      "agency": "Virginia Department of Criminal Justice Services",
+      "authority_website": "https://www.dcjs.virginia.gov/division-law-enforcement",
+      "status": "gmail_draft_saved_unsent",
+      "submitted": false,
+      "channel_source": "https://www.dcjs.virginia.gov/about-dcjs/foia-requests",
+      "notes": "Recipient-specific email request prepared in local queue with full standard TXT attachment. Awaiting Gmail mailbox selection; no draft saved in Gmail and no email sent.",
+      "route_findings": "Official DCJS FOIA page inspected in preceding research lists mail, fax, email, in-person and phone requests; no online submission form listed. No request sent.",
+      "gmail_draft_id": "r-4381634065829764020",
+      "gmail_message_id": "1a16c14ed43b7b72",
+      "gmail_account": "dale.lotts@gmail.com",
+      "draft_attachments_verified": [
+        {
+          "filename": "public-data-request-2026-10-23.txt",
+          "size": 102359
+        }
+      ]
+    },
+    {
+      "state": "vt",
+      "agency": "Vermont Criminal Justice Council",
+      "authority_website": "https://vcjc.vermont.gov/",
+      "status": "gmail_draft_saved_unsent",
+      "submitted": false,
+      "channel_source": "https://vcjc.vermont.gov/forms",
+      "notes": "Live official footer Public Records Request Email mailto verified: Chris.Perkett@vermont.gov. Companion PDF form download remains incomplete; direct download 403 and browser download lost tab session. Local email request with full standard TXT prepared, not saved in Gmail or sent.",
+      "gmail_draft_id": "r-3268571988502503305",
+      "gmail_message_id": "1a16c156b6d2ed33",
+      "gmail_account": "dale.lotts@gmail.com",
+      "draft_attachments_verified": [
+        {
+          "filename": "public-data-request-2026-10-23.txt",
+          "size": 102359
+        }
+      ]
+    },
+    {
+      "state": "wa",
+      "agency": "Washington State Criminal Justice Training Commission",
+      "authority_website": "https://cjtc.wa.gov/certification",
+      "status": "online_portal_account_creation_handoff",
+      "submitted": false,
+      "request_channel": "https://cjtcwa.govqa.us/WEBAPP/_rs/supporthome.aspx",
+      "channel_source": "https://cjtc.wa.gov/washington-state-criminal-justice-training-commission/public-records-requests",
+      "notes": "Verified official portal and live account form. Requires email, new password and confirmation, first and last name. No anonymous option shown. No account fields entered or request submitted. Account credential creation requires user handoff; page preserved."
+    },
+    {
+      "state": "wi",
+      "agency": "Law Enforcement Standards Board",
+      "authority_website": "https://wilenet.widoj.gov/training-standards/law-enforcement-standards-board-lesb",
+      "status": "submission_confirmed",
+      "submitted": true,
+      "request_channel": "https://widoj.spm.cliogrow.com/intake/5136681f1fb23eb768bf1564e2ad232a",
+      "channel_source": "https://www.wisdoj.gov/Pages/AboutUs/request-records.aspx",
+      "confirmation_url": "https://widoj.spm.cliogrow.com/form_submitted?locale=en",
+      "confirmation_text": "Thanks! Your form has been submitted. A copy will be emailed to you.",
+      "notes": "Standard request text entered in Inquiry (7360 characters including Wisconsin scope and signature). No attachment field. Correct email, Austin street address, Texas and ZIP verified before submission."
+    },
+    {
+      "state": "wv",
+      "agency": "Law Enforcement Professional Standards Subcommittee",
+      "authority_website": "https://das.wv.gov/JCS/law-enforcement",
+      "status": "submission_confirmed",
+      "submitted": true,
+      "request_channel": "https://wv.accessgov.com/jcs/Forms/Page/contactjcs/contact-jcs/",
+      "channel_source": "https://das.wv.gov/JCS/Pages/default.aspx",
+      "confirmation_url": "https://wv.accessgov.com/jcs/Forms/Edit/contactjcs/2edaefe0-98c4-4f59-a473-f71b7cb2c445/1",
+      "confirmation_text": "Form submitted successfully.",
+      "notes": "Submitted through official JCS contact form addressing LEPS program/subcommittee. Complete standard source prose with state scope and signature, no generated appendix or attachment. Two redaction marker examples have a space after opening angle bracket to satisfy form validation. Text equality verified; successful read-only receipt shows correct hello email and Austin address. Receipt offers Download Submission. Do not duplicate."
+    },
+    {
+      "state": "wy",
+      "agency": "Wyoming Peace Officer Standards and Training Commission",
+      "authority_website": "https://post.wyo.gov/",
+      "status": "gmail_draft_saved_unsent",
+      "submitted": false,
+      "channel_source": "https://post.wyo.gov/",
+      "notes": "Recipient-specific email request prepared in local queue with full standard TXT attachment. Awaiting Gmail mailbox selection; no draft saved in Gmail and no email sent.",
+      "route_findings": "Official POST homepage directs freedom-of-information requests to ag.publicrecords@wyo.gov. No online request form listed and no email sent.",
+      "gmail_draft_id": "r-3652168167817443690",
+      "gmail_message_id": "1a16c14e1a3a9533",
+      "gmail_account": "dale.lotts@gmail.com",
+      "draft_attachments_verified": [
+        {
+          "filename": "public-data-request-2026-10-23.txt",
+          "size": 102359
+        }
+      ]
+    }
+  ],
+  "request_sha256": "3f9b011d788acac53a7d0f8f7375bf658be8650af6628e208d6a28d20e72b23e",
+  "submission_method": "Submit online request forms; where email is required, prepare unsent Gmail drafts for user to send. Do not send email.",
+  "account_creation_authorized": true,
+  "attachment_instruction": "Where request text is limited and attachments are permitted, attach the full standard request and use a short identifying cover message."
+}
