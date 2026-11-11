@@ -1,4 +1,9 @@
-import { cleanSourceValues } from "../../../shared/source-value-types.js";
+import { createHash } from "node:crypto";
+import { inspectDataAnnotationFindings } from "../../../shared/inspect-data-annotations.js";
+import {
+  SourceValues,
+  type DataAnnotation,
+} from "../../../shared/data-annotations.js";
 import type { AgencyLocationPathLookup } from "../../../shared/agency-location-path.js";
 import type { InitialAgencyRootsEnvelope } from "../../../shared/io/index.js";
 import {
@@ -24,7 +29,6 @@ import {
   urlOwnershipForKind,
 } from "./facades/resolver-registry.js";
 import {
-  FK_REFERENCES,
   BUSINESS_KEYS,
   RECORD_KINDS_IN_DEPENDENCY_ORDER,
 } from "../../../shared/io/generated/entity-specs.js";
@@ -32,7 +36,10 @@ import { INTAKE_API_VERSION } from "../../../shared/io/import-types.js";
 import type { DatabaseClient } from "../../database/index.js";
 import { SlugAllocator } from "./slug.js";
 import { CurrentRowReader } from "./current-row-reader.js";
-import { planDatabaseMutationItems } from "./mutation-plan.js";
+import {
+  isCheckOnlyUpdateItem,
+  planDatabaseMutationItems,
+} from "./mutation-plan.js";
 import {
   LocationDataContext,
   LocationPathDataContext,
@@ -211,11 +218,10 @@ export class DataContext {
   private readonly resolveAddressFn?: DataContextOptions["resolveAddress"];
   private readonly resolvedPropertyStore?: ResolvedPropertyStore;
   private readonly commandName?: string;
+  private readonly validationDate: Date;
   private readonly ledger?: SourceNameToCanonicalIdLedger;
   private readonly slugs: SlugAllocator;
   /** Every facade built this command, grouped by kind then memo key. */
-  private readonly invalidSourceRecords = new Set<string>();
-  private readonly validationDate: Date;
   private readonly facadesByKind = new Map<
     string,
     Map<string, RegistryFacade>
@@ -237,7 +243,6 @@ export class DataContext {
   private readonly businessKeyIds = new Map<string, Promise<string>>();
 
   constructor(options: DataContextOptions) {
-    this.validationDate = new Date(options.validationDate ?? Date.now());
     this.applyPropertyCorrections = options.applyPropertyCorrections;
     this.propertyCorrectionNamespace = options.propertyCorrectionNamespace;
     this.client = options.client;
@@ -246,6 +251,7 @@ export class DataContext {
     this.resolveAddressFn = options.resolveAddress;
     this.resolvedPropertyStore = options.resolvedPropertyStore;
     this.commandName = options.commandName;
+    this.validationDate = options.validationDate ?? new Date();
     this.ledger = options.ledger;
     this.slugs = new SlugAllocator(async (kind, slug) => {
       const [row, cachedOwner] = await Promise.all([
@@ -342,8 +348,21 @@ export class DataContext {
       findForeignKeyTarget: (input) => this.findForeignKeyTarget(input),
       getLocationPathByPath: (path) => this.locationPaths.getByPath(path),
       getLocationPathById: (id) => this.locationPaths.getById(id),
-      findRowsByColumns: (targetKind, columnValues) =>
-        this.rows.getRowsByColumns(targetKind, columnValues),
+      findRowsByColumns: (targetKind, columnValues) => {
+        const identity = columnValues[identityColumnForKind(targetKind)];
+        const emitted =
+          typeof identity === "string"
+            ? this.emittedRows.get(DataContext.emittedKey(targetKind, identity))
+            : undefined;
+        if (
+          emitted !== undefined &&
+          Object.entries(columnValues).every(
+            ([key, value]) => emitted[key] === value,
+          )
+        )
+          return Promise.resolve([emitted]);
+        return this.rows.getRowsByColumns(targetKind, columnValues);
+      },
       ensureUniqueSlug: (input) =>
         this.slugs.ensureUnique(input.kind, {
           base: input.base,
@@ -374,6 +393,8 @@ export class DataContext {
 
   facadeFromSource(kind: string, input: SourceRecordContext): RegistryFacade {
     validateSourceRecordContext(input);
+    const rawSourceValues = input.spec;
+    const correctionAnnotations: DataAnnotation[] = [];
     const correctedProperties: string[] = [];
     if (
       input.spec !== undefined &&
@@ -387,33 +408,24 @@ export class DataContext {
           kind,
           input.name,
           input.spec,
-          (property) => correctedProperties.push(property),
+          (property, annotation) => {
+            correctedProperties.push(property);
+            if (annotation !== undefined)
+              correctionAnnotations.push(annotation);
+          },
         ),
       };
     }
     const key = [input.apiVersion, input.namespace, kind, input.name].join(":");
-    if (input.spec !== undefined) {
-      const cleaned = cleanSourceValues(kind, input.spec, this.validationDate);
-      for (const defect of cleaned.defects) {
-        // Keep invalid dates inspectable and omit the whole record for this run;
-        // clearing an end date would falsely imply current employment.
-        const disposition = !defect.omitted
-          ? "value retained; record omitted"
-          : defect.required
-            ? "record omitted"
-            : "value omitted";
-        const message = `source data defect: ${input.namespace}/${kind}/${input.name}.${defect.field}: ${JSON.stringify(defect.value)}; ${defect.reason}; ${disposition}`;
-        this.logger?.info?.(message);
-        if (!defect.omitted || defect.required)
-          this.invalidSourceRecords.add(key);
-      }
-      input = { ...input, spec: cleaned.spec };
-    }
     const facades = this.facadesFor(kind);
     const existing = facades.get(key);
     if (existing !== undefined) {
       if (input.spec !== undefined) {
         existing.merge(input.spec, correctedProperties);
+        existing.recordSourceContribution(
+          rawSourceValues!,
+          correctionAnnotations,
+        );
       }
       return existing;
     }
@@ -434,6 +446,7 @@ export class DataContext {
     }) as RegistryFacade;
     if (input.spec !== undefined) {
       facade.merge(input.spec, correctedProperties);
+      facade.recordSourceContribution(rawSourceValues!, correctionAnnotations);
     }
     facades.set(key, facade);
     return facade;
@@ -542,40 +555,6 @@ export class DataContext {
     };
   }
 
-  private omitInvalidSourceRecords(): void {
-    if (this.invalidSourceRecords.size === 0) return;
-    let changed = true;
-    while (changed) {
-      changed = false;
-      for (const [kind, facades] of this.facadesByKind) {
-        for (const [key, facade] of facades) {
-          if (this.invalidSourceRecords.has(key)) continue;
-          for (const { field, targetKind } of FK_REFERENCES[kind] ?? []) {
-            const value = facade.raw(field);
-            if (typeof value !== "string") continue;
-            const target = [
-              INTAKE_API_VERSION,
-              facade.sourceIdentity.namespace,
-              targetKind,
-              value,
-            ].join(":");
-            if (!this.invalidSourceRecords.has(target)) continue;
-            this.invalidSourceRecords.add(key);
-            this.logger?.info?.(
-              `source data defect: ${facade.sourceIdentity.namespace}/${kind}/${facade.sourceIdentity.name}.${field}: ${JSON.stringify(value)}; referenced record has an invalid source value; record omitted`,
-            );
-            changed = true;
-            break;
-          }
-        }
-      }
-    }
-    for (const facades of this.facadesByKind.values()) {
-      for (const key of this.invalidSourceRecords) facades.delete(key);
-    }
-    this.invalidSourceRecords.clear();
-  }
-
   /** Resolve only selection identities/edges, then retain reached source facades. */
   async selectAgencyGraph(
     readExisting: (
@@ -587,7 +566,6 @@ export class DataContext {
       personnelSourceNames: readonly string[];
     },
   ): Promise<Record<string, number>> {
-    this.omitInvalidSourceRecords();
     const candidates: Array<{ record: AgencyGraphRecord; sourceKey: string }> =
       [];
     for (const [kind, columns] of AGENCY_GRAPH_COLUMNS) {
@@ -666,12 +644,112 @@ export class DataContext {
   }
 
   async toMutations(): Promise<DatabaseMutationEnvelope[]> {
-    this.omitInvalidSourceRecords();
+    const mutations: DatabaseMutationEnvelope[] = [];
+    await this.visitMutations((mutation) => mutations.push(mutation));
+    return mutations;
+  }
+
+  private async visitMutations(
+    visit: (mutation: DatabaseMutationEnvelope) => void,
+  ): Promise<void> {
     // Every facade is registered during the add phase, so a FK find always locates
     // its target regardless of resolution order; the emitted plan is re-sorted by
     // the FK-derived topological sort in toDatabaseMutationItems. Draining in the
     // generated dependency order keeps the pre-sort output stable and legible.
-    const mutations: DatabaseMutationEnvelope[] = [];
+    const existingAnnotations =
+      this.client === undefined
+        ? []
+        : await this.rows.getRowsByColumns("DataAnnotation", {
+            producer_namespace: "intake",
+          });
+    const existingScopes = new Set(
+      existingAnnotations.map(
+        (row) => String(row.producer_record_id).split("/")[0] + "/",
+      ),
+    );
+    const annotationScopes = new Set<string>();
+    const correctionFieldsByScope = new Map<string, ReadonlySet<string>>();
+    const recordsByScope = new Map<
+      string,
+      Map<string, Record<string, unknown>>
+    >();
+    const inspectFacade = async (kind: string, facade: RegistryFacade) => {
+      const { identityValue, resolved } = await facade.resolvedRow();
+      this.emittedRows.set(
+        DataContext.emittedKey(kind, identityValue),
+        facade.inspectionValues,
+      );
+      const contribution = facade.contribution(resolved);
+      // Only entity kinds carrying source evidence participate in automatic inspection.
+      // Native annotations have no such column and do not recursively annotate themselves.
+      if (contribution === undefined || !facade.supportsSourceEvidence) return;
+      const groups = [
+        {
+          owner: [
+            "correction",
+            contribution.source_namespace,
+            contribution.source_record_id,
+          ],
+          processedFields: new Set(Object.keys(contribution.values)),
+          findings: contribution.corrections.map((annotation) => ({
+            key: JSON.stringify(["correction", annotation.field]),
+            annotation,
+          })),
+        },
+        {
+          owner: ["validation"],
+          findings: inspectDataAnnotationFindings(
+            kind,
+            facade.inspectionValues,
+            SourceValues.parse(
+              facade.inspectionValues.data_source_values ?? {},
+            ),
+            this.validationDate,
+          ),
+        },
+      ];
+      for (const group of groups) {
+        const scope =
+          createHash("sha256")
+            .update(JSON.stringify([kind, identityValue, ...group.owner]))
+            .digest("hex") + "/";
+        // Only existing findings need retirement bookkeeping. Valid records
+        // with no prior findings must not allocate retained empty maps/sets.
+        if (existingScopes.has(scope)) annotationScopes.add(scope);
+        if (existingScopes.has(scope) && group.processedFields !== undefined)
+          correctionFieldsByScope.set(scope, group.processedFields);
+        if (group.findings.length === 0 && !existingScopes.has(scope)) {
+          recordsByScope.delete(scope);
+          continue;
+        }
+        const records = new Map<string, Record<string, unknown>>();
+        recordsByScope.set(scope, records);
+        for (const { key, annotation: finding } of group.findings) {
+          const name =
+            scope +
+            createHash("sha256")
+              .update(
+                JSON.stringify([
+                  key,
+                  finding.source_namespace,
+                  finding.source_record_id,
+                ]),
+              )
+              .digest("hex");
+          records.set(name, {
+            ...finding,
+            replacement_value:
+              finding.type === "correction" ? finding.replacement_value : null,
+            evidence: finding.evidence ?? null,
+            subject_kind: kind,
+            subject_id: identityValue,
+            producer_namespace: "intake",
+            producer_record_id: name,
+            status: "active",
+          });
+        }
+      }
+    };
     const urlOwners = new Map<string, { owner: string; sourceKey: string }>();
     for (const kind of RECORD_KINDS_IN_DEPENDENCY_ORDER) {
       const facades = this.facadesByKind.get(kind);
@@ -750,29 +828,66 @@ export class DataContext {
 
       // A single kind can hold >100k rows (tcole assignments); spreading that into
       // push() arguments overflows the call stack, so append in place.
-      const singleMutations = await resolveInBatches(singles, (facade) =>
-        facade.toMutation(),
-      );
-      for (const mutation of singleMutations) {
-        mutations.push(mutation);
+      // Drain one batch at a time so the caller can discard check-only
+      // updates before another batch is allocated. Keep registration order.
+      for (let offset = 0; offset < singles.length; offset += 1000) {
+        const batch = await Promise.all(
+          singles.slice(offset, offset + 1000).map(async (facade) => {
+            const mutation = await facade.toMutation();
+            await inspectFacade(kind, facade);
+            return mutation;
+          }),
+        );
+        for (const mutation of batch) visit(mutation);
       }
 
       for (const group of recurring) {
         for (const facade of group) {
-          mutations.push(await facade.toMutation());
+          visit(await facade.toMutation());
+          await inspectFacade(kind, facade);
           const { identityValue, resolved } = await facade.resolvedRow();
           this.emittedRows.set(
             DataContext.emittedKey(kind, identityValue),
-            resolved,
+            facade.inspectionValues,
           );
         }
       }
     }
-    return mutations;
+    const annotationRecords = new Map(
+      [...recordsByScope.values()].flatMap((records) => [...records]),
+    );
+    for (const existing of existingAnnotations) {
+      const name = String(existing.producer_record_id);
+      const scope = name.split("/")[0] + "/";
+      if (
+        !annotationScopes.has(scope) ||
+        annotationRecords.has(name) ||
+        existing.status !== "active"
+      )
+        continue;
+      if (
+        existing.type === "correction" &&
+        !correctionFieldsByScope.get(scope)?.has(String(existing.field))
+      )
+        continue;
+      annotationRecords.set(name, { ...existing, status: "resolved" });
+    }
+    for (const [name, spec] of annotationRecords) {
+      const facade = this.facadeFromSource("DataAnnotation", {
+        apiVersion: INTAKE_API_VERSION,
+        namespace: "intake",
+        name,
+        spec,
+      });
+      visit(await facade.toMutation());
+    }
   }
 
   async toDatabaseMutationItems(): Promise<DatabaseMutationItem[]> {
-    const mutations = await this.toMutations();
+    const mutations: DatabaseMutationEnvelope[] = [];
+    await this.visitMutations((mutation) => {
+      if (!isCheckOnlyUpdateItem(mutation)) mutations.push(mutation);
+    });
     // Every facade has been drained into `mutations` (FK values already resolved
     // to primitives), so the facade graph is dead weight. A large source holds
     // hundreds of thousands of facades, each with its property caches — release

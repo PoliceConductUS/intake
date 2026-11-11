@@ -63,6 +63,134 @@ async function fixture() {
   return { dir, manifest, search, run, logs };
 }
 describe("Oregon transform", () => {
+  it.each(["Emergency Medical Dispatcher", "EMD Maintenance", "Instructor"])(
+    "filters personnel with only %s credentials and their otherwise empty agency",
+    async (certificate) => {
+      const f = await fixture();
+      const file = join(f.dir, "officer-13177-certificates-1.html");
+      await writeFile(
+        file,
+        (await readFile(file, "utf8")).replaceAll(
+          "Police Officer",
+          certificate,
+        ),
+      );
+      const result = await f.run();
+      for (const artifact of result.artifacts) {
+        if (artifact.kind !== "LicensingAuthorities")
+          expect(artifact.records).toEqual({});
+      }
+      expect(result.artifacts.some((a) => a.kind === "DataAnnotations")).toBe(
+        false,
+      );
+    },
+  );
+  it("filters personnel with no certificates", async () => {
+    const f = await fixture();
+    await writeFile(
+      join(f.dir, "officer-13177-certificates-1.html"),
+      (
+        await readFile(
+          new URL(
+            "./fixtures/oregon-dpsst/certificates-empty.html",
+            import.meta.url,
+          ),
+          "utf8",
+        )
+      ).replaceAll("65863", "13177"),
+    );
+    const result = await f.run();
+    expect(
+      result.artifacts.find((a) => a.kind === "Personnel")!.records,
+    ).toEqual({});
+    expect(
+      result.artifacts.find((a) => a.kind === "Agencies")!.records,
+    ).toEqual({});
+  });
+  it.each([
+    "Police Officer",
+    "Retired Police Officer",
+    "Corrections Officer",
+    "Parole & Probation Officer",
+    "Regulatory Specialist",
+    "Telecommunicator",
+    "Telecommunicator Maintenance",
+  ])(
+    "retains %s regardless of status, with their other credentials",
+    async (certificate) => {
+      const f = await fixture();
+      const file = join(f.dir, "officer-13177-certificates-1.html");
+      await writeFile(
+        file,
+        (await readFile(file, "utf8"))
+          .replaceAll("Police Officer", certificate)
+          .replace(certificate, "Emergency Medical Dispatcher")
+          .replaceAll("Expired", "Revoked"),
+      );
+      const result = await f.run();
+      expect(
+        Object.keys(
+          result.artifacts.find((a) => a.kind === "Personnel")!.records,
+        ),
+      ).toEqual(["13177"]);
+      expect(
+        Object.keys(
+          result.artifacts.find((a) => a.kind === "Agencies")!.records,
+        ),
+      ).toEqual(["ASH"]);
+      expect(
+        Object.keys(
+          result.artifacts.find((a) => a.kind === "Licenses")!.records,
+        ),
+      ).toContain("13177|Emergency Medical Dispatcher Advanced");
+    },
+  );
+  it("keeps a shared agency and only the qualifying person's relationships", async () => {
+    const f = await fixture();
+    const row = f.search.slice(
+      f.search.indexOf("<tr><td>"),
+      f.search.indexOf("</table>"),
+    );
+    await writeFile(
+      join(f.dir, "search-Smith-1.html"),
+      f.search.replace(
+        "</table>",
+        row
+          .replaceAll("13177", "13178")
+          .replaceAll("RecID=1", "RecID=3")
+          .replaceAll("Robert", "Robin") + "</table>",
+      ),
+    );
+    f.manifest.officers.push({
+      id: "13178",
+      employmentFiles: ["officer-13178-employment-1.html"],
+      certificateFiles: ["officer-13178-certificates-1.html"],
+    });
+    for (const kind of ["employment", "certificates"]) {
+      const html = (
+        await readFile(join(f.dir, `officer-13177-${kind}-1.html`), "utf8")
+      ).replaceAll("13177", "13178");
+      await writeFile(
+        join(f.dir, `officer-13178-${kind}-1.html`),
+        kind === "certificates"
+          ? html.replaceAll("Police Officer", "Emergency Medical Dispatcher")
+          : html,
+      );
+    }
+    await writeFile(join(f.dir, "manifest.json"), JSON.stringify(f.manifest));
+    const result = await f.run();
+    const get = (kind: string) =>
+      result.artifacts.find((a) => a.kind === kind)!.records;
+    expect(Object.keys(get("Personnel"))).toEqual(["13177"]);
+    expect(Object.keys(get("Agencies"))).toEqual(["ASH"]);
+    expect(Object.keys(get("AgencyPhoneNumbers"))).toHaveLength(1);
+    for (const kind of ["AgencyPersonnel", "Licenses", "LicenseActions"]) {
+      expect(Object.keys(get(kind)).length).toBeGreaterThan(0);
+      expect(
+        Object.keys(get(kind)).every((key) => key.startsWith("13177|")),
+      ).toBe(true);
+    }
+  });
   it("emits canonical records, complete episodes, separate certificate levels, and dated statuses", async () => {
     const f = await fixture();
     const result = await f.run();
@@ -91,7 +219,7 @@ describe("Oregon transform", () => {
     expect(Object.keys(get("LicenseActions"))).toHaveLength(4);
     expect(await f.run()).toEqual(result);
   });
-  it("skips scheduled hires and their Required certificate rows only until the hire date", async () => {
+  it("retains scheduled hires and their Required certificate rows before the hire date", async () => {
     const f = await fixture();
     await writeFile(
       join(f.dir, "search-Smith-1.html"),
@@ -115,12 +243,9 @@ describe("Oregon transform", () => {
         .replace(/(?:7\/31\/1986|8\/24\/1981|4\/12\/1982|6\/1\/2005)/g, ""),
     );
     const before = await f.run();
-    for (const kind of ["AgencyPersonnel", "Licenses", "LicenseActions"])
-      expect(
-        before.artifacts.find((artifact) => artifact.kind === kind)!.records,
-      ).toEqual({});
-    expect(f.logs.join("\n")).toMatch(/skipped.*13177.*2026-10-27/);
     const onDate = await f.run(new Date("2026-10-27T00:00:00Z"));
+    expect(before.artifacts).toEqual(onDate.artifacts);
+    expect(f.logs.join("\n")).not.toMatch(/skipped scheduled/);
     expect(
       Object.keys(
         onDate.artifacts.find(

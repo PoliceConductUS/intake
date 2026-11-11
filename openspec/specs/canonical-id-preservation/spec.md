@@ -1,8 +1,11 @@
 # canonical-id-preservation Specification
 
 ## Purpose
+
 TBD - created by archiving change add-tx-post-tcole. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Ledger seeded from external source-key to canonical-ID maps
 
 A one-time ledger-seed step SHALL transcribe the prior TCOLE identity maps

@@ -4,7 +4,6 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import pg from "pg";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
-import { GENERATED_MIGRATION_VERSIONS } from "../../../src/shared/io/generated/entity-specs.js";
 
 const MIGRATIONS_DIR = fileURLToPath(
   new URL("../../../supabase/migrations", import.meta.url),
@@ -74,7 +73,8 @@ export async function startIntakeDatabase(): Promise<IntakeDatabase> {
   // Provision the schema by applying the real migrations in filename order, so the
   // container's schema is exactly what the migrations produce (no drift from a
   // hand-maintained dump). The migrations define generate_cuid() themselves.
-  for (const migration of await readMigrationsInOrder()) {
+  const migrations = await readMigrationsInOrder();
+  for (const migration of migrations) {
     try {
       await admin.query(migration.sql);
     } catch (error) {
@@ -85,15 +85,15 @@ export async function startIntakeDatabase(): Promise<IntakeDatabase> {
   }
   await admin.query("set search_path to public");
   // The import pipeline verifies the database's applied migrations match the
-  // generated envelope specs, so provision the same versions it expects.
+  // generated envelope specs. Record what was actually applied.
   await admin.query("create schema if not exists supabase_migrations");
   await admin.query(
     "create table if not exists supabase_migrations.schema_migrations (version text primary key, statements text[], name text)",
   );
-  for (const version of GENERATED_MIGRATION_VERSIONS) {
+  for (const migration of migrations) {
     await admin.query(
       "insert into supabase_migrations.schema_migrations (version) values ($1) on conflict do nothing",
-      [version],
+      [migration.name.split("_")[0]],
     );
   }
 

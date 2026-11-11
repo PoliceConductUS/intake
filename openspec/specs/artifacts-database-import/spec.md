@@ -3,7 +3,9 @@
 ## Purpose
 
 TBD - created by archiving change import-artifacts-to-database. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Manifest Import Command
 
 The intake CLI MUST provide `intake import artifacts <artifacts-ref>` to import an existing local `Artifacts` envelope without running a source module.

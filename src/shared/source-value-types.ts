@@ -9,6 +9,8 @@ type Field = {
   nullable: boolean;
 };
 export type SourceValueDefect = {
+  rule: string;
+  type: "warning" | "error";
   field: string;
   value: unknown;
   required: boolean;
@@ -73,10 +75,7 @@ function validUrl(value: string): boolean {
     return false;
   }
 }
-// Longest span we will accept as one real assignment. The TCOLE 2025-02-10
-// production's longest genuine completed assignment is 50.8 years and its next
-// longest "assignment" is a 93.9-year row created by a mistyped END_DATE, so the
-// threshold is a conservative review gate, not proof of the correct date.
+// Existing duration threshold identifies a review concern, not proof of error.
 export const MAX_RANGE_YEARS = 70;
 const DAYS_PER_YEAR = 365.25;
 const MS_PER_DAY = 86_400_000;
@@ -87,29 +86,21 @@ const asDate = (value: unknown): Date | undefined => {
   return Number.isNaN(date.getTime()) ? undefined : date;
 };
 
-/**
- * Defects in a `start_date`/`end_date` pair that no clock can resolve: an end
- * before its own start, or a span no career contains. Both mean the source's own
- * record is wrong, so they are reported at ingest rather than discovered on a
- * published page -- INS-88 shipped a live profile claiming a named jailer
- * separated in 2109, which TCOLE's production really does say.
- *
- * The value is reported but kept. `end_date is null` is the corpus's encoding
- * for *currently employed*, so dropping an impossible separation date here would
- * trade a false date for a false present-tense employment claim about a named
- * person. DataContext omits the record for this generation. A later run evaluates
- * the source again after applying conditional corrections.
- *
- * Future dates are checked separately against the intake validation day.
- */
+/** Findings preserve reported values; duration concerns are warnings. */
 export function dateRangeDefects(
   spec: Record<string, unknown>,
 ): SourceValueDefect[] {
   const start = asDate(spec.start_date);
   const end = asDate(spec.end_date);
   if (start === undefined || end === undefined) return [];
-  const defect = (reason: string): SourceValueDefect[] => [
+  const defect = (
+    reason: string,
+    rule: string,
+    type: "warning" | "error",
+  ): SourceValueDefect[] => [
     {
+      type,
+      rule,
       field: "end_date",
       value: spec.end_date,
       required: false,
@@ -120,11 +111,15 @@ export function dateRangeDefects(
   if (end.getTime() < start.getTime())
     return defect(
       `end_date precedes start_date ${JSON.stringify(spec.start_date)}`,
+      "reversed-date-range",
+      "error",
     );
   const years = (end.getTime() - start.getTime()) / MS_PER_DAY / DAYS_PER_YEAR;
   return years > MAX_RANGE_YEARS
     ? defect(
-        `end_date is ${years.toFixed(1)} years after start_date ${JSON.stringify(spec.start_date)}, over the ${MAX_RANGE_YEARS}-year limit`,
+        `end_date is ${years.toFixed(1)} years after start_date ${JSON.stringify(spec.start_date)}, over the ${MAX_RANGE_YEARS}-year review threshold`,
+        "long-date-range",
+        "warning",
       )
     : [];
 }
@@ -134,7 +129,7 @@ export function cleanSourceValues(
   input: Record<string, unknown>,
   validationDate: Date = new Date(),
 ): { spec: Record<string, unknown>; defects: SourceValueDefect[] } {
-  let spec = input;
+  const spec = input;
   const today = validationDate.toISOString().slice(0, 10);
   const defects: SourceValueDefect[] = [...dateRangeDefects(input)];
   for (const [field, value] of Object.entries(input)) {
@@ -149,6 +144,8 @@ export function cleanSourceValues(
     const date = asDate(value);
     if (date !== undefined && date.toISOString().slice(0, 10) > today) {
       defects.push({
+        type: "warning",
+        rule: "future-date",
         field,
         value,
         required: false,
@@ -165,17 +162,21 @@ export function cleanSourceValues(
       (field.type === "phone"
         ? validPhone(value)
         : field.type === "email"
-          ? email.safeParse(value).success
+          ? value
+              .trim()
+              .replace(/\.$/, "")
+              .split(/[;,]/)
+              .every((address) => email.safeParse(address.trim()).success)
           : validUrl(value));
     if (valid) continue;
-    if (spec === input) spec = { ...input };
-    delete spec[field.name];
     defects.push({
+      type: "error",
+      rule: `invalid-${field.type}`,
       field: field.name,
       value,
       required: field.required,
       reason: `invalid ${field.type} value`,
-      omitted: true,
+      omitted: false,
     });
   }
   return { spec, defects };
