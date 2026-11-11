@@ -5,6 +5,9 @@ context: |
   Purpose: Supabase database schema and seed data split from police-conduct-app-01.
   Stack: Supabase CLI, PostgreSQL migrations, SQL seed data, OpenSpec with superpowers-bridge.
   ID requirements: the database must never generate durable IDs; seed/migration IDs must be explicit and checked in, while imported canonical IDs may be assigned by intake only through durable source-key mappings.
+  Write-path policy: persisted data enters the database only through canonical envelopes and recorded mutations, for manual, source-produced, and root-intake records alike. No direct-write or post-apply persistence bypasses.
+  Apply policy: data generate calculates changes; data up only applies recorded mutations and tracks them in the chain ledger. Repeating up is fully idempotent; no pending mutations means no data changes. Up must never calculate new records, annotations, resolutions, or IDs.
+  Record identity: every record retains its native canonical ID across runs, content changes, and lifecycle changes, including resolution, retirement, and reactivation. This applies to all record types and producers, including annotations. Imported canonical IDs are resolved through durable source-name mappings before mutation generation.
   Conflict policy: seed data must fail loudly on duplicates; do not add ON CONFLICT, upsert, or DO NOTHING to hide bad data.
   Integrity policy: do not disable triggers or use session_replication_role=replica for seeds unless an approved exception is documented.
 

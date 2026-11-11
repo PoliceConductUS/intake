@@ -26,7 +26,6 @@ The module MUST also export a valid `produces` declaration as specified by deriv
 - **WHEN** the same input paths are processed twice
 - **THEN** `run` returns the identical manifest both times
 
-
 #### Scenario: Missing produces fails early
 
 - **WHEN** a source module omits its `produces` declaration

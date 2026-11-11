@@ -1,8 +1,11 @@
 # agency-place-containment Specification
 
 ## Purpose
+
 TBD - created by archiving change enforce-agency-place-containment. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Address-derived places follow spatial evidence
 
 Agency location resolution SHALL use exactly one containing place in the first
