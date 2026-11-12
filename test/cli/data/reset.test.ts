@@ -41,6 +41,7 @@ async function fixture() {
     logger: { info: vi.fn() },
     orderedSourceIds: async () => ["places", "agencies"],
     acquiredInputs: async (_source: string): Promise<string[] | null> => null,
+    sourceProduces: async (_source: string): Promise<"LocationPaths"[]> => [],
     resetDatabase: vi.fn(async () => {
       calls.push("schema reset");
       expect(await readFile(path.join(chain, "old.txt"), "utf8")).toBe(
@@ -117,11 +118,12 @@ test("default reset acquires automatic sources but never starts a manual intervi
   );
 });
 
-test("applies manual geography after Census and before agencies", async () => {
+test("applies manual geography after the location producer and before agencies", async () => {
   const f = await fixture();
   const deps = {
     ...f.deps,
-    orderedSourceIds: async () => ["us-census-gazetteer", "agencies"],
+    sourceProduces: async (source: string): Promise<"LocationPaths"[]> =>
+      source === "places" ? ["LocationPaths"] : [],
     prepareManualLocations: async () => {
       f.calls.push("manual geography");
       return { exitCode: 0 };
@@ -129,8 +131,8 @@ test("applies manual geography after Census and before agencies", async () => {
   };
   expect((await resetData({ acquire: false }, deps)).exitCode).toBe(0);
   expect(f.calls.slice(1, 10)).toEqual([
-    "data transform us-census-gazetteer",
-    "data generate us-census-gazetteer",
+    "data transform places",
+    "data generate places",
     "data up",
     "manual geography",
     "data generate org.policeconduct.manual",

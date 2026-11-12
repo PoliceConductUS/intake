@@ -12,13 +12,11 @@ import { CurrentRowReader } from "../../../src/cli/import/artifacts/current-row-
 import { listEntries } from "../../../src/cli/data/chain.js";
 import { DatabaseMutations } from "../../../src/cli/import/artifacts/io/DatabaseMutations.js";
 import {
-  dockerAvailable,
   startIntakeDatabase,
   type IntakeDatabase,
 } from "../database/intake-postgres.js";
 
-const withDocker = dockerAvailable() ? describe : describe.skip;
-withDocker("mutable entity edits through the data CLI", () => {
+describe("mutable entity edits through the data CLI", () => {
   let db: IntakeDatabase;
   let workspace: string;
   const source = "org.policeconduct.manual";

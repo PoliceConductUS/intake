@@ -255,8 +255,6 @@ as it can from the terminal:
 - mise-managed tools from `mise.toml`, including Node.js, GitHub CLI, and uv
 - project npm dependencies, including local OpenSpec and Supabase CLI packages
 - Docker / Docker Desktop installation when possible
-- ignored `supabase/seed.sql` availability, including linking from another local
-  worktree when one already has the file
 - OpenSpec validation
 - Supabase CLI availability
 - Codex App or Codex CLI presence
@@ -294,11 +292,9 @@ npm run doctor
 
 - `supabase/config.toml` - Supabase local development configuration
 - `supabase/migrations/` - database migrations
-- `supabase/seed.sql` - transitional seed data for the current schema; replace
-  with archive-driven reset/load. This file is ignored because it is large; the
-  bootstrap script or `npm run link-seed` can link it from another local worktree
-  when available. `npm run link-seed` also verifies the checkout is an active git
-  worktree and that `supabase/seed.sql` is ignored before creating the link.
+- `supabase/seed.sql` - retired legacy seed data. It is ignored by git, is not
+  loaded by `db reset`, and is kept only as the record of the legacy website
+  data.
 - `openspec/` - OpenSpec project configuration using the `superpowers-bridge` schema
 - `docs/adr/` - durable architecture decisions
 - `mise.toml` - mise-managed tool versions and shared environment variables
@@ -319,7 +315,6 @@ npm run
 npm run setup
 npm run doctor
 npm run setup -- --yes
-npm run link-seed
 npm run format
 npm run format:sql
 npm run lint
@@ -353,9 +348,7 @@ packages, and prints any manual follow-up needed before development starts.
 SQL formatting uses SQLFluff through `uvx`, so the repo does not need a checked
 in Python virtual environment. SQLFluff is Python-based, but `uvx` handles the
 tool environment and can use uv-managed Python when needed. `format:sql` and
-`lint:sql` target every SQL file SQLFluff finds in the repo, including
-`supabase/seed.sql`; review generated seed-data diffs carefully before deciding
-what to commit. SQL lint is available as a separate job because the current
+`lint:sql` target every SQL file SQLFluff finds in the repo. SQL lint is available as a separate job because the current
 checked-in SQL has existing style debt; add it to `validate` after the SQL
 baseline is cleaned.
 
@@ -443,19 +436,14 @@ mkdir -p .worktrees
 git worktree add .worktrees/<change-name> -b <change-name>
 ```
 
-Import `npm run supabase:reset` when migrations, seed data, database constraints,
-or post-seed assertions changed. Docker must be running first.
+Run `npm run supabase:reset` when migrations or database constraints changed.
+Docker must be running first.
 
 Commit messages must use Conventional Commits. See
 `docs/adr/0007-use-conventional-commits.md`.
 
 ## Seed Data Rules
 
-Follow `AGENTS.md` for stable ID, conflict-free seed data, and post-seed
-integrity requirements while `supabase/seed.sql` exists. In short: use checked-in
-stable IDs, let duplicates fail loudly, and add assertions for expected rows and
-relationships.
-
-`supabase/seed.sql` is not the target data-loading model. New intake behavior
-should move the project toward archive- and mapping-ledger-driven `intake file`
-and `intake reset` instead of expanding seed-based loading.
+`supabase/seed.sql` is retired and is not a way to load data. Supply data
+through an intake source or the data-mutation chain. `AGENTS.md` states the
+rules that apply to any edit of the file while it exists as the legacy record.

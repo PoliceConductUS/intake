@@ -3,19 +3,13 @@ import {
   defaultDatabaseClientFactory,
   rowsFromResult,
 } from "../../../src/cli/database/index.js";
-import {
-  dockerAvailable,
-  startIntakeDatabase,
-  type IntakeDatabase,
-} from "./intake-postgres.js";
-
-const describeWithDocker = dockerAvailable() ? describe : describe.skip;
+import { startIntakeDatabase, type IntakeDatabase } from "./intake-postgres.js";
 
 // The double behind the first spurious agency update: with the server's default
 // 15-digit float output it read back as 46.5180121602224 and diffed as changed.
 const COORDINATE = 46.518012160222426;
 
-describeWithDocker("database client float8 precision (real Postgres)", () => {
+describe("database client float8 precision (real Postgres)", () => {
   let db: IntakeDatabase;
   beforeAll(async () => {
     db = await startIntakeDatabase();

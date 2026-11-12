@@ -18,7 +18,6 @@ import { Artifacts } from "../../src/shared/io/Artifacts.js";
 import { persistSourceNameToCanonicalIds } from "../../src/cli/state/source-name-to-canonical-id/index.js";
 import { yamlResourceFileName } from "../../src/shared/io/resource.js";
 import {
-  dockerAvailable,
   startIntakeDatabase,
   type IntakeDatabase,
 } from "../cli/database/intake-postgres.js";
@@ -75,9 +74,7 @@ async function writeRefEnvelope(
   return written.path;
 }
 
-const describeWithDocker = dockerAvailable() ? describe : describe.skip;
-
-describeWithDocker("replay against a real Postgres", () => {
+describe("replay against a real Postgres", () => {
   let db: IntakeDatabase;
 
   beforeAll(async () => {

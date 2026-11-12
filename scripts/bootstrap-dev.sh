@@ -15,7 +15,6 @@ INSTALL_ITEMS=()
 INSTALL_COMMANDS=()
 MANUAL_ITEMS=()
 CHECK_ERRORS=()
-SEED_SQL_PATH="$ROOT_DIR/supabase/seed.sql"
 
 info() {
   printf '\033[1;34m==>\033[0m %s\n' "$*"
@@ -354,24 +353,6 @@ detect_project_tools() {
   fi
 }
 
-detect_seed_sql() {
-  local seed_source
-
-  info "Checking ignored Supabase seed file"
-
-  if [[ -r "$SEED_SQL_PATH" ]]; then
-    append_unique INFO_ITEMS "Supabase seed file is available at $SEED_SQL_PATH"
-    return
-  fi
-
-  if seed_source="$(bash scripts/link-seed.sh --source-only)"; then
-    append_unique INSTALL_ITEMS "local ignored Supabase seed.sql symlink from $seed_source"
-    append_unique INSTALL_COMMANDS "npm run link-seed"
-  else
-    append_unique MANUAL_ITEMS "provide ignored Supabase seed file at $SEED_SQL_PATH before running npm run supabase:reset"
-  fi
-}
-
 detect_codex_app() {
   info "Checking for Codex App"
 
@@ -413,7 +394,6 @@ detect_all() {
   detect_npm_dependencies
   detect_docker
   detect_project_tools
-  detect_seed_sql
   detect_codex_app
   detect_superpowers
 }
@@ -563,14 +543,6 @@ install_npm_dependencies_if_needed() {
   mise exec -- npm install
 }
 
-install_seed_sql_if_needed() {
-  if [[ -r "$SEED_SQL_PATH" ]]; then
-    return
-  fi
-
-  mise exec -- npm run link-seed
-}
-
 install_missing() {
   install_homebrew_if_needed
   install_brewfile_if_needed
@@ -581,7 +553,6 @@ install_missing() {
   install_mise_tools_if_needed
   install_docker_if_needed
   install_npm_dependencies_if_needed
-  install_seed_sql_if_needed
 }
 
 verify_github_cli_auth() {

@@ -1,0 +1,47 @@
+{
+  "enabledPlugins": {
+    "ecc@ecc": false,
+    "marketing@knowledge-work-plugins": false
+  },
+  "permissions": {
+    "deny": [
+      "Agent(accessibility-specialist)",
+      "Agent(ai-engineer)",
+      "Agent(api-documenter)",
+      "Agent(arbitrage-bot)",
+      "Agent(backend-architect)",
+      "Agent(blockchain-developer)",
+      "Agent(cloud-architect)",
+      "Agent(code-reviewer)",
+      "Agent(crypto-analyst)",
+      "Agent(crypto-risk-manager)",
+      "Agent(crypto-trader)",
+      "Agent(data-engineer)",
+      "Agent(data-scientist)",
+      "Agent(database-optimizer)",
+      "Agent(debugger)",
+      "Agent(defi-strategist)",
+      "Agent(deployment-engineer)",
+      "Agent(devops-troubleshooter)",
+      "Agent(directus-developer)",
+      "Agent(documentation-writer)",
+      "Agent(drupal-developer)",
+      "Agent(frontend-developer)",
+      "Agent(game-developer)",
+      "Agent(golang-pro)",
+      "Agent(graphql-architect)",
+      "Agent(legacy-modernizer)",
+      "Agent(ml-engineer)",
+      "Agent(mobile-developer)",
+      "Agent(payment-integration)",
+      "Agent(performance-engineer)",
+      "Agent(python-pro)",
+      "Agent(quant-analyst)",
+      "Agent(rust-pro)",
+      "Agent(security-auditor)",
+      "Agent(test-automator)",
+      "Agent(typescript-expert)",
+      "Agent(ui-ux-designer)"
+    ]
+  }
+}

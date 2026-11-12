@@ -12,17 +12,14 @@ import {
 import { importArtifacts } from "./completed-artifacts.js";
 import { Artifacts } from "../../src/shared/io/Artifacts.js";
 import {
-  dockerAvailable,
   startIntakeDatabase,
   type IntakeDatabase,
 } from "../cli/database/intake-postgres.js";
 
-const describeWithDocker = dockerAvailable() ? describe : describe.skip;
-
 // End-to-end smoke of the 3NF license model + business-key convergence: a Personnel,
 // an AuthorityLicense (its type), and TWO Licenses that resolve to the SAME
 // (personnel_id, authority_license_id) business key must land as ONE license row.
-describeWithDocker("authority_license + license import (real Postgres)", () => {
+describe("authority_license + license import (real Postgres)", () => {
   let db: IntakeDatabase;
 
   beforeAll(async () => {

@@ -21,13 +21,11 @@ import {
 } from "../../src/shared/io/index.js";
 import { persistSourceNameToCanonicalIds } from "../../src/cli/state/source-name-to-canonical-id/index.js";
 import {
-  dockerAvailable,
   startIntakeDatabase,
   type IntakeDatabase,
 } from "../cli/database/intake-postgres.js";
 
-const describeWithDocker = dockerAvailable() ? describe : describe.skip;
-describeWithDocker("initial agency roots in the shared import pipeline", () => {
+describe("initial agency roots in the shared import pipeline", () => {
   let db: IntakeDatabase;
   let root: string;
   const roots: string[] = [];

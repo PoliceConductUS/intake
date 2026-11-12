@@ -10,13 +10,11 @@ import { Artifacts } from "../../../src/shared/io/Artifacts.js";
 import { listEntries } from "../../../src/cli/data/chain.js";
 import { DatabaseMutations } from "../../../src/cli/import/artifacts/io/DatabaseMutations.js";
 import {
-  dockerAvailable,
   startIntakeDatabase,
   type IntakeDatabase,
 } from "../database/intake-postgres.js";
 
-const withDocker = dockerAvailable() ? describe : describe.skip;
-withDocker("streamed geometry updates through the data CLI", () => {
+describe("streamed geometry updates through the data CLI", () => {
   let db: IntakeDatabase;
   let workspace: string;
   const source = "org.policeconduct.manual";

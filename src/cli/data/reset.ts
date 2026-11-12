@@ -3,6 +3,7 @@ import { rename } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { CommandResult } from "../../shared/cli/types.js";
+import type { ImportArtifactKind } from "../../shared/io/index.js";
 import {
   createCommandDirectory,
   intakeWorkspace,
@@ -10,7 +11,10 @@ import {
 import { orderedSourceIds, transformOneSource } from "./source-pipeline.js";
 
 import { retainedAcquiredInputs } from "./acquired-inputs.js";
-import { loadSourceStandalone } from "../transform/load-source-module.js";
+import {
+  loadSourceProduces,
+  loadSourceStandalone,
+} from "../transform/load-source-module.js";
 import {
   readCommandPointer,
   writeCommandPointer,
@@ -22,6 +26,7 @@ type ResetDependencies = {
   logger: { info(message: string): void };
   orderedSourceIds?: () => Promise<string[]>;
   acquiredInputs?: (source: string) => Promise<string[] | null>;
+  sourceProduces?: (source: string) => Promise<readonly ImportArtifactKind[]>;
   resetDatabase?: (env: Record<string, string | undefined>) => Promise<void>;
   runDataCommand?: (
     args: readonly string[],
@@ -118,9 +123,7 @@ export async function resetData(
         throw new Error(result.stderr?.trim() || `${phase} failed.`);
       if (result.stdout?.trim()) logger.info(result.stdout.trim());
     };
-    for (const source of [...sources, "org.policeconduct.manual"]) {
-      if (options.acquire && source !== "org.policeconduct.manual")
-        await executePhase(["data", "acquire", source]);
+    const rebuildSource = async (source: string) => {
       phase = `inventory acquisitions ${source}`;
       const inputs = await (
         dependencies.acquiredInputs ??
@@ -151,7 +154,20 @@ export async function resetData(
         if (pointer !== null)
           await writeCommandPointer(state, "acquire", pointer);
       }
-      if (source === "us-census-gazetteer") {
+    };
+    const sourceProduces =
+      dependencies.sourceProduces ??
+      ((id: string) =>
+        loadSourceProduces(id, path.join(process.cwd(), "sources")));
+    let lastLocationProducer: string | undefined;
+    for (const source of sources) {
+      if ((await sourceProduces(source)).includes("LocationPaths"))
+        lastLocationProducer = source;
+    }
+    for (const source of sources) {
+      if (options.acquire) await executePhase(["data", "acquire", source]);
+      await rebuildSource(source);
+      if (source === lastLocationProducer) {
         phase = "preparing manual locations";
         logger.info(`data reset: ${phase}`);
         const prepared = await (
@@ -174,6 +190,7 @@ export async function resetData(
         await executePhase(["data", "up"]);
       }
     }
+    await rebuildSource("org.policeconduct.manual");
     return {
       exitCode: 0,
       stdout: `data reset: rebuilt ${sources.length} source(s) and manual records${options.acquire ? "" : " without acquisition"}.\n`,

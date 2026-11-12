@@ -14,6 +14,7 @@
     "build": "tsc -p tsconfig.build.json",
     "generate:envelope-types": "tsx scripts/generate-envelope-types.ts",
     "generate:data-request-doc": "tsx scripts/generate-data-request-doc.ts",
+    "prepare": "git config core.hooksPath scripts/git-hooks",
     "setup": "bash scripts/bootstrap-dev.sh",
     "doctor": "bash scripts/bootstrap-dev.sh --check",
     "cli": "NODE_OPTIONS=\"${NODE_OPTIONS:-} --max-old-space-size=12288\" tsx src/cli/index.ts",
