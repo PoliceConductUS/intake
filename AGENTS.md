@@ -11,7 +11,8 @@ and say so instead of guessing.
 
 ## Scope Of A Change
 
-Most bad changes in this repo are unrequested ones. Hold this line first.
+Most bad changes in this repo are unrequested ones or designs nobody
+approved. Hold this line first.
 
 - Do exactly what was asked, with the narrowest change that fully produces the
   outcome. A direct request for a fix or implementation is approval for the
@@ -20,6 +21,10 @@ Most bad changes in this repo are unrequested ones. Hold this line first.
 - Do not refactor, rename, reformat, re-order, delete, or "improve" code, tests,
   data, or docs the request does not require. When you notice something worth
   changing outside the request, report it after the work and wait.
+- When a change needs a design decision (a new module, pipeline stage, table,
+  envelope kind, or contract, or more than one reasonable approach), state the
+  approach in a few lines and wait for approval before writing code. A small
+  fix with one obvious implementation needs no design step.
 - Stop and get approval before editing only when the change introduces an
   architectural compromise, weakens an invariant, changes data semantics,
   touches unrelated behavior, or has materially risky or ambiguous scope.
