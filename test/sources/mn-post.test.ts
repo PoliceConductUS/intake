@@ -1,3 +1,4 @@
+import { ORDER_ANALYSIS_PROMPT_SHA256 } from "../../sources/mn-post/acquire/order-prompt.js";
 import { createHash } from "node:crypto";
 import { stringify as stringifyYaml, parse as parseYaml } from "yaml";
 import { documentStem } from "../../sources/mn-post/acquire/collect-documents.js";
@@ -213,7 +214,10 @@ const document0031 = JSON.stringify({
     sanction: "license REVOKED, stayed 6 years; SUSPENDED 25 days; CENSURED",
   },
   absenceReasons: {},
-  analyzedWith: { model: "test-model", promptVersion: 2 },
+  analyzedWith: {
+    model: "test-model",
+    promptSha256: ORDER_ANALYSIS_PROMPT_SHA256,
+  },
 });
 
 let sourceDir: string;
@@ -325,7 +329,7 @@ describe("mn-post document completion", () => {
           }),
           analyzer: {
             model: "test",
-            promptVersion: 2,
+            promptSha256: ORDER_ANALYSIS_PROMPT_SHA256,
             analyze: async () => ({
               analysis: {
                 allegation: null,

@@ -1,3 +1,4 @@
+import { ORDER_ANALYSIS_PROMPT_SHA256 } from "../../../../sources/mn-post/acquire/order-prompt.js";
 import { createHash } from "node:crypto";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -30,7 +31,10 @@ async function fixture(change: (doc: Record<string, any>) => void) {
       chief_action: null,
       sanction: "Board suspended license.",
     },
-    analyzedWith: { model: "automated", promptVersion: 2 },
+    analyzedWith: {
+      model: "automated",
+      promptSha256: ORDER_ANALYSIS_PROMPT_SHA256,
+    },
   };
   change(doc);
   const file = path.join(root, "order.document.json");
@@ -68,7 +72,7 @@ it("rejects blank narratives instead of treating empty text as a value", async (
 });
 it("rejects old completed analysis even if its narratives are populated", async () => {
   const file = await fixture((doc) => {
-    doc.analyzedWith.promptVersion = 1;
+    doc.analyzedWith.promptSha256 = "0".repeat(64);
     doc.analysis = {
       allegation: "Basis",
       violation: "Rule",
@@ -136,10 +140,10 @@ it("enforces valid null reasons for Codex evidence with page receipts", async ()
     validReasons,
   );
 });
-it("rejects unsupported document prompt versions", async () => {
+it("rejects unsupported document prompt fingerprints", async () => {
   const file = await fixture((doc) => {
-    doc.analyzedWith.promptVersion = 99;
+    doc.analyzedWith.promptSha256 = "f".repeat(64);
     doc.absenceReasons = validReasons;
   });
-  await expect(readDocumentEvidence(file)).rejects.toThrow(/promptVersion/);
+  await expect(readDocumentEvidence(file)).rejects.toThrow(/promptSha256/);
 });

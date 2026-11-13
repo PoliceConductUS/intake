@@ -1,8 +1,8 @@
+import { ORDER_ANALYSIS_PROMPT_SHA256 } from "./order-prompt.js";
 import {
   readDocumentEvidence,
-  readPriorDocumentEvidence,
+  readPreservedDocumentEvidence,
   OrderAnalysisResultSchema,
-  ORDER_ANALYSIS_PROMPT_VERSION,
 } from "./document-evidence.js";
 import crypto from "node:crypto";
 import {
@@ -53,7 +53,7 @@ export type CodexDocumentReviewReceipt = {
 };
 export type OrderAnalyzer = {
   model: string;
-  promptVersion: number;
+  promptSha256: string;
   analyze(text: string): Promise<OrderAnalysisResult>;
 };
 
@@ -69,7 +69,7 @@ export type DisciplinaryDocument = {
   text: string;
   analysis: OrderAnalysis;
   absenceReasons: AnalysisAbsenceReasons;
-  analyzedWith: { model: string; promptVersion: number };
+  analyzedWith: { model: string; promptSha256: string };
   reviewReceipt?: CodexDocumentReviewReceipt;
 };
 
@@ -83,7 +83,7 @@ type DocumentCache = {
   text?: DocumentText;
   analysis?: {
     model: string;
-    promptVersion: number;
+    promptSha256: string;
     output: OrderAnalysis;
     absenceReasons: AnalysisAbsenceReasons;
     reviewReceipt?: CodexDocumentReviewReceipt;
@@ -121,6 +121,8 @@ export async function collectDocuments({
   now,
   logger = silentLogger,
 }: CollectDocumentsDeps): Promise<{ skippedDocuments: SkippedDocument[] }> {
+  if (analyzer.promptSha256 !== ORDER_ANALYSIS_PROMPT_SHA256)
+    throw new Error("mn-post: analyzer does not use the current prompt");
   const documentsDir = path.join(sourceDir, "documents");
   const cacheDir = path.join(statePath, "documents");
   await mkdir(documentsDir, { recursive: true });
@@ -150,8 +152,10 @@ export async function collectDocuments({
       const documentPath = path.join(documentsDir, `${stem}.document.json`);
       const previous =
         await readJsonIfExists<DisciplinaryDocument>(documentPath);
-      if (previous?.analyzedWith?.promptVersion === 1) {
-        const prior = await readPriorDocumentEvidence(documentPath);
+      if (
+        previous?.analyzedWith?.promptSha256 !== ORDER_ANALYSIS_PROMPT_SHA256
+      ) {
+        const prior = await readPreservedDocumentEvidence(documentPath);
         if (prior.url !== reference.url)
           throw new Error(
             `mn-post document URL does not match ${reference.url}`,
@@ -221,14 +225,14 @@ export async function collectDocuments({
     const text = joinPages(cache.text!);
     const isCodexReview =
       cache.analysis?.model === "codex-document-review" &&
-      cache.analysis.promptVersion === analyzer.promptVersion &&
+      cache.analysis.promptSha256 === analyzer.promptSha256 &&
       cache.analysis.reviewReceipt?.method === "codex-document-review" &&
       cache.analysis.reviewReceipt.fieldEvidence !== undefined;
     if (
       cache.analysis === undefined ||
       (!isCodexReview &&
         (cache.analysis.model !== analyzer.model ||
-          cache.analysis.promptVersion !== analyzer.promptVersion))
+          cache.analysis.promptSha256 !== analyzer.promptSha256))
     ) {
       logger.info(
         `mn-post: ${position} analyzing ${describeActions(entry.reference.actions)}`,
@@ -238,14 +242,14 @@ export async function collectDocuments({
       );
       cache.analysis = {
         model: analyzer.model,
-        promptVersion: analyzer.promptVersion,
+        promptSha256: analyzer.promptSha256,
         output: result.analysis,
         absenceReasons: result.absenceReasons,
       };
       await writeJson(entry.cachePath, cache);
     }
 
-    if (cache.analysis.promptVersion !== ORDER_ANALYSIS_PROMPT_VERSION)
+    if (cache.analysis.promptSha256 !== ORDER_ANALYSIS_PROMPT_SHA256)
       throw new Error("mn-post: analysis uses a stale prompt contract");
     const completed = OrderAnalysisResultSchema.parse({
       analysis: cache.analysis.output,
@@ -264,7 +268,7 @@ export async function collectDocuments({
       absenceReasons: completed.absenceReasons,
       analyzedWith: {
         model: cache.analysis.model,
-        promptVersion: cache.analysis.promptVersion,
+        promptSha256: cache.analysis.promptSha256,
       },
       ...(cache.analysis.reviewReceipt === undefined
         ? {}
