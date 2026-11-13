@@ -22,3 +22,8 @@
 - [x] Add failing synthetic receipt replay and source-binding tests.
 - [x] Implement explicit unsummarized receipt registration and paired acquisition replay.
 - [x] Run focused tests, typecheck, and OpenSpec validation without real state registration.
+
+## Remove unrequested provenance requirements
+
+- [x] Require only summary text and complaint link across intake, SQL, and website.
+- [x] Verify minimal summaries, retained metadata, and invalid rendered fields.

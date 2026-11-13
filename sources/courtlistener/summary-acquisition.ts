@@ -407,26 +407,8 @@ function validateReview(
     receipt.promptVersion !== promptVersion ||
     receipt.sourceSha256 !== prepared.hash ||
     receipt.textSha256 !== createHash("sha256").update(text).digest("hex") ||
-    summary.source.sha256 !== prepared.hash ||
-    summary.source.sha1 !== prepared.doc.sha1 ||
-    summary.source.documentId !== prepared.doc.id ||
     summary.source.sourcePage !==
-      new URL(prepared.doc.absolute_url, "https://www.courtlistener.com")
-        .href ||
-    summary.source.documentNumber !== prepared.doc.document_number ||
-    summary.source.filingDate !== prepared.date ||
-    summary.source.url !== prepared.url.href ||
-    JSON.stringify(receipt.paragraphEvidence) !==
-      JSON.stringify(summary.support) ||
-    summary.support.length !== summary.summary.split(/\n\s*\n/).length ||
-    summary.support.some(
-      (p, i) =>
-        p.paragraph !== i + 1 ||
-        !/^[\d\s,–—-]+$/.test(p.pages) ||
-        (p.pages.match(/\d+/g) ?? []).some(
-          (n) => Number(n) < 1 || Number(n) > text.split("\f").length,
-        ),
-    )
+      new URL(prepared.doc.absolute_url, "https://www.courtlistener.com").href
   )
     throw new Error(
       "Complaint review does not match the acquired evidence or current contract",
