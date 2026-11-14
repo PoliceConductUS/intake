@@ -70,7 +70,7 @@ describe("isQuotaExhaustedBody", () => {
 function apiWith(jsonByUrl: Record<string, unknown>) {
   const jsonCalls: string[] = [];
   const api = createYoutubeApi({
-    fetchJson: async (url) => {
+    fetchJson: async (url: string) => {
       jsonCalls.push(url);
       const key = Object.keys(jsonByUrl).find((k) => url.includes(k));
       return (key === undefined ? {} : jsonByUrl[key]) as Record<
@@ -140,6 +140,15 @@ describe("youtube api client", () => {
     });
   });
 
+  // No caption track: youtube.com/robots.txt disallows /api/, where
+  // /api/timedtext lives, so the client fetches the Data API only.
+  it("exposes only the Data API calls", () => {
+    const { api } = apiWith({});
+    expect(Object.keys(api).sort()).toEqual([
+      "resolveChannelId",
+      "searchChannelVideos",
+    ]);
+  });
   // INS-72: www.youtube.com/robots.txt disallows /api/, so this client must
   // never reach that host — only the keyed Data API on googleapis.com.
   it("only ever requests the keyed Data API host", async () => {
