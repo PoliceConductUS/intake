@@ -70,3 +70,5 @@ The full local run started in visible installed Google Chrome on November 14, 20
 - `sources/lib/news.ts` uses the article’s extracted text to request matching assignment IDs for local inference.
 - `test/sources/news/local.test.ts`, `test/sources/news/local-browser.test.ts` and `test/cli/acquire/acquire-data-context.test.ts` cover query order, agency-only searches, resume, verification, and evidence across agencies.
 - `README.md` documents the local command and inference settings. The change’s `proposal.md`, `design.md`, `plan.md`, `specs/release-page-updates/spec.md`, `tasks.md` and this `verify.md` describe the behavior and the checks.
+
+The first live verification exposed ten news cards with opaque Google redirect links. The corrected reader recognized all ten cards and the next-page link from the captured results. The restarted acquisition reused the verified private Chrome profile, reached publisher pages and checkpointed extracted articles. The browser regression covers delayed results after verification and a redirect to the publisher.

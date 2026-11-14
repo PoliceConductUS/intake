@@ -101,4 +101,4 @@ Technical details still to select include the source of valid form-release IDs, 
 
 ## Local agency and officer searches
 
-Search the agency name first, including agencies without assigned personnel. Then search each officer’s name together with the agency name. Finish each query’s past-week results before advancing. Persist the query and result position. When Google requests human verification, bring the search tab forward and wait for the operator to complete it in that tab. Use the local chat inference service for article analysis.
+Search the agency name first, including agencies without assigned personnel. Then search each officer’s name together with the agency name. Finish each query’s past-week results before advancing. Persist the query and result position. When Google requests human verification, bring the search tab forward and wait for the operator to complete it in that tab. Reuse a dedicated Chrome profile in the private source state on resume. Wait for recognized results or an explicit empty result, and follow Google News redirects to their publisher pages. Use the local chat inference service for article analysis.

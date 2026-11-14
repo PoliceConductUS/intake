@@ -2,7 +2,7 @@ import { readFile, writeFile, rename, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { createId } from "@paralleldrive/cuid2";
 import { chromium } from "playwright";
-import { searchGoogleNews } from "./browser.js";
+import { openPublisher, searchGoogleNews } from "./browser.js";
 import type { SourceAcquire } from "../../src/cli/transform/source-transform.js";
 import {
   processNewsOccurrence,
@@ -24,6 +24,7 @@ type Acquisition = {
 };
 export const acquire: SourceAcquire = async ({
   sourceDir,
+  state,
   previousSourceDirs = [],
   env,
   data,
@@ -55,16 +56,19 @@ export const acquire: SourceAcquire = async ({
   const selectors: Record<string, string> = env.NEWS_CORRECTED_SELECTORS
     ? JSON.parse(await readFile(env.NEWS_CORRECTED_SELECTORS, "utf8"))
     : {};
-  const browser = await chromium.launch({
-    channel: "chrome",
-    headless: false,
-    handleSIGINT: false,
-    handleSIGTERM: false,
-    executablePath: env.CHROME_EXECUTABLE_PATH,
-  });
-  const context = await browser.newContext();
+  const context = await chromium.launchPersistentContext(
+    join(state, "chrome-profile"),
+    {
+      channel: "chrome",
+      headless: false,
+      handleSIGINT: false,
+      handleSIGTERM: false,
+      executablePath: env.CHROME_EXECUTABLE_PATH,
+    },
+  );
+  const page = context.pages()[0] ?? (await context.newPage());
   const reader = await context.newPage();
-  const page = await context.newPage();
+  await page.bringToFront();
   let stopping = false;
   const stop = () => {
     stopping = true;
@@ -86,24 +90,33 @@ export const acquire: SourceAcquire = async ({
   }
   async function readOccurrence(url: string) {
     const cached = saved.evidence[url];
-    const correctedSelector = selectors[url];
-    if (cached && (!correctedSelector || cached.selector === correctedSelector))
+    if (cached && (!selectors[url] || cached.selector === selectors[url]))
       return cached;
     let response;
     try {
-      response = await reader.goto(url, { waitUntil: "domcontentloaded" });
+      response = await openPublisher(reader, url, (message) =>
+        logger?.info(message),
+      );
     } catch (error) {
       return unavailable(url, String(error));
     }
     if (!response?.ok())
       return unavailable(url, "HTTP " + (response?.status() ?? "no response"));
+    const publisherUrl = reader.url();
+    const correctedSelector = selectors[publisherUrl];
+    const previous = saved.evidence[publisherUrl];
+    if (
+      previous &&
+      (!correctedSelector || previous.selector === correctedSelector)
+    )
+      return previous;
     let occurrence: NewsOccurrence;
     try {
       occurrence = await processNewsOccurrence({
         html: await reader.content(),
-        url: reader.url(),
+        url: publisherUrl,
         correctedSelector,
-        domainRank: domainRankFor(reader.url(), ranks),
+        domainRank: domainRankFor(publisherUrl, ranks),
         assignments: newsAssignments,
         infer,
       });
@@ -113,7 +126,7 @@ export const acquire: SourceAcquire = async ({
       throw error;
     }
     if (saved.unavailable) delete saved.unavailable[url];
-    saved.evidence[url] = occurrence;
+    saved.evidence[publisherUrl] = occurrence;
     return occurrence;
   }
   try {
@@ -188,6 +201,6 @@ export const acquire: SourceAcquire = async ({
   } finally {
     process.off("SIGINT", stop);
     process.off("SIGTERM", stop);
-    await browser.close();
+    await context.close();
   }
 };
