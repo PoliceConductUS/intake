@@ -7,15 +7,26 @@ import path from "node:path";
 // quota). The cached video payload is each source's own shape.
 export const CACHE_FILE = "video-cache.json";
 
-export type AgencyVideoCacheEntry<TVideo> = {
+export type AcquiredVideo = {
+  videoId: string;
+  title: string;
+  description: string;
+  publishedAt: string;
+  channelId: string;
+  url: string;
+  /** When this video's metadata was retrieved from the API. */
+  retrievedAt: string;
+};
+
+export type AgencyVideoCacheEntry<TVideo = AcquiredVideo> = {
   years: Record<string, { searchedAt: string; videos: TVideo[] }>;
 };
 
-export type VideoCache<TVideo> = {
+export type VideoCache<TVideo = AcquiredVideo> = {
   agencies: Record<string, AgencyVideoCacheEntry<TVideo>>;
 };
 
-export async function loadVideoCache<TVideo>(
+export async function loadVideoCache<TVideo = AcquiredVideo>(
   stateDir: string,
 ): Promise<VideoCache<TVideo>> {
   try {
@@ -65,4 +76,49 @@ export function mergedVideos<TVideo extends { videoId: string }>(
     }
   }
   return [...byId.values()];
+}
+
+const MS_PER_DAY = 86_400_000;
+
+/**
+ * The year this run should search for an agency, or null when it is current.
+ *
+ * The current year's bucket is never "done" — the channel keeps publishing into
+ * it — so it is re-searched once its last search is older than `refreshDays`.
+ * Otherwise the newest not-yet-searched older year in the window is backfilled,
+ * newest first.
+ */
+export function planYearToAcquire(
+  entry: AgencyVideoCacheEntry | undefined,
+  options: {
+    floorYear: number;
+    currentYear: number;
+    now: Date;
+    refreshDays: number;
+  },
+): number | null {
+  const { floorYear, currentYear, now, refreshDays } = options;
+  const current = entry?.years[String(currentYear)];
+  if (current === undefined) return currentYear;
+  const searchedAt = Date.parse(current.searchedAt);
+  const staleAfterMs = Math.max(0, refreshDays) * MS_PER_DAY;
+  if (Number.isNaN(searchedAt) || now.getTime() - searchedAt >= staleAfterMs) {
+    return currentYear;
+  }
+  for (let year = currentYear - 1; year >= floorYear; year -= 1) {
+    if (entry?.years[String(year)] === undefined) return year;
+  }
+  return null;
+}
+
+/** The entry with buckets for years before `floorYear` dropped. */
+export function pruneYearsBefore(
+  entry: AgencyVideoCacheEntry,
+  floorYear: number,
+): AgencyVideoCacheEntry {
+  const years: AgencyVideoCacheEntry["years"] = {};
+  for (const [year, bucket] of Object.entries(entry.years)) {
+    if (Number(year) >= floorYear) years[year] = bucket;
+  }
+  return { years };
 }
