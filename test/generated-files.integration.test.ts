@@ -80,5 +80,5 @@ describe("generated files (real Postgres)", () => {
 
     expect(regenerated.size).toBeGreaterThan(0);
     expect(differing).toEqual([]);
-  });
+  }, 30_000);
 });
