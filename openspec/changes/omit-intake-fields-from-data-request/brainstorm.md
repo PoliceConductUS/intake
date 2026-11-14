@@ -46,14 +46,16 @@ Alternative A.
   `normalized_url`, `source_exclusions`, `source_namespaces`, `updated_by`.
 - Omitted record types: `AgencyArrestProfile`, `DataAnnotation`,
   `PersonnelPhoto`.
-- Which fields count as Institute-controlled was the implementer's reading of
-  the user's rule. Fields left in and not yet ruled on:
-  `CoverageLinkAgencyPersonnel.confidence`, `Agency.status` and `status_date`,
-  the `Personnel.deceased_*` fields, and the `Review*` and `CoverageLink*`
-  record types as a whole.
-- The format version in the document moves to `20261112000000`.
+- The user ruled that `Personnel.deceased_*`, the `Review*` record types
+  (public complaints or commendations), and the `CoverageLink*` record types
+  stay: a provider can send them.
+- Which other fields count as Institute-controlled was the implementer's
+  reading of the user's rule. Left in and not ruled on:
+  `CoverageLinkAgencyPersonnel.confidence`, and `Agency.status` with
+  `status_date`.
+- The format version in the document moves to `20261113000000`.
 
 ## Open Questions
 
-- Should any of the fields and record types listed above as not yet ruled on
-  be omitted too?
+- Should `CoverageLinkAgencyPersonnel.confidence` or `Agency.status` and
+  `status_date` be omitted?

@@ -98,6 +98,43 @@ export async function resetData(
         return runIntake(args, context);
       });
 
+    const executePhase = async (args: string[]) => {
+      phase = args.join(" ");
+      logger.info(`data reset: ${phase}`);
+      const result = await runDataCommand(args, {
+        useInitialAgencyRoots: true,
+      });
+      if (result.exitCode !== 0)
+        throw new Error(result.stderr?.trim() || `${phase} failed.`);
+      if (result.stdout?.trim()) logger.info(result.stdout.trim());
+    };
+    const acquiredInputs =
+      dependencies.acquiredInputs ??
+      (async (id: string) =>
+        (await loadSourceStandalone(id, path.join(process.cwd(), "sources")))
+          ? null
+          : retainedAcquiredInputs(workspace, id));
+
+    for (const source of sources) {
+      phase = `inventory acquisitions ${source}`;
+      const state = path.join(workspace, "state", source);
+      const pointer = await readCommandPointer(state, "acquire");
+      if (options.acquire && pointer.latest === undefined) continue;
+      const inputs = await acquiredInputs(source);
+      if (inputs === null) continue;
+      try {
+        for (const input of inputs) {
+          await writeCommandPointer(state, "acquire", {
+            ...pointer,
+            latest: input,
+          });
+          await executePhase(["data", "transform", source]);
+        }
+      } finally {
+        await writeCommandPointer(state, "acquire", pointer);
+      }
+    }
+
     phase = "schema reset";
     logger.info(
       "data reset: resetting the configured database to current migrations.",
@@ -113,25 +150,9 @@ export async function resetData(
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
 
-    const executePhase = async (args: string[]) => {
-      phase = args.join(" ");
-      logger.info(`data reset: ${phase}`);
-      const result = await runDataCommand(args, {
-        useInitialAgencyRoots: true,
-      });
-      if (result.exitCode !== 0)
-        throw new Error(result.stderr?.trim() || `${phase} failed.`);
-      if (result.stdout?.trim()) logger.info(result.stdout.trim());
-    };
     const rebuildSource = async (source: string) => {
       phase = `inventory acquisitions ${source}`;
-      const inputs = await (
-        dependencies.acquiredInputs ??
-        (async (id: string) =>
-          (await loadSourceStandalone(id, path.join(process.cwd(), "sources")))
-            ? null
-            : retainedAcquiredInputs(workspace, id))
-      )(source);
+      const inputs = await acquiredInputs(source);
       const state = path.join(workspace, "state", source);
       const pointer =
         inputs === null ? null : await readCommandPointer(state, "acquire");

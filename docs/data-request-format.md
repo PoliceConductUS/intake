@@ -666,7 +666,7 @@ there are no records or that the data is not maintained. If you do not know the
 columns, an availability entry without a file is enough. Do not use a redaction
 marker for data you do not have.
 
-**Format version: `20261112000000`.** If you use the Simplified Export Format,
+**Format version: `20261113000000`.** If you use the Simplified Export Format,
 include this number as `spec_version` in the file list described below.
 
 ## File naming and layout
@@ -697,7 +697,7 @@ which record type each file holds. It carries:
 `manifest.json`:
 
     {
-      "spec_version": "20261112000000",
+      "spec_version": "20261113000000",
       "request_id": "az-post-2026-06",
       "files": [
         { "file": "az-post-2026-06.Agency.csv", "kind": "Agency", "rows": 1234 },
@@ -1039,9 +1039,10 @@ One row per ReviewPersonnel.
 
 One row per ReviewLink.
 
-| Field       | Type | Required | Constraints                                      | Relationship / notes                                                     |
-| ----------- | ---- | -------- | ------------------------------------------------ | ------------------------------------------------------------------------ |
-| `id`        | text | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time.               |
-| `review_id` | text | yes      | —                                                | → **Review**: your id for the linked Review, present in the same export. |
-| `url`       | text | yes      | —                                                | —                                                                        |
-| `title`     | text | yes      | —                                                | —                                                                        |
+| Field           | Type | Required | Constraints                                      | Relationship / notes                                                           |
+| --------------- | ---- | -------- | ------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `id`            | text | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time.                     |
+| `review_id`     | text | yes      | —                                                | → **Review**: your id for the linked Review, present in the same export.       |
+| `url`           | text | optional | —                                                | —                                                                              |
+| `title`         | text | optional | —                                                | —                                                                              |
+| `civil_case_id` | text | optional | —                                                | → **CivilCase**: your id for the linked CivilCase, present in the same export. |

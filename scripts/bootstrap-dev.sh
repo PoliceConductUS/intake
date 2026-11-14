@@ -353,6 +353,7 @@ detect_project_tools() {
   fi
 }
 
+
 detect_codex_app() {
   info "Checking for Codex App"
 
@@ -542,6 +543,7 @@ install_npm_dependencies_if_needed() {
   info "Installing project npm dependencies"
   mise exec -- npm install
 }
+
 
 install_missing() {
   install_homebrew_if_needed

@@ -33,7 +33,7 @@ ask only for what a provider can supply.
 
 **Regenerated document**
 
-- `docs/data-request-format.md` is regenerated at schema `20261112000000`.
+- `docs/data-request-format.md` is regenerated at schema `20261113000000`.
   One `start_date` field changes from required to optional, following the
   schema.
 - A new test fails when a committed generated file differs from its

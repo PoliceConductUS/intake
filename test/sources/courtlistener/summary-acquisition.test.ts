@@ -3,7 +3,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { afterEach, expect, test, vi } from "vitest";
-import { acquireComplaintSummary } from "../../../sources/courtlistener/summary-acquisition.js";
+import {
+  acquireComplaintSummary,
+  prepareComplaint,
+  recordComplaintReview,
+} from "../../../sources/courtlistener/summary-acquisition.js";
 const dirs: string[] = [];
 afterEach(async () => {
   await Promise.all(
@@ -173,6 +177,24 @@ test("does not follow pagination onto another host", async () => {
   } as never);
   await expect(acquireComplaintSummary(s.args)).rejects.toThrow("pagination");
   expect(s.fetchJson).toHaveBeenCalledTimes(1);
+});
+
+test("records and reuses a reviewed summary with only text and complaint link", async () => {
+  const s = await setup([
+    { entry_number: 1, date_filed: "2025-01-01", recap_documents: [doc] },
+  ]);
+  const prepared = await prepareComplaint(s.args);
+  const summary = {
+    summary: "The plaintiff alleges an unlawful arrest.",
+    source: {
+      sourcePage: "https://www.courtlistener.com/docket/12/1/example/",
+    },
+  };
+  await recordComplaintReview(prepared, s.args.state, summary, "1");
+  expect((await acquireComplaintSummary(s.args)).ai_complaint_summary).toEqual(
+    summary,
+  );
+  expect(s.analyze).not.toHaveBeenCalled();
 });
 
 test("reuses a hash-bound reviewed summary without calling the configured model", async () => {

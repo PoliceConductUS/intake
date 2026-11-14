@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   mkdtemp,
   mkdir,
@@ -10,6 +11,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
 import { resetData } from "../../../src/cli/data/reset.js";
+import { readDocumentEvidence } from "../../../sources/mn-post/acquire/document-evidence.js";
+import {
+  readCommandPointer,
+  writeCommandPointer,
+} from "../../../src/cli/state/command-pointer.js";
 
 const workspaces: string[] = [];
 afterEach(async () => {
@@ -173,8 +179,6 @@ test("schema failure retains the active chain and does not start sources", async
 
 test("replays retained snapshots oldest first, retaining older-only rows and restoring the pointer", async () => {
   const f = await fixture();
-  const { writeCommandPointer, readCommandPointer } =
-    await import("../../../src/cli/state/command-pointer.js");
   const state = path.join(f.workspace, "state", "agencies");
   await writeCommandPointer(state, "acquire", { latest: "newer" });
   const rows = new Map<string, string>();
@@ -184,6 +188,9 @@ test("replays retained snapshots oldest first, retaining older-only rows and res
     {
       ...f.deps,
       orderedSourceIds: async () => ["agencies"],
+      resetDatabase: async () => {
+        rows.clear();
+      },
       acquiredInputs: async (source: string) =>
         source === "agencies" ? ["older", "newer"] : null,
       runDataCommand: async (args: readonly string[]) => {
@@ -198,7 +205,7 @@ test("replays retained snapshots oldest first, retaining older-only rows and res
     },
   );
   expect(result.exitCode).toBe(0);
-  expect(selected).toEqual(["older", "newer"]);
+  expect(selected).toEqual(["older", "newer", "older", "newer"]);
   expect([...rows]).toEqual([
     ["older-only", "retained"],
     ["shared", "newer"],
@@ -210,8 +217,6 @@ test("replays retained snapshots oldest first, retaining older-only rows and res
 
 test("restores the acquisition pointer and stops when an older snapshot fails", async () => {
   const f = await fixture();
-  const { writeCommandPointer, readCommandPointer } =
-    await import("../../../src/cli/state/command-pointer.js");
   const state = path.join(f.workspace, "state", "agencies");
   await writeCommandPointer(state, "acquire", { latest: "newer" });
   const result = await resetData(
@@ -231,4 +236,181 @@ test("restores the acquisition pointer and stops when an older snapshot fails", 
   expect(await readCommandPointer(state, "acquire")).toMatchObject({
     latest: "newer",
   });
+});
+
+test("rejects stale retained analysis before clearing the database or retiring mutations", async () => {
+  const f = await fixture();
+  const state = path.join(f.workspace, "state", "mn-post");
+  await writeCommandPointer(state, "acquire", {
+    latest: "newer",
+    resume: "unfinished",
+  });
+  const pointer = await readFile(path.join(state, "acquire.yaml"), "utf8");
+  const document = path.join(f.workspace, "older.document.json");
+  const pdf = Buffer.from("pdf");
+  await writeFile(path.join(f.workspace, "older.pdf"), pdf);
+  await writeFile(
+    document,
+    JSON.stringify({
+      url: "https://example.test/order",
+      documentName: "Order",
+      actions: [{ contactId: "person", caseNumber: "case" }],
+      sha256: createHash("sha256").update(pdf).digest("hex"),
+      bytes: pdf.length,
+      fetchedAt: "2026-10-18",
+      pages: [{ page: 1, method: "text", text: "Board suspended license." }],
+      text: "Board suspended license.",
+      analysis: {
+        allegation: "Basis",
+        violation: "Rule",
+        finding: "Finding",
+        chief_action: "Action",
+        sanction: "Sanction",
+      },
+      absenceReasons: {},
+      analyzedWith: { model: "automated", promptVersion: 1 },
+    }),
+  );
+  const result = await resetData(
+    { acquire: false },
+    {
+      ...f.deps,
+      orderedSourceIds: async () => ["mn-post"],
+      acquiredInputs: async () => ["older", "newer"],
+      runDataCommand: async (args) => {
+        f.calls.push(args.join(" "));
+        if (args[1] === "transform") await readDocumentEvidence(document);
+        return { exitCode: 0 };
+      },
+    },
+  );
+  expect(result.exitCode).toBe(1);
+  expect(result.stderr).toContain("analyzedWith");
+  expect(f.calls).toEqual(["data transform mn-post"]);
+  expect(await readFile(path.join(f.chain, "old.txt"), "utf8")).toBe(
+    "old generated data",
+  );
+  expect(await readFile(path.join(state, "acquire.yaml"), "utf8")).toBe(
+    pointer,
+  );
+});
+
+test("default reset prepares retained inputs before resetting and acquires new inputs in dependency order", async () => {
+  const f = await fixture();
+  const state = path.join(f.workspace, "state", "agencies");
+  await writeCommandPointer(state, "acquire", { latest: "older" });
+  const selected: string[] = [];
+  const result = await resetData(
+    { acquire: true },
+    {
+      ...f.deps,
+      acquiredInputs: async (source) =>
+        source === "agencies"
+          ? (await readCommandPointer(state, "acquire")).latest === "older"
+            ? ["older"]
+            : ["older", "newer"]
+          : null,
+      runDataCommand: async (args) => {
+        f.calls.push(args.join(" "));
+        if (args[2] === "agencies") {
+          if (args[1] === "acquire")
+            await writeCommandPointer(state, "acquire", { latest: "newer" });
+          if (args[1] === "transform")
+            selected.push((await readCommandPointer(state, "acquire")).latest!);
+        }
+        return { exitCode: 0 };
+      },
+    },
+  );
+  expect(result.exitCode).toBe(0);
+  expect(f.calls).toEqual([
+    "data transform agencies",
+    "schema reset",
+    "data acquire places",
+    "data transform places",
+    "data generate places",
+    "data up",
+    "data acquire agencies",
+    "data transform agencies",
+    "data generate agencies",
+    "data up",
+    "data transform agencies",
+    "data generate agencies",
+    "data up",
+    "data transform org.policeconduct.manual",
+    "data generate org.policeconduct.manual",
+    "data up",
+  ]);
+  expect(selected).toEqual(["older", "older", "newer"]);
+  expect(await readCommandPointer(state, "acquire")).toMatchObject({
+    latest: "newer",
+  });
+});
+
+test("no-acquire rejects a missing completed acquisition before reset", async () => {
+  const f = await fixture();
+  const result = await resetData(
+    { acquire: false },
+    {
+      ...f.deps,
+      orderedSourceIds: async () => ["mn-post"],
+      acquiredInputs: undefined,
+    },
+  );
+  expect(result).toMatchObject({
+    exitCode: 1,
+    stderr: expect.stringContaining("no completed acquisition"),
+  });
+  expect(f.calls).toEqual([]);
+  expect(await readFile(path.join(f.chain, "old.txt"), "utf8")).toBe(
+    "old generated data",
+  );
+});
+
+test.each([true, false])(
+  "rejects a malformed existing acquisition before reset with acquire=%s",
+  async (acquire) => {
+    const f = await fixture();
+    const state = path.join(f.workspace, "state", "mn-post");
+    await writeCommandPointer(state, "acquire", { latest: "invalid" });
+    const result = await resetData(
+      { acquire },
+      {
+        ...f.deps,
+        orderedSourceIds: async () => ["mn-post"],
+        acquiredInputs: undefined,
+      },
+    );
+    expect(result).toMatchObject({
+      exitCode: 1,
+      stderr: expect.stringContaining("invalid acquisition path"),
+    });
+    expect(f.calls).toEqual([]);
+    expect(await readFile(path.join(f.chain, "old.txt"), "utf8")).toBe(
+      "old generated data",
+    );
+    expect(await readCommandPointer(state, "acquire")).toMatchObject({
+      latest: "invalid",
+    });
+  },
+);
+
+test("default reset rejects a non-string acquisition pointer before clearing data", async () => {
+  const f = await fixture();
+  const state = path.join(f.workspace, "state", "agencies");
+  await mkdir(state, { recursive: true });
+  const pointer = "latest: 123\nresume: unfinished\n";
+  await writeFile(path.join(state, "acquire.yaml"), pointer);
+  const result = await resetData({ acquire: true }, f.deps);
+  expect(result).toMatchObject({
+    exitCode: 1,
+    stderr: expect.stringContaining("latest"),
+  });
+  expect(f.calls).toEqual([]);
+  expect(await readFile(path.join(f.chain, "old.txt"), "utf8")).toBe(
+    "old generated data",
+  );
+  expect(await readFile(path.join(state, "acquire.yaml"), "utf8")).toBe(
+    pointer,
+  );
 });

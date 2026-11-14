@@ -96,8 +96,15 @@ transforms and resolution rules, run:
 npm run cli -- data reset --no-acquire
 ```
 
-This resets the database identified by `DATABASE_URL` to current migrations,
-moves the old mutation chain into the reset command's output, and runs transform
+Before clearing the database, reset inventories existing retained automatic inputs
+and transforms them for validation. Invalid inputs or acquisition pointers stop
+the command while the database and active mutation chain remain intact. These
+preparation outputs are not applied; transforms run again against the rebuilt
+database. A fresh source without a completed acquisition can still acquire during
+default reset.
+
+After preparation, reset loads current migrations into the database identified by
+`DATABASE_URL`, moves the old mutation chain into the reset command's output, and runs transform
 → generate → apply for each source in dependency order. Manual locations and
 aliases load immediately after Census; the complete manual source runs at the
 end. It preserves acquired files, canonical identity mappings, slug caches,
@@ -105,6 +112,13 @@ and durable manual records. A failed phase stops the command with a nonzero exit
 status and an incomplete-rebuild message. Plain `data reset` also acquires each
 automatic source before transforming it. `data up` only replays previously
 generated mutations; it does not regenerate imports.
+
+The Minnesota disciplinary-order prompt lives in
+[`sources/mn-post/acquire/order-analysis-prompt.txt`](sources/mn-post/acquire/order-analysis-prompt.txt).
+Completed results identify its exact contents with `analyzedWith.promptSha256`.
+Editing the prompt invalidates older results automatically. Acquisition reuses
+preserved PDFs and extracted text while regenerating stale analysis; transformation
+rejects results without the current fingerprint.
 
 Inspect or correct any declared record property using its source identity:
 

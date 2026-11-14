@@ -31,7 +31,7 @@ export function validateArtifactRecords(artifacts: ArtifactsEnvelope): void {
       const schema =
         envelope.metadata?.action === "PATCH" &&
         definition.recordSchema instanceof z.ZodObject
-          ? definition.recordSchema.partial()
+          ? z.strictObject(definition.recordSchema.shape).partial()
           : definition.recordSchema;
       const result = schema.safeParse(spec);
       if (!result.success) {

@@ -10,29 +10,35 @@ export const aiComplaintSummary = z
     summary: text,
     source: z
       .object({
-        url,
+        url: url.optional(),
         sourcePage: url,
-        documentId: z.number().int().positive(),
-        documentNumber: text,
-        filingDate: date,
-        retrievedAt: timestamp,
-        sha1: z.string().regex(/^[a-f0-9]{40}$/),
-        sha256: z.string().regex(/^[a-f0-9]{64}$/),
-        sha1Verified: z.literal(true),
-        confidence: text,
+        documentId: z.number().int().positive().optional(),
+        documentNumber: text.optional(),
+        filingDate: date.optional(),
+        retrievedAt: timestamp.optional(),
+        sha1: z
+          .string()
+          .regex(/^[a-f0-9]{40}$/)
+          .optional(),
+        sha256: z
+          .string()
+          .regex(/^[a-f0-9]{64}$/)
+          .optional(),
+        sha1Verified: z.boolean().optional(),
+        confidence: text.optional(),
       })
       .strict(),
-    model: text,
-    generatedAt: date,
+    model: text.optional(),
+    generatedAt: date.optional(),
     support: z
       .array(
         z
           .object({ paragraph: z.number().int().positive(), pages: text })
           .strict(),
       )
-      .min(1),
-    publicationStatus: z.literal("internal draft; not published"),
-    limitations: text,
+      .optional(),
+    publicationStatus: text.optional(),
+    limitations: text.optional(),
     proceduralContext: z
       .array(
         z
@@ -45,7 +51,7 @@ export const aiComplaintSummary = z
           })
           .strict(),
       )
-      .min(1),
+      .optional(),
   })
   .strict();
 

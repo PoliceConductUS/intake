@@ -59,10 +59,12 @@ export const GENERATED_MIGRATION_VERSIONS = [
   "20261103020000",
   "20261103021000",
   "20261103062000",
+  "20261111230000",
   "20261112000000",
+  "20261113000000",
 ] as const;
 export const GENERATED_MIGRATION_FINGERPRINT =
-  "053066a11be9a3b3ceb6bb7fa13e803862faa7dc4416a93c809cf535dd055132";
+  "8ed2f0d190b76a8ff1816c68bf288a647b45177d2d66d53b9ffbd4c85ae8a91d";
 
 // Entity record kinds in database-dependency order (topological sort of the
 // foreign-key graph): a referenced entity precedes its referrer, so mutations
@@ -156,7 +158,10 @@ export const FK_REFERENCES: Record<
     { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
     { field: "review_id", targetKind: "Review" },
   ],
-  ReviewLink: [{ field: "review_id", targetKind: "Review" }],
+  ReviewLink: [
+    { field: "civil_case_id", targetKind: "CivilCase" },
+    { field: "review_id", targetKind: "Review" },
+  ],
   ArrestProfile: [
     { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
   ],
@@ -599,7 +604,7 @@ export const importTypeMetadata = {
     recordKind: "ReviewLink",
     entityName: "reviewLinks",
     targetTable: "public.review_links",
-    dependsOn: ["Reviews"],
+    dependsOn: ["CivilCases", "Reviews"],
   },
   ArrestProfiles: {
     kind: "ArrestProfiles",
@@ -1157,13 +1162,26 @@ export const ReviewLinkSpec = z
   .object({
     id: z.string().optional(),
     review_id: z.string(),
-    url: z.string(),
-    title: z.string(),
+    url: z.string().nullable().optional(),
+    title: z.string().nullable().optional(),
     created_by: nullableNonEmptyString.optional(),
     updated_by: nullableNonEmptyString.optional(),
     data_source_values: SourceValues.optional(),
+    civil_case_id: z.string().nullable().optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((row, context) => {
+    const hasCase = row.civil_case_id != null;
+    const hasUrl = row.url != null;
+    const hasTitle = row.title != null;
+    if (hasCase ? hasUrl || hasTitle : !hasUrl || !hasTitle) {
+      context.addIssue({
+        code: "custom",
+        path: ["civil_case_id"],
+        message: "must target either a civil case or a URL with a title",
+      });
+    }
+  });
 
 export const ReviewLinkCreateSpec = ReviewLinkSpec.safeExtend({
   id: z.string(),

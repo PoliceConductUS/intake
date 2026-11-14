@@ -248,6 +248,10 @@ current published version. Remove a dependency your change makes unnecessary.
 - `npm run validate` is the gate: formatting, typecheck, tests, build, and
   OpenSpec validation. The pre-commit hook and CI both run it. Do not bypass it
   with `--no-verify`, and do not weaken a check to get through it.
+- The pre-commit hook also fails when more than one worktree exists besides
+  the main checkout. Only the user may override that check, by setting
+  `INTAKE_ALLOW_EXTRA_WORKTREES=1` for a commit. An agent never sets it; it
+  reports the block and waits.
 - `test/architecture.test.ts` enforces the rules above that can be checked
   mechanically. When a rule is broken in a way a test could have caught, add
   the test there.
