@@ -78,6 +78,11 @@ approved. Hold this line first.
   update the OpenSpec change first, from the change worktree. Do not implement
   first and backfill the spec. Behavior that matters belongs in OpenSpec, not
   only in code, comments, tickets, or agent messages.
+- **Approval before implementation.** When a change needs an OpenSpec change,
+  write the proposal and the other artifacts first, then ask the user to
+  approve. The user either says "approve now" or holds approval to read the
+  documents. Do not implement until the user approves. Never merge a pull
+  request unless the user names it and tells you to merge it.
 - **No OpenSpec change is needed** for documentation, formatting, test-only
   refactors, or internal refactors that preserve specified behavior.
 - **Superpowers governs how work is executed** (planning, TDD, debugging,
