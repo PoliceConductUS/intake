@@ -68,7 +68,7 @@ The full local run started in visible installed Google Chrome on November 14, 20
 - `sources/org.policeconduct.local-news/browser.ts` handles past-week queries, the operator verification wait, publisher URLs and pagination in the same search session.
 - `src/cli/acquire/acquire-data-context.ts` and `src/cli/transform/source-transform.ts` expose the officer roster for an exact source agency and look up article assignment candidates.
 - `sources/lib/news.ts` uses the article’s extracted text to request matching assignment IDs for local inference.
-- `test/sources/news/local.test.ts`, `test/sources/news/local-browser.test.ts` and `test/cli/acquire/acquire-data-context.test.ts` cover query order, empty-roster exclusion, resume, verification, and evidence across agencies.
+- `test/sources/news/local.test.ts`, `test/sources/news/local-browser.test.ts` and `test/cli/acquire/acquire-data-context.test.ts` cover query order, resume, verification, and evidence across agencies.
 - `README.md` documents the local command and inference settings. The change’s `proposal.md`, `design.md`, `plan.md`, `specs/release-page-updates/spec.md`, `tasks.md` and this `verify.md` describe the behavior and the checks.
 
 The first live verification exposed ten news cards with opaque Google redirect links. The corrected reader recognized all ten cards and the next-page link from the captured results. The restarted acquisition reused the verified private Chrome profile, reached publisher pages and checkpointed extracted articles. The browser regression covers delayed results after verification and a redirect to the publisher.
@@ -81,8 +81,8 @@ The local acquisition resumed in its dedicated Chrome profile, kept the 38 previ
 - `test/cli/acquire/acquire-data-context.test.ts` and `test/sources/news/local.test.ts` cover name selection, search text and checkpoint behavior.
 - `README.md`, the change’s `design.md`, `specs/release-page-updates/spec.md` and this `verify.md` document the query format and its verification.
 
-## Local query pacing and agency eligibility
+## Local query pacing and the imported roster
 
-`sources/org.policeconduct.local-news/acquire.ts` requests only agencies with at least one assignment. `sweep.ts` in the same directory also skips a saved or newly loaded agency whose officer roster is empty. The shared roster orders eligible agencies by descending personnel-assignment count and then descending agency ID. `browser.ts` draws a fresh delay of 25 through 60 seconds before each Google results navigation. The live acquisition resumed from its saved position and logged the selected wait before issuing the next exact-phrase search.
+`sources/org.policeconduct.local-news/acquire.ts` requests the imported agency roster. `sweep.ts` processes each supplied agency and its officer queries. The shared roster orders agencies by descending personnel-assignment count and then descending agency ID. `browser.ts` draws a fresh delay of 25 through 60 seconds before each Google results navigation. The live acquisition resumed from its saved position and logged the selected wait before issuing the next exact-phrase search.
 
-`test/sources/news/local.test.ts` checks empty-roster exclusion and `local-browser.test.ts` in the same directory checks the delay for a query and its next page. `README.md` and this change’s `proposal.md`, `design.md`, `specs/release-page-updates/spec.md`, `tasks.md` and `verify.md` record the selection rule, timing and checks.
+`test/sources/news/local.test.ts` checks traversal of the supplied roster and `local-browser.test.ts` in the same directory checks the delay for a query and its next page. `README.md` and this change’s `proposal.md`, `design.md`, `specs/release-page-updates/spec.md`, `tasks.md` and `verify.md` record roster traversal, timing and checks.

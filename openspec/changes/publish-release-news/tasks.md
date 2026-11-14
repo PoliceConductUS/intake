@@ -32,5 +32,5 @@
 
 ## 6. Local agency and officer searches
 
-- [x] 6.1 Search every agency with at least one assignment followed by its officers, resume individual queries, and wait in visible Chrome for Google verification.
+- [x] 6.1 Search every agency in the imported roster followed by its officers, resume individual queries, and wait in visible Chrome for Google verification.
 - [x] 6.2 Verify the local inference connection and launch the full local acquisition.

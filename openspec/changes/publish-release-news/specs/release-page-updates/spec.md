@@ -196,7 +196,7 @@ The website SHALL embed its release identity in each built form and submit it as
 
 ### Requirement: Search every agency and its officers locally
 
-The local acquisition SHALL search only agencies with at least one personnel assignment, then each officer at that agency. It SHALL use local inference and a visible Chrome browser that waits for the operator whenever Google requests verification.
+The local acquisition SHALL search each agency supplied by the imported database roster, followed by each officer at that agency. It SHALL use local inference and a visible Chrome browser that waits for the operator whenever Google requests verification.
 
 #### Scenario: Pacing Google requests
 

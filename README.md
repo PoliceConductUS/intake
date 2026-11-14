@@ -246,7 +246,7 @@ ollama pull qwen2.5:7b
 npm run cli -- data acquire org.policeconduct.local-news
 ```
 
-The acquisition opens a visible Chrome window and searches the past week for each agency with at least one personnel assignment, followed by two separately quoted phrases for each officer, such as `"Dana Reyes" "Example Police Department"`, using the stored first and last names. Intake waits a randomly chosen 25–60 seconds before each Google search, including results-page requests. If Google requests verification, complete it in the open search tab. The run continues there. Re-run the same command after an interruption to resume from its saved query and result position.
+The acquisition opens a visible Chrome window and searches the past week for each agency in the imported roster, followed by two separately quoted phrases for each officer, such as `"Dana Reyes" "Example Police Department"`, using the stored first and last names. Intake waits a randomly chosen 25–60 seconds before each Google search, including results-page requests. If Google requests verification, complete it in the open search tab. The run continues there. Re-run the same command after an interruption to resume from its saved query and result position.
 
 By default the local source uses `qwen2.5:7b` through Ollama at `http://127.0.0.1:11434/v1/chat/completions`. Set `NEWS_INFERENCE_URL` and `NEWS_INFERENCE_MODEL` to select another local chat service.
 
