@@ -184,11 +184,24 @@ This appends to `$INTAKE_WORKSPACE/state/<source>/excluded.yaml`. Exclusions
 belong to the selected workspace and are shared across checkouts using it.
 Operator correction lists and audits belong under `$INTAKE_WORKSPACE/audits/`;
 manual records remain in the manual source’s workspace state. Use the singular record kind
-(for example, `Agency`) and the source's own ID. Existing exclusions cannot be
-overwritten by this command. The next transform removes the excluded record and
+(for example, `Agency`) and the source's own ID. Existing exclusions require
+`--replace` to update; replacement fails if that exact kind and source ID is not
+already excluded. The next transform removes the excluded record and
 records that reference it, such as agency assignments, while retaining independent
 personnel. Acquired inputs and previous artifacts remain unchanged. Exclusions
 do not delete records already in the database.
+
+For an exclusion that applies only to the source values causing the problem, add
+`--when` with a nonempty JSON object of source spec fields and their exact values:
+
+```bash
+npm run cli -- data exclude <source> Personnel <source-id> --reason "Invalid source first name" --when '{"first_name":"9"}' --replace
+```
+
+Every condition must match, including its type; a missing field differs from
+`null`. When a source value changes, the record and its relationships proceed
+through normal validation. Without `--when`, an exclusion is unconditional.
+Conditions remain workspace metadata and are not published as exclusion evidence.
 
 Core invariants:
 

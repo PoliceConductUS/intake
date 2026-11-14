@@ -1,6 +1,20 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { open, readFile, rename, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import { isMap, isSeq, parse, parseDocument } from "yaml";
+import { z } from "zod";
+
+const exclusionConditions = z
+  .record(z.string(), z.json())
+  .refine((value) => Object.keys(value).length > 0);
+
+function parseConditions(value: unknown): z.infer<typeof exclusionConditions> {
+  const result = exclusionConditions.safeParse(value);
+  if (!result.success)
+    throw new Error(
+      "Exclusion when must be a nonempty JSON object of source field values.",
+    );
+  return result.data;
+}
 
 /**
  * One entry from a source's workspace `excluded.yaml`: a record the import is allowed
@@ -12,6 +26,7 @@ export type ExcludedRecord = {
   key: string;
   name?: string;
   reason: string;
+  when?: z.infer<typeof exclusionConditions>;
 };
 
 /**
@@ -106,43 +121,87 @@ export async function loadExcludedRecords(
       key,
       name: optionalStringField(entry, "name"),
       reason,
+      ...(Object.hasOwn(entry, "when")
+        ? { when: parseConditions(entry.when) }
+        : {}),
     });
   });
 
   return records;
 }
 
-/** Appends an explicit exclusion without replacing existing curation. */
+/** Writes an explicit exclusion, requiring an existing key for replacement. */
 export async function appendExcludedRecord(
   stateDir: string,
   record: ExcludedRecord,
+  options: { replace?: boolean } = {},
 ): Promise<string> {
   for (const field of ["kind", "key", "reason"] as const) {
     if (record[field].trim() === "")
       throw new Error(`Exclusion ${field} must not be blank.`);
   }
-  const existing = (await loadExcludedRecords(stateDir)).get(
-    excludedRecordKey(record.kind, record.key),
-  );
-  if (existing !== undefined)
-    throw new Error(
-      `Already excluded ${record.kind} ${record.key}: ${existing.reason}`,
-    );
+  if (Object.hasOwn(record, "when")) parseConditions(record.when);
   const filePath = path.join(stateDir, "excluded.yaml");
-  const contents = await readFile(filePath, "utf8").catch(
+  const temporary = `${filePath}.tmp`;
+  const pending = await open(temporary, "wx", 0o600).catch(
     (error: NodeJS.ErrnoException) => {
-      if (error.code === "ENOENT") return "";
+      if (error.code === "EEXIST")
+        throw new Error(`${filePath}: another exclusion write is in progress.`);
       throw error;
     },
   );
-  const document = parseDocument(contents);
-  if (document.errors.length > 0) throw document.errors[0];
-  if (document.contents !== null && !isMap(document.contents))
-    throw new Error(`${filePath}: expected an exclusion mapping.`);
-  if (!document.has("excluded")) document.set("excluded", []);
-  if (!isSeq(document.get("excluded")))
-    throw new Error(`${filePath}: excluded must be a list.`);
-  document.addIn(["excluded"], record);
-  await writeFile(filePath, document.toString(), "utf8");
-  return filePath;
+  let published = false;
+  try {
+    const targetMode = await stat(filePath)
+      .then((target) => target.mode & 0o7777)
+      .catch((error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return 0o666 & ~process.umask();
+        throw error;
+      });
+    const existing = (await loadExcludedRecords(stateDir)).get(
+      excludedRecordKey(record.kind, record.key),
+    );
+    if (existing !== undefined && !options.replace)
+      throw new Error(
+        `Already excluded ${record.kind} ${record.key}: ${existing.reason}`,
+      );
+    if (existing === undefined && options.replace)
+      throw new Error(
+        `Cannot replace ${record.kind} ${record.key}: not excluded.`,
+      );
+    const contents = await readFile(filePath, "utf8").catch(
+      (error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return "";
+        throw error;
+      },
+    );
+    const document = parseDocument(contents);
+    if (document.errors.length > 0) throw document.errors[0];
+    if (document.contents !== null && !isMap(document.contents))
+      throw new Error(`${filePath}: expected an exclusion mapping.`);
+    if (!document.has("excluded")) document.set("excluded", []);
+    const entries = document.get("excluded");
+    if (!isSeq(entries))
+      throw new Error(`${filePath}: excluded must be a list.`);
+    if (options.replace) {
+      const index = entries.items.findIndex(
+        (entry) =>
+          isMap(entry) &&
+          String(entry.get("kind")).trim() === record.kind &&
+          String(entry.get("key")).trim() === record.key,
+      );
+      entries.set(index, record);
+    } else {
+      document.addIn(["excluded"], record);
+    }
+    await pending.writeFile(document.toString(), "utf8");
+    await pending.chmod(targetMode);
+    await pending.close();
+    await rename(temporary, filePath);
+    published = true;
+    return filePath;
+  } finally {
+    await pending.close();
+    if (!published) await unlink(temporary);
+  }
 }

@@ -2,12 +2,12 @@
 
 ## Why
 
-The Oregon transform omits people without selected certificate types. This omits 2,887 previously public profiles; one additional public profile has a temporary source-name exclusion whose source now supplies the corrected name. The user chose full roster inclusion with optional certificates and requires public URLs to survive.
+The Oregon certificate condition omits roster personnel and previously public profiles. A saved temporary name exclusion also remains active after its source value changes. The approved outcome is full roster inclusion with optional certificates, source-dependent temporary exclusions, and stable public IDs and URLs.
 
 ## What Changes
 
-Remove the certificate inclusion condition; retain all roster personnel and supported employment/credential records. Do not add the proposed inclusion command. The mistakenly created local manual-correction rule was removed through a tested temporary CLI operation without changing database rows. That local cleanup is complete; the temporary operation is withdrawn from the delivered code. Update the existing source scope specification and regression tests. Apply normal generated mutations while retaining established IDs and slugs.
+Remove the certificate inclusion condition while retaining supplied employment and credentials. Add explicit source-field conditions to saved exclusions through the existing data exclude operation. Apply one exclusion decision to inline and streamed records, evidence and dependent records. Serialize source-file changes and publish complete documents while preserving existing permissions. Restore records through normal acquired source data and recorded intake mutations, using established IDs and slugs.
 
 ## Impact
 
-Oregon transform and source tests/documentation. No cache CLI or shared property-correction behavior changes are delivered. No schema, new identity mechanism, publication flag, raw-input edit or reset is required. Existing active-branch changes remain intact.
+Oregon transform, shared exclusion IO/CLI and transform batch handling, regression tests and source documentation. Existing database and identity contracts remain authoritative.

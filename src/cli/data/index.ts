@@ -1,7 +1,10 @@
 import { IdentityRestoration } from "../../shared/io/IdentityRestoration.js";
-import type { Command } from "commander";
+import { InvalidArgumentError, type Command } from "commander";
 import path from "node:path";
-import { appendExcludedRecord } from "../../shared/io/excluded-records.js";
+import {
+  appendExcludedRecord,
+  type ExcludedRecord,
+} from "../../shared/io/excluded-records.js";
 import { importTypeMetadata } from "../../shared/io/import-type-metadata.js";
 import { loadSourceProduces } from "../transform/load-source-module.js";
 import { sourceStateDir } from "../transform/state.js";
@@ -135,12 +138,28 @@ export function registerCliCommand(
       "--reason <reason>",
       "why this record should not be imported",
     )
+    .option(
+      "--when <json>",
+      "exclude only while these source field values match",
+      (value: string) => {
+        try {
+          return JSON.parse(value);
+        } catch {
+          throw new InvalidArgumentError("--when must contain valid JSON.");
+        }
+      },
+    )
+    .option("--replace", "replace an existing exclusion for this exact record")
     .action(
       async (
         source: string,
         kind: string,
         sourceId: string,
-        options: { reason: string },
+        options: {
+          reason: string;
+          when?: ExcludedRecord["when"];
+          replace?: boolean;
+        },
       ) => {
         try {
           const sourcesRoot = path.join(process.cwd(), "sources");
@@ -159,7 +178,9 @@ export function registerCliCommand(
               kind,
               key: sourceId,
               reason: options.reason,
+              ...(options.when === undefined ? {} : { when: options.when }),
             },
+            { replace: options.replace },
           );
           dependencies.setResult({
             exitCode: 0,
