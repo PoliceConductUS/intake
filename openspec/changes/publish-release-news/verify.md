@@ -59,3 +59,14 @@ A clean install on Node 24.21.0 matched all 394 installed package versions to th
 - `CanonicalIdToSourceName.ts`, `SourceNameToCanonicalId.ts`, `index.ts`, `restore.ts` and `ledger-record-path.ts` under `src/cli/state/source-name-to-canonical-id/` support long and case-sensitive URL keys in forward and reverse lookups and restoration.
 - `aliases.test.ts`, `daily.test.ts`, `import.test.ts`, `import-aliases.test.ts`, `publication.test.ts` and `rerank.test.ts` under `test/sources/news/` exercise discovery, publication, import and ranking with typed aliases.
 - `test/cli/data/release-news-aliases.integration.test.ts` verifies permanent import and reimport through PostgreSQL.
+
+## Local agency and officer acquisition
+
+The full local run started in visible installed Google Chrome on November 14, 2026. The private checkpoint held the first agency and 5,391 officer queries before its first Google verification challenge. The run waits for the operator in that tab. Startup was verified independently from completion of the sweep. Before launch, the configured local Ollama model returned a summary and correctly identified a fictional officer and supporting paragraph through the Intake inference client.
+
+- `sources/org.policeconduct.local-news/sweep.ts` and `acquire.ts` in the same directory implement the nested search order, checkpoints, local inference settings and Chrome lifecycle.
+- `sources/org.policeconduct.local-news/browser.ts` handles past-week queries, the operator verification wait, publisher URLs and pagination in the same search session.
+- `src/cli/acquire/acquire-data-context.ts` and `src/cli/transform/source-transform.ts` expose the officer roster for an exact source agency and look up article assignment candidates.
+- `sources/lib/news.ts` uses the article’s extracted text to request matching assignment IDs for local inference.
+- `test/sources/news/local.test.ts`, `test/sources/news/local-browser.test.ts` and `test/cli/acquire/acquire-data-context.test.ts` cover query order, agency-only searches, resume, verification, and evidence across agencies.
+- `README.md` documents the local command and inference settings. The change’s `proposal.md`, `design.md`, `plan.md`, `specs/release-page-updates/spec.md`, `tasks.md` and this `verify.md` describe the behavior and the checks.

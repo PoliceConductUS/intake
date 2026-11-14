@@ -9,10 +9,11 @@ it("finishes the interrupted agency before opening the next and does not cap URL
       items: [{ agencyId: cursor ?? "a", name: cursor ?? "a" }],
       nextCursor: cursor ? undefined : "b",
     }),
-    search: async (a: { name: string }, nextPage?: string) => ({
+    officers: async () => [],
+    search: async (query: string, nextPage?: string) => ({
       urls: Array.from(
         { length: 6 },
-        (_, i) => a.name + "/" + (i + (nextPage ? 6 : 0)),
+        (_, i) => query + "/" + (i + (nextPage ? 6 : 0)),
       ),
       nextPage: nextPage ? undefined : "page2",
     }),
@@ -29,4 +30,49 @@ it("finishes the interrupted agency before opening the next and does not cap URL
   await sweepNews(saved, deps);
   expect(visited).toHaveLength(24);
   expect(new Set(visited).size).toBe(24);
+});
+
+it("searches the agency and each officer before the next agency, resuming the interrupted officer page", async () => {
+  const queries: string[] = [];
+  let saved:
+    | import("../../../sources/org.policeconduct.local-news/sweep.js").SweepPosition
+    | undefined;
+  let interrupt = true;
+  const deps = {
+    agencies: async (cursor?: string) => ({
+      items: [
+        {
+          agencyId: cursor ?? "one",
+          name: cursor ? "Empty Agency" : "First Agency",
+        },
+      ],
+      nextCursor: cursor ? undefined : "two",
+    }),
+    officers: async (id: string) =>
+      id === "one" ? ["Dana Reyes", "Taylor Bell"] : [],
+    search: async (query: string, nextPage?: string) => {
+      queries.push(query + (nextPage ?? ""));
+      return {
+        urls: [query + (nextPage ?? "")],
+        nextPage: !nextPage && query.startsWith("Dana") ? "/2" : undefined,
+      };
+    },
+    visit: async (url: string) => {
+      if (interrupt && url.endsWith("/2")) throw Error("interrupted");
+    },
+    save: async (position: NonNullable<typeof saved>) => {
+      saved = structuredClone(position);
+    },
+  };
+  await expect(sweepNews(undefined, deps)).rejects.toThrow("interrupted");
+  interrupt = false;
+  await sweepNews(saved, deps);
+  expect(queries).toEqual([
+    "First Agency",
+    "Dana Reyes First Agency",
+    "Dana Reyes First Agency/2",
+    "Taylor Bell First Agency",
+    "Empty Agency",
+  ]);
+  expect(saved?.complete).toBe(true);
 });

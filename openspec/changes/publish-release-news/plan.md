@@ -59,3 +59,7 @@ Use the [reviewed design](design.md), [acceptance scenarios](specs/release-page-
 - Use namespaced, normalized publisher URL identities on Daily occurrences. Resolve equivalent article references across searches, publication and ranking. Preserve relationship identities.
 - Save confirmed duplicate-to-target URL pairs under `CoverageLink` in private `data/alias.json` and import each connected set as one canonical article. Rehearse repeat and historical imports using either key and test conflicting mappings.
 - Check destination-specific HTML source IDs after publication and an ordinary rebuild.
+
+## Local agency and officer searches
+
+Extend the local agency roster and resumable sweep, exercise Google verification in a visible Chrome tab, and verify the local inference service before starting acquisition.

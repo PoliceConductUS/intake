@@ -33,24 +33,62 @@ export function createAcquireDataContext(
   ledger: SourceNameToCanonicalIdLedger,
   namespace: string,
 ): AcquireDataContext {
+  let roster:
+    | Map<string, { id: string; personnelName: string; fullName: string }[]>
+    | undefined;
   return {
-    async newsAssignments() {
+    async newsOfficerNames(agencyId) {
+      const canonicalId = await ledger.read(namespace, "Agency", agencyId);
+      if (!canonicalId) throw Error("Unknown source agency: " + agencyId);
       const rows = rowsFromResult(
         await client.query(
-          "select ap.id, a.name as agency, concat_ws(' ',p.first_name,p.last_name) as person from agency_personnel ap join agency a on a.id=ap.agency_id join personnel p on p.id=ap.personnel_id order by a.id,ap.id",
+          `select distinct p.id, concat_ws(' ',p.first_name,p.middle_name,p.last_name,p.suffix) as name
+         from agency_personnel ap join personnel p on p.id=ap.personnel_id
+         where ap.agency_id=$1 order by name,p.id`,
+          [canonicalId],
         ),
       );
-      const assignments = [];
-      for (const row of rows)
-        assignments.push({
-          id: await ledger.sourceIdFor(
-            namespace,
-            "AgencyPersonnel",
-            String(row.id),
+      return rows.map((row) => String(row.name));
+    },
+    async newsAssignments(hasName) {
+      if (!roster) {
+        const rows = rowsFromResult(
+          await client.query(
+            "select ap.id, a.name as agency, concat_ws(' ',p.first_name,p.last_name) as person, concat_ws(' ',p.first_name,p.middle_name,p.last_name,p.suffix) as full_name from agency_personnel ap join agency a on a.id=ap.agency_id join personnel p on p.id=ap.personnel_id order by a.id,ap.id",
           ),
-          agencyName: String(row.agency),
-          personnelName: String(row.person),
-        });
+        );
+        roster = new Map();
+        for (const row of rows) {
+          const agencyName = String(row.agency);
+          let officers = roster.get(agencyName);
+          if (!officers) {
+            officers = [];
+            roster.set(agencyName, officers);
+          }
+          officers.push({
+            id: String(row.id),
+            personnelName: String(row.person),
+            fullName: String(row.full_name),
+          });
+        }
+      }
+      const assignments = [];
+      for (const [agencyName, officers] of roster) {
+        if (!hasName(agencyName)) continue;
+        for (const officer of officers) {
+          if (!hasName(officer.fullName) && !hasName(officer.personnelName))
+            continue;
+          assignments.push({
+            id: await ledger.sourceIdFor(
+              namespace,
+              "AgencyPersonnel",
+              officer.id,
+            ),
+            agencyName,
+            personnelName: officer.fullName,
+          });
+        }
+      }
       return assignments;
     },
     async agencies({

@@ -69,7 +69,9 @@ export async function processNewsOccurrence({
   url: string;
   correctedSelector?: string;
   domainRank?: number | null;
-  assignments: readonly NewsAssignment[];
+  assignments:
+    | readonly NewsAssignment[]
+    | ((hasName: (name: string) => boolean) => Promise<NewsAssignment[]>);
   infer: NewsInference;
 }): Promise<NewsOccurrence> {
   const doc = parse(html);
@@ -116,9 +118,12 @@ export async function processNewsOccurrence({
     haystack.includes(
       " " + normalizedParagraph(name).replace(/[^\p{L}\p{N}]+/gu, " ") + " ",
     );
-  const candidates = assignments.filter(
-    (a) => hasName(a.agencyName) && hasName(a.personnelName),
-  );
+  const candidates =
+    typeof assignments === "function"
+      ? await assignments(hasName)
+      : assignments.filter(
+          (a) => hasName(a.agencyName) && hasName(a.personnelName),
+        );
   const result = candidates.length
     ? await infer(body, candidates)
     : { summary: null, support: [] };

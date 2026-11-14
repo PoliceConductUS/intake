@@ -29,3 +29,8 @@
 - [x] 5.1 Use normalized URL source IDs in Daily discovery and publication.
 - [x] 5.2 Read Daily’s private `alias.json` and map duplicate URL keys to one canonical article on import and reimport.
 - [x] 5.3 Verify ordinary build and hosted source identities against the updated contract.
+
+## 6. Local agency and officer searches
+
+- [x] 6.1 Search every agency followed by its officers, resume individual queries, and wait in visible Chrome for Google verification.
+- [x] 6.2 Verify the local inference connection and launch the full local acquisition.

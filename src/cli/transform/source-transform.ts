@@ -115,9 +115,10 @@ export type AcquireSearchResult = { sourceId: string; label: string };
 // what to download (e.g. which agencies to search). Sources ask the facade;
 // they never touch the database directly.
 export type AcquireDataContext = {
-  newsAssignments?(): Promise<
-    import("../../shared/release-news.js").NewsAssignment[]
-  >;
+  newsOfficerNames?(agencyId: string): Promise<string[]>;
+  newsAssignments?(
+    hasName: (name: string) => boolean,
+  ): Promise<import("../../shared/release-news.js").NewsAssignment[]>;
   agencies(query: {
     states?: string[];
     minOfficers?: number;

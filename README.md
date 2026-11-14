@@ -237,6 +237,19 @@ and resolved-officer requirement for civil-case imports.
 
 To add a community missing from Census, see [Manual Locations](docs/manual-locations.md).
 
+## Local Google News acquisition
+
+With Google Chrome installed and Ollama running on this machine, run:
+
+```sh
+ollama pull qwen2.5:7b
+npm run cli -- data acquire org.policeconduct.local-news
+```
+
+The acquisition opens a visible Chrome window and searches the past week for each agency, followed by each officer’s name with that agency. If Google requests verification, complete it in the open search tab. The run continues there. Re-run the same command after an interruption to resume from its saved query and result position.
+
+By default the local source uses `qwen2.5:7b` through Ollama at `http://127.0.0.1:11434/v1/chat/completions`. Set `NEWS_INFERENCE_URL` and `NEWS_INFERENCE_MODEL` to select another local chat service.
+
 ## Candidate Upstream Producers
 
 The first upstream producer to explore is Tempe's Police Transparency

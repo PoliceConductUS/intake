@@ -21,3 +21,7 @@ News discovered between builds should reach the relevant personnel and agency pa
 ## Impact
 
 Affected consumers are readers, forms, website hosting and the Intake publisher/importer. Existing article and assignment IDs remain stable. No conclusions about an officer or agency follow from the presence of a link.
+
+## Local agency and officer searches
+
+Run the local news acquisition in visible Google Chrome. Search every agency and then each officer at that agency with local inference.

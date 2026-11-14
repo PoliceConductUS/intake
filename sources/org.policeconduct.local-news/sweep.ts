@@ -3,6 +3,8 @@ export type SweepPosition = {
   cursor?: string;
   nextCursor?: string;
   agency?: Agency;
+  officers?: string[];
+  queryIndex?: number;
   urls?: string[];
   nextPage?: string;
   index: number;
@@ -14,8 +16,9 @@ export async function sweepNews(
     agencies: (
       cursor?: string,
     ) => Promise<{ items: Agency[]; nextCursor?: string }>;
+    officers: (agencyId: string) => Promise<string[]>;
     search: (
-      agency: Agency,
+      query: string,
       nextPage?: string,
     ) => Promise<{ urls: string[]; nextPage?: string }>;
     visit: (url: string) => Promise<void>;
@@ -38,7 +41,30 @@ export async function sweepNews(
         cursor: position.cursor,
         nextCursor: page.nextCursor,
         agency,
-        ...(await deps.search(agency)),
+        officers: await deps.officers(agency.agencyId),
+        queryIndex: 0,
+        index: 0,
+      };
+      await deps.save(position);
+    }
+    const agency = position.agency!;
+    const officers =
+      position.officers ?? (await deps.officers(agency.agencyId));
+    const queryIndex = position.queryIndex ?? 0;
+    const query =
+      queryIndex === 0
+        ? agency.name
+        : officers[queryIndex - 1] + " " + agency.name;
+    if (!position.urls) {
+      const page = await deps.search(query, position.nextPage);
+      if (page.nextPage && page.nextPage === position.nextPage)
+        throw Error("Search provider repeated its next page.");
+      position = {
+        ...position,
+        officers,
+        queryIndex,
+        urls: page.urls,
+        nextPage: page.nextPage,
         index: 0,
       };
       await deps.save(position);
@@ -50,15 +76,13 @@ export async function sweepNews(
       position = { ...position, index: position.index + 1 };
       await deps.save(position);
     }
-    if (position.nextPage) {
-      const page = await deps.search(position.agency!, position.nextPage);
-      if (page.nextPage === position.nextPage)
-        throw Error("Search provider repeated its next page.");
+    if (position.nextPage || queryIndex < officers.length) {
       position = {
         ...position,
+        officers,
+        queryIndex: position.nextPage ? queryIndex : queryIndex + 1,
+        urls: undefined,
         index: 0,
-        urls: page.urls,
-        nextPage: page.nextPage,
       };
       await deps.save(position);
       continue;

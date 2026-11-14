@@ -2,6 +2,7 @@ import { readFile, writeFile, rename, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { createId } from "@paralleldrive/cuid2";
 import { chromium } from "playwright";
+import { searchGoogleNews } from "./browser.js";
 import type { SourceAcquire } from "../../src/cli/transform/source-transform.js";
 import {
   processNewsOccurrence,
@@ -28,7 +29,8 @@ export const acquire: SourceAcquire = async ({
   data,
   logger,
 }) => {
-  if (!data.newsAssignments)
+  const { newsAssignments, newsOfficerNames } = data;
+  if (!newsAssignments || !newsOfficerNames)
     throw Error(
       "Local discovery needs the Intake agency and personnel roster.",
     );
@@ -41,9 +43,12 @@ export const acquire: SourceAcquire = async ({
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
   }
-  const now = new Date(),
-    assignments = await data.newsAssignments(),
-    infer = createNewsInference(env);
+  const infer = createNewsInference({
+    ...env,
+    NEWS_INFERENCE_URL:
+      env.NEWS_INFERENCE_URL ?? "http://127.0.0.1:11434/v1/chat/completions",
+    NEWS_INFERENCE_MODEL: env.NEWS_INFERENCE_MODEL ?? "qwen2.5:7b",
+  });
   const ranks: Record<string, number> = env.NEWS_DOMAIN_RANKS
     ? JSON.parse(await readFile(env.NEWS_DOMAIN_RANKS, "utf8"))
     : {};
@@ -51,14 +56,19 @@ export const acquire: SourceAcquire = async ({
     ? JSON.parse(await readFile(env.NEWS_CORRECTED_SELECTORS, "utf8"))
     : {};
   const browser = await chromium.launch({
-    headless: env.NEWS_HEADLESS !== "false",
+    channel: "chrome",
+    headless: false,
+    handleSIGINT: false,
+    handleSIGTERM: false,
     executablePath: env.CHROME_EXECUTABLE_PATH,
   });
-  const page = await browser.newPage(),
-    reader = await browser.newPage();
+  const context = await browser.newContext();
+  const reader = await context.newPage();
+  const page = await context.newPage();
   let stopping = false;
   const stop = () => {
     stopping = true;
+    void page.close().catch(() => {});
   };
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
@@ -94,7 +104,7 @@ export const acquire: SourceAcquire = async ({
         url: reader.url(),
         correctedSelector,
         domainRank: domainRankFor(reader.url(), ranks),
-        assignments,
+        assignments: newsAssignments,
         infer,
       });
     } catch (error) {
@@ -109,65 +119,17 @@ export const acquire: SourceAcquire = async ({
   try {
     await sweepNews(saved.position, {
       shouldStop: () => stopping,
-      agencies: (cursor) => data.agencies({ cursor, limit: 1, minOfficers: 1 }),
-      async search(agency, nextPage) {
-        await page.goto(
-          nextPage ??
-            "https://www.google.com/search?" +
-              new URLSearchParams({ q: agency.name, tbm: "nws", tbs: "qdr:w" }),
-          { waitUntil: "domcontentloaded" },
-        );
-        if (
-          await page
-            .locator('form[action*="sorry"],iframe[src*="recaptcha"]')
-            .count()
-        )
-          throw Error(
-            "Search provider asked for human verification at " + agency.name,
-          );
-        const links = await page
-          .locator("a")
-          .evaluateAll((nodes) =>
-            nodes
-              .filter((node) => node.querySelector('[role="heading"],h3'))
-              .map((node) => (node as HTMLAnchorElement).href),
-          );
-        if (
-          !links.length &&
-          !/did not match|no results/i.test(
-            await page.locator("body").innerText(),
-          )
-        )
-          throw Error(
-            "Could not identify ranked search results for " + agency.name,
-          );
-        const next = await page
-          .locator('a#pnnext,a[aria-label="Next page"],a[rel="next"]')
-          .first()
-          .getAttribute("href", { timeout: 300 })
-          .catch((error) => {
-            if (error.name === "TimeoutError") return null;
-            throw error;
-          });
-        return {
-          nextPage: next ? new URL(next, page.url()).href : undefined,
-          urls: [
-            ...new Set(
-              links.map((raw) => {
-                const url = new URL(raw);
-                return url.pathname === "/url" && url.searchParams.get("q")
-                  ? url.searchParams.get("q")!
-                  : raw;
-              }),
-            ),
-          ],
-        };
-      },
+      agencies: (cursor) => data.agencies({ cursor, limit: 1 }),
+      officers: newsOfficerNames,
+      search: (query, nextPage) =>
+        searchGoogleNews(page, query, nextPage, (message) =>
+          logger?.info(message),
+        ),
       async visit(url) {
         const occurrence = await readOccurrence(url);
         if (!occurrence) return;
         const result = await mergeCurrentNews(saved.articles, occurrence, {
-          now,
+          now: new Date(),
           namespace: "org.policeconduct.local-news",
           mint: createId,
           summarize: async (body) => (await infer(body, [])).summary,

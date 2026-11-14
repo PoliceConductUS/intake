@@ -91,3 +91,62 @@ describe("createAcquireDataContext.search", () => {
     );
   });
 });
+
+describe("local news roster", () => {
+  it("selects officer queries by the calling namespace's agency identity", async () => {
+    const ledger = fakeLedger();
+    ledger.read = async (ns, kind, id) =>
+      ns === "local.news" && kind === "Agency" && id === "source-a"
+        ? "canonical-a"
+        : undefined;
+    let params: unknown;
+    const client = {
+      query: async (_sql: string, input: unknown) => {
+        params = input;
+        return { rows: [{ name: "Dana Lee Reyes" }] };
+      },
+    } as unknown as DatabaseClient;
+    const data = createAcquireDataContext(client, ledger, "local.news");
+    await expect(data.newsOfficerNames!("source-a")).resolves.toEqual([
+      "Dana Lee Reyes",
+    ]);
+    expect(params).toEqual(["canonical-a"]);
+    await expect(data.newsOfficerNames!("other")).rejects.toThrow(
+      /unknown source agency/i,
+    );
+  });
+  it("resolves only cited candidates, including officers from different agencies", async () => {
+    const data = createAcquireDataContext(
+      clientReturning({
+        agency_personnel: [
+          {
+            id: "a",
+            agency: "Agency A",
+            person: "Jo Green",
+            full_name: "Jo T Green",
+          },
+          {
+            id: "b",
+            agency: "Agency B",
+            person: "Sam Blue",
+            full_name: "Sam Blue",
+          },
+          {
+            id: "c",
+            agency: "Agency C",
+            person: "Sam Blue",
+            full_name: "Sam Blue",
+          },
+        ],
+      }),
+      fakeLedger(),
+      "local.news",
+    );
+    const words = new Set(["Agency A", "Agency B", "Jo T Green", "Sam Blue"]);
+    const assignments = await data.newsAssignments!((name) => words.has(name));
+    expect(assignments.map((a) => a.id)).toEqual([
+      "ledger:AgencyPersonnel:a",
+      "ledger:AgencyPersonnel:b",
+    ]);
+  });
+});

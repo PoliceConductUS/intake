@@ -98,3 +98,7 @@ Exercise local discovery and the normal Intake/build path first. For the website
 ## Open design decisions
 
 Technical details still to select include the source of valid form-release IDs, release routing and cache refresh implementation, storage and coordination for evidence and page writes, the browser and inference runtime, template representation, and rank ties. This design makes no change to civil-case joins or stale-case withdrawal.
+
+## Local agency and officer searches
+
+Search the agency name first, including agencies without assigned personnel. Then search each officer’s name together with the agency name. Finish each query’s past-week results before advancing. Persist the query and result position. When Google requests human verification, bring the search tab forward and wait for the operator to complete it in that tab. Use the local chat inference service for article analysis.

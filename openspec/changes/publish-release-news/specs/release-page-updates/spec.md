@@ -193,3 +193,12 @@ The website SHALL embed its release identity in each built form and submit it as
 
 - **WHEN** a preview form with a custom payload submits
 - **THEN** its preview destination receives the originating preview release identity
+
+### Requirement: Search every agency and its officers locally
+
+The local acquisition SHALL search each agency and then each officer at that agency, including an agency-only search for agencies with no officers. It SHALL use local inference and a visible Chrome browser that waits for the operator whenever Google requests verification.
+
+#### Scenario: Resuming an officer search
+
+- **WHEN** a run is interrupted during an officer query
+- **THEN** it resumes that query and its result position before moving to the next officer or agency.
