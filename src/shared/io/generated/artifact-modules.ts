@@ -84,6 +84,18 @@ import {
   write as writeDisciplineAgencyPersonnel,
 } from "./DisciplineAgencyPersonnel.js";
 import {
+  CoverageHomepageWindows,
+  CoverageHomepageWindowSpec,
+  read as readCoverageHomepageWindows,
+  write as writeCoverageHomepageWindows,
+} from "./CoverageHomepageWindows.js";
+import {
+  CoverageHomepagePlacements,
+  CoverageHomepagePlacementSpec,
+  read as readCoverageHomepagePlacements,
+  write as writeCoverageHomepagePlacements,
+} from "./CoverageHomepagePlacements.js";
+import {
   CoverageLinks,
   CoverageLinkSpec,
   read as readCoverageLinks,
@@ -246,6 +258,18 @@ export const ARTIFACT_MODULES = {
     recordSpec: DisciplineAgencyPersonnelSpec,
     read: readDisciplineAgencyPersonnel,
     write: writeDisciplineAgencyPersonnel,
+  },
+  CoverageHomepageWindows: {
+    envelope: CoverageHomepageWindows,
+    recordSpec: CoverageHomepageWindowSpec,
+    read: readCoverageHomepageWindows,
+    write: writeCoverageHomepageWindows,
+  },
+  CoverageHomepagePlacements: {
+    envelope: CoverageHomepagePlacements,
+    recordSpec: CoverageHomepagePlacementSpec,
+    read: readCoverageHomepagePlacements,
+    write: writeCoverageHomepagePlacements,
   },
   CoverageLinks: {
     envelope: CoverageLinks,

@@ -62,9 +62,10 @@ export const GENERATED_MIGRATION_VERSIONS = [
   "20261111230000",
   "20261112000000",
   "20261113000000",
+  "20261114000000",
 ] as const;
 export const GENERATED_MIGRATION_FINGERPRINT =
-  "8ed2f0d190b76a8ff1816c68bf288a647b45177d2d66d53b9ffbd4c85ae8a91d";
+  "ae81ebf2227fa4d8d65acdfb7f08f125897ba2c7abfd0c33a3e15642327188ac";
 
 // Entity record kinds in database-dependency order (topological sort of the
 // foreign-key graph): a referenced entity precedes its referrer, so mutations
@@ -85,7 +86,9 @@ export const RECORD_KINDS_IN_DEPENDENCY_ORDER = [
   "PersonnelPhoto",
   "Discipline",
   "DisciplineAgencyPersonnel",
+  "CoverageHomepageWindow",
   "CoverageLink",
+  "CoverageHomepagePlacement",
   "CoverageLinkAgencyPersonnel",
   "AgencyPhoneNumber",
   "CivilCase",
@@ -142,6 +145,10 @@ export const FK_REFERENCES: Record<
     { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
     { field: "discipline_id", targetKind: "Discipline" },
   ],
+  CoverageHomepagePlacement: [
+    { field: "coverage_link_id", targetKind: "CoverageLink" },
+    { field: "window_id", targetKind: "CoverageHomepageWindow" },
+  ],
   CoverageLinkAgencyPersonnel: [
     { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
     { field: "coverage_link_id", targetKind: "CoverageLink" },
@@ -187,6 +194,10 @@ export const BUSINESS_KEYS: Record<string, readonly string[]> = {
   License: ["personnel_id", "authority_license_id"],
   PersonnelPhoto: ["personnel_id"],
   DisciplineAgencyPersonnel: ["discipline_id", "agency_personnel_id"],
+  CoverageHomepageWindow: ["window_end"],
+  CoverageHomepagePlacement: ["window_id", "position"],
+  CoverageLink: ["source_namespace", "source_id"],
+  CoverageLinkAgencyPersonnel: ["source_namespace", "source_id"],
   FederalAgency: ["slug"],
   ArrestProfile: ["agency_personnel_id"],
   AgencyArrestProfile: ["agency_id"],
@@ -222,6 +233,8 @@ export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = {
   PersonnelPhoto: ["id"],
   Discipline: ["id"],
   DisciplineAgencyPersonnel: ["id"],
+  CoverageHomepageWindow: ["id"],
+  CoverageHomepagePlacement: ["id"],
   CoverageLink: ["id"],
   CoverageLinkAgencyPersonnel: ["id"],
   AgencyPhoneNumber: ["id"],
@@ -252,6 +265,8 @@ export const JSON_REQUIRED_PROPERTIES: Record<string, readonly string[]> = {
   PersonnelPhoto: ["data_source_values"],
   Discipline: ["data_source_values"],
   DisciplineAgencyPersonnel: ["data_source_values"],
+  CoverageHomepageWindow: [],
+  CoverageHomepagePlacement: [],
   CoverageLink: ["data_source_values"],
   CoverageLinkAgencyPersonnel: ["data_source_values"],
   AgencyPhoneNumber: ["data_source_values"],
@@ -282,7 +297,9 @@ export const JSON_PROPERTIES: Record<string, readonly string[]> = {
   PersonnelPhoto: ["data_source_values"],
   Discipline: ["data_source_values"],
   DisciplineAgencyPersonnel: ["data_source_values"],
-  CoverageLink: ["data_source_values"],
+  CoverageHomepageWindow: [],
+  CoverageHomepagePlacement: [],
+  CoverageLink: ["data_source_values", "occurrences"],
   CoverageLinkAgencyPersonnel: ["data_source_values"],
   AgencyPhoneNumber: ["data_source_values"],
   FederalAgency: ["data_source_values"],
@@ -316,6 +333,8 @@ export const DATE_PROPERTIES: Record<string, readonly string[]> = {
   PersonnelPhoto: [],
   Discipline: ["effective_date", "expiration_date"],
   DisciplineAgencyPersonnel: [],
+  CoverageHomepageWindow: ["window_end"],
+  CoverageHomepagePlacement: [],
   CoverageLink: ["published_at"],
   CoverageLinkAgencyPersonnel: [],
   AgencyPhoneNumber: [],
@@ -353,6 +372,8 @@ export const TABLE_BY_KIND: Record<string, string> = {
   PersonnelPhoto: "public.personnel_photo",
   Discipline: "public.discipline",
   DisciplineAgencyPersonnel: "public.discipline_agency_personnel",
+  CoverageHomepageWindow: "public.coverage_homepage_windows",
+  CoverageHomepagePlacement: "public.coverage_homepage_placements",
   CoverageLink: "public.coverage_links",
   CoverageLinkAgencyPersonnel: "public.coverage_link_agency_personnel",
   AgencyPhoneNumber: "public.agency_phone_numbers",
@@ -386,6 +407,8 @@ export type SupportedTableName =
   | "public.personnel_photo"
   | "public.discipline"
   | "public.discipline_agency_personnel"
+  | "public.coverage_homepage_windows"
+  | "public.coverage_homepage_placements"
   | "public.coverage_links"
   | "public.coverage_link_agency_personnel"
   | "public.agency_phone_numbers"
@@ -418,6 +441,8 @@ export const PRIMARY_KEY_BY_KIND: Record<string, string> = {
   PersonnelPhoto: "id",
   Discipline: "id",
   DisciplineAgencyPersonnel: "id",
+  CoverageHomepageWindow: "id",
+  CoverageHomepagePlacement: "id",
   CoverageLink: "id",
   CoverageLinkAgencyPersonnel: "id",
   AgencyPhoneNumber: "id",
@@ -536,6 +561,20 @@ export const importTypeMetadata = {
     targetTable: "public.discipline_agency_personnel",
     dependsOn: ["AgencyPersonnel", "Disciplines"],
   },
+  CoverageHomepageWindows: {
+    kind: "CoverageHomepageWindows",
+    recordKind: "CoverageHomepageWindow",
+    entityName: "coverageHomepageWindows",
+    targetTable: "public.coverage_homepage_windows",
+    dependsOn: [],
+  },
+  CoverageHomepagePlacements: {
+    kind: "CoverageHomepagePlacements",
+    recordKind: "CoverageHomepagePlacement",
+    entityName: "coverageHomepagePlacements",
+    targetTable: "public.coverage_homepage_placements",
+    dependsOn: ["CoverageHomepageWindows", "CoverageLinks"],
+  },
   CoverageLinks: {
     kind: "CoverageLinks",
     recordKind: "CoverageLink",
@@ -648,6 +687,8 @@ export const IMPORT_ARTIFACT_KINDS = [
   "PersonnelPhotos",
   "Disciplines",
   "DisciplineAgencyPersonnel",
+  "CoverageHomepageWindows",
+  "CoverageHomepagePlacements",
   "CoverageLinks",
   "CoverageLinkAgencyPersonnel",
   "AgencyPhoneNumbers",
@@ -983,6 +1024,34 @@ export const DisciplineAgencyPersonnelCreateSpec =
     id: z.string(),
   });
 
+export const CoverageHomepageWindowSpec = z
+  .object({
+    id: z.string().optional(),
+    window_end: z.string(),
+    placement_count: z.number().int(),
+  })
+  .strict();
+
+export const CoverageHomepageWindowCreateSpec =
+  CoverageHomepageWindowSpec.safeExtend({
+    id: z.string(),
+  });
+
+export const CoverageHomepagePlacementSpec = z
+  .object({
+    id: z.string().optional(),
+    window_id: z.string(),
+    coverage_link_id: z.string(),
+    position: z.number().int(),
+    clicks: z.number().int(),
+  })
+  .strict();
+
+export const CoverageHomepagePlacementCreateSpec =
+  CoverageHomepagePlacementSpec.safeExtend({
+    id: z.string(),
+  });
+
 export const CoverageLinkSpec = z
   .object({
     id: z.string().optional(),
@@ -993,6 +1062,10 @@ export const CoverageLinkSpec = z
     published_at: z.string().nullable().optional(),
     notes: z.string().nullable().optional(),
     data_source_values: SourceValues.optional(),
+    source_namespace: z.string().nullable().optional(),
+    source_id: z.string().nullable().optional(),
+    summary: z.string().nullable().optional(),
+    occurrences: z.record(z.string(), z.unknown()).nullable().optional(),
   })
   .strict();
 
@@ -1008,6 +1081,10 @@ export const CoverageLinkAgencyPersonnelSpec = z
     confidence: z.string(),
     notes: z.string().nullable().optional(),
     data_source_values: SourceValues.optional(),
+    source_namespace: z.string().nullable().optional(),
+    source_id: z.string().nullable().optional(),
+    occurrence_url: z.string().nullable().optional(),
+    correction_reason: z.string().nullable().optional(),
   })
   .strict();
 

@@ -34,6 +34,25 @@ export function createAcquireDataContext(
   namespace: string,
 ): AcquireDataContext {
   return {
+    async newsAssignments() {
+      const rows = rowsFromResult(
+        await client.query(
+          "select ap.id, a.name as agency, concat_ws(' ',p.first_name,p.last_name) as person from agency_personnel ap join agency a on a.id=ap.agency_id join personnel p on p.id=ap.personnel_id order by a.id,ap.id",
+        ),
+      );
+      const assignments = [];
+      for (const row of rows)
+        assignments.push({
+          id: await ledger.sourceIdFor(
+            namespace,
+            "AgencyPersonnel",
+            String(row.id),
+          ),
+          agencyName: String(row.agency),
+          personnelName: String(row.person),
+        });
+      return assignments;
+    },
     async agencies({
       states,
       minOfficers,

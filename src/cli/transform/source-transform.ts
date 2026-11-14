@@ -1,3 +1,4 @@
+import { assertValidSourceId } from "./load-source-module.js";
 import { Artifacts } from "../../shared/io/index.js";
 import type {
   ArtifactsEnvelope,
@@ -6,7 +7,29 @@ import type {
 import type { EmitRefItem } from "./emit-sink.js";
 import type { readXlsx } from "./read-xlsx.js";
 
-export type EmittedRecords = Record<string, { spec: unknown }>;
+export type EmittedRecords = Record<
+  string,
+  {
+    metadata?: { action: "PATCH"; selector: Record<string, unknown> };
+    spec: unknown;
+  }
+>;
+export function recordOrigin(spec: Record<string, unknown>) {
+  const namespace = spec.source_namespace;
+  const name = spec.source_id;
+  if (namespace == null && name == null) return undefined;
+  if (
+    typeof namespace !== "string" ||
+    !namespace.trim() ||
+    typeof name !== "string" ||
+    !name.trim()
+  )
+    throw new Error(
+      "Source namespace and source ID must be supplied together.",
+    );
+  assertValidSourceId(namespace);
+  return { namespace, name };
+}
 export type SourceManifest = {
   personnelSourceNames?: string[];
   artifacts: Array<{ kind: ImportArtifactKind; records: EmittedRecords }>;
@@ -36,6 +59,8 @@ export type ResolvedAgency = {
 // it returns a namespace-local personnel source id or null — a canonical id never
 // crosses the boundary.
 export type TransformDataContext = {
+  news?: import("../../shared/release-news.js").NewsImportContext;
+  canonicalAssignmentForLocalNews?: (sourceName: string) => Promise<string>;
   resolvePersonnel(input: {
     agencyId: string;
     personnelName: string;
@@ -90,6 +115,9 @@ export type AcquireSearchResult = { sourceId: string; label: string };
 // what to download (e.g. which agencies to search). Sources ask the facade;
 // they never touch the database directly.
 export type AcquireDataContext = {
+  newsAssignments?(): Promise<
+    import("../../shared/release-news.js").NewsAssignment[]
+  >;
   agencies(query: {
     states?: string[];
     minOfficers?: number;

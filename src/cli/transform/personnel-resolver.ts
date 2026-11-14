@@ -46,6 +46,8 @@ function agencyLocation(
  * minting happen here, where the canonical id is known; only the source id
  * crosses back to the source.
  */
+import { newsImportContext } from "./news-import-context.js";
+
 export function createTransformDataContext(
   client: DatabaseClient,
   ledger: SourceNameToCanonicalIdLedger,
@@ -71,6 +73,12 @@ export function createTransformDataContext(
   };
 
   return {
+    news: newsImportContext(client, ledger, namespace),
+    async canonicalAssignmentForLocalNews(name) {
+      const id = await ledger.read(namespace, "AgencyPersonnel", name);
+      if (!id) throw Error("Missing local news assignment mapping for " + name);
+      return id;
+    },
     async resolvePersonnel({ agencyId, personnelName }) {
       // agencyId is the agency's namespace-local source id; resolve it to the
       // canonical agency the ordinary way. A source id with no agency is a broken

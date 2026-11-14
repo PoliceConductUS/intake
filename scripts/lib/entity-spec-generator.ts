@@ -193,6 +193,16 @@ const DESCRIPTORS: EntityDescriptor[] = [
     createRequired: ["id"],
   },
   {
+    recordKind: "CoverageHomepageWindow",
+    table: "coverage_homepage_windows",
+    createRequired: ["id"],
+  },
+  {
+    recordKind: "CoverageHomepagePlacement",
+    table: "coverage_homepage_placements",
+    createRequired: ["id"],
+  },
+  {
     recordKind: "CoverageLink",
     table: "coverage_links",
     createRequired: ["id"],
@@ -461,6 +471,8 @@ const ENTITY_NAME_BY_RECORD_KIND: Record<string, string> = {
   PersonnelPhoto: "personnelPhotos",
   Discipline: "disciplines",
   DisciplineAgencyPersonnel: "disciplineAgencyPersonnel",
+  CoverageHomepageWindow: "coverageHomepageWindows",
+  CoverageHomepagePlacement: "coverageHomepagePlacements",
   CoverageLink: "coverageLinks",
   CoverageLinkAgencyPersonnel: "coverageLinkAgencyPersonnel",
   AgencyPhoneNumber: "agencyPhoneNumbers",
