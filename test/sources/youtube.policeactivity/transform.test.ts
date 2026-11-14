@@ -18,10 +18,10 @@ const envelope = {
       videoId: "v1",
       url: "https://www.youtube.com/watch?v=v1",
       title: "Bodycam: Irving PD arrest",
-      description: "Officer John Smith responds to a call. Case 3:23-cv-01234.",
+      description:
+        "Officer John Smith responds to a call. Sergeant Jane Wilson also arrived on scene. Case 3:23-cv-01234.",
       publishedAt: "2024-03-05T12:00:00Z",
       channelId: "UCpolice",
-      captions: "Sergeant Jane Wilson also arrived on scene.",
     },
     {
       // Names an officer who does not resolve at this agency -> no link.
@@ -33,7 +33,6 @@ const envelope = {
         "Officer Nobody Stranger writes a ticket. Case 3:23-cv-01234.",
       publishedAt: "2024-01-01T00:00:00Z",
       channelId: "UCpolice",
-      captions: null,
     },
     {
       // Names no officer -> no link.
@@ -43,7 +42,6 @@ const envelope = {
       description: "General footage, no one named.",
       publishedAt: "2024-02-02T00:00:00Z",
       channelId: "UCpolice",
-      captions: null,
     },
   ],
 };
@@ -102,7 +100,8 @@ describe("youtube.policeactivity run", () => {
       title: "Bodycam: Irving PD arrest",
       source_name: "PoliceActivity",
       published_at: "2024-03-05",
-      notes: "Officer John Smith responds to a call. Case 3:23-cv-01234.",
+      notes:
+        "Officer John Smith responds to a call. Sergeant Jane Wilson also arrived on scene. Case 3:23-cv-01234.",
     });
 
     // One link per resolved officer, each citing the naming passage.
@@ -146,6 +145,44 @@ describe("youtube.policeactivity run", () => {
     // Every resolve call is scoped to a1, and no officer is minted.
     expect(data.calls.every((c) => c.agencyId === "a1")).toBe(true);
     expect(data.calls.map((c) => c.personnelName)).toContain("John Smith");
+  });
+
+  // INS-72: captions came from a robots-disallowed youtube.com path. Acquire no
+  // longer fetches them, and a cache file written before that change must not
+  // produce a link either — a link may not rest on a caption passage.
+  it("ignores a caption field left in an older cache file", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "youtube-pa-stale-"));
+    tempDirs.push(dir);
+    const file = path.join(dir, "irving-police-department.videos.json");
+    await writeFile(
+      file,
+      JSON.stringify({
+        agency: { id: "a1", name: "Irving Police Department", state: "TX" },
+        videos: [
+          {
+            videoId: "v9",
+            url: "https://www.youtube.com/watch?v=v9",
+            title: "Bodycam release",
+            description: "No one is named here.",
+            publishedAt: "2024-04-04T00:00:00Z",
+            channelId: "UCpolice",
+            captions: "Officer John Smith cleared the scene.",
+          },
+        ],
+      }),
+    );
+    const manifest = await transform({
+      paths: [file],
+      readXlsx,
+      state: dir,
+      emit: async () => {},
+      data: fakeData(),
+    });
+    const byKind = Object.fromEntries(
+      manifest.artifacts.map((a) => [a.kind, a.records]),
+    );
+    expect(byKind.CoverageLinks).toEqual({});
+    expect(byKind.CoverageLinkAgencyPersonnel).toEqual({});
   });
 
   it("is deterministic", async () => {

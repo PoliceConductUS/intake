@@ -36,12 +36,15 @@ function text(value: unknown): string {
 }
 
 // The distinct officer mentions in a video, each with its first supporting
-// passage across the title, description, and captions.
+// passage across the title and description — the two Data API snippet fields.
+// Captions are deliberately not a source of mentions (INS-72): the timedtext
+// track sits on a youtube.com path robots.txt disallows, so a caption passage
+// is evidence we must not retrieve, and a link may not rest on it.
 function officerMentions(
   video: AcquiredVideo,
 ): Array<{ name: string; passage: string }> {
   const found = new Map<string, string>();
-  for (const field of [video.title, video.description, video.captions ?? ""]) {
+  for (const field of [video.title, video.description]) {
     for (const match of field.matchAll(OFFICER_MENTION)) {
       const name = match[1].trim();
       if (!isPersonName(name) || found.has(name)) continue;

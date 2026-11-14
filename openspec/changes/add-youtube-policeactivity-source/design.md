@@ -1,5 +1,11 @@
 # Design
 
+> **Amended by INS-72 (2026-10-24):** this design originally read caption text
+> from `www.youtube.com/api/timedtext`. That host's robots.txt disallows
+> `/api/`, so the caption path was removed — acquire now reads only the keyed
+> Data API on `www.googleapis.com`, and officer mentions come from the video's
+> title and description. Caption references below are historical.
+
 Mirrors the clearinghouse-api / courtlistener pattern: acquire searches **per
 agency** and stamps each result with the agency's source id; run resolves
 officers **within that known agency**. There is no agency-from-free-text
