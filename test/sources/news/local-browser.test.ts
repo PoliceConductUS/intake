@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { chromium } from "playwright";
 import {
   openPublisher,
@@ -9,6 +9,7 @@ it("waits for Google verification and resumes the same query in the same tab", a
   const browser = await chromium.launch({ channel: "chrome" });
   try {
     const page = await browser.newPage();
+    const wait = vi.spyOn(page, "waitForTimeout").mockResolvedValue();
     const query = "Example Officer Example Agency";
     const url =
       "https://www.google.com/search?" +
@@ -43,7 +44,9 @@ it("waits for Google verification and resumes the same query in the same tab", a
     const waiting = new Promise<void>((resolve) => {
       notify = resolve;
     });
-    const search = searchGoogleNews(page, query, undefined, notify);
+    const search = searchGoogleNews(page, query, undefined, (message) => {
+      if (message.startsWith("Complete Google verification")) notify();
+    });
     await Promise.race([
       waiting,
       search.then(() => {
@@ -62,6 +65,16 @@ it("waits for Google verification and resumes the same query in the same tab", a
       nextPage: "https://www.google.com/search?start=10",
     });
     expect(requests.filter((path) => path === "/search")).toHaveLength(2);
+    await searchGoogleNews(
+      page,
+      query,
+      "https://www.google.com/search?start=10",
+    );
+    expect(wait).toHaveBeenCalledTimes(2);
+    for (const [ms] of wait.mock.calls) {
+      expect(ms).toBeGreaterThanOrEqual(25_000);
+      expect(ms).toBeLessThanOrEqual(60_000);
+    }
     const reader = await browser.newPage();
     await reader.route("**/*", (route) =>
       route.fulfill({

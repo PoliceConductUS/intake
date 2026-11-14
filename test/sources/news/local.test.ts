@@ -9,7 +9,7 @@ it("finishes the interrupted agency before opening the next and does not cap URL
       items: [{ agencyId: cursor ?? "a", name: cursor ?? "a" }],
       nextCursor: cursor ? undefined : "b",
     }),
-    officers: async () => [],
+    officers: async () => ["Dana Reyes"],
     search: async (query: string, nextPage?: string) => ({
       urls: Array.from(
         { length: 6 },
@@ -28,8 +28,8 @@ it("finishes the interrupted agency before opening the next and does not cap URL
   await expect(sweepNews(undefined, deps)).rejects.toThrow("interrupt");
   fail = false;
   await sweepNews(saved, deps);
-  expect(visited).toHaveLength(24);
-  expect(new Set(visited).size).toBe(24);
+  expect(visited).toHaveLength(48);
+  expect(new Set(visited).size).toBe(48);
 });
 
 it("searches the agency and each officer before the next agency, resuming the interrupted officer page", async () => {
@@ -72,7 +72,6 @@ it("searches the agency and each officer before the next agency, resuming the in
     '"Dana Reyes" "First Agency"',
     '"Dana Reyes" "First Agency"/2',
     '"Taylor Bell" "First Agency"',
-    "Empty Agency",
   ]);
   expect(saved?.complete).toBe(true);
 });

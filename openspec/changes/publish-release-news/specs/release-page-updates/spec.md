@@ -196,7 +196,12 @@ The website SHALL embed its release identity in each built form and submit it as
 
 ### Requirement: Search every agency and its officers locally
 
-The local acquisition SHALL search each agency and then each officer at that agency, including an agency-only search for agencies with no officers. It SHALL use local inference and a visible Chrome browser that waits for the operator whenever Google requests verification.
+The local acquisition SHALL search only agencies with at least one personnel assignment, then each officer at that agency. It SHALL use local inference and a visible Chrome browser that waits for the operator whenever Google requests verification.
+
+#### Scenario: Pacing Google requests
+
+- **WHEN** the local acquisition starts another agency query, officer query or results page
+- **THEN** it waits a newly drawn interval of 25 through 60 seconds before sending the request, including after a restart
 
 #### Scenario: Searching by officer and agency
 

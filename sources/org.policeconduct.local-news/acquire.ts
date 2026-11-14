@@ -132,7 +132,7 @@ export const acquire: SourceAcquire = async ({
   try {
     await sweepNews(saved.position, {
       shouldStop: () => stopping,
-      agencies: (cursor) => data.agencies({ cursor, limit: 1 }),
+      agencies: (cursor) => data.agencies({ cursor, limit: 1, minOfficers: 1 }),
       officers: newsOfficerNames,
       search: (query, nextPage) =>
         searchGoogleNews(page, query, nextPage, (message) =>

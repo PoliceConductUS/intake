@@ -24,4 +24,4 @@ Affected consumers are readers, forms, website hosting and the Intake publisher/
 
 ## Local agency and officer searches
 
-Run the local news acquisition in visible Google Chrome. Search every agency and then each officer at that agency with local inference.
+Run the local news acquisition in visible Google Chrome. Search each agency with personnel assignments and then each officer at that agency with local inference.

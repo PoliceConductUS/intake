@@ -64,6 +64,14 @@ export async function sweepNews(
     const agency = position.agency!;
     const officers =
       position.officerSearchNames ?? (await deps.officers(agency.agencyId));
+    if (!officers.length) {
+      position = position.nextCursor
+        ? { cursor: position.nextCursor, index: 0 }
+        : { index: 0, complete: true };
+      await deps.save(position);
+      if (position.complete) return;
+      continue;
+    }
     const queryIndex = position.queryIndex ?? 0;
     const query =
       queryIndex === 0

@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto";
 import { errors, type Page, type Response } from "playwright";
 
 const verification =
@@ -60,6 +61,10 @@ export async function searchGoogleNews(
     nextPage ??
     "https://www.google.com/search?" +
       new URLSearchParams({ q: query, tbm: "nws", tbs: "qdr:w" });
+  // Also wait on startup so restarting a checkpoint cannot send a burst.
+  const delaySeconds = randomInt(25, 61);
+  log?.(`Waiting ${delaySeconds}s before Google search: ${query}`);
+  await page.waitForTimeout(delaySeconds * 1000);
   await page.goto(url, { waitUntil: "domcontentloaded" });
   let timeout = 10000;
   for (;;) {
