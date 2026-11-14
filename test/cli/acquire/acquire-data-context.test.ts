@@ -101,14 +101,17 @@ describe("local news roster", () => {
         : undefined;
     let params: unknown;
     const client = {
-      query: async (_sql: string, input: unknown) => {
+      query: async (sql: string, input: unknown) => {
+        expect(sql).toContain(
+          "concat_ws(' ',p.first_name,p.last_name) as name",
+        );
         params = input;
-        return { rows: [{ name: "Dana Lee Reyes" }] };
+        return { rows: [{ name: "Dana Reyes" }] };
       },
     } as unknown as DatabaseClient;
     const data = createAcquireDataContext(client, ledger, "local.news");
     await expect(data.newsOfficerNames!("source-a")).resolves.toEqual([
-      "Dana Lee Reyes",
+      "Dana Reyes",
     ]);
     expect(params).toEqual(["canonical-a"]);
     await expect(data.newsOfficerNames!("other")).rejects.toThrow(

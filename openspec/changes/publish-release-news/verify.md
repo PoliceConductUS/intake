@@ -72,3 +72,11 @@ The full local run started in visible installed Google Chrome on November 14, 20
 - `README.md` documents the local command and inference settings. The change’s `proposal.md`, `design.md`, `plan.md`, `specs/release-page-updates/spec.md`, `tasks.md` and this `verify.md` describe the behavior and the checks.
 
 The first live verification exposed ten news cards with opaque Google redirect links. The corrected reader recognized all ten cards and the next-page link from the captured results. The restarted acquisition reused the verified private Chrome profile, reached publisher pages and checkpointed extracted articles. The browser regression covers delayed results after verification and a redirect to the publisher.
+
+## Exact officer queries
+
+The local acquisition resumed in its dedicated Chrome profile, kept the 38 previously extracted publisher pages and started the active agency’s officer list again. The sweep test checks both quoted phrases through pagination and verifies that results from an older unquoted query are discarded on resume.
+
+- `src/cli/acquire/acquire-data-context.ts` selects the officer’s stored first and last names for the query. `sources/org.policeconduct.local-news/sweep.ts` quotes those names together and the agency name separately and refreshes the old roster when resuming.
+- `test/cli/acquire/acquire-data-context.test.ts` and `test/sources/news/local.test.ts` cover name selection, search text and checkpoint behavior.
+- `README.md`, the change’s `design.md`, `specs/release-page-updates/spec.md` and this `verify.md` document the query format and its verification.

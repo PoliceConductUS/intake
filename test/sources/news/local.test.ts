@@ -54,7 +54,7 @@ it("searches the agency and each officer before the next agency, resuming the in
       queries.push(query + (nextPage ?? ""));
       return {
         urls: [query + (nextPage ?? "")],
-        nextPage: !nextPage && query.startsWith("Dana") ? "/2" : undefined,
+        nextPage: !nextPage && query.startsWith('"Dana') ? "/2" : undefined,
       };
     },
     visit: async (url: string) => {
@@ -69,10 +69,42 @@ it("searches the agency and each officer before the next agency, resuming the in
   await sweepNews(saved, deps);
   expect(queries).toEqual([
     "First Agency",
-    "Dana Reyes First Agency",
-    "Dana Reyes First Agency/2",
-    "Taylor Bell First Agency",
+    '"Dana Reyes" "First Agency"',
+    '"Dana Reyes" "First Agency"/2',
+    '"Taylor Bell" "First Agency"',
     "Empty Agency",
   ]);
   expect(saved?.complete).toBe(true);
+});
+
+it("restarts the officer list with first and last names when resuming an unquoted search", async () => {
+  const agency = { agencyId: "one", name: "Example Police Department" };
+  const previous = {
+    agency,
+    officers: ["Dana Lee Reyes Jr.", "Taylor B Bell"],
+    queryIndex: 2,
+    urls: ["old-search-result"],
+    nextPage: "old-search-page",
+    index: 0,
+  };
+  const searchTerms: string[] = [];
+  await sweepNews(previous, {
+    agencies: async () => {
+      throw Error("Agency search already finished");
+    },
+    officers: async () => ["Dana Reyes", "Taylor Bell"],
+    search: async (term, nextPage) => {
+      expect(nextPage).toBeUndefined();
+      searchTerms.push(term);
+      return { urls: [] };
+    },
+    visit: async () => {
+      throw Error("Unexpected cached result");
+    },
+    save: async () => {},
+  });
+  expect(searchTerms).toEqual([
+    '"Dana Reyes" "Example Police Department"',
+    '"Taylor Bell" "Example Police Department"',
+  ]);
 });

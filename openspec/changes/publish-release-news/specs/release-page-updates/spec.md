@@ -198,6 +198,11 @@ The website SHALL embed its release identity in each built form and submit it as
 
 The local acquisition SHALL search each agency and then each officer at that agency, including an agency-only search for agencies with no officers. It SHALL use local inference and a visible Chrome browser that waits for the operator whenever Google requests verification.
 
+#### Scenario: Searching by officer and agency
+
+- **WHEN** an officer named Dana Lee Reyes Jr. belongs to Example Police Department
+- **THEN** the Google query is `"Dana Reyes" "Example Police Department"`
+
 #### Scenario: Resuming an officer search
 
 - **WHEN** a run is interrupted during an officer query

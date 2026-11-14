@@ -42,7 +42,7 @@ export function createAcquireDataContext(
       if (!canonicalId) throw Error("Unknown source agency: " + agencyId);
       const rows = rowsFromResult(
         await client.query(
-          `select distinct p.id, concat_ws(' ',p.first_name,p.middle_name,p.last_name,p.suffix) as name
+          `select distinct p.id, concat_ws(' ',p.first_name,p.last_name) as name
          from agency_personnel ap join personnel p on p.id=ap.personnel_id
          where ap.agency_id=$1 order by name,p.id`,
           [canonicalId],
