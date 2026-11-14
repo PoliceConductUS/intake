@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+worktrees=$(git worktree list --porcelain | grep -c '^worktree ')
+if ((worktrees > 2)); then
+  echo "pre-commit: $((worktrees - 1)) worktrees exist besides the main checkout; AGENTS.md allows one. Run 'git worktree list' and remove the extras." >&2
+  exit 1
+fi
+
 npm run validate
