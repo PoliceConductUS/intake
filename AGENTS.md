@@ -43,6 +43,8 @@ approved. Hold this line first.
 
 - Use this project's words: its kinds, commands, and names. Do not coin a
   term. If something new must be named, define it in the same sentence.
+- Before reporting work as done, list each changed file with the part of the
+  request that required it. Revert any change you cannot tie to the request.
 - End a work report with the state: worktree and branch, what is committed,
   what is pushed, what is merged, and what is left to do.
 

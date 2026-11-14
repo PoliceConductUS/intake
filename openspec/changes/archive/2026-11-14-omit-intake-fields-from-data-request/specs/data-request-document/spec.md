@@ -4,7 +4,8 @@
 
 The Simplified Export Format SHALL describe only what a provider can send. It
 SHALL NOT list a field that only the Institute fills in:
-`ai_complaint_summary`, `complaint_summary_unavailability`, `created_by`,
+`ai_complaint_summary`, `complaint_summary_unavailability`, `confidence`,
+`created_by`,
 `data_source_values`, `normalized_url`, `source_exclusions`,
 `source_namespaces`, or `updated_by`. It SHALL NOT list the
 `AgencyArrestProfile`, `DataAnnotation`, or `PersonnelPhoto` record type. The

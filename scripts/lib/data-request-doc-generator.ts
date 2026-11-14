@@ -20,6 +20,7 @@ const INTAKE_COMPUTED = new Set(["slug", "location_path_id"]);
 const INSTITUTE_CONTROLLED = new Set([
   "ai_complaint_summary",
   "complaint_summary_unavailability",
+  "confidence",
   "created_by",
   "data_source_values",
   "normalized_url",

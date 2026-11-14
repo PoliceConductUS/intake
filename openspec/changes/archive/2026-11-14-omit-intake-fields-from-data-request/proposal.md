@@ -14,13 +14,14 @@ ask only for what a provider can supply.
 - From: the generator lists every column except database-managed and
   intake-computed ones.
 - To: it also omits `ai_complaint_summary`,
-  `complaint_summary_unavailability`, `created_by`, `data_source_values`,
+  `complaint_summary_unavailability`, `confidence`, `created_by`,
+  `data_source_values`,
   `normalized_url`, `source_exclusions`, `source_namespaces`, and
   `updated_by`.
 - Reason: a provider cannot supply them; they are under the Institute's
   exclusive control.
-- Impact: `normalized_url`, `created_by`, and `updated_by` were in the
-  previously committed document and are removed from it.
+- Impact: `confidence`, `normalized_url`, `created_by`, and `updated_by` were
+  in the previously committed document and are removed from it.
 
 **Record types the Institute produces**
 

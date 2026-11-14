@@ -42,20 +42,18 @@ Alternative A.
 ## Key Decisions
 
 - Omitted fields, on every record type: `ai_complaint_summary`,
-  `complaint_summary_unavailability`, `created_by`, `data_source_values`,
-  `normalized_url`, `source_exclusions`, `source_namespaces`, `updated_by`.
+  `complaint_summary_unavailability`, `confidence`, `created_by`,
+  `data_source_values`, `normalized_url`, `source_exclusions`,
+  `source_namespaces`, `updated_by`.
 - Omitted record types: `AgencyArrestProfile`, `DataAnnotation`,
   `PersonnelPhoto`.
 - The user ruled that `Personnel.deceased_*`, the `Review*` record types
   (public complaints or commendations), and the `CoverageLink*` record types
   stay: a provider can send them.
-- Which other fields count as Institute-controlled was the implementer's
-  reading of the user's rule. Left in and not ruled on:
-  `CoverageLinkAgencyPersonnel.confidence`, and `Agency.status` with
-  `status_date`.
+- The user ruled that `CoverageLinkAgencyPersonnel.confidence` is omitted.
+- `Agency.status` and `status_date` stay in and are not ruled on.
 - The format version in the document moves to `20261113000000`.
 
 ## Open Questions
 
-- Should `CoverageLinkAgencyPersonnel.confidence` or `Agency.status` and
-  `status_date` be omitted?
+- Should `Agency.status` and `status_date` be omitted?

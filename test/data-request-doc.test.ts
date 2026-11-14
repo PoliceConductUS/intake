@@ -58,6 +58,7 @@ describe("provider data-request document", () => {
       { name: "normalized_url", udtName: "text", nullable: false },
       { name: "created_by", udtName: "text", nullable: true },
       { name: "updated_by", udtName: "text", nullable: true },
+      { name: "confidence", udtName: "text", nullable: false },
     );
     const doc = generateDataRequestDoc(
       { ...schema, tables: new Map([["agency", agency]]) },
@@ -74,6 +75,7 @@ describe("provider data-request document", () => {
     expect(doc).not.toContain("normalized_url");
     expect(doc).not.toContain("created_by");
     expect(doc).not.toContain("updated_by");
+    expect(doc).not.toContain("confidence");
   });
   it("includes the maintained raw model separately from supported import records", () => {
     const model =

@@ -926,7 +926,6 @@ One row per CoverageLinkAgencyPersonnel.
 | `id`                  | text | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time.                                 |
 | `coverage_link_id`    | text | yes      | —                                                | → **CoverageLink**: your id for the linked CoverageLink, present in the same export.       |
 | `agency_personnel_id` | text | yes      | —                                                | → **AgencyPersonnel**: your id for the linked AgencyPersonnel, present in the same export. |
-| `confidence`          | text | yes      | —                                                | —                                                                                          |
 | `notes`               | text | optional | —                                                | —                                                                                          |
 
 ### AgencyPhoneNumber
