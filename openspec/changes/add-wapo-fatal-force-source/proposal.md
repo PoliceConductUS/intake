@@ -17,7 +17,7 @@ Two things make a closed corpus worth ingesting:
 2. **The agency reference file is independent entity-resolution evidence.** The
    Post's reporters reconciled agency names against FBI and DOJ sources and
    rolled sub-agencies, troops, regions, and posts up into parent agencies. That
-   agency→ORI-*set* rollup is the problem federal censuses do not solve for us.
+   agency→ORI-_set_ rollup is the problem federal censuses do not solve for us.
 
 ## What Changes
 
@@ -41,12 +41,10 @@ Two things make a closed corpus worth ingesting:
 
 **Redistribution class on the source**
 
-Fatal Force is published under **CC BY-NC-SA 4.0**. ShareAlike (§3(b)) attaches
-when Adapted Material is **Shared**; the constraint therefore binds at
-publication and bulk export, not at ingestion. This change records
-`redistribution_class: noncommercial_sharealike` so the public API and bulk
-export can exclude the source **structurally** rather than by anyone remembering
-to. Without that tag the first export ships the problem.
+Fatal Force records its licence as **CC BY-NC-SA 4.0**. Internal ingestion is
+explicitly authorized on INS-81. Every imported row records that licence and
+`redistribution_class: noncommercial_sharealike`. This change adds no public
+projection or export; it makes no legal determination about future publication.
 
 ## Affected Migrations, Seed Rows, and Downstream Contracts
 

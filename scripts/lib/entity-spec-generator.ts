@@ -75,6 +75,16 @@ const LEVEL_SUPERREFINE = `.superRefine((row, context) => {
 
 const DESCRIPTORS: EntityDescriptor[] = [
   {
+    recordKind: "FatalShooting",
+    table: "fatal_shooting",
+    createRequired: ["id"],
+  },
+  {
+    recordKind: "FatalShootingAgency",
+    table: "fatal_shooting_agency",
+    createRequired: ["id"],
+  },
+  {
     recordKind: "LocationPath",
     table: "location_path",
     createRequired: ["path"],
@@ -434,6 +444,8 @@ function businessKeys(
 // pluralization is irregular, so it is declared, not derived — but this is
 // naming only, NEVER a dependency: the dependency graph is the database's FKs.
 const ENTITY_NAME_BY_RECORD_KIND: Record<string, string> = {
+  FatalShooting: "fatalShootings",
+  FatalShootingAgency: "fatalShootingAgencies",
   LocationPath: "locationPaths",
   LocationPathGeometry: "locationPathGeometries",
   LocationPathAlias: "locationPathAliases",

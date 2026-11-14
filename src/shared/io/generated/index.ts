@@ -2,6 +2,28 @@
 export { Artifacts } from "./Artifacts.js";
 export type { ArtifactsEnvelope, ArtifactsInput } from "./Artifacts.js";
 export {
+  FatalShootings,
+  FatalShooting,
+  FatalShootingSpec,
+} from "./FatalShootings.js";
+export type {
+  FatalShootingsEnvelope,
+  FatalShootingsInput,
+  FatalShootingEnvelope,
+  FatalShootingInput,
+} from "./FatalShootings.js";
+export {
+  FatalShootingAgencies,
+  FatalShootingAgency,
+  FatalShootingAgencySpec,
+} from "./FatalShootingAgencies.js";
+export type {
+  FatalShootingAgenciesEnvelope,
+  FatalShootingAgenciesInput,
+  FatalShootingAgencyEnvelope,
+  FatalShootingAgencyInput,
+} from "./FatalShootingAgencies.js";
+export {
   LocationPaths,
   LocationPath,
   LocationPathSpec,

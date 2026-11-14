@@ -5,23 +5,23 @@
 Measured against the v2 files at upstream commit `cb0fb99`, retrieved
 2026-10-25:
 
-| Fact | Value |
-|---|---|
-| Incident rows | 10,430 |
-| Date range | 2015-01-02 → 2024-12-31, zero unparseable dates |
-| Distinct `id` | 10,430 (equal to row count — `id` is unique) |
-| `id` range | 3 – 11,295 (sparse; gaps are retracted or merged records) |
-| Agency rows | 3,727 |
-| Agencies with >1 ORI | 96 |
-| Agencies with **no** ORI | 132 |
-| `name` (decedent) populated | 97.0% |
-| `race` populated | 88.6% |
-| `agency_ids` populated | 100% |
-| `fatal-police-shootings-data.csv` | 1,861,881 B, sha256 `606745b7…` |
-| `fatal-police-shootings-agencies.csv` | 284,808 B, sha256 `45d59f37…` |
+| Fact                                  | Value                                                            |
+| ------------------------------------- | ---------------------------------------------------------------- |
+| Incident rows                         | 10,430                                                           |
+| Date range                            | 2015-01-02 → 2024-12-31, zero unparseable dates                  |
+| Distinct `id`                         | 10,430 (equal to row count — `id` is unique)                     |
+| `id` range                            | 3 – 11,295 (sparse; gaps are retracted or merged records)        |
+| Agency rows                           | 3,727                                                            |
+| Agencies with >1 ORI                  | 96                                                               |
+| Agencies with **no** ORI              | 132                                                              |
+| `name` (decedent) populated           | 97.0%                                                            |
+| `race` populated                      | 88.6%                                                            |
+| `agency_ids` populated                | 10,429 / 10,430 (reverified 2026-11-14; incident 10562 is blank) |
+| `fatal-police-shootings-data.csv`     | 1,861,881 B, sha256 `606745b7…`                                  |
+| `fatal-police-shootings-agencies.csv` | 284,808 B, sha256 `45d59f37…`                                    |
 
-**The corpus is closed.** Upstream commit `2025-08-25` is titled *"Update README:
-only killings 2015-2024 are accepted"*, the last data commit is 2025-06-17, and
+**The corpus is closed.** Upstream commit `2025-08-25` is titled _"Update README:
+only killings 2015-2024 are accepted"_, the last data commit is 2025-06-17, and
 the maximum incident date is 2024-12-31. Later upstream commits touch
 documentation. Design for a **final** dataset, not a feed.
 
@@ -65,7 +65,7 @@ not a department identifier. It is stored verbatim as source-reported text on
 `fatal_shooting_agency`. It is not a primary key, not a join key, and not
 promoted onto `public.agency` by this change.
 
-This is the empirical confirmation of the agency→ORI-*set* problem: the data
+This is the empirical confirmation of the agency→ORI-_set_ problem: the data
 says one agency may legitimately carry several ORIs, so any schema that assumes
 ORI is unique per agency is wrong before it ships.
 
@@ -119,9 +119,9 @@ only cleared output is the aggregate annual count (ten integers naming nobody),
 which is a board decision recorded on INS-81. Decedent-level records remain
 unpublished pending an adopted named-decedent rule.
 
-`redistribution_class: noncommercial_sharealike` is the structural hook: the
-public API and bulk export filter on it, so a CC BY-NC-SA source cannot reach an
-open export by omission.
+`redistribution_class: noncommercial_sharealike` is stored on every row. This
+change adds no public projection or export. A future public exporter must enforce
+the recorded redistribution restriction before including this corpus.
 
 ### D8 — Contested attributes are stored as source claims
 
@@ -144,3 +144,24 @@ a person.
   and never recomputed from the incident file. If the two disagree, that
   disagreement is signal about the source and must surface rather than be
   harmonised.
+
+### Implementation contract — 2026-11-14
+
+Both entities carry required file provenance (`source_dataset`, `source_url`,
+`source_commit`, `source_sha256`, `retrieved_at`), source-local identity
+(`source_record_id`), licence and redistribution class, and `evidence_status`
+set to `source_reported`. These fields attribute every supplied value; they do
+not claim independent corroboration. Incident `reported_agency_ids` preserves
+the source-local semicolon list, scoped to the source dataset. It is not a list
+of canonical agency IDs. Canonical agency links remain null in this import:
+the existing name-only resolver cannot establish identity and period reliably.
+No agency resolution or new public export surface is added.
+
+Validation uses a separate local Docker PostGIS database with all repository
+migrations, so no existing development corpus is reset. Raw inputs and the
+intake workspace live outside the repository. The existing attributed chart
+remains the review artifact; ingestion verification compares its annual counts.
+
+An empty reported agency list is stored as null, without rejecting the incident.
+A non-empty reference absent from the agency CSV remains an explicit import
+error; the source must not invent a reported agency.

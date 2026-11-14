@@ -59,19 +59,22 @@ export const GENERATED_MIGRATION_VERSIONS = [
   "20261103020000",
   "20261103021000",
   "20261103062000",
+  "20261114183000",
 ] as const;
 export const GENERATED_MIGRATION_FINGERPRINT =
-  "ab259ee0134dd92334683e158f62cf929b756d00587d18c736449727bfa3c3f1";
+  "298490eccf9b20b523133386c585135fba1460ab60b52f2b30627946c13eada3";
 
 // Entity record kinds in database-dependency order (topological sort of the
 // foreign-key graph): a referenced entity precedes its referrer, so mutations
 // emitted/applied in this order never violate a foreign key.
 export const RECORD_KINDS_IN_DEPENDENCY_ORDER = [
+  "FatalShooting",
   "LocationPath",
-  "LocationPathGeometry",
-  "LocationPathAlias",
   "FederalAgency",
   "Agency",
+  "FatalShootingAgency",
+  "LocationPathGeometry",
+  "LocationPathAlias",
   "Personnel",
   "LicensingAuthority",
   "AuthorityLicense",
@@ -103,6 +106,7 @@ export const FK_REFERENCES: Record<
   string,
   ReadonlyArray<{ field: string; targetKind: string }>
 > = {
+  FatalShootingAgency: [{ field: "agency_id", targetKind: "Agency" }],
   LocationPathGeometry: [
     { field: "location_path_id", targetKind: "LocationPath" },
   ],
@@ -193,6 +197,8 @@ export const BUSINESS_KEYS: Record<string, readonly string[]> = {
 // ledger mints) through the property cache — so a resolved field becomes
 // cache-backed automatically, with no per-resolver wiring.
 export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = {
+  FatalShooting: ["id"],
+  FatalShootingAgency: ["id"],
   LocationPath: ["path"],
   LocationPathGeometry: [],
   LocationPathAlias: ["alias_path"],
@@ -232,6 +238,8 @@ export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = {
 };
 
 export const JSON_REQUIRED_PROPERTIES: Record<string, readonly string[]> = {
+  FatalShooting: [],
+  FatalShootingAgency: [],
   LocationPath: ["data_source_values"],
   LocationPathGeometry: ["data_source_values"],
   LocationPathAlias: ["data_source_values"],
@@ -262,6 +270,8 @@ export const JSON_REQUIRED_PROPERTIES: Record<string, readonly string[]> = {
 };
 
 export const JSON_PROPERTIES: Record<string, readonly string[]> = {
+  FatalShooting: [],
+  FatalShootingAgency: [],
   LocationPath: ["data_source_values"],
   LocationPathGeometry: ["data_source_values"],
   LocationPathAlias: ["data_source_values"],
@@ -296,6 +306,8 @@ export const JSON_PROPERTIES: Record<string, readonly string[]> = {
 };
 
 export const DATE_PROPERTIES: Record<string, readonly string[]> = {
+  FatalShooting: ["date"],
+  FatalShootingAgency: [],
   LocationPath: [],
   LocationPathGeometry: [],
   LocationPathAlias: [],
@@ -328,11 +340,15 @@ export const DATE_PROPERTIES: Record<string, readonly string[]> = {
 // Timestamp instants require value comparison across PostgreSQL and ISO string
 // representations. Only source-writable timestamptz columns participate.
 export const TIMESTAMP_PROPERTIES: Record<string, readonly string[]> = {
+  FatalShooting: ["retrieved_at"],
+  FatalShootingAgency: ["retrieved_at"],
   Review: ["incident_date"],
 };
 
 // Each record kind's schema-qualified database table.
 export const TABLE_BY_KIND: Record<string, string> = {
+  FatalShooting: "public.fatal_shooting",
+  FatalShootingAgency: "public.fatal_shooting_agency",
   LocationPath: "public.location_path",
   LocationPathGeometry: "public.location_path_geometry",
   LocationPathAlias: "public.location_path_alias",
@@ -366,6 +382,8 @@ export const TABLE_BY_KIND: Record<string, string> = {
 // whitelist that keeps ad-hoc SQL off arbitrary tables (see the database-boundary
 // test). Derived from TABLE_BY_KIND so the two never drift.
 export type SupportedTableName =
+  | "public.fatal_shooting"
+  | "public.fatal_shooting_agency"
   | "public.location_path"
   | "public.location_path_geometry"
   | "public.location_path_alias"
@@ -398,6 +416,8 @@ export type SupportedTableName =
 // rows on (its identity in WHERE clauses). `id` for most tables; a natural key
 // for a few (location_path.location_path_id, location_path_alias.alias_path).
 export const PRIMARY_KEY_BY_KIND: Record<string, string> = {
+  FatalShooting: "id",
+  FatalShootingAgency: "id",
   LocationPath: "location_path_id",
   LocationPathGeometry: "location_path_id",
   LocationPathAlias: "alias_path",
@@ -432,6 +452,20 @@ export const PRIMARY_KEY_BY_KIND: Record<string, string> = {
 // source of truth for what is importable — it can never drift from the entity
 // specs because it is generated from the same descriptors.
 export const importTypeMetadata = {
+  FatalShootings: {
+    kind: "FatalShootings",
+    recordKind: "FatalShooting",
+    entityName: "fatalShootings",
+    targetTable: "public.fatal_shooting",
+    dependsOn: [],
+  },
+  FatalShootingAgencies: {
+    kind: "FatalShootingAgencies",
+    recordKind: "FatalShootingAgency",
+    entityName: "fatalShootingAgencies",
+    targetTable: "public.fatal_shooting_agency",
+    dependsOn: ["Agencies"],
+  },
   LocationPaths: {
     kind: "LocationPaths",
     recordKind: "LocationPath",
@@ -628,6 +662,8 @@ export type ImportArtifactKind = keyof typeof importTypeMetadata;
 // The artifact kinds in descriptor order (a referenced entity's source can still
 // run in any order a source declares; run-order is derived from dependsOn).
 export const IMPORT_ARTIFACT_KINDS = [
+  "FatalShootings",
+  "FatalShootingAgencies",
   "LocationPaths",
   "LocationPathGeometries",
   "LocationPathAliases",
@@ -699,6 +735,70 @@ const LocationPathBboxSpec = z
       });
     }
   });
+
+export const FatalShootingSpec = z
+  .object({
+    id: z.string().optional(),
+    date: z.string(),
+    name: z.string().nullable().optional(),
+    age: z.number().finite().nullable().optional(),
+    gender: z.string().nullable().optional(),
+    race: z.string().nullable().optional(),
+    race_source: z.string().nullable().optional(),
+    city: z.string().nullable().optional(),
+    county: z.string().nullable().optional(),
+    state: z.string().nullable().optional(),
+    latitude: z.number().finite().nullable().optional(),
+    longitude: z.number().finite().nullable().optional(),
+    location_precision: z.string().nullable().optional(),
+    body_camera: z.boolean().nullable().optional(),
+    was_mental_illness_related: z.boolean().nullable().optional(),
+    threat_type: z.string().nullable().optional(),
+    armed_with: z.string().nullable().optional(),
+    flee_status: z.string().nullable().optional(),
+    reported_agency_ids: z.string().nullable().optional(),
+    source_dataset: nonEmptyString,
+    source_record_id: nonEmptyString,
+    source_url: z.string(),
+    source_commit: z.string(),
+    source_sha256: z.string(),
+    retrieved_at: timestampWithTimezone,
+    license: nonEmptyString,
+    redistribution_class: nonEmptyString,
+    evidence_status: z.string(),
+  })
+  .strict();
+
+export const FatalShootingCreateSpec = FatalShootingSpec.safeExtend({
+  id: z.string(),
+});
+
+export const FatalShootingAgencySpec = z
+  .object({
+    id: z.string().optional(),
+    agency_id: z.string().nullable().optional(),
+    name: nonEmptyString,
+    type: z.string().nullable().optional(),
+    state: z.string().nullable().optional(),
+    oricodes: z.string().nullable().optional(),
+    total_shootings: z.number().int(),
+    source_dataset: nonEmptyString,
+    source_record_id: nonEmptyString,
+    source_url: z.string(),
+    source_commit: z.string(),
+    source_sha256: z.string(),
+    retrieved_at: timestampWithTimezone,
+    license: nonEmptyString,
+    redistribution_class: nonEmptyString,
+    evidence_status: z.string(),
+  })
+  .strict();
+
+export const FatalShootingAgencyCreateSpec = FatalShootingAgencySpec.safeExtend(
+  {
+    id: z.string(),
+  },
+);
 
 export const LocationPathSpec = z
   .object({

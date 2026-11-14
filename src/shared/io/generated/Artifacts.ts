@@ -8,6 +8,8 @@ import {
   readYamlDocumentFile,
   writeYamlDocumentFile,
 } from "../internal/yaml-document.js";
+import { FatalShootings } from "./FatalShootings.js";
+import { FatalShootingAgencies } from "./FatalShootingAgencies.js";
 import { LocationPaths } from "./LocationPaths.js";
 import { LocationPathGeometries } from "./LocationPathGeometries.js";
 import { LocationPathAliases } from "./LocationPathAliases.js";
@@ -104,6 +106,8 @@ const metadataSchema = z
 
 const artifactKindSchema = z.enum(IMPORT_ARTIFACT_KINDS);
 const artifactSpecSchemas: Record<string, z.ZodType> = {
+  FatalShootings: FatalShootings.schema.shape.spec,
+  FatalShootingAgencies: FatalShootingAgencies.schema.shape.spec,
   LocationPaths: LocationPaths.schema.shape.spec,
   LocationPathGeometries: LocationPathGeometries.schema.shape.spec,
   LocationPathAliases: LocationPathAliases.schema.shape.spec,

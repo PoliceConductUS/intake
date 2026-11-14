@@ -7,6 +7,12 @@ export { Command } from "./Command.js";
 export type { CommandEnvelope, CommandInput } from "./Command.js";
 export type { ImportArtifactKind } from "./import-types.js";
 export {
+  FatalShooting,
+  FatalShootings,
+  FatalShootingSpec,
+  FatalShootingAgency,
+  FatalShootingAgencies,
+  FatalShootingAgencySpec,
   DataAnnotation,
   DataAnnotations,
   DataAnnotationSpec,

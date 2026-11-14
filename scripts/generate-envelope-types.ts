@@ -40,6 +40,8 @@ const importMutationOutputDirectory = path.join(
 // a kind can be opted out without reintroducing the `recordKind !== kind`
 // heuristic.
 const RECORD_ENVELOPE_KINDS = new Set<ImportArtifactKind>([
+  "FatalShootings",
+  "FatalShootingAgencies",
   "DataAnnotations",
   "LocationPaths",
   "LocationPathGeometries",
