@@ -6,7 +6,7 @@ uv = "0.11.14"
 [env]
 DO_NOT_TRACK = "1"
 SUPABASE_TELEMETRY_DISABLED = "1"
-TMPDIR = ".cache/tmp"
+TMPDIR = false
 UV_CACHE_DIR = ".cache/uv"
 UV_TOOL_DIR = ".cache/uv-tools"
 # Root intake workspace (holds intake/{state,commands,sources}); relative to the

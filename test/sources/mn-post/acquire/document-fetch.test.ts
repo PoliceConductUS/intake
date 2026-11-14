@@ -1,3 +1,4 @@
+import { ORDER_ANALYSIS_PROMPT_SHA256 } from "../../../../sources/mn-post/acquire/order-prompt.js";
 import { describe, expect, it, vi } from "vitest";
 import {
   createDocumentFetcher,
@@ -105,7 +106,7 @@ it("preserves the source URL in acquired document evidence after transport mappi
       }),
       analyzer: {
         model: "test",
-        promptVersion: 2,
+        promptSha256: ORDER_ANALYSIS_PROMPT_SHA256,
         analyze: async () => ({
           analysis: {
             allegation: null,

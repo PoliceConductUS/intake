@@ -7,7 +7,7 @@ export const DocumentActionSchema = z.strictObject({
   contactId: z.string().min(1),
   caseNumber: z.string().min(1),
 });
-export const ORDER_ANALYSIS_PROMPT_VERSION = 2;
+import { ORDER_ANALYSIS_PROMPT_SHA256 } from "./order-prompt.js";
 const narrative = z.string().trim().min(1).nullable();
 export const OrderAnalysisSchema = z.strictObject({
   allegation: narrative,
@@ -58,7 +58,7 @@ const fieldEvidence = z.array(
     excerpt: z.string().min(1),
   }),
 );
-const DocumentSchema = z.strictObject({
+const PreservedDocumentSchema = z.object({
   url: z.string().min(1),
   documentName: z.string().nullable(),
   actions: z.array(DocumentActionSchema).min(1),
@@ -67,11 +67,13 @@ const DocumentSchema = z.strictObject({
   fetchedAt: z.string().min(1),
   pages: z.array(page).min(1),
   text: z.string(),
+});
+const DocumentSchema = PreservedDocumentSchema.extend({
   analysis: OrderAnalysisSchema,
   absenceReasons: AbsenceReasonsSchema,
   analyzedWith: z.strictObject({
     model: z.string().min(1),
-    promptVersion: z.literal(ORDER_ANALYSIS_PROMPT_VERSION),
+    promptSha256: z.literal(ORDER_ANALYSIS_PROMPT_SHA256),
   }),
   reviewReceipt: z
     .strictObject({
@@ -86,25 +88,10 @@ const DocumentSchema = z.strictObject({
       }),
     })
     .optional(),
-});
-const PreviousDocumentSchema = DocumentSchema.omit({
-  absenceReasons: true,
-}).extend({
-  analysis: z.strictObject({
-    allegation: z.string().nullable(),
-    violation: z.string().nullable(),
-    finding: z.string().nullable(),
-    chief_action: z.string().nullable(),
-    sanction: z.string().nullable(),
-  }),
-  analyzedWith: z.strictObject({
-    model: z.string().min(1),
-    promptVersion: z.literal(1),
-  }),
-});
-
-export async function readPriorDocumentEvidence(jsonPath: string) {
-  const document = PreviousDocumentSchema.parse(
+}).strict();
+/** Read only source evidence when obsolete analysis must be regenerated. */
+export async function readPreservedDocumentEvidence(jsonPath: string) {
+  const document = PreservedDocumentSchema.parse(
     JSON.parse(await readFile(jsonPath, "utf8")),
   );
   await verifyPreservedDocument(jsonPath, document);

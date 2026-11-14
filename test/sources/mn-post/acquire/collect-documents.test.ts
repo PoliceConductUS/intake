@@ -1,3 +1,4 @@
+import { ORDER_ANALYSIS_PROMPT_SHA256 } from "../../../../sources/mn-post/acquire/order-prompt.js";
 import {
   mkdtemp,
   mkdir,
@@ -107,7 +108,7 @@ async function makeFixture(): Promise<{
 function fakeAnalyzer(): OrderAnalyzer & { analyze: ReturnType<typeof vi.fn> } {
   return {
     model: "test-model",
-    promptVersion: 2,
+    promptSha256: ORDER_ANALYSIS_PROMPT_SHA256,
     analyze: vi.fn(async () => ({ analysis, absenceReasons: {} })),
   };
 }
@@ -213,7 +214,10 @@ describe("collectDocuments", () => {
       text: "PB 25-141\nSTIPULATION\n\nFindings of Fact\n1. Tracy holds",
       analysis,
       absenceReasons: {},
-      analyzedWith: { model: "test-model", promptVersion: 2 },
+      analyzedWith: {
+        model: "test-model",
+        promptSha256: ORDER_ANALYSIS_PROMPT_SHA256,
+      },
     });
     expect(d.analyzer.analyze).toHaveBeenCalledWith(document.text);
     expect(result.skippedDocuments).toEqual([
@@ -317,7 +321,7 @@ describe("collectDocuments", () => {
       JSON.stringify({
         analysis: {
           model: "codex-document-review",
-          promptVersion: 2,
+          promptSha256: ORDER_ANALYSIS_PROMPT_SHA256,
           output: analysis,
           absenceReasons: {},
           reviewReceipt: receipt,
@@ -354,7 +358,7 @@ describe("collectDocuments", () => {
     const [document] = await documentsOn(fixture.sourceDir);
     expect(document.analyzedWith).toEqual({
       model: "codex-document-review",
-      promptVersion: 2,
+      promptSha256: ORDER_ANALYSIS_PROMPT_SHA256,
     });
     expect(document.reviewReceipt).toEqual(receipt);
   });
@@ -381,7 +385,7 @@ describe("collectDocuments", () => {
     expect(await documentsOn(fixture.sourceDir)).toHaveLength(1);
   });
 
-  it("re-analyzes a cached document when the analyzer's prompt version changes", async () => {
+  it("re-analyzes a cached document when the analyzer's prompt fingerprint changes", async () => {
     const fixture = await makeFixture();
     await collectDocuments(deps(fixture));
     await rm(path.join(fixture.sourceDir, "documents"), { recursive: true });
@@ -390,7 +394,7 @@ describe("collectDocuments", () => {
     for (const name of await readdir(cacheDir)) {
       const file = path.join(cacheDir, name);
       const cache = JSON.parse(await readFile(file, "utf8"));
-      cache.analysis.promptVersion = 1;
+      cache.analysis.promptSha256 = "0".repeat(64);
       delete cache.analysis.absenceReasons;
       await writeFile(file, JSON.stringify(cache));
     }
@@ -403,7 +407,7 @@ describe("collectDocuments", () => {
     const [document] = await documentsOn(fixture.sourceDir);
     expect(document.analyzedWith).toEqual({
       model: "test-model",
-      promptVersion: 2,
+      promptSha256: ORDER_ANALYSIS_PROMPT_SHA256,
     });
   });
   it.each(["populated", "blank"])(
@@ -418,7 +422,7 @@ describe("collectDocuments", () => {
       )!;
       const file = path.join(dir, name);
       const doc = JSON.parse(await readFile(file, "utf8"));
-      doc.analyzedWith.promptVersion = 1;
+      doc.analyzedWith.promptSha256 = "0".repeat(64);
       delete doc.absenceReasons;
       if (mode === "blank") doc.analysis.chief_action = "  ";
       await writeFile(file, JSON.stringify(doc));
@@ -428,7 +432,7 @@ describe("collectDocuments", () => {
         logger: { info: (message) => messages.push(message) },
       });
       expect((await documentsOn(fixture.sourceDir))[0]).toMatchObject({
-        analyzedWith: { promptVersion: 2 },
+        analyzedWith: { promptSha256: ORDER_ANALYSIS_PROMPT_SHA256 },
         absenceReasons: {},
       });
       expect(d.extractText).toHaveBeenCalledTimes(1);
@@ -452,7 +456,7 @@ describe("collectDocuments", () => {
       )!;
       const file = path.join(dir, name);
       const doc = JSON.parse(await readFile(file, "utf8"));
-      doc.analyzedWith.promptVersion = 1;
+      doc.analyzedWith.promptSha256 = "0".repeat(64);
       delete doc.absenceReasons;
       if (field === "URL") doc.url = "https://other.test/order";
       else

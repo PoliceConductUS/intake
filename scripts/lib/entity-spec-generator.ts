@@ -266,6 +266,18 @@ const DESCRIPTORS: EntityDescriptor[] = [
     recordKind: "ReviewLink",
     table: "review_links",
     createRequired: ["id"],
+    superRefine: `.superRefine((row, context) => {
+      const hasCase = row.civil_case_id != null;
+      const hasUrl = row.url != null;
+      const hasTitle = row.title != null;
+      if (hasCase ? hasUrl || hasTitle : !hasUrl || !hasTitle) {
+        context.addIssue({
+          code: "custom",
+          path: ["civil_case_id"],
+          message: "must target either a civil case or a URL with a title",
+        });
+      }
+    })`,
   },
   {
     // A per-officer arrest profile (ADR 0032): one recomputed row per officer,
