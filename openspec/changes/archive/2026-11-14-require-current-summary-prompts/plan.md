@@ -45,6 +45,6 @@ Files: sources/mn-post/acquire/order-analysis.ts; document-evidence.ts; collect-
 ## Task 3: Finish the database comparison and deliver
 
 - [x] Verify the exact historical prompt match, convert current acquisition-result metadata, and replace obsolete results with current analyses for identical PDFs; preserve originals and leave state caches untouched.
-- [ ] Finish the interrupted source rebuild through canonical intake commands.
-- [ ] Refresh website projections and compare all tables/columns and schema with the verified private backup.
-- [ ] Review the diff, commit all pending source changes, push and update the existing PR; verify CI for the final head.
+- [x] Finish the interrupted source rebuild through canonical intake commands.
+- [x] Refresh website projections and compare all tables/columns and schema with the verified private backup.
+- [x] Review the diff, commit all pending source changes, push and update the existing PR; verify CI for the final head.
