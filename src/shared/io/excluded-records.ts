@@ -1,4 +1,4 @@
-import { open, readFile, rename, stat, unlink } from "node:fs/promises";
+import { open, readFile, rename, unlink } from "node:fs/promises";
 import path from "node:path";
 import { isMap, isSeq, parse, parseDocument } from "yaml";
 import { z } from "zod";
@@ -96,6 +96,13 @@ export async function loadExcludedRecords(
     throw error;
   }
 
+  return parseExcludedRecords(contents, filePath);
+}
+
+function parseExcludedRecords(
+  contents: string,
+  filePath: string,
+): ExcludedRecords {
   let parsed: ExcludedRecordsFile;
   try {
     parsed = (parse(contents) ?? {}) as ExcludedRecordsFile;
@@ -152,13 +159,23 @@ export async function appendExcludedRecord(
   );
   let published = false;
   try {
-    const targetMode = await stat(filePath)
-      .then((target) => target.mode & 0o7777)
-      .catch((error: NodeJS.ErrnoException) => {
-        if (error.code === "ENOENT") return 0o666 & ~process.umask();
+    let targetMode = 0o666 & ~process.umask();
+    let contents = "";
+    const target = await open(filePath, "r").catch(
+      (error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return undefined;
         throw error;
-      });
-    const existing = (await loadExcludedRecords(stateDir)).get(
+      },
+    );
+    if (target !== undefined) {
+      try {
+        targetMode = (await target.stat()).mode & 0o7777;
+        contents = await target.readFile("utf8");
+      } finally {
+        await target.close();
+      }
+    }
+    const existing = parseExcludedRecords(contents, filePath).get(
       excludedRecordKey(record.kind, record.key),
     );
     if (existing !== undefined && !options.replace)
@@ -169,12 +186,6 @@ export async function appendExcludedRecord(
       throw new Error(
         `Cannot replace ${record.kind} ${record.key}: not excluded.`,
       );
-    const contents = await readFile(filePath, "utf8").catch(
-      (error: NodeJS.ErrnoException) => {
-        if (error.code === "ENOENT") return "";
-        throw error;
-      },
-    );
     const document = parseDocument(contents);
     if (document.errors.length > 0) throw document.errors[0];
     if (document.contents !== null && !isMap(document.contents))

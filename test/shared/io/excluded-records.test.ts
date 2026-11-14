@@ -1,7 +1,9 @@
-import { chmod, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import filesystem from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
+import { chmod, mkdtemp, rename, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   excludedRecordKey,
   loadExcludedRecords,
@@ -12,6 +14,68 @@ let sourceDir: string;
 
 beforeEach(async () => {
   sourceDir = await mkdtemp(path.join(tmpdir(), "excluded-records-"));
+});
+
+it("uses matching permissions and contents when the target path changes after metadata is read", async () => {
+  const file = await appendExcludedRecord(sourceDir, {
+    kind: "Personnel",
+    key: "one",
+    reason: "original snapshot",
+  });
+  await chmod(file, 0o600);
+  const replacementDir = await mkdtemp(path.join(sourceDir, "replacement-"));
+  const replacement = await appendExcludedRecord(replacementDir, {
+    kind: "Personnel",
+    key: "one",
+    reason: "different snapshot",
+  });
+  await chmod(replacement, 0o664);
+  let swapped = false;
+  const swap = async () => {
+    if (swapped) return;
+    swapped = true;
+    await rename(replacement, file);
+  };
+  const originalStat = filesystem.stat;
+  const originalOpen = filesystem.open;
+  const metadataRead = vi
+    .spyOn(filesystem, "stat")
+    .mockImplementation(async (...args) => {
+      const metadata = await originalStat(...args);
+      if (args[0] === file) await swap();
+      return metadata;
+    });
+  const targetOpen = vi
+    .spyOn(filesystem, "open")
+    .mockImplementation(async (...args) => {
+      const handle = await originalOpen(...args);
+      if (args[0] === file) {
+        const statHandle = handle.stat.bind(handle);
+        vi.spyOn(handle, "stat").mockImplementation(async (...options) => {
+          const metadata = await statHandle(...options);
+          await swap();
+          return metadata;
+        });
+      }
+      return handle;
+    });
+  syncBuiltinESMExports();
+  try {
+    await appendExcludedRecord(sourceDir, {
+      kind: "Personnel",
+      key: "added",
+      reason: "new exclusion",
+    });
+  } finally {
+    metadataRead.mockRestore();
+    targetOpen.mockRestore();
+    syncBuiltinESMExports();
+  }
+  expect(swapped).toBe(true);
+  expect((await stat(file)).mode & 0o7777).toBe(0o600);
+  const records = await loadExcludedRecords(sourceDir);
+  expect(records.get("Personnel:one")?.reason).toBe("original snapshot");
+  expect(records.get("Personnel:added")?.reason).toBe("new exclusion");
 });
 
 it.each([0o600, 0o660])(
