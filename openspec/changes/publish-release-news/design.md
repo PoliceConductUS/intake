@@ -26,9 +26,21 @@ Normalize Unicode and whitespace and ignore capitalization and punctuation for h
 
 ## One article across preferred URLs
 
-The daily Intake Action assigns a CUID2 source ID once to each new record it creates, including each new article and each new article-to-assignment relationship. Persist the originating namespace and source ID together. On a later search or retry, look up that record before assigning an ID. A newly discovered copy or preferred URL reuses the article’s original pair. A newly supported assignment gets a new relationship record only if that article-to-assignment relationship does not already exist. Existing people and assignments retain their release snapshot references.
+Daily identifies each publisher occurrence with the source namespace `google.news` and the normalized publisher URL as its source ID. Keep the publisher's actual link for readers. Record each occurrence's source pair in private JSON. References may use any source pair belonging to that story. The displayed article carries the source pair of the displayed occurrence in HTML. Each article-to-assignment relationship retains its own persistent source identity.
 
-Carry both values in generated JSON records and references (for example, `namespace` and `sourceId`) and on the corresponding generated HTML elements (for example, `data-source-namespace` and `data-source-id`). Render the same pair on every destination and subsequent regeneration. The S3 importer preserves the original namespace even when importing through a different acquisition source or an earlier release. Intake assigns or resolves the canonical database ID, records its mapping to the namespaced source ID, and reuses that mapping on reimport. The Action can publish before any canonical ID exists. The importer reads the structured JSON.
+Daily writes `builds/{release-id}/data/alias.json` in private release storage. The outer keys are Intake record kinds. Inside `CoverageLink`, a duplicate’s normalized publisher URL maps to another normalized publisher URL for the same story within the `google.news` namespace. Daily preserves mappings for other kinds, and the news importer consults only `CoverageLink`.
+
+```json
+{
+  "CoverageLink": {
+    "https://copy.example/story": "https://publisher.example/story"
+  }
+}
+```
+
+This entry groups the two URL source IDs. A release without aliases starts with `{"CoverageLink":{}}`. Daily merges confirmed aliases when saving the release.
+
+Intake reads the file alongside the page records and follows the mappings, including chains, before resolving canonical identity. Daily can publish without generating an article CUID2 or assigning a canonical ID. Intake resolves all known source keys in the group. If one already maps to an article, reuse its canonical ID. Otherwise Intake assigns one canonical ID for the group. Register every URL key against that ID. A later release containing just one of those keys must resolve to the same article, including when its preferred URL changed. A group pointing to conflicting existing canonical IDs requires resolution before import. Source mappings remain scoped by namespace.
 
 Intake’s existing coverage resolver ordinarily uses normalized URL as canonical identity. The new source import must consult the existing source mapping before resolving a changed URL. Prefer explicit original-publisher attribution and then the proposed free Common Crawl domain rank. Update the preferred URL on the existing record.
 

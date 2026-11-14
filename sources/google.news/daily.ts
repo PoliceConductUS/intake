@@ -33,7 +33,19 @@ import {
 import { domainRankFor } from "../lib/news-ranks.js";
 import { createNewsInference } from "../lib/news-inference.js";
 import { createNewsStorage } from "./storage.js";
-import { publishDestinations, type PublicationBatch } from "./publication.js";
+import {
+  articleKeys,
+  newsNamespace,
+  publisherRef,
+  readNewsAliases,
+  recordKey,
+  samePublisherGroup,
+} from "./aliases.js";
+import {
+  addReleaseArticle,
+  publishDestinations,
+  type PublicationBatch,
+} from "./publication.js";
 
 type Person = {
   id: string;
@@ -79,10 +91,7 @@ type State = {
   comparisons: Record<string, { before: Observation; after: Observation }>;
 };
 type Baseline = { news: { data: { articles: ReleaseArticle[] } } };
-const keyOf = (a: ReleaseArticle) =>
-  JSON.stringify(
-    a.namespace && a.sourceId ? [a.namespace, a.sourceId] : [a.canonicalId],
-  );
+const keyOf = recordKey;
 const hash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
 const exposure = (path: string, key: string) => JSON.stringify([path, key]);
@@ -180,53 +189,28 @@ export async function runDaily(
       throw new Error("Discovery state changed after save");
     etag = latest.etag;
   }
-  if (state.releaseId !== snapshot.releaseId) {
-    if (state.pending)
-      throw new Error("Release changed during pending publication");
-    const baseline = new Map<string, ReleaseArticle>();
-    for (const path of new Set(["/", ...roster.coveragePaths])) {
-      const object = await store.readJson<Baseline>(
-        "builds/" + snapshot.releaseId + "/data" + path + "index.json",
-      );
-      if (!object) throw new Error("Missing release baseline at " + path);
-      for (const a of object.value.news.data.articles) {
-        const key = keyOf(a);
-        baseline.set(key, a);
-        const visibleKey = exposure(path, key);
-        if (paths.has(path) && !Object.hasOwn(state.visible, visibleKey))
-          state.visible[visibleKey] = null;
-      }
-    }
-    // Existing discovery identities remain searchable across releases. The build's
-    // canonical references are authoritative for articles it already includes.
-    const known = new Map(state.articles.map((a) => [keyOf(a), a]));
-    for (const [key, a] of baseline) {
-      const prior = known.get(key);
-      known.set(
-        key,
-        prior
-          ? {
-              ...prior,
-              ...a,
-              occurrences: { ...prior.occurrences, ...a.occurrences },
-              relationships: mergeRelationships(prior, a),
-            }
-          : a,
-      );
-    }
-    state.articles = [...known.values()];
-    state.releaseId = snapshot.releaseId;
-    delete state.queue;
-    await save();
-  }
   async function finish() {
     const pending = state.pending;
     if (!pending) return;
-    const dates = await deps.publish(store, pending.key, pending.batch, roster);
+    const release = pending.batch.releaseId;
+    const pinnedRoster =
+      release === snapshot.releaseId
+        ? roster
+        : (await store.readJson<Roster>(`builds/${release}/data/dynamic.json`))
+            ?.value;
+    if (!pinnedRoster)
+      throw Error("Missing roster for pending release " + release);
+    const profilePaths = new Set(pinnedRoster.personnel.map((p) => p.path));
+    const dates = await deps.publish(
+      store,
+      pending.key,
+      pending.batch,
+      pinnedRoster,
+    );
     if (pending.articleKey)
       for (const [path, instant] of Object.entries(dates))
         if (
-          paths.has(path) &&
+          profilePaths.has(path) &&
           !Object.hasOwn(state.visible, exposure(path, pending.articleKey))
         )
           state.visible[exposure(path, pending.articleKey)] = instant;
@@ -263,6 +247,49 @@ export async function runDaily(
     q.seen = [];
   }
   await finish();
+  let aliases = await readNewsAliases(store, snapshot.releaseId);
+  if (state.releaseId !== snapshot.releaseId) {
+    const visibleBaselines: { path: string; article: ReleaseArticle }[] = [];
+    for (const path of new Set(["/", ...roster.coveragePaths])) {
+      const object = await store.readJson<Baseline>(
+        "builds/" + snapshot.releaseId + "/data" + path + "index.json",
+      );
+      if (!object) throw new Error("Missing release baseline at " + path);
+      for (const article of object.value.news.data.articles) {
+        addReleaseArticle(state.articles, article, aliases);
+        if (paths.has(path)) visibleBaselines.push({ path, article });
+      }
+    }
+    for (const { path, article } of visibleBaselines) {
+      const keys = articleKeys(article, aliases);
+      const merged = state.articles.find((a) =>
+        [...articleKeys(a, aliases)].some((key) => keys.has(key)),
+      )!;
+      if (visibleAt(path, merged) === undefined)
+        state.visible[exposure(path, keyOf(merged))] = null;
+    }
+    state.releaseId = snapshot.releaseId;
+    delete state.queue;
+    await save();
+  }
+  function visibleAt(path: string, article: ReleaseArticle) {
+    const keys = articleKeys(article, aliases);
+    const dates: string[] = [];
+    for (const [key, date] of Object.entries(state.visible)) {
+      const [p, ref] = JSON.parse(key) as [string, string];
+      if (p === path && keys.has(resolveKey(ref))) {
+        if (date === null) return null;
+        dates.push(date);
+      }
+    }
+    return dates.length ? dates.sort()[0] : undefined;
+  }
+  function resolveKey(key: string) {
+    const [first, second] = JSON.parse(key) as string[];
+    return second === undefined
+      ? key
+      : recordKey({ namespace: first, sourceId: second }, aliases);
+  }
 
   const ranks =
     (await store.readJson<Record<string, number>>(prefix + "domain-ranks.json"))
@@ -305,7 +332,7 @@ export async function runDaily(
         throw Error("URL evidence concurrently saved");
       tag = (await store.readJson(key))!.etag;
     }
-    const occurrence = await processNewsOccurrence({
+    const extracted = await processNewsOccurrence({
       url: source.url,
       html: source.html,
       correctedSelector: cached?.value.correctedSelector,
@@ -331,7 +358,8 @@ export async function runDaily(
         throw Error("URL evidence concurrently saved");
       return null;
     });
-    if (!occurrence) return { cached: Boolean(cached?.value.html) };
+    if (!extracted) return { cached: Boolean(cached?.value.html) };
+    const occurrence = { ...extracted, ...publisherRef(extracted.url) };
     if (!(await store.writeJson(key, { ...source, occurrence }, tag)))
       throw new Error("Article evidence changed during search");
     const relatedUrls = new Set<string>();
@@ -362,7 +390,11 @@ export async function runDaily(
       const ref = await store.readJson<{ occurrence?: NewsOccurrence }>(
         prefix + "urls/" + hash(other) + ".json",
       );
-      if (ref?.value.occurrence) known.push(ref.value.occurrence);
+      if (ref?.value.occurrence)
+        known.push({
+          ...ref.value.occurrence,
+          ...publisherRef(ref.value.occurrence.url),
+        });
     }
     return { cached: Boolean(cached?.value.html), occurrence, known };
   }
@@ -501,7 +533,8 @@ export async function runDaily(
             const merged = occurrence
               ? await mergeCurrentNews(state.articles, occurrence, {
                   now,
-                  namespace: "google.news",
+                  namespace: newsNamespace,
+                  sameSource: (a, b) => samePublisherGroup(a, b, aliases),
                   mint: createId,
                   summarize: async (body) => (await infer(body, [])).summary,
                   known,
@@ -545,14 +578,18 @@ export async function runDaily(
           10 - q.checked,
         );
         if (result.match) {
-          const article = result.match,
+          const article = addReleaseArticle(
+              state.articles,
+              result.match,
+              aliases,
+            ),
             k = keyOf(article);
-          const index = state.articles.findIndex((a) => keyOf(a) === k);
-          if (index < 0) state.articles.push(article);
-          else state.articles[index] = article;
+          const keys = articleKeys(article, aliases);
           if (
             !state.matches.some(
-              (m) => pairKey(m) === pairKey(pair) && m.articleKey === k,
+              (m) =>
+                pairKey(m) === pairKey(pair) &&
+                keys.has(resolveKey(m.articleKey)),
             )
           )
             state.matches.push({
@@ -561,6 +598,7 @@ export async function runDaily(
               articleKey: k,
             });
           await publish(article);
+          aliases = await readNewsAliases(store, snapshot.releaseId);
           found = true;
           break;
         }
@@ -580,7 +618,10 @@ export async function runDaily(
   await publish();
   for (const m of state.matches) {
     const key = JSON.stringify([m.term, m.path, m.articleKey]);
-    const visible = state.visible[exposure(m.path, m.articleKey)];
+    const article = state.articles.find((a) =>
+      articleKeys(a, aliases).has(resolveKey(m.articleKey)),
+    );
+    const visible = article && visibleAt(m.path, article);
     if (!visible || state.comparisons[key]) continue;
     const day = new Intl.DateTimeFormat("en-CA", {
       timeZone: "America/Los_Angeles",
@@ -609,18 +650,6 @@ export async function runDaily(
     };
     await save();
   }
-}
-function mergeRelationships(older: ReleaseArticle, current: ReleaseArticle) {
-  const key = (r: ReleaseArticle["relationships"][number]) =>
-    r.agencyPersonnelId;
-  return [
-    ...new Map(
-      [...older.relationships, ...current.relationships].map((r) => [
-        key(r),
-        r,
-      ]),
-    ).values(),
-  ];
 }
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url)
   await runDaily();

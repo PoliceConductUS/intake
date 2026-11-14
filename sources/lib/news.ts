@@ -205,6 +205,7 @@ export async function mergeCurrentNews(
     mint: () => string;
     read: (url: string) => Promise<NewsOccurrence | null>;
     known?: readonly NewsOccurrence[];
+    sameSource?: (a: NewsOccurrence, b: NewsOccurrence) => boolean;
     summarize?: (body: string) => Promise<string>;
   },
 ) {
@@ -219,12 +220,13 @@ export async function mergeCurrentNews(
     occurrence,
     options.namespace,
     options.mint,
+    options.sameSource,
   );
   if (!result.article) return result;
   const related = (options.known ?? []).filter(
     (other) =>
       other.url !== occurrence.url &&
-      matchingArticles(other, [result.article!]).length,
+      matchingArticles(other, [result.article!], options.sameSource).length,
   );
   const cited = occurrence.publisherAttribution;
   if (
@@ -241,7 +243,10 @@ export async function mergeCurrentNews(
       (await options.read(cited));
     if (!original || !eligibleNewsDate(original.publishedAt, options.now))
       return unchanged;
-    if (!matchingArticles(original, [result.article]).length) return unchanged;
+    if (
+      !matchingArticles(original, [result.article], options.sameSource).length
+    )
+      return unchanged;
     if (!related.some((o) => o.url === original.url)) related.push(original);
   }
   for (const other of related) {
@@ -250,6 +255,7 @@ export async function mergeCurrentNews(
       other,
       options.namespace,
       options.mint,
+      options.sameSource,
     );
     if (merged.ambiguous.length)
       return { ...unchanged, ambiguous: merged.ambiguous };
@@ -274,6 +280,7 @@ export async function mergeCurrentNews(
       summarized,
       options.namespace,
       options.mint,
+      options.sameSource,
     );
   }
   return result;
@@ -281,11 +288,13 @@ export async function mergeCurrentNews(
 export function matchingArticles(
   occurrence: NewsOccurrence,
   articles: readonly ReleaseArticle[],
+  sameSource?: (a: NewsOccurrence, b: NewsOccurrence) => boolean,
 ): ReleaseArticle[] {
   const hashes = new Set(occurrence.paragraphs?.map((p) => p.hash));
   return articles.filter((article) =>
     Object.values(article.occurrences).some((other) => {
       if (
+        sameSource?.(other, occurrence) ||
         normalizeCoverageUrl(other.url) === normalizeCoverageUrl(occurrence.url)
       )
         return true;
@@ -316,13 +325,14 @@ export function mergeNewsOccurrence(
   occurrence: NewsOccurrence,
   namespace: string,
   mint: () => string,
+  sameSource?: (a: NewsOccurrence, b: NewsOccurrence) => boolean,
 ): {
   articles: ReleaseArticle[];
   article?: ReleaseArticle;
   ambiguous: string[];
   needsCorrection: string[];
 } {
-  const matches = matchingArticles(occurrence, current);
+  const matches = matchingArticles(occurrence, current, sameSource);
   if (matches.length > 1)
     return {
       articles: [...current],
@@ -363,7 +373,7 @@ export function mergeNewsOccurrence(
       });
   }
   const article = {
-    ...(old ?? { namespace, sourceId: mint() }),
+    ...(old ?? { namespace, sourceId: occurrence.sourceId ?? mint() }),
     preferredUrl: preferred.url,
     normalizedUrl: normalizeCoverageUrl(preferred.url),
     occurrences,

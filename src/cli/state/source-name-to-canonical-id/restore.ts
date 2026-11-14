@@ -9,7 +9,7 @@ import {
 } from "node:fs/promises";
 import path from "node:path";
 import type { IdentityRestorationEnvelope } from "../../../shared/io/IdentityRestoration.js";
-import { yamlResourceFileName } from "../../../shared/io/resource.js";
+import { ledgerRecordPath } from "./ledger-record-path.js";
 import { resolveSourceNameToCanonicalIdPath } from "./index.js";
 import { SourceNameToCanonicalId } from "./SourceNameToCanonicalId.js";
 import { CanonicalIdToSourceName } from "./CanonicalIdToSourceName.js";
@@ -36,11 +36,10 @@ async function readState(event: IdentityRestorationEnvelope, rootDir?: string) {
   );
   for (const other of await readdir(namespaces, { withFileTypes: true })) {
     if (!other.isDirectory() || other.name === namespace) continue;
-    const otherReverse = path.join(
-      namespaces,
-      other.name,
-      entityKind,
-      yamlResourceFileName(expectedCurrentId, "CanonicalIdToSourceName"),
+    const otherReverse = await ledgerRecordPath(
+      path.join(namespaces, other.name, entityKind),
+      expectedCurrentId,
+      "CanonicalIdToSourceName",
     );
     if (await exists(otherReverse)) {
       await CanonicalIdToSourceName.read(otherReverse, {
@@ -51,17 +50,20 @@ async function readState(event: IdentityRestorationEnvelope, rootDir?: string) {
       );
     }
   }
-  const forwardPath = path.join(
+  const forwardPath = await ledgerRecordPath(
     directory,
-    yamlResourceFileName(sourceName, "SourceNameToCanonicalId"),
+    sourceName,
+    "SourceNameToCanonicalId",
   );
-  const oldPath = path.join(
+  const oldPath = await ledgerRecordPath(
     directory,
-    yamlResourceFileName(expectedCurrentId, "CanonicalIdToSourceName"),
+    expectedCurrentId,
+    "CanonicalIdToSourceName",
   );
-  const originalPath = path.join(
+  const originalPath = await ledgerRecordPath(
     directory,
-    yamlResourceFileName(originalId, "CanonicalIdToSourceName"),
+    originalId,
+    "CanonicalIdToSourceName",
   );
   if (!(await exists(forwardPath)))
     throw new Error("Identity restoration mapping is missing.");

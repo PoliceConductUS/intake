@@ -57,6 +57,7 @@ const article = (id: string): ReleaseArticle => ({
 });
 it("replaces positions when the same ranking window shrinks or empties", async () => {
   const data = {
+    bindArticleSources: async () => [],
     assignmentRef: async (id: string) => id,
     existingArticle: async () => undefined,
   };

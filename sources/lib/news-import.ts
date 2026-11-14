@@ -59,6 +59,12 @@ export function mergeImportedArticle(
       (o.observedAt && o.observedAt > (prior.observedAt ?? ""))
     )
       occurrences[url] = o;
+    else if (o.namespace && o.sourceId && !prior.sourceId)
+      occurrences[url] = {
+        ...prior,
+        namespace: o.namespace,
+        sourceId: o.sourceId,
+      };
   }
   const relationships = new Map<string, ReleaseRelationship>(
     existing.relationships.map((r) => [r.agencyPersonnelId, r]),
@@ -97,17 +103,22 @@ export async function newsManifest(
   articles: readonly ReleaseArticle[],
   ranking: NewsRanking | undefined,
   data: NewsImportContext,
+  articleKeys: ReadonlyMap<string, string> = new Map(),
 ): Promise<SourceManifest> {
   const links: EmittedRecords = {},
     relationships: EmittedRecords = {},
     windows: EmittedRecords = {},
     placements: EmittedRecords = {};
   const unique = new Map<string, ReleaseArticle>();
-  for (const article of articles)
-    unique.set(
-      recordKey(article),
-      mergeImportedArticle(unique.get(recordKey(article)), article),
-    );
+  const keyFor = (ref: ReleaseIdentity) =>
+    articleKeys.get(recordKey(ref)) ??
+    (ref.canonicalId &&
+      articleKeys.get(recordKey({ canonicalId: ref.canonicalId }))) ??
+    recordKey(ref);
+  for (const article of articles) {
+    const key = keyFor(article);
+    unique.set(key, mergeImportedArticle(unique.get(key), article));
+  }
   for (const [key, incoming] of unique) {
     const article = mergeImportedArticle(
       await data.existingArticle(incoming),
@@ -116,7 +127,7 @@ export async function newsManifest(
     const preferred = article.occurrences[article.preferredUrl];
     if (!preferred) throw Error("Missing preferred occurrence for " + key);
     const hasEvidence = Object.values(article.occurrences).some(
-      (o) => o.body !== undefined,
+      (o) => o.body !== undefined || o.sourceId !== undefined,
     );
     links[key] = {
       ...metadata(article),
@@ -165,7 +176,7 @@ export async function newsManifest(
       },
     };
     for (const placement of ranking.placements) {
-      const key = recordKey(placement);
+      const key = keyFor(placement);
       if (!links[key]) throw Error("Missing homepage article " + key);
       placements[JSON.stringify([ranking.windowEnd, placement.position])] = {
         spec: {
@@ -190,6 +201,9 @@ export async function transformNews(
   paths: string[],
   data: NewsImportContext,
   canonicalAssignment?: (name: string) => Promise<string>,
+  resolveArticleKeys?: (
+    articles: ReleaseArticle[],
+  ) => Promise<ReadonlyMap<string, string>>,
 ): ReturnType<SourceTransform> {
   const pages = await Promise.all(
     paths
@@ -198,7 +212,8 @@ export async function transformNews(
         async (file) => JSON.parse(await readFile(file, "utf8")) as NewsData,
       ),
   );
-  if (!pages.length) throw Error("No acquired news data.");
+  if (!pages.length && !resolveArticleKeys)
+    throw Error("No acquired news data.");
   if (canonicalAssignment)
     for (const page of pages)
       for (const article of page.articles) {
@@ -215,9 +230,11 @@ export async function transformNews(
   const rankings = pages
     .flatMap((p) => (p.ranking ? [p.ranking] : []))
     .sort((a, b) => b.windowEnd.localeCompare(a.windowEnd));
+  const articles = pages.flatMap((p) => p.articles);
   return newsManifest(
-    pages.flatMap((p) => p.articles),
+    articles,
     rankings[0],
     data,
+    await resolveArticleKeys?.(articles),
   );
 }

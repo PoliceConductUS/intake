@@ -41,19 +41,25 @@ The news-discovery GitHub Action SHALL be scheduled for 7:00 a.m. every day in `
 
 ### Requirement: Persist the identity assigned by the daily Action
 
-The Action SHALL assign one CUID2 source ID to each new record it creates. Generated JSON and HTML SHALL carry both its originating namespace and source ID. Subsequent searches, retries and page regeneration SHALL reuse that pair. Intake SHALL assign or resolve the canonical database ID on import and preserve the mapping for future imports.
+Daily SHALL use each occurrence’s normalized publisher URL as its source ID in the `google.news` namespace. Daily SHALL write confirmed duplicate-to-target source IDs under `CoverageLink` in the release’s private `data/alias.json`. Intake SHALL read this file, follow alias chains and persist every source key against the same canonical article ID.
 
-#### Scenario: Another search finds the article at a preferred URL
+#### Scenario: Two record kinds use the same source ID
 
-- **WHEN** a later run finds a preferred copy and one new supported assignment for an existing article
-- **THEN** the JSON and HTML retain the article’s namespace and source ID on every destination
-- **AND** existing relationships retain their own pairs and the new relationship receives its own persistent CUID2 in its source namespace
+- **WHEN** `alias.json` contains the same key under `CoverageLink` and another record kind
+- **THEN** Daily preserves both mappings and Intake uses only the `CoverageLink` target to resolve the article
 
-#### Scenario: Import through the S3 source and repeat from a different release
+#### Scenario: Preferred copy changes before import
 
-- **WHEN** two releases contain the same originating namespace and source ID with different preferred URLs
-- **THEN** Intake resolves both to the same canonical record using the originating pair
-- **AND** a record from another namespace with the same source ID cannot resolve to that record on the source ID alone
+- **WHEN** Daily accepts URL A, then groups a qualifying duplicate B with it
+- **THEN** the saved data carries both normalized URL source keys, and the rendered article carries the source pair for the occurrence shown
+- **AND** article-to-assignment relationship IDs persist across updates
+
+#### Scenario: Import and rediscover through different keys
+
+- **WHEN** either source key already maps to an article
+- **THEN** Intake maps both keys to that canonical ID and resolves subsequent A-only and B-only imports to the same record
+- **AND** if neither key exists Intake assigns one canonical article ID
+- **AND** two previously distinct canonical IDs are reported as a conflict, and the same source ID in another namespace alone establishes no match
 
 ### Requirement: Limit news discovery to the past seven days
 

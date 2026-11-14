@@ -9,6 +9,13 @@ import {
 } from "../lib/news.js";
 import { pageKey, type NewsStorage, type Stored } from "./storage.js";
 
+import {
+  articleKeys,
+  recordKey,
+  saveNewsAliases,
+  type NewsAliases,
+} from "./aliases.js";
+
 export type { ReleaseArticle } from "../lib/news.js";
 type PageEntity = {
   id: string;
@@ -48,23 +55,32 @@ type Checkpoint = PublicationBatch & {
   visible: Record<string, string>;
   complete: boolean;
 };
-function identity(ref: ReleaseIdentity) {
-  if (ref.namespace && ref.sourceId)
-    return JSON.stringify([ref.namespace, ref.sourceId]);
-  if (ref.canonicalId) return JSON.stringify([ref.canonicalId]);
-  throw new Error("Missing record identity");
-}
 function mergeArticle(current: ReleaseArticle, incoming: ReleaseArticle) {
   const occurrences = { ...current.occurrences };
   for (const [url, copy] of Object.entries(incoming.occurrences)) {
     const existing = occurrences[url];
-    if (!existing || (copy.observedAt ?? "") >= (existing.observedAt ?? ""))
-      occurrences[url] = copy;
+    const latest =
+      !existing || (copy.observedAt ?? "") >= (existing.observedAt ?? "");
+    occurrences[url] = latest
+      ? { ...existing, ...copy }
+      : { ...copy, ...existing };
   }
   const relationships = new Map(
-    current.relationships.map((r) => [identity(r), r]),
+    current.relationships.map((r) => [r.agencyPersonnelId, r]),
   );
-  for (const r of incoming.relationships) relationships.set(identity(r), r);
+  for (const r of incoming.relationships) {
+    const old = relationships.get(r.agencyPersonnelId);
+    if (old?.canonicalId && r.canonicalId && old.canonicalId !== r.canonicalId)
+      throw Error(
+        "Conflicting coverage relationship IDs for " + r.agencyPersonnelId,
+      );
+    relationships.set(r.agencyPersonnelId, {
+      ...old,
+      ...r,
+      ...(old?.namespace &&
+        old.sourceId && { namespace: old.namespace, sourceId: old.sourceId }),
+    });
+  }
   for (const [key, relation] of relationships) {
     const supported = selectSupportedOccurrence(relation, occurrences);
     if (supported) {
@@ -79,28 +95,61 @@ function mergeArticle(current: ReleaseArticle, incoming: ReleaseArticle) {
     }
   }
   const preferred = selectPreferredOccurrence(Object.values(occurrences));
+  const existingOrigin =
+    !current.canonicalId && incoming.canonicalId && incoming.sourceId
+      ? incoming
+      : current;
   return {
     ...current,
     ...incoming,
+    ...(existingOrigin.namespace &&
+      existingOrigin.sourceId && {
+        namespace: existingOrigin.namespace,
+        sourceId: existingOrigin.sourceId,
+      }),
     occurrences,
     preferredUrl: preferred.url,
     normalizedUrl: normalizeCoverageUrl(preferred.url),
     relationships: [...relationships.values()],
   };
 }
-function mergePage(page: PageObject, update: PageUpdate): PageObject {
+export function addReleaseArticle(
+  articles: ReleaseArticle[],
+  incoming: ReleaseArticle,
+  aliases: NewsAliases,
+) {
+  const keys = articleKeys(incoming, aliases);
+  const matches = articles.filter((article) =>
+    [...articleKeys(article, aliases)].some((key) => keys.has(key)),
+  );
+  if (
+    new Set([...matches, incoming].map((a) => a.canonicalId).filter(Boolean))
+      .size > 1
+  )
+    throw Error(
+      "Conflicting canonical coverage IDs for " + recordKey(incoming),
+    );
+  const merged = matches.length
+    ? [...matches.slice(1), incoming].reduce(mergeArticle, matches[0])
+    : incoming;
+  for (const old of matches) articles.splice(articles.indexOf(old), 1);
+  articles.push(merged);
+  return merged;
+}
+function mergePage(
+  page: PageObject,
+  update: PageUpdate,
+  aliases: NewsAliases,
+): PageObject {
   const parts = { ...page, ...update.parts };
   if (!update.articles && !update.ranking) return parts;
   const news = parts.news;
   if (!news || !Array.isArray(news.data.articles))
     throw new Error("Missing release news baseline");
   const data = news.data as NewsData;
-  const articles = new Map(data.articles.map((a) => [identity(a), a]));
-  for (const next of update.articles ?? []) {
-    const key = identity(next),
-      old = articles.get(key);
-    articles.set(key, old ? mergeArticle(old, next) : next);
-  }
+  const articles: ReleaseArticle[] = [];
+  for (const article of [...data.articles, ...(update.articles ?? [])])
+    addReleaseArticle(articles, article, aliases);
   const ranking =
     update.ranking &&
     (!data.ranking || update.ranking.windowEnd >= data.ranking.windowEnd)
@@ -112,7 +161,7 @@ function mergePage(page: PageObject, update: PageUpdate): PageObject {
       ...news,
       data: {
         ...data,
-        articles: [...articles.values()],
+        articles,
         ...(ranking && { ranking }),
       },
     },
@@ -131,8 +180,8 @@ function required(root: HTMLElement, selector: string) {
 }
 function tag(el: HTMLElement, ref: ReleaseIdentity) {
   if (ref.namespace && ref.sourceId) {
-    el.setAttribute("data-source-namespace", ref.namespace);
-    el.setAttribute("data-source-id", ref.sourceId);
+    el.setAttribute("data-source-namespace", escapeText(ref.namespace));
+    el.setAttribute("data-source-id", escapeText(ref.sourceId));
   }
 }
 function optionalText(
@@ -197,16 +246,23 @@ function renderNews(
   data: NewsData,
   path: string,
   index: Index,
+  aliases: NewsAliases,
 ) {
-  const articles = new Map(data.articles.map((a) => [identity(a), a]));
+  const articles = new Map(
+    data.articles.flatMap((a) =>
+      [...articleKeys(a, aliases)].map((key) => [key, a] as const),
+    ),
+  );
   const selected =
     path === "/" && data.ranking
       ? [...data.ranking.placements]
           .sort((a, b) => a.position - b.position)
           .map((ref) => {
-            const article = articles.get(identity(ref));
+            const article = articles.get(recordKey(ref, aliases));
             if (!article)
-              throw new Error("Ranked article missing: " + identity(ref));
+              throw new Error(
+                "Ranked article missing: " + recordKey(ref, aliases),
+              );
             return article;
           })
       : data.articles;
@@ -218,7 +274,11 @@ function renderNews(
           a.occurrence.publishedAt ?? "",
         ) ||
         a.occurrence.title.localeCompare(b.occurrence.title) ||
-        identity(a.article).localeCompare(identity(b.article)),
+        recordKey(
+          a.occurrence.sourceId ? a.occurrence : a.article,
+        ).localeCompare(
+          recordKey(b.occurrence.sourceId ? b.occurrence : b.article),
+        ),
     );
   const list = required(target, "[data-news-list]");
   list.innerHTML = "";
@@ -227,7 +287,7 @@ function renderNews(
   for (const { article, occurrence, relationships } of stories) {
     const item = parse(template).firstElementChild;
     if (!item) throw new Error("Missing coverage item template");
-    tag(item, article);
+    tag(item, occurrence.sourceId ? occurrence : article);
     const anchor = required(item, "[data-news-title]");
     const url = new URL(occurrence.url);
     if (url.protocol !== "https:" && url.protocol !== "http:")
@@ -270,6 +330,7 @@ export function renderPage(
   page: PageObject,
   path: string,
   roster: Roster,
+  aliases: NewsAliases = {},
 ) {
   const doc = parse(original, { comment: true });
   let index = indexed.get(roster);
@@ -288,7 +349,7 @@ export function renderPage(
   }));
   for (const { key, part, target, template } of instructions) {
     if (key === "news") {
-      renderNews(target, template, part.data as NewsData, path, index);
+      renderNews(target, template, part.data as NewsData, path, index, aliases);
       continue;
     }
     const fragment = parse(template);
@@ -310,6 +371,7 @@ export async function publishPage(
   roster: Roster,
   update: PageUpdate,
   publicationKey?: string,
+  aliases: NewsAliases = {},
 ) {
   const key = pageKey(releaseId, "data", path);
   async function readPage() {
@@ -330,7 +392,7 @@ export async function publishPage(
       [...changedParts].every((part) => applied(part).includes(publicationKey))
     )
       break;
-    const next = mergePage(saved.value, update);
+    const next = mergePage(saved.value, update, aliases);
     if (publicationKey) {
       for (const part of changedParts) {
         next[part] = {
@@ -360,6 +422,7 @@ export async function publishPage(
       saved.value,
       path,
       roster,
+      aliases,
     );
     if (!(await storage.writeOverride(releaseId, path, html, previous)))
       continue;
@@ -398,6 +461,9 @@ export async function publishDestinations(
     if (!saved) throw new Error("Missing pinned release roster");
     pinnedRoster = saved.value;
   }
+  const aliases = await saveNewsAliases(storage, batch.releaseId, [
+    ...new Set(batch.destinations.flatMap((d) => d.update.articles ?? [])),
+  ]);
   for (const { path, update } of batch.destinations) {
     await publishPage(
       storage,
@@ -406,6 +472,7 @@ export async function publishDestinations(
       pinnedRoster,
       update,
       key,
+      aliases,
     );
     const firstVisible = new Date().toISOString();
     for (;;) {

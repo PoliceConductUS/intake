@@ -60,6 +60,17 @@ export const acquire: SourceAcquire = async ({ sourceDir, env }) => {
   const keys = (JSON.parse(stdout) ?? []) as string[];
   if (!keys.includes(prefix + "index.json"))
     throw Error("Selected release has no homepage data.");
+  if (!keys.includes(prefix + "alias.json"))
+    throw Error("Selected release has no alias.json.");
+  await run("aws", [
+    "s3api",
+    "get-object",
+    "--bucket",
+    bucket,
+    "--key",
+    prefix + "alias.json",
+    join(sourceDir, "alias.json"),
+  ]);
   let count = 0;
   for (const key of keys.filter((k) => k.endsWith("/index.json")).sort()) {
     const file = join(sourceDir, String(++count) + ".page.json");

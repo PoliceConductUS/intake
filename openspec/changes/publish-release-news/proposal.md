@@ -10,7 +10,7 @@ News discovered between builds should reach the relevant personnel and agency pa
 - Publish release-specific source HTML and a snapshot of existing agencies, personnel assignments and page paths.
 - Consume page data keyed by replaceable part and serve a complete regenerated document at the existing canonical path.
 - Preserve originating-form release identity in production and preview submissions.
-- Have the daily Action assign a persistent CUID2 source ID to each new record. Carry the originating namespace and source ID in JSON and HTML across searches. Intake owns canonical identity and permanent import. Describe the cross-repository contract here. Intake owns its source, database and mutation changes.
+- Use normalized publisher URLs as Daily article source IDs. Write confirmed duplicate-to-target URL pairs under `CoverageLink` in private `data/alias.json` for permanent import. Keep persistent source IDs for assignment links. Carry the originating namespace and source ID in JSON and HTML across searches. Intake owns canonical identity and permanent import. Describe the cross-repository contract here. Intake owns its source, database and mutation changes.
 
 ## Capabilities
 

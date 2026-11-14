@@ -53,3 +53,9 @@ Use the [reviewed design](design.md), [acceptance scenarios](specs/release-page-
 - [x] Rehearse local discovery and the ordinary build first. Run the scoped suites for the changed boundaries, including `node --test scripts/cloudfront-router.test.mjs` in the website, then each repository’s full `npm run validate` under its pinned runtime. Record commands, results and remaining release checks in the verification artifact.
 - [x] Prepare the Intake workflow under `.github/workflows/` for 7 a.m. daily in `America/Chicago`. Verify the schedule across daylight-saving changes and exercise discovery, full-page publication and retry against a test release with the same inputs.
 - [~] At the separately authorized website rollout, verify complete release files, API/router agreement, private-object denial on both hosts and first/subsequent cache refresh. Enable the hosted schedule only after the release supplies its inputs. Permanent import remains a separate operation.
+
+## Publisher URL identities
+
+- Use namespaced, normalized publisher URL identities on Daily occurrences. Resolve equivalent article references across searches, publication and ranking. Preserve relationship identities.
+- Save confirmed duplicate-to-target URL pairs under `CoverageLink` in private `data/alias.json` and import each connected set as one canonical article. Rehearse repeat and historical imports using either key and test conflicting mappings.
+- Check destination-specific HTML source IDs after publication and an ordinary rebuild.

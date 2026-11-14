@@ -31,6 +31,7 @@ describe("permanent news import", () => {
   it("retains two originating namespaces with the same source ID and references a supplied assignment", async () => {
     const articles = [source("a"), source("b")];
     const manifest = await newsManifest(articles, undefined, {
+      bindArticleSources: async () => [],
       assignmentRef: async (id) => "local-" + id,
       existingArticle: async () => undefined,
     });
@@ -72,7 +73,11 @@ describe("permanent news import", () => {
     const { artifacts } = await newsManifest(
       [{ ...older, canonicalId: "known" }],
       undefined,
-      { assignmentRef: async (id) => id, existingArticle: async () => newer },
+      {
+        bindArticleSources: async () => [],
+        assignmentRef: async (id) => id,
+        existingArticle: async () => newer,
+      },
     );
     const record = Object.values(
       artifacts.find((k) => k.kind === "CoverageLinks")!.records,

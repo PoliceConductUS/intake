@@ -20,6 +20,7 @@ it("saves one continuing article and combines query clicks across repeated daily
     assignments: [{ id: "ap", agencyId: "a", personnelId: "p" }],
     coveragePaths: [],
   });
+  put("builds/prod-test/data/alias.json", { CoverageLink: {} });
   put("builds/prod-test/data/index.json", { news: { data: { articles: [] } } });
   const store: NewsStorage = {
     async readJson<T>(k: string) {
@@ -108,6 +109,7 @@ it("saves one continuing article and combines query clicks across repeated daily
   const [first] = ranking().placements;
   expect(first).toMatchObject({
     namespace: "google.news",
+    sourceId: src,
     clicks: 50,
     position: 1,
   });
@@ -165,13 +167,14 @@ it("saves one continuing article and combines query clicks across repeated daily
   const newerUrl = "https://source.example/previously-imported";
   const newer = {
     ...baseline,
-    sourceId: "published",
+    sourceId: newerUrl,
     preferredUrl: newerUrl,
     normalizedUrl: newerUrl,
     occurrences: {
       [newerUrl]: {
         ...baseline.occurrences[baseline.preferredUrl]!,
         url: newerUrl,
+        sourceId: newerUrl,
         publishedAt: "2026-11-12",
         title: "Another story",
         paragraphs: [{ hash: "different", text: "A different report." }],
@@ -192,13 +195,14 @@ it("saves one continuing article and combines query clicks across repeated daily
     assignments: [{ id: "ap", agencyId: "a", personnelId: "p" }],
     coveragePaths: [path],
   });
+  put("builds/prod-test/data/alias.json", { CoverageLink: {} });
   put("builds/prod-test/data/index.json", { news: { data: { articles: [] } } });
   put("builds/prod-test/data" + path + "index.json", {
     news: { data: { articles: [baseline, newer] } },
   });
   await runDaily(current, deps);
   expect(ranking().placements).toMatchObject([
-    { sourceId: "published", clicks: 50 },
+    { sourceId: newerUrl, clicks: 50 },
   ]);
   expect(
     (
@@ -215,3 +219,187 @@ it("saves one continuing article and combines query clicks across repeated daily
   await runDaily(new Date("2026-12-01T14:00:00Z"), deps);
   expect(ranking().placements).toEqual([]);
 });
+
+it.each([undefined, "previous-article-id"])(
+  "replays a pending release and reconciles baseline source ID %s with a partial copy",
+  async (previousSourceId) => {
+    const active = "production-b",
+      previous = "production-a";
+    const a = "https://wire.example/story",
+      b = "https://publisher.example/story";
+    const snapshot = {
+      personnel: [{ id: "p", name: "Officer Example", path }],
+      agencies: [{ id: "a", name: "Test Agency", path: agency }],
+      assignments: [{ id: "ap", personnelId: "p", agencyId: "a" }],
+      coveragePaths: [path],
+    };
+    const occurrence = {
+      url: a,
+      namespace: "google.news",
+      sourceId: a,
+      title: "Wire story",
+      sourceName: "Wire",
+      summary: "Wire report",
+      publishedAt: "2026-11-10",
+      paragraphs: [{ hash: "first", text: "Earlier paragraph." }],
+    };
+    const article = {
+      namespace: "google.news",
+      sourceId: a,
+      preferredUrl: a,
+      normalizedUrl: a,
+      occurrences: { [a]: occurrence },
+      relationships: [
+        {
+          namespace: "google.news",
+          sourceId: "existing-link",
+          agencyPersonnelId: "ap",
+          occurrenceUrl: a,
+          confidence: "documented",
+          notes: null,
+        },
+      ],
+    };
+    const key = JSON.stringify(["google.news", a]);
+    const pair = { path, term: "officer", clicks: 22, impressions: 30 },
+      window = { startDate: "2026-11-06", endDate: "2026-11-12" };
+    const batch = {
+      releaseId: previous,
+      destinations: [{ path, update: { articles: [article] } }],
+    };
+    const state = {
+      releaseId: previous,
+      articles: [article],
+      matches: [{ ...pair, articleKey: key }],
+      visible: {},
+      comparisons: {},
+      pending: { key: "unfinished", batch, articleKey: key, advance: true },
+      queue: {
+        runId: "previous",
+        pairs: [pair],
+        window,
+        index: 0,
+        searchStart: 0,
+        checked: 1,
+        requestedPages: [],
+        seen: [],
+      },
+    };
+    const baseline = {
+      canonicalId: "canonical",
+      ...(previousSourceId && {
+        namespace: "google.news",
+        sourceId: previousSourceId,
+      }),
+      preferredUrl: a,
+      normalizedUrl: a,
+      occurrences: {
+        [a]: { ...occurrence, sourceId: undefined, namespace: undefined },
+      },
+      relationships: [
+        {
+          ...article.relationships[0],
+          canonicalId: "canonical-link",
+          namespace: undefined,
+          sourceId: undefined,
+        },
+      ],
+    };
+    const records = new Map<string, unknown>([
+      ["current-roster", snapshot],
+      [
+        `builds/${previous}/data/dynamic.json`,
+        {
+          ...snapshot,
+          agencies: [{ ...snapshot.agencies[0], name: "Previous Agency" }],
+        },
+      ],
+      [`builds/${active}/data/alias.json`, { CoverageLink: { [b]: a } }],
+      [
+        `builds/${active}/data/index.json`,
+        { news: { data: { articles: [] } } },
+      ],
+      [
+        `builds/${active}/data${path}index.json`,
+        { news: { data: { articles: [baseline] } } },
+      ],
+      ["news-discovery/state.json", state],
+    ]);
+    const unexpected = async () => {
+      throw Error("Unexpected page operation");
+    };
+    const store: NewsStorage = {
+      readOriginal: unexpected,
+      readOverrideEtag: unexpected,
+      writeOverride: unexpected,
+      makeVisible: unexpected,
+      readJson: async (k: string) =>
+        records.has(k)
+          ? { etag: k, value: JSON.parse(JSON.stringify(records.get(k))) }
+          : null,
+      writeJson: async (k: string, v: unknown) => {
+        records.set(k, structuredClone(v));
+        return true;
+      },
+    };
+    const batches: PublicationBatch[] = [];
+    const now = new Date("2026-11-14T14:00:00Z");
+    await runDaily(now, {
+      store,
+      origin,
+      bucket: "private",
+      apiKey: "test",
+      snapshot: async () => ({
+        releaseId: active,
+        roster: { bucket: "private", key: "current-roster" },
+      }),
+      consoleApi: {
+        latestWindow: async () => window,
+        rows: async (_w, offset) =>
+          offset
+            ? []
+            : [
+                {
+                  keys: ["officer", origin + path],
+                  clicks: 22,
+                  impressions: 30,
+                },
+              ],
+        position: async () => null,
+      },
+      readArticle: async () => ({
+        url: b + "?utm_source=test",
+        html: '<meta property="article:published_time" content="2026-11-10"><h1>Original</h1><article><p>Officer Example with Test Agency.</p></article>',
+      }),
+      newsResults: async () => ({ urls: [b], nextStart: null }),
+      infer: async () => ({
+        summary: "Summary",
+        support: [{ assignmentId: "ap", paragraphIndexes: [0] }],
+      }),
+      publish: async (_s, _k, batch, roster) => {
+        batches.push(batch);
+        if (batch.releaseId === previous)
+          expect(roster.agencies[0].name).toBe("Previous Agency");
+        return { [path]: now.toISOString() };
+      },
+    });
+    expect(batches.map((b) => b.releaseId)).toEqual([previous, active, active]);
+    const after = records.get("news-discovery/state.json") as typeof state;
+    expect(after.articles).toHaveLength(1);
+    expect(after.matches).toHaveLength(1);
+    if (previousSourceId)
+      expect(after.articles[0].sourceId).toBe(previousSourceId);
+    expect(after.articles[0]).toMatchObject({
+      canonicalId: "canonical",
+      relationships: [
+        { sourceId: "existing-link", canonicalId: "canonical-link" },
+      ],
+      occurrences: {
+        [b + "?utm_source=test"]: { namespace: "google.news", sourceId: b },
+      },
+    });
+    expect(
+      batches.at(-1)!.destinations[0].update.ranking!.placements,
+    ).toMatchObject([{ clicks: 22, position: 1, canonicalId: "canonical" }]);
+  },
+);

@@ -30,11 +30,13 @@ function article(id: string): ReleaseArticle {
   const url = "https://example.org/" + id;
   return {
     namespace: "google.news",
-    sourceId: id,
+    sourceId: url,
     preferredUrl: url,
     normalizedUrl: url,
     occurrences: {
       [url]: {
+        namespace: "google.news",
+        sourceId: url,
         url,
         title: "<b>" + id + "</b>",
         publishedAt: "2026-11-10",
@@ -65,6 +67,10 @@ function memory() {
       value: baseline,
       etag: "base",
     });
+  records.set("builds/" + release + "/data/alias.json", {
+    value: { CoverageLink: {} },
+    etag: "alias-base",
+  });
   records.set("builds/" + release + "/data/dynamic.json", {
     value: roster,
     etag: "roster",
@@ -124,7 +130,7 @@ it("regenerates all saved parts from the original, including escaped news and as
     false,
   );
   const item = doc.querySelector("ul li")!;
-  expect(item.getAttribute("data-source-id")).toBe("one");
+  expect(item.getAttribute("data-source-id")).toBe("https://example.org/one");
   expect(item.getAttribute("data-source-namespace")).toBe("google.news");
   expect(item.querySelector("[data-news-title]")!.text).toBe("<b>one</b>");
   expect(item.querySelector("b,script")).toBeNull();
@@ -164,7 +170,7 @@ it("retries from saved data when an older HTML write finishes after a newer writ
       .querySelectorAll("ul li")
       .map((e) => e.getAttribute("data-source-id"))
       .sort(),
-  ).toEqual(["a", "b"]);
+  ).toEqual(["https://example.org/a", "https://example.org/b"]);
 });
 it("on a fresh runner replays every pinned destination after an agency visibility failure", async () => {
   const { storage, pages, visible, records } = memory();
@@ -219,10 +225,11 @@ it("keeps the evidence-bearing copy on each profile and ranks homepage stories u
     ],
   };
   const source = article("wire");
-  const copy = "https://example.org/copy";
+  const copy = "https://example.org/copy?a=1&copy=2";
   source.occurrences[copy] = {
     ...source.occurrences[source.preferredUrl],
     url: copy,
+    sourceId: copy,
     title: "Only source for One",
   };
   source.relationships[0]!.occurrenceUrl = copy;
@@ -242,8 +249,13 @@ it("keeps the evidence-bearing copy on each profile and ranks homepage stories u
     ranking: {
       windowEnd: "2026-11-11",
       placements: [
-        { namespace: "google.news", sourceId: "two", position: 1, clicks: 20 },
-        { namespace: "google.news", sourceId: "wire", position: 2, clicks: 8 },
+        {
+          namespace: "google.news",
+          sourceId: another.preferredUrl,
+          position: 1,
+          clicks: 20,
+        },
+        { namespace: "google.news", sourceId: copy, position: 2, clicks: 8 },
       ],
     },
   });
@@ -252,11 +264,20 @@ it("keeps the evidence-bearing copy on each profile and ranks homepage stories u
       .querySelectorAll("ul [data-news-title]")
       .map((a) => a.getAttribute("href"));
   expect(links(path)).toEqual([copy]);
+  expect(
+    parse(pages.get(path)!.html)
+      .querySelector("ul li")!
+      .getAttribute("data-source-id"),
+  ).toBe(copy);
+  expect(pages.get(path)!.html).toContain(
+    'data-source-id="https://example.org/copy?a=1&amp;copy=2"',
+  );
   expect(links(agency)).toEqual([source.preferredUrl]);
   expect(links("/")).toEqual([another.preferredUrl, source.preferredUrl]);
   const better = "https://example.org/original";
   const updated: ReleaseArticle = {
     ...source,
+    sourceId: better,
     preferredUrl: better,
     normalizedUrl: better,
     occurrences: {
@@ -264,6 +285,7 @@ it("keeps the evidence-bearing copy on each profile and ranks homepage stories u
       [better]: {
         ...source.occurrences[source.preferredUrl]!,
         url: better,
+        sourceId: better,
         domainRank: 1,
       },
     },
@@ -348,4 +370,48 @@ it("selects the cited evidence-bearing copy ahead of a higher-ranked reprint and
   old.occurrences[second].title = "Stale summary";
   await publishPage(storage, release, agency, persons, { articles: [old] });
   expect(selected().text).toBe("Fresh correction");
+});
+it("saves the copy aliases before publishing and replays the batch from the pinned release after a partial write", async () => {
+  const { storage, records, pages } = memory();
+  const wire = article("wire"),
+    copy = "https://publisher.example/story?part=1&topic=2";
+  wire.occurrences[copy] = {
+    ...wire.occurrences[wire.preferredUrl],
+    namespace: "google.news",
+    sourceId: copy,
+    url: copy,
+    domainRank: 1,
+  };
+  wire.relationships[0].occurrenceUrl = copy;
+  const batch = {
+    releaseId: release,
+    destinations: [
+      { path, update: { articles: [wire] } },
+      { path: agency, update: { articles: [wire] } },
+    ],
+  };
+  const real = storage.makeVisible;
+  storage.makeVisible = async (id, p) => {
+    expect(records.get(`builds/${release}/data/alias.json`)!.value).toEqual({
+      CoverageLink: { [copy]: wire.sourceId },
+    });
+    if (p === agency) throw Error("interrupted");
+    await real(id, p);
+  };
+  await expect(
+    publishDestinations(storage, "batch", batch, roster),
+  ).rejects.toThrow("interrupted");
+  storage.makeVisible = real;
+  await publishDestinations(
+    storage,
+    "batch",
+    { releaseId: "latest", destinations: [] },
+    roster,
+  );
+  for (const p of [path, agency])
+    expect(
+      parse(pages.get(p)!.html)
+        .querySelector("ul li")!
+        .getAttribute("data-source-id"),
+    ).toBe(copy);
 });
