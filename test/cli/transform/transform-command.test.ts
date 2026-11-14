@@ -49,6 +49,7 @@ function makeOkDeps() {
     digest: vi.fn(async () => "testdigest"),
     createEmitSink: vi.fn(() => ({
       emit: vi.fn(async () => {}),
+      records: async function* () {},
       flush: vi.fn(async () => testRefItems),
     })),
     loadExcludedRecords: vi.fn(async () => new Map()),

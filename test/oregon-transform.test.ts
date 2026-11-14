@@ -64,7 +64,7 @@ async function fixture() {
 }
 describe("Oregon transform", () => {
   it.each(["Emergency Medical Dispatcher", "EMD Maintenance", "Instructor"])(
-    "filters personnel with only %s credentials and their otherwise empty agency",
+    "retains personnel, employment and actual %s credentials",
     async (certificate) => {
       const f = await fixture();
       const file = join(f.dir, "officer-13177-certificates-1.html");
@@ -76,16 +76,68 @@ describe("Oregon transform", () => {
         ),
       );
       const result = await f.run();
-      for (const artifact of result.artifacts) {
-        if (artifact.kind !== "LicensingAuthorities")
-          expect(artifact.records).toEqual({});
-      }
+      const get = (kind: string) =>
+        result.artifacts.find((a) => a.kind === kind)!.records;
+      expect(get("Personnel")["13177"]).toMatchObject({
+        spec: { first_name: "Robert", last_name: "Smith" },
+      });
+      expect(get("Agencies")["ASH"]).toMatchObject({
+        spec: { name: "Ashland Police Department" },
+      });
+      expect(Object.keys(get("AgencyPersonnel"))).toEqual([
+        "13177|ASH|1979-06-02",
+        "13177|ASH|1980-03-04",
+        "13177|ASH|1980-06-03",
+      ]);
+      expect(get("AgencyPersonnel")["13177|ASH|1980-06-03"]).toMatchObject({
+        spec: {
+          personnel_id: "13177",
+          agency_id: "ASH",
+          start_date: "1980-06-03",
+          end_date: "2021-08-01",
+          title: "Sergeant",
+        },
+      });
+      expect(Object.keys(get("Licenses"))).toEqual([
+        `13177|${certificate} Advanced`,
+        `13177|${certificate} Basic`,
+        `13177|${certificate} Intermediate`,
+        `13177|${certificate} Supervisory`,
+      ]);
+      expect(get("Licenses")[`13177|${certificate} Advanced`]).toEqual({
+        spec: {
+          personnel_id: "13177",
+          authority_license_id: `dpsst|${certificate} Advanced`,
+          first_awarded: "1986-07-31",
+          status: "Expired",
+        },
+      });
+      expect(get("AuthorityLicenses")[`dpsst|${certificate} Advanced`]).toEqual(
+        {
+          spec: {
+            licensing_authority_id: "dpsst",
+            name: `${certificate} Advanced`,
+          },
+        },
+      );
+      expect(
+        get("LicenseActions")[
+          `13177|${certificate} Advanced|Expired|2026-08-01`
+        ],
+      ).toEqual({
+        spec: {
+          license_id: `13177|${certificate} Advanced`,
+          action: "Expired",
+          action_date: "2026-08-01",
+          status: "Expired",
+        },
+      });
       expect(result.artifacts.some((a) => a.kind === "DataAnnotations")).toBe(
         false,
       );
     },
   );
-  it("filters personnel with no certificates", async () => {
+  it("retains personnel and employment without inventing licenses for empty certificates", async () => {
     const f = await fixture();
     await writeFile(
       join(f.dir, "officer-13177-certificates-1.html"),
@@ -100,12 +152,30 @@ describe("Oregon transform", () => {
       ).replaceAll("65863", "13177"),
     );
     const result = await f.run();
-    expect(
-      result.artifacts.find((a) => a.kind === "Personnel")!.records,
-    ).toEqual({});
-    expect(
-      result.artifacts.find((a) => a.kind === "Agencies")!.records,
-    ).toEqual({});
+    const get = (kind: string) =>
+      result.artifacts.find((a) => a.kind === kind)!.records;
+    expect(get("Personnel")["13177"]).toMatchObject({
+      spec: { first_name: "Robert", last_name: "Smith" },
+    });
+    expect(get("Agencies")["ASH"]).toMatchObject({
+      spec: { name: "Ashland Police Department" },
+    });
+    expect(Object.keys(get("AgencyPersonnel"))).toEqual([
+      "13177|ASH|1979-06-02",
+      "13177|ASH|1980-03-04",
+      "13177|ASH|1980-06-03",
+    ]);
+    expect(get("AgencyPersonnel")["13177|ASH|1980-06-03"]).toMatchObject({
+      spec: {
+        personnel_id: "13177",
+        agency_id: "ASH",
+        start_date: "1980-06-03",
+        end_date: "2021-08-01",
+        title: "Sergeant",
+      },
+    });
+    for (const kind of ["Licenses", "AuthorityLicenses", "LicenseActions"])
+      expect(get(kind)).toEqual({});
   });
   it.each([
     "Police Officer",
@@ -145,7 +215,7 @@ describe("Oregon transform", () => {
       ).toContain("13177|Emergency Medical Dispatcher Advanced");
     },
   );
-  it("keeps a shared agency and only the qualifying person's relationships", async () => {
+  it("keeps both people's relationships and credentials at a shared agency", async () => {
     const f = await fixture();
     const row = f.search.slice(
       f.search.indexOf("<tr><td>"),
@@ -181,14 +251,14 @@ describe("Oregon transform", () => {
     const result = await f.run();
     const get = (kind: string) =>
       result.artifacts.find((a) => a.kind === kind)!.records;
-    expect(Object.keys(get("Personnel"))).toEqual(["13177"]);
+    expect(Object.keys(get("Personnel"))).toEqual(["13177", "13178"]);
     expect(Object.keys(get("Agencies"))).toEqual(["ASH"]);
     expect(Object.keys(get("AgencyPhoneNumbers"))).toHaveLength(1);
     for (const kind of ["AgencyPersonnel", "Licenses", "LicenseActions"]) {
-      expect(Object.keys(get(kind)).length).toBeGreaterThan(0);
-      expect(
-        Object.keys(get(kind)).every((key) => key.startsWith("13177|")),
-      ).toBe(true);
+      for (const id of ["13177", "13178"])
+        expect(
+          Object.keys(get(kind)).some((key) => key.startsWith(`${id}|`)),
+        ).toBe(true);
     }
   });
   it("emits canonical records, complete episodes, separate certificate levels, and dated statuses", async () => {

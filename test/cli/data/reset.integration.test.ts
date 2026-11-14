@@ -20,13 +20,11 @@ import { Artifacts } from "../../../src/shared/io/Artifacts.js";
 import { persistSourceNameToCanonicalIds } from "../../../src/cli/state/source-name-to-canonical-id/index.js";
 import { appendEntry } from "../../../sources/org.policeconduct.manual/chain.js";
 import {
-  dockerAvailable,
   startIntakeDatabase,
   type IntakeDatabase,
 } from "../database/intake-postgres.js";
 
-const withDocker = dockerAvailable() ? describe : describe.skip;
-withDocker("data reset against disposable Postgres", () => {
+describe("data reset against disposable Postgres", () => {
   let db: IntakeDatabase;
   const workspaces: string[] = [];
   beforeAll(async () => {
@@ -196,6 +194,8 @@ withDocker("data reset against disposable Postgres", () => {
       logger: { info: () => {} },
       orderedSourceIds: async () => ["us-census-gazetteer", "fixture-agencies"],
       acquiredInputs: async (): Promise<string[] | null> => null,
+      sourceProduces: async (source: string): Promise<"LocationPaths"[]> =>
+        source === "us-census-gazetteer" ? ["LocationPaths"] : [],
     };
   }
 

@@ -21,17 +21,6 @@ import {
 } from "./parse.js";
 import { buildEmploymentEpisodes, sourceDate } from "./employment.js";
 
-// Publication eligibility is based on discipline, not current certification status.
-const preservedDisciplines = new Set([
-  "Police Officer",
-  "Retired Police Officer",
-  "Corrections Officer",
-  "Parole & Probation Officer",
-  "Regulatory Specialist",
-  "Telecommunicator",
-  "Telecommunicator Maintenance",
-]);
-
 export const description =
   "Oregon DPSST public roster, employment history and certifications.";
 export const produces: readonly ImportArtifactKind[] = [
@@ -213,12 +202,6 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
         `officer-${officer.id}-certificates`,
       )
     ).flatMap((html) => parseCertificates(html, officer.id));
-    if (
-      !certificates.some((c) => preservedDisciplines.has(c.certificate.trim()))
-    ) {
-      delete personnel[officer.id];
-      continue;
-    }
     const employment = (
       await readPages(
         officer.employmentFiles,

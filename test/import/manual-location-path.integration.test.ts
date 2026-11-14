@@ -16,7 +16,6 @@ import { importArtifacts } from "./completed-artifacts.js";
 import { replayDatabaseMutations } from "../../src/cli/replay/database-mutations/config.js";
 import { Artifacts } from "../../src/shared/io/Artifacts.js";
 import {
-  dockerAvailable,
   startIntakeDatabase,
   type IntakeDatabase,
 } from "../cli/database/intake-postgres.js";
@@ -24,9 +23,7 @@ import {
 const placePath = "/tx/fannin-county/ivanhoe/";
 const countyPath = "/tx/fannin-county/";
 const aliasPath = "/tx/fannin-county/ivanhoe-community/";
-const describeWithDocker = dockerAvailable() ? describe : describe.skip;
-
-describeWithDocker("manual community creation and reconstruction", () => {
+describe("manual community creation and reconstruction", () => {
   let db: IntakeDatabase;
   let rootDir: string;
   const workspaces: string[] = [];

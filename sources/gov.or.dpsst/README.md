@@ -54,18 +54,9 @@ transformed and applied counts.
 
 ## Publication scope
 
-Personnel must have at least one Police Officer, Retired Police Officer,
-Corrections Officer, Parole & Probation Officer, Regulatory Specialist,
-Telecommunicator, or Telecommunicator Maintenance certificate. All levels and
-statuses count, including expired, suspended, revoked and required certificates.
-EMD and Instructor credentials alone do not qualify; no certificates also means
-out of scope. Qualifying personnel retain all their credentials and employment
-history. Agencies without retained personnel assignments and their phone records
-are omitted. Scope filtering creates no annotations or manual exclusions; raw
-acquired evidence is retained. Other sources are unaffected.
-
-Existing `data update` is additive and does not delete previously imported rows.
-To remove previously imported out-of-scope records, rebuild the intended local
-database with `npm run cli -- data reset --no-acquire` using the normal local
-environment, then rebuild/restart the site. Do not apply a shared or production
-reset without separate authorization.
+All roster personnel are retained regardless of certificate presence, type,
+level or status. Available employment relationships and actual supplied
+credentials are retained. Empty certificate data produces no licenses. Strict
+parsing, required-field validation and explicitly configured corrections and
+exclusions still apply. Agencies without retained personnel assignments and
+their phone records are omitted.

@@ -1,4 +1,3 @@
-import { execSync } from "node:child_process";
 import { readFile, readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -39,15 +38,6 @@ const INTAKE_TABLES = [
   "public.location_path_closure",
   "public.location_path",
 ];
-
-export function dockerAvailable(): boolean {
-  try {
-    execSync("docker info", { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 export type IntakeDatabase = {
   connectionString: string;

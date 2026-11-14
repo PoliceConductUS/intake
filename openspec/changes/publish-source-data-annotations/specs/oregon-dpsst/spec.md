@@ -1,21 +1,15 @@
 ## ADDED Requirements
 
-### Requirement: Oregon publication scope follows qualifying credentials
+### Requirement: Oregon publication scope includes roster personnel
 
-Oregon DPSST SHALL retain personnel only when at least one certificate belongs to Police Officer, Retired Police Officer, Corrections Officer, Parole & Probation Officer, Regulatory Specialist, Telecommunicator, or Telecommunicator Maintenance. All levels and statuses qualify, including historical, expired, suspended, revoked, and required certificates. Retained personnel SHALL retain all their credentials. Personnel with no qualifying certificates, including no certificates, SHALL be omitted with their dependent records. Agencies with no retained personnel assignments and their phone records SHALL be omitted. Unused authority license types SHALL be omitted. Raw source evidence SHALL remain intact. These scope omissions SHALL NOT create annotations or explicit exclusion cache entries and SHALL affect only Oregon source output, never delete another source's records.
+Oregon DPSST SHALL retain all roster personnel regardless of certificate presence, type, level or status. Certificates are optional. Supplied employment and credential records SHALL remain intact; empty certificate tables SHALL not create licenses or omit personnel and supported relationships. Required-field validation and explicit source corrections/exclusions remain effective. This replaces the earlier certificate inclusion requirement at the user's explicit direction on November 13, 2026.
 
-#### Scenario: Medical-only personnel
+#### Scenario: Medical or instructor credentials
 
-- **WHEN** a person has only Emergency Medical Dispatcher, EMD Maintenance, or Instructor certificates
-- **THEN** the Oregon output omits the person and dependents without annotations
-- **AND** an agency with no remaining personnel is omitted
+- **WHEN** a person has only medical dispatcher, maintenance or instructor certificates
+- **THEN** the person, supplied credentials and supported relationships remain
 
-#### Scenario: Qualifying historical credential
+#### Scenario: No certificates
 
-- **WHEN** a person has a revoked Police Officer certificate and an Emergency Medical Dispatcher certificate
-- **THEN** both credentials and the person remain in Oregon output
-
-#### Scenario: No credentials
-
-- **WHEN** a person has no certificates
-- **THEN** the person is outside Oregon publication scope
+- **WHEN** a roster person has no certificates
+- **THEN** the person and supported employment relationships remain without invented licenses

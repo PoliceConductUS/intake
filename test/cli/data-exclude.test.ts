@@ -95,6 +95,75 @@ test("creates the list and refuses to overwrite an existing exclusion", async ()
   expect(await readFile(file, "utf8")).toBe(before);
 });
 
+test("writes typed conditions and replaces only the exact existing exclusion", async () => {
+  expect((await runIntake(args)).exitCode).toBe(0);
+  const other = [...args];
+  other[4] = "other";
+  expect((await runIntake(other)).exitCode).toBe(0);
+  const result = await runIntake([
+    ...args.slice(0, 6),
+    "incomplete source value",
+    "--when",
+    '{"name":null,"count":0,"active":false,"details":{"names":["9","Townsend"]}}',
+    "--replace",
+  ]);
+  expect(result.exitCode, result.stderr).toBe(0);
+  const records = await loadExcludedRecords(stateDir);
+  expect(records.size).toBe(2);
+  expect(records.get("Agency:515001")).toMatchObject({
+    reason: "incomplete source value",
+    when: {
+      name: null,
+      count: 0,
+      active: false,
+      details: { names: ["9", "Townsend"] },
+    },
+  });
+  expect(records.get("Agency:other")).toMatchObject({ reason: args[6] });
+  const before = await readFile(path.join(stateDir, "excluded.yaml"), "utf8");
+  const duplicate = await runIntake([...args, "--when", '{"name":"bad"}']);
+  expect(duplicate.exitCode).toBe(1);
+  expect(duplicate.stderr).toContain("Already excluded");
+  expect(await readFile(path.join(stateDir, "excluded.yaml"), "utf8")).toBe(
+    before,
+  );
+});
+
+test("replacement requires an existing exact kind and source key", async () => {
+  expect((await runIntake(args)).exitCode).toBe(0);
+  const before = await readFile(path.join(stateDir, "excluded.yaml"), "utf8");
+  for (const [kind, key] of [
+    ["Agency", "absent"],
+    ["Personnel", "515001"],
+  ]) {
+    const result = await runIntake([
+      "data",
+      "exclude",
+      "test.source",
+      kind,
+      key,
+      "--reason",
+      "new reason",
+      "--replace",
+    ]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("not excluded");
+    expect(await readFile(path.join(stateDir, "excluded.yaml"), "utf8")).toBe(
+      before,
+    );
+  }
+});
+
+test.each(["{", "{}", "[]", "null", '"bad"', "false", "1"])(
+  "rejects invalid --when %s without writing an exclusion",
+  async (when) => {
+    const result = await runIntake([...args, "--when", when]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/when/i);
+    expect((await loadExcludedRecords(stateDir)).size).toBe(0);
+  },
+);
+
 test.each([
   [
     "unknown source",

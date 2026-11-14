@@ -2,14 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { defaultDatabaseClientFactory } from "../../../src/cli/database/index.js";
 import { readLocationPathsContainingPoint } from "../../../src/cli/database/location-paths.js";
 import { LocationPathDataContext } from "../../../src/cli/import/artifacts/location-resolution.js";
-import {
-  dockerAvailable,
-  startIntakeDatabase,
-  type IntakeDatabase,
-} from "./intake-postgres.js";
+import { startIntakeDatabase, type IntakeDatabase } from "./intake-postgres.js";
 
-const withDocker = dockerAvailable() ? describe : describe.skip;
-withDocker("Census local jurisdictions with real PostGIS", () => {
+describe("Census local jurisdictions with real PostGIS", () => {
   let db: IntakeDatabase;
   beforeAll(async () => {
     db = await startIntakeDatabase();

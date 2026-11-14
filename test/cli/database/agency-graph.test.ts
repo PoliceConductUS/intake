@@ -8,14 +8,9 @@ import {
   selectAgencyGraph,
   type AgencyGraphRecord,
 } from "../../../src/cli/import/artifacts/agency-graph.js";
-import {
-  dockerAvailable,
-  startIntakeDatabase,
-  type IntakeDatabase,
-} from "./intake-postgres.js";
+import { startIntakeDatabase, type IntakeDatabase } from "./intake-postgres.js";
 
-const withDocker = dockerAvailable() ? describe : describe.skip;
-withDocker("agency graph context in real Postgres", () => {
+describe("agency graph context in real Postgres", () => {
   let db: IntakeDatabase;
   let client: DatabaseClient;
   beforeAll(async () => {
