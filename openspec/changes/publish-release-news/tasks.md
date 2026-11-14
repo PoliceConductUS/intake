@@ -21,5 +21,5 @@
 
 ## 4. Verification and rollout
 
-- [ ] 4.1 Exercise the local discovery-to-build path, both repositories’ validation gates and the release publication scenarios in the implementation plan.
+- [x] 4.1 Exercise the local discovery-to-build path, both repositories’ validation gates and the release publication scenarios in the implementation plan.
 - [ ] 4.2 Verify the release artifacts, routing, forms and private access on the authorized website release before enabling the daily 7 a.m. Chicago workflow.
