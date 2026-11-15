@@ -45,7 +45,7 @@ export async function resetConfiguredDatabase(
     new URL("../../../node_modules/.bin/supabase", import.meta.url),
   );
   const target = new URL(env.DATABASE_URL!);
-  // Supabase's --db-url assumes TLS, unlike the local Postgres connection.
+  // Supabase's remote URL assumes TLS, unlike the local Postgres connection.
   if (
     ["localhost", "127.0.0.1", "[::1]"].includes(target.hostname) &&
     !target.searchParams.has("sslmode")
@@ -55,7 +55,7 @@ export async function resetConfiguredDatabase(
   await new Promise<void>((resolve, reject) => {
     const child = spawn(
       binary,
-      ["db", "reset", "--db-url", target.toString(), "--no-seed", "--yes"],
+      ["db", "reset", `--remote=${target.toString()}`, "--no-seed", "--yes"],
       {
         env: {
           ...process.env,

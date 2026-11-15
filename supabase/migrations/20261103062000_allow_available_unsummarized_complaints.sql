@@ -14,7 +14,9 @@ check (
         ]
         and complaint_summary_unavailability ->> 'reason' in (
             'missing_copy', 'pending', 'retrieval_failed',
-            'authentication_failed', 'generation_failed', 'available_unsummarized'
+            'authentication_failed',
+            'generation_failed',
+            'available_unsummarized'
         )
     )
 );

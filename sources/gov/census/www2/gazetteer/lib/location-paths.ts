@@ -51,8 +51,7 @@ export interface AlternateAdministrativeArea {
 }
 
 export type HierarchySelectionReason =
-  | "largest_total_area_overlap_then_lexical_path"
-  | "largest_total_area_overlap";
+  "largest_total_area_overlap_then_lexical_path" | "largest_total_area_overlap";
 
 export interface HierarchySelection {
   note: string;

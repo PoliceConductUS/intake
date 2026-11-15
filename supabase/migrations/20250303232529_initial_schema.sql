@@ -599,7 +599,7 @@ create table if not exists public.profiles (
     physical_address_city text,
     physical_address_state text,
     physical_address_zip text,
-    languages text []
+    languages text[]
 );
 
 

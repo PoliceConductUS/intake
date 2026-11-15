@@ -448,8 +448,8 @@ export async function runDaily(
         if (path && !newest.has(path)) newest.set(path, key);
       }
     const list = homepageRanking(traffic, state.matches, newest);
-    const articles = list.map(
-      (row) => state.articles.find((a) => keyOf(a) === row.articleKey)!,
+    const articles = list.map((row) =>
+      state.articles.find((a) => keyOf(a) === row.articleKey)!,
     );
     const placements = list.map((r, i) => ({
       namespace: articles[i]!.namespace,

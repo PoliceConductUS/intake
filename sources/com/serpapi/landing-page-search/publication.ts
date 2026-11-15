@@ -190,7 +190,7 @@ function optionalText(
   text: string | null | undefined,
 ) {
   const el = required(item, selector);
-  if (text) el.textContent = escapeText(text);
+  if (text) el.textContent = text;
   else el.remove();
 }
 function indexRoster(roster: Roster) {
@@ -293,7 +293,7 @@ function renderNews(
     if (url.protocol !== "https:" && url.protocol !== "http:")
       throw new Error("Invalid news article URL");
     anchor.setAttribute("href", occurrence.url.replaceAll("&", "&amp;"));
-    anchor.textContent = escapeText(occurrence.title);
+    anchor.textContent = occurrence.title;
     optionalText(item, "[data-news-publisher]", occurrence.sourceName);
     optionalText(item, "[data-news-summary]", occurrence.summary);
     optionalText(item, "[data-news-notes]", article.notes);
@@ -319,7 +319,7 @@ function renderNews(
       ).firstElementChild!;
       tag(link, rel);
       if (person.path) link.setAttribute("href", person.path);
-      link.textContent = escapeText(name);
+      link.textContent = name;
       officers.appendChild(link);
     }
     list.appendChild(item);
@@ -358,7 +358,7 @@ export function renderPage(
         value = part.data[name];
       if (typeof value !== "string")
         throw new Error("Missing page text " + name);
-      slot.textContent = escapeText(value);
+      slot.textContent = value;
     }
     target.innerHTML = fragment.toString();
   }

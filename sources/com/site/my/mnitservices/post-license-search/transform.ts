@@ -626,8 +626,7 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
         expiration_date: toDate(asString(action.expirationDate)),
       };
       const previous = discipline[disciplineKey]?.spec as
-        | typeof substantive
-        | undefined;
+        typeof substantive | undefined;
       if (
         previous !== undefined &&
         !isDeepStrictEqual(substantive, {

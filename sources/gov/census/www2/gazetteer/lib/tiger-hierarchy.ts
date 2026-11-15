@@ -51,11 +51,7 @@ import {
  */
 
 export type TigerFeatureType =
-  | "state"
-  | "county"
-  | "place"
-  | "county_subdivision"
-  | "consolidated_city";
+  "state" | "county" | "place" | "county_subdivision" | "consolidated_city";
 
 interface GeoJsonGeometry {
   type?: string;

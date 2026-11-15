@@ -264,9 +264,7 @@ async function runStreamedSource(
   authority: boolean,
   logs: string[],
   produces: readonly (
-    | "LocationPaths"
-    | "LocationPathGeometries"
-    | "LicensingAuthorities"
+    "LocationPaths" | "LocationPathGeometries" | "LicensingAuthorities"
   )[] = ["LocationPaths", "LocationPathGeometries", "LicensingAuthorities"],
 ) {
   return transformSource(
