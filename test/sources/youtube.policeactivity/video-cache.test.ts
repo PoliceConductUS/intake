@@ -3,7 +3,7 @@ import {
   mergedVideos,
   nextYearToAcquire,
   type AgencyVideoCacheEntry,
-} from "../../../sources/youtube.policeactivity/video-cache.js";
+} from "../../../sources/com/youtube/policeactivity/video-cache.js";
 
 function video(id: string) {
   return {

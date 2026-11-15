@@ -45,7 +45,10 @@ async function writeSourceArtifactsFile(rootDir: string): Promise<string> {
   const writtenArtifacts = await Artifacts.write(
     path.join(rootDir, "output"),
     Artifacts.new({
-      metadata: { name: "test-run", namespace: "mn-post" },
+      metadata: {
+        name: "test-run",
+        namespace: "com/site/my/mnitservices/post-license-search",
+      },
       spec: { artifacts: [] },
     }),
   );
@@ -56,7 +59,15 @@ async function completedArtifacts(workspace: string) {
   const file = await writeSourceArtifactsFile(
     path.join(workspace, "transform"),
   );
-  await completeTransform(path.join(workspace, "state", "mn-post"), file, null);
+  await completeTransform(
+    path.join(
+      workspace,
+      "state",
+      "com/site/my/mnitservices/post-license-search",
+    ),
+    file,
+    null,
+  );
   return file;
 }
 
@@ -69,7 +80,7 @@ describe("importArtifacts", () => {
       sourceCommandDirectory,
       "mutations",
       yamlResourceFileName(
-        "mn-post:test-run:Agency:agency-source-id:coordinates",
+        "com/site/my/mnitservices/post-license-search:test-run:Agency:agency-source-id:coordinates",
         "ArtifactMutation",
       ),
     );
@@ -78,12 +89,12 @@ describe("importArtifacts", () => {
       path.dirname(mutationRefPath),
       ArtifactMutation.new({
         metadata: {
-          name: "mn-post:test-run:Agency:agency-source-id:coordinates",
+          name: "com/site/my/mnitservices/post-license-search:test-run:Agency:agency-source-id:coordinates",
           namespace: "manual",
         },
         spec: {
           target: {
-            namespace: "mn-post",
+            namespace: "com/site/my/mnitservices/post-license-search",
             command: { name: "test-run" },
             kind: "Agency",
             name: "agency-source-id",
@@ -95,7 +106,7 @@ describe("importArtifacts", () => {
               value: 46.3433,
               reason: "Manual address point from agency website.",
               source: {
-                namespace: "mn-post",
+                namespace: "com/site/my/mnitservices/post-license-search",
                 command: { name: "test-run" },
                 kind: "Agencies",
                 name: "agency-source-id",
@@ -107,7 +118,7 @@ describe("importArtifacts", () => {
               value: -94.2821,
               reason: "Manual address point from agency website.",
               source: {
-                namespace: "mn-post",
+                namespace: "com/site/my/mnitservices/post-license-search",
                 command: { name: "test-run" },
                 kind: "Agencies",
                 name: "agency-source-id",
@@ -129,7 +140,7 @@ describe("importArtifacts", () => {
           mutations: [
             {
               target: {
-                namespace: "mn-post",
+                namespace: "com/site/my/mnitservices/post-license-search",
                 command: { name: "test-run" },
                 kind: "Agency",
                 name: "agency-source-id",
@@ -141,7 +152,7 @@ describe("importArtifacts", () => {
                   value: "https://example.test/police",
                   reason: "Manual agency website enrichment.",
                   source: {
-                    namespace: "mn-post",
+                    namespace: "com/site/my/mnitservices/post-license-search",
                     command: { name: "test-run" },
                     kind: "Agencies",
                     name: "agency-source-id",
@@ -162,7 +173,10 @@ describe("importArtifacts", () => {
     await writeAgencies(
       sourceCommandDirectory,
       {
-        metadata: { name: "test-run", namespace: "mn-post" },
+        metadata: {
+          name: "test-run",
+          namespace: "com/site/my/mnitservices/post-license-search",
+        },
         spec: {
           records: {
             "agency-source-id": {
@@ -182,7 +196,10 @@ describe("importArtifacts", () => {
     const writtenArtifacts = await Artifacts.write(
       sourceCommandDirectory,
       Artifacts.new({
-        metadata: { name: "test-run", namespace: "mn-post" },
+        metadata: {
+          name: "test-run",
+          namespace: "com/site/my/mnitservices/post-license-search",
+        },
         spec: {
           artifacts: [
             {
@@ -219,7 +236,10 @@ describe("importArtifacts", () => {
     const writtenArtifacts = await Artifacts.write(
       path.join(rootDir, "output"),
       Artifacts.new({
-        metadata: { name: "test-run", namespace: "mn-post" },
+        metadata: {
+          name: "test-run",
+          namespace: "com/site/my/mnitservices/post-license-search",
+        },
         spec: {
           artifacts: [
             {
@@ -271,7 +291,7 @@ describe("importArtifacts", () => {
       DatabaseMutations.new({
         metadata: {
           name: replayImportArtifactsId,
-          namespace: "mn-post",
+          namespace: "com/site/my/mnitservices/post-license-search",
           sourceArtifactsName: "test-run",
         },
         spec: { mutations: [] },
@@ -345,7 +365,7 @@ describe("importArtifacts", () => {
     runContext
       .facadeFromSource("Agency", {
         apiVersion: INTAKE_API_VERSION,
-        namespace: "mn-post",
+        namespace: "com/site/my/mnitservices/post-license-search",
         name: "agency-source-id",
       })
       .merge(agencySpec);
@@ -534,7 +554,7 @@ describe("importArtifacts", () => {
       path.join(rootDir, "command", `2026-06-08T00-00-00-000Z-${runId}`),
       DatabaseMutationsDebug.new({
         metadata: {
-          namespace: "mn-post",
+          namespace: "com/site/my/mnitservices/post-license-search",
           name: runId,
           status: "failed",
           counts: {
@@ -672,7 +692,7 @@ describe("importArtifacts", () => {
       kind: "Command",
       metadata: {
         name: "tz4a98xxat96iws9zmbrgj3a",
-        namespace: "mn-post",
+        namespace: "com/site/my/mnitservices/post-license-search",
       },
       spec: {
         path: ".",

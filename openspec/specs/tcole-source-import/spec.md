@@ -8,7 +8,7 @@ TBD - created by archiving change add-tx-post-tcole. Update Purpose after archiv
 
 ### Requirement: TCOLE source emits all six kinds from the single workbook
 
-The `sources/gov.tx.tcole/config.ts` source MUST read the single 02-10 workbook and
+The `sources/gov/texas/tcole/config.ts` source MUST read the single 02-10 workbook and
 emit LicensingAuthority (TCOLE `/tx/`), Agency (`Departments`), Personnel
 (`Officers`), Assignment (`Services`), License (distinct `PUBLIC_GUID`×`LICENSE`),
 and LicenseAction (`OfficersLicensesActions`). `run()` MUST be deterministic (no

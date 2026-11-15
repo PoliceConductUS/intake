@@ -12,7 +12,7 @@ const responseSchema = z.object({
 export function createNewsInference(
   env: Record<string, string | undefined>,
 ): NewsInference {
-  return async (body, candidates) => {
+  return async (body, candidates, paragraphs = [body]) => {
     const url = env.NEWS_INFERENCE_URL,
       model = env.NEWS_INFERENCE_MODEL;
     if (!url || !model)
@@ -41,7 +41,7 @@ export function createNewsInference(
             role: "user",
             content: JSON.stringify({
               candidates,
-              paragraphs: body.split("\n\n"),
+              paragraphs: paragraphs.map((text, index) => ({ index, text })),
             }),
           },
         ],

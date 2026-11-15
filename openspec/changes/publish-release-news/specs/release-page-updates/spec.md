@@ -31,39 +31,31 @@ Access to saved records and extracted article bodies SHALL be limited to the ser
 
 ### Requirement: Schedule daily discovery and release publication
 
-The news-discovery GitHub Action SHALL be scheduled for 7:00 a.m. every day in `America/Chicago`. The Action SHALL write discovery evidence and release outputs without invoking the permanent Intake import or issuing database mutations.
+The news-discovery GitHub Action SHALL be scheduled for 7:00 a.m. every day in `America/Chicago`. The Action SHALL write discovery evidence and release outputs without issuing database mutations.
 
 #### Scenario: The scheduled run finds a preferred copy of an existing article
 
 - **WHEN** the daily search finds a preferred URL for an article already present in the database
 - **THEN** it updates the saved evidence, release JSON and affected HTML using the existing source identity
-- **AND** the database row is updated only when the separate Intake import applies the change
 
 ### Requirement: Persist the identity assigned by the daily Action
 
-Daily SHALL use each occurrence’s normalized publisher URL as its source ID in the `google.news` namespace. Daily SHALL write confirmed duplicate-to-target source IDs under `CoverageLink` in the release’s private `data/alias.json`. Intake SHALL read this file, follow alias chains and persist every source key against the same canonical article ID.
+Daily SHALL use each occurrence’s normalized publisher URL as its source ID in the `com/serpapi/landing-page-search` namespace. Daily SHALL write confirmed duplicate-to-target source IDs under `CoverageLink` in the release’s private `data/alias.json`.
 
 #### Scenario: Two record kinds use the same source ID
 
 - **WHEN** `alias.json` contains the same key under `CoverageLink` and another record kind
-- **THEN** Daily preserves both mappings and Intake uses only the `CoverageLink` target to resolve the article
+- **THEN** Daily preserves both mappings and uses the `CoverageLink` target to resolve the article
 
-#### Scenario: Preferred copy changes before import
+#### Scenario: Preferred copy changes after discovery
 
 - **WHEN** Daily accepts URL A, then groups a qualifying duplicate B with it
 - **THEN** the saved data carries both normalized URL source keys, and the rendered article carries the source pair for the occurrence shown
 - **AND** article-to-assignment relationship IDs persist across updates
 
-#### Scenario: Import and rediscover through different keys
-
-- **WHEN** either source key already maps to an article
-- **THEN** Intake maps both keys to that canonical ID and resolves subsequent A-only and B-only imports to the same record
-- **AND** if neither key exists Intake assigns one canonical article ID
-- **AND** two previously distinct canonical IDs are reported as a conflict, and the same source ID in another namespace alone establishes no match
-
 ### Requirement: Limit news discovery to the past seven days
 
-The daily Action and the local browser search SHALL request past-week results. To qualify, a new or cached story SHALL have a source publication date within the search date and six preceding calendar dates in `America/Chicago`. For multiple copies, discovery SHALL check the preferred source’s publication date.
+The daily Action SHALL request past-week results. To qualify, a new or cached story SHALL have a source publication date within the search date and six preceding calendar dates in `America/Chicago`. For multiple copies, discovery SHALL check the preferred source’s publication date.
 
 #### Scenario: An old cached result precedes a current article
 
@@ -112,7 +104,7 @@ Coverage links SHALL attach to `AgencyPersonnel` assignments. Each agency page S
 
 ### Requirement: Discover news from individual personnel profiles
 
-The daily Intake Action SHALL read all available query and landing-page rows for the latest seven finalized reporting days before ranking pairs. It SHALL keep exact paths to individual profiles in the release snapshot, search in descending impression order using the term and profile officer, and link the first qualifying article to that profile. The article SHALL name and concern that officer at an associated agency.
+The daily Intake Action SHALL read all available query and landing-page rows for the latest seven finalized reporting days before ranking pairs. It SHALL keep exact paths to individual profiles in the release snapshot, search in descending impression order using the reported term and the profile’s associated agencies, and link the first qualifying article to that profile. The article SHALL name and concern that officer at an associated agency.
 
 #### Scenario: A later results page contains the highest-impression profile pair
 
@@ -132,11 +124,48 @@ The daily Intake Action SHALL read all available query and landing-page rows for
 - **THEN** only the profile row enters the daily search queue, regardless of the impressions on the other rows
 - **AND** only the profile row’s clicks contribute to homepage ranking when that pair matches an article
 
+### Requirement: Limit daily SerpApi discovery to the top eligible terms
+
+Daily SHALL search SerpApi’s past-week Google All organic results for up to five distinct eligible terms per Chicago day, using each term’s highest-ranked personnel pair. It SHALL persist the first successful page’s timestamp privately across runs and releases, including empty results, and wait 168 hours before searching that term again. Homepage ranking SHALL use all eligible traffic and saved matches.
+
+#### Scenario: The highest-ranked term is still within its seven-day wait
+
+- **WHEN** a term searched yesterday ranks first by impressions and six other distinct terms are eligible
+- **THEN** the Action skips the recent term and searches the five highest-ranked eligible terms within its free provider allowance
+
+#### Scenario: An empty search becomes eligible exactly seven days later
+
+- **WHEN** a term returned zero results at 13:00 UTC on November 14
+- **THEN** it is ineligible until 13:00 UTC on November 21, including after a release change
+
+#### Scenario: Pagination and reruns share the daily limit
+
+- **WHEN** the Action has searched four distinct terms today and resumes the fourth term on its next results page
+- **THEN** the additional page consumes provider allowance for the existing search and leaves one term slot for the day
+- **AND** once five distinct terms have been searched, another run that day starts no further searches
+
 #### Scenario: A search term leads to two different profiles
 
 - **WHEN** Search Console reports the same term for two individual personnel profiles
-- **THEN** each search uses its own landing page and the original term
-- **AND** a result concerning only the other page's entity does not qualify for the current page
+- **THEN** the higher-ranked pair supplies the profile for one query using the quoted original term, a required group of quoted roster-name alternatives, and the quoted agency name and stored agency state
+- **AND** the other pair retains its own traffic counts and requires supporting article evidence for a match
+
+#### Scenario: An officer has multiple agency assignments
+
+- **WHEN** the selected profile has more than one distinct agency name and state pair
+- **THEN** append the distinct quoted agency names and their respective states as grouped OR alternatives to the original term in a single Google All query
+
+#### Scenario: Recheck a personnel match from saved evidence
+
+- **WHEN** identifying the target in an article body
+- **THEN** generate one distinct list of exact name variants from that personnel record, longest first, and compare case-insensitively within individual paragraphs
+- **AND** record the roster fields, variations checked and matching paragraph hashes privately so the name check can be rerun on saved evidence when the variations change
+- **AND** an agency name or a matching traffic query alone cannot support a personnel link
+
+#### Scenario: An article has no readable body
+
+- **WHEN** a result has no accessible body or previously saved readable copy
+- **THEN** skip it and continue to the next ranked result within the search limits
 
 #### Scenario: An already recorded article is the first qualifying result
 
@@ -194,21 +223,16 @@ The website SHALL embed its release identity in each built form and submit it as
 - **WHEN** a preview form with a custom payload submits
 - **THEN** its preview destination receives the originating preview release identity
 
-### Requirement: Search every agency and its officers locally
+### Requirement: Expand county in imported sheriff agency names
 
-The local acquisition SHALL search each agency supplied by the imported database roster, followed by each officer at that agency. It SHALL use local inference and a visible Chrome browser that waits for the operator whenever Google requests verification.
+Intake SHALL expand the abbreviation `Co.` immediately before `Sheriff` or `Sheriffs` in agency names to `County`. Intake SHALL expand a final `Dept.` to `Department`. An existing agency SHALL retain its canonical ID and established slug on reimport.
 
-#### Scenario: Pacing Google requests
+#### Scenario: A sheriff's office has an abbreviated county name in the source
 
-- **WHEN** the local acquisition starts another agency query, officer query or results page
-- **THEN** it waits a newly drawn interval of 25 through 60 seconds before sending the request, including after a restart
+- **WHEN** an existing agency is reimported with the name `Example Co. Sheriff's Office`
+- **THEN** the agency name becomes `Example County Sheriff's Office` on the same record and the existing slug is preserved
 
-#### Scenario: Searching by officer and agency
+#### Scenario: A reviewed article uses an abbreviated agency name
 
-- **WHEN** an officer named Dana Lee Reyes Jr. belongs to Example Police Department
-- **THEN** the Google query is `"Dana Reyes" "Example Police Department"`
-
-#### Scenario: Resuming an officer search
-
-- **WHEN** a run is interrupted during an officer query
-- **THEN** it resumes that query and its result position before moving to the next officer or agency.
+- **WHEN** a reviewed source uses one of the agency abbreviations expanded on import
+- **THEN** the source resolves the same unique agency and personnel assignment using the expanded name

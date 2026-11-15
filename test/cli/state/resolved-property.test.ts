@@ -143,7 +143,11 @@ describe("ResolvedProperty state", () => {
       rootDir,
       ...base,
       value: 44.955097,
-      source: { namespace: "mn-post", kind: "Agency", name: "mn-source-id" },
+      source: {
+        namespace: "com/site/my/mnitservices/post-license-search",
+        kind: "Agency",
+        name: "mn-source-id",
+      },
     });
     await writeResolvedProperty({
       rootDir,
@@ -162,7 +166,10 @@ describe("ResolvedProperty state", () => {
         inputFingerprint: stPaul,
         value: 44.955097,
         sources: {
-          "mn-post": { kind: "Agency", name: "mn-source-id" },
+          "com/site/my/mnitservices/post-license-search": {
+            kind: "Agency",
+            name: "mn-source-id",
+          },
           "city-payroll": { kind: "Agency", name: "payroll-source-id" },
         },
       },

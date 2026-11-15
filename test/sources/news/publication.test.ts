@@ -5,9 +5,9 @@ import {
   publishPage,
   type PublicationBatch,
   type Roster,
-} from "../../../sources/google.news/publication.js";
+} from "../../../sources/com/serpapi/landing-page-search/publication.js";
 import type { ReleaseArticle } from "../../../sources/lib/news.js";
-import type { NewsStorage } from "../../../sources/google.news/storage.js";
+import type { NewsStorage } from "../../../sources/com/serpapi/landing-page-search/storage.js";
 
 const release = "prod-11111111-1111-4111-8111-111111111111";
 const path = "/personnel/one/";
@@ -29,13 +29,13 @@ const baseline = {
 function article(id: string): ReleaseArticle {
   const url = "https://example.org/" + id;
   return {
-    namespace: "google.news",
+    namespace: "com/serpapi/landing-page-search",
     sourceId: url,
     preferredUrl: url,
     normalizedUrl: url,
     occurrences: {
       [url]: {
-        namespace: "google.news",
+        namespace: "com/serpapi/landing-page-search",
         sourceId: url,
         url,
         title: "<b>" + id + "</b>",
@@ -47,7 +47,7 @@ function article(id: string): ReleaseArticle {
     },
     relationships: [
       {
-        namespace: "google.news",
+        namespace: "com/serpapi/landing-page-search",
         sourceId: "rel-" + id,
         agencyPersonnelId: "r",
         confidence: "documented",
@@ -131,7 +131,9 @@ it("regenerates all saved parts from the original, including escaped news and as
   );
   const item = doc.querySelector("ul li")!;
   expect(item.getAttribute("data-source-id")).toBe("https://example.org/one");
-  expect(item.getAttribute("data-source-namespace")).toBe("google.news");
+  expect(item.getAttribute("data-source-namespace")).toBe(
+    "com/serpapi/landing-page-search",
+  );
   expect(item.querySelector("[data-news-title]")!.text).toBe("<b>one</b>");
   expect(item.querySelector("b,script")).toBeNull();
   expect(
@@ -250,12 +252,17 @@ it("keeps the evidence-bearing copy on each profile and ranks homepage stories u
       windowEnd: "2026-11-11",
       placements: [
         {
-          namespace: "google.news",
+          namespace: "com/serpapi/landing-page-search",
           sourceId: another.preferredUrl,
           position: 1,
           clicks: 20,
         },
-        { namespace: "google.news", sourceId: copy, position: 2, clicks: 8 },
+        {
+          namespace: "com/serpapi/landing-page-search",
+          sourceId: copy,
+          position: 2,
+          clicks: 8,
+        },
       ],
     },
   });
@@ -377,7 +384,7 @@ it("saves the copy aliases before publishing and replays the batch from the pinn
     copy = "https://publisher.example/story?part=1&topic=2";
   wire.occurrences[copy] = {
     ...wire.occurrences[wire.preferredUrl],
-    namespace: "google.news",
+    namespace: "com/serpapi/landing-page-search",
     sourceId: copy,
     url: copy,
     domainRank: 1,

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { transform } from "../sources/gov.or.dpsst/transform.js";
+import { transform } from "../sources/net/bpl-orsnapshot/www/public-inquiry-cj/transform.js";
 import { buildArtifactsEnvelope } from "../src/cli/transform/source-transform.js";
 const dirs: string[] = [];
 afterEach(async () => {
@@ -265,7 +265,11 @@ describe("Oregon transform", () => {
     const f = await fixture();
     const result = await f.run();
     expect(() =>
-      buildArtifactsEnvelope("gov.or.dpsst", "sample", result),
+      buildArtifactsEnvelope(
+        "net/bpl-orsnapshot/www/public-inquiry-cj",
+        "sample",
+        result,
+      ),
     ).not.toThrow();
     const get = (kind: string) =>
       result.artifacts.find((a) => a.kind === kind)!.records;

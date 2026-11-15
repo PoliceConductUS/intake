@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { parseGazetteerFile } from "../../../sources/us-census-gazetteer/lib/gazetteer-parser.js";
+import { parseGazetteerFile } from "../../../sources/gov/census/www2/gazetteer/lib/gazetteer-parser.js";
 
 /**
  * Ported from `intake.us-census-gazetteer/test/gazetteer-parser.test.js`.

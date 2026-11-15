@@ -1,6 +1,6 @@
 import { expect, it, vi } from "vitest";
-import { newsResults } from "../../../sources/google.news/providers.js";
-it("uses the provider's next-page offset when a sparse news page has fewer links", async () => {
+import { newsResults } from "../../../sources/com/serpapi/landing-page-search/providers.js";
+it("uses the provider's next-page offset when a sparse organic results page has fewer links", async () => {
   const fetch = vi
     .fn()
     .mockResolvedValueOnce(
@@ -13,7 +13,7 @@ it("uses the provider's next-page offset when a sparse news page has fewer links
     )
     .mockResolvedValueOnce(
       Response.json({
-        news_results: [{ link: "https://story.example/test" }],
+        organic_results: [{ link: "https://story.example/test" }],
         serpapi_pagination: {
           next: "https://serpapi.com/search.json?engine=google&start=10",
         },
@@ -21,9 +21,12 @@ it("uses the provider's next-page offset when a sparse news page has fewer links
     );
   vi.stubGlobal("fetch", fetch);
   try {
-    expect(await newsResults("search", "person", 0, "fixture")).toEqual({
+    expect(await newsResults("search", 0, "fixture")).toEqual({
       urls: ["https://story.example/test"],
       nextStart: 10,
+      response: expect.objectContaining({
+        organic_results: [{ link: "https://story.example/test" }],
+      }),
     });
   } finally {
     vi.unstubAllGlobals();
@@ -41,7 +44,7 @@ it("makes no news request once the free account allowance is exhausted", async (
   );
   vi.stubGlobal("fetch", fetch);
   try {
-    await expect(newsResults("search", "person", 0, "fixture")).rejects.toThrow(
+    await expect(newsResults("search", 0, "fixture")).rejects.toThrow(
       "Free search allowance",
     );
     expect(fetch).toHaveBeenCalledTimes(1);

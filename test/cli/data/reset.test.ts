@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
 import { resetData } from "../../../src/cli/data/reset.js";
-import { readDocumentEvidence } from "../../../sources/mn-post/acquire/document-evidence.js";
+import { readDocumentEvidence } from "../../../sources/com/site/my/mnitservices/post-license-search/acquire/document-evidence.js";
 import {
   readCommandPointer,
   writeCommandPointer,
@@ -88,8 +88,8 @@ test("no-acquire rebuilds in dependency order, applies manual records, and retai
     "data transform agencies",
     "data generate agencies",
     "data up",
-    "data transform org.policeconduct.manual",
-    "data generate org.policeconduct.manual",
+    "data transform org/policeconduct/manual",
+    "data generate org/policeconduct/manual",
     "data up",
   ]);
   expect(await readFile(path.join(f.state, "keep.txt"), "utf8")).toBe(
@@ -141,7 +141,7 @@ test("applies manual geography after the location producer and before agencies",
     "data generate places",
     "data up",
     "manual geography",
-    "data generate org.policeconduct.manual",
+    "data generate org/policeconduct/manual",
     "data up",
     "data transform agencies",
     "data generate agencies",
@@ -240,7 +240,11 @@ test("restores the acquisition pointer and stops when an older snapshot fails", 
 
 test("rejects stale retained analysis before clearing the database or retiring mutations", async () => {
   const f = await fixture();
-  const state = path.join(f.workspace, "state", "mn-post");
+  const state = path.join(
+    f.workspace,
+    "state",
+    "com/site/my/mnitservices/post-license-search",
+  );
   await writeCommandPointer(state, "acquire", {
     latest: "newer",
     resume: "unfinished",
@@ -275,7 +279,9 @@ test("rejects stale retained analysis before clearing the database or retiring m
     { acquire: false },
     {
       ...f.deps,
-      orderedSourceIds: async () => ["mn-post"],
+      orderedSourceIds: async () => [
+        "com/site/my/mnitservices/post-license-search",
+      ],
       acquiredInputs: async () => ["older", "newer"],
       runDataCommand: async (args) => {
         f.calls.push(args.join(" "));
@@ -286,7 +292,9 @@ test("rejects stale retained analysis before clearing the database or retiring m
   );
   expect(result.exitCode).toBe(1);
   expect(result.stderr).toContain("analyzedWith");
-  expect(f.calls).toEqual(["data transform mn-post"]);
+  expect(f.calls).toEqual([
+    "data transform com/site/my/mnitservices/post-license-search",
+  ]);
   expect(await readFile(path.join(f.chain, "old.txt"), "utf8")).toBe(
     "old generated data",
   );
@@ -337,8 +345,8 @@ test("default reset prepares retained inputs before resetting and acquires new i
     "data transform agencies",
     "data generate agencies",
     "data up",
-    "data transform org.policeconduct.manual",
-    "data generate org.policeconduct.manual",
+    "data transform org/policeconduct/manual",
+    "data generate org/policeconduct/manual",
     "data up",
   ]);
   expect(selected).toEqual(["older", "older", "newer"]);
@@ -353,7 +361,9 @@ test("no-acquire rejects a missing completed acquisition before reset", async ()
     { acquire: false },
     {
       ...f.deps,
-      orderedSourceIds: async () => ["mn-post"],
+      orderedSourceIds: async () => [
+        "com/site/my/mnitservices/post-license-search",
+      ],
       acquiredInputs: undefined,
     },
   );
@@ -371,13 +381,19 @@ test.each([true, false])(
   "rejects a malformed existing acquisition before reset with acquire=%s",
   async (acquire) => {
     const f = await fixture();
-    const state = path.join(f.workspace, "state", "mn-post");
+    const state = path.join(
+      f.workspace,
+      "state",
+      "com/site/my/mnitservices/post-license-search",
+    );
     await writeCommandPointer(state, "acquire", { latest: "invalid" });
     const result = await resetData(
       { acquire },
       {
         ...f.deps,
-        orderedSourceIds: async () => ["mn-post"],
+        orderedSourceIds: async () => [
+          "com/site/my/mnitservices/post-license-search",
+        ],
         acquiredInputs: undefined,
       },
     );

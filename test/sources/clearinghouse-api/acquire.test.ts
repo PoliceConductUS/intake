@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isNoResults } from "../../../sources/clearinghouse-api/acquire.js";
+import { isNoResults } from "../../../sources/net/clearinghouse/api/acquire.js";
 
 // The Clearinghouse API returns HTTP 400 with a `["No results for {...}"]` body
 // for a zero-match search — a normal empty result, not a failure. Independent

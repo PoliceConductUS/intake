@@ -3,7 +3,7 @@ import {
   collectTraffic,
   homepageRanking,
   searchFirst,
-} from "../../../sources/google.news/discovery.js";
+} from "../../../sources/com/serpapi/landing-page-search/discovery.js";
 describe("daily news", () => {
   it("reads every row before prioritizing eligible profiles", async () => {
     const responses = [

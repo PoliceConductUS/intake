@@ -48,7 +48,10 @@ async function writeEnvelope(
   const written = await DatabaseMutations.write(
     rootDir,
     DatabaseMutations.new({
-      metadata: { name: "run-1", namespace: "mn-post" },
+      metadata: {
+        name: "run-1",
+        namespace: "com/site/my/mnitservices/post-license-search",
+      },
       spec: { mutations },
     }),
   );
@@ -63,7 +66,10 @@ async function writeRefEnvelope(
   const written = await DatabaseMutations.write(
     rootDir,
     DatabaseMutations.new({
-      metadata: { name: "run-1", namespace: "mn-post" },
+      metadata: {
+        name: "run-1",
+        namespace: "com/site/my/mnitservices/post-license-search",
+      },
       spec: {
         mutations: [
           { ref: { path: path.relative(rootDir, mutationPath), kind } },
@@ -167,7 +173,7 @@ describe("replay against a real Postgres", () => {
     ]);
 
     const source = {
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       command: { name: "import" },
       kind: "Agency",
       name: "agency-1",
@@ -251,7 +257,7 @@ describe("replay against a real Postgres", () => {
     );
     const rootDir = await mkdtemp(path.join(tmpdir(), "intake-replay-"));
     const source = {
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       command: { name: "import" },
       kind: "Agency",
       name: "agency-canonical-id",
@@ -300,7 +306,10 @@ describe("replay against a real Postgres", () => {
     const mutation = await LocationPathCreate.write(
       path.join(rootDir, "mutations"),
       LocationPathCreate.new({
-        metadata: { name: "lp", namespace: "mn-post" },
+        metadata: {
+          name: "lp",
+          namespace: "com/site/my/mnitservices/post-license-search",
+        },
         spec: {
           location_path_id: "lp",
           path: "/mn/ramsey-county/saint-paul/",
@@ -362,7 +371,10 @@ describe("replay against a real Postgres", () => {
     const mutation = await LocationPathGeometryCreate.write(
       path.join(rootDir, "mutations"),
       LocationPathGeometryCreate.new({
-        metadata: { name: "lp", namespace: "mn-post" },
+        metadata: {
+          name: "lp",
+          namespace: "com/site/my/mnitservices/post-license-search",
+        },
         spec: {
           location_path_id: "lp",
           sourceLocationPathKey: "place:GEOID:2743000",
@@ -437,7 +449,10 @@ describe("replay against a real Postgres", () => {
     const writtenArtifacts = await Artifacts.write(
       path.join(rootDir, "output"),
       Artifacts.new({
-        metadata: { name: "test-run", namespace: "mn-post" },
+        metadata: {
+          name: "test-run",
+          namespace: "com/site/my/mnitservices/post-license-search",
+        },
         spec: {
           artifacts: [
             {
@@ -526,7 +541,7 @@ describe("replay against a real Postgres", () => {
       }),
     );
     await persistSourceNameToCanonicalIds(
-      "mn-post",
+      "com/site/my/mnitservices/post-license-search",
       {
         locationPaths: {
           "place:GEOID:2743000": {

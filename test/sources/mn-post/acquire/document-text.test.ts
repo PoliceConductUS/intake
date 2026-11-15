@@ -3,7 +3,7 @@ import {
   extractDocumentText,
   needsOcr,
   parsePageCount,
-} from "../../../../sources/mn-post/acquire/document-text.js";
+} from "../../../../sources/com/site/my/mnitservices/post-license-search/acquire/document-text.js";
 
 const PDFINFO = [
   "Creator:         TOSHIBA e-STUDIO4525AC",

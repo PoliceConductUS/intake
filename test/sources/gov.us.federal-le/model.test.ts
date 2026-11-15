@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   officeIsComplete,
   type Office,
-} from "../../../sources/gov.us.federal-le/model.js";
+} from "../../../sources/org/wikipedia/en/us-federal-law-enforcement-agencies/model.js";
 
 describe("officeIsComplete", () => {
   const complete: Office = {

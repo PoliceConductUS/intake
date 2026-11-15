@@ -1,12 +1,14 @@
 import { it, expect, vi } from "vitest";
-import { runDaily } from "../../../sources/google.news/daily.js";
-import type { NewsStorage } from "../../../sources/google.news/storage.js";
-import type { PublicationBatch } from "../../../sources/google.news/publication.js";
+import { newsResults as searchSerpApi } from "../../../sources/com/serpapi/landing-page-search/providers.js";
+import { runDaily } from "../../../sources/com/serpapi/landing-page-search/daily.js";
+import { personnelSearchNames } from "../../../sources/lib/personnel-names.js";
+import type { NewsStorage } from "../../../sources/com/serpapi/landing-page-search/storage.js";
+import type { PublicationBatch } from "../../../sources/com/serpapi/landing-page-search/publication.js";
 const origin = "https://site.example",
   path = "/personnel/test/",
   agency = "/area/test/",
   release = "prod-test";
-it("saves one continuing article and combines query clicks across repeated daily runs", async () => {
+function dailyStorage() {
   let serial = 0;
   const objects = new Map<string, { value: unknown; etag: string }>();
   const put = (k: string, v: unknown) =>
@@ -15,7 +17,7 @@ it("saves one continuing article and combines query clicks across repeated daily
       etag: String(++serial),
     });
   put("snapshot", {
-    agencies: [{ id: "a", name: "Test Agency", path: agency }],
+    agencies: [{ id: "a", name: "Test Agency", state: "TX", path: agency }],
     personnel: [{ id: "p", name: "Officer Example", path }],
     assignments: [{ id: "ap", agencyId: "a", personnelId: "p" }],
     coveragePaths: [],
@@ -47,14 +49,32 @@ it("saves one continuing article and combines query clicks across repeated daily
       throw Error("unexpected");
     },
   };
+  return { store, put, objects };
+}
+it("saves one continuing article and combines query clicks across repeated daily runs", async () => {
+  const { store, put, objects } = dailyStorage();
   const queued: PublicationBatch[] = [];
   const current = new Date("2026-11-14T14:00:00Z");
-  const readArticle = vi.fn(async (url: string) => ({
-    url,
-    html: '<article><h1>Story</h1><p>Officer Example with Test Agency reported the event.</p></article><meta property="article:published_time" content="2026-11-10">',
-  }));
+  const blocked = "https://source.example/blocked";
+  const empty = "https://source.example/empty";
+  const readArticle = vi.fn(async (url: string) =>
+    url === blocked
+      ? null
+      : url === empty
+        ? { url, html: "<h1>Title</h1><article></article>" }
+        : {
+            url,
+            html: '<article><h1>Story</h1><p>Officer Example with Test Agency reported the event.</p></article><meta property="article:published_time" content="2026-11-10">',
+          },
+  );
   const src = "https://source.example/news";
-  const newsResults = vi.fn(async () => ({ urls: [src], nextStart: null }));
+  const newsResults = vi.fn(async () => ({
+    response: {
+      organic_results: [blocked, empty, src].map((link) => ({ link })),
+    },
+    urls: [blocked, empty, src],
+    nextStart: null,
+  }));
   const position = vi.fn(async (_term: string, _page: string, start: string) =>
     start === "2026-11-07" ? 5 : null,
   );
@@ -108,7 +128,7 @@ it("saves one continuing article and combines query clicks across repeated daily
   expect(ranking().placements).toHaveLength(1);
   const [first] = ranking().placements;
   expect(first).toMatchObject({
-    namespace: "google.news",
+    namespace: "com/serpapi/landing-page-search",
     sourceId: src,
     clicks: 50,
     position: 1,
@@ -120,19 +140,46 @@ it("saves one continuing article and combines query clicks across repeated daily
   ]);
   await runDaily(current, deps);
   expect(ranking().placements).toEqual([first]);
-  expect(readArticle).toHaveBeenCalledTimes(1);
+  expect(readArticle.mock.calls.map(([url]) => url)).toEqual([
+    blocked,
+    empty,
+    src,
+  ]);
   const outcomes = [...objects]
-    .filter(([k]) => k.startsWith("news-discovery/outcomes/"))
+    .filter(([k]) => k.startsWith("com/serpapi/landing-page-search/outcomes/"))
     .map(([, v]) => v.value);
-  expect(outcomes).toHaveLength(4);
+  expect(outcomes).toHaveLength(2);
+  expect(outcomes[0]).toMatchObject({
+    personnel: { id: "p", name: "Officer Example" },
+    variations: ["Officer Example"],
+    decisions: [
+      {
+        url: blocked,
+        matched: false,
+        reason: "Publisher unavailable",
+        matchingNames: null,
+      },
+      { url: empty, matched: false, matchingAgencies: null },
+      {
+        url: src,
+        matched: true,
+        matchingNames: ["Officer Example"],
+        nameEvidence: [
+          {
+            name: "Officer Example",
+            paragraphHashes: [expect.stringMatching(/^[a-f0-9]{64}$/)],
+          },
+        ],
+        matchingAgencies: ["Test Agency"],
+      },
+    ],
+  });
   expect(outcomes).toMatchObject([
-    { outcome: "matched", providerRequests: 1, newUrls: 1 },
+    { outcome: "matched", providerRequests: 1, newUrls: 3 },
     { outcome: "matched", providerRequests: 1, newUrls: 0 },
-    { outcome: "matched", providerRequests: 0, newUrls: 0 },
-    { outcome: "matched", providerRequests: 0, newUrls: 0 },
   ]);
   await runDaily(new Date("2026-11-15T14:00:00Z"), deps);
-  expect(newsResults).toHaveBeenCalledTimes(4);
+  expect(newsResults).toHaveBeenCalledTimes(2);
   expect(position).not.toHaveBeenCalled();
   deps.consoleApi.latestWindow = async () => ({
     startDate: "2026-11-15",
@@ -154,7 +201,7 @@ it("saves one continuing article and combines query clicks across repeated daily
     );
   }
   const measurements = (
-    objects.get("news-discovery/state.json")!.value as {
+    objects.get("com/serpapi/landing-page-search/state.json")!.value as {
       comparisons: Record<string, unknown>;
     }
   ).comparisons;
@@ -190,7 +237,7 @@ it("saves one continuing article and combines query clicks across repeated daily
   objects.clear();
   queued.length = 0;
   put("snapshot", {
-    agencies: [{ id: "a", name: "Test Agency", path: agency }],
+    agencies: [{ id: "a", name: "Test Agency", state: "TX", path: agency }],
     personnel: [{ id: "p", name: "Officer Example", path }],
     assignments: [{ id: "ap", agencyId: "a", personnelId: "p" }],
     coveragePaths: [path],
@@ -206,7 +253,7 @@ it("saves one continuing article and combines query clicks across repeated daily
   ]);
   expect(
     (
-      objects.get("news-discovery/state.json")!.value as {
+      objects.get("com/serpapi/landing-page-search/state.json")!.value as {
         visible: Record<string, string | null>;
       }
     ).visible[
@@ -229,13 +276,13 @@ it.each([undefined, "previous-article-id"])(
       b = "https://publisher.example/story";
     const snapshot = {
       personnel: [{ id: "p", name: "Officer Example", path }],
-      agencies: [{ id: "a", name: "Test Agency", path: agency }],
+      agencies: [{ id: "a", name: "Test Agency", state: "TX", path: agency }],
       assignments: [{ id: "ap", personnelId: "p", agencyId: "a" }],
       coveragePaths: [path],
     };
     const occurrence = {
       url: a,
-      namespace: "google.news",
+      namespace: "com/serpapi/landing-page-search",
       sourceId: a,
       title: "Wire story",
       sourceName: "Wire",
@@ -244,14 +291,14 @@ it.each([undefined, "previous-article-id"])(
       paragraphs: [{ hash: "first", text: "Earlier paragraph." }],
     };
     const article = {
-      namespace: "google.news",
+      namespace: "com/serpapi/landing-page-search",
       sourceId: a,
       preferredUrl: a,
       normalizedUrl: a,
       occurrences: { [a]: occurrence },
       relationships: [
         {
-          namespace: "google.news",
+          namespace: "com/serpapi/landing-page-search",
           sourceId: "existing-link",
           agencyPersonnelId: "ap",
           occurrenceUrl: a,
@@ -260,7 +307,7 @@ it.each([undefined, "previous-article-id"])(
         },
       ],
     };
-    const key = JSON.stringify(["google.news", a]);
+    const key = JSON.stringify(["com/serpapi/landing-page-search", a]);
     const pair = { path, term: "officer", clicks: 22, impressions: 30 },
       window = { startDate: "2026-11-06", endDate: "2026-11-12" };
     const batch = {
@@ -288,7 +335,7 @@ it.each([undefined, "previous-article-id"])(
     const baseline = {
       canonicalId: "canonical",
       ...(previousSourceId && {
-        namespace: "google.news",
+        namespace: "com/serpapi/landing-page-search",
         sourceId: previousSourceId,
       }),
       preferredUrl: a,
@@ -323,7 +370,7 @@ it.each([undefined, "previous-article-id"])(
         `builds/${active}/data${path}index.json`,
         { news: { data: { articles: [baseline] } } },
       ],
-      ["news-discovery/state.json", state],
+      ["com/serpapi/landing-page-search/state.json", state],
     ]);
     const unexpected = async () => {
       throw Error("Unexpected page operation");
@@ -371,7 +418,11 @@ it.each([undefined, "previous-article-id"])(
         url: b + "?utm_source=test",
         html: '<meta property="article:published_time" content="2026-11-10"><h1>Original</h1><article><p>Officer Example with Test Agency.</p></article>',
       }),
-      newsResults: async () => ({ urls: [b], nextStart: null }),
+      newsResults: async () => ({
+        response: { organic_results: [{ link: b }] },
+        urls: [b],
+        nextStart: null,
+      }),
       infer: async () => ({
         summary: "Summary",
         support: [{ assignmentId: "ap", paragraphIndexes: [0] }],
@@ -384,7 +435,9 @@ it.each([undefined, "previous-article-id"])(
       },
     });
     expect(batches.map((b) => b.releaseId)).toEqual([previous, active, active]);
-    const after = records.get("news-discovery/state.json") as typeof state;
+    const after = records.get(
+      "com/serpapi/landing-page-search/state.json",
+    ) as typeof state;
     expect(after.articles).toHaveLength(1);
     expect(after.matches).toHaveLength(1);
     if (previousSourceId)
@@ -395,7 +448,10 @@ it.each([undefined, "previous-article-id"])(
         { sourceId: "existing-link", canonicalId: "canonical-link" },
       ],
       occurrences: {
-        [b + "?utm_source=test"]: { namespace: "google.news", sourceId: b },
+        [b + "?utm_source=test"]: {
+          namespace: "com/serpapi/landing-page-search",
+          sourceId: b,
+        },
       },
     });
     expect(
@@ -403,3 +459,160 @@ it.each([undefined, "previous-article-id"])(
     ).toMatchObject([{ clicks: 22, position: 1, canonicalId: "canonical" }]);
   },
 );
+
+it("uses five distinct Chicago-day slots and resumes SerpApi pagination without restarting the seven-day wait", async () => {
+  const { store, put } = dailyStorage();
+  const other = "/personnel/other/";
+  put("snapshot", {
+    agencies: [
+      { id: "a", name: "Test Agency", state: "TX", path: agency },
+      { id: "b", name: "Other Agency", state: "MN", path: null },
+    ],
+    assignments: [
+      { id: "ap", personnelId: "p", agencyId: "a" },
+      { id: "ao", personnelId: "other", agencyId: "a" },
+      { id: "bo", personnelId: "other", agencyId: "b" },
+      { id: "bo2", personnelId: "other", agencyId: "b" },
+    ],
+    coveragePaths: [],
+    personnel: [
+      { id: "p", name: "First Officer", path },
+      { id: "other", name: "Other Officer", path: other },
+    ],
+  });
+  let activeRelease = release;
+  const rows = Array.from({ length: 7 }, (_, i) => ({
+    keys: ["term" + i, origin + path],
+    impressions: 100 - i,
+    clicks: 1,
+  }));
+  rows.push({ keys: ["term0", origin + other], impressions: 101, clicks: 2 });
+  const calls: string[] = [];
+  let allowance = 4;
+  const fetch = vi.fn(async (input: string) => {
+    const url = new URL(input);
+    if (url.pathname === "/account.json")
+      return Response.json({
+        plan_monthly_price: 0,
+        plan_searches_left: allowance,
+        this_hour_searches: 0,
+        account_rate_limit_per_hour: 50,
+      });
+    expect(url.origin + url.pathname).toBe("https://serpapi.com/search.json");
+    expect(Object.fromEntries(url.searchParams)).toMatchObject({
+      engine: "google",
+      tbs: "qdr:w",
+    });
+    expect(url.searchParams.has("tbm")).toBe(false);
+    const query = url.searchParams.get("q")!;
+    const offset = url.searchParams.get("start");
+    calls.push(query + "/" + offset);
+    allowance--;
+    if (query.startsWith('"term3" ') && offset === "0")
+      return Response.json({
+        organic_results: [],
+        serpapi_pagination: {
+          next: "https://serpapi.com/search.json?start=10&q=corrected+query",
+        },
+      });
+    return Response.json({
+      error: "Google hasn't returned any results for this query.",
+    });
+  });
+  const unexpected = async () => {
+    throw Error("Unexpected article operation");
+  };
+  const deps: NonNullable<Parameters<typeof runDaily>[1]> = {
+    store,
+    origin,
+    bucket: "private",
+    apiKey: "fixture",
+    snapshot: async () => ({
+      releaseId: activeRelease,
+      roster: { bucket: "private", key: "snapshot" },
+    }),
+    consoleApi: {
+      latestWindow: async () => ({
+        startDate: "2026-11-06",
+        endDate: "2026-11-12",
+      }),
+      rows: async (_window, offset) => (offset ? [] : rows),
+      position: unexpected,
+    },
+    infer: unexpected,
+    readArticle: unexpected,
+    newsResults: searchSerpApi,
+    publish: async () => ({}),
+  };
+  const run = (date: string) => runDaily(new Date(date), deps);
+  vi.stubGlobal("fetch", fetch);
+  try {
+    await run("2026-11-14T13:00:00Z");
+    expect(calls).toEqual([
+      '"term0" "Other Officer" (("Other Agency" MN) OR ("Test Agency" TX))/0',
+      '"term1" "First Officer" "Test Agency" TX/0',
+      '"term2" "First Officer" "Test Agency" TX/0',
+      '"term3" "First Officer" "Test Agency" TX/0',
+    ]);
+    allowance = 100;
+    // Midnight UTC is still the same Chicago day.
+    await run("2026-11-15T00:00:00Z");
+    expect(calls.splice(4)).toEqual([
+      '"term3" "First Officer" "Test Agency" TX/10',
+      '"term4" "First Officer" "Test Agency" TX/0',
+    ]);
+    calls.length = 0;
+    await run("2026-11-15T05:59:59Z");
+    expect(calls).toEqual([]);
+    activeRelease = "next-release";
+    put("builds/next-release/data/alias.json", { CoverageLink: {} });
+    put("builds/next-release/data/index.json", {
+      news: { data: { articles: [] } },
+    });
+    await run("2026-11-15T06:00:00Z");
+    expect(calls.splice(0)).toEqual([
+      '"term5" "First Officer" "Test Agency" TX/0',
+      '"term6" "First Officer" "Test Agency" TX/0',
+    ]);
+    await run("2026-11-21T12:59:59.999Z");
+    expect(calls).toEqual([]);
+    await run("2026-11-21T13:00:00Z");
+    expect(calls).toEqual([
+      '"term0" "Other Officer" (("Other Agency" MN) OR ("Test Agency" TX))/0',
+      '"term1" "First Officer" "Test Agency" TX/0',
+      '"term2" "First Officer" "Test Agency" TX/0',
+      '"term3" "First Officer" "Test Agency" TX/0',
+      '"term3" "First Officer" "Test Agency" TX/10',
+    ]);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
+it("builds case-insensitive name checks from the stored profile with an embedded suffix", async () => {
+  const { bodyNameMatcher } = await import("../../../sources/lib/news.js");
+  const variants = personnelSearchNames({
+    name: "Example Allan Person II",
+    firstName: "Example",
+    middleName: "Allan",
+    lastName: "Person II",
+  });
+  expect(variants).toEqual([
+    "Example Allan Person II",
+    "Example Allan Person",
+    "Example A. Person II",
+    "Example A. Person",
+    "Example Person II",
+    "Example Person",
+  ]);
+  for (const form of [
+    "EXAMPLE ALLAN PERSON",
+    "EXAMPLE A PERSON II",
+    "example person",
+    "Example Person II",
+  ])
+    expect(
+      variants.some(bodyNameMatcher("About " + form + " at the agency")),
+    ).toBe(true);
+  expect(variants.some(bodyNameMatcher("Example Allen Person"))).toBe(false);
+});

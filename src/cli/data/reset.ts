@@ -195,7 +195,7 @@ export async function resetData(
           dependencies.prepareManualLocations ??
           (async () => {
             const result = await transformOneSource(
-              "org.policeconduct.manual",
+              "org/policeconduct/manual",
               env,
               logger,
               ["LocationPaths", "LocationPathAliases"],
@@ -207,11 +207,11 @@ export async function resetData(
           throw new Error(
             prepared.stderr?.trim() || "Manual location preparation failed.",
           );
-        await executePhase(["data", "generate", "org.policeconduct.manual"]);
+        await executePhase(["data", "generate", "org/policeconduct/manual"]);
         await executePhase(["data", "up"]);
       }
     }
-    await rebuildSource("org.policeconduct.manual");
+    await rebuildSource("org/policeconduct/manual");
     return {
       exitCode: 0,
       stdout: `data reset: rebuilt ${sources.length} source(s) and manual records${options.acquire ? "" : " without acquisition"}.\n`,

@@ -3,7 +3,7 @@ import { AgencySpec } from "../../src/shared/io/index.js";
 import { correctionPropertySchema } from "../../src/shared/io/property-corrections.js";
 import { DatabaseMutations } from "../../src/cli/import/artifacts/io/DatabaseMutations.js";
 
-const metadata = { name: "agency", namespace: "org.policeconduct.manual" };
+const metadata = { name: "agency", namespace: "org/policeconduct/manual" };
 const agency = {
   id: "agency",
   name: "Agency",

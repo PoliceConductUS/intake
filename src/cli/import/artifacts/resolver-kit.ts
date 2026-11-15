@@ -1,5 +1,6 @@
 import { normalizeTextWhitespace } from "../../../shared/text.js";
 import {
+  expandAgencyAbbreviations,
   lowerCaseEmail,
   nameCase,
   nameSuffix,
@@ -711,6 +712,16 @@ export function titleCaseResolver<Row, Backend>(
 ): Resolver<string, ResolverContext<Row, Backend>> {
   return new Resolver<string, ResolverContext<Row, Backend>>(
     casingResolveFn<Row, Backend>(property, titleCase),
+  );
+}
+
+export function agencyNameResolver<Row, Backend>(
+  property: keyof Row & string,
+): Resolver<string, ResolverContext<Row, Backend>> {
+  return new Resolver(
+    casingResolveFn<Row, Backend>(property, (name) =>
+      titleCase(expandAgencyAbbreviations(name)),
+    ),
   );
 }
 

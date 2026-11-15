@@ -86,7 +86,7 @@ local-only PII file, so an update that has not acquired it simply skips it.
   entity descriptor, and the generated specs/mutations. JSONB columns map to
   `z.record(z.string(), z.unknown())` with no override.
 - The breakdown dimensions live in the `DIMENSIONS` table in
-  `sources/gov.irvingtx.arrests/arrest.ts`; adding one is a one-line change. A
+  `sources/gov/irvingtx/arrests/arrest.ts`; adding one is a one-line change. A
   different agency's arrest export is onboarded by mapping its columns to the same
   normalized shape — the entity and run logic are agency-agnostic.
 - End-to-end this produces 320 profiles from 41.7k arrests (320 of 518 roster

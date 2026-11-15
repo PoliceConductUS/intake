@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { transform } from "../../../sources/us-census-gazetteer/transform.js";
+import { transform } from "../../../sources/gov/census/www2/gazetteer/transform.js";
 import { buildArtifactsEnvelope } from "../../../src/cli/transform/source-transform.js";
 import {
   LocationPathGeometrySpec,
@@ -11,7 +11,7 @@ import {
 } from "../../../src/shared/io/index.js";
 
 /**
- * Synthetic end-to-end coverage for `sources/us-census-gazetteer/transform.ts`'s
+ * Synthetic end-to-end coverage for `sources/gov/census/www2/gazetteer/transform.ts`'s
  * `transform()` — the Phase-2 Task 7 orchestrator wiring the six ported domain
  * modules (`inputs`, `gazetteer-parser`, `hierarchy-parser`/`tiger-hierarchy`,
  * `location-paths`, `location-geometries`) into the runtime's manifest+emit
@@ -48,7 +48,7 @@ const paths = [
 
 const notUsed = async () => {
   throw new Error(
-    "readXlsx should not be called by us-census-gazetteer's transform()",
+    "readXlsx should not be called by gov/census/www2/gazetteer's transform()",
   );
 };
 
@@ -62,7 +62,7 @@ afterEach(async () => {
   await rm(state, { recursive: true, force: true });
 });
 
-describe("us-census-gazetteer run", () => {
+describe("gov/census/www2/gazetteer run", () => {
   it("orchestrates the ported modules into a valid LocationPaths artifact plus streamed geometries", async () => {
     const emitted: Array<[string, string, unknown]> = [];
     const emit = async (kind: string, key: string, spec: unknown) => {
@@ -201,7 +201,11 @@ describe("us-census-gazetteer run", () => {
     // --- envelope build must not throw: proves strict-schema compatibility
     // for every inline (non-streamed) record kind in the manifest ---
     expect(() =>
-      buildArtifactsEnvelope("us-census-gazetteer", "test-digest", manifest),
+      buildArtifactsEnvelope(
+        "gov/census/www2/gazetteer",
+        "test-digest",
+        manifest,
+      ),
     ).not.toThrow();
   });
 

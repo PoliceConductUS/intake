@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, it, expect } from "vitest";
-import { transform } from "../../../sources/clearinghouse-api/transform.js";
+import { transform } from "../../../sources/net/clearinghouse/api/transform.js";
 import { readXlsx } from "../../../src/cli/transform/read-xlsx.js";
 
 const tempDirs: string[] = [];
@@ -103,7 +103,7 @@ async function runWith(data = fakeData(), env: Record<string, string> = {}) {
   });
 }
 
-describe("clearinghouse-api run", () => {
+describe("net/clearinghouse/api run", () => {
   it("keeps only cases that name the agency and resolve an officer", async () => {
     const data = fakeData();
     const manifest = await runWith(data);

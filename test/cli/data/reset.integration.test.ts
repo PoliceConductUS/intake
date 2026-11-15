@@ -18,7 +18,7 @@ import { buildArtifactsEnvelope } from "../../../src/cli/transform/source-transf
 import { sourceStateDir } from "../../../src/cli/transform/state.js";
 import { Artifacts } from "../../../src/shared/io/Artifacts.js";
 import { persistSourceNameToCanonicalIds } from "../../../src/cli/state/source-name-to-canonical-id/index.js";
-import { appendEntry } from "../../../sources/org.policeconduct.manual/chain.js";
+import { appendEntry } from "../../../sources/org/policeconduct/manual/chain.js";
 import {
   startIntakeDatabase,
   type IntakeDatabase,
@@ -53,7 +53,7 @@ describe("data reset against disposable Postgres", () => {
       DATABASE_URL: db.connectionString,
     };
     await persistSourceNameToCanonicalIds(
-      "us-census-gazetteer",
+      "gov/census/www2/gazetteer",
       {
         locationPaths: { "/zz/": { canonicalId: "/zz/" } },
         agencies: {},
@@ -83,7 +83,7 @@ describe("data reset against disposable Postgres", () => {
       if (args[1] === "acquire") throw new Error("Unexpected acquisition");
       if (
         args[1] === "transform" &&
-        ["us-census-gazetteer", "fixture-agencies"].includes(args[2])
+        ["gov/census/www2/gazetteer", "fixture-agencies"].includes(args[2])
       ) {
         const command = await createCommandDirectory(env, {
           namespace: args[2],
@@ -93,7 +93,7 @@ describe("data reset against disposable Postgres", () => {
           items: Parameters<typeof buildArtifactsEnvelope>[2]["artifacts"],
         ) =>
           items.filter((item) =>
-            args[2] === "us-census-gazetteer"
+            args[2] === "gov/census/www2/gazetteer"
               ? item.kind === "LocationPaths"
               : item.kind !== "LocationPaths",
           );
@@ -192,17 +192,20 @@ describe("data reset against disposable Postgres", () => {
       },
       runDataCommand,
       logger: { info: () => {} },
-      orderedSourceIds: async () => ["us-census-gazetteer", "fixture-agencies"],
+      orderedSourceIds: async () => [
+        "gov/census/www2/gazetteer",
+        "fixture-agencies",
+      ],
       acquiredInputs: async (): Promise<string[] | null> => null,
       sourceProduces: async (source: string): Promise<"LocationPaths"[]> =>
-        source === "us-census-gazetteer" ? ["LocationPaths"] : [],
+        source === "gov/census/www2/gazetteer" ? ["LocationPaths"] : [],
     };
   }
 
   test("runs actual schema reset, regenerates source and manual data, and preserves IDs and slugs on repetition", async () => {
     const deps = await fixture();
     await appendEntry(
-      await sourceStateDir(deps.env, "org.policeconduct.manual"),
+      await sourceStateDir(deps.env, "org/policeconduct/manual"),
       {
         kind: "LocationPathAlias",
         record: { alias_path: "/zz/alias/", location_path_id: "/zz/" },
@@ -317,7 +320,7 @@ describe("data reset against disposable Postgres", () => {
   test("a real missing-location failure returns nonzero without replaying old data", async () => {
     const deps = await fixture();
     await appendEntry(
-      await sourceStateDir(deps.env, "org.policeconduct.manual"),
+      await sourceStateDir(deps.env, "org/policeconduct/manual"),
       {
         kind: "LocationPathAlias",
         record: { alias_path: "/zz/alias/", location_path_id: "/missing/" },
@@ -326,10 +329,10 @@ describe("data reset against disposable Postgres", () => {
     );
     const result = await resetData({ acquire: false }, deps);
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("data generate org.policeconduct.manual");
+    expect(result.stderr).toContain("data generate org/policeconduct/manual");
     expect(result.stderr).toContain("/missing/");
     expect(result.stderr).toContain("incomplete");
-    expect(deps.commands.at(-1)).toBe("data generate org.policeconduct.manual");
+    expect(deps.commands.at(-1)).toBe("data generate org/policeconduct/manual");
     expect(
       (await db.query("select alias_path from public.location_path_alias"))
         .rows,

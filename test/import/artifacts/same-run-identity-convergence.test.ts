@@ -107,14 +107,14 @@ describe("same-run identity convergence (natural-key kinds)", () => {
     data
       .facadeFromSource("CivilCase", {
         apiVersion: INTAKE_API_VERSION,
-        namespace: "clearinghouse-api",
+        namespace: "net/clearinghouse/api",
         name: "record-A",
       })
       .merge(base);
     data
       .facadeFromSource("CivilCase", {
         apiVersion: INTAKE_API_VERSION,
-        namespace: "courtlistener",
+        namespace: "com/courtlistener/www/api",
         name: "record-B",
       })
       .merge({ ...base, claims_summary: "Second summary." });

@@ -3,6 +3,7 @@ export type NewsAssignment = {
   id: string;
   agencyName: string;
   personnelName: string;
+  personnelNames?: string[];
 };
 export type NewsOccurrence = Partial<SourceRef> & {
   observedAt?: string;
@@ -37,19 +38,8 @@ export type ReleaseArticle = ReleaseIdentity & {
 export type NewsInference = (
   body: string,
   candidates: readonly NewsAssignment[],
+  paragraphs?: readonly string[],
 ) => Promise<{
   summary: string;
   support: Array<{ assignmentId: string; paragraphIndexes: number[] }>;
 }>;
-export type NewsSourceGroup = {
-  sources: SourceRef[];
-  canonicalIds: string[];
-  normalizedUrls: string[];
-};
-export type NewsImportContext = {
-  bindArticleSources(groups: NewsSourceGroup[]): Promise<string[]>;
-  assignmentRef: (id: string) => Promise<string>;
-  existingArticle: (
-    ref: ReleaseIdentity,
-  ) => Promise<ReleaseArticle | undefined>;
-};

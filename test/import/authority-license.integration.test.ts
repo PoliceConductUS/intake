@@ -44,7 +44,7 @@ describe("authority_license + license import (real Postgres)", () => {
     const written = await Artifacts.write(
       path.join(rootDir, "output"),
       Artifacts.new({
-        metadata: { name: "run", namespace: "gov.tx.tcole" },
+        metadata: { name: "run", namespace: "gov/texas/tcole" },
         spec: {
           artifacts: [
             {

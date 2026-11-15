@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
-import { openAgencyIdCache } from "../../../../sources/mn-post/acquire/agency-id-cache.js";
-import type { AgencyMatchResult } from "../../../../sources/mn-post/acquire/collect.js";
+import { openAgencyIdCache } from "../../../../sources/com/site/my/mnitservices/post-license-search/acquire/agency-id-cache.js";
+import type { AgencyMatchResult } from "../../../../sources/com/site/my/mnitservices/post-license-search/acquire/collect.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {

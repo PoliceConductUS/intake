@@ -5,7 +5,7 @@ import {
   createOrderAnalyzer,
   ORDER_ANALYSIS_INSTRUCTIONS,
   ORDER_ANALYSIS_PROMPT_SHA256,
-} from "../../../../sources/mn-post/acquire/order-analysis.js";
+} from "../../../../sources/com/site/my/mnitservices/post-license-search/acquire/order-analysis.js";
 const { parse } = vi.hoisted(() => ({ parse: vi.fn() }));
 vi.mock("@anthropic-ai/sdk", () => ({
   default: class {
@@ -41,7 +41,7 @@ it("requests structured narratives and separate absence reasons with the current
   expect(input.system).toBe(
     await readFile(
       new URL(
-        "../../../../sources/mn-post/acquire/order-analysis-prompt.txt",
+        "../../../../sources/com/site/my/mnitservices/post-license-search/acquire/order-analysis-prompt.txt",
         import.meta.url,
       ),
       "utf8",

@@ -126,7 +126,7 @@ export async function generateOneSource(
  * before a consumer transforms against it.
  */
 export async function orderedSourceIds(): Promise<string[]> {
-  const ids = await matchSourceIds(SOURCES_ROOT, "*");
+  const ids = await matchSourceIds(SOURCES_ROOT, "*", ["transform"]);
   const sources = await Promise.all(
     ids.map(async (id) => ({
       id,

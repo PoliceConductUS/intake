@@ -7,7 +7,7 @@ import {
   parseAgency,
   nextPage,
   postbackFields,
-} from "../sources/gov.or.dpsst/parse.js";
+} from "../sources/net/bpl-orsnapshot/www/public-inquiry-cj/parse.js";
 const fixture = (name: string) =>
   readFileSync(
     new URL(`./fixtures/oregon-dpsst/${name}.html`, import.meta.url),

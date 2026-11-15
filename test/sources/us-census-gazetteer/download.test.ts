@@ -7,7 +7,7 @@ import { afterEach, describe, it, expect, vi } from "vitest";
 import {
   downloadGazetteerSources,
   gazetteerSourceUrls,
-} from "../../../sources/us-census-gazetteer/acquire/download.js";
+} from "../../../sources/gov/census/www2/gazetteer/acquire/download.js";
 import { verifyZipContentsFromFd } from "../../../src/cli/transform/parse/zip.js";
 
 const tempDirs: string[] = [];

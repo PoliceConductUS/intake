@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildLocationPaths,
   slugFromSourceName,
-} from "../../../sources/us-census-gazetteer/lib/location-paths.js";
+} from "../../../sources/gov/census/www2/gazetteer/lib/location-paths.js";
 
 const mnState = {
   USPS: "MN",

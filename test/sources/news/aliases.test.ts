@@ -2,8 +2,8 @@ import { expect, it } from "vitest";
 import {
   resolveNewsAliases,
   saveNewsAliases,
-} from "../../../sources/google.news/aliases.js";
-import type { NewsStorage } from "../../../sources/google.news/storage.js";
+} from "../../../sources/com/serpapi/landing-page-search/aliases.js";
+import type { NewsStorage } from "../../../sources/com/serpapi/landing-page-search/storage.js";
 import type { ReleaseArticle } from "../../../sources/lib/news.js";
 const a = "https://publisher.example/a",
   b = "https://copy.example/b",
@@ -48,11 +48,11 @@ it("retries from the latest release aliases and preserves other record kinds", a
   const occurrences = Object.fromEntries(
     [a, b].map((url) => [
       url,
-      { namespace: "google.news", sourceId: url, url },
+      { namespace: "com/serpapi/landing-page-search", sourceId: url, url },
     ]),
   );
   const story = {
-    namespace: "google.news",
+    namespace: "com/serpapi/landing-page-search",
     sourceId: a,
     occurrences,
   } as ReleaseArticle;

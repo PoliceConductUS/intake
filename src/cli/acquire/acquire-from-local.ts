@@ -1,3 +1,4 @@
+import { recordCompletedAcquisition } from "./acquisition-completion.js";
 import { glob, stat, cp, mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 import { createCommandDirectory } from "../command-directory.js";
@@ -158,6 +159,7 @@ export async function acquireFromLocal(
   await deps.writeCommandPointer(deps.state, "acquire", {
     latest: outputRelative,
   });
+  await recordCompletedAcquisition(outputDirectory);
   deps.logger.info(
     `${sourceId}: staged ${items.length} local input file(s) at ${outputRelative}`,
   );

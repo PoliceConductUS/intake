@@ -10,7 +10,7 @@ function fakeFacade(resolved: Record<string, unknown>) {
       value: async (property: string) => resolved[property],
       raw: () => undefined,
     },
-    source: { namespace: "courtlistener", name: "n" },
+    source: { namespace: "com/courtlistener/www/api", name: "n" },
     backend: {},
   } as never;
 }

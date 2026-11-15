@@ -1,7 +1,10 @@
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { matchSourceIds } from "../../src/cli/source-glob.js";
+import { Command } from "commander";
+import { registerCliCommand } from "../../src/cli/sources/index.js";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import {
   describeSources,
   renderSourceCatalog,
@@ -9,6 +12,7 @@ import {
 
 const tempDirs: string[] = [];
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(tempDirs.splice(0).map((d) => rm(d, { recursive: true })));
 });
 
@@ -21,51 +25,112 @@ async function makeSourcesRoot(): Promise<string> {
 async function writeSource(
   root: string,
   id: string,
-  files: { transform?: string; acquire?: string },
+  definition: string,
 ): Promise<void> {
   const dir = path.join(root, id);
   await mkdir(dir, { recursive: true });
-  if (files.transform !== undefined)
-    await writeFile(path.join(dir, "transform.ts"), files.transform);
-  if (files.acquire !== undefined)
-    await writeFile(path.join(dir, "acquire.ts"), files.acquire);
+  await writeFile(
+    path.join(dir, "intake.source.ts"),
+    "export const source = " + definition + ";",
+  );
 }
 
 describe("describeSources", () => {
-  it("derives phases from module presence and description from the module", async () => {
+  it("reads the operations and description from the exported source", async () => {
     const root = await makeSourcesRoot();
-    await writeSource(root, "beta-source", {
-      transform: `export const description = "Beta produces records.";\nexport const transform = () => {};\n`,
-    });
-    await writeSource(root, "alpha-source", {
-      transform: `export const description = "Alpha produces records.";\nexport const transform = () => {};\n`,
-      acquire: `export const acquire = async () => {};\n`,
-    });
+    await writeSource(
+      root,
+      "org/example/beta-source",
+      '{ description: "Beta produces records.", transform() {} }',
+    );
+    await writeSource(
+      root,
+      "org/example/alpha-source",
+      '{ description: "Alpha produces records.", acquire() {}, transform() {} }',
+    );
 
     const sources = await describeSources(root);
 
     expect(sources).toEqual([
       {
-        id: "alpha-source",
+        id: "org/example/alpha-source",
         description: "Alpha produces records.",
         phases: ["acquire", "transform"],
       },
       {
-        id: "beta-source",
+        id: "org/example/beta-source",
         description: "Beta produces records.",
         phases: ["transform"],
       },
     ]);
   });
 
-  it("ignores directories without a transform module and omits a missing description", async () => {
+  it("includes a marked daily worker and ignores unmarked modules", async () => {
     const root = await makeSourcesRoot();
-    await writeSource(root, "not-a-source", {
-      acquire: `export const acquire = async () => {};\n`,
+    await mkdir(path.join(root, "org/example/search"), { recursive: true });
+    await writeFile(
+      path.join(root, "org/example/search/intake.source.ts"),
+      "export const source = { daily: () => import('./daily.ts') };",
+    );
+    await writeFile(
+      path.join(root, "org/example/search/daily.ts"),
+      'throw Error("daily worker must not run during listing");',
+    );
+    await writeFile(
+      path.join(root, "org/transform.ts"),
+      "export const transform = () => {};",
+    );
+    expect(await describeSources(root)).toEqual([
+      { id: "org/example/search", phases: ["daily"] },
+    ]);
+  });
+  it("runs the exported daily operation through the CLI", async () => {
+    const root = await makeSourcesRoot();
+    const output = path.join(root, "calls");
+    await writeSource(
+      path.join(root, "sources"),
+      "org/example/search",
+      `{ daily: async () => (await import('node:fs/promises')).appendFile(${JSON.stringify(output)}, 'called') }`,
+    );
+    vi.spyOn(process, "cwd").mockReturnValue(root);
+    const program = new Command();
+    const setResult = vi.fn();
+    registerCliCommand(program, { setResult });
+    await program.parseAsync(["sources", "daily", "org/example/search"], {
+      from: "user",
     });
-    await writeSource(root, "plain-source", {
-      transform: `export const transform = () => {};\n`,
-    });
+    expect(await readFile(output, "utf8")).toBe("called");
+    expect(setResult).toHaveBeenCalledWith({ exitCode: 0 });
+  });
+  it("selects an acquire-only source for acquisition and a transform-only source for local staging", async () => {
+    const root = await makeSourcesRoot();
+    await writeSource(root, "download", "{ acquire() {} }");
+    await writeSource(root, "workbook", "{ transform() {}, produces: [] }");
+    expect(await matchSourceIds(root, "*", ["acquire"])).toEqual(["download"]);
+    expect(await matchSourceIds(root, "*", ["transform"])).toEqual([
+      "workbook",
+    ]);
+    expect(await matchSourceIds(root, "*", ["acquire", "transform"])).toEqual([
+      "download",
+      "workbook",
+    ]);
+  });
+  it("rejects a marker that does not export the source object", async () => {
+    const root = await makeSourcesRoot();
+    await mkdir(path.join(root, "example"));
+    await writeFile(path.join(root, "example/intake.source.ts"), "export {};");
+    await expect(describeSources(root)).rejects.toThrow(
+      /must export a source object/,
+    );
+  });
+  it("ignores unmarked directories and omits a missing description", async () => {
+    const root = await makeSourcesRoot();
+    await mkdir(path.join(root, "not-a-source"));
+    await writeFile(
+      path.join(root, "not-a-source", "acquire.ts"),
+      "export const acquire = () => {};",
+    );
+    await writeSource(root, "plain-source", "{ transform() {} }");
 
     const sources = await describeSources(root);
 

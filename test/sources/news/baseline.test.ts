@@ -13,19 +13,19 @@ it("records a supplied source mapping when patching a known database article", a
       action: "PATCH",
       selector: { id: "established" },
       name: "source",
-      namespace: "google.news",
+      namespace: "com/serpapi/landing-page-search",
     },
     backend,
   });
   facade.merge({
-    source_namespace: "google.news",
+    source_namespace: "com/serpapi/landing-page-search",
     source_id: "source",
     title: "existing",
   });
   expect(await facade.value("id")).toBe("established");
   expect(findOrCreateCanonicalId).toHaveBeenCalledWith(
     expect.objectContaining({
-      namespace: "google.news",
+      namespace: "com/serpapi/landing-page-search",
       sourceId: "source",
       kind: "CoverageLink",
     }),

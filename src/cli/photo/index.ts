@@ -12,7 +12,7 @@ import { sourceStateDir } from "../transform/state.js";
 import { preparePersonnelPhoto } from "./prepare.js";
 import { storePersonnelPhoto } from "./store.js";
 
-const namespace = "org.policeconduct.manual";
+const namespace = "org/policeconduct/manual";
 export function registerCliCommand(
   program: Command,
   dependencies: CliCommandDependencies,

@@ -1,7 +1,7 @@
 {
   "articles": [
     {
-      "namespace": "google.news",
+      "namespace": "com/serpapi/landing-page-search",
       "sourceId": "article-one",
       "preferredUrl": "https://original.example/story",
       "normalizedUrl": "https://original.example/story",
@@ -99,7 +99,7 @@
       },
       "relationships": [
         {
-          "namespace": "google.news",
+          "namespace": "com/serpapi/landing-page-search",
           "sourceId": "relationship-1",
           "agencyPersonnelId": "assignment-a",
           "occurrenceUrl": "https://copy-a.example/story",
@@ -107,7 +107,7 @@
           "notes": "Note 1"
         },
         {
-          "namespace": "google.news",
+          "namespace": "com/serpapi/landing-page-search",
           "sourceId": "relationship-2",
           "agencyPersonnelId": "assignment-b",
           "occurrenceUrl": "https://copy-b.example/story",
@@ -121,7 +121,7 @@
     "windowEnd": "2026-11-12",
     "placements": [
       {
-        "namespace": "google.news",
+        "namespace": "com/serpapi/landing-page-search",
         "sourceId": "article-one",
         "position": 1,
         "clicks": 50

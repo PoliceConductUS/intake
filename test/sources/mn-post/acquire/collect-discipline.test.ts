@@ -5,8 +5,8 @@ import { it, expect } from "vitest";
 import {
   collectDisciplinePersonnel,
   requireExactLicense,
-} from "../../../../sources/mn-post/acquire/collect-discipline.js";
-import { artifactStem } from "../../../../sources/mn-post/acquire/collect.js";
+} from "../../../../sources/com/site/my/mnitservices/post-license-search/acquire/collect-discipline.js";
+import { artifactStem } from "../../../../sources/com/site/my/mnitservices/post-license-search/acquire/collect.js";
 it("rejects wrong license, ambiguous results, and absent stable identities", () => {
   for (const rows of [
     [{ licenseNumber: "2", contactId: "c", licenseId: "l" }],

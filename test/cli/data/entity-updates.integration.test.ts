@@ -19,7 +19,7 @@ import {
 describe("mutable entity edits through the data CLI", () => {
   let db: IntakeDatabase;
   let workspace: string;
-  const source = "org.policeconduct.manual";
+  const source = "org/policeconduct/manual";
   beforeAll(async () => {
     db = await startIntakeDatabase();
     workspace = await mkdtemp(path.join(tmpdir(), "entity-updates-"));

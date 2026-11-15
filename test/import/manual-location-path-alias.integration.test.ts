@@ -9,8 +9,8 @@ import {
   expect,
   test,
 } from "vitest";
-import { acquire } from "../../sources/org.policeconduct.manual/acquire.js";
-import { transform } from "../../sources/org.policeconduct.manual/transform.js";
+import { acquire } from "../../sources/org/policeconduct/manual/acquire.js";
+import { transform } from "../../sources/org/policeconduct/manual/transform.js";
 import { buildArtifactsEnvelope } from "../../src/cli/transform/source-transform.js";
 import { importArtifacts } from "./completed-artifacts.js";
 import { Artifacts } from "../../src/shared/io/Artifacts.js";
@@ -19,7 +19,7 @@ import {
   type IntakeDatabase,
 } from "../cli/database/intake-postgres.js";
 
-const NAMESPACE = "org.policeconduct.manual";
+const NAMESPACE = "org/policeconduct/manual";
 
 // The place the curated alias points at. The operator supplies its PATH as the
 // reference "source id" (LocationPath is not ledger-mapped, ADR 0031/0023); the

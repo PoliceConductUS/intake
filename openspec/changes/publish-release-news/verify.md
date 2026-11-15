@@ -86,3 +86,19 @@ The local acquisition resumed in its dedicated Chrome profile, kept the 38 previ
 `sources/org.policeconduct.local-news/acquire.ts` requests the imported agency roster. `sweep.ts` processes each supplied agency and its officer queries. The shared roster orders agencies by descending personnel-assignment count and then descending agency ID. `browser.ts` draws a fresh delay of 25 through 60 seconds before each Google results navigation. The live acquisition resumed from its saved position and logged the selected wait before issuing the next exact-phrase search.
 
 `test/sources/news/local.test.ts` checks traversal of the supplied roster and `local-browser.test.ts` in the same directory checks the delay for a query and its next page. `README.md` and this change’s `proposal.md`, `design.md`, `specs/release-page-updates/spec.md`, `tasks.md` and `verify.md` record roster traversal, timing and checks.
+
+## Five daily terms and the seven-day wait
+
+Intake’s daily worker selected five of six supplied query/profile rows in descending impression order in an isolated run using the live SerpApi News tab. All five searches returned zero past-week links. Repeating the run against its saved test state issued zero search requests. The pilot used local roster records and sample traffic. It did not exercise production Search Console, publication or the full roster sweep.
+
+The daily worker integration tests exercise the free allowance, resuming pagination, multiple profiles for one term, the Chicago day boundary, empty responses and eligibility exactly 168 hours after the first successful page across a release change. The homepage test verifies the original pair clicks still contribute during cooldown.
+
+## Daily Google All discovery
+
+The daily worker now sends the original traffic term and the release roster’s quoted agency name and state. Its HTTP integration test covers a profile with two agencies, a repeated assignment, grouped OR alternatives, a single organic query, pagination and term history. The article test skips a blocked URL and an empty body before linking the following readable story.
+
+A live isolated run with one supplied traffic row returned seven organic links on page one and zero on the next. None qualified. An immediate rerun issued zero provider searches. The run wrote no production pages.
+
+The initial live comparison exposed a pagination error when Google corrected the agency abbreviation. Intake now persists the provider’s continuation query with its offset. The corrected run obtained 17 result entries across two pages, examined ten new URLs and produced zero qualifying stories. Repeating the run issued zero searches.
+
+The Intake import test uses an existing agency with an abbreviated sheriff’s office name. It verifies the original canonical ID, original slug and a single name-setting operation in the generated AgencyUpdate.

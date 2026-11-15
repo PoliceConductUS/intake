@@ -21,6 +21,7 @@ import {
   facadeLedgerForeignKeyResolver,
   facadeStateLocationPathResolver,
   textWhitespaceResolver,
+  agencyNameResolver,
   titleCaseResolver,
   titleCaseResolverNullable,
   nameCaseResolver,
@@ -190,7 +191,7 @@ const REGISTRY: Record<string, KindConfig> = {
     // plain codes and pass through uncased.
     overrides: {
       slug: agencySlugResolver() as AnyResolver,
-      name: titleCaseResolver<Row, EntityFacadeBackend>("name") as AnyResolver,
+      name: agencyNameResolver<Row, EntityFacadeBackend>("name") as AnyResolver,
       city: titleCaseResolver<Row, EntityFacadeBackend>("city") as AnyResolver,
       address: titleCaseResolver<Row, EntityFacadeBackend>(
         "address",
@@ -355,8 +356,8 @@ const REGISTRY: Record<string, KindConfig> = {
   CoverageLinkAgencyPersonnel: {
     // The officer belongs to a roster source, so agency_personnel_id resolves
     // through the ledger, not a same-run facade (ADR 0023) — this holds whether
-    // the coverage source produced the roster (mn-post) or only references it
-    // via resolvePersonnel (youtube.policeactivity).
+    // the coverage source produced the roster (com/site/my/mnitservices/post-license-search) or only references it
+    // via resolvePersonnel (com/youtube/policeactivity).
     overrides: {
       agency_personnel_id: facadeLedgerForeignKeyResolver<Row>(
         "CoverageLinkAgencyPersonnel",

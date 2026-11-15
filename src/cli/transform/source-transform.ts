@@ -59,8 +59,6 @@ export type ResolvedAgency = {
 // it returns a namespace-local personnel source id or null — a canonical id never
 // crosses the boundary.
 export type TransformDataContext = {
-  news?: import("../../shared/release-news.js").NewsImportContext;
-  canonicalAssignmentForLocalNews?: (sourceName: string) => Promise<string>;
   resolvePersonnel(input: {
     agencyId: string;
     personnelName: string;
@@ -115,10 +113,6 @@ export type AcquireSearchResult = { sourceId: string; label: string };
 // what to download (e.g. which agencies to search). Sources ask the facade;
 // they never touch the database directly.
 export type AcquireDataContext = {
-  newsOfficerNames?(agencyId: string): Promise<string[]>;
-  newsAssignments?(
-    hasName: (name: string) => boolean,
-  ): Promise<import("../../shared/release-news.js").NewsAssignment[]>;
   agencies(query: {
     states?: string[];
     minOfficers?: number;

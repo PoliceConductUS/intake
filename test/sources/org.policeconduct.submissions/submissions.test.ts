@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, it, expect } from "vitest";
-import { readVerifiedReportSubmissions } from "../../../sources/org.policeconduct.submissions/submissions.js";
+import { readVerifiedReportSubmissions } from "../../../sources/org/policeconduct/submissions/submissions.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {

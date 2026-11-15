@@ -27,6 +27,14 @@ export function normalizedParagraph(text: string): string {
     .replace(/\s+/gu, " ")
     .trim();
 }
+export function bodyNameMatcher(body: string) {
+  const haystack =
+    " " + normalizedParagraph(body).replace(/[^\p{L}\p{N}]+/gu, " ") + " ";
+  return (name: string) =>
+    haystack.includes(
+      " " + normalizedParagraph(name).replace(/[^\p{L}\p{N}]+/gu, " ") + " ",
+    );
+}
 export function chicagoDate(now: Date): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Chicago",
@@ -69,9 +77,7 @@ export async function processNewsOccurrence({
   url: string;
   correctedSelector?: string;
   domainRank?: number | null;
-  assignments:
-    | readonly NewsAssignment[]
-    | ((hasName: (name: string) => boolean) => Promise<NewsAssignment[]>);
+  assignments: readonly NewsAssignment[];
   infer: NewsInference;
 }): Promise<NewsOccurrence> {
   const doc = parse(html);
@@ -86,6 +92,36 @@ export async function processNewsOccurrence({
     doc.querySelector("title")?.text.trim();
   if (!title)
     throw new NewsExtractionError("Article has no source title: " + url);
+  // Read publication metadata before removing scripts from the selected body.
+  const publicationDate =
+    meta("article:published_time") ??
+    meta("datePublished") ??
+    doc.querySelector('[itemprop="datePublished"]')?.getAttribute("datetime") ??
+    doc
+      .querySelectorAll('script[type="application/ld+json"]')
+      .flatMap((script) => {
+        let data;
+        try {
+          data = JSON.parse(script.rawText);
+        } catch {
+          return [];
+        }
+        const nodes = Array.isArray(data) ? data : (data?.["@graph"] ?? [data]);
+        if (!Array.isArray(nodes)) return [];
+        return nodes
+          .filter(
+            (node) =>
+              node &&
+              [
+                "Article",
+                "NewsArticle",
+                "SocialMediaPosting",
+                "BlogPosting",
+              ].some((type) => [node["@type"]].flat().includes(type)) &&
+              typeof node.datePublished === "string",
+          )
+          .map((node) => node.datePublished as string);
+      })[0];
   const selector =
     correctedSelector ??
     ["article", "main", "body"].find((s) => doc.querySelector(s)) ??
@@ -112,20 +148,18 @@ export async function processNewsOccurrence({
   if (!paragraphs.length)
     throw new NewsExtractionError("Selected body is empty at " + url);
   const body = paragraphs.map((p) => p.text).join("\n\n");
-  const haystack =
-    " " + normalizedParagraph(body).replace(/[^\p{L}\p{N}]+/gu, " ") + " ";
-  const hasName = (name: string) =>
-    haystack.includes(
-      " " + normalizedParagraph(name).replace(/[^\p{L}\p{N}]+/gu, " ") + " ",
-    );
-  const candidates =
-    typeof assignments === "function"
-      ? await assignments(hasName)
-      : assignments.filter(
-          (a) => hasName(a.agencyName) && hasName(a.personnelName),
-        );
+  const paragraphChecks = paragraphs.map((p) => bodyNameMatcher(p.text));
+  const candidates = assignments.filter((a) =>
+    (a.personnelNames ?? [a.personnelName]).some((name) =>
+      paragraphChecks.some((matches) => matches(name)),
+    ),
+  );
   const result = candidates.length
-    ? await infer(body, candidates)
+    ? await infer(
+        body,
+        candidates,
+        paragraphs.map((p) => p.text),
+      )
     : { summary: null, support: [] };
   const support = result.support.map((item) => {
     if (
@@ -157,13 +191,7 @@ export async function processNewsOccurrence({
     url,
     title,
     sourceName: meta("og:site_name") ?? null,
-    publishedAt: dateOnly(
-      meta("article:published_time") ??
-        meta("datePublished") ??
-        doc
-          .querySelector('[itemprop="datePublished"]')
-          ?.getAttribute("datetime"),
-    ),
+    publishedAt: dateOnly(publicationDate),
     summary: result.summary,
     selector,
     observedAt: new Date().toISOString(),

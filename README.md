@@ -114,7 +114,7 @@ automatic source before transforming it. `data up` only replays previously
 generated mutations; it does not regenerate imports.
 
 The Minnesota disciplinary-order prompt lives in
-[`sources/mn-post/acquire/order-analysis-prompt.txt`](sources/mn-post/acquire/order-analysis-prompt.txt).
+[`sources/com/site/my/mnitservices/post-license-search/acquire/order-analysis-prompt.txt`](sources/com/site/my/mnitservices/post-license-search/acquire/order-analysis-prompt.txt).
 Completed results identify its exact contents with `analyzedWith.promptSha256`.
 Editing the prompt invalidates older results automatically. Acquisition reuses
 preserved PDFs and extracted text while regenerating stale analysis; transformation
@@ -164,8 +164,8 @@ Paths and alternate-county aliases are derived from corrected names during gener
 For example:
 
 ```bash
-npm run cli -- cache set us-census-gazetteer LocationPath place:GEOID:2416620 display_name 'Chevy Chase town' --from 'Chevy Chase' --message "Explain why this correction is needed"
-npm run cli -- data generate us-census-gazetteer
+npm run cli -- cache set gov/census/www2/gazetteer LocationPath place:GEOID:2416620 display_name 'Chevy Chase town' --from 'Chevy Chase' --message "Explain why this correction is needed"
+npm run cli -- data generate gov/census/www2/gazetteer
 ```
 
 Each Census GEOID keeps its own boundary. Unresolved path collisions fail with both
@@ -236,19 +236,6 @@ commands, source interfaces, workspace ownership, stable identity, shared IO,
 and resolved-officer requirement for civil-case imports.
 
 To add a community missing from Census, see [Manual Locations](docs/manual-locations.md).
-
-## Local Google News acquisition
-
-With Google Chrome installed and Ollama running on this machine, run:
-
-```sh
-ollama pull qwen2.5:7b
-npm run cli -- data acquire org.policeconduct.local-news
-```
-
-The acquisition opens a visible Chrome window and searches the past week for each agency in the imported roster, followed by two separately quoted phrases for each officer, such as `"Dana Reyes" "Example Police Department"`, using the stored first and last names. Intake waits a randomly chosen 25–60 seconds before each Google search, including results-page requests. If Google requests verification, complete it in the open search tab. The run continues there. Re-run the same command after an interruption to resume from its saved query and result position.
-
-By default the local source uses `qwen2.5:7b` through Ollama at `http://127.0.0.1:11434/v1/chat/completions`. Set `NEWS_INFERENCE_URL` and `NEWS_INFERENCE_MODEL` to select another local chat service.
 
 ## Candidate Upstream Producers
 

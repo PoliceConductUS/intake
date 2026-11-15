@@ -239,7 +239,7 @@ const DESCRIPTORS: EntityDescriptor[] = [
     recordKind: "CivilCasePersonnel",
     table: "civil_case_personnel",
     // Matches the table exactly: civil_case_id + agency_personnel_id, both source
-    // ids the courtlistener run already stamped (ADR 0023) — agency_personnel_id
+    // ids the com/courtlistener/www/api run already stamped (ADR 0023) — agency_personnel_id
     // resolves cross-source via the ledger, civil_case_id same-source. No
     // resolution inputs: the personnel is matched in run, not at import.
     createRequired: ["id"],

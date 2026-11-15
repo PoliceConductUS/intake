@@ -208,7 +208,11 @@ test("changed invalid source values still fail normal required-name validation",
   }
 });
 
-for (const namespace of ["gov.tx.tcole", "gov.or.dpsst", "example.future"]) {
+for (const namespace of [
+  "gov/texas/tcole",
+  "net/bpl-orsnapshot/www/public-inquiry-cj",
+  "example.future",
+]) {
   test(`${namespace}: shared transform preserves source name and suffix for generation corrections`, async () => {
     const root = await mkdtemp(path.join(tmpdir(), "name-quality-"));
     try {

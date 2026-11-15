@@ -1,3 +1,4 @@
+import { expandAgencyAbbreviations } from "../import/artifacts/case-normalization.js";
 import { rowsFromResult, type DatabaseClient } from "../database/index.js";
 import type { SourceNameToCanonicalIdLedger } from "../state/source-name-to-canonical-id/index.js";
 import type {
@@ -46,7 +47,6 @@ function agencyLocation(
  * minting happen here, where the canonical id is known; only the source id
  * crosses back to the source.
  */
-import { newsImportContext } from "./news-import-context.js";
 
 export function createTransformDataContext(
   client: DatabaseClient,
@@ -73,12 +73,6 @@ export function createTransformDataContext(
   };
 
   return {
-    news: newsImportContext(client, ledger, namespace),
-    async canonicalAssignmentForLocalNews(name) {
-      const id = await ledger.read(namespace, "AgencyPersonnel", name);
-      if (!id) throw Error("Missing local news assignment mapping for " + name);
-      return id;
-    },
     async resolvePersonnel({ agencyId, personnelName }) {
       // agencyId is the agency's namespace-local source id; resolve it to the
       // canonical agency the ordinary way. A source id with no agency is a broken
@@ -155,7 +149,7 @@ export function createTransformDataContext(
       // single space) so punctuation/casing never blocks a hit. A unique match
       // mints (or reuses) its source id (ADR 0023); anything else — no match or
       // more than one agency sharing the name — is null (resolve-or-fail).
-      const normalized = agencyName
+      const normalized = expandAgencyAbbreviations(agencyName)
         .trim()
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, " ")

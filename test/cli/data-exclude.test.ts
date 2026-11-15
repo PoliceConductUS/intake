@@ -26,8 +26,8 @@ beforeEach(async () => {
   vi.stubEnv("INTAKE_WORKSPACE_TEST", path.join(root, "workspace"));
   await mkdir(sourceDir, { recursive: true });
   await writeFile(
-    path.join(sourceDir, "transform.ts"),
-    'export const produces = ["Agencies", "AgencyPersonnel", "Personnel"];',
+    path.join(sourceDir, "intake.source.ts"),
+    'export const source = { transform() {}, produces: ["Agencies", "AgencyPersonnel", "Personnel"] };',
   );
   vi.spyOn(process, "cwd").mockReturnValue(root);
 });

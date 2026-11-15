@@ -84,12 +84,17 @@ describe("release news evidence", () => {
       "2026-11-10",
       original.url,
     );
-    const first = mergeNewsOccurrence([], original, "google.news", mint);
+    const first = mergeNewsOccurrence(
+      [],
+      original,
+      "com/serpapi/landing-page-search",
+      mint,
+    );
     expect(matchingArticles(separate, first.articles)).toHaveLength(0);
     const merged = mergeNewsOccurrence(
       first.articles,
       copy,
-      "google.news",
+      "com/serpapi/landing-page-search",
       mint,
     );
     expect(merged.articles).toHaveLength(1);
@@ -101,10 +106,15 @@ describe("release news evidence", () => {
     const ambiguous = mergeNewsOccurrence(
       [
         ...first.articles,
-        ...mergeNewsOccurrence([], separate, "google.news", mint).articles,
+        ...mergeNewsOccurrence(
+          [],
+          separate,
+          "com/serpapi/landing-page-search",
+          mint,
+        ).articles,
       ],
       copy,
-      "google.news",
+      "com/serpapi/landing-page-search",
       mint,
     );
     expect(ambiguous.ambiguous).toHaveLength(2);
@@ -112,9 +122,48 @@ describe("release news evidence", () => {
     const corrected = mergeNewsOccurrence(
       merged.articles,
       { ...copy, support: [] },
-      "google.news",
+      "com/serpapi/landing-page-search",
       mint,
     );
     expect(corrected.needsCorrection).toHaveLength(1);
   });
+});
+
+it("reads the post's own publication date from JSON-LD, ignoring comment dates", async () => {
+  const json = JSON.stringify({
+    "@type": "SocialMediaPosting",
+    comment: [{ "@type": "Comment", datePublished: "2026-11-14" }],
+    datePublished: "2026-11-10T17:26:55.255Z",
+  });
+  const article = await processNewsOccurrence({
+    html:
+      '<body><h1>Agency announcement</h1><script type="application/ld+json">' +
+      json +
+      "</script><p>Agency statement.</p></body>",
+    url: "https://publisher.example/post",
+    assignments: [],
+    infer: async () => {
+      throw Error("unexpected");
+    },
+  });
+  expect(article.publishedAt).toBe("2026-11-10");
+});
+
+it("keeps inference citations aligned when a publisher paragraph contains blank lines", async () => {
+  const occurrence = await processNewsOccurrence({
+    html: "<article><h1>Published report</h1><p>First line\n\nsecond line.</p><p>Alex Example of Example Police Department spoke.</p></article>",
+    url: "https://publisher.example/story",
+    assignments,
+    infer: async (_body, candidates, paragraphs) => {
+      expect(paragraphs).toHaveLength(2);
+      expect(paragraphs?.[1]).toContain("Alex Example");
+      return {
+        summary: "Statement",
+        support: [{ assignmentId: candidates[0]!.id, paragraphIndexes: [1] }],
+      };
+    },
+  });
+  expect(occurrence.support?.[0]?.paragraphHashes).toEqual([
+    occurrence.paragraphs![1]!.hash,
+  ]);
 });

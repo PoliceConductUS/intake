@@ -17,7 +17,7 @@ it("rejects a saved summary after prompt text changes without a version incremen
   let promptText = "Read the order and report only its stated facts.";
   vi.doMock("node:fs", () => ({ readFileSync: () => promptText }));
   const before =
-    await import("../../../../sources/mn-post/acquire/document-evidence.js");
+    await import("../../../../sources/com/site/my/mnitservices/post-license-search/acquire/document-evidence.js");
   const root = await mkdtemp(path.join(tmpdir(), "current-prompt-"));
   roots.push(root);
   const pdf = Buffer.from("synthetic PDF");
@@ -59,7 +59,7 @@ it("rejects a saved summary after prompt text changes without a version incremen
     " Preserve the distinction between stipulations and Board findings.";
   vi.resetModules();
   const after =
-    await import("../../../../sources/mn-post/acquire/document-evidence.js");
+    await import("../../../../sources/com/site/my/mnitservices/post-license-search/acquire/document-evidence.js");
   await expect(after.readDocumentEvidence(file)).rejects.toThrow(
     /promptSha256/,
   );

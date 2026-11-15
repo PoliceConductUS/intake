@@ -20,7 +20,10 @@ describe("database mutation envelopes", () => {
     const mutation = await AgencyCreate.write(
       directory,
       AgencyCreate.new({
-        metadata: { name: "agency-source-name", namespace: "mn-post" },
+        metadata: {
+          name: "agency-source-name",
+          namespace: "com/site/my/mnitservices/post-license-search",
+        },
         spec: {
           id: "agency-canonical-id",
           name: "Minnesota State Patrol",
@@ -41,7 +44,10 @@ describe("database mutation envelopes", () => {
     const written = await DatabaseMutations.write(
       directory,
       DatabaseMutations.new({
-        metadata: { name: "command-name", namespace: "mn-post" },
+        metadata: {
+          name: "command-name",
+          namespace: "com/site/my/mnitservices/post-license-search",
+        },
         spec: {
           mutations: [
             {
@@ -57,7 +63,10 @@ describe("database mutation envelopes", () => {
 
     await expect(DatabaseMutations.read(written.path)).resolves.toMatchObject({
       kind: "DatabaseMutations",
-      metadata: { name: "command-name", namespace: "mn-post" },
+      metadata: {
+        name: "command-name",
+        namespace: "com/site/my/mnitservices/post-license-search",
+      },
       spec: {
         mutations: [
           {
@@ -84,7 +93,7 @@ describe("database mutation envelopes", () => {
     const written = await DatabaseMutations.write(
       directory,
       DatabaseMutations.new({
-        metadata: { name: "command-name", namespace: "gov.tx.tcole" },
+        metadata: { name: "command-name", namespace: "gov/texas/tcole" },
         spec: { mutations },
       }),
     );
@@ -135,7 +144,7 @@ describe("database mutation envelopes", () => {
       DatabaseMutations.write(
         directory,
         DatabaseMutations.build({
-          metadata: { name: "command-name", namespace: "gov.tx.tcole" },
+          metadata: { name: "command-name", namespace: "gov/texas/tcole" },
           spec: { mutations },
         }),
       ),
@@ -145,7 +154,10 @@ describe("database mutation envelopes", () => {
   test("DatabaseMutations rejects inline mutations with malformed generated specs", () => {
     expect(() =>
       DatabaseMutations.new({
-        metadata: { name: "command-name", namespace: "mn-post" },
+        metadata: {
+          name: "command-name",
+          namespace: "com/site/my/mnitservices/post-license-search",
+        },
         spec: {
           mutations: [
             {
@@ -316,7 +328,10 @@ describe("database mutation envelopes", () => {
   test("DatabaseMutations accepts personnel mutation kinds and rejects old person kinds", () => {
     expect(() =>
       DatabaseMutations.new({
-        metadata: { name: "command-name", namespace: "mn-post" },
+        metadata: {
+          name: "command-name",
+          namespace: "com/site/my/mnitservices/post-license-search",
+        },
         spec: {
           mutations: [
             {
@@ -352,7 +367,10 @@ describe("database mutation envelopes", () => {
 
     expect(() =>
       DatabaseMutations.new({
-        metadata: { name: "command-name", namespace: "mn-post" },
+        metadata: {
+          name: "command-name",
+          namespace: "com/site/my/mnitservices/post-license-search",
+        },
         spec: {
           mutations: [
             {
