@@ -1,0 +1,81 @@
+import {
+  Resolver,
+  valueAsString,
+  type ResolverContext,
+  type CanonicalIdBackend,
+  type BusinessKeyIdBackend,
+} from "../resolver-kit.js";
+
+type Row = Record<string, unknown>;
+
+function youtubeVideoId(host: string, url: URL): string | null {
+  if (host === "youtube.com" || host === "m.youtube.com") {
+    const v = url.searchParams.get("v");
+    if (v !== null && v !== "") return v;
+    const shorts = url.pathname.match(/^\/shorts\/([\w-]+)/);
+    if (shorts !== null) return shorts[1];
+    const embed = url.pathname.match(/^\/embed\/([\w-]+)/);
+    if (embed !== null) return embed[1];
+  }
+  if (host === "youtu.be") {
+    const id = url.pathname.replace(/^\/+/, "");
+    if (id !== "") return id;
+  }
+  return null;
+}
+
+const TRACKING_PARAM = /^(utm_|fbclid$|gclid$|mc_|igshid$|si$)/i;
+
+/** The de-duplicating natural key of a coverage URL (ADR 0028). */
+export function normalizeCoverageUrl(rawUrl: string): string {
+  const trimmed = rawUrl.trim();
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    return trimmed.toLowerCase();
+  }
+  const host = url.hostname.toLowerCase().replace(/^www\./, "");
+
+  const videoId = youtubeVideoId(host, url);
+  if (videoId !== null) {
+    return `https://www.youtube.com/watch?v=${videoId}`;
+  }
+
+  const params = [...url.searchParams.entries()]
+    .filter(([key]) => !TRACKING_PARAM.test(key))
+    .sort(([a], [b]) => a.localeCompare(b));
+  const query = new URLSearchParams(params).toString();
+  const path = url.pathname.replace(/\/+$/, "");
+  return `https://${host}${path}${query === "" ? "" : `?${query}`}`;
+}
+
+/** Imported source mappings survive preferred URL changes. Other coverage uses its normalized URL. */
+export function coverageLinkIdResolver(): Resolver<
+  string,
+  ResolverContext<Row, CanonicalIdBackend & BusinessKeyIdBackend>
+> {
+  return new Resolver(async ({ facade, source, backend }) => {
+    if (facade.raw("source_namespace") != null) {
+      const key = {
+        namespace: source.namespace,
+        kind: "CoverageLink",
+        sourceId: source.name,
+      };
+      return backend.findOrCreateCanonicalId({
+        ...key,
+        resolve: async () =>
+          (await backend.findIdByBusinessKey({
+            normalized_url: String(facade.raw("normalized_url")),
+          })) ?? backend.mintId(),
+      });
+    }
+    const url = valueAsString(facade.raw("url"));
+    if (url === undefined) {
+      throw new Error(
+        `CoverageLink ${source.namespace}/${source.name} has no url to key on.`,
+      );
+    }
+    return normalizeCoverageUrl(url);
+  });
+}

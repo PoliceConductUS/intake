@@ -17,6 +17,92 @@ function sha256(contents: string): string {
 }
 
 describe("Artifacts shared IO", () => {
+  test.each([
+    [null, "null"],
+    [undefined, "undefined"],
+    [123, "123"],
+  ])("reports rejected value %s without losing its type", (value, rendered) => {
+    expect(() =>
+      Artifacts.new({
+        metadata: { name: "bad-value", namespace: "test-source" },
+        spec: {
+          artifacts: [
+            {
+              kind: "Personnel",
+              spec: {
+                records: {
+                  "1016014": {
+                    spec: {
+                      first_name: value,
+                      last_name: "Martin",
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      }),
+    ).toThrow(`Received: ${rendered}.`);
+  });
+
+  test("includes every validation issue with its field path", () => {
+    expect(() =>
+      Artifacts.new({
+        metadata: { name: "name-validation", namespace: "test-source" },
+        spec: {
+          artifacts: [
+            {
+              kind: "Personnel",
+              spec: {
+                records: {
+                  "65000": {
+                    spec: {
+                      first_name: 9,
+                      last_name: 8,
+                      middle_name: "R.",
+                      suffix: 111,
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      }),
+    ).toThrow(
+      [
+        "Artifacts is malformed at spec.artifacts.0.spec.records.65000.spec.first_name. Invalid input: expected string, received number Received: 9.",
+        "Artifacts is malformed at spec.artifacts.0.spec.records.65000.spec.last_name. Invalid input: expected string, received number Received: 8.",
+        "Artifacts is malformed at spec.artifacts.0.spec.records.65000.spec.suffix. Invalid input: expected string, received number Received: 111.",
+      ].join("\n"),
+    );
+  });
+
+  test.each(["AgencyLinks", "FederalAgencyBranches", "CoverageLinkCivilCases"])(
+    "rejects retired %s artifacts",
+    async (kind) => {
+      const directory = await createTempArtifactsDirectory();
+      const artifactsPath = path.join(directory, "artifacts.yaml");
+      await writeFile(
+        artifactsPath,
+        [
+          `apiVersion: ${INTAKE_API_VERSION}`,
+          "kind: Artifacts",
+          "metadata:",
+          "  name: retired-records",
+          "  namespace: test-source",
+          "spec:",
+          "  artifacts:",
+          `    - kind: ${kind}`,
+          "      spec:",
+          "        records: {}",
+        ].join("\n"),
+      );
+      await expect(Artifacts.read(artifactsPath)).rejects.toThrow();
+    },
+  );
+
   test("reads Artifacts and referenced artifacts with exact kind readers", async () => {
     const directory = await createTempArtifactsDirectory();
     const artifactsPath = path.join(directory, "artifacts.yaml");
@@ -25,7 +111,7 @@ describe("Artifacts shared IO", () => {
       "kind: LocationPathAliases",
       "metadata:",
       "  name: test-run",
-      "  namespace: mn-post",
+      "  namespace: com/site/my/mnitservices/post-license-search",
       "spec:",
       "  records:",
       "    /mn/ramsey-county/st-paul/:",
@@ -38,7 +124,7 @@ describe("Artifacts shared IO", () => {
       "kind: LocationPaths",
       "metadata:",
       "  name: test-run",
-      "  namespace: mn-post",
+      "  namespace: com/site/my/mnitservices/post-license-search",
       "spec:",
       "  records:",
       "    /mn/ramsey-county/saint-paul/:",
@@ -46,12 +132,7 @@ describe("Artifacts shared IO", () => {
       "        location_path_id: /mn/ramsey-county/saint-paul/",
       "        path: /mn/ramsey-county/saint-paul/",
       "        level: place",
-      "        state_or_territory_slug: mn",
-      "        administrative_area_slug: ramsey-county",
-      "        place_slug: saint-paul",
-      "        state_or_territory_name: Minnesota",
-      "        administrative_area_name: Ramsey County",
-      "        place_name: Saint Paul",
+      "        display_name: Saint Paul",
       "        parent_location_path_id: /mn/ramsey-county/",
     ].join("\n");
     await writeFile(path.join(directory, "aliases.yaml"), aliasesArtifact);
@@ -63,7 +144,7 @@ describe("Artifacts shared IO", () => {
         "kind: Artifacts",
         "metadata:",
         "  name: test-run",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  artifacts:",
         "    - ref:",
@@ -91,7 +172,10 @@ describe("Artifacts shared IO", () => {
     expect(artifactsEnvelope).toMatchObject({
       apiVersion: INTAKE_API_VERSION,
       kind: "Artifacts",
-      metadata: { name: "test-run", namespace: "mn-post" },
+      metadata: {
+        name: "test-run",
+        namespace: "com/site/my/mnitservices/post-license-search",
+      },
       spec: {
         artifacts: [
           {
@@ -125,7 +209,7 @@ describe("Artifacts shared IO", () => {
         "kind: Artifacts",
         "metadata:",
         "  name: test-run",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  artifacts:",
         "    - ref:",
@@ -152,7 +236,7 @@ describe("Artifacts shared IO", () => {
       "kind: LocationPaths",
       "metadata:",
       "  name: test-run",
-      "  namespace: mn-post",
+      "  namespace: com/site/my/mnitservices/post-license-search",
       "spec:",
       "  records:",
       "    /mn/:",
@@ -160,12 +244,7 @@ describe("Artifacts shared IO", () => {
       "        location_path_id: /mn/",
       "        path: /mn/",
       "        level: state",
-      "        state_or_territory_slug: mn",
-      "        administrative_area_slug: null",
-      "        place_slug: null",
-      "        state_or_territory_name: Minnesota",
-      "        administrative_area_name: null",
-      "        place_name: null",
+      "        display_name: Minnesota",
       "        parent_location_path_id: null",
     ].join("\n");
     await writeFile(path.join(directory, "paths.yaml"), pathsArtifact);
@@ -176,7 +255,7 @@ describe("Artifacts shared IO", () => {
         "kind: Artifacts",
         "metadata:",
         "  name: test-run",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  artifacts:",
         "    - ref:",
@@ -207,7 +286,7 @@ describe("Artifacts shared IO", () => {
         "kind: Artifacts",
         "metadata:",
         "  name: test-run",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  artifacts:",
         "    - kind: LocationPaths",
@@ -218,12 +297,7 @@ describe("Artifacts shared IO", () => {
         "              location_path_id: /mn/",
         "              path: /mn/",
         "              level: state",
-        "              state_or_territory_slug: mn",
-        "              administrative_area_slug: null",
-        "              place_slug: null",
-        "              state_or_territory_name: Minnesota",
-        "              administrative_area_name: null",
-        "              place_name: null",
+        "              display_name: Minnesota",
         "              parent_location_path_id: null",
         "              longitude: -93.2",
       ].join("\n"),
@@ -240,7 +314,10 @@ describe("Artifacts shared IO", () => {
     const result = await Artifacts.write(directory, {
       apiVersion: INTAKE_API_VERSION,
       kind: "Artifacts",
-      metadata: { name: "test-run", namespace: "mn-post" },
+      metadata: {
+        name: "test-run",
+        namespace: "com/site/my/mnitservices/post-license-search",
+      },
       spec: {
         artifacts: [
           {
@@ -252,12 +329,7 @@ describe("Artifacts shared IO", () => {
                     location_path_id: "/mn/",
                     path: "/mn/",
                     level: "state",
-                    state_or_territory_slug: "mn",
-                    administrative_area_slug: null,
-                    place_slug: null,
-                    state_or_territory_name: "Minnesota",
-                    administrative_area_name: null,
-                    place_name: null,
+                    display_name: "Minnesota",
                     parent_location_path_id: null,
                   },
                 },
@@ -344,7 +416,7 @@ describe("Artifacts shared IO", () => {
         "kind: Artifacts",
         "metadata:",
         "  name: test-run",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  entities: {}",
       ].join("\n"),
@@ -365,7 +437,7 @@ describe("Artifacts shared IO", () => {
         "kind: SourcePackage",
         "metadata:",
         "  name: test-run",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  entities: {}",
       ].join("\n"),
@@ -406,11 +478,11 @@ describe("Artifacts shared IO", () => {
         "kind: Artifacts",
         "metadata:",
         "  name: test-run",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  artifacts: []",
         "  source:",
-        "    namespace: mn-post",
+        "    namespace: com/site/my/mnitservices/post-license-search",
       ].join("\n"),
     );
 
@@ -428,7 +500,7 @@ describe("Artifacts shared IO", () => {
         `apiVersion: ${INTAKE_API_VERSION}`,
         "kind: Artifacts",
         "metadata:",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  entities: {}",
       ].join("\n"),
@@ -449,7 +521,7 @@ describe("Artifacts shared IO", () => {
         "kind: Artifacts",
         "metadata:",
         "  name: test-run",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  artifacts: []",
         "  entities:",
@@ -461,4 +533,30 @@ describe("Artifacts shared IO", () => {
       "Artifacts is malformed at spec.entities.",
     );
   });
+});
+
+test("roundtrips explicit personnel source roots through artifact references and kind filtering", async () => {
+  const directory = await createTempArtifactsDirectory();
+  const envelope = Artifacts.new({
+    metadata: { name: "person-roots", namespace: "test-source" },
+    spec: {
+      personnelSourceNames: ["license-person"],
+      artifacts: [
+        {
+          kind: "Personnel",
+          spec: {
+            records: { "license-person": { spec: { first_name: "Jane" } } },
+          },
+        },
+      ],
+    },
+  });
+  const written = await Artifacts.write(directory, envelope);
+  expect(
+    (await Artifacts.read(written.path)).spec.personnelSourceNames,
+  ).toEqual(["license-person"]);
+  expect(
+    (await Artifacts.read(written.path, { includeKinds: [] })).spec
+      .personnelSourceNames,
+  ).toEqual(["license-person"]);
 });

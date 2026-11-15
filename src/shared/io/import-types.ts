@@ -9,19 +9,12 @@ import {
   importTypeMetadata,
   type ImportTypeMetadata,
 } from "./import-type-metadata.js";
-import {
-  AgencyPersonnelSpec,
-  AgencySpec,
-  LocationPathAliasSpec,
-  LocationPathGeometrySpec,
-  LocationPathSpec,
-  PersonnelSpec,
-} from "./generated/entity-specs.js";
+import { ARTIFACT_MODULES } from "./generated/artifact-modules.js";
 
 export { IMPORT_ARTIFACT_KINDS };
 export type { ImportArtifactKind, ImportEntityName };
 
-export const INTAKE_API_VERSION = "policeconduct.org/intake/v1alpha1";
+export { INTAKE_API_VERSION } from "./intake-api-version.js";
 
 export { IMPORT_OPERATIONS, IMPORT_OPERATION_SUFFIXES };
 export type { ImportOperation };
@@ -30,48 +23,21 @@ export type ImportTypeDefinition = ImportTypeMetadata & {
   recordSchema: z.ZodType<Record<string, unknown>>;
 };
 
-const recordSchemas = {
-  LocationPaths: LocationPathSpec,
-  LocationPathGeometries: LocationPathGeometrySpec,
-  LocationPathAliases: LocationPathAliasSpec,
-  Agencies: AgencySpec,
-  Personnel: PersonnelSpec,
-  AgencyPersonnel: AgencyPersonnelSpec,
-} satisfies Record<ImportArtifactKind, z.ZodType<Record<string, unknown>>>;
-
-export const importTypeRegistry = {
-  LocationPaths: {
-    ...importTypeMetadata.LocationPaths,
-    recordSchema: recordSchemas.LocationPaths,
-  },
-  LocationPathGeometries: {
-    ...importTypeMetadata.LocationPathGeometries,
-    recordSchema: recordSchemas.LocationPathGeometries,
-  },
-  LocationPathAliases: {
-    ...importTypeMetadata.LocationPathAliases,
-    recordSchema: recordSchemas.LocationPathAliases,
-  },
-  Agencies: {
-    ...importTypeMetadata.Agencies,
-    recordSchema: recordSchemas.Agencies,
-  },
-  Personnel: {
-    ...importTypeMetadata.Personnel,
-    recordSchema: recordSchemas.Personnel,
-  },
-  AgencyPersonnel: {
-    ...importTypeMetadata.AgencyPersonnel,
-    recordSchema: recordSchemas.AgencyPersonnel,
-  },
-} satisfies Record<ImportArtifactKind, ImportTypeDefinition>;
-
-export const importKindByEntityName = Object.fromEntries(
-  Object.values(importTypeRegistry).map((definition) => [
-    definition.entityName,
-    definition.kind,
+const recordSchemas = Object.fromEntries(
+  IMPORT_ARTIFACT_KINDS.map((kind) => [
+    kind,
+    ARTIFACT_MODULES[kind].recordSpec,
   ]),
-) as Record<ImportEntityName, ImportArtifactKind>;
+) as unknown as Record<ImportArtifactKind, z.ZodType<Record<string, unknown>>>;
+
+// Derived from the generated kinds so a new entity is picked up automatically —
+// each kind's metadata plus its record schema, no per-kind enumeration.
+export const importTypeRegistry = Object.fromEntries(
+  IMPORT_ARTIFACT_KINDS.map((kind) => [
+    kind,
+    { ...importTypeMetadata[kind], recordSchema: recordSchemas[kind] },
+  ]),
+) as unknown as Record<ImportArtifactKind, ImportTypeDefinition>;
 
 function visitImportKind(
   kind: ImportArtifactKind,

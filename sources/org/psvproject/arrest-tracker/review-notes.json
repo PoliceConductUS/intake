@@ -1,0 +1,277 @@
+[
+  {
+    "url": "https://www.hawaiinewsnow.com/2026/04/01/maui-police-department-employee-arrested-suspicion-sexual-assault/",
+    "rows": [107],
+    "reason": "Article does not name the probationary Maui employee."
+  },
+  {
+    "url": "https://www.wsiltv.com/news/crime/police-sergeant-arrested-in-kentucky-faces-multiple-rape-charges-ksp-says/article_eb7bed46-e36f-489a-8895-5f1934f26d8f.html",
+    "rows": [133],
+    "reason": "Downloaded page is KFVS homepage, not subject article; no Justin Swope."
+  },
+  {
+    "url": "https://www.cbsnews.com/minnesota/news/apple-valley-police-sexual-assault-teen/",
+    "rows": [175],
+    "reason": "Article expressly says employing community not disclosed; Apple Valley is residence."
+  },
+  {
+    "url": "https://krcgtv.com/news/local/correctional-officer-arrested-for-rape-of-a-juvenile-in-jefferson-city",
+    "rows": [182],
+    "reason": "Article identifies Page McKinley Guss as correctional officer but does not identify employer."
+  },
+  {
+    "url": "https://www.justice.gov/usao-sdny/pr/federal-correctional-officer-charged-sexual-abuse-inmate-fci-otisville",
+    "rows": [243],
+    "reason": "Downloaded text is only DOCTYPE html; no article content."
+  },
+  {
+    "url": "https://www.yahoo.com/news/articles/former-pennsylvania-police-officer-charged-143813294.html?guccounter=1&guce_referrer=aHR0cHM6Ly93d3cuZ29vZ2xlLmNvbS8&guce_referrer_sig=AQAAAKVvqsUpDY5h7F_U91SDDwgZxlxkWhzr2VfYRwmKhHKHSCk5-A-vACGW3nOEeD9bQNa4K24O5MJaEGQ1qNuAQCGtxyPCEhOXLi5rqIAlWWP2pBTvI0Y4CC0kYtRtNB8yop9BhVrr1rVi5M4xQXhjzdGUOWwBCrpBAbSMXIOQ4Vm4",
+    "rows": [269],
+    "reason": "Article identifies Scott Berardinelli but does not identify former employing police agency; Portage is residence/incident location."
+  },
+  {
+    "url": "https://www.foxcarolina.com/2026/07/08/former-upstate-deputy-indicted-several-child-sex-abuse-charges-records-show/",
+    "rows": [281],
+    "reason": "Article identifies Gregg Michael Hayden as former deputy but does not identify employing agency; Anderson County Sheriff is source/investigator only."
+  },
+  {
+    "url": "https://www.kiro7.com/news/local/auburn-police-officer-arrested-immoral-communications-with-minor/KTSC7ZQIWZAQPPXBKJE2MG2QMY/",
+    "rows": [341],
+    "reason": "Article expressly declines to identify officer because not charged; no Matthew Mcnabb name."
+  },
+  {
+    "url": "https://www.cbsnews.com/losangeles/news/riverside-county-sheriffs-deputy-arrest-sexual-battery-robert-presley-detention-center-jurupa-valley/",
+    "rows": [39],
+    "reason": "Sheet Yash Patel; article Yas Patel. Do not assume identity without existing-record confirmation."
+  },
+  {
+    "url": "https://www.fox13news.com/news/former-florida-deputy-arrested-accused-sexual-battery-juvenile",
+    "rows": [87],
+    "reason": "Sheet Daniel Agosto; article David Agosto. Do not assume identity without existing-record confirmation. Article also states prior NYPD employment."
+  },
+  {
+    "url": "https://fox17.com/news/local/former-deputy-indicted-on-two-rape-counts-in-cumberland-county",
+    "rows": [288],
+    "reason": "Sheet James Coley Jr; article John Coley Jr. Do not assume identity without existing-record confirmation."
+  },
+  {
+    "url": "https://dsp.delaware.gov/2026/05/08/state-police-arrest-former-police-officer-for-rape/",
+    "rows": [68],
+    "reason": "Sheet state DE; article explicitly places the selected most recent employer, Town of Ridgely Police Department, in Maryland. Reviewed state is MD. Prior Delaware employers are also stated."
+  },
+  {
+    "url": "https://www.webcenterfairbanks.com/2026/08/20/fairbanks-correctional-officer-charged-with-sexually-assaulting-inmate-while-duty/",
+    "rows": [4],
+    "reason": "Article supports Fairbanks correctional context/facility, but does not expressly identify Alaska DOC as employer; retained facility literal."
+  },
+  {
+    "url": "https://www.wabi.tv/2026/10/05/corrections-officer-charged-with-sexual-assault-against-an-inmate/",
+    "rows": [168],
+    "reason": "County jail employment supported; agency field retains facility literal instead of inferring parent sheriff agency."
+  },
+  {
+    "url": "https://www.valleynewslive.com/2026/09/29/minnesota-corrections-officer-charged-with-sexually-assaulting-two-female-inmates-crookston-jail/",
+    "rows": [179],
+    "reason": "Facility only; no explicit parent agency named."
+  },
+  {
+    "url": "https://www.wdam.com/2026/05/01/lamar-county-deputy-coroner-indicted-child-sex-crimes-sheriff-says/",
+    "rows": [189],
+    "reason": "Deputy coroner, not police/sheriff employee; article identifies Lamar County coroner role."
+  },
+  {
+    "url": "https://www.cbsnews.com/texas/news/tarrant-county-juvenile-probation-officer-arrested-sexual-abuse-charge/",
+    "rows": [299],
+    "reason": "County juvenile probation/facility employment; Texas Juvenile Justice Department is investigator, not stated employer."
+  },
+  {
+    "url": "https://www.cbsnews.com/chicago/news/former-dixmoor-police-officer-charged-with-sexually-assaulting-child/",
+    "rows": [114],
+    "reason": "Article also identifies prior Robbins police employment in 2019; selected later Dixmoor employment."
+  },
+  {
+    "url": "https://www.ksl.com/article/51454887/former-ogden-police-officer-sentenced-to-30-days-jail-on-felony-counts-outlining-sexual-misdeeds",
+    "rows": [332],
+    "reason": "Article also identifies prior Weber County Sheriff employment; selected most recent Ogden employment."
+  },
+  {
+    "url": "https://abc13.com/post/2-former-correctional-officers-arrested-accused-sexual-misconduct-female-inmates-tdcj-says/19325563/",
+    "rows": [313, 314],
+    "reason": "Two sheet-target officers share same employing agency. Combined quoted words include repeated name passage within 25 words."
+  },
+  {
+    "url": "https://www.justice.gov/usao-sdca/pr/police-officer-charged-child-exploitation-crimes-involving-multiple-minor-victims",
+    "rows": [46],
+    "reason": "Downloaded text contains only doctype; no article body or supported identity."
+  },
+  {
+    "url": "https://abc7news.com/post/former-san-francisco-deputy-charged-felony-alleged-jail-sexual-assault-case-authorities-say/19529264/",
+    "rows": [49],
+    "reason": "Article and spreadsheet withhold deputy name; cannot identify specific person."
+  },
+  {
+    "url": "https://www.wdrb.com/news/crime-reports/former-bullitt-county-deputy-jailer-charged-with-sexual-abuse-after-alleged-relationships-with-inmates/article_79da19d3-b150-4bbf-9414-70868ad79293.html",
+    "rows": [134],
+    "reason": "Downloaded link renders station home page, not target story; Bryan Whittaker absent."
+  },
+  {
+    "url": "https://www.wktv.com/news/crime/herkimer-county-supreme-court-indicts-former-corrections-officer-on-sex-abuse-charges/article_b3d0b03d-9dc6-4e42-ae2c-4c34c344d005.html",
+    "rows": [236],
+    "reason": "Joshua Bartlett identified but article does not explicitly establish employing agency. Mentions inmate death at Mid-State Correctional Facility; insufficient by itself to assign employer."
+  },
+  {
+    "url": "https://thatguy401.com/articles/ri-correctionalofficer-arrested",
+    "rows": [275],
+    "reason": "Downloaded text contains headline only; Adrian Velasquez absent."
+  },
+  {
+    "url": "https://wcyb.com/news/local/pulaski-councilman-former-sheriffs-deputy-arrested-by-fbi-for-child-exploitation-crimes-virginia-va-doj-steven-erickson-july-2026",
+    "rows": [336],
+    "reason": "Steven Wayne Erickson named, but prior sheriff/corrections employers not identified. Article explicitly says never employed by Pulaski County Sheriff’s Office."
+  },
+  {
+    "url": "https://www.kiro7.com/news/local/mason-county-corrections-officer-arrested-possessing-child-sex-abuse-material/MNQOWVQUHNBQBEI47ASENHEOCA/",
+    "rows": [342],
+    "reason": "Article explicitly withholds name; cannot identify specific person."
+  },
+  {
+    "url": "https://www.audacy.com/989word/news/local/former-upstate-deputy-charged-with-sexual-assault-burglary",
+    "rows": [278],
+    "reason": "Spreadsheet says Scott Belton; article clearly names Scott Helton. Identity correction requires resolution, do not silently match Belton."
+  },
+  {
+    "url": "https://www.wcjb.com/2026/09/08/former-deputy-charged-with-sex-crimes-harboring-missing-15-year-old/",
+    "rows": [16],
+    "reason": "Spreadsheet state AL describes originating victim location; employing Van Buren County Sheriff’s Department is in Tennessee. State corrected to TN."
+  },
+  {
+    "url": "https://www.fox5dc.com/news/former-cop-charged-soliciting-minor-was-mental-health-associate-special-needs-school",
+    "rows": [66],
+    "reason": "Article also identifies prior Metropolitan Police Department employment 2019-2022; selected later Arlington County employment 2022-2025, state VA."
+  },
+  {
+    "url": "https://www.wafb.com/2026/06/15/former-deputy-indicted-dozen-child-sex-crime-charges/",
+    "rows": [150],
+    "reason": "Article identifies both Livingston Parish and East Baton Rouge Sheriff’s Office employment; selected Livingston Parish. Both are LA."
+  },
+  {
+    "url": "https://www.kshb.com/news/crime/johnson-county-community-college-police-officer-charged-in-2024-rape-case",
+    "rows": [186],
+    "reason": "Spreadsheet state MO is assault jurisdiction; employing Johnson County Community College is in Kansas. State KS."
+  },
+  {
+    "url": "https://nj1015.com/retired-police-lieutenant-sex-assault-charge/",
+    "rows": [222],
+    "reason": "Article identifies retired Hopewell Township police employment and subsequent civilian Hunterdon County Sheriff’s Office employment. Selected sworn police employer."
+  },
+  {
+    "url": "https://katu.com/news/local/clackamas-county-corrections-officer-accused-of-official-and-sexual-misconduct",
+    "rows": [260],
+    "reason": "Article identifies Clackamas County corrections employment, but does not explicitly identify which county employing department; do not infer Sheriff from investigating/requesting agency."
+  },
+  {
+    "url": "https://www.wcax.com/2026/02/19/former-police-officer-victims-advocate-pleads-not-guilty-allegations-sexual-exploitation/",
+    "rows": [339],
+    "reason": "Article identifies simultaneous Swanton Village Police Department and Caledonia County Sheriff’s Office employment; selected Swanton. Both VT."
+  },
+  {
+    "url": "https://www.camdenarknews.com/news/2026/apr/02/camden-probation-officer-charged-with-sexual/",
+    "rows": [20],
+    "reason": "Article names Sonny Word (sheet Sonny Ward); visible paywalled excerpt only identifies Camden probation officer, no employing agency."
+  },
+  {
+    "url": "https://www.nbcbayarea.com/news/corrections-deputy-mendocino-county-sexual-assault/4034793/",
+    "rows": [38],
+    "reason": "Headline describes deputy from Mendocino County, but article attributes employment/leave narrative to Lake County Sheriff’s Office; employing agency ambiguous."
+  },
+  {
+    "url": "https://www.kshb.com/news/crime/former-police-officer-charged-with-possession-of-child-pornography-invasion-of-privacy",
+    "rows": [184],
+    "reason": "Article names Clifton Tucker but identifies only former law-enforcement experience and current armed-guard role; no employing agency."
+  },
+  {
+    "url": "https://www.1011now.com/2026/02/20/former-parole-officer-arrested-after-alleged-sexual-relationship-with-parolee-court-records-say/",
+    "rows": [213],
+    "reason": "Article names Andy Aquin and parole-officer role but no employing agency."
+  },
+  {
+    "url": "https://www.justice.gov/usao-or/pr/lane-county-sheriffs-deputy-charged-child-exploitation-offenses",
+    "rows": [262],
+    "reason": "Saved article text contains only <!DOCTYPE html>; no identity or agency evidence."
+  },
+  {
+    "url": "https://www.wistv.com/2026/04/14/former-state-trooper-arrested-alleged-assault-after-complaint-filed/",
+    "rows": [276],
+    "reason": "Article names Wayne Heinz LaBounty and former South Carolina state-trooper role but does not name employer; cannot use investigating SLED or Lexington County Sheriff’s Department as employer."
+  },
+  {
+    "url": "https://www.kltv.com/2026/07/28/east-texas-correctional-officer-accused-sexual-act-with-inmate/",
+    "rows": [321],
+    "reason": "Article names Hunter Anthony Harkins but only describes unnamed drug treatment facility in Henderson; no named employer."
+  },
+  {
+    "url": "https://www.kiro7.com/news/local/arlington-police-officer-arrested-accused-possessing-child-porn/I2UMSKY7LJGAFKQBN5XW2SPGQM/",
+    "rows": [343],
+    "reason": "Article explicitly withholds officer identity, so sheet Dustin Bartlett not independently supported."
+  },
+  {
+    "url": "https://www.fox10tv.com/2026/08/03/prichard-officer-mobile-county-constable-charged-with-first-degree-rape-sexual-abuse/",
+    "rows": [13],
+    "reason": "Article identifies both Prichard code-enforcement role and Mobile County constable; selected literal Prichard employer label, not sheriff investigating agency."
+  },
+  {
+    "url": "https://krcrtv.com/news/local/ex-redwood-city-chp-officer-pleads-no-contest-to-new-sex-charge-after-conviction",
+    "rows": [41],
+    "reason": "Sheet Vidal Gonzales; article Vidal Gonzalez."
+  },
+  {
+    "url": "https://www.25newsnow.com/2026/02/11/correctional-officer-released-before-trial-fairbury-sexual-assault-case/",
+    "rows": [113],
+    "reason": "Sheet Cory Bowden; article Cody Bowden."
+  },
+  {
+    "url": "https://www.kctv5.com/2026/10/10/corrections-officer-with-leavenworth-county-sheriffs-office-charged-with-rape/",
+    "rows": [187],
+    "reason": "Sheet state MO, article employer Leavenworth County and incident Kansas; state set KS."
+  },
+  {
+    "url": "https://www.actionnews5.com/2026/09/18/school-officer-accused-joining-pedophile-group-chat-district-phone/",
+    "rows": [191],
+    "reason": "Article supports DeSoto County Schools residency-investigator employment only, not law-enforcement agency employment."
+  },
+  {
+    "url": "https://abc11.com/post/ex-wakemed-morrisville-police-officer-charged-child-sex-crimes/19502759/",
+    "rows": [206],
+    "reason": "Article also explicitly says employed by Morrisville Police Department at alleged 2022 offenses; later WakeMed employment selected."
+  },
+  {
+    "url": "https://cbs6albany.com/news/local/nassau-county-detective-charged-with-attempting-to-sexually-exploit-a-child-robert-sacco",
+    "rows": [232],
+    "reason": "Article only labels Nassau County Detective; police versus sheriff organizational employer is not explicit. Agency label intentionally literal."
+  },
+  {
+    "url": "https://indepthnh.org/2026/08/18/former-doc-officer-snared-in-poaching-case-and-accused-of-stealing-mail-now-charged-with-rape/",
+    "rows": [217],
+    "reason": "Department of Corrections state resolved from article New Hampshire State Prison for Men workplace."
+  },
+  {
+    "url": "https://abc13.com/post/former-magnolia-pd-officer-magnolia-isd-employee-charged-child-sex-assault-montgomery-pct-3-constables-office-says/19669299/?link_source=ta_first_comment&taid=6a7dbe53fd85b100016ca5f0&userab=kfsn_content_recs-582%2Avariant_b_trending_kfsn-2513%2Ckabc_content_recs-577%2Avariant_c_trending-2482%2Cwls_content_recs-584%2Avariant_a_control_wls-2516%2Cwtvd_content_recs-585%2Avariant_b_trending_wtvd-2519%2Cktrk_content_recs-587%2Avariant_b_trending_ktrk-2523%2Cwpvi_content_recs-586%2Avariant_a_control_wpvi-2520%2Cotv_web_content_rec-539%2Avariant_c_trending-2268%2Cotv_web_topic-580%2Avariant_a_topic-2508%2Cotv_search_page_design_unification-546%2Avariant_b_search_redesign-2300%2Cotv_mobile_web_content_recs-639%2Avariant_a_control-3429%2Ckgo_content_recs-583%2Avariant_a_control_kgo-2514%2Cabcn_popular_reads_exp-542%2Avariant_a_control-2287%2Cotvlink_abcnnav-576%2Avariant_c_localnews-3316&fbclid=IwY2xjawTqzfdwZG9mAWV4dG4DYWVtAjEwAGJyaWQRMUNBNThsamhBa2VBc0tZNjZzcnRjBmFwcF9pZBAyMjIwMzkxNzg4MjAwODkyAAEeFz-P9hWL15Gm4Im4c6bJxMx8MdOzal-v5ZglCoGgt-HtS3c1PwFeGRZxBNg_aem_X4pR2-Esk1Kb-JGFBIu2eg",
+    "reason": "2026-10-18 agency-name reconciliation: Magnolia Police Department matches existing Magnolia Police Dept. (cm7a0bgoh026aewvgjamplosz). County/Co. and Department/Dept. are equivalent here. Original article passages and workbook are preserved. No matching officer found in this agency roster."
+  },
+  {
+    "url": "https://kstp.com/kstp-news/top-news/hennepin-county-deputy-charged-in-off-duty-sexual-assault-records-show/",
+    "reason": "2026-10-18 agency-name reconciliation: Hennepin County Sheriff’s Office matches existing Hennepin Co. Sheriff's Office (wgmn7ndpuazazrmxio5yoii8). County/Co. and Department/Dept. are equivalent here. Original article passages and workbook are preserved. No matching officer found in this agency roster."
+  },
+  {
+    "url": "https://kstp.com/kstp-news/local-news/former-wright-county-deputy-charged-with-sexually-assaulting-foreign-exchange-student-living-with-him/?utm_campaign=snd-autopilot&utm_medium=social&utm_source=facebook_KSTP-TV&fbclid=IwY2xjawSfs9FleHRuA2FlbQIxMABicmlkETE3blpiOEFKMWZWa0xhTHpKc3J0YwZhcHBfaWQQMjIyMDM5MTc4ODIwMDg5MgABHhNwUuuSQrlPeP45rn3LfJESPnrogPnY5YPxv5h4ybrhap-yFNrMwsIbQnB7_aem_YNxVghs7OYNNr2YZbo_F6g",
+    "reason": "2026-10-18 agency-name reconciliation: Wright County Sheriff’s Office matches existing Wright Co. Sheriff's Office (pxio0trsxy3kyh9ki5i2aybr). County/Co. and Department/Dept. are equivalent here. Original article passages and workbook are preserved. No matching officer found in this agency roster."
+  },
+  {
+    "url": "https://kstp.com/kstp-news/local-news/former-mille-lacs-county-correctional-sergeant-charged-for-possession-of-csam/",
+    "reason": "2026-10-18 agency-name reconciliation: Mille Lacs County Sheriff’s Office matches existing Mille Lacs Co. Sheriff's Office (f7vodopz28fss419jswa365p). County/Co. and Department/Dept. are equivalent here. Original article passages and workbook are preserved. No matching officer found in this agency roster."
+  },
+  {
+    "url": "https://www.mankatofreepress.com/news/local_news/fairmont-officer-allegedly-abused-woman-for-years/article_aeb0ee03-18b0-4d92-8520-356c13524a27.html",
+    "reason": "2026-10-18 agency-name reconciliation: Fairmont Police Department matches existing Fairmont Police Dept. (cp51sq5qvufisyzhbo3g31zf). County/Co. and Department/Dept. are equivalent here. Original article passages and workbook are preserved. No matching officer found in this agency roster."
+  }
+]

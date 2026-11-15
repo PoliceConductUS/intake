@@ -1,0 +1,11 @@
+--- a/scripts/map-tcole-seed-identities.py
++++ b/scripts/map-tcole-seed-identities.py
+@@ -86,6 +86,8 @@
+             if v is None:
+                 return ""
+             raw = v.text or ""
++            if t == "b":
++                return "True" if raw == "1" else "False"
+             return shared[int(raw)] if t == "s" else raw
+ 
+         out = {}

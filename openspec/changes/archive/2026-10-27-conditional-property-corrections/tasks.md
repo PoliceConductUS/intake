@@ -1,0 +1,7 @@
+- [x] Implement canonical correction IO, CLI, and shared generation correction application.
+- [x] Remove Census transform correction hooks and polygon merging.
+- [x] Persist the four approved smaller-land-area name corrections in workspace.
+- [x] Key every Census location, geometry and reference by geography type plus GEOID.
+- [x] Derive corrected paths and aliases during generation and reject unresolved collisions.
+- [x] Preserve existing canonical IDs and corrections through an explicit workspace mapping migration.
+- [x] Verify tests, generated contracts, typecheck, build, OpenSpec and saved-source output.

@@ -1,10 +1,10 @@
-import path from "node:path";
 import { z } from "zod";
 import {
   ArtifactMutation,
   type ArtifactMutationSpec,
   artifactMutationSpecSchema,
 } from "./ArtifactMutation.js";
+import { type EnvelopeReadOptions, resolveReadPath } from "./envelope-ref.js";
 import { INTAKE_API_VERSION } from "../../../../shared/io/import-types.js";
 import {
   firstIssuePath,
@@ -16,57 +16,6 @@ import {
   readYamlDocumentFile,
   writeYamlDocumentFile,
 } from "../../../../shared/io/internal/yaml-document.js";
-
-type EnvelopeReadRef =
-  | { path: string; kind?: string; sha256?: string }
-  | { ref: { path: string; kind?: string; sha256?: string } };
-
-type EnvelopeReadOptions = {
-  expectedNamespace?: string;
-  relativeTo?: string;
-};
-
-function refValue(pathOrRef: string | EnvelopeReadRef): {
-  path: string;
-  kind?: string;
-  sha256?: string;
-} {
-  if (typeof pathOrRef === "string") {
-    return { path: pathOrRef };
-  }
-  if ("ref" in pathOrRef) {
-    return pathOrRef.ref;
-  }
-  return pathOrRef;
-}
-
-function resolveReadPath(
-  pathOrRef: string | EnvelopeReadRef,
-  options: EnvelopeReadOptions,
-): { filePath: string; kind?: string; sha256?: string } {
-  const ref = refValue(pathOrRef);
-  if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
-    return { ...ref, filePath: ref.path };
-  }
-  if (
-    options.relativeTo === undefined ||
-    options.relativeTo.trim().length === 0
-  ) {
-    throw new Error(
-      `Relative ${ref.kind ?? "ArtifactMutations"} ref requires relativeTo.`,
-    );
-  }
-
-  const baseDirectory = path.dirname(options.relativeTo);
-  const resolvedPath = path.resolve(baseDirectory, ref.path);
-  const relativePath = path.relative(baseDirectory, resolvedPath);
-  if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(
-      `${ref.kind ?? "ArtifactMutations"} ref.path escapes its directory: ${ref.path}`,
-    );
-  }
-  return { ...ref, filePath: resolvedPath };
-}
 
 const metadataSchema = z
   .object({
@@ -115,9 +64,6 @@ export type ArtifactMutationsInput = Omit<
   ArtifactMutationsEnvelope,
   "apiVersion" | "kind"
 >;
-export type ArtifactMutationsItem =
-  | ArtifactMutationSpec
-  | { ref: { path: string; kind: "ArtifactMutation"; sha256?: string } };
 
 function parseArtifactMutations(value: unknown): ArtifactMutationsEnvelope {
   const result = schema.safeParse(value);
@@ -168,7 +114,7 @@ async function readArtifactMutations(
   filePath: string,
   options: ArtifactMutationsReadOptions = {},
 ): Promise<ArtifactMutationsEnvelope> {
-  const ref = resolveReadPath(filePath, options);
+  const ref = resolveReadPath(filePath, options, "ArtifactMutations");
   const { contents, document } = await readYamlDocumentFile(
     ref.filePath,
     "ArtifactMutations",

@@ -1,0 +1,7 @@
+# Design
+
+Introduce InitialAgencyRoots canonical envelope IO in src/shared/io, with strict apiVersion/kind/metadata/spec. spec.agencySourceNames holds unique nonblank source IDs. metadata annotations hold the captured sitemap and baseline provenance. Use the required intake-owned namespace path: $INTAKE_WORKSPACE/intake/state/namespaces/<namespace>/InitialAgencyRoots, a fixed initial record written/read through canonical IO. No ad hoc YAML parsing.
+
+Read optional initial roots only when public.agency has no rows (Census/reference rows do not prevent bootstrap). An absent initial-root envelope means ordinary selection; malformed envelopes fail visibly. The mechanism is source-namespaced; only gov.tx.tcole receives the captured list. Source IDs resolve through incoming candidate identities and the existing canonical mapping process, never by agency name or new speculative aliases.
+
+Pass explicit extra canonical root IDs to the pure shared graph selector; include them before directed traversal. Source validity/exclusion happens first, so a listed but invalid/excluded/absent agency is not fabricated. New agencies qualifying through ordinary open assignments or cases remain included. Nonempty databases use the existing logic without persistent privileged eligibility for initial roots. Keep loading/database checks behind narrow IO adapters and avoid coupling import to TCOLE implementation code.

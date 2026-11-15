@@ -28,7 +28,7 @@ port = 54322
 shadow_port = 54320
 # The database major version to use. This has to be the same as your remote database's. Run `SHOW
 # server_version;` on the remote database to check.
-major_version = 15
+major_version = 17
 
 [db.pooler]
 enabled = false
@@ -55,7 +55,13 @@ schema_paths = []
 enabled = true
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
-sql_paths = ["./seed.sql"]
+#
+# seed.sql is RETIRED: the database is now built from migrations alone, then
+# populated by the config-driven intake sources / the data-mutation chain
+# (ADR 0033). The file is kept (supabase/seed.sql) as the record of the legacy
+# website data for migrating the remaining hand-curated gaps — it is no longer
+# loaded on `db reset`.
+sql_paths = []
 
 [realtime]
 enabled = true
@@ -75,7 +81,7 @@ openai_api_key = "env(OPENAI_API_KEY)"
 
 # Email testing server. Emails sent with the local dev setup are not actually sent - rather, they
 # are monitored, and you can view the emails that would have been sent from the web interface.
-[inbucket]
+[local_smtp]
 enabled = true
 # Port to use for the email testing server web interface.
 port = 54324

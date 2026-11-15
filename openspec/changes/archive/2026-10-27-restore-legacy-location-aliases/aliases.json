@@ -1,0 +1,162 @@
+[
+  {
+    "legacy_location_path_id": "c8gr6bl9bb9i9rmwgo95gord",
+    "alias_path": "/mn/ramsey-county/saint-paul/",
+    "target_path": "/mn/ramsey-county/st-paul/",
+    "target_id": "jvtnc88ydt8zop7vtj7dcb2j",
+    "target_name": "St. Paul",
+    "reason": "Spelling, spacing, punctuation, or abbreviation variant within the same state and county."
+  },
+  {
+    "legacy_location_path_id": "cygscanr4ccuwfzz7vqstn1u",
+    "alias_path": "/tx/austin-county/belleville/",
+    "target_path": "/tx/austin-county/bellville/",
+    "target_id": "ccycz4nkjweqwwz7714r9jwr",
+    "target_name": "Bellville",
+    "reason": "Spelling, spacing, punctuation, or abbreviation variant within the same state and county."
+  },
+  {
+    "legacy_location_path_id": "c8fssjtfcduyi9lcqz94idzf",
+    "alias_path": "/tx/bee-county/beevillle/",
+    "target_path": "/tx/bee-county/beeville/",
+    "target_id": "cn85chxd3q39odayp6nmdx1b",
+    "target_name": "Beeville",
+    "reason": "Spelling, spacing, punctuation, or abbreviation variant within the same state and county."
+  },
+  {
+    "legacy_location_path_id": "cm393nfs9e1hlva7szykhlyc",
+    "alias_path": "/tx/bexar-county/saint-hedwig/",
+    "target_path": "/tx/bexar-county/st-hedwig/",
+    "target_id": "n2gnmdr6p7ds1a4ggv4f0oz8",
+    "target_name": "St. Hedwig",
+    "reason": "Spelling, spacing, punctuation, or abbreviation variant within the same state and county."
+  },
+  {
+    "legacy_location_path_id": "ckytig9hpk9irbh8efxpd4vq",
+    "alias_path": "/tx/bosque-county/meridan/",
+    "target_path": "/tx/bosque-county/meridian/",
+    "target_id": "csbrtup20d5s4cc7d1y36n4l",
+    "target_name": "Meridian",
+    "reason": "Spelling, spacing, punctuation, or abbreviation variant within the same state and county."
+  },
+  {
+    "legacy_location_path_id": "cy44pbm8ixl358n5a8kxgygn",
+    "alias_path": "/tx/bowie-county/dekalb/",
+    "target_path": "/tx/bowie-county/de-kalb/",
+    "target_id": "c2kqwx36t0dzw0gu5pntx3g1",
+    "target_name": "De Kalb",
+    "reason": "Spelling, spacing, punctuation, or abbreviation variant within the same state and county."
+  },
+  {
+    "legacy_location_path_id": "ci1rdr1m6ruc2ci3knyz12ln",
+    "alias_path": "/tx/castro-county/dimmit/",
+    "target_path": "/tx/castro-county/dimmitt/",
+    "target_id": "c8vw62rl2ajmin34mbeqalsw",
+    "target_name": "Dimmitt",
+    "reason": "Spelling, spacing, punctuation, or abbreviation variant within the same state and county."
+  },
+  {
+    "legacy_location_path_id": "c0rnxbddje4c98k0gg50hbwd",
+    "alias_path": "/tx/cooke-county/gainsville/",
+    "target_path": "/tx/cooke-county/gainesville/",
+    "target_id": "cp3vz4a2f1gzzgi4fw4rh9jb",
+    "target_name": "Gainesville",
+    "reason": "Spelling, spacing, punctuation, or abbreviation variant within the same state and county."
+  },
+  {
+    "legacy_location_path_id": "ciex325oqq68bqei3uef9z0l",
+    "alias_path": "/tx/denton-county/crossroads/",
+    "target_path": "/tx/denton-county/cross-roads/",
+    "target_id": "c5elpgh4rywkmzu6tow0bnoe",
+    "target_name": "Cross Roads",
+    "reason": "Spelling, spacing, punctuation, or abbreviation variant within the same state and county."
+  },
+  {
+    "legacy_location_path_id": "ct4cqmjauyb2evvuqtlmfnc2",
+    "alias_path": "/tx/fort-bend-county/sugarland/",
+    "target_path": "/tx/fort-bend-county/sugar-land/",
+    "target_id": "c70atcs51nyytm5qh1tdwcg2",
+    "target_name": "Sugar Land",
+    "reason": "Spelling, spacing, punctuation, or abbreviation variant within the same state and county."
+  },
+  {
+    "legacy_location_path_id": "c8lzs9zhrvcnc5a5bcsuh092",
+    "alias_path": "/tx/franklin-county/mt-vernon/",
+    "target_path": "/tx/franklin-county/mount-vernon/",
+    "target_id": "czanyg7pg4jne7i21mwqbwp6",
+    "target_name": "Mount Vernon",
+    "reason": "Spelling, spacing, punctuation, or abbreviation variant within the same state and county."
+  },
+  {
+    "legacy_location_path_id": "cz2u2miqkfdsspi1rh8ldlpz",
+    "alias_path": "/tx/hockley-county/witharral/",
+    "target_path": "/tx/hockley-county/whitharral/",
+    "target_id": "rdmcqscjwg7nagiribcx051k",
+    "target_name": "Whitharral",
+    "reason": "Spelling, spacing, punctuation, or abbreviation variant within the same state and county."
+  },
+  {
+    "legacy_location_path_id": "c19bpf36kqvj39twvzfzq4zp",
+    "alias_path": "/tx/kleberg-county/kinsgville/",
+    "target_path": "/tx/kleberg-county/kingsville/",
+    "target_id": "cdbg1inav9bht23xvtqvaeau",
+    "target_name": "Kingsville",
+    "reason": "Spelling, spacing, punctuation, or abbreviation variant within the same state and county."
+  },
+  {
+    "legacy_location_path_id": "cy5h4l3dxod8vdfvjxchoh4l",
+    "alias_path": "/tx/lee-county/dimebox/",
+    "target_path": "/tx/lee-county/dime-box/",
+    "target_id": "y0g7x7wnkzk8z90i3ixrzs9g",
+    "target_name": "Dime Box",
+    "reason": "Spelling, spacing, punctuation, or abbreviation variant within the same state and county."
+  },
+  {
+    "legacy_location_path_id": "c2ra2o55yig7770u0ti3deih",
+    "alias_path": "/tx/lynn-county/odonnell/",
+    "target_path": "/tx/lynn-county/o-donnell/",
+    "target_id": "ce6vr6jjwogez0odp4u4ohuz",
+    "target_name": "O'Donnell",
+    "reason": "Spelling, spacing, punctuation, or abbreviation variant within the same state and county."
+  },
+  {
+    "legacy_location_path_id": "cftyxgaqcu98uj84921y93e3",
+    "alias_path": "/tx/medina-county/la-coste/",
+    "target_path": "/tx/medina-county/lacoste/",
+    "target_id": "wedpgdhn9zapil5mkl072o1x",
+    "target_name": "LaCoste",
+    "reason": "Spelling, spacing, punctuation, or abbreviation variant within the same state and county."
+  },
+  {
+    "legacy_location_path_id": "ciwkxsqgqbkdjapkt9rho251",
+    "alias_path": "/tx/pecos-county/ft-stockton/",
+    "target_path": "/tx/pecos-county/fort-stockton/",
+    "target_id": "ca5j1zhzis2bln21rz311s1x",
+    "target_name": "Fort Stockton",
+    "reason": "Spelling, spacing, punctuation, or abbreviation variant within the same state and county."
+  },
+  {
+    "legacy_location_path_id": "cbjdnhjl9cf3ggogf9etgdkb",
+    "alias_path": "/tx/san-jacinto-county/pointblank/",
+    "target_path": "/tx/san-jacinto-county/point-blank/",
+    "target_id": "bj647t1f5st7g106ijk21o83",
+    "target_name": "Point Blank",
+    "reason": "Spelling, spacing, punctuation, or abbreviation variant within the same state and county."
+  },
+  {
+    "legacy_location_path_id": "cgmz38x6dijkhm5hm4xhsfeh",
+    "alias_path": "/tx/titus-county/mt-pleasant/",
+    "target_path": "/tx/titus-county/mount-pleasant/",
+    "target_id": "cmsfn65q0d2174exbbk96c86",
+    "target_name": "Mount Pleasant",
+    "reason": "Spelling, spacing, punctuation, or abbreviation variant within the same state and county."
+  },
+  {
+    "legacy_location_path_id": "cvupcmznwqe1erqkgsq0zwfz",
+    "alias_path": "/tx/zavala-county/lapryor/",
+    "target_path": "/tx/zavala-county/la-pryor/",
+    "target_id": "pd8aa3mfb8fwynel6fw9yyqc",
+    "target_name": "La Pryor",
+    "reason": "Spelling, spacing, punctuation, or abbreviation variant within the same state and county."
+  }
+]

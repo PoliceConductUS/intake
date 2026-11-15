@@ -7,6 +7,7 @@ export type CommandResult = {
 };
 
 export type CliCommandDependencies = {
+  useInitialAgencyRoots?: boolean;
   runImportArtifactsCommand?: (
     artifactsRef: string,
     dependencies?: { dryImport?: boolean },

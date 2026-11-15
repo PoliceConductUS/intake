@@ -7,6 +7,7 @@ import {
 import {
   firstIssuePath,
   yamlDigest,
+  yamlResourceFileName,
   yamlResourcePath,
 } from "../../../../shared/io/resource.js";
 import {
@@ -18,61 +19,16 @@ import {
   readDatabaseMutation,
 } from "./DatabaseMutation.js";
 import { importMutationEnvelopeTypes } from "./generated-mutations/index.js";
-
-type EnvelopeReadRef =
-  | { path: string; kind?: string; sha256?: string }
-  | { ref: { path: string; kind?: string; sha256?: string } };
-
-type EnvelopeReadOptions = {
-  expectedNamespace?: string;
-  relativeTo?: string;
-};
+import {
+  type EnvelopeReadOptions,
+  type EnvelopeReadRef,
+  refValue,
+  resolveReadPath,
+} from "./envelope-ref.js";
 
 type MutationEnvelopeType = {
   schema: z.ZodType<DatabaseMutationEnvelope>;
 };
-
-function refValue(pathOrRef: string | EnvelopeReadRef): {
-  path: string;
-  kind?: string;
-  sha256?: string;
-} {
-  if (typeof pathOrRef === "string") {
-    return { path: pathOrRef };
-  }
-  if ("ref" in pathOrRef) {
-    return pathOrRef.ref;
-  }
-  return pathOrRef;
-}
-
-function resolveReadPath(
-  pathOrRef: string | EnvelopeReadRef,
-  options: EnvelopeReadOptions,
-): { filePath: string; kind?: string; sha256?: string } {
-  const ref = refValue(pathOrRef);
-  if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
-    return { ...ref, filePath: ref.path };
-  }
-  if (
-    options.relativeTo === undefined ||
-    options.relativeTo.trim().length === 0
-  ) {
-    throw new Error(
-      `Relative ${ref.kind ?? "DatabaseMutations"} ref requires relativeTo.`,
-    );
-  }
-
-  const baseDirectory = path.dirname(options.relativeTo);
-  const resolvedPath = path.resolve(baseDirectory, ref.path);
-  const relativePath = path.relative(baseDirectory, resolvedPath);
-  if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-    throw new Error(
-      `${ref.kind ?? "DatabaseMutations"} ref.path escapes its directory: ${ref.path}`,
-    );
-  }
-  return { ...ref, filePath: resolvedPath };
-}
 
 const metadataSchema = z
   .object({
@@ -94,13 +50,15 @@ const metadataSchema = z
   })
   .strict();
 
-
 export const databaseMutationReferenceSchema = z
   .object({
     ref: z
       .object({
         path: z.string().trim().min(1),
-        kind: z.enum(IMPORT_MUTATION_KINDS),
+        // A single-mutation kind, or "DatabaseMutations" for a CHUNK file — a
+        // nested DatabaseMutations envelope holding many mutations, so the
+        // top-level never serializes every mutation as one string.
+        kind: z.enum(IMPORT_MUTATION_KINDS).or(z.literal("DatabaseMutations")),
         sha256: z
           .string()
           .regex(/^[a-f0-9]{64}$/)
@@ -185,6 +143,33 @@ function newDatabaseMutations(
   });
 }
 
+// Build the top-level envelope WITHOUT validating its mutations. Validating the
+// whole array here is redundant and ruinously expensive at scale: a source can
+// emit hundreds of thousands of mutations, and the inline schema re-parses every
+// mutation's spec via superRefine, so a single full pass fires one nested parse
+// per row. writeDatabaseMutations validates every mutation exactly once anyway —
+// per 5000-row chunk, or the whole (small) set for a single-file write — so the
+// mutations are always Zod-checked before they reach disk, just at a bounded
+// peak. Metadata (cheap, not per-row) is still validated by the write.
+function buildDatabaseMutations(
+  input: DatabaseMutationsInput,
+): DatabaseMutationsEnvelope {
+  return {
+    apiVersion: INTAKE_API_VERSION,
+    kind: "DatabaseMutations",
+    ...input,
+  } as DatabaseMutationsEnvelope;
+}
+
+function parseDatabaseMutationsMetadata(value: unknown): void {
+  const result = metadataSchema.safeParse(value);
+  if (!result.success) {
+    throw new Error(
+      `DatabaseMutations metadata is malformed at ${firstIssuePath(result.error)}.`,
+    );
+  }
+}
+
 async function databaseMutationFromRef(
   databaseMutationsPath: string,
   namespace: string | undefined,
@@ -217,7 +202,7 @@ async function readDatabaseMutations(
   filePath: string,
   options: EnvelopeReadOptions & { raw?: boolean } = {},
 ): Promise<DatabaseMutationsEnvelope> {
-  const ref = resolveReadPath(filePath, options);
+  const ref = resolveReadPath(filePath, options, "DatabaseMutations");
   const { contents, document } = await readYamlDocumentFile(
     ref.filePath,
     "DatabaseMutations",
@@ -238,20 +223,55 @@ async function readDatabaseMutations(
     return databaseMutations;
   }
 
+  const namespace = databaseMutations.metadata.namespace;
+  const expanded = await Promise.all(
+    databaseMutations.spec.mutations.map(
+      async (mutationItem): Promise<DatabaseMutationInline[]> => {
+        if (!("ref" in mutationItem)) {
+          return [mutationItem];
+        }
+        if (mutationItem.ref.kind === "DatabaseMutations") {
+          // Chunk file: read it (recursively expanding its refs) and inline.
+          const chunkPath = path.resolve(
+            path.dirname(filePath),
+            mutationItem.ref.path,
+          );
+          const chunk = await readDatabaseMutations(chunkPath, {
+            expectedNamespace: namespace,
+          });
+          return chunk.spec.mutations;
+        }
+        return [
+          await databaseMutationFromRef(filePath, namespace, mutationItem.ref),
+        ];
+      },
+    ),
+  );
+
   return {
     ...databaseMutations,
-    spec: {
-      mutations: await Promise.all(
-        databaseMutations.spec.mutations.map((mutationItem) =>
-          "ref" in mutationItem
-            ? databaseMutationFromRef(
-                filePath,
-                databaseMutations.metadata.namespace,
-                mutationItem.ref,
-              )
-            : mutationItem,
-        ),
-      ),
+    spec: { mutations: expanded.flat() },
+  };
+}
+
+// Maximum mutations serialized into one DatabaseMutations file. A larger set is
+// split into chunk files referenced from the top-level, so no single file
+// approaches V8's string-length limit.
+const MUTATIONS_PER_FILE = 5000;
+
+/** Rewrite a ref path (relative to `fromDir`) to be relative to `toDir`. */
+function rebaseMutationItem(
+  item: DatabaseMutationItem,
+  fromDir: string,
+  toDir: string,
+): DatabaseMutationItem {
+  if (!("ref" in item)) {
+    return item;
+  }
+  return {
+    ref: {
+      ...item.ref,
+      path: path.relative(toDir, path.resolve(fromDir, item.ref.path)),
     },
   };
 }
@@ -260,9 +280,60 @@ async function writeDatabaseMutations(
   directory: string,
   envelope: DatabaseMutationsEnvelope,
 ): Promise<{ path: string }> {
-  const parsed = parseDatabaseMutations(envelope);
-  const filePath = yamlResourcePath(directory, parsed);
-  await writeYamlDocumentFile(filePath, parsed);
+  // A single-file write (small set) validates the whole envelope once; a chunked
+  // write validates each chunk as it is built (see buildDatabaseMutations). Never
+  // validate the whole mutations array at once — at scale that fires one nested
+  // per-row parse per mutation and exhausts the heap.
+  if (envelope.spec.mutations.length <= MUTATIONS_PER_FILE) {
+    const parsed = parseDatabaseMutations(envelope);
+    const filePath = yamlResourcePath(directory, parsed);
+    await writeYamlDocumentFile(filePath, parsed);
+    return { path: filePath };
+  }
+
+  parseDatabaseMutationsMetadata(envelope.metadata);
+  const filePath = yamlResourcePath(directory, envelope);
+  const topDirectory = path.dirname(filePath);
+  const recordsDirectory = `${path.basename(filePath, path.extname(filePath))}.records`;
+  const chunkDirectory = path.join(topDirectory, recordsDirectory);
+  const chunkCount = Math.ceil(
+    envelope.spec.mutations.length / MUTATIONS_PER_FILE,
+  );
+  const chunkReferences: DatabaseMutationItem[] = [];
+  for (let index = 0; index < chunkCount; index += 1) {
+    const chunkMutations = envelope.spec.mutations
+      .slice(index * MUTATIONS_PER_FILE, (index + 1) * MUTATIONS_PER_FILE)
+      // Existing refs (e.g. geometry) were relative to the top-level file; make
+      // them relative to the chunk file that now holds them.
+      .map((item) => rebaseMutationItem(item, topDirectory, chunkDirectory));
+    const chunk = newDatabaseMutations({
+      metadata: {
+        name: `${envelope.metadata.name}-${index}`,
+        namespace: envelope.metadata.namespace,
+      },
+      spec: { mutations: chunkMutations },
+    });
+    const chunkPath = path.join(
+      chunkDirectory,
+      yamlResourceFileName(chunk.metadata.name, "DatabaseMutations"),
+    );
+    const contents = await writeYamlDocumentFile(chunkPath, chunk);
+    chunkReferences.push({
+      ref: {
+        path: path.relative(topDirectory, chunkPath),
+        kind: "DatabaseMutations",
+        sha256: yamlDigest(contents),
+      },
+    });
+  }
+
+  await writeYamlDocumentFile(
+    filePath,
+    newDatabaseMutations({
+      metadata: envelope.metadata,
+      spec: { mutations: chunkReferences },
+    }),
+  );
   return { path: filePath };
 }
 
@@ -270,6 +341,7 @@ export const DatabaseMutations = {
   kind: "DatabaseMutations",
   schema,
   new: newDatabaseMutations,
+  build: buildDatabaseMutations,
   read: readDatabaseMutations,
   write: writeDatabaseMutations,
 };

@@ -16,7 +16,7 @@ describe("Command IO", () => {
       Command.new({
         metadata: {
           name: "s3gf94cl79h1xzjevdx1k39r",
-          namespace: "us-census-gazetteer",
+          namespace: "gov/census/www2/gazetteer",
         },
         spec: {
           statePath: "../state",
@@ -35,7 +35,7 @@ describe("Command IO", () => {
       kind: "Command",
       metadata: {
         name: "s3gf94cl79h1xzjevdx1k39r",
-        namespace: "us-census-gazetteer",
+        namespace: "gov/census/www2/gazetteer",
       },
       spec: {
         statePath: "../state",
@@ -51,7 +51,7 @@ describe("Command IO", () => {
       Command.new({
         metadata: {
           runId: "s3gf94cl79h1xzjevdx1k39r",
-          namespace: "us-census-gazetteer",
+          namespace: "gov/census/www2/gazetteer",
         },
         spec: {
           statePath: "../state",
