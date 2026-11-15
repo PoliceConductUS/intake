@@ -212,7 +212,7 @@ alter table public.agency_personnel alter column start_date drop not null;
 
 -- Explicit provider attribution; never inferred from a person or employer.
 alter table public.licensing_authority
-add column source_namespaces text [] not null default '{}';
+add column source_namespaces text[] not null default '{}';
 
 alter table public.licensing_authority
 add column source_exclusions jsonb not null default '{}'::jsonb check (
