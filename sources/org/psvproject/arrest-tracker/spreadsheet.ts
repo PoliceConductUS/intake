@@ -25,9 +25,11 @@ export type SourceRow = {
 
 // Acquisition reads this publisher's original workbook, including hyperlink
 // targets. Transforms consume the saved JSON, not a rewritten spreadsheet.
-export async function readSpreadsheet(file: string): Promise<SourceRow[]> {
+export async function readSpreadsheet(
+  bytes: ArrayBuffer,
+): Promise<SourceRow[]> {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.readFile(file);
+  await workbook.xlsx.load(bytes);
   const sheet = workbook.getWorksheet("GENERAL");
   if (!sheet) throw new Error("Missing GENERAL worksheet");
   const expected = [

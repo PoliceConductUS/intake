@@ -86,11 +86,11 @@ describe("describeSources", () => {
   });
   it("runs the exported daily operation through the CLI", async () => {
     const root = await makeSourcesRoot();
-    const output = path.join(root, "calls");
+    const output = path.join(root, "sources/org/example/search/calls");
     await writeSource(
       path.join(root, "sources"),
       "org/example/search",
-      `{ daily: async () => (await import('node:fs/promises')).appendFile(${JSON.stringify(output)}, 'called') }`,
+      "{ daily: async () => (await import('node:fs/promises')).appendFile(new URL('calls', import.meta.url), 'called') }",
     );
     vi.spyOn(process, "cwd").mockReturnValue(root);
     const program = new Command();

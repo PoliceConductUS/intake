@@ -54,7 +54,7 @@ export type IntakeDatabase = {
 // ON CONFLICT, FK and NOT NULL constraints, PostGIS geometry) instead of a mock.
 export async function startIntakeDatabase(): Promise<IntakeDatabase> {
   const container = await new PostgreSqlContainer(
-    "postgis/postgis:15-3.4",
+    "postgis/postgis:17-3.5",
   ).start();
   const connectionString = container.getConnectionUri();
   const admin = new pg.Client({ connectionString });
