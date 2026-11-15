@@ -196,3 +196,9 @@ export function nameSuffix(input: string): string {
 export function lowerCaseEmail(input: string): string {
   return input.trim().toLowerCase();
 }
+
+export function expandAgencyAbbreviations(name: string): string {
+  return name
+    .replace(/\bCo\.(?=\s+Sheriffs?\b)/gi, "County")
+    .replace(/\bDept\.\s*$/i, "Department");
+}

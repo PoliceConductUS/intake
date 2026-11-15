@@ -112,6 +112,7 @@ export type DataContextOptions = {
 };
 
 type SourceRecordContext = {
+  origin?: { namespace: string; name: string };
   apiVersion: typeof INTAKE_API_VERSION;
   namespace: string;
   name: string;
@@ -432,9 +433,10 @@ export class DataContext {
     const facade = buildFacadeForKind(kind, {
       current: input.current,
       source: {
-        namespace: input.namespace,
+        namespace: input.origin?.namespace ?? input.namespace,
+        name: input.origin?.name ?? input.name,
+        referenceNamespace: input.namespace,
         sourceFile: input.sourceFile,
-        name: input.name,
         commandName: input.commandName ?? this.commandName,
         action: input.action,
         selector: input.selector,
@@ -509,17 +511,19 @@ export class DataContext {
 
   // Find a seeded/existing id before minting, so ids stay stable (ADR 0016 #4).
   private async findOrCreateCanonicalId(input: {
+    resolve?: () => Promise<string>;
     namespace: string;
     kind: string;
     sourceId: string;
   }): Promise<string> {
     if (this.ledger === undefined) {
-      return createId();
+      return input.resolve ? input.resolve() : createId();
     }
     return this.ledger.findOrCreate(
       input.namespace,
       input.kind as LedgerEntityKind,
       input.sourceId,
+      input.resolve,
     );
   }
 

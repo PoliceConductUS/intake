@@ -11,5 +11,10 @@
     "rootDir": ".",
     "types": ["node", "vitest"]
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.ts"]
+  "include": [
+    "sources/**/intake.source.ts",
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "vitest.config.ts"
+  ]
 }

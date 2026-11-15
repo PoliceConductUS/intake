@@ -35,6 +35,7 @@ describe("createTransformDataContext.resolveAgency", () => {
   it("resolves a unique match to a minted source id, normalizing the name", async () => {
     const { client, params } = clientReturning({
       "palestine police department": [{ id: "agency-7" }],
+      "example county sheriff s office": [{ id: "agency-8" }],
     });
     const data = createTransformDataContext(client, fakeLedger(), "org.subs");
 
@@ -42,10 +43,11 @@ describe("createTransformDataContext.resolveAgency", () => {
       agencyName: "  Palestine  Police Dept. ",
     });
 
-    // Punctuation/casing collapse to the normalized key regardless of input form.
-    // (Different surface form, same normalized query param.)
-    expect(params[0][0]).toBe("palestine police dept");
-    expect(result).toBeNull();
+    expect(params[0][0]).toBe("palestine police department");
+    expect(result).toEqual({ agencyId: "src:agency-7" });
+    expect(
+      await data.resolveAgency!({ agencyName: "Example Co. Sheriff's Office" }),
+    ).toEqual({ agencyId: "src:agency-8" });
 
     const exact = await data.resolveAgency!({
       agencyName: "Palestine Police Department",

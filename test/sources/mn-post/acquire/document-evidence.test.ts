@@ -1,10 +1,10 @@
-import { ORDER_ANALYSIS_PROMPT_SHA256 } from "../../../../sources/mn-post/acquire/order-prompt.js";
+import { ORDER_ANALYSIS_PROMPT_SHA256 } from "../../../../sources/com/site/my/mnitservices/post-license-search/acquire/order-prompt.js";
 import { createHash } from "node:crypto";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, expect, it } from "vitest";
-import { readDocumentEvidence } from "../../../../sources/mn-post/acquire/document-evidence.js";
+import { readDocumentEvidence } from "../../../../sources/com/site/my/mnitservices/post-license-search/acquire/document-evidence.js";
 const roots: string[] = [];
 afterEach(async () => {
   await Promise.all(

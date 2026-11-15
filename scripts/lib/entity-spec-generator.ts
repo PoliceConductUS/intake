@@ -193,6 +193,16 @@ const DESCRIPTORS: EntityDescriptor[] = [
     createRequired: ["id"],
   },
   {
+    recordKind: "CoverageHomepageWindow",
+    table: "coverage_homepage_windows",
+    createRequired: ["id"],
+  },
+  {
+    recordKind: "CoverageHomepagePlacement",
+    table: "coverage_homepage_placements",
+    createRequired: ["id"],
+  },
+  {
     recordKind: "CoverageLink",
     table: "coverage_links",
     createRequired: ["id"],
@@ -229,7 +239,7 @@ const DESCRIPTORS: EntityDescriptor[] = [
     recordKind: "CivilCasePersonnel",
     table: "civil_case_personnel",
     // Matches the table exactly: civil_case_id + agency_personnel_id, both source
-    // ids the courtlistener run already stamped (ADR 0023) — agency_personnel_id
+    // ids the com/courtlistener/www/api run already stamped (ADR 0023) — agency_personnel_id
     // resolves cross-source via the ledger, civil_case_id same-source. No
     // resolution inputs: the personnel is matched in run, not at import.
     createRequired: ["id"],
@@ -461,6 +471,8 @@ const ENTITY_NAME_BY_RECORD_KIND: Record<string, string> = {
   PersonnelPhoto: "personnelPhotos",
   Discipline: "disciplines",
   DisciplineAgencyPersonnel: "disciplineAgencyPersonnel",
+  CoverageHomepageWindow: "coverageHomepageWindows",
+  CoverageHomepagePlacement: "coverageHomepagePlacements",
   CoverageLink: "coverageLinks",
   CoverageLinkAgencyPersonnel: "coverageLinkAgencyPersonnel",
   AgencyPhoneNumber: "agencyPhoneNumbers",

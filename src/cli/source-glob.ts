@@ -1,14 +1,4 @@
-import { access, constants, readdir } from "node:fs/promises";
-import path from "node:path";
-
-async function isSourceDir(dir: string): Promise<boolean> {
-  try {
-    await access(path.join(dir, "transform.ts"), constants.R_OK);
-    return true;
-  } catch {
-    return false;
-  }
-}
+import { discoverSources } from "./source-discovery.js";
 
 /** Translates a shell-style glob (`*`, `?`) into an anchored RegExp. */
 export function globToRegExp(glob: string): RegExp {
@@ -24,20 +14,17 @@ export function globToRegExp(glob: string): RegExp {
   return new RegExp(`^${pattern}$`);
 }
 
-// Glob-matched source folders (those with transform.ts, so sources/lib/ is not one),
-// sorted by id. Run order is applied separately via planSourceOrder (ADR 0021).
 export async function matchSourceIds(
   sourcesRoot: string,
   glob: string,
+  operations: readonly ("acquire" | "transform")[],
 ): Promise<string[]> {
-  const entries = await readdir(sourcesRoot, { withFileTypes: true });
   const matcher = globToRegExp(glob);
-  const candidates = entries
-    .filter((entry) => entry.isDirectory() && matcher.test(entry.name))
-    .map((entry) => entry.name)
-    .sort();
-  const sourceFlags = await Promise.all(
-    candidates.map((id) => isSourceDir(path.join(sourcesRoot, id))),
-  );
-  return candidates.filter((_, index) => sourceFlags[index]);
+  return (await discoverSources(sourcesRoot))
+    .filter(
+      (source) =>
+        matcher.test(source.id) &&
+        operations.some((operation) => source.phases.includes(operation)),
+    )
+    .map((source) => source.id);
 }

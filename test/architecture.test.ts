@@ -407,6 +407,57 @@ describe("architecture boundaries", () => {
     expect(violations).toEqual([]);
   });
 
+  test("keeps new migrations free of ID generation, conflict absorption, and trigger bypasses", async () => {
+    const migrationsRoot = path.join(repoRoot, "supabase", "migrations");
+    const appliedBeforeThisRule = new Set([
+      "20250303232529_initial_schema.sql",
+      "20260520000000_current_schema_updates.sql",
+      "20260822000000_federal_agency_branch_id.sql",
+      "20260903000000_authority_license.sql",
+    ]);
+    const prohibited =
+      /on\s+conflict|generate_cuid\(\)|gen_random_uuid\(|uuid_generate_v4\(|\b(?:big|small)?serial\b|generated\s+(?:always|by\s+default)\s+as\s+identity|disable\s+trigger|session_replication_role/i;
+    const files = await existingFiles(migrationsRoot);
+    const violations: string[] = [];
+
+    for (const file of files) {
+      if (appliedBeforeThisRule.has(path.basename(file))) {
+        continue;
+      }
+      const sql = (await readFile(file, "utf8")).replace(/--.*$/gm, "");
+      if (prohibited.test(sql)) {
+        violations.push(relative(file));
+      }
+    }
+
+    expect(files.length).toBeGreaterThan(appliedBeforeThisRule.size);
+    expect(violations).toEqual([]);
+  });
+
+  test("does not branch on a source namespace literal", async () => {
+    const sourceIds = (
+      await readdir(path.join(repoRoot, "sources"), { withFileTypes: true })
+    )
+      .filter((entry) => entry.isDirectory() && entry.name !== "lib")
+      .map((entry) => entry.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    const namespaceBranch = new RegExp(
+      `(?:[=!]==\\s*|\\bcase\\s+)["'\`](?:${sourceIds.join("|")})["'\`]`,
+    );
+    const files = await existingFiles(sourceRoot);
+    const sourceFiles = files.filter((file) => /\.[cm]?tsx?$/.test(file));
+    const violations: string[] = [];
+
+    for (const file of sourceFiles) {
+      const contents = await readFile(file, "utf8");
+      if (namespaceBranch.test(contents)) {
+        violations.push(relative(file));
+      }
+    }
+
+    expect(sourceIds.length).toBeGreaterThan(0);
+    expect(violations).toEqual([]);
+  });
+
   test("keeps command tests under their command path", async () => {
     const files = await existingFiles(testRoot);
     const violations = files

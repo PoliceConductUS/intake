@@ -1,3 +1,4 @@
+import { assertValidSourceId } from "../source-namespace.js";
 import { stat } from "node:fs/promises";
 import path from "node:path";
 import {
@@ -10,12 +11,13 @@ export function initialAgencyRootsDirectory(
   root: string,
   namespace: string,
 ): string {
+  assertValidSourceId(namespace);
   return path.join(
     root,
     "intake",
     "state",
     "namespaces",
-    encodeURIComponent(namespace),
+    namespace,
     InitialAgencyRoots.kind,
   );
 }

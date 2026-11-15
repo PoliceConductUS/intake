@@ -1,16 +1,23 @@
-import { expect, it } from "vitest";
-import { readSpreadsheet } from "../../../sources/us-officer-sex-crime-reporting/spreadsheet.js";
-import { acquireArticles } from "../../../sources/us-officer-sex-crime-reporting/acquire.js";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { expect, it, vi } from "vitest";
+import {
+  readSpreadsheet,
+  spreadsheets,
+} from "../../../sources/org/psvproject/arrest-tracker/spreadsheet.js";
+import {
+  acquire,
+  acquireArticles,
+} from "../../../sources/org/psvproject/arrest-tracker/acquire.js";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { openAsBlob } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
-import { transform } from "../../../sources/us-officer-sex-crime-reporting/transform.js";
+import { transform } from "../../../sources/org/psvproject/arrest-tracker/transform.js";
 import { readXlsx } from "../../../src/cli/transform/read-xlsx.js";
 import {
   articleText,
   digest,
-} from "../../../sources/us-officer-sex-crime-reporting/acquire.js";
+} from "../../../sources/org/psvproject/arrest-tracker/acquire.js";
 
 it("retains reporting when a page also has an article element for weather alerts", () => {
   expect(
@@ -22,10 +29,35 @@ it("retains reporting when a page also has an article element for weather alerts
   ).toContain("John Smith");
 });
 
+it("rejects a non-workbook response before saving it as the annual source", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "officer-workbook-"));
+  const fetch = vi
+    .spyOn(globalThis, "fetch")
+    .mockResolvedValue(new Response("<html>Sign in</html>"));
+  try {
+    await expect(
+      acquire({
+        sourceDir: dir,
+        state: dir,
+        env: {},
+        data: { agencies: vi.fn() },
+      }),
+    ).rejects.toThrow();
+    expect(fetch).toHaveBeenCalledOnce();
+    await expect(
+      readFile(path.join(dir, String(spreadsheets[0].year), "source.xlsx")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  } finally {
+    fetch.mockRestore();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 it("preserves every named entry, investigation-only link, and actual hyperlink", async () => {
-  const rows = await readSpreadsheet(
-    "sources/us-officer-sex-crime-reporting/2026-10-15.xlsx",
+  const file = await openAsBlob(
+    "sources/org/psvproject/arrest-tracker/2026-10-15.xlsx",
   );
+  const rows = await readSpreadsheet(await file.arrayBuffer());
   expect(rows).toHaveLength(354);
   expect(rows.filter((r) => r.name !== "")).toHaveLength(345);
   expect(rows.find((r) => r.row === 361)).toMatchObject({
@@ -61,6 +93,7 @@ it("links only article-supported identities and reports unresolved officers", as
   await writeFile(
     path.join(dir, "spreadsheet.json"),
     JSON.stringify({
+      url: spreadsheets[1].url,
       rows: [
         { row: 4, name: "John Smith", url: "https://example.com/article" },
       ],
@@ -110,6 +143,31 @@ it("links only article-supported identities and reports unresolved officers", as
   expect(Object.values(result.artifacts[1].records)[0].spec).toMatchObject({
     agency_personnel_id: "officer-1",
   });
+  const older = path.join(dir, "2025", "spreadsheet.json");
+  await mkdir(path.dirname(older));
+  await writeFile(
+    older,
+    JSON.stringify({
+      url: spreadsheets[0].url,
+      rows: [{ row: 9, url: "https://example.com/article" }],
+    }),
+  );
+  expect(
+    new Set(spreadsheets.map((sheet) => new URL(sheet.url).pathname)).size,
+  ).toBe(2);
+  const combined = await transform({ ...args, paths: [...args.paths, older] });
+  const records = Object.values(combined.artifacts[0].records);
+  expect(records).toHaveLength(1);
+  for (const [sheet, row] of [
+    [spreadsheets[0], 9],
+    [spreadsheets[1], 4],
+  ] as const) {
+    expect(records[0]).toMatchObject({
+      spec: {
+        notes: expect.stringContaining(`${sheet.url}; GENERAL rows ${row}`),
+      },
+    });
+  }
   const unresolved = await transform({
     ...args,
     data: { ...data, resolvePersonnel: async () => null },

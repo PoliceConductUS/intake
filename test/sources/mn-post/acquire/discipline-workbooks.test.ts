@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   parseDisciplineRows,
   parseHistoryRows,
-} from "../../../../sources/mn-post/acquire/discipline-workbooks.js";
+} from "../../../../sources/com/site/my/mnitservices/post-license-search/acquire/discipline-workbooks.js";
 
 describe("discipline workbook rows", () => {
   it("preserves numeric license identity and row provenance, excluding total", () => {
@@ -126,9 +126,12 @@ describe("discipline workbook rows", () => {
 
 it("reads all 571 supplied discipline licenses and their 153 former employment rows", async () => {
   const { readDisciplineWorkbooks } =
-    await import("../../../../sources/mn-post/acquire/discipline-workbooks.js");
+    await import("../../../../sources/com/site/my/mnitservices/post-license-search/acquire/discipline-workbooks.js");
   const people = await readDisciplineWorkbooks(
-    new URL("../../../../sources/mn-post/", import.meta.url).pathname,
+    new URL(
+      "../../../../sources/com/site/my/mnitservices/post-license-search",
+      import.meta.url,
+    ).pathname,
   );
   expect(people).toHaveLength(571);
   expect(new Set(people.map((person) => person.licenseNumber)).size).toBe(571);
@@ -148,7 +151,7 @@ it("rejects discipline rows without an affirmative source flag", () => {
 
 it("rejects changed workbook column headers before reading source rows", async () => {
   const { validateWorkbookHeader } =
-    await import("../../../../sources/mn-post/acquire/discipline-workbooks.js");
+    await import("../../../../sources/com/site/my/mnitservices/post-license-search/acquire/discipline-workbooks.js");
   expect(() =>
     validateWorkbookHeader(["Licensee Full Name", "WRONG COLUMN"], {
       0: "Licensee Full Name",

@@ -1,3 +1,4 @@
+import { assertValidSourceId } from "../shared/source-namespace.js";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { createId } from "@paralleldrive/cuid2";
@@ -82,5 +83,6 @@ export function commandOutputDir(
   commandDirectory: string,
   namespace: string,
 ): string {
+  assertValidSourceId(namespace);
   return path.join(commandDirectory, namespace, "output");
 }

@@ -45,10 +45,11 @@ function makeOkDeps() {
       })),
     ),
     readXlsx: vi.fn(async () => []),
-    state: "/ws/state/gov.azpost.roster",
+    state: "/ws/state/gov/az/post/roster",
     digest: vi.fn(async () => "testdigest"),
     createEmitSink: vi.fn(() => ({
       emit: vi.fn(async () => {}),
+      records: async function* () {},
       flush: vi.fn(async () => testRefItems),
     })),
     loadExcludedRecords: vi.fn(async () => new Map()),
@@ -63,25 +64,25 @@ describe("transformSource", () => {
   it("loads the module, writes the envelope, returns the artifacts path", async () => {
     const okDeps = makeOkDeps();
     const result = await transformSource(
-      "gov.azpost.roster",
+      "gov/az/post/roster",
       ["file.xlsx"],
       {},
       okDeps,
     );
     expect(okDeps.loadSourceModule).toHaveBeenCalledWith(
-      "gov.azpost.roster",
+      "gov/az/post/roster",
       "/sources",
     );
     expect(okDeps.writeEnvelope).toHaveBeenCalledWith(
       "/ws",
-      "gov.azpost.roster",
+      "gov/az/post/roster",
       "testdigest",
       expect.anything(),
       testRefItems,
     );
     expect(okDeps.createEmitSink).toHaveBeenCalledWith(
       "/ws",
-      "gov.azpost.roster",
+      "gov/az/post/roster",
     );
     expect(okDeps.loadExcludedRecords).toHaveBeenCalledWith(okDeps.state);
     expect(result).toEqual({ artifactsPath: "/ws/artifacts.yaml" });
@@ -96,9 +97,9 @@ describe("transformSource", () => {
   it("filters using workspace exclusions and ignores a different list in the checkout", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "transform-exclusions-"));
     try {
-      const state = path.join(root, "workspace", "state", "gov.azpost.roster");
+      const state = path.join(root, "workspace", "state", "gov/az/post/roster");
       const sourcesRoot = path.join(root, "sources");
-      const sourceDir = path.join(sourcesRoot, "gov.azpost.roster");
+      const sourceDir = path.join(sourcesRoot, "gov/az/post/roster");
       await mkdir(state, { recursive: true });
       await mkdir(sourceDir, { recursive: true });
       await writeFile(
@@ -121,7 +122,7 @@ describe("transformSource", () => {
             spec: {
               name: "Test board",
               location_path_id: "test",
-              source_namespaces: ["gov.azpost.roster"],
+              source_namespaces: ["gov/az/post/roster"],
             },
           },
         },
@@ -137,7 +138,7 @@ describe("transformSource", () => {
       };
       expect(
         await transformSource(
-          "gov.azpost.roster",
+          "gov/az/post/roster",
           ["file.xlsx"],
           {},
           exclusionsDeps,
@@ -145,7 +146,7 @@ describe("transformSource", () => {
       ).toEqual({ artifactsPath: "/ws/artifacts.yaml" });
       expect(deps.writeEnvelope).toHaveBeenCalledWith(
         "/ws",
-        "gov.azpost.roster",
+        "gov/az/post/roster",
         "testdigest",
         {
           artifacts: [
@@ -157,7 +158,7 @@ describe("transformSource", () => {
                   spec: {
                     ...authority.records.board.spec,
                     source_exclusions: {
-                      "gov.azpost.roster": [
+                      "gov/az/post/roster": [
                         {
                           kind: "Personnel",
                           key: "1001",
@@ -179,10 +180,10 @@ describe("transformSource", () => {
         testRefItems,
       );
       expect(logger.info).toHaveBeenCalledWith(
-        "gov.azpost.roster: excluded Personnel 1001: workspace exclusion",
+        "gov/az/post/roster: excluded Personnel 1001: workspace exclusion",
       );
       expect(logger.info).toHaveBeenCalledWith(
-        "gov.azpost.roster: exclusion totals (including dependents): Personnel=1",
+        "gov/az/post/roster: exclusion totals (including dependents): Personnel=1",
       );
       expect(logger.info).toHaveBeenCalledTimes(2);
     } finally {
@@ -204,7 +205,7 @@ describe("transformSource", () => {
         targetProperty: "latitude",
       };
       await ResolvedProperty.write(
-        path.join(sourcesRoot, "gov.azpost.roster", "resolved-property-seed"),
+        path.join(sourcesRoot, "gov/az/post/roster", "resolved-property-seed"),
         ResolvedProperty.new({
           metadata: {
             name: resolvedPropertyCacheName(input),
@@ -214,7 +215,7 @@ describe("transformSource", () => {
         }),
       );
       const result = await transformSource(
-        "gov.azpost.roster",
+        "gov/az/post/roster",
         ["file.xlsx"],
         {},
         {
@@ -234,7 +235,7 @@ describe("transformSource", () => {
 
   it("fails cleanly when no paths are given", async () => {
     const okDeps = makeOkDeps();
-    const result = await transformSource("gov.azpost.roster", [], {}, okDeps);
+    const result = await transformSource("gov/az/post/roster", [], {}, okDeps);
     expect(result).toMatchObject({ error: { exitCode: 1 } });
     expect(okDeps.loadSourceModule).not.toHaveBeenCalled();
   });
@@ -263,7 +264,7 @@ describe("transformSource", () => {
       produces: ["LocationPathGeometries"] as const,
     };
     const result = await transformSource(
-      "gov.azpost.roster",
+      "gov/az/post/roster",
       ["file.xlsx"],
       {},
       deps,

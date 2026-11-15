@@ -1,3 +1,4 @@
+import { assertValidSourceId } from "../../shared/source-namespace.js";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -94,6 +95,7 @@ export async function requireTransformCompletion(
   sourceId: string,
   artifactsPath?: string,
 ): Promise<string> {
+  assertValidSourceId(sourceId);
   const state = path.join(workspace, "state", sourceId);
   let record: Completion;
   try {

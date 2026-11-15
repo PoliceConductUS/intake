@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { discoverLatestGazetteerLinks } from "../../../sources/us-census-gazetteer/acquire/discovery.js";
+import { discoverLatestGazetteerLinks } from "../../../sources/gov/census/www2/gazetteer/acquire/discovery.js";
 
 const BASE = "https://www.census.gov/geographies/gazetteer-files.html";
 const W2 = "https://www2.census.gov";

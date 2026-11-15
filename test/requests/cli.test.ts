@@ -87,8 +87,8 @@ async function fixture(extra: Record<string, unknown> = {}) {
   await mkdir(path.join(directory, "sources/gov.test"), { recursive: true });
   await mkdir(path.join(directory, "docs"));
   await writeFile(
-    path.join(directory, "sources/gov.test/request.ts"),
-    `export const request = ${JSON.stringify(definition)}; export const portalForm = ${JSON.stringify(form)};`,
+    path.join(directory, "sources/gov.test/intake.source.ts"),
+    `export const source = { request: ${JSON.stringify(definition)}, portalForm: ${JSON.stringify(form)} };`,
   );
   await writeFile(
     path.join(directory, "docs/data-request-format.md"),

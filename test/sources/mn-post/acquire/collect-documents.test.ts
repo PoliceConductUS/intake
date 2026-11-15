@@ -1,4 +1,4 @@
-import { ORDER_ANALYSIS_PROMPT_SHA256 } from "../../../../sources/mn-post/acquire/order-prompt.js";
+import { ORDER_ANALYSIS_PROMPT_SHA256 } from "../../../../sources/com/site/my/mnitservices/post-license-search/acquire/order-prompt.js";
 import {
   mkdtemp,
   mkdir,
@@ -19,7 +19,7 @@ import {
   type DocumentText,
   type OrderAnalysis,
   type OrderAnalyzer,
-} from "../../../../sources/mn-post/acquire/collect-documents.js";
+} from "../../../../sources/com/site/my/mnitservices/post-license-search/acquire/collect-documents.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {
@@ -369,7 +369,7 @@ describe("collectDocuments", () => {
       ...fakeAnalyzer(),
       analyze: vi.fn(async () => {
         throw new Error(
-          "mn-post: ANTHROPIC_API_KEY is required to analyze disciplinary orders.",
+          "com/site/my/mnitservices/post-license-search: ANTHROPIC_API_KEY is required to analyze disciplinary orders.",
         );
       }),
     };

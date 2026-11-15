@@ -122,6 +122,22 @@ export type {
   DisciplineAgencyPersonnelEnvelope,
   DisciplineAgencyPersonnelInput,
 } from "./DisciplineAgencyPersonnel.js";
+export {
+  CoverageHomepageWindows,
+  CoverageHomepageWindowSpec,
+} from "./CoverageHomepageWindows.js";
+export type {
+  CoverageHomepageWindowsEnvelope,
+  CoverageHomepageWindowsInput,
+} from "./CoverageHomepageWindows.js";
+export {
+  CoverageHomepagePlacements,
+  CoverageHomepagePlacementSpec,
+} from "./CoverageHomepagePlacements.js";
+export type {
+  CoverageHomepagePlacementsEnvelope,
+  CoverageHomepagePlacementsInput,
+} from "./CoverageHomepagePlacements.js";
 export { CoverageLinks, CoverageLinkSpec } from "./CoverageLinks.js";
 export type {
   CoverageLinksEnvelope,

@@ -2,8 +2,8 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { expect, it } from "vitest";
-import { acquireOregon } from "../sources/gov.or.dpsst/acquire.js";
-import { createClient } from "../sources/gov.or.dpsst/client.js";
+import { acquireOregon } from "../sources/net/bpl-orsnapshot/www/public-inquiry-cj/acquire.js";
+import { createClient } from "../sources/net/bpl-orsnapshot/www/public-inquiry-cj/client.js";
 it("retains incomplete manifest and original response on parse failure", async () => {
   const sourceDir = await mkdtemp(path.join(tmpdir(), "oregon-test-"));
   let calls = 0;

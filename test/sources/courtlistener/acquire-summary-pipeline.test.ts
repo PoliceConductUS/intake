@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { afterEach, expect, test, vi } from "vitest";
-import { acquire } from "../../../sources/courtlistener/acquire.js";
-import { transform } from "../../../sources/courtlistener/transform.js";
+import { acquire } from "../../../sources/com/courtlistener/www/api/acquire.js";
+import { transform } from "../../../sources/com/courtlistener/www/api/transform.js";
 import { readXlsx } from "../../../src/cli/transform/read-xlsx.js";
 const { analyze } = vi.hoisted(() => ({
   analyze: vi.fn(async () => ({
@@ -13,13 +13,16 @@ const { analyze } = vi.hoisted(() => ({
     ],
   })),
 }));
-vi.mock("../../../sources/courtlistener/summary-analysis.js", () => ({
-  createComplaintAnalyzer: () => ({
-    model: "synthetic",
-    promptVersion: "test",
-    analyze,
+vi.mock(
+  "../../../sources/com/courtlistener/www/api/summary-analysis.js",
+  () => ({
+    createComplaintAnalyzer: () => ({
+      model: "synthetic",
+      promptVersion: "test",
+      analyze,
+    }),
   }),
-}));
+);
 const dirs: string[] = [];
 afterEach(async () => {
   vi.unstubAllGlobals();

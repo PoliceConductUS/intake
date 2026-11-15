@@ -3,7 +3,7 @@ import {
   extractComplaintIntro,
   fetchComplaintIntro,
   selectOperativeComplaintText,
-} from "../../../sources/courtlistener/complaint.js";
+} from "../../../sources/com/courtlistener/www/api/complaint.js";
 
 describe("extractComplaintIntro", () => {
   it("returns the Nature of the Action section verbatim, up to the next heading", () => {

@@ -6,7 +6,11 @@ import { DatabaseMutations } from "../../src/cli/import/artifacts/io/DatabaseMut
 import { PersonnelCreate } from "../../src/cli/import/artifacts/io/generated-mutations/PersonnelCreate.js";
 import { executeDatabaseMutations } from "../../src/cli/replay/database-mutations/execute.js";
 
-for (const namespace of ["gov.tx.tcole", "gov.or.dpsst", "example.future"]) {
+for (const namespace of [
+  "gov/texas/tcole",
+  "net/bpl-orsnapshot/www/public-inquiry-cj",
+  "example.future",
+]) {
   for (const storage of ["inline", "reference"] as const) {
     test(`${namespace} replay rejects persisted invalid ${storage} personnel before SQL`, async () => {
       const root = await mkdtemp(path.join(tmpdir(), "personnel-replay-"));

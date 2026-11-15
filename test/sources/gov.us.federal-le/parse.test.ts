@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   parseFederalLeAgencies,
   slugify,
-} from "../../../sources/gov.us.federal-le/acquire/parse.js";
+} from "../../../sources/org/wikipedia/en/us-federal-law-enforcement-agencies/acquire/parse.js";
 
 const page = `
 <div id="mw-content-text"><div class="mw-parser-output">

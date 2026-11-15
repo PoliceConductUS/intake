@@ -4,21 +4,19 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import { runIntake } from "../../../src/cli/index.js";
 import { sourceStateDir } from "../../../src/cli/transform/state.js";
-import { readLatest } from "../../../sources/org.policeconduct.manual/chain.js";
+import { readLatest } from "../../../sources/org/policeconduct/manual/chain.js";
 import { listEntries } from "../../../src/cli/data/chain.js";
 import { DatabaseMutations } from "../../../src/cli/import/artifacts/io/DatabaseMutations.js";
 import { persistSourceNameToCanonicalIds } from "../../../src/cli/state/source-name-to-canonical-id/index.js";
 import {
-  dockerAvailable,
   startIntakeDatabase,
   type IntakeDatabase,
 } from "../database/intake-postgres.js";
 
-const withDocker = dockerAvailable() ? describe : describe.skip;
-withDocker("manual report updates through the data CLI", () => {
+describe("manual report updates through the data CLI", () => {
   let db: IntakeDatabase;
   let workspace: string;
-  const source = "org.policeconduct.manual";
+  const source = "org/policeconduct/manual";
 
   beforeAll(async () => {
     db = await startIntakeDatabase();

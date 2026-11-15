@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
@@ -16,7 +16,7 @@ test("matches typed original values, fills only missing values, and preserves in
   roots.push(root);
   const base = {
     rootDir: root,
-    namespace: "test",
+    namespace: "org/source/roster",
     kind: "Agency",
     sourceId: "one",
     force: false,
@@ -34,7 +34,21 @@ test("matches typed original values, fills only missing values, and preserves in
     from: null,
     value: 32,
   });
-  const apply = await loadPropertyCorrections(root, "test");
+  expect(
+    await readdir(
+      path.join(
+        root,
+        "state",
+        "intake",
+        "namespaces",
+        "org",
+        "source",
+        "roster",
+        "PropertyCorrection",
+      ),
+    ),
+  ).toHaveLength(2);
+  const apply = await loadPropertyCorrections(root, "org/source/roster");
   const original = { name: "OLD", latitude: null };
   expect(apply("Agency", "one", original)).toEqual({
     name: "New",
@@ -66,9 +80,13 @@ test("matches typed original values, fills only missing values, and preserves in
     force: true,
   });
   expect(
-    (await loadPropertyCorrections(root, "test"))("Agency", "one", {
-      name: "OLD",
-    }),
+    (await loadPropertyCorrections(root, "org/source/roster"))(
+      "Agency",
+      "one",
+      {
+        name: "OLD",
+      },
+    ),
   ).toEqual({ name: "Other", latitude: 32 });
 });
 

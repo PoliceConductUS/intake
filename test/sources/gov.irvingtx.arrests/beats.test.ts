@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { patrolBeatBoundaries } from "../../../sources/gov.irvingtx.arrests/beats.js";
+import { patrolBeatBoundaries } from "../../../sources/gov/irvingtx/arrests/beats.js";
 const geometry = {
   type: "Polygon",
   coordinates: [

@@ -31,11 +31,22 @@ async function writeMappingRecord(
 }
 
 describe("SourceNameToCanonicalId records", () => {
-  test("resolves namespace mn-post to the intake-owned SourceNameToCanonicalId directory", () => {
+  test("resolves namespace com/site/my/mnitservices/post-license-search to the intake-owned SourceNameToCanonicalId directory", () => {
     const rootDir = "/tmp/intake-test-root";
 
-    expect(resolveSourceNameToCanonicalIdPath("mn-post", { rootDir })).toBe(
-      path.join(rootDir, "state", "intake", "namespaces", "mn-post"),
+    expect(
+      resolveSourceNameToCanonicalIdPath(
+        "com/site/my/mnitservices/post-license-search",
+        { rootDir },
+      ),
+    ).toBe(
+      path.join(
+        rootDir,
+        "state",
+        "intake",
+        "namespaces",
+        "com/site/my/mnitservices/post-license-search",
+      ),
     );
   });
 
@@ -45,7 +56,11 @@ describe("SourceNameToCanonicalId records", () => {
     try {
       delete process.env.INTAKE_WORKSPACE;
 
-      expect(() => resolveSourceNameToCanonicalIdPath("mn-post")).toThrow(
+      expect(() =>
+        resolveSourceNameToCanonicalIdPath(
+          "com/site/my/mnitservices/post-license-search",
+        ),
+      ).toThrow(
         "INTAKE_WORKSPACE is required to resolve SourceNameToCanonicalId records.",
       );
     } finally {
@@ -61,9 +76,13 @@ describe("SourceNameToCanonicalId records", () => {
     const rootDir = await createTempRoot();
     const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
 
-    await expect(ledger.read("mn-post", "Agency", "agency-1")).resolves.toBe(
-      undefined,
-    );
+    await expect(
+      ledger.read(
+        "com/site/my/mnitservices/post-license-search",
+        "Agency",
+        "agency-1",
+      ),
+    ).resolves.toBe(undefined);
   });
 
   test("findOrCreate persists a recovered ID in both directions and does not resolve it again", async () => {
@@ -128,16 +147,28 @@ describe("SourceNameToCanonicalId records", () => {
     const rootDir = await createTempRoot();
     const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
 
-    const minted = await ledger.findOrCreate("mn-post", "Agency", "agency-1");
+    const minted = await ledger.findOrCreate(
+      "com/site/my/mnitservices/post-license-search",
+      "Agency",
+      "agency-1",
+    );
     expect(minted).toMatch(/^[a-z][a-z0-9]+$/);
 
     // durably persisted: a fresh accessor over the same root reads it back
     const reopened = createSourceNameToCanonicalIdLedger({ rootDir });
-    await expect(reopened.read("mn-post", "Agency", "agency-1")).resolves.toBe(
-      minted,
-    );
     await expect(
-      reopened.findOrCreate("mn-post", "Agency", "agency-1"),
+      reopened.read(
+        "com/site/my/mnitservices/post-license-search",
+        "Agency",
+        "agency-1",
+      ),
+    ).resolves.toBe(minted);
+    await expect(
+      reopened.findOrCreate(
+        "com/site/my/mnitservices/post-license-search",
+        "Agency",
+        "agency-1",
+      ),
     ).resolves.toBe(minted);
   });
 
@@ -145,26 +176,46 @@ describe("SourceNameToCanonicalId records", () => {
     const rootDir = await createTempRoot();
     const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
 
-    const mnId = await ledger.findOrCreate("mn-post", "Agency", "101100");
-    const txId = await ledger.findOrCreate("gov.tx.tcole", "Agency", "101100");
+    const mnId = await ledger.findOrCreate(
+      "com/site/my/mnitservices/post-license-search",
+      "Agency",
+      "101100",
+    );
+    const txId = await ledger.findOrCreate(
+      "gov/texas/tcole",
+      "Agency",
+      "101100",
+    );
 
     expect(mnId).not.toBe(txId);
-    await expect(ledger.read("mn-post", "Agency", "101100")).resolves.toBe(
-      mnId,
-    );
-    await expect(ledger.read("gov.tx.tcole", "Agency", "101100")).resolves.toBe(
-      txId,
-    );
+    await expect(
+      ledger.read(
+        "com/site/my/mnitservices/post-license-search",
+        "Agency",
+        "101100",
+      ),
+    ).resolves.toBe(mnId);
+    await expect(
+      ledger.read("gov/texas/tcole", "Agency", "101100"),
+    ).resolves.toBe(txId);
   });
 
   test("keys identity by kind: a record is not found under a different kind", async () => {
     const rootDir = await createTempRoot();
     const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
 
-    await ledger.findOrCreate("mn-post", "Agency", "shared-key");
+    await ledger.findOrCreate(
+      "com/site/my/mnitservices/post-license-search",
+      "Agency",
+      "shared-key",
+    );
 
     await expect(
-      ledger.read("mn-post", "Personnel", "shared-key"),
+      ledger.read(
+        "com/site/my/mnitservices/post-license-search",
+        "Personnel",
+        "shared-key",
+      ),
     ).resolves.toBe(undefined);
   });
 
@@ -172,14 +223,20 @@ describe("SourceNameToCanonicalId records", () => {
     const rootDir = await createTempRoot();
     const mappingPath = await writeMappingRecord(
       rootDir,
-      "mn-post",
+      "com/site/my/mnitservices/post-license-search",
       "Agency",
       "agency-1",
       "canonicalId: [\n",
     );
     const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
 
-    await expect(ledger.read("mn-post", "Agency", "agency-1")).rejects.toThrow(
+    await expect(
+      ledger.read(
+        "com/site/my/mnitservices/post-license-search",
+        "Agency",
+        "agency-1",
+      ),
+    ).rejects.toThrow(
       `SourceNameToCanonicalId YAML is malformed: ${mappingPath}`,
     );
   });
@@ -188,7 +245,7 @@ describe("SourceNameToCanonicalId records", () => {
     const rootDir = await createTempRoot();
     await writeMappingRecord(
       rootDir,
-      "mn-post",
+      "com/site/my/mnitservices/post-license-search",
       "Agency",
       "agency-1",
       [
@@ -196,7 +253,7 @@ describe("SourceNameToCanonicalId records", () => {
         "kind: SourceNameToCanonicalId",
         "metadata:",
         "  name: agency-1",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  kind: Agency",
         "  canonicalId: agency-canonical-1",
@@ -205,16 +262,20 @@ describe("SourceNameToCanonicalId records", () => {
     );
     const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
 
-    await expect(ledger.read("mn-post", "Agency", "agency-1")).rejects.toThrow(
-      "SourceNameToCanonicalId is malformed at spec.slug.",
-    );
+    await expect(
+      ledger.read(
+        "com/site/my/mnitservices/post-license-search",
+        "Agency",
+        "agency-1",
+      ),
+    ).rejects.toThrow("SourceNameToCanonicalId is malformed at spec.slug.");
   });
 
   test("rejects mapping files with mismatched metadata namespace", async () => {
     const rootDir = await createTempRoot();
     const mappingPath = await writeMappingRecord(
       rootDir,
-      "mn-post",
+      "com/site/my/mnitservices/post-license-search",
       "Agency",
       "agency-1",
       [
@@ -230,8 +291,14 @@ describe("SourceNameToCanonicalId records", () => {
     );
     const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
 
-    await expect(ledger.read("mn-post", "Agency", "agency-1")).rejects.toThrow(
-      `SourceNameToCanonicalId namespace other-source does not match expected namespace mn-post: ${mappingPath}`,
+    await expect(
+      ledger.read(
+        "com/site/my/mnitservices/post-license-search",
+        "Agency",
+        "agency-1",
+      ),
+    ).rejects.toThrow(
+      `SourceNameToCanonicalId namespace other-source does not match expected namespace com/site/my/mnitservices/post-license-search: ${mappingPath}`,
     );
   });
 });
@@ -243,7 +310,7 @@ describe("CanonicalIdToSourceName reverse lookup (ADR 0023)", () => {
 
     const canonicalId = "agency-canonical-42";
     const sourceId = await ledger.sourceIdFor(
-      "courtlistener",
+      "com/courtlistener/www/api",
       "Agency",
       canonicalId,
     );
@@ -252,11 +319,11 @@ describe("CanonicalIdToSourceName reverse lookup (ADR 0023)", () => {
     // a fresh accessor over the same root returns the same source id...
     const reopened = createSourceNameToCanonicalIdLedger({ rootDir });
     await expect(
-      reopened.sourceIdFor("courtlistener", "Agency", canonicalId),
+      reopened.sourceIdFor("com/courtlistener/www/api", "Agency", canonicalId),
     ).resolves.toBe(sourceId);
     // ...and the minted source id resolves forward to the canonical it came from
     await expect(
-      reopened.read("courtlistener", "Agency", sourceId),
+      reopened.read("com/courtlistener/www/api", "Agency", sourceId),
     ).resolves.toBe(canonicalId);
   });
 
@@ -265,7 +332,7 @@ describe("CanonicalIdToSourceName reverse lookup (ADR 0023)", () => {
     const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
 
     const canonicalId = await ledger.findOrCreate(
-      "mn-post",
+      "com/site/my/mnitservices/post-license-search",
       "Agency",
       "agency-1",
     );
@@ -274,7 +341,11 @@ describe("CanonicalIdToSourceName reverse lookup (ADR 0023)", () => {
     // not a fresh mint — across a reopened ledger (no in-memory cache to lean on)
     const reopened = createSourceNameToCanonicalIdLedger({ rootDir });
     await expect(
-      reopened.sourceIdFor("mn-post", "Agency", canonicalId),
+      reopened.sourceIdFor(
+        "com/site/my/mnitservices/post-license-search",
+        "Agency",
+        canonicalId,
+      ),
     ).resolves.toBe("agency-1");
   });
 
@@ -284,17 +355,17 @@ describe("CanonicalIdToSourceName reverse lookup (ADR 0023)", () => {
 
     const canonicalId = "shared-canonical";
     const courtlistenerId = await ledger.sourceIdFor(
-      "courtlistener",
+      "com/courtlistener/www/api",
       "Agency",
       canonicalId,
     );
     const clearinghouseId = await ledger.sourceIdFor(
-      "clearinghouse-api",
+      "net/clearinghouse/api",
       "Agency",
       canonicalId,
     );
     const personnelId = await ledger.sourceIdFor(
-      "courtlistener",
+      "com/courtlistener/www/api",
       "AgencyPersonnel",
       canonicalId,
     );

@@ -12,7 +12,7 @@ Intake MUST compare an existing Review with the fields supplied by its source an
 
 #### Scenario: Edit a manual report through the CLI
 
-- **GIVEN** an applied report acquired from `org.policeconduct.manual`
+- **GIVEN** an applied report acquired from `org/policeconduct/manual`
 - **WHEN** the author acquires a revised title, description, or desired outcome and runs `data transform` and `data generate`
 - **THEN** generation appends an update containing the changed values
 - **AND** the database remains unchanged until `data up`

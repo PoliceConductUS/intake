@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, it, expect } from "vitest";
 import { ArrestProfiles } from "../../../src/shared/io/index.js";
-import { transform } from "../../../sources/gov.irvingtx.arrests/transform.js";
-import type { NormalizedArrest } from "../../../sources/gov.irvingtx.arrests/arrest.js";
+import { transform } from "../../../sources/gov/irvingtx/arrests/transform.js";
+import type { NormalizedArrest } from "../../../sources/gov/irvingtx/arrests/arrest.js";
 import type {
   TransformDataContext,
   SourceManifest,

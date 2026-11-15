@@ -2,16 +2,14 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, it, expect } from "vitest";
-import { describeKind } from "../../../sources/org.policeconduct.manual/entity-model.js";
+import { describeKind } from "../../../sources/org/policeconduct/manual/entity-model.js";
 import {
   appendEntry,
   readLatest,
-} from "../../../sources/org.policeconduct.manual/chain.js";
-import { acquire } from "../../../sources/org.policeconduct.manual/acquire.js";
-import {
-  transform,
-  produces,
-} from "../../../sources/org.policeconduct.manual/transform.js";
+} from "../../../sources/org/policeconduct/manual/chain.js";
+import { acquire } from "../../../sources/org/policeconduct/manual/acquire.js";
+import { source } from "../../../sources/org/policeconduct/manual/intake.source.js";
+const { transform, produces } = source;
 
 const tempDirs: string[] = [];
 afterEach(async () => {
@@ -341,7 +339,7 @@ it("creates and updates native annotations through the normal manual chain", asy
     id: "manual-finding",
     subject_kind: "Agency",
     subject_id: "agency-source-id",
-    producer_namespace: "org.policeconduct.manual",
+    producer_namespace: "org/policeconduct/manual",
     producer_record_id: "manual-finding",
     source_namespace: "source.provider",
     source_record_id: "record-1",

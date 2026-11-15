@@ -20,13 +20,13 @@ const sourcesRoot = path.join(
 describe("source run order over the real sources", () => {
   it("excludes standalone manual curation from the full update order", async () => {
     const order = await orderedSourceIds();
-    expect(order).not.toContain("org.policeconduct.manual");
-    expect(order).toContain("us-census-gazetteer");
-    expect(order).toContain("gov.tx.tcole");
+    expect(order).not.toContain("org/policeconduct/manual");
+    expect(order).toContain("gov/census/www2/gazetteer");
+    expect(order).toContain("gov/texas/tcole");
   });
 
   it("runs every source after the producers of what it consumes", async () => {
-    const ids = await matchSourceIds(sourcesRoot, "*");
+    const ids = await matchSourceIds(sourcesRoot, "*", ["transform"]);
     const sources = await Promise.all(
       ids.map(async (id) => ({
         id,

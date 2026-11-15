@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, it, expect } from "vitest";
-import { transform } from "../../../sources/courtlistener/transform.js";
+import { transform } from "../../../sources/com/courtlistener/www/api/transform.js";
 import { readXlsx } from "../../../src/cli/transform/read-xlsx.js";
 
 const tempDirs: string[] = [];
@@ -72,7 +72,7 @@ async function runWith(data = fakeData()) {
   });
 }
 
-describe("courtlistener run", () => {
+describe("com/courtlistener/www/api run", () => {
   it("resolves the person party to an officer source id and emits the case", async () => {
     const data = fakeData();
     const manifest = await runWith(data);

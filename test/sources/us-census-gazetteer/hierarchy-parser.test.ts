@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { parseHierarchyRelationshipFile } from "../../../sources/us-census-gazetteer/lib/hierarchy-parser.js";
+import { parseHierarchyRelationshipFile } from "../../../sources/gov/census/www2/gazetteer/lib/hierarchy-parser.js";
 
 /**
  * The original repo (`intake.us-census-gazetteer`) has no

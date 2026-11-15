@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   agencyNeedsSearch,
   REFRESH_DAYS,
-} from "../../../sources/courtlistener/docket-cache.js";
+} from "../../../sources/com/courtlistener/www/api/docket-cache.js";
 
 const NOW = Date.parse("2026-06-01T00:00:00Z");
 const day = 86_400_000;

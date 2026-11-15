@@ -4,7 +4,7 @@ import {
   enrichBookings,
   parseAcsIncome,
   type GeographyEvidence,
-} from "../../../sources/gov.irvingtx.arrests/enrichment.js";
+} from "../../../sources/gov/irvingtx/arrests/enrichment.js";
 const header = [
   "NAME",
   "B19013_001E",

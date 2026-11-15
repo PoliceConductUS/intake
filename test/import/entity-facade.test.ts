@@ -43,7 +43,10 @@ function backend(
   };
 }
 
-const source = { namespace: "mn-post", name: "0031|PB24-1-01" };
+const source = {
+  namespace: "com/site/my/mnitservices/post-license-search",
+  name: "0031|PB24-1-01",
+};
 
 describe("existing records retain mutable fields", () => {
   it.each([
@@ -331,7 +334,7 @@ describe("selector-resolved partial update (ADR 0034)", () => {
     };
     const facade = buildFacadeForKind("AgencyPersonnel", {
       source: {
-        namespace: "org.policeconduct.manual",
+        namespace: "org/policeconduct/manual",
         name: "markham-badge",
         commandName: "manual-badge-backfill",
         action: "PATCH",
@@ -385,7 +388,7 @@ describe("registry coverage and identity", () => {
 });
 
 describe("shared structured-text whitespace resolution", () => {
-  it.each(["mn-post", "gov.tx.tcole"])(
+  it.each(["com/site/my/mnitservices/post-license-search", "gov/texas/tcole"])(
     "normalizes assignment titles for %s without changing raw input",
     async (namespace) => {
       const facade = buildFacadeForKind("AgencyPersonnel", {

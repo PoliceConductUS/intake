@@ -120,6 +120,12 @@ describe("acquireSource", () => {
     expect(result.exitCode).toBe(0);
     const outputRel = "command/cmd-1/acquire-source/output";
     expect(
+      await readFile(
+        path.join(workspace, "command/cmd-1/acquire-source/acquire-complete"),
+        "utf8",
+      ),
+    ).toBe("");
+    expect(
       JSON.parse(
         await readFile(path.join(workspace, outputRel, "roster.json"), "utf8"),
       ),
@@ -199,5 +205,10 @@ describe("acquireSource", () => {
     );
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/network down/);
+    await expect(
+      readFile(
+        path.join(workspace, "command/cmd-1/acquire-source/acquire-complete"),
+      ),
+    ).rejects.toMatchObject({ code: "ENOENT" });
   });
 });

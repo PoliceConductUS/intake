@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { stringify as stringifyYaml } from "yaml";
 import { afterEach, describe, it, expect } from "vitest";
-import { transform } from "../../../sources/gov.us.federal-le/transform.js";
+import { transform } from "../../../sources/org/wikipedia/en/us-federal-law-enforcement-agencies/transform.js";
 import { readXlsx } from "../../../src/cli/transform/read-xlsx.js";
 import { AgencySpec, FederalAgencySpec } from "../../../src/shared/io/index.js";
 
@@ -76,7 +76,7 @@ async function runWithState() {
   });
 }
 
-describe("gov.us.federal-le run", () => {
+describe("org/wikipedia/en/us-federal-law-enforcement-agencies run", () => {
   it("emits federal agencies and complete offices with their parent reference", async () => {
     const manifest = await runWithState();
     const byKind = Object.fromEntries(

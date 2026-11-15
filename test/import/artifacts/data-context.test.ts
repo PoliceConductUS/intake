@@ -218,14 +218,17 @@ describe("DataContext", () => {
     const context = agencyFacadeContext();
     const agency = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "mn-state-patrol",
     });
     agency.merge(resolvedAgencySpec);
 
     expect(await agency.toMutation()).toMatchObject({
       kind: "AgencyCreate",
-      metadata: { namespace: "mn-post", name: "agency-canonical-id" },
+      metadata: {
+        namespace: "com/site/my/mnitservices/post-license-search",
+        name: "agency-canonical-id",
+      },
       spec: {
         id: "agency-canonical-id",
         name: "Minnesota State Patrol",
@@ -245,21 +248,59 @@ describe("DataContext", () => {
     const context = agencyFacadeContext();
     const agency = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "mn-state-patrol",
     });
     agency.merge({ name: "Minnesota State Patrol", state: "MN" });
 
     await expect(agency.toMutation()).rejects.toThrow(
-      /Cannot resolve Agency\.city for source mn-post\/mn-state-patrol/,
+      /Cannot resolve Agency\.city for source com\/site\/my\/mnitservices\/post-license-search\/mn-state-patrol/,
     );
   });
+
+  test.each([
+    ["Example Co. Sheriff's Office", "Example County Sheriff's Office"],
+    ["Example Co. Sheriffs Office", "Example County Sheriffs Office"],
+    ["Example Police Dept.", "Example Police Department"],
+    ["Example Dept. Police Dept.", "Example Dept. Police Department"],
+  ])(
+    "expands the imported agency name %s while preserving its canonical identity and slug",
+    async (sourceName, expandedName) => {
+      const stored = {
+        id: "agency-canonical-id",
+        ...resolvedAgencySpec,
+        name: sourceName,
+        slug: "example-co-sheriffs-office",
+      };
+      const context = agencyFacadeContext({ databaseAgencies: [stored] });
+      const agency = context.facadeFromSource("Agency", {
+        apiVersion: INTAKE_API_VERSION,
+        namespace: "com/site/my/mnitservices/post-license-search",
+        name: "mn-state-patrol",
+      });
+      agency.merge({ ...resolvedAgencySpec, name: stored.name });
+      expect(await agency.value("id")).toBe(stored.id);
+      expect(await agency.value("slug")).toBe(stored.slug);
+      const mutation = await agency.toMutation();
+      expect(mutation.kind).toBe("AgencyUpdate");
+      const operations = mutation.spec.operations;
+      if (!Array.isArray(operations)) throw Error("Expected update operations");
+      expect(operations.filter((op) => op.action === "set")).toMatchObject([
+        {
+          action: "set",
+          path: "name",
+          from: stored.name,
+          to: expandedName,
+        },
+      ]);
+    },
+  );
 
   test("AgencyCreate rejects a spec missing a required field", async () => {
     const context = agencyFacadeContext();
     const agency = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "mn-state-patrol",
     });
     // Every resolvable field is present, but the required `name` is absent. Its
@@ -279,7 +320,7 @@ describe("DataContext", () => {
     });
     const agency = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "mn-state-patrol",
     });
     agency.merge({
@@ -290,7 +331,10 @@ describe("DataContext", () => {
 
     expect(await agency.toMutation()).toMatchObject({
       kind: "AgencyUpdate",
-      metadata: { namespace: "mn-post", name: "agency-canonical-id" },
+      metadata: {
+        namespace: "com/site/my/mnitservices/post-license-search",
+        name: "agency-canonical-id",
+      },
       spec: {
         operations: expect.arrayContaining([
           expect.objectContaining({
@@ -324,7 +368,7 @@ describe("DataContext", () => {
     });
     const agency = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "mn-state-patrol",
     });
     agency.merge({ ...resolvedAgencySpec, contact_name: null });
@@ -351,14 +395,14 @@ describe("DataContext", () => {
 
     const first = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "mn-state-patrol",
     });
     first.merge({ name: "Minnesota State Patrol" });
 
     const second = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "mn-state-patrol",
     });
 
@@ -382,7 +426,7 @@ describe("DataContext", () => {
 
     const agency = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "mn-state-patrol",
     });
     agency.merge({
@@ -402,7 +446,10 @@ describe("DataContext", () => {
     expect(await context.toMutations()).toMatchObject([
       {
         kind: "AgencyCreate",
-        metadata: { namespace: "mn-post", name: "agency-canonical-id" },
+        metadata: {
+          namespace: "com/site/my/mnitservices/post-license-search",
+          name: "agency-canonical-id",
+        },
         spec: { id: "agency-canonical-id" },
       },
     ]);
@@ -424,7 +471,7 @@ describe("DataContext", () => {
 
     const agency = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "mn-state-patrol",
     });
     agency.merge({
@@ -443,14 +490,14 @@ describe("DataContext", () => {
 
     expect(
       await context.toDatabaseMutations({
-        namespace: "mn-post",
+        namespace: "com/site/my/mnitservices/post-license-search",
         name: "command-name",
         sourceArtifactsName: "source-artifacts-name",
       }),
     ).toMatchObject({
       kind: "DatabaseMutations",
       metadata: {
-        namespace: "mn-post",
+        namespace: "com/site/my/mnitservices/post-license-search",
         name: "command-name",
         sourceArtifactsName: "source-artifacts-name",
       },
@@ -488,7 +535,7 @@ describe("DataContext", () => {
     // Missing provenance is a real row change even when the source values match.
     context.facadeFromSource("LocationPath", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: existingLocationPath.path,
       current: {
         location_path_id: existingLocationPath.location_path_id,
@@ -507,7 +554,7 @@ describe("DataContext", () => {
 
     expect(
       await context.toDatabaseMutations({
-        namespace: "mn-post",
+        namespace: "com/site/my/mnitservices/post-license-search",
         name: "command-name",
       }),
     ).toMatchObject({
@@ -536,7 +583,7 @@ describe("DataContext", () => {
 
     const agency = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "mn-state-patrol",
     });
     agency.merge({
@@ -548,7 +595,10 @@ describe("DataContext", () => {
     expect(await context.toMutations()).toMatchObject([
       {
         kind: "AgencyUpdate",
-        metadata: { namespace: "mn-post", name: "agency-canonical-id" },
+        metadata: {
+          namespace: "com/site/my/mnitservices/post-license-search",
+          name: "agency-canonical-id",
+        },
         spec: {
           operations: expect.arrayContaining([
             expect.objectContaining({ action: "check", path: "name" }),
@@ -576,7 +626,7 @@ describe("DataContext", () => {
 
     const agency = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "mn-state-patrol",
     });
     agency.merge({ ...resolvedAgencySpec });
@@ -588,7 +638,7 @@ describe("DataContext", () => {
 
     // ...but the emitted plan drops it, leaving an empty (no-op) plan.
     const envelope = await context.toDatabaseMutations({
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "command-name",
     });
     expect(envelope.spec.mutations).not.toContainEqual(
@@ -604,7 +654,7 @@ describe("DataContext", () => {
 
     const agency = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "mn-state-patrol",
     });
     agency.merge({
@@ -614,7 +664,7 @@ describe("DataContext", () => {
     });
 
     const envelope = await context.toDatabaseMutations({
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "command-name",
     });
     expect(envelope.spec.mutations).toContainEqual(
@@ -657,7 +707,7 @@ describe("DataContext", () => {
 
     const agency = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "mn-state-patrol",
     });
     // No location_path_id supplied — the composition resolver derives it.
@@ -690,29 +740,33 @@ describe("DataContext", () => {
 
     const seeded = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "seeded",
     });
     await expect(seeded.value("id")).resolves.toBe("seeded-agency-id");
 
     const minted = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "new-agency",
     });
     const mintedId = await minted.value("id");
     expect(mintedId).not.toBe("seeded-agency-id");
     expect(mintedId).toMatch(/^[0-9a-z]+$/);
-    await expect(ledger.read("mn-post", "Agency", "new-agency")).resolves.toBe(
-      mintedId,
-    );
+    await expect(
+      ledger.read(
+        "com/site/my/mnitservices/post-license-search",
+        "Agency",
+        "new-agency",
+      ),
+    ).resolves.toBe(mintedId);
   });
 
   test("AgencyFacade generates a slug from the name when none is supplied", async () => {
     const context = agencyFacadeContext();
     const agency = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "mn-state-patrol",
     });
     const { slug: _slug, ...withoutSlug } = resolvedAgencySpec;
@@ -727,7 +781,7 @@ describe("DataContext", () => {
     const context = agencyFacadeContext();
     const agency = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "mn-state-patrol",
     });
     agency.merge({ name: "Verndale Police Dept.", state: "MN" });
@@ -748,7 +802,7 @@ describe("DataContext", () => {
     // Find: an id already in the SourceNameToCanonicalId ledger is reused.
     const seeded = context.facadeFromSource("LicensingAuthority", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "tcole",
       spec: {
         name: "Texas Commission on Law Enforcement",
@@ -761,7 +815,7 @@ describe("DataContext", () => {
     // the ledger (find-or-create).
     const minted = context.facadeFromSource("LicensingAuthority", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "unseeded-authority",
       spec: { name: "New Authority", location_path_id: "tx" },
     });
@@ -769,7 +823,11 @@ describe("DataContext", () => {
     expect(mintedId).not.toBe("authority-canonical-id");
     expect(mintedId).toMatch(/^[0-9a-z]+$/);
     await expect(
-      ledger.read("gov.tx.tcole", "LicensingAuthority", "unseeded-authority"),
+      ledger.read(
+        "gov/texas/tcole",
+        "LicensingAuthority",
+        "unseeded-authority",
+      ),
     ).resolves.toBe(mintedId);
   });
 
@@ -786,7 +844,7 @@ describe("DataContext", () => {
 
     const facade = context.facadeFromSource("LicensingAuthority", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "tcole",
       spec: {
         name: "Texas Commission on Law Enforcement",
@@ -798,7 +856,7 @@ describe("DataContext", () => {
     // Persisted to disk by the resolver alone — a fresh accessor returns it.
     const reloaded = createSourceNameToCanonicalIdLedger({ rootDir });
     await expect(
-      reloaded.read("gov.tx.tcole", "LicensingAuthority", "tcole"),
+      reloaded.read("gov/texas/tcole", "LicensingAuthority", "tcole"),
     ).resolves.toBe(mintedId);
   });
 
@@ -829,7 +887,7 @@ describe("DataContext", () => {
 
     const facade = context.facadeFromSource("LicensingAuthority", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "tcole",
       // No input.current — the facade auto-loads it from the database map.
       spec: {
@@ -842,7 +900,10 @@ describe("DataContext", () => {
 
     expect(await facade.toMutation()).toMatchObject({
       kind: "LicensingAuthorityUpdate",
-      metadata: { namespace: "gov.tx.tcole", name: "authority-canonical-id" },
+      metadata: {
+        namespace: "gov/texas/tcole",
+        name: "authority-canonical-id",
+      },
       spec: {
         operations: [
           { action: "check", path: "name" },
@@ -874,7 +935,7 @@ describe("DataContext", () => {
     );
     context.facadeFromSource("LicensingAuthority", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "tcole",
       spec: {
         name: "Texas Commission on Law Enforcement",
@@ -886,7 +947,7 @@ describe("DataContext", () => {
     });
 
     const envelope = await context.toDatabaseMutations({
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "command-name",
     });
 
@@ -920,7 +981,7 @@ describe("DataContext", () => {
     );
     const facade = context.facadeFromSource("LicensingAuthority", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "tcole",
       current: {
         id: "authority-canonical-id",
@@ -939,7 +1000,10 @@ describe("DataContext", () => {
 
     expect(await facade.toMutation()).toMatchObject({
       kind: "LicensingAuthorityUpdate",
-      metadata: { namespace: "gov.tx.tcole", name: "authority-canonical-id" },
+      metadata: {
+        namespace: "gov/texas/tcole",
+        name: "authority-canonical-id",
+      },
       spec: {
         operations: [
           { action: "check", path: "name" },
@@ -971,13 +1035,13 @@ describe("DataContext", () => {
     );
     const facade = context.facadeFromSource("LicensingAuthority", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "other",
       spec: { name: "Unknown Authority", location_path_id: "zz" },
     });
 
     await expect(facade.toMutation()).rejects.toThrow(
-      /references LocationPath "\/zz\/", which does not exist in namespace gov\.tx\.tcole/,
+      /references LocationPath "\/zz\/", which does not exist in namespace gov\/texas\/tcole/,
     );
   });
 
@@ -1028,13 +1092,13 @@ describe("DataContext", () => {
     // them, and the License before the LicenseAction that finds it.
     context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "1000038",
       spec: { first_name: "Marc", last_name: "Denney" },
     });
     context.facadeFromSource("LicensingAuthority", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "tcole",
       spec: {
         name: "Texas Commission on Law Enforcement",
@@ -1043,13 +1107,13 @@ describe("DataContext", () => {
     });
     context.facadeFromSource("AuthorityLicense", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "tcole|Peace Officer",
       spec: { licensing_authority_id: "tcole", name: "Peace Officer" },
     });
     context.facadeFromSource("License", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "1000038|Peace Officer",
       spec: {
         personnel_id: "1000038",
@@ -1071,7 +1135,7 @@ describe("DataContext", () => {
       registerLicenseCluster(context);
       const source = {
         apiVersion: INTAKE_API_VERSION,
-        namespace: "gov.tx.tcole",
+        namespace: "gov/texas/tcole",
       } as const;
       const type = context.facadeFromSource("AuthorityLicense", {
         ...source,
@@ -1105,7 +1169,7 @@ describe("DataContext", () => {
     registerLicenseCluster(context);
     const facade = context.facadeFromSource("License", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "1000038|Peace Officer",
     });
 
@@ -1113,7 +1177,7 @@ describe("DataContext", () => {
     expect(mintedId).toMatch(/^[a-z0-9]{20,}$/); // a freshly minted cuid, not a source key
     expect(await facade.toMutation()).toMatchObject({
       kind: "LicenseCreate",
-      metadata: { namespace: "gov.tx.tcole", name: mintedId },
+      metadata: { namespace: "gov/texas/tcole", name: mintedId },
       spec: {
         id: mintedId,
         personnel_id: "personnel-canonical-id",
@@ -1142,14 +1206,14 @@ describe("DataContext", () => {
     registerLicenseCluster(context);
     const facade = context.facadeFromSource("License", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "1000038|Peace Officer",
     });
 
     expect(await facade.toMutation()).toMatchObject({
       kind: "LicenseUpdate",
       metadata: {
-        namespace: "gov.tx.tcole",
+        namespace: "gov/texas/tcole",
         name: "license-canonical-id",
       },
       spec: {
@@ -1184,7 +1248,7 @@ describe("DataContext", () => {
     // whole resolution chain misses and fails loud.
     context.facadeFromSource("LicensingAuthority", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "tcole",
       spec: {
         name: "Texas Commission on Law Enforcement",
@@ -1193,7 +1257,7 @@ describe("DataContext", () => {
     });
     const facade = context.facadeFromSource("License", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "9999999|Peace Officer",
       spec: {
         personnel_id: "9999999",
@@ -1217,7 +1281,7 @@ describe("DataContext", () => {
     registerLicenseCluster(context);
     const facade = context.facadeFromSource("License", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "1000038|Peace Officer",
     });
 
@@ -1250,7 +1314,7 @@ describe("DataContext", () => {
     registerLicenseCluster(context);
     const facade = context.facadeFromSource("LicenseAction", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "1000038|Peace Officer|Issued|1994-06-16",
       spec: {
         license_id: "1000038|Peace Officer",
@@ -1263,7 +1327,7 @@ describe("DataContext", () => {
     expect(await facade.toMutation()).toMatchObject({
       kind: "LicenseActionCreate",
       metadata: {
-        namespace: "gov.tx.tcole",
+        namespace: "gov/texas/tcole",
         name: "license-action-canonical-id",
       },
       spec: {
@@ -1287,7 +1351,7 @@ describe("DataContext", () => {
     // The referenced License facade is never registered.
     const facade = context.facadeFromSource("LicenseAction", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "1000038|Peace Officer|Issued|1994-06-16",
       spec: {
         license_id: "1000038|Peace Officer",
@@ -1346,14 +1410,17 @@ describe("PersonnelFacade", () => {
     });
     const facade = context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "1000038",
       spec: { first_name: "Marc", last_name: "Denney" },
     });
 
     expect(await facade.toMutation()).toMatchObject({
       kind: "PersonnelCreate",
-      metadata: { namespace: "gov.tx.tcole", name: "personnel-canonical-id" },
+      metadata: {
+        namespace: "gov/texas/tcole",
+        name: "personnel-canonical-id",
+      },
       spec: {
         id: "personnel-canonical-id",
         first_name: "Marc",
@@ -1368,7 +1435,7 @@ describe("PersonnelFacade", () => {
     const context = personnelContext({ ledger });
     const facade = context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "new-officer-source",
       spec: { first_name: "New", last_name: "Officer" },
     });
@@ -1380,7 +1447,7 @@ describe("PersonnelFacade", () => {
     expect(await facade.value("id")).toBe(mintedId);
     // The mint is durably persisted to the ledger under the source id.
     await expect(
-      ledger.read("gov.tx.tcole", "Personnel", "new-officer-source"),
+      ledger.read("gov/texas/tcole", "Personnel", "new-officer-source"),
     ).resolves.toBe(mintedId);
   });
 
@@ -1416,14 +1483,14 @@ describe("PersonnelFacade", () => {
     ] as const) {
       context.facadeFromSource("Personnel", {
         apiVersion: INTAKE_API_VERSION,
-        namespace: "gov.tx.tcole",
+        namespace: "gov/texas/tcole",
         name,
         spec: { first_name: firstName, last_name: "Officer" },
       });
     }
 
     await context.toDatabaseMutations({
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "command-name",
       sourceArtifactsName: "source-artifacts-name",
     });
@@ -1454,19 +1521,19 @@ describe("PersonnelFacade", () => {
     // create first.
     context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "1000001",
       spec: { first_name: "New", last_name: "Name" },
     });
     context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "1000002",
       spec: { first_name: "Fresh", last_name: "Officer" },
     });
 
     const envelope = await context.toDatabaseMutations({
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "command-name",
       sourceArtifactsName: "source-artifacts-name",
     });
@@ -1484,7 +1551,7 @@ describe("PersonnelFacade", () => {
     });
     const facade = context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "1000038",
       spec: { first_name: "Marc", last_name: "Denney", slug: "custom-slug" },
     });
@@ -1512,7 +1579,7 @@ describe("PersonnelFacade", () => {
     });
     const facade = context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "1000038",
       // A corrected first name must not change the slug.
       spec: { first_name: "Marcus", last_name: "Denney" },
@@ -1549,13 +1616,13 @@ describe("PersonnelFacade", () => {
     });
     const first = context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "p1",
       spec: { first_name: "John", last_name: "Doe" },
     });
     const second = context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "p2",
       spec: { first_name: "John", last_name: "Doe" },
     });
@@ -1587,7 +1654,7 @@ describe("PersonnelFacade", () => {
     });
     const facade = context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "1000038",
       spec: { first_name: "Marc", last_name: "Denney" },
     });
@@ -1632,24 +1699,24 @@ describe("AgencyPersonnelFacade", () => {
   function registerForeignKeyTargets(context: DataContext): void {
     context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "agency-source",
     });
     context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "personnel-source",
       spec: { first_name: "Marc", last_name: "Denney" },
     });
     context.facadeFromSource("AuthorityLicense", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "mn-post|Peace Officer",
       spec: { licensing_authority_id: "mn-post", name: "Peace Officer" },
     });
     context.facadeFromSource("License", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "license-source",
       spec: {
         personnel_id: "personnel-source",
@@ -1693,7 +1760,7 @@ describe("AgencyPersonnelFacade", () => {
     registerForeignKeyTargets(context);
     const facade = context.facadeFromSource("AgencyPersonnel", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "ap-source",
       spec: {
         agency_id: "agency-source",
@@ -1708,7 +1775,10 @@ describe("AgencyPersonnelFacade", () => {
 
     expect(await facade.toMutation()).toMatchObject({
       kind: "AgencyPersonnelCreate",
-      metadata: { namespace: "mn-post", name: "agency-personnel-canonical-id" },
+      metadata: {
+        namespace: "com/site/my/mnitservices/post-license-search",
+        name: "agency-personnel-canonical-id",
+      },
       spec: {
         agency_id: "agency-canonical-id",
         personnel_id: "personnel-canonical-id",
@@ -1726,7 +1796,7 @@ describe("AgencyPersonnelFacade", () => {
     registerForeignKeyTargets(context);
     const facade = context.facadeFromSource("AgencyPersonnel", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "ap-source",
       spec: {
         agency_id: "agency-source",
@@ -1768,7 +1838,7 @@ describe("AgencyPersonnelFacade", () => {
     registerForeignKeyTargets(context);
     const facade = context.facadeFromSource("AgencyPersonnel", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "ap-source",
       canonicalId: "agency-personnel-canonical-id",
       spec: {
@@ -1808,13 +1878,13 @@ describe("AgencyPersonnelFacade", () => {
     // agency in neither the run nor the ledger, so every chain link misses.
     context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "personnel-source",
       spec: { first_name: "Marc", last_name: "Denney" },
     });
     const facade = context.facadeFromSource("AgencyPersonnel", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "ap-source",
       spec: {
         agency_id: "missing-agency",
@@ -2044,13 +2114,13 @@ describe("Census substrate facades", () => {
 
     context.facadeFromSource("Personnel", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "0031",
       spec: { first_name: "Officer" },
     });
     context.facadeFromSource("LicensingAuthority", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "mn-post",
       spec: { name: "Minnesota POST", location_path_id: "mn" },
     });
@@ -2058,7 +2128,7 @@ describe("Census substrate facades", () => {
     // Register the assignment so the attribution's agency_personnel_id FK resolves.
     context.facadeFromSource("AgencyPersonnel", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "0031|a2jALPHA",
       spec: {
         agency_id: "a2jALPHA",
@@ -2070,7 +2140,7 @@ describe("Census substrate facades", () => {
 
     const discipline = context.facadeFromSource("Discipline", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "0031|PB24-1-01",
       spec: {
         personnel_id: "0031",
@@ -2083,7 +2153,7 @@ describe("Census substrate facades", () => {
     });
     const attribution = context.facadeFromSource("DisciplineAgencyPersonnel", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       name: "0031|PB24-1-01|a2jALPHA",
       spec: {
         discipline_id: "0031|PB24-1-01",
@@ -2159,7 +2229,7 @@ describe("CivilCase cross-source convergence (ADR 0028)", () => {
     });
   }
 
-  test.each(["courtlistener", "clearinghouse-api"])(
+  test.each(["com/courtlistener/www/api", "net/clearinghouse/api"])(
     "%s preserves a mapped production case ID, slug and dependent references after reset",
     async (namespace) => {
       const rootDir = await mkdtemp(path.join(os.tmpdir(), "case-identity-"));
@@ -2217,7 +2287,9 @@ describe("CivilCase cross-source convergence (ADR 0028)", () => {
           title: "Docket",
         });
       const otherNamespace =
-        namespace === "courtlistener" ? "clearinghouse-api" : "courtlistener";
+        namespace === "com/courtlistener/www/api"
+          ? "net/clearinghouse/api"
+          : "com/courtlistener/www/api";
       await SourceNameToCanonicalId.write(
         path.join(
           resolveSourceNameToCanonicalIdPath(otherNamespace, { rootDir }),
@@ -2279,14 +2351,14 @@ describe("CivilCase cross-source convergence (ADR 0028)", () => {
     const context = civilCaseContext();
     const civilCase = context.facadeFromSource("CivilCase", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "clearinghouse-api",
+      namespace: "net/clearinghouse/api",
       name: caseId,
     });
     civilCase.merge(civilCaseSpec);
     expect(await context.toMutations()).toMatchObject([
       {
         kind: "CivilCaseCreate",
-        metadata: { namespace: "clearinghouse-api", name: caseId },
+        metadata: { namespace: "net/clearinghouse/api", name: caseId },
         spec: { id: caseId, cause_number: "3:23-cv-001" },
       },
     ]);
@@ -2298,14 +2370,14 @@ describe("CivilCase cross-source convergence (ADR 0028)", () => {
     const context = civilCaseContext([resolvedRow]);
     const civilCase = context.facadeFromSource("CivilCase", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "courtlistener",
+      namespace: "com/courtlistener/www/api",
       name: caseId,
     });
     civilCase.merge({ ...civilCaseSpec, claims_summary: "Updated summary." });
     expect(await context.toMutations()).toMatchObject([
       {
         kind: "CivilCaseUpdate",
-        metadata: { namespace: "courtlistener", name: caseId },
+        metadata: { namespace: "com/courtlistener/www/api", name: caseId },
         spec: {
           operations: expect.arrayContaining([
             expect.objectContaining({
@@ -2445,7 +2517,7 @@ describe("durable business-key identities", () => {
 
 test("ReviewPersonnel preserves a mapped historical identity and its resolved references", async () => {
   const rootDir = await mkdtemp(path.join(os.tmpdir(), "manual-review-link-"));
-  const namespace = "org.policeconduct.manual";
+  const namespace = "org/policeconduct/manual";
   for (const [kind, name, canonicalId] of [
     ["ReviewPersonnel", "legacy-link", "original-link-id"],
     ["AgencyPersonnel", "assignment", "original-assignment-id"],

@@ -1,14 +1,14 @@
-import { ORDER_ANALYSIS_PROMPT_SHA256 } from "../../sources/mn-post/acquire/order-prompt.js";
+import { ORDER_ANALYSIS_PROMPT_SHA256 } from "../../sources/com/site/my/mnitservices/post-license-search/acquire/order-prompt.js";
 import { createHash } from "node:crypto";
 import { stringify as stringifyYaml, parse as parseYaml } from "yaml";
-import { documentStem } from "../../sources/mn-post/acquire/collect-documents.js";
+import { documentStem } from "../../sources/com/site/my/mnitservices/post-license-search/acquire/collect-documents.js";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { artifactStem } from "../../sources/mn-post/acquire/collect.js";
-import { transform } from "../../sources/mn-post/transform.js";
+import { artifactStem } from "../../sources/com/site/my/mnitservices/post-license-search/acquire/collect.js";
+import { transform } from "../../sources/com/site/my/mnitservices/post-license-search/transform.js";
 import {
   AgencySpec,
   PersonnelSpec,
@@ -24,7 +24,7 @@ import {
   type SourceManifest,
 } from "../../src/cli/transform/source-transform.js";
 
-// The mn-post source reads its inputs from files under the source folder (an
+// The com/site/my/mnitservices/post-license-search source reads its inputs from files under the source folder (an
 // `agency-ids.yaml` name→id map, an `agencies.csv` address list, and one raw
 // `*.roster.json` officer list per agency), so the fixture writes those files to
 // a temp dir and drives `transform()` with their paths. Two agencies: "Alpha Police
@@ -286,7 +286,7 @@ function recordsOf(manifest: SourceManifest, kind: string) {
   return manifest.artifacts.find((a) => a.kind === kind)!.records;
 }
 
-describe("mn-post document completion", () => {
+describe("com/site/my/mnitservices/post-license-search document completion", () => {
   it.each(["matching", "analysis conflict", "PDF conflict"])(
     "checks retained same-URL evidence (%s) when an earlier case is acquired",
     async (mode) => {
@@ -316,7 +316,7 @@ describe("mn-post document completion", () => {
           JSON.stringify(old),
         );
         const { collectDocuments } =
-          await import("../../sources/mn-post/acquire/collect-documents.js");
+          await import("../../sources/com/site/my/mnitservices/post-license-search/acquire/collect-documents.js");
         const deps = {
           sourceDir: dir,
           statePath: path.join(dir, "cache"),
@@ -483,7 +483,7 @@ describe("mn-post document completion", () => {
   });
 });
 
-describe("mn-post run", () => {
+describe("com/site/my/mnitservices/post-license-search run", () => {
   it("rejects referenced documents without completed analysis or an unavailable result", async () => {
     const paths = (await readdir(sourceDir))
       .filter((f) => !f.endsWith(".document.json"))
@@ -592,7 +592,11 @@ describe("mn-post run", () => {
           Object.keys(recordsOf(manifest, "AgencyPersonnel")).sort(),
         ).toEqual(["a2m31ALPHA", "a2m31BETA", "a2m32ALPHA", "a2m99ALPHA"]);
         const validate = () =>
-          buildArtifactsEnvelope("mn-post", "zip-format", manifest);
+          buildArtifactsEnvelope(
+            "com/site/my/mnitservices/post-license-search",
+            "zip-format",
+            manifest,
+          );
         if (valid) {
           expect(validate).not.toThrow();
         } else {
@@ -625,7 +629,7 @@ describe("mn-post run", () => {
     }
   });
 
-  it("emits one AuthorityLicense per license type, issued by mn-post", async () => {
+  it("emits one AuthorityLicense per license type, issued by com/site/my/mnitservices/post-license-search", async () => {
     const authorityLicenses = recordsOf(
       await runFixture(),
       "AuthorityLicenses",
@@ -884,7 +888,7 @@ describe("mn-post run", () => {
   });
 });
 
-describe("mn-post run — unmapped agencies", () => {
+describe("com/site/my/mnitservices/post-license-search run — unmapped agencies", () => {
   async function runWith(
     files: Record<string, string>,
   ): Promise<SourceManifest> {
@@ -936,7 +940,7 @@ describe("mn-post run — unmapped agencies", () => {
   });
 });
 
-describe("mn-post personnel details", () => {
+describe("com/site/my/mnitservices/post-license-search personnel details", () => {
   const course = {
     courseId: "course-1",
     contactId: "0031",
@@ -1268,7 +1272,7 @@ describe("mn-post personnel details", () => {
   });
 });
 
-describe("mn-post discipline workbook personnel", () => {
+describe("com/site/my/mnitservices/post-license-search discipline workbook personnel", () => {
   const officer = {
     contactId: "revoked-person",
     licenseId: "revoked-license",
@@ -1393,8 +1397,11 @@ describe("mn-post discipline workbook personnel", () => {
       "second-person",
     ]);
     expect(
-      buildArtifactsEnvelope("mn-post", "roots", result).spec
-        .personnelSourceNames,
+      buildArtifactsEnvelope(
+        "com/site/my/mnitservices/post-license-search",
+        "roots",
+        result,
+      ).spec.personnelSourceNames,
     ).toEqual(result.personnelSourceNames);
   });
   it("rejects conflicting person content for an existing contact", async () => {
@@ -1510,7 +1517,7 @@ describe("mn-post discipline workbook personnel", () => {
   });
 });
 
-describe("mn-post confirmed detail request identity", () => {
+describe("com/site/my/mnitservices/post-license-search confirmed detail request identity", () => {
   async function runDetail(filename: string, returnedContact?: string) {
     const dir = await mkdtemp(path.join(tmpdir(), "mn-post-detail-identity-"));
     const officer = {

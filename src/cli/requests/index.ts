@@ -1,8 +1,7 @@
 import path from "node:path";
-import { pathToFileURL } from "node:url";
 import { readFile } from "node:fs/promises";
 import type { RegisterCliCommand } from "../../shared/cli/types.js";
-import { describeSources } from "../describe-sources.js";
+import { discoverSources } from "../source-discovery.js";
 import {
   RequestStore,
   requestDefinitionSchema,
@@ -24,27 +23,20 @@ function required(name: string) {
 }
 async function loadSources(source?: string) {
   const root = path.join(process.cwd(), "sources");
-  const catalog = (await describeSources(root)).filter(
+  const catalog = (await discoverSources(root)).filter(
     (entry) =>
       entry.phases.includes("request") && (!source || entry.id === source),
   );
   if (source && !catalog.length)
     throw new Error(`No request source: ${source}`);
-  return Promise.all(
-    catalog.map(async (entry) => {
-      const module = await import(
-        pathToFileURL(path.join(root, entry.id, "request.ts")).href
-      );
-      return {
-        id: entry.id,
-        definition: requestDefinitionSchema.parse(module.request),
-        portalForm:
-          module.portalForm === undefined
-            ? undefined
-            : portalFormSchema.parse(module.portalForm),
-      };
-    }),
-  );
+  return catalog.map(({ id, source: module }) => ({
+    id,
+    definition: requestDefinitionSchema.parse(module.request),
+    portalForm:
+      module.portalForm === undefined
+        ? undefined
+        : portalFormSchema.parse(module.portalForm),
+  }));
 }
 export const registerCliCommand: RegisterCliCommand = (
   program,

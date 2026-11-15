@@ -2,6 +2,8 @@ import {
   Resolver,
   valueAsString,
   type ResolverContext,
+  type CanonicalIdBackend,
+  type BusinessKeyIdBackend,
 } from "../resolver-kit.js";
 
 type Row = Record<string, unknown>;
@@ -48,12 +50,26 @@ export function normalizeCoverageUrl(rawUrl: string): string {
   return `https://${host}${path}${query === "" ? "" : `?${query}`}`;
 }
 
-/** CoverageLink identity: the normalized `url` (ADR 0028); no mint. */
+/** Imported source mappings survive preferred URL changes. Other coverage uses its normalized URL. */
 export function coverageLinkIdResolver(): Resolver<
   string,
-  ResolverContext<Row, unknown>
+  ResolverContext<Row, CanonicalIdBackend & BusinessKeyIdBackend>
 > {
-  return new Resolver(async ({ facade, source }) => {
+  return new Resolver(async ({ facade, source, backend }) => {
+    if (facade.raw("source_namespace") != null) {
+      const key = {
+        namespace: source.namespace,
+        kind: "CoverageLink",
+        sourceId: source.name,
+      };
+      return backend.findOrCreateCanonicalId({
+        ...key,
+        resolve: async () =>
+          (await backend.findIdByBusinessKey({
+            normalized_url: String(facade.raw("normalized_url")),
+          })) ?? backend.mintId(),
+      });
+    }
     const url = valueAsString(facade.raw("url"));
     if (url === undefined) {
       throw new Error(

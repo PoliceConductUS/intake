@@ -6,13 +6,11 @@ import { importArtifacts } from "./completed-artifacts.js";
 import { Artifacts } from "../../src/shared/io/Artifacts.js";
 import { persistSourceNameToCanonicalIds } from "../../src/cli/state/source-name-to-canonical-id/index.js";
 import {
-  dockerAvailable,
   startIntakeDatabase,
   type IntakeDatabase,
 } from "../cli/database/intake-postgres.js";
 
-const describeWithDocker = dockerAvailable() ? describe : describe.skip;
-describeWithDocker("shared agency selection in the import pipeline", () => {
+describe("shared agency selection in the import pipeline", () => {
   let db: IntakeDatabase;
   const roots: string[] = [];
   beforeAll(async () => {

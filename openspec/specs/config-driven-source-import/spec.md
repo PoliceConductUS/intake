@@ -17,8 +17,8 @@ delegate those to the existing pipeline.
 
 #### Scenario: Operator runs a configured source against a saved snapshot
 
-- **WHEN** an operator runs `intake run gov.azpost.roster ./Officer-List.xlsx`
-- **THEN** intake loads `sources/gov.azpost.roster/config.ts`, invokes its `run`, and
+- **WHEN** an operator runs `intake run gov/az/post/roster ./Officer-List.xlsx`
+- **THEN** intake loads `sources/gov/az/post/roster/config.ts`, invokes its `run`, and
   hands the returned `Artifacts` manifest to the existing import pipeline, which assigns
   canonical ids and applies `DatabaseMutations`
 
@@ -229,7 +229,7 @@ The command SHALL report the saved file and the transform and generate commands 
 
 #### Scenario: Exclude the Alabama placeholder
 
-- **WHEN** the operator excludes `gov.tx.tcole Agency 515001` with a reason
+- **WHEN** the operator excludes `gov/texas/tcole Agency 515001` with a reason
 - **THEN** the source exclusion list contains that identity and reason
 - **AND** the next transform excludes the agency and dependent assignments while retaining independent personnel
 - **AND** the exclusion remains effective on subsequent transforms and resets

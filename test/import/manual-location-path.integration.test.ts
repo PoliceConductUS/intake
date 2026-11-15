@@ -9,14 +9,13 @@ import {
   expect,
   test,
 } from "vitest";
-import { acquire } from "../../sources/org.policeconduct.manual/acquire.js";
-import { transform } from "../../sources/org.policeconduct.manual/transform.js";
+import { acquire } from "../../sources/org/policeconduct/manual/acquire.js";
+import { transform } from "../../sources/org/policeconduct/manual/transform.js";
 import { buildArtifactsEnvelope } from "../../src/cli/transform/source-transform.js";
 import { importArtifacts } from "./completed-artifacts.js";
 import { replayDatabaseMutations } from "../../src/cli/replay/database-mutations/config.js";
 import { Artifacts } from "../../src/shared/io/Artifacts.js";
 import {
-  dockerAvailable,
   startIntakeDatabase,
   type IntakeDatabase,
 } from "../cli/database/intake-postgres.js";
@@ -24,9 +23,7 @@ import {
 const placePath = "/tx/fannin-county/ivanhoe/";
 const countyPath = "/tx/fannin-county/";
 const aliasPath = "/tx/fannin-county/ivanhoe-community/";
-const describeWithDocker = dockerAvailable() ? describe : describe.skip;
-
-describeWithDocker("manual community creation and reconstruction", () => {
+describe("manual community creation and reconstruction", () => {
   let db: IntakeDatabase;
   let rootDir: string;
   const workspaces: string[] = [];
@@ -92,7 +89,7 @@ describeWithDocker("manual community creation and reconstruction", () => {
     return Artifacts.write(
       path.join(rootDir, "output"),
       buildArtifactsEnvelope(
-        "org.policeconduct.manual",
+        "org/policeconduct/manual",
         "manual-community",
         manifest,
       ),

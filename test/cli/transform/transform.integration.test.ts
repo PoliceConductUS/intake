@@ -28,22 +28,22 @@ describe("data transform / source ordering", () => {
   });
 
   it("excludes a disabled source (produces nothing) from the update order", async () => {
-    // gov.azpost.roster is disabled (produces is empty), so planSourceOrder drops
+    // gov/az/post/roster is disabled (produces is empty), so planSourceOrder drops
     // it — `data update` never transforms it. Re-enable and rewrite once it
-    // produces Agency + AgencyPersonnel (see gov.azpost.roster/transform.ts).
+    // produces Agency + AgencyPersonnel (see gov/az/post/roster/transform.ts).
     const order = await orderedSourceIds();
-    expect(order).not.toContain("gov.azpost.roster");
+    expect(order).not.toContain("gov/az/post/roster");
   });
 
   it("fails loud when a source has not been acquired", async () => {
-    // Fresh workspace: gov.tx.tcole has no acquire pointer, and there is no
+    // Fresh workspace: gov/texas/tcole has no acquire pointer, and there is no
     // <source-id>/source/ fallback — so transform must refuse rather than silently
     // find nothing.
-    const result = await runIntake(["data", "transform", "gov.tx.tcole"]);
+    const result = await runIntake(["data", "transform", "gov/texas/tcole"]);
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr ?? "").toMatch(
-      /gov\.tx\.tcole has no acquired input.*intake data acquire gov\.tx\.tcole/s,
+      /gov\/texas\/tcole has no acquired input.*intake data acquire gov\/texas\/tcole/s,
     );
   });
 });

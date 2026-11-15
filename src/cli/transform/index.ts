@@ -8,7 +8,11 @@ import { intakeWorkspace } from "../command-directory.js";
 import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
-import { Artifacts, loadExcludedRecords } from "../../shared/io/index.js";
+import {
+  Artifacts,
+  excludedRecordKey,
+  loadExcludedRecords,
+} from "../../shared/io/index.js";
 import type { ExcludedRecords } from "../../shared/io/index.js";
 import { createCommandDirectory } from "../command-directory.js";
 import type { CommandResult } from "../../shared/cli/types.js";
@@ -27,7 +31,12 @@ import type { ImportArtifactKind } from "../../shared/io/index.js";
 import { importTypeMetadata } from "../../shared/io/import-type-metadata.js";
 import { readXlsx } from "./read-xlsx.js";
 import { sourceStateDir } from "./state.js";
-import { excludeManifestRecords } from "./exclude-records.js";
+import {
+  excludeManifestRecords,
+  cascadeExcludedRecord,
+  filterManifestRecords,
+  selectActiveExcludedRecords,
+} from "./exclude-records.js";
 import { createEmitSink } from "./emit-sink.js";
 import type { EmitRefItem, EmitSink } from "./emit-sink.js";
 import { readCommandPointer } from "../state/command-pointer.js";
@@ -160,6 +169,8 @@ export async function transformSource(
       deps.env.INTAKE_WORKSPACE_TEST ?? deps.env.INTAKE_WORKSPACE;
     const workspace = await deps.makeWorkspace(deps.env);
     const sink = deps.createEmitSink(workspace, sourceId);
+    const streamedExclusions = new Set<string>();
+    const streamedKinds = new Set<ImportArtifactKind>();
     const databaseUrl = deps.env.DATABASE_URL;
     const dbClient =
       databaseUrl !== undefined && databaseUrl.trim().length > 0
@@ -183,7 +194,25 @@ export async function transformSource(
         paths,
         readXlsx: deps.readXlsx,
         state: deps.state,
-        emit: sink.emit,
+        emit: async (kind, key, spec) => {
+          await sink.emit(kind, key, spec);
+          const artifactKind = kind as ImportArtifactKind;
+          streamedKinds.add(artifactKind);
+          const identity = excludedRecordKey(
+            importTypeMetadata[artifactKind].recordKind,
+            key,
+          );
+          const configured = excludedRecords.get(identity);
+          if (configured === undefined) return;
+          const candidate: SourceManifest = {
+            artifacts: [{ kind: artifactKind, records: { [key]: { spec } } }],
+          };
+          const rule = selectActiveExcludedRecords(
+            candidate,
+            new Map([[identity, configured]]),
+          ).get(identity);
+          if (rule !== undefined) streamedExclusions.add(identity);
+        },
         env: deps.env,
         data,
         logger: deps.logger,
@@ -194,12 +223,71 @@ export async function transformSource(
     // Apply excluded.yaml at Artifacts generation (with FK cascade) so an
     // excluded record never enters the Artifacts — the import then sees a clean
     // envelope and needs no exclusion of its own.
-    const { manifest: filteredManifest, removed } = excludeManifestRecords(
-      attachExclusionEvidence(manifest, excludedRecords, sourceId),
+    const inlineExclusions = selectActiveExcludedRecords(
+      manifest,
       excludedRecords,
     );
-    for (const exclusion of excludedRecords.values()) {
+    const activeExclusions = new Map(
+      [...excludedRecords].filter(
+        ([identity]) =>
+          inlineExclusions.has(identity) || streamedExclusions.has(identity),
+      ),
+    );
+    const annotatedManifest = attachExclusionEvidence(
+      manifest,
+      activeExclusions,
+      sourceId,
+    );
+    const { removedKeys } = excludeManifestRecords(
+      annotatedManifest,
+      activeExclusions,
+    );
+    if (activeExclusions.size > 0) {
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for await (const record of sink.records()) {
+          if (
+            cascadeExcludedRecord(
+              record.kind,
+              record.key,
+              record.spec,
+              removedKeys,
+            )
+          )
+            changed = true;
+        }
+        for (const artifact of manifest.artifacts) {
+          for (const [key, record] of Object.entries(artifact.records)) {
+            if (
+              cascadeExcludedRecord(
+                artifact.kind,
+                key,
+                record.spec,
+                removedKeys,
+              )
+            )
+              changed = true;
+          }
+        }
+      }
+    }
+    const { manifest: filteredManifest, removed } = filterManifestRecords(
+      annotatedManifest,
+      removedKeys,
+    );
+    const digest = await deps.digest(paths);
+    const refItems = await sink.flush((kind, key) => {
+      const recordKind = importTypeMetadata[kind].recordKind;
+      if (!removedKeys.get(recordKind)?.has(key)) return true;
+      removed[recordKind] = (removed[recordKind] ?? 0) + 1;
+      return false;
+    });
+    for (const exclusion of activeExclusions.values()) {
       if (
+        streamedExclusions.has(
+          excludedRecordKey(exclusion.kind, exclusion.key),
+        ) ||
         manifest.artifacts.some(
           (artifact) =>
             importTypeMetadata[artifact.kind].recordKind === exclusion.kind &&
@@ -220,13 +308,12 @@ export async function transformSource(
           .join(", ")}`,
       );
     }
-    const digest = await deps.digest(paths);
-    const refItems = await sink.flush();
     // Emitted kinds (manifest + sink) must be declared: produces drives run
     // ordering (ADR 0021), so undeclared drift would mis-order consumers.
     const declared = new Set<string>(deps.produces);
     const emitted = new Set<string>([
       ...manifest.artifacts.map((artifact) => artifact.kind),
+      ...streamedKinds,
       ...refItems.map((item) => item.ref.kind),
     ]);
     const undeclared = [...emitted].filter((kind) => !declared.has(kind));

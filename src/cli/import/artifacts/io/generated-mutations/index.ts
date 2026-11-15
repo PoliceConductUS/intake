@@ -41,6 +41,12 @@ import { DisciplineUpdate } from "./DisciplineUpdate.js";
 import { DisciplineAgencyPersonnelCreate } from "./DisciplineAgencyPersonnelCreate.js";
 import { DisciplineAgencyPersonnelRead } from "./DisciplineAgencyPersonnelRead.js";
 import { DisciplineAgencyPersonnelUpdate } from "./DisciplineAgencyPersonnelUpdate.js";
+import { CoverageHomepageWindowCreate } from "./CoverageHomepageWindowCreate.js";
+import { CoverageHomepageWindowRead } from "./CoverageHomepageWindowRead.js";
+import { CoverageHomepageWindowUpdate } from "./CoverageHomepageWindowUpdate.js";
+import { CoverageHomepagePlacementCreate } from "./CoverageHomepagePlacementCreate.js";
+import { CoverageHomepagePlacementRead } from "./CoverageHomepagePlacementRead.js";
+import { CoverageHomepagePlacementUpdate } from "./CoverageHomepagePlacementUpdate.js";
 import { CoverageLinkCreate } from "./CoverageLinkCreate.js";
 import { CoverageLinkRead } from "./CoverageLinkRead.js";
 import { CoverageLinkUpdate } from "./CoverageLinkUpdate.js";
@@ -124,6 +130,12 @@ export const importMutationEnvelopeTypes = {
   DisciplineAgencyPersonnelCreate,
   DisciplineAgencyPersonnelRead,
   DisciplineAgencyPersonnelUpdate,
+  CoverageHomepageWindowCreate,
+  CoverageHomepageWindowRead,
+  CoverageHomepageWindowUpdate,
+  CoverageHomepagePlacementCreate,
+  CoverageHomepagePlacementRead,
+  CoverageHomepagePlacementUpdate,
   CoverageLinkCreate,
   CoverageLinkRead,
   CoverageLinkUpdate,
