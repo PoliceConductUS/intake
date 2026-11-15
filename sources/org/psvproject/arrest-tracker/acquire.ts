@@ -106,12 +106,13 @@ export const acquire: SourceAcquire = async ({ sourceDir, logger }) => {
     });
     if (!response.ok)
       throw new Error(`Spreadsheet download: ${year}: HTTP ${response.status}`);
-    const bytes = Buffer.from(await response.arrayBuffer());
+    const download = await response.arrayBuffer();
+    const rows = await readSpreadsheet(download);
+    const bytes = Buffer.from(download);
     const yearDir = path.join(sourceDir, String(year));
     await mkdir(yearDir, { recursive: true });
     const file = path.join(yearDir, "source.xlsx");
     await writeFile(file, bytes);
-    const rows = await readSpreadsheet(file);
     await writeFile(
       path.join(yearDir, "spreadsheet.json"),
       JSON.stringify(

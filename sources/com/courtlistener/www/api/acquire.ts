@@ -192,6 +192,10 @@ export const acquire: SourceAcquire = async ({
   await mkdir(sourceDir, { recursive: true });
   const apiLogPath = path.join(sourceDir, ".api-calls.jsonl");
   const fetchJson = async (url: string): Promise<Record<string, unknown>> => {
+    if (new URL(url).origin !== new URL(API).origin)
+      throw new Error(
+        "Refusing an authenticated request outside the API origin.",
+      );
     // Retry throttling (429) and transient server errors (5xx) with backoff so a
     // multi-thousand-agency run rides out CourtListener's rate limit unattended;
     // honor the Retry-After header when present, else exponential (capped).

@@ -52,6 +52,10 @@ export const acquire: SourceAcquire = async ({
   const apiLogPath = path.join(sourceDir, ".api-calls.jsonl");
 
   const fetchJson = async (url: string): Promise<Record<string, unknown>> => {
+    if (new URL(url).origin !== new URL(API).origin)
+      throw new Error(
+        "Refusing an authenticated request outside the API origin.",
+      );
     for (let attempt = 0; ; attempt += 1) {
       const response = await fetch(url, {
         headers: { Authorization: `Token ${token}` },

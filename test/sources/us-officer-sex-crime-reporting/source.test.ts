@@ -1,10 +1,14 @@
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import {
   readSpreadsheet,
   spreadsheets,
 } from "../../../sources/org/psvproject/arrest-tracker/spreadsheet.js";
-import { acquireArticles } from "../../../sources/org/psvproject/arrest-tracker/acquire.js";
-import { mkdir, mkdtemp, readFile } from "node:fs/promises";
+import {
+  acquire,
+  acquireArticles,
+} from "../../../sources/org/psvproject/arrest-tracker/acquire.js";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { openAsBlob } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
@@ -25,10 +29,35 @@ it("retains reporting when a page also has an article element for weather alerts
   ).toContain("John Smith");
 });
 
+it("rejects a non-workbook response before saving it as the annual source", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "officer-workbook-"));
+  const fetch = vi
+    .spyOn(globalThis, "fetch")
+    .mockResolvedValue(new Response("<html>Sign in</html>"));
+  try {
+    await expect(
+      acquire({
+        sourceDir: dir,
+        state: dir,
+        env: {},
+        data: { agencies: vi.fn() },
+      }),
+    ).rejects.toThrow();
+    expect(fetch).toHaveBeenCalledOnce();
+    await expect(
+      readFile(path.join(dir, String(spreadsheets[0].year), "source.xlsx")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  } finally {
+    fetch.mockRestore();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 it("preserves every named entry, investigation-only link, and actual hyperlink", async () => {
-  const rows = await readSpreadsheet(
+  const file = await openAsBlob(
     "sources/org/psvproject/arrest-tracker/2026-10-15.xlsx",
   );
+  const rows = await readSpreadsheet(await file.arrayBuffer());
   expect(rows).toHaveLength(354);
   expect(rows.filter((r) => r.name !== "")).toHaveLength(345);
   expect(rows.find((r) => r.row === 361)).toMatchObject({
