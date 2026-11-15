@@ -19,8 +19,7 @@ import type { CollectLogger, OfficerDetail } from "./collect.js";
 export type DocumentAction = { contactId: string; caseNumber: string };
 
 export type FetchedDocument =
-  | { kind: "pdf"; bytes: Buffer }
-  | { kind: "unavailable"; reason: string };
+  { kind: "pdf"; bytes: Buffer } | { kind: "unavailable"; reason: string };
 
 export type DocumentPage = {
   page: number;

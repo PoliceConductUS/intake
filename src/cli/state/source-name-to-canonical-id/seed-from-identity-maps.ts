@@ -20,9 +20,7 @@ async function readIdentityMap(
   filePath: string,
 ): Promise<Record<string, string>> {
   const parsed = parse(await readFile(filePath, "utf8")) as
-    | IdentityMapFile
-    | null
-    | undefined;
+    IdentityMapFile | null | undefined;
   const mappings = parsed?.mappings ?? {};
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(mappings)) {

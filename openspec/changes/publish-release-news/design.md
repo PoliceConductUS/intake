@@ -98,3 +98,7 @@ Exercise daily discovery and the ordinary build. For the website, test empty and
 ## Open design decisions
 
 Technical details still to select include the source of valid form-release IDs, release routing and cache refresh implementation, storage and coordination for evidence and page writes, the inference runtime, template representation, and rank ties. This design makes no change to civil-case joins or stale-case withdrawal.
+
+## Approved hosting folder correction
+
+The website operator chooses a single deployment folder name, defaulting to the full Git commit. The publisher reads original public HTML at `<folder>/build/<page>/index.html` and writes replacements at `<folder>/override/<page>/index.html`. Private release records retain `builds/<folder>/data/`. Accept named folders such as `prod-temp`; reject separators, traversal and control characters. This is coordinated with the website routing and IAM change in PR #48; both commits must be validated together before cutover.

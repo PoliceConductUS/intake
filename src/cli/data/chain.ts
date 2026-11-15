@@ -75,8 +75,7 @@ function minSchemaVersion(
   if (envelope.kind === "IdentityRestoration")
     return annotationsOf(envelope)["data-mutation/min-schema"] ?? "";
   const schema = envelope.metadata.databaseSchema as
-    | { appliedMigrations?: { version: string }[] }
-    | undefined;
+    { appliedMigrations?: { version: string }[] } | undefined;
   const versions = (schema?.appliedMigrations ?? [])
     .map((migration) => String(migration.version))
     .sort();
