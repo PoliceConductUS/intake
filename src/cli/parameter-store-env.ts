@@ -1,10 +1,15 @@
 import { execFileSync } from "node:child_process";
 
-// The API tokens that acquire sources read. Each lives only in AWS Systems
-// Manager Parameter Store, as the SecureString `/policeconduct/secrets/<NAME>`.
+// The API keys that the acquire and requests commands read. Each lives only in
+// AWS Systems Manager Parameter Store, as the SecureString
+// `/policeconduct/secrets/<NAME>`.
 export const PARAMETER_STORE_SECRETS: readonly string[] = [
+  "ANTHROPIC_API_KEY",
   "CLEARING_HOUSE_API_TOKEN",
   "COURTLISTENER_API_TOKEN",
+  "RESEND_API_KEY",
+  "RESEND_API_KEY_FULL_ACCESS",
+  "YOUTUBE_API_KEY",
 ];
 
 export type Environment = Record<string, string | undefined>;
@@ -36,9 +41,9 @@ function readParameterWithAwsCli(env: Environment): ReadParameter {
     );
 }
 
-// Returns `env` with the acquire tokens resolved from Parameter Store the first
-// time a source reads them. The stored value replaces any local value, and a
-// source that reads neither token never contacts AWS.
+// Returns `env` with the API keys resolved from Parameter Store the first time
+// each is read. The stored value replaces any local value, and a command that
+// reads none of them never contacts AWS.
 export function withParameterStoreSecrets(
   env: Environment,
   read: ReadParameter = readParameterWithAwsCli(env),

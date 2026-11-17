@@ -3,13 +3,17 @@ import {
   PARAMETER_STORE_SECRETS,
   parameterName,
   withParameterStoreSecrets,
-} from "../../../src/cli/acquire/parameter-store-env.js";
+} from "../../src/cli/parameter-store-env.js";
 
 describe("withParameterStoreSecrets", () => {
   it("names the acquire tokens it resolves", () => {
     expect(PARAMETER_STORE_SECRETS).toEqual([
+      "ANTHROPIC_API_KEY",
       "CLEARING_HOUSE_API_TOKEN",
       "COURTLISTENER_API_TOKEN",
+      "RESEND_API_KEY",
+      "RESEND_API_KEY_FULL_ACCESS",
+      "YOUTUBE_API_KEY",
     ]);
     expect(parameterName("COURTLISTENER_API_TOKEN")).toBe(
       "/policeconduct/secrets/COURTLISTENER_API_TOKEN",
@@ -47,7 +51,7 @@ describe("withParameterStoreSecrets", () => {
     );
     expect(env.DATABASE_URL).toBe("postgresql://local");
     expect(env.INTAKE_WORKSPACE).toBe("/workspace");
-    expect(env.YOUTUBE_API_KEY).toBeUndefined();
+    expect(env.COURTLISTENER_MIN_YEAR).toBeUndefined();
     expect(read).not.toHaveBeenCalled();
   });
 

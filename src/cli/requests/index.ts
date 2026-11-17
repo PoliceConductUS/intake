@@ -16,8 +16,10 @@ import {
   submitPortal,
 } from "./portal.js";
 import { createAnalyzer, syncMessages } from "./responses.js";
+import { withParameterStoreSecrets } from "../parameter-store-env.js";
+const env = withParameterStoreSecrets(process.env);
 function required(name: string) {
-  const value = process.env[name];
+  const value = env[name];
   if (!value?.trim()) throw new Error(`${name} is required`);
   return value;
 }

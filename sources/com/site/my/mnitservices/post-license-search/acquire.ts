@@ -153,7 +153,7 @@ export const acquire: SourceAcquire = async ({
       statePath: state,
       fetchDocument: createDocumentFetcher({ context, logger: log }),
       extractText: extractDocumentText,
-      analyzer: createLazyOrderAnalyzer(env.ANTHROPIC_API_KEY),
+      analyzer: createLazyOrderAnalyzer(() => env.ANTHROPIC_API_KEY),
       now: () => new Date().toISOString(),
       logger: log,
     });

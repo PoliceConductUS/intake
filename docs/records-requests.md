@@ -51,15 +51,18 @@ Both sending and receiving use **Resend**, the same transactional service as the
 website Forms API. There is no Gmail API integration.
 
 - `INTAKE_WORKSPACE`: durable workspace, shared across scheduled executions.
-- `RESEND_API_KEY`: sending key, as used by the Forms API.
-- `RESEND_API_KEY_FULL_ACCESS`: key with access to received emails and attachments.
+- `RESEND_API_KEY`: sending key, as used by the Forms API. Read from Parameter
+  Store (`/policeconduct/secrets/RESEND_API_KEY`), not from the environment.
+- `RESEND_API_KEY_FULL_ACCESS`: key with access to received emails and
+  attachments. Read from Parameter Store.
 - `RECORDS_REQUEST_FROM`: sender authorized by the Resend sending domain.
 - `RECORDS_REQUEST_RECEIVING_ADDRESS`: address routed into Resend receiving;
   used as the email Reply-To and by synchronization.
 - `RECORDS_REQUEST_REQUESTER`: requester signature, including organization,
   postal address, phone, and public email.
-- `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL`: structured interpretation of agency
-  correspondence. Interpretation cannot send messages.
+- `ANTHROPIC_API_KEY` (read from Parameter Store) and `ANTHROPIC_MODEL`:
+  structured interpretation of agency correspondence. Interpretation cannot send
+  messages.
 - `RECORDS_REQUEST_CONTACT`: JSON contact for the portal, with `firstName`,
   `lastName`, `email`, `phone`, `organization`, `street`, `city`, `state`, and `zip`.
   Its email must equal `RECORDS_REQUEST_RECEIVING_ADDRESS`.

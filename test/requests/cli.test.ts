@@ -44,6 +44,22 @@ import * as portal from "../../src/cli/requests/portal.js";
 import * as responses from "../../src/cli/requests/responses.js";
 import { RequestStore } from "../../src/cli/requests/lifecycle.js";
 import type { CommandResult } from "../../src/shared/cli/types.js";
+import type * as parameterStore from "../../src/cli/parameter-store-env.js";
+const readParameter = vi.hoisted(() =>
+  vi.fn((name: string): string => {
+    if (name === "/policeconduct/secrets/RESEND_API_KEY")
+      throw new Error("ParameterNotFound");
+    return "stored-key";
+  }),
+);
+vi.mock("../../src/cli/parameter-store-env.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof parameterStore>();
+  return {
+    ...actual,
+    withParameterStoreSecrets: (env: parameterStore.Environment) =>
+      actual.withParameterStoreSecrets(env, readParameter),
+  };
+});
 const temporary: string[] = [];
 afterEach(async () => {
   vi.restoreAllMocks();
@@ -96,7 +112,6 @@ async function fixture(extra: Record<string, unknown> = {}) {
   );
   vi.spyOn(process, "cwd").mockReturnValue(directory);
   vi.stubEnv("INTAKE_WORKSPACE", directory);
-  vi.stubEnv("RESEND_API_KEY", "");
   vi.stubEnv("RECORDS_REQUEST_FROM", "sender@example.org");
   vi.stubEnv("RECORDS_REQUEST_RECEIVING_ADDRESS", "inbox@example.org");
   vi.stubEnv("RECORDS_REQUEST_REQUESTER", "Requester");
@@ -179,8 +194,6 @@ test("explicit sync association requires both IDs and a request in selected sour
 });
 test("explicit sync association reaches synchronization with the chosen message and request", async () => {
   await fixture();
-  vi.stubEnv("RESEND_API_KEY_FULL_ACCESS", "key");
-  vi.stubEnv("ANTHROPIC_API_KEY", "key");
   vi.stubEnv("ANTHROPIC_MODEL", "model");
   const sync = vi.spyOn(responses, "syncMessages").mockResolvedValue([]);
   expect(
@@ -196,6 +209,10 @@ test("explicit sync association reaches synchronization with the chosen message 
   expect(sync.mock.calls[0][5]).toEqual({
     "email-1": "abcdefghijklmnopqrstuvwx",
   });
+  expect(readParameter.mock.calls).toEqual([
+    ["/policeconduct/secrets/RESEND_API_KEY_FULL_ACCESS"],
+    ["/policeconduct/secrets/ANTHROPIC_API_KEY"],
+  ]);
 });
 
 test("portal retries retain saved contact even when configured contact changes", async () => {

@@ -5,13 +5,14 @@ import {
   type ComplaintAnalyzer,
 } from "./summary-acquisition.js";
 export function createComplaintAnalyzer(
-  apiKey: string | undefined,
+  readApiKey: () => string | undefined,
 ): ComplaintAnalyzer {
   const model = "claude-opus-5";
   return {
     model,
     promptVersion: "complaint-v1",
     async analyze(text) {
+      const apiKey = readApiKey();
       if (!apiKey?.trim())
         throw new Error(
           "com/courtlistener/www/api: ANTHROPIC_API_KEY is required for complaint summaries.",

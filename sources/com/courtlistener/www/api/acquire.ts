@@ -364,7 +364,7 @@ export const acquire: SourceAcquire = async ({
       id,
       await finishComplaint(document, {
         state,
-        analyzer: createComplaintAnalyzer(env.ANTHROPIC_API_KEY),
+        analyzer: createComplaintAnalyzer(() => env.ANTHROPIC_API_KEY),
       }),
     );
   }
