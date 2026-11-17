@@ -138,6 +138,8 @@ A caller sets `retryAfter` on a success when the answer can go stale (a search r
 
 **A rebuild does not refresh.** `data reset --no-acquire` rebuilds the database from what is already held. During it, a successful outcome is used as it is even when its `retryAfter` has passed, so a reset alone calls no service for anything already in the cache. Only a request with no successful outcome is called: a new case, or one that failed before. Refreshing stale results is the job of an ordinary `data generate`.
 
+**A command that skips acquire says when an acquire is due.** `data transform`, `data generate`, `data update` and `data reset --no-acquire` look at each source's acquire results in the cache. If any is past its `retryAfter`, the command warns: the source, how many results are past their time, the earliest such time, and the acquire command to run. It is a warning only. The command goes on with what it has, so the owner decides when to run the acquire.
+
 ### 4. Item failures and service outages
 
 | What happened                                                                                            | Sort                  | What the client does                                                                                           |

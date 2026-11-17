@@ -51,6 +51,21 @@ An outcome MAY carry `retryAfter`, an ISO 8601 date and time. The service SHALL 
 - **WHEN** `data reset --no-acquire` runs and one case's requests are not in the cache
 - **THEN** calls are made for that case only
 
+### Requirement: A command that skips acquire warns when an acquire is due
+
+`data transform`, `data generate`, `data update` and `data reset --no-acquire` SHALL warn, for each source they process, when that source's acquire has cached results past their `retryAfter`. The warning SHALL name the source, the number of results past their time and the earliest such time, and SHALL give the acquire command to run. It SHALL NOT fail the command or call a service.
+
+#### Scenario: The agency searches are stale
+
+- **WHEN** `data reset --no-acquire` runs and 40 of CourtListener's cached searches are past their `retryAfter`
+- **THEN** the command warns that an acquire is due for `com/courtlistener/www/api`, with the count, the earliest date and the command `data acquire 'com/courtlistener/www/api'`
+- **AND** the reset continues and uses the cached results
+
+#### Scenario: Nothing is stale
+
+- **WHEN** every cached result of a source's acquire still stands
+- **THEN** no warning is given for that source
+
 ### Requirement: The downloads of one URL can be listed
 
 The call result for a download SHALL keep one outcome per download of that URL, each with the time and the SHA-256 of the file received, so that the files downloaded from a URL can be listed by date and each fetched by its SHA-256.

@@ -3,6 +3,8 @@
 - [ ] Add the `CallResult` and `BinaryFile` envelope kinds with canonical IO in `src/shared/io/`, with tests for strict validation, naming, earlier outcomes kept, and a file whose hash does not match its name.
 - [ ] Add the cache store operations for the two kinds beside the resolved-property store, with tests for the `retryAfter` rule on succeeded and failed outcomes.
 
+- [ ] Make `data reset --no-acquire` use cached results as they are, and make the commands that skip acquire warn when a source's acquire is due; tests.
+
 ## Service clients
 
 - [ ] Add the shared client base: request fingerprint, cache read and write, the check before first call, retries, and item failure versus service failure, with tests for each.
