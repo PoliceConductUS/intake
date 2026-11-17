@@ -89,14 +89,41 @@ approved. Hold this line first.
   review, verification, worktrees). Do not duplicate its workflows here; if it
   conflicts with this file, follow the higher-priority user instruction and
   name the conflict.
-- **One worktree, one branch.** Only one worktree and branch may be active for
-  this repo at a time, because changes get lost across parallel branches.
-  Reuse the current worktree and branch for new work; never create another
-  without the user's explicit permission. Behavior, data-shape, migration,
-  validation, and contract changes go in that worktree, under
-  `./.worktrees/<change-name>`. Small reversible changes that do not alter
-  behavior may go directly on `main`. Keep the branch short-lived and
-  mergeable.
+- Each task gets its own branch and its own worktree folder. Any number of
+  worktrees may be open at once. Work only in the folder of your own task
+  branch. Never create a branch or worktree without the user's explicit
+  permission.
+- Repos live on disk at `~/dev/<owner>/<repo>/`, where `<owner>` is the GitHub
+  user or organization that owns the repo. Inside it, `main/` holds the `main`
+  (or `master`) branch, and every other branch lives in a folder beside `main/`
+  whose name is exactly the branch name.
+- Do not use `/` in branch names, so the branch name and the folder name always
+  match: `docs-branch-stacking`, not `docs/branch-stacking`. Branches that
+  already have a `/` keep their names until they merge or are deleted.
+- Where `main` is still checked out at `~/dev/<owner>/<repo>/` itself, leave it
+  and any `.worktrees/` folders in place. Create each new branch folder at
+  `~/dev/<owner>/<repo>/<branch-name>/` and add it to `.git/info/exclude`.
+- In-progress branches form one stack, one branch per task. The first branch is
+  a child of `main`. Create every later branch as a child of the branch that is
+  the leaf at that moment, so later work builds on and can see the in-progress
+  changes below it. Never start a branch from `main` while another branch is in
+  progress. Record each parent in Git Town (`git-town-branch.<name>.parent`);
+  `git town branch` shows the stack.
+- Several agents may work in the stack at once, each on its own task branch.
+  Your branch was the leaf when you created it, but another agent may add a
+  branch above it later. Keep working on your own branch; do not move your work
+  to the new leaf.
+- When a task is abandoned, remove its branch from the stack and set the parent
+  of its child branch to the abandoned branch's parent, so the parent and child
+  link directly.
+- Sync only your own task branch, from its own folder: merge `main`, then each
+  ancestor branch from the bottom of the stack up, into your branch, and push
+  it. Never merge into, push, or change another agent's branch or folder.
+- Delete a local branch and its folder once its pull request is merged or
+  closed, so the branches that remain are the work that is not merged. The user
+  decides merge order and timing.
+- Never leave local changes on `main`: no commits and no uncommitted edits.
+  `main` only fast-forwards from `origin/main`.
 - **Commits** use Conventional Commits (`docs/adr/0007`).
 
 ## Stable IDs
@@ -255,10 +282,6 @@ current published version. Remove a dependency your change makes unnecessary.
 - `npm run validate` is the gate: formatting, typecheck, tests, build, and
   OpenSpec validation. The pre-commit hook and CI both run it. Do not bypass it
   with `--no-verify`, and do not weaken a check to get through it.
-- The pre-commit hook also fails when more than one worktree exists besides
-  the main checkout. Only the user may override that check, by setting
-  `INTAKE_ALLOW_EXTRA_WORKTREES=1` for a commit. An agent never sets it; it
-  reports the block and waits.
 - `test/architecture.test.ts` enforces the rules above that can be checked
   mechanically. When a rule is broken in a way a test could have caught, add
   the test there.
