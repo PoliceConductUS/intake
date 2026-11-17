@@ -30,6 +30,7 @@ import {
   writeCommandPointer,
 } from "../state/command-pointer.js";
 import { acquireFromLocal } from "./acquire-from-local.js";
+import { withParameterStoreSecrets } from "./parameter-store-env.js";
 
 type AcquireSourceDeps = {
   sourcesRoot: string;
@@ -145,7 +146,8 @@ export const registerAcquireCommand: RegisterCliCommand = (
         glob: string,
         options: { fromLocal?: string[] },
       ): Promise<void> => {
-        const env = process.env;
+        // The acquire tokens live in Parameter Store, not in a local file.
+        const env = withParameterStoreSecrets(process.env);
         const sourcesRoot = path.join(process.cwd(), "sources");
         try {
           const workspace = intakeWorkspace(env);

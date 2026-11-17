@@ -110,7 +110,7 @@ test("ordinary acquire enriches a cached docket and transform replays the saved 
   await acquire({
     sourceDir,
     state,
-    env: { COURT_LISTENER_API_TOKEN: "synthetic" },
+    env: { COURTLISTENER_API_TOKEN: "synthetic" },
     data: {
       agencies: async () => ({
         items: [

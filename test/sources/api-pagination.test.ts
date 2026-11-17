@@ -9,7 +9,7 @@ it.each([
   {
     acquire: courtListener,
     origin: "https://www.courtlistener.com",
-    key: "COURT_LISTENER_API_TOKEN",
+    key: "COURTLISTENER_API_TOKEN",
   },
   {
     acquire: clearinghouse,

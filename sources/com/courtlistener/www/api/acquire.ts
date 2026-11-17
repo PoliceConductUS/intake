@@ -183,10 +183,10 @@ export const acquire: SourceAcquire = async ({
   logger,
 }: AcquireDeps) => {
   const log = logger ?? { info() {} };
-  const token = env.COURT_LISTENER_API_TOKEN;
+  const token = env.COURTLISTENER_API_TOKEN;
   if (token === undefined || token.trim() === "") {
     throw new Error(
-      "com/courtlistener/www/api: COURT_LISTENER_API_TOKEN is required to search CourtListener.",
+      "com/courtlistener/www/api: COURTLISTENER_API_TOKEN is required to search CourtListener.",
     );
   }
   await mkdir(sourceDir, { recursive: true });
