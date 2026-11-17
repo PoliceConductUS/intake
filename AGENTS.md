@@ -100,9 +100,17 @@ approved. Hold this line first.
 - Do not use `/` in branch names, so the branch name and the folder name always
   match: `docs-branch-stacking`, not `docs/branch-stacking`. Branches that
   already have a `/` keep their names until they merge or are deleted.
-- Where `main` is still checked out at `~/dev/<owner>/<repo>/` itself, leave it
-  and any `.worktrees/` folders in place. Create each new branch folder at
-  `~/dev/<owner>/<repo>/<branch-name>/` and add it to `.git/info/exclude`.
+- At the start of a session, run `bash scripts/restructure-repo.sh`. It changes
+  nothing without `--apply`. If it reports that the repo is not in this layout,
+  offer to restructure it before starting work, and run it with `--apply` only
+  when the user agrees. The move needs exclusive access to the folders it moves:
+  the script lists every process using them, prints the command that stops them,
+  and moves nothing until none remain. Uncommitted changes move as they are, and
+  the Claude Code and Codex settings for the old folders are copied to the new
+  ones.
+- If the user declines the move, leave `main` and any `.worktrees/` folders in
+  place, create each new branch folder at `~/dev/<owner>/<repo>/<branch-name>/`,
+  and add it to `.git/info/exclude`.
 - This is the declared worktree directory preference for the
   `superpowers:using-git-worktrees` skill and any other worktree tool: create
   every worktree at `~/dev/<owner>/<repo>/<branch-name>/`. Never create one
