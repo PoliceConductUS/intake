@@ -130,10 +130,12 @@ approved. Hold this line first.
 - When a task is abandoned, remove its branch from the stack and set the parent
   of its child branch to the abandoned branch's parent, so the parent and child
   link directly.
-- Sync only your own task branch, from its own folder: merge `main`, then each
-  ancestor branch from the bottom of the stack up, into your branch, and push
-  it. Bring parent changes in with merge commits; do not rebase. Never merge
-  into, push, or change another agent's branch or folder.
+- After every commit, run `git town sync` from the folder of your own task
+  branch, so finished commits never stay only in the local folder. It merges
+  your parent branch into your branch with a merge commit and pushes your
+  branch; it does not change branches that are checked out in other folders. Do
+  not rebase. Never merge into, push, or change another agent's branch or
+  folder.
 - Delete a local branch and its folder once its pull request is merged or
   closed, so the branches that remain are the work that is not merged. The user
   decides merge order and timing.
