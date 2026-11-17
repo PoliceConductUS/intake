@@ -455,12 +455,12 @@ contract changes. Direct PR-sized edits are acceptable for documentation-only
 updates, formatting, tooling tweaks, and refactors that preserve specified
 behavior.
 
-Manual worktrees should live under `./.worktrees/<change-name>` from the repo
-root:
+Each task gets its own branch and its own worktree folder beside the main
+checkout, named exactly after the branch. `AGENTS.md` has the folder layout and
+the branch stacking rules.
 
 ```bash
-mkdir -p .worktrees
-git worktree add .worktrees/<change-name> -b <change-name>
+git worktree add ~/dev/<owner>/<repo>/<branch-name> -b <branch-name> <current-leaf-branch>
 ```
 
 Run `npm run supabase:reset` when migrations or database constraints changed.

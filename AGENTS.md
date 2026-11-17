@@ -89,6 +89,58 @@ approved. Hold this line first.
   review, verification, worktrees). Do not duplicate its workflows here; if it
   conflicts with this file, follow the higher-priority user instruction and
   name the conflict.
+- Each task gets its own branch and its own worktree folder. Any number of
+  worktrees may be open at once. Work only in the folder of your own task
+  branch. Never create a branch or worktree without the user's explicit
+  permission.
+- Repos live on disk at `~/dev/<owner>/<repo>/`, where `<owner>` is the GitHub
+  user or organization that owns the repo. Inside it, `main/` holds the `main`
+  (or `master`) branch, and every other branch lives in a folder beside `main/`
+  whose name is exactly the branch name.
+- Do not use `/` in branch names, so the branch name and the folder name always
+  match: `docs-branch-stacking`, not `docs/branch-stacking`. Branches that
+  already have a `/` keep their names until they merge or are deleted.
+- At the start of a session, run `bash ~/dev/<owner>/restructure-repo.sh .` from
+  this repo. The script sits beside the repos; its source is
+  `scripts/restructure-repo.sh` in the `project-template` repo, and without a
+  folder argument it checks every repo beside it. It changes nothing without
+  `--apply`. If it reports that the repo is not in this layout, offer to
+  restructure it before starting work, and run it with `--apply` only when the
+  user agrees. The move needs exclusive access to the folders it moves: the
+  script lists every process using them, prints the command that stops them, and
+  moves nothing until none remain. Uncommitted changes move as they are, and the
+  Claude Code and Codex settings for the old folders are copied to the new ones.
+- If the user declines the move, leave `main` and any `.worktrees/` folders in
+  place, create each new branch folder at `~/dev/<owner>/<repo>/<branch-name>/`,
+  and add it to `.git/info/exclude`.
+- This is the declared worktree directory preference for the
+  `superpowers:using-git-worktrees` skill and any other worktree tool: create
+  every worktree at `~/dev/<owner>/<repo>/<branch-name>/`. Never create one
+  under `.worktrees/` or `worktrees/`, even where those folders exist.
+- In-progress branches form one stack, one branch per task. The first branch is
+  a child of `main`. Create every later branch as a child of the branch that is
+  the leaf at that moment, so later work builds on and can see the in-progress
+  changes below it. Never start a branch from `main` while another branch is in
+  progress. Record each parent in Git Town (`git-town-branch.<name>.parent`);
+  `git town branch` shows the stack.
+- Several agents may work in the stack at once, each on its own task branch.
+  Your branch was the leaf when you created it, but another agent may add a
+  branch above it later. Keep working on your own branch; do not move your work
+  to the new leaf.
+- When a task is abandoned, remove its branch from the stack and set the parent
+  of its child branch to the abandoned branch's parent, so the parent and child
+  link directly.
+- After every commit, run `git town sync` from the folder of your own task
+  branch, so finished commits never stay only in the local folder. It merges
+  your parent branch into your branch with a merge commit and pushes your
+  branch; it does not change branches that are checked out in other folders. Do
+  not rebase. Never merge into, push, or change another agent's branch or
+  folder.
+- Delete a local branch and its folder once its pull request is merged or
+  closed, so the branches that remain are the work that is not merged. The user
+  decides merge order and timing.
+- Never leave local changes on `main`: no commits and no uncommitted edits.
+  `main` only fast-forwards from `origin/main`.
 - **Commits** use Conventional Commits (`docs/adr/0007`).
 
 ## Stable IDs
