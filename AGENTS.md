@@ -89,14 +89,6 @@ approved. Hold this line first.
   review, verification, worktrees). Do not duplicate its workflows here; if it
   conflicts with this file, follow the higher-priority user instruction and
   name the conflict.
-- **One worktree, one branch.** Only one worktree and branch may be active for
-  this repo at a time, because changes get lost across parallel branches.
-  Reuse the current worktree and branch for new work; never create another
-  without the user's explicit permission. Behavior, data-shape, migration,
-  validation, and contract changes go in that worktree, under
-  `./.worktrees/<change-name>`. Small reversible changes that do not alter
-  behavior may go directly on `main`. Keep the branch short-lived and
-  mergeable.
 - **Commits** use Conventional Commits (`docs/adr/0007`).
 
 ## Stable IDs
