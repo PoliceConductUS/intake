@@ -50,7 +50,7 @@ The one cache intake does own, the resolved-property cache of ADR 0019, cannot h
 - **Outcome**: what one attempt at a request produced: a response, or an error.
 - **Client**: shared code that makes calls to one outside service through the cache.
 - **Resolver**: code in the shared import that works out the value of one field of a record during `data generate`.
-- **Item failure** and **service failure**: defined in section 4.
+- **Item failure** and **outage**: defined in section 4.
 
 ## Proposed architecture
 
@@ -136,23 +136,30 @@ One rule, for successes and failures alike:
 
 A caller sets `retryAfter` on a success when the answer can go stale (a search result, a docket's entries). A client sets it on a failure when waiting can help. A changed document, model, parameter or prompt changes the request, so it changes the fingerprint and is a new envelope. Nothing is invalidated by hand.
 
-### 4. Item failures and service failures
+**A rebuild does not refresh.** `data reset --no-acquire` rebuilds the database from what is already held. During it, a successful outcome is used as it is even when its `retryAfter` has passed, so a reset alone calls no service for anything already in the cache. Only a request with no successful outcome is called: a new case, or one that failed before. Refreshing stale results is the job of an ordinary `data generate`.
 
-| What happened                                                                          | Sort    | What the client does                                                                   |
-| -------------------------------------------------------------------------------------- | ------- | -------------------------------------------------------------------------------------- |
-| 4xx other than 429 for one URL                                                         | Item    | Record a failed outcome with no `retryAfter`; return the failure                       |
-| Model refuses, hits its token limit, or returns an answer that does not fit the schema | Item    | Same                                                                                   |
-| No answer within the timeout, connection error                                         | Service | Retry; if retries fail, record a failed outcome with `retryAfter` and stop the command |
-| 429, or 5xx                                                                            | Service | Retry, waiting as `Retry-After` says when given; if retries fail, same as above        |
-| 401 or 403 from the check before the first call                                        | Service | Stop the command before any record is processed; record nothing                        |
+### 4. Item failures and service outages
+
+| What happened                                                                                            | Sort                  | What the client does                                                                                           |
+| -------------------------------------------------------------------------------------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------- |
+| 4xx other than 429 for one URL                                                                           | Item                  | Record a failed outcome with no `retryAfter`; return the failure                                               |
+| Model refuses, hits its token limit, or returns an answer that does not fit the schema                   | Item                  | Same                                                                                                           |
+| The check before the first call gets no answer, or 401 or 403                                            | Outage at the start   | Do not start: stop the command before any record is processed; record nothing                                  |
+| During the run: no answer within the timeout, a connection error, or 429 or 5xx that outlast the retries | Outage during the run | Record a failed outcome with `retryAfter`; mark the service down for the rest of the command; return "skipped" |
 
 An item failure is returned to the caller as a value. What the caller does with it (report a finding on the record, per ADR 0040) is the caller's business.
 
-A service failure raises one named error, `ServiceUnavailableError`, carrying the service and the `retryAfter`. No source or stage catches it. The existing catch in the CourtListener agency search that logs "search failed, skipped" for any error is removed.
+**An outage at the start stops the command.** Each client checks its service before its first call. If the service does not answer, or rejects the key, nothing is processed.
+
+**An outage during the run is a skip, not a stop and not a finding.** The client returns "skipped" for that call and for every later call to that service in the same command, without trying the service again. The caller leaves alone whatever that call would have filled: no value is written, no existing value is changed, and no finding is reported, because nothing is wrong with the record. The command carries on with everything that does not need that service and ends normally. Its last lines name the service that went down, the time it went down, how many calls were skipped, and the time to try again. The next run makes the skipped calls.
+
+A skip happens only for an outage. Every other failure is an item failure.
 
 A 403 for one file from a file host, after the check before the first call succeeded, is an item failure: some hosts answer 403 for a file that does not exist.
 
-`retryAfter` for a service failure is the service's `Retry-After` when it gives one, and otherwise one hour after the failure.
+`retryAfter` for an outage is the service's `Retry-After` when it gives one, and otherwise one hour after the failure.
+
+The existing catch in the CourtListener agency search that logs "search failed, skipped" for any error is removed: an outage is handled by the client as above, and anything else is a defect that should fail.
 
 ### 5. Clients
 
@@ -210,7 +217,7 @@ The command reports what it moved and anything it could not match. It does not d
 | A response too large to keep inline in YAML (a docket with hundreds of entries)                    | A JSON response over 256 KB is stored as a binary file and named in `file`, like any other file.                                                                                                |
 | A request that leaves out something that decides the answer returns a stale result                 | Each client's request is built in one function with a test that changing each deciding input changes the fingerprint.                                                                           |
 | A moved Minnesota analysis is not found by `data generate`, so 89 documents are analyzed again     | `intake cache migrate` builds the request with the same function `data generate` uses, and a test asserts the lookup hits.                                                                      |
-| A service failure stops a long command                                                             | The cache keeps everything done before it; the next run continues from there. The message names the time to try again.                                                                          |
+| A service goes down partway through a long command                                                 | The command finishes everything that does not need the service and reports what it skipped. The cache keeps what was done; the next run makes only the skipped calls.                           |
 | A key or cookie ends up in a cached request                                                        | The base client builds the stored request from an allow-list of fields; a test asserts a request with an `Authorization` value is rejected.                                                     |
 | Personnel photo rows point at a path that no longer exists                                         | The migration and the move are checked together: a task asserts every row's file exists after both. The website build already fails when a photo's file is missing or its hash or size differs. |
 | The website reads `personnel_photo`, which this change drops                                       | The policeconduct.org change is made and released with this one; its schema contract check fails the build if the two are out of step.                                                          |
@@ -227,7 +234,7 @@ Paths are from the repository root. Each step ends with `npm run validate` passi
 
 **Phase 2: clients.**
 
-3. Create `src/shared/services/client-base.ts`: `cachedCall(request, call, options)` implementing sections 3 and 4, `ServiceUnavailableError`, the once-per-command check, retries with `Retry-After`, and the request allow-list. Time and `fetch` are injected. Tests in `test/shared/services/client-base.test.ts`: one test per row of the section 4 table.
+3. Create `src/shared/services/client-base.ts`: `cachedCall(request, call, options)` implementing sections 3 and 4, returning a result, an item failure or "skipped"; the once-per-command check, which stops the command when the service is down at the start; the per-command "service down" mark; retries with `Retry-After`, and the request allow-list. Time and `fetch` are injected. Tests in `test/shared/services/client-base.test.ts`: one test per row of the section 4 table.
 4. Create `src/shared/services/download-client.ts`, `inference-client.ts`, `courtlistener-client.ts`, `pdf-text-client.ts`. Move `sources/com/site/my/mnitservices/post-license-search/acquire/document-text.ts` into `pdf-text-client.ts`. Move the CourtListener search and entries requests out of `sources/com/courtlistener/www/api/acquire.ts` and `summary-acquisition.ts` into `courtlistener-client.ts`. Tests beside each.
 5. Modify `src/cli/data/index.ts` and `src/cli/data/source-pipeline.ts` to pass `withParameterStoreSecrets(process.env)`. Modify `src/cli/import/artifacts/config.ts` (where `agencyResolutionDeps` builds the geocoder) to build the clients and `src/cli/import/artifacts/data-context.ts` to expose them on the resolver backend. Modify `src/cli/acquire/index.ts` to build the clients and add them to `AcquireDeps`. Update `openspec/changes/read-acquire-tokens-from-parameter-store/specs/acquire-secrets/spec.md` to name the three commands.
 

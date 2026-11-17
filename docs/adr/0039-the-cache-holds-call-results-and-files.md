@@ -102,14 +102,18 @@ giving the envelope, the bytes or the path for a reference are operations of the
 backend every resolver is handed. No source reads or writes a file in the cache
 itself.
 
-**5. Failures are of two sorts.** A failure of one item (a 403 or 404 for one
+**5. A failure of one item, an outage at the start, and an outage during the run
+are three different things.** A failure of one item (a 403 or 404 for one
 document, a file that is not what it should be, a model refusal for one text) is
-recorded and the command continues. A failure of the service (no response, a
-connection error, throttling or server errors that outlast the retries) is
-recorded with a `retryAfter` and the command stops, naming the service and the
-time. Before its first call to a service in a command, intake checks that the
-service answers and accepts its key, so that a service failure is found before any
-record is processed.
+recorded and the command continues. Before its first call to a service in a
+command, intake checks that the service answers and accepts its key; if it does
+not, the command does not start. If a service goes down during the run (no
+response, a connection error, throttling or server errors that outlast the
+retries), the failure is recorded with a `retryAfter` and every call that needs
+that service is skipped for the rest of the command: nothing those calls would
+have filled is changed, no finding is reported, and the command ends normally,
+naming the service, what it skipped and when to try again. A skip happens only
+for an outage.
 
 **6. One client per service, used by every source.** Each outside service has
 one client in shared code: a CourtListener client, an inference client for model

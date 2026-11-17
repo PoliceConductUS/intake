@@ -37,6 +37,20 @@ An outcome MAY carry `retryAfter`, an ISO 8601 date and time. The service SHALL 
 - **WHEN** a request's current outcome succeeded with a `retryAfter` that has passed
 - **THEN** the service is called again and the new outcome becomes current
 
+### Requirement: A rebuild from retained inputs does not refresh the cache
+
+`data reset --no-acquire` SHALL use a cached successful outcome as it is, even when its `retryAfter` has passed, and SHALL call a service only for a request that has no successful outcome.
+
+#### Scenario: A reset with everything cached
+
+- **WHEN** `data reset --no-acquire` runs and every request its records need has a successful outcome in the cache
+- **THEN** no outside service is called
+
+#### Scenario: A reset with one new case
+
+- **WHEN** `data reset --no-acquire` runs and one case's requests are not in the cache
+- **THEN** calls are made for that case only
+
 ### Requirement: The downloads of one URL can be listed
 
 The call result for a download SHALL keep one outcome per download of that URL, each with the time and the SHA-256 of the file received, so that the files downloaded from a URL can be listed by date and each fetched by its SHA-256.

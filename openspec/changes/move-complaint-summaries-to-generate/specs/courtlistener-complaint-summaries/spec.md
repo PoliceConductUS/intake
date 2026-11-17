@@ -58,6 +58,16 @@ An error is a case where CourtListener's own data is wrong or contradicts itself
 - **WHEN** a later `data generate` summarizes a complaint that had a problem
 - **THEN** the case receives its summary and the annotation is resolved, keeping its ID
 
+### Requirement: An outage during generate leaves a case as it was
+
+When a service a case's complaint needs goes down during `data generate`, the case SHALL keep the summary and unavailability state it had, SHALL receive no new annotation, and SHALL be processed on the next run. `data generate` SHALL continue and exit zero.
+
+#### Scenario: The model service goes down partway through
+
+- **WHEN** the inference service stops answering after some cases are summarized
+- **THEN** the remaining cases keep their existing summary fields and annotations unchanged
+- **AND** the next `data generate`, with the service back, summarizes them
+
 ### Requirement: A problem is tried again when its call result says so
 
 A complaint problem SHALL be tried again only when the cached call result behind it no longer stands: its `retryAfter` has passed, or the request has changed.
