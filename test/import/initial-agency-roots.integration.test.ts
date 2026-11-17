@@ -156,13 +156,17 @@ describe("initial agency roots in the shared import pipeline", () => {
       commandDirectory: path.join(root, "command"),
     });
   }
+  const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
   test.each([
     ["2024-06-03", "2024-05-22", "error"],
     ["2024-06-17", "2024-06-14", "error"],
     ["2024-01-22", "2024-01-17", "error"],
     ["2024-08-15", "2024-08-05", "error"],
     ["2024-08-19", "2024-08-07", "error"],
-    ["2026-11-16", null, "warning"],
+    // A start date after the validation day; a fixed date stops being one.
+    [futureDate, null, "warning"],
   ])(
     "preserves assignment %s to %s and stable identities through repeated generation/apply",
     async (start_date, end_date, findingType) => {

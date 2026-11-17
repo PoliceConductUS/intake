@@ -371,7 +371,7 @@ Missing skill → STOP with explicit error. No silent fallback, no manual mode w
 
 #### 1. Workspace — `superpowers:using-git-worktrees`
 
-Creates `.worktrees/<change-name>/`, switches to a new branch, runs setup, confirms a clean test baseline.
+Creates `~/dev/<owner>/<repo>/<branch-name>/` (the worktree folder `AGENTS.md` declares), switches to a new branch, runs setup, confirms a clean test baseline.
 
 #### 2. Executor — `superpowers:subagent-driven-development`
 
