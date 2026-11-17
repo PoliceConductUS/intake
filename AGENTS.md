@@ -103,6 +103,10 @@ approved. Hold this line first.
 - Where `main` is still checked out at `~/dev/<owner>/<repo>/` itself, leave it
   and any `.worktrees/` folders in place. Create each new branch folder at
   `~/dev/<owner>/<repo>/<branch-name>/` and add it to `.git/info/exclude`.
+- This is the declared worktree directory preference for the
+  `superpowers:using-git-worktrees` skill and any other worktree tool: create
+  every worktree at `~/dev/<owner>/<repo>/<branch-name>/`. Never create one
+  under `.worktrees/` or `worktrees/`, even where those folders exist.
 - In-progress branches form one stack, one branch per task. The first branch is
   a child of `main`. Create every later branch as a child of the branch that is
   the leaf at that moment, so later work builds on and can see the in-progress
