@@ -132,7 +132,8 @@ approved. Hold this line first.
   link directly.
 - Sync only your own task branch, from its own folder: merge `main`, then each
   ancestor branch from the bottom of the stack up, into your branch, and push
-  it. Never merge into, push, or change another agent's branch or folder.
+  it. Bring parent changes in with merge commits; do not rebase. Never merge
+  into, push, or change another agent's branch or folder.
 - Delete a local branch and its folder once its pull request is merged or
   closed, so the branches that remain are the work that is not merged. The user
   decides merge order and timing.
