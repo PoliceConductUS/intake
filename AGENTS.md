@@ -91,8 +91,7 @@ approved. Hold this line first.
   name the conflict.
 - Each task gets its own branch and its own worktree folder. Any number of
   worktrees may be open at once. Work only in the folder of your own task
-  branch. Never create a branch or worktree without the user's explicit
-  permission.
+  branch.
 - Repos live on disk at `~/dev/<owner>/<repo>/`, where `<owner>` is the GitHub
   user or organization that owns the repo. Inside it, `main/` holds the `main`
   (or `master`) branch, and every other branch lives in a folder beside `main/`
