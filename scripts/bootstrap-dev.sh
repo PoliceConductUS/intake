@@ -51,15 +51,18 @@ append_unique() {
   local array_name="$1"
   local item="$2"
   local existing
-  declare -n target_array="$array_name"
+  local count
 
-  for existing in "${target_array[@]}"; do
-    if [[ "$existing" == "$item" ]]; then
-      return
-    fi
-  done
+  eval "count=\${#${array_name}[@]}"
+  if [[ "$count" -gt 0 ]]; then
+    eval 'for existing in "${'"$array_name"'[@]}"; do
+      if [[ "$existing" == "$item" ]]; then
+        return
+      fi
+    done'
+  fi
 
-  target_array+=("$item")
+  eval "${array_name}+=(\"\$item\")"
 }
 
 load_homebrew_shellenv() {
@@ -402,11 +405,11 @@ detect_all() {
 print_summary() {
   printf '\nDependency check summary\n'
   printf '========================\n'
-  print_list "Already available" "${INFO_ITEMS[@]}"
-  print_list "Missing and installable" "${INSTALL_ITEMS[@]}"
-  print_list "Install commands that will run" "${INSTALL_COMMANDS[@]}"
-  print_list "Manual follow-up" "${MANUAL_ITEMS[@]}"
-  print_list "Blocking check errors" "${CHECK_ERRORS[@]}"
+  print_list "Already available" ${INFO_ITEMS[@]+"${INFO_ITEMS[@]}"}
+  print_list "Missing and installable" ${INSTALL_ITEMS[@]+"${INSTALL_ITEMS[@]}"}
+  print_list "Install commands that will run" ${INSTALL_COMMANDS[@]+"${INSTALL_COMMANDS[@]}"}
+  print_list "Manual follow-up" ${MANUAL_ITEMS[@]+"${MANUAL_ITEMS[@]}"}
+  print_list "Blocking check errors" ${CHECK_ERRORS[@]+"${CHECK_ERRORS[@]}"}
   printf '\n'
 }
 
