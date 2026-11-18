@@ -30,6 +30,7 @@ import {
 } from "./source-pipeline.js";
 import { registerAcquireCommand } from "../acquire/index.js";
 import { resetData } from "./reset.js";
+import { intakeWorkspace } from "../command-directory.js";
 import { agencyTableIsEmpty } from "../database/agency-graph.js";
 
 const consoleLogger = {
@@ -234,6 +235,7 @@ export function registerCliCommand(
         // No source given: transform every source in dependency order. A source
         // with no acquired input is skipped (you transform what has been acquired);
         // only a real transform failure errors the run.
+        intakeWorkspace(process.env);
         const transformed: string[] = [];
         const skipped: string[] = [];
         const errored: string[] = [];

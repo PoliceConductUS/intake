@@ -458,6 +458,33 @@ describe("architecture boundaries", () => {
     expect(violations).toEqual([]);
   });
 
+  test("reads the workspace variable only in intakeWorkspace", async () => {
+    const files = (
+      await Promise.all(
+        ["src", "scripts", "sources"].map((folder) =>
+          existingFiles(path.join(repoRoot, folder)),
+        ),
+      )
+    )
+      .flat()
+      .filter((file) => /\.(?:[cm]?ts|mjs)$/.test(file))
+      .filter((file) => relative(file) !== "src/cli/command-directory.ts");
+    const violations: string[] = [];
+
+    for (const file of files) {
+      const lines = (await readFile(file, "utf8")).split("\n");
+      lines.forEach((line, index) => {
+        if (/^\s*(?:\/\/|\/?\*)/.test(line)) return;
+        if (/\bINTAKE_WORKSPACE(?:_TEST)?\b/.test(line)) {
+          violations.push(`${relative(file)}:${index + 1}`);
+        }
+      });
+    }
+
+    expect(files.length).toBeGreaterThan(0);
+    expect(violations).toEqual([]);
+  });
+
   test("keeps command tests under their command path", async () => {
     const files = await existingFiles(testRoot);
     const violations = files

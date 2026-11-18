@@ -15,6 +15,7 @@ import {
 import { createHash } from "node:crypto";
 import { mkdir, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
+import { intakeWorkspace } from "../command-directory.js";
 import { DatabaseMutations } from "../import/artifacts/io/DatabaseMutations.js";
 import type { DatabaseMutationsEnvelope } from "../import/artifacts/io/DatabaseMutations.js";
 import { executeDatabaseMutations } from "../replay/database-mutations/execute.js";
@@ -39,13 +40,7 @@ const PREVIOUS_KEY = "data-mutation/previous";
 // explicit root; the CLI uses this default so the chain sits beside command/ and
 // state/ in the workspace.
 function defaultChainRoot(): string {
-  const workspace = process.env.INTAKE_WORKSPACE;
-  if (workspace === undefined || workspace.trim() === "") {
-    throw new Error(
-      "INTAKE_WORKSPACE is required to locate the data-mutation chain.",
-    );
-  }
-  return path.join(workspace, "data");
+  return path.join(intakeWorkspace(process.env), "data");
 }
 
 export function chainDir(root: string = defaultChainRoot()): string {

@@ -1,12 +1,31 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, it, expect } from "vitest";
-import { generateEntry, listEntries } from "../../../src/cli/data/chain.js";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import {
+  chainDir,
+  generateEntry,
+  listEntries,
+} from "../../../src/cli/data/chain.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await Promise.all(tempDirs.splice(0).map((d) => rm(d, { recursive: true })));
+});
+
+describe("data-mutation chain default root", () => {
+  it("fails on a missing workspace instead of reading an empty chain", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "chain-"));
+    tempDirs.push(root);
+    const missing = path.join(root, "absent");
+    vi.stubEnv("INTAKE_WORKSPACE_TEST", missing);
+    expect(() => chainDir()).toThrow(
+      `INTAKE_WORKSPACE_TEST ${missing} is not an existing folder.`,
+    );
+    await expect(listEntries()).rejects.toThrow("is not an existing folder.");
+    await expect(stat(missing)).rejects.toMatchObject({ code: "ENOENT" });
+  });
 });
 
 function envelope(

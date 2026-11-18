@@ -173,8 +173,6 @@ export async function transformSource(
   let logger: CommandLogger | undefined;
   try {
     const excludedRecords = await deps.loadExcludedRecords(deps.state);
-    const workspaceRoot =
-      deps.env.INTAKE_WORKSPACE_TEST ?? deps.env.INTAKE_WORKSPACE;
     const command = await deps.makeWorkspace(deps.env);
     const workspace = command.outputDirectory;
     logger = command.logger;
@@ -193,9 +191,9 @@ export async function transformSource(
         dbClient !== undefined
           ? createTransformDataContext(
               dbClient,
-              createSourceNameToCanonicalIdLedger(
-                workspaceRoot !== undefined ? { rootDir: workspaceRoot } : {},
-              ),
+              createSourceNameToCanonicalIdLedger({
+                rootDir: intakeWorkspace(deps.env),
+              }),
               sourceId,
             )
           : undefined;

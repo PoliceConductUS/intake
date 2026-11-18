@@ -37,7 +37,7 @@ test("invalid request source produces a clean nonzero command result", async () 
 });
 
 import { afterEach, vi } from "vitest";
-import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import * as portal from "../../src/cli/requests/portal.js";
@@ -235,4 +235,21 @@ test("portal contact must route replies to the captured receiving address", asyn
     stderr: expect.stringContaining("receiving address"),
   });
   expect(send).not.toHaveBeenCalled();
+});
+test("requests commands fail on a missing workspace without creating it", async () => {
+  const missing = path.join(await fixture(), "absent");
+  vi.stubEnv("INTAKE_WORKSPACE", missing);
+  for (const args of [
+    ["submit", "gov.test"],
+    ["status", "gov.test"],
+    ["sync", "gov.test"],
+  ]) {
+    expect(await run(args)).toMatchObject({
+      exitCode: 1,
+      stderr: expect.stringContaining(
+        `INTAKE_WORKSPACE ${missing} is not an existing folder.`,
+      ),
+    });
+  }
+  await expect(stat(missing)).rejects.toMatchObject({ code: "ENOENT" });
 });

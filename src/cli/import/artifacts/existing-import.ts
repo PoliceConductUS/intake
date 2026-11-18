@@ -2,28 +2,16 @@ import { readdir } from "node:fs/promises";
 import path from "node:path";
 import type { ArtifactsEnvelope } from "../../../shared/io/Artifacts.js";
 import { DatabaseMutations } from "./io/DatabaseMutations.js";
-
-function intakeCommandRoot(
-  env: Record<string, string | undefined>,
-): string | undefined {
-  const workspace = env.INTAKE_WORKSPACE_TEST ?? env.INTAKE_WORKSPACE;
-  if (workspace === undefined || workspace.trim().length === 0) {
-    return undefined;
-  }
-
-  return path.join(workspace, "command");
-}
+import { intakeWorkspace } from "../../command-directory.js";
 
 export async function assertNoExistingImport(
   artifacts: ArtifactsEnvelope,
   options: { env?: Record<string, string | undefined> } = {},
 ): Promise<void> {
-  const env = options.env ?? process.env;
-  const commandRoot = intakeCommandRoot(env);
-  if (commandRoot === undefined) {
-    return;
-  }
-
+  const commandRoot = path.join(
+    intakeWorkspace(options.env ?? process.env),
+    "command",
+  );
   const existingImport = await findExistingImportPath(
     commandRoot,
     artifacts.metadata.namespace,

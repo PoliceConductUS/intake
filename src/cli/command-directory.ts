@@ -18,12 +18,23 @@ export function intakeWorkspace(
       : "INTAKE_WORKSPACE_TEST";
   const workspace = env[name];
   if (workspace === undefined || workspace.trim().length === 0) {
-    throw new Error("INTAKE_WORKSPACE is required to create command output.");
-  }
-  if (!statSync(workspace, { throwIfNoEntry: false })?.isDirectory()) {
     throw new Error(
-      `${name} ${workspace} (resolved: ${path.resolve(workspace)}) is not an existing folder.`,
+      `${name} is required: the absolute path of an existing workspace folder.`,
     );
+  }
+  if (!path.isAbsolute(workspace)) {
+    throw new Error(`${name} must be an absolute path: ${workspace}`);
+  }
+  let stats;
+  try {
+    stats = statSync(workspace, { throwIfNoEntry: false });
+  } catch (error) {
+    throw new Error(
+      `${name} ${workspace} cannot be read: ${(error as Error).message}`,
+    );
+  }
+  if (!stats?.isDirectory()) {
+    throw new Error(`${name} ${workspace} is not an existing folder.`);
   }
   return workspace;
 }

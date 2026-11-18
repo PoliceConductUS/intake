@@ -46,4 +46,17 @@ describe("data transform / source ordering", () => {
       /gov\/texas\/tcole has no acquired input.*intake data acquire gov\/texas\/tcole/s,
     );
   });
+
+  it("fails every-source transform on a missing workspace instead of skipping each source", async () => {
+    const missing = path.join(workspace, "absent");
+    process.env.INTAKE_WORKSPACE = missing;
+
+    const result = await runIntake(["data", "transform"]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr ?? "").toContain(
+      `INTAKE_WORKSPACE ${missing} is not an existing folder.`,
+    );
+    expect(result.stderr ?? "").not.toContain("skipped");
+  });
 });

@@ -50,28 +50,6 @@ describe("SourceNameToCanonicalId records", () => {
     );
   });
 
-  test("requires INTAKE_WORKSPACE when no root directory is provided", () => {
-    const originalWorkspace = process.env.INTAKE_WORKSPACE;
-
-    try {
-      delete process.env.INTAKE_WORKSPACE;
-
-      expect(() =>
-        resolveSourceNameToCanonicalIdPath(
-          "com/site/my/mnitservices/post-license-search",
-        ),
-      ).toThrow(
-        "INTAKE_WORKSPACE is required to resolve SourceNameToCanonicalId records.",
-      );
-    } finally {
-      if (originalWorkspace === undefined) {
-        delete process.env.INTAKE_WORKSPACE;
-      } else {
-        process.env.INTAKE_WORKSPACE = originalWorkspace;
-      }
-    }
-  });
-
   test("read returns undefined for a source key with no record file", async () => {
     const rootDir = await createTempRoot();
     const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
