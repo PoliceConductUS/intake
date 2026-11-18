@@ -1,4 +1,5 @@
 import { assertValidSourceId } from "../shared/source-namespace.js";
+import { statSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { createId } from "@paralleldrive/cuid2";
@@ -11,9 +12,18 @@ function timestampForPath(date: Date): string {
 export function intakeWorkspace(
   env: Record<string, string | undefined>,
 ): string {
-  const workspace = env.INTAKE_WORKSPACE_TEST ?? env.INTAKE_WORKSPACE;
+  const name =
+    env.INTAKE_WORKSPACE_TEST === undefined
+      ? "INTAKE_WORKSPACE"
+      : "INTAKE_WORKSPACE_TEST";
+  const workspace = env[name];
   if (workspace === undefined || workspace.trim().length === 0) {
     throw new Error("INTAKE_WORKSPACE is required to create command output.");
+  }
+  if (!statSync(workspace, { throwIfNoEntry: false })?.isDirectory()) {
+    throw new Error(
+      `${name} ${workspace} (resolved: ${path.resolve(workspace)}) is not an existing folder.`,
+    );
   }
   return workspace;
 }

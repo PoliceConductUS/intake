@@ -24,6 +24,7 @@ beforeEach(async () => {
   sourceDir = path.join(root, "sources", "test.source");
   stateDir = path.join(root, "workspace", "state", "test.source");
   vi.stubEnv("INTAKE_WORKSPACE_TEST", path.join(root, "workspace"));
+  await mkdir(path.join(root, "workspace"));
   await mkdir(sourceDir, { recursive: true });
   await writeFile(
     path.join(sourceDir, "intake.source.ts"),
@@ -218,6 +219,7 @@ test("keeps exclusions in the selected workspace without reading or changing rep
     (await loadExcludedRecords(stateDir)).get("Agency:515001")?.reason,
   ).toBe(args[6]);
   vi.stubEnv("INTAKE_WORKSPACE_TEST", path.join(root, "other-workspace"));
+  await mkdir(path.join(root, "other-workspace"));
   expect(
     (await runIntake([...args.slice(0, 6), "other workspace reason"])).exitCode,
   ).toBe(0);
