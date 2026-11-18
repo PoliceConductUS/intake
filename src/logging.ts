@@ -6,9 +6,11 @@ import pino, {
   type StreamEntry,
 } from "pino";
 
-type TerminalStream = {
+export type TerminalStream = {
   write(text: string): unknown;
 };
+
+export type CommandLogger = Pick<Logger, "info" | "error">;
 
 export type IntakeLog = {
   logger: Logger;
@@ -67,4 +69,24 @@ export function createIntakeLog(
   );
 
   return { logger, logPath };
+}
+
+export function createCommandLog(
+  command: { commandDirectory: string; commandName: string },
+  env: Record<string, string | undefined>,
+  terminal: TerminalStream | false,
+): IntakeLog {
+  return createIntakeLog({
+    logPath: path.join(command.commandDirectory, `${command.commandName}.log`),
+    level: env.LOG_LEVEL,
+    terminal,
+  });
+}
+
+// A record without a message is written to the log file and not to the terminal.
+export function recordCommandError(
+  logger: CommandLogger,
+  error: unknown,
+): void {
+  logger.error({ error: pino.stdSerializers.err(error as Error) });
 }

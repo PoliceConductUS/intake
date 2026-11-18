@@ -40,6 +40,12 @@ import {
 import { createEmitSink } from "./emit-sink.js";
 import type { EmitRefItem, EmitSink } from "./emit-sink.js";
 import { readCommandPointer } from "../state/command-pointer.js";
+import {
+  createCommandLog,
+  recordCommandError,
+  type CommandLogger,
+  type TerminalStream,
+} from "../../logging.js";
 
 type TransformSourceDeps = {
   sourcesRoot: string;
@@ -49,7 +55,9 @@ type TransformSourceDeps = {
   readXlsx: typeof readXlsx;
   state: string;
   digest: (paths: string[]) => Promise<string>;
-  makeWorkspace: (env: Record<string, string | undefined>) => Promise<string>;
+  makeWorkspace: (
+    env: Record<string, string | undefined>,
+  ) => Promise<{ outputDirectory: string; logger: CommandLogger }>;
   createEmitSink: (workspaceDir: string, namespace: string) => EmitSink;
   loadExcludedRecords: (stateDir: string) => Promise<ExcludedRecords>;
   writeEnvelope: (
@@ -61,7 +69,6 @@ type TransformSourceDeps = {
   ) => Promise<{ path: string }>;
   beginCompletion: () => Promise<void>;
   complete: (artifactsPath: string) => Promise<void>;
-  logger?: { info: (message: string) => void };
 };
 
 /**
@@ -163,11 +170,14 @@ export async function transformSource(
     return { error: { exitCode: 1, stderr: `${errorMessage(error)}\n` } };
   }
 
+  let logger: CommandLogger | undefined;
   try {
     const excludedRecords = await deps.loadExcludedRecords(deps.state);
     const workspaceRoot =
       deps.env.INTAKE_WORKSPACE_TEST ?? deps.env.INTAKE_WORKSPACE;
-    const workspace = await deps.makeWorkspace(deps.env);
+    const command = await deps.makeWorkspace(deps.env);
+    const workspace = command.outputDirectory;
+    logger = command.logger;
     const sink = deps.createEmitSink(workspace, sourceId);
     const streamedExclusions = new Set<string>();
     const streamedKinds = new Set<ImportArtifactKind>();
@@ -215,7 +225,7 @@ export async function transformSource(
         },
         env: deps.env,
         data,
-        logger: deps.logger,
+        logger,
       });
     } finally {
       if (dbClient !== undefined) await dbClient.end();
@@ -294,13 +304,13 @@ export async function transformSource(
             Object.hasOwn(artifact.records, exclusion.key),
         )
       ) {
-        deps.logger?.info(
+        logger.info(
           `${sourceId}: excluded ${exclusion.kind} ${exclusion.key}: ${exclusion.reason}`,
         );
       }
     }
     if (Object.keys(removed).length > 0) {
-      deps.logger?.info(
+      logger.info(
         `${sourceId}: exclusion totals (including dependents): ${Object.entries(
           removed,
         )
@@ -318,12 +328,9 @@ export async function transformSource(
     ]);
     const undeclared = [...emitted].filter((kind) => !declared.has(kind));
     if (undeclared.length > 0) {
-      return {
-        error: {
-          exitCode: 1,
-          stderr: `Source ${sourceId} emitted undeclared kind(s): ${undeclared.join(", ")}\n`,
-        },
-      };
+      throw new Error(
+        `Source ${sourceId} emitted undeclared kind(s): ${undeclared.join(", ")}`,
+      );
     }
     const { path: artifactsPath } = await deps.writeEnvelope(
       workspace,
@@ -335,6 +342,7 @@ export async function transformSource(
     await deps.complete(artifactsPath);
     return { artifactsPath };
   } catch (error) {
+    if (logger !== undefined) recordCommandError(logger, error);
     return { error: { exitCode: 1, stderr: `${errorMessage(error)}\n` } };
   }
 }
@@ -349,7 +357,7 @@ export async function buildTransformSourceDeps(
   env: Record<string, string | undefined>,
   options: {
     commandArgs: string[];
-    logger: { info: (message: string) => void };
+    terminal: TerminalStream | false;
   },
 ): Promise<TransformSourceDeps> {
   assertValidSourceId(sourceId);
@@ -382,13 +390,16 @@ export async function buildTransformSourceDeps(
     readXlsx,
     state: await sourceStateDir(env, sourceId),
     digest: digestOfPaths,
-    makeWorkspace: async (e) =>
-      (
-        await createCommandDirectory(e, {
-          namespace: sourceId,
-          args: options.commandArgs,
-        })
-      ).outputDirectory,
+    makeWorkspace: async (e) => {
+      const command = await createCommandDirectory(e, {
+        namespace: sourceId,
+        args: options.commandArgs,
+      });
+      return {
+        outputDirectory: command.outputDirectory,
+        logger: createCommandLog(command, e, options.terminal).logger,
+      };
+    },
     createEmitSink,
     loadExcludedRecords,
     writeEnvelope: async (directory, id, digest, manifest, refItems) =>
@@ -396,6 +407,5 @@ export async function buildTransformSourceDeps(
         directory,
         buildArtifactsEnvelope(id, digest, manifest, refItems),
       ),
-    logger: options.logger,
   };
 }

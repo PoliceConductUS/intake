@@ -191,7 +191,7 @@ describe("data reset against disposable Postgres", () => {
         personnelRecords = records;
       },
       runDataCommand,
-      logger: { info: () => {} },
+      terminal: false as const,
       orderedSourceIds: async () => [
         "gov/census/www2/gazetteer",
         "fixture-agencies",

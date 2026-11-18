@@ -196,7 +196,7 @@ it("does not stamp a completed acquisition for unrelated consumed paths", async 
     f.env,
     {
       commandArgs: ["data", "transform", "gov/texas/tcole"],
-      logger: { info() {} },
+      terminal: false,
     },
   );
   await expect(deps.beginCompletion()).rejects.toThrow(
@@ -374,7 +374,7 @@ it("rejects invalid source IDs before the dependency builder creates state", asy
       "../../victim",
       [],
       { INTAKE_WORKSPACE_TEST: workspace },
-      { commandArgs: [], logger: { info() {} } },
+      { commandArgs: [], terminal: false },
     ),
   ).rejects.toThrow(/Invalid source/);
   await expect(

@@ -370,7 +370,13 @@ async function run(
       loadSourceModule: async () => async () => manifest,
       readXlsx: async () => [],
       digest: async () => "source-digest",
-      makeWorkspace: async () => root,
+      makeWorkspace: async () => ({
+        outputDirectory: root,
+        logger: {
+          info: (message: string) => logs.push(message),
+          error: () => {},
+        },
+      }),
       createEmitSink: () => ({
         emit: async () => {},
         records: async function* () {},
@@ -382,7 +388,6 @@ async function run(
           directory,
           buildArtifactsEnvelope(source, digest, filtered),
         ),
-      logger: { info: (message) => logs.push(message) },
     },
   );
 }

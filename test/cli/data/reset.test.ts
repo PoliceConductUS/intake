@@ -16,6 +16,7 @@ import {
   readCommandPointer,
   writeCommandPointer,
 } from "../../../src/cli/state/command-pointer.js";
+import { onlyCommandLog, readLogRecords } from "../command-log.js";
 
 const workspaces: string[] = [];
 afterEach(async () => {
@@ -44,7 +45,7 @@ async function fixture() {
       INTAKE_WORKSPACE: workspace,
       DATABASE_URL: "postgresql://localhost/test",
     },
-    logger: { info: vi.fn() },
+    terminal: false as const,
     orderedSourceIds: async () => ["places", "agencies"],
     acquiredInputs: async (_source: string): Promise<string[] | null> => null,
     sourceProduces: async (_source: string): Promise<"LocationPaths"[]> => [],
@@ -165,6 +166,62 @@ test("generation failure stops the rebuild instead of replaying old mutations", 
   expect(result.stderr).toContain("no place boundary contains the address");
   expect(result.stderr).toContain("incomplete");
   expect(f.calls.at(-1)).toBe("data generate agencies");
+});
+
+test("writes each phase it prints to <command-name>.log in its command folder", async () => {
+  const f = await fixture();
+  const printed: string[] = [];
+  const result = await resetData(
+    { acquire: false },
+    { ...f.deps, terminal: { write: (text: string) => printed.push(text) } },
+  );
+  expect(result.exitCode).toBe(0);
+  const { folder, logPath } = await onlyCommandLog(f.workspace);
+  const records = await readLogRecords(logPath);
+  const lines = [
+    "data reset: resetting the configured database to current migrations.",
+    `data reset: previous mutations retained at ${path.join(folder, "intake", "output", "previous-mutations")}`,
+    "data reset: data transform places",
+    "data reset: data generate places",
+    "data reset: data up",
+    "data reset: data transform agencies",
+    "data reset: data generate agencies",
+    "data reset: data up",
+    "data reset: data transform org/policeconduct/manual",
+    "data reset: data generate org/policeconduct/manual",
+    "data reset: data up",
+  ];
+  expect(records.map((record) => record.msg)).toEqual(lines);
+  expect(printed).toEqual(lines.map((line) => `${line}\n`));
+});
+
+test("records the error that ended a reset as the last record of its log", async () => {
+  const f = await fixture();
+  f.deps.resetDatabase.mockRejectedValue(new Error("schema reset failed"));
+  const printed: string[] = [];
+  const result = await resetData(
+    { acquire: false },
+    { ...f.deps, terminal: { write: (text: string) => printed.push(text) } },
+  );
+  expect(result).toEqual({
+    exitCode: 1,
+    stderr:
+      "data reset: rebuild incomplete at schema reset: schema reset failed\n",
+  });
+  const line =
+    "data reset: resetting the configured database to current migrations.";
+  expect(printed).toEqual([`${line}\n`]);
+  const records = await readLogRecords(
+    (await onlyCommandLog(f.workspace)).logPath,
+  );
+  expect(records.map((record) => record.msg)).toEqual([line, undefined]);
+  expect(records.at(-1)).toMatchObject({
+    level: 50,
+    error: {
+      message: "schema reset failed",
+      stack: expect.stringContaining("Error: schema reset failed\n    at "),
+    },
+  });
 });
 
 test("schema failure retains the active chain and does not start sources", async () => {

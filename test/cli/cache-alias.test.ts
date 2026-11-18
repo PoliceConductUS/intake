@@ -9,6 +9,7 @@ import {
   createSourceNameToCanonicalIdLedger,
   resolveSourceNameToCanonicalIdPath,
 } from "../../src/cli/state/source-name-to-canonical-id/index.js";
+import { onlyCommandLog, readLogRecords } from "./command-log.js";
 
 let workspace: string;
 beforeEach(async () => {
@@ -155,4 +156,18 @@ test("replay with forward-only mappings fails without minting a reverse source o
   expect(result.stderr).toMatch(/reverse.*mapping.*missing/i);
   expect((await readdir(directory)).sort()).toEqual(before);
   expect(await readdir(workspace)).toEqual(["state"]);
+});
+
+test("alias writes <command-name>.log in its command folder", async () => {
+  const ledger = createSourceNameToCanonicalIdLedger({ rootDir: workspace });
+  await ledger.findOrCreate(
+    "test.source",
+    "Discipline",
+    "old-case-label",
+    async () => "existing-id",
+  );
+  expect((await runIntake(args())).exitCode).toBe(0);
+  expect(
+    await readLogRecords((await onlyCommandLog(workspace)).logPath),
+  ).toEqual([]);
 });

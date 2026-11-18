@@ -200,7 +200,10 @@ export function registerCliCommand(
     .option("--no-acquire", "reuse existing acquired files without downloading")
     .action(async (options: { acquire: boolean }): Promise<void> => {
       dependencies.setResult(
-        await resetData(options, { env: process.env, logger: consoleLogger }),
+        await resetData(options, {
+          env: process.env,
+          terminal: process.stderr,
+        }),
       );
     });
 
@@ -216,7 +219,7 @@ export function registerCliCommand(
           const result = await transformOneSource(
             source,
             process.env,
-            consoleLogger,
+            process.stderr,
           );
           dependencies.setResult(
             "error" in result
@@ -238,7 +241,7 @@ export function registerCliCommand(
           consoleLogger.info(`${id}: transform`);
           let result;
           try {
-            result = await transformOneSource(id, process.env, consoleLogger);
+            result = await transformOneSource(id, process.env, process.stderr);
           } catch (error) {
             skipped.push(
               `${id} (${error instanceof Error ? error.message.trim() : String(error)})`,
@@ -389,7 +392,7 @@ export function registerCliCommand(
           const transformed = await transformOneSource(
             source,
             process.env,
-            consoleLogger,
+            process.stderr,
           );
           if ("error" in transformed) {
             errored.push(

@@ -19,11 +19,17 @@ import {
   readCommandPointer,
   writeCommandPointer,
 } from "../state/command-pointer.js";
+import {
+  createCommandLog,
+  recordCommandError,
+  type CommandLogger,
+  type TerminalStream,
+} from "../../logging.js";
 
 type ResetOptions = { acquire: boolean };
 type ResetDependencies = {
   env: Record<string, string | undefined>;
-  logger: { info(message: string): void };
+  terminal: TerminalStream | false;
   orderedSourceIds?: () => Promise<string[]>;
   acquiredInputs?: (source: string) => Promise<string[] | null>;
   sourceProduces?: (source: string) => Promise<readonly ImportArtifactKind[]>;
@@ -81,8 +87,9 @@ export async function resetData(
   options: ResetOptions,
   dependencies: ResetDependencies,
 ): Promise<CommandResult> {
-  const { env, logger } = dependencies;
+  const { env } = dependencies;
   let phase = "preparation";
+  let commandLogger: CommandLogger | undefined;
   try {
     const workspace = intakeWorkspace(env);
     if (!env.DATABASE_URL?.trim())
@@ -91,6 +98,8 @@ export async function resetData(
     const command = await createCommandDirectory(env, {
       args: ["data", "reset", ...(options.acquire ? [] : ["--no-acquire"])],
     });
+    const { logger } = createCommandLog(command, env, dependencies.terminal);
+    commandLogger = logger;
     const runDataCommand =
       dependencies.runDataCommand ??
       (async (args, context) => {
@@ -197,7 +206,7 @@ export async function resetData(
             const result = await transformOneSource(
               "org/policeconduct/manual",
               env,
-              logger,
+              dependencies.terminal,
               ["LocationPaths", "LocationPathAliases"],
             );
             return "error" in result ? result.error : { exitCode: 0 };
@@ -217,6 +226,7 @@ export async function resetData(
       stdout: `data reset: rebuilt ${sources.length} source(s) and manual records${options.acquire ? "" : " without acquisition"}.\n`,
     };
   } catch (error) {
+    if (commandLogger !== undefined) recordCommandError(commandLogger, error);
     return {
       exitCode: 1,
       stderr: `data reset: rebuild incomplete at ${phase}: ${error instanceof Error ? error.message : String(error)}\n`,

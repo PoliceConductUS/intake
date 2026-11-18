@@ -18,6 +18,7 @@ import { INTAKE_API_VERSION } from "../../src/shared/io/import-types.js";
 import { DataContext } from "../../src/cli/import/artifacts/data-context.js";
 import { createSourceNameToCanonicalIdLedger } from "../../src/cli/state/source-name-to-canonical-id/index.js";
 import { EmptyDatabaseClient } from "./database/empty-database-client.js";
+import { onlyCommandLog, readLogRecords } from "./command-log.js";
 
 const placeLookup = async (id: string) => ({
   location_path_id: id,
@@ -938,3 +939,31 @@ test.each(["set", "unset"])(
     ).toBe("1234567890");
   },
 );
+
+test("set writes <command-name>.log in its command folder", async () => {
+  const result = await runIntake([
+    ...args("set", "contact_name"),
+    "Records Clerk",
+  ]);
+  expect(result.exitCode).toBe(0);
+  expect(
+    await readLogRecords((await onlyCommandLog(workspace)).logPath),
+  ).toEqual([]);
+});
+
+test("set records the error that ended it as the last record of its log", async () => {
+  const result = await runIntake([...args("set"), "county-id"]);
+  expect(result.exitCode).toBe(1);
+  const records = await readLogRecords(
+    (await onlyCommandLog(workspace)).logPath,
+  );
+  expect(records).toHaveLength(1);
+  expect(records[0]).toMatchObject({
+    level: 50,
+    error: {
+      message:
+        "Agency source-one location_path_id county-id must reference an existing place; found administrative_area.",
+      stack: expect.stringContaining("\n    at "),
+    },
+  });
+});

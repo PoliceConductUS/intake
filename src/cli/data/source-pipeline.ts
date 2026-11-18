@@ -22,9 +22,9 @@ import { matchSourceIds } from "../source-glob.js";
 import { runImportArtifactsCommand } from "../import/artifacts/index.js";
 import { generateEntry } from "./chain.js";
 import type { ImportArtifactKind } from "../../shared/io/index.js";
+import type { TerminalStream } from "../../logging.js";
 
 const SOURCES_ROOT = path.join(process.cwd(), "sources");
-const SILENT = { info: () => {} };
 
 /**
  * `data transform <source>`: run a source's transform.ts against its latest acquired input to
@@ -33,7 +33,7 @@ const SILENT = { info: () => {} };
 export async function transformOneSource(
   sourceId: string,
   env: Record<string, string | undefined>,
-  logger: { info: (message: string) => void } = SILENT,
+  terminal: TerminalStream | false = false,
   kinds?: readonly ImportArtifactKind[],
 ): Promise<{ artifactsPath: string } | { error: CommandResult }> {
   assertValidSourceId(sourceId);
@@ -45,7 +45,7 @@ export async function transformOneSource(
     : await sourceInputPaths(await sourceInputDir(workspace, sourceId));
   const deps = await buildTransformSourceDeps(sourceId, paths, env, {
     commandArgs: ["data", "transform", sourceId, ...paths],
-    logger,
+    terminal,
   });
   if (kinds !== undefined) {
     const recordKinds = new Set<string>(

@@ -25,6 +25,11 @@ import {
   inspectResolvedProperty,
   retireManualResolvedProperty,
 } from "../state/resolved-property/index.js";
+import {
+  createCommandLog,
+  recordCommandError,
+  type CommandLogger,
+} from "../../logging.js";
 
 function valueError(error: z.ZodError): Error {
   return new Error(
@@ -95,6 +100,7 @@ export const registerCliCommand: RegisterCliCommand = (
         existingSourceId: string,
         options: { evidence: string },
       ) => {
+        let commandLogger: CommandLogger | undefined;
         try {
           const nonEmpty = z.string().trim().min(1);
           namespace = nonEmpty.parse(namespace);
@@ -132,21 +138,20 @@ export const registerCliCommand: RegisterCliCommand = (
             throw new Error(
               `Reverse source mapping is missing: ${namespace}/${kind}/${canonicalId}.`,
             );
-          const { commandName, outputDirectory } = await createCommandDirectory(
-            process.env,
-            {
-              args: [
-                "cache",
-                "alias",
-                namespace,
-                kind,
-                newSourceId,
-                existingSourceId,
-                "--evidence",
-                evidence,
-              ],
-            },
-          );
+          const command = await createCommandDirectory(process.env, {
+            args: [
+              "cache",
+              "alias",
+              namespace,
+              kind,
+              newSourceId,
+              existingSourceId,
+              "--evidence",
+              evidence,
+            ],
+          });
+          const { commandName, outputDirectory } = command;
+          commandLogger = createCommandLog(command, process.env, false).logger;
           const provenance = await SourceNameToCanonicalId.write(
             outputDirectory,
             SourceNameToCanonicalId.new({
@@ -179,6 +184,8 @@ export const registerCliCommand: RegisterCliCommand = (
             stdout: `${JSON.stringify({ canonicalId, reverseSourceName, provenancePath: provenance.path }, null, 2)}\n`,
           });
         } catch (error) {
+          if (commandLogger !== undefined)
+            recordCommandError(commandLogger, error);
           dependencies.setResult({
             exitCode: 1,
             stderr: `${error instanceof Error ? error.message : String(error)}\n`,
@@ -240,6 +247,7 @@ export const registerCliCommand: RegisterCliCommand = (
           }
           return readLocationPathById(locationClient, id);
         };
+        let commandLogger: CommandLogger | undefined;
         try {
           const schema = correctionPropertySchema(kind, property);
           if (action !== "get")
@@ -301,26 +309,29 @@ export const registerCliCommand: RegisterCliCommand = (
                 throw new Error(
                   `Cache already has a value. Use --force to overwrite. Current cache:\n${JSON.stringify(resolved.spec, null, 2)}`,
                 );
-              const { commandName } = await createCommandDirectory(
+              const command = await createCommandDirectory(process.env, {
+                args: [
+                  "cache",
+                  action,
+                  namespace,
+                  kind,
+                  sourceId,
+                  property,
+                  ...(action === "set" ? [String(valueOrOptions)] : []),
+                  ...(options?.from === undefined
+                    ? []
+                    : ["--from", options.from]),
+                  ...(options?.force ? ["--force"] : []),
+                  "--message",
+                  options!.message!,
+                ],
+              });
+              const { commandName } = command;
+              commandLogger = createCommandLog(
+                command,
                 process.env,
-                {
-                  args: [
-                    "cache",
-                    action,
-                    namespace,
-                    kind,
-                    sourceId,
-                    property,
-                    ...(action === "set" ? [String(valueOrOptions)] : []),
-                    ...(options?.from === undefined
-                      ? []
-                      : ["--from", options.from]),
-                    ...(options?.force ? ["--force"] : []),
-                    "--message",
-                    options!.message!,
-                  ],
-                },
-              );
+                false,
+              ).logger;
               await setPropertyCorrection({
                 getLocationPathById,
                 rootDir,
@@ -382,6 +393,8 @@ export const registerCliCommand: RegisterCliCommand = (
             stdout: `${JSON.stringify(current.spec, null, 2)}\n`,
           });
         } catch (error) {
+          if (commandLogger !== undefined)
+            recordCommandError(commandLogger, error);
           dependencies.setResult({
             exitCode: 1,
             stderr: `${error instanceof Error ? error.message : String(error)}\n`,

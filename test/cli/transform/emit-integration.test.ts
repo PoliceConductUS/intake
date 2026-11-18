@@ -206,7 +206,10 @@ describe("emit sink integration (via transformSource)", () => {
         readXlsx: async () => [],
         state: "/unused/state",
         digest: async () => "abc123def4567890",
-        makeWorkspace: async () => workspace,
+        makeWorkspace: async () => ({
+          outputDirectory: workspace,
+          logger: { info: () => {}, error: () => {} },
+        }),
         createEmitSink,
         loadExcludedRecords: async () => new Map(),
         writeEnvelope: async (directory, id, digest, manifest, refItems) =>
@@ -342,7 +345,13 @@ async function runStreamedSource(
       readXlsx: async () => [],
       state: workspace,
       digest: async () => "stream-test",
-      makeWorkspace: async () => workspace,
+      makeWorkspace: async () => ({
+        outputDirectory: workspace,
+        logger: {
+          info: (message: string) => logs.push(message),
+          error: () => {},
+        },
+      }),
       createEmitSink,
       loadExcludedRecords,
       writeEnvelope: async (directory, namespace, digest, manifest, refItems) =>
@@ -350,7 +359,6 @@ async function runStreamedSource(
           directory,
           buildArtifactsEnvelope(namespace, digest, manifest, refItems),
         ),
-      logger: { info: (message) => logs.push(message) },
     },
   );
 }

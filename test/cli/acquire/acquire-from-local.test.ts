@@ -8,6 +8,7 @@ import {
 } from "../../../src/cli/acquire/acquire-from-local.js";
 import { readCommandPointer } from "../../../src/cli/state/command-pointer.js";
 import { parse as parseYaml } from "yaml";
+import { readLogRecords } from "../command-log.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {
@@ -124,6 +125,7 @@ describe("acquireFromLocal", () => {
     const { writeCommandPointer } =
       await import("../../../src/cli/state/command-pointer.js");
     await writeCommandPointer(state, "acquire", { latest: "previous" });
+    const printed: string[] = [];
     await expect(
       acquireFromLocal("test", ["cached.pdf"], {
         env: { INTAKE_WORKSPACE: workspace },
@@ -132,8 +134,9 @@ describe("acquireFromLocal", () => {
         cwd: inputs,
         createCommandDirectory: fakeCreateCommandDirectory("failed"),
         writeCommandPointer,
-        logger: { info() {} },
-        acquire: async ({ sourceDir }) => {
+        terminal: { write: (text) => printed.push(text) },
+        acquire: async ({ sourceDir, logger }) => {
+          logger?.info("analysing cached.pdf");
           expect(
             await readFile(path.join(sourceDir, "cached.pdf"), "utf8"),
           ).toBe("cached");
@@ -149,6 +152,21 @@ describe("acquireFromLocal", () => {
       latest: "previous",
       resume: path.join("command", "failed", "test", "output"),
     });
+    expect(printed).toEqual(["analysing cached.pdf\n"]);
+    const records = await readLogRecords(
+      path.join(workspace, "command/failed/failed.log"),
+    );
+    expect(records.map((record) => record.msg)).toEqual([
+      "analysing cached.pdf",
+      undefined,
+    ]);
+    expect(records.at(-1)).toMatchObject({
+      level: 50,
+      error: {
+        message: "analysis incomplete",
+        stack: expect.stringContaining("Error: analysis incomplete\n    at "),
+      },
+    });
   });
 
   it("copies inputs into the command output and points the acquire pointer at it", async () => {
@@ -157,7 +175,7 @@ describe("acquireFromLocal", () => {
     await writeFile(path.join(inputs, "PublicInfo.xlsx"), "workbook-bytes");
     const state = path.join(workspace, "state", "gov/texas/tcole");
 
-    const messages: string[] = [];
+    const printed: string[] = [];
     await acquireFromLocal("gov/texas/tcole", ["PublicInfo.xlsx"], {
       env: { INTAKE_WORKSPACE: workspace },
       workspace,
@@ -170,7 +188,7 @@ describe("acquireFromLocal", () => {
       writeCommandPointer: (
         await import("../../../src/cli/state/command-pointer.js")
       ).writeCommandPointer,
-      logger: { info: (m) => messages.push(m) },
+      terminal: { write: (text) => printed.push(text) },
     });
 
     // File landed in command/<id>/<source>/output/, byte-identical.
@@ -204,8 +222,14 @@ describe("acquireFromLocal", () => {
       await readFile(path.join(state, "acquire.yaml"), "utf8"),
     );
     expect(raw.latest).toBe(pointer.latest);
-    expect(messages.some((m) => /staged 1 local input file/.test(m))).toBe(
-      true,
-    );
+    const staged = `gov/texas/tcole: staged 1 local input file(s) at ${path.join("command", "2026-08-25-abc", "gov/texas/tcole", "output")}`;
+    expect(printed).toEqual([`${staged}\n`]);
+    expect(
+      (
+        await readLogRecords(
+          path.join(workspace, "command/2026-08-25-abc/2026-08-25-abc.log"),
+        )
+      ).map((record) => record.msg),
+    ).toEqual([staged]);
   });
 });

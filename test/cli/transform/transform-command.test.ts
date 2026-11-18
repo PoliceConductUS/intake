@@ -6,9 +6,14 @@ import {
   resolvedPropertyCacheName,
 } from "../../../src/cli/state/resolved-property/index.js";
 import path from "node:path";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, type Mock } from "vitest";
 import { loadExcludedRecords } from "../../../src/shared/io/excluded-records.js";
-import { transformSource } from "../../../src/cli/transform/index.js";
+import {
+  buildTransformSourceDeps,
+  transformSource,
+} from "../../../src/cli/transform/index.js";
+import { writeCommandPointer } from "../../../src/cli/state/command-pointer.js";
+import { onlyCommandLog, readLogRecords } from "../command-log.js";
 
 const testRefItems = [
   {
@@ -22,7 +27,9 @@ const testRefItems = [
 
 // A factory (not a shared const) so each test gets fresh vi.fn() call
 // history — vitest does not auto-reset mocks between `it` blocks here.
-function makeOkDeps() {
+function makeOkDeps(
+  logger: { info: Mock; error: Mock } = { info: vi.fn(), error: vi.fn() },
+) {
   return {
     beginCompletion: async () => {},
     complete: async () => {},
@@ -54,9 +61,9 @@ function makeOkDeps() {
     })),
     loadExcludedRecords: vi.fn(async () => new Map()),
     writeEnvelope: vi.fn(async () => ({ path: "/ws/artifacts.yaml" })),
-    makeWorkspace: vi.fn(async () => "/ws"),
+    makeWorkspace: vi.fn(async () => ({ outputDirectory: "/ws", logger })),
     env: { INTAKE_WORKSPACE: "/ws" },
-    logger: { info: vi.fn() },
+    logger,
   };
 }
 
@@ -107,13 +114,12 @@ describe("transformSource", () => {
         'excluded:\n  - kind: Personnel\n    key: "1001"\n    reason: workspace exclusion\n  - kind: Personnel\n    key: "9999"\n    reason: absent from source\n',
       );
       await writeFile(path.join(sourceDir, "excluded.yaml"), "excluded: []\n");
-      const logger = { info: vi.fn() };
+      const logger = { info: vi.fn(), error: vi.fn() };
       const deps = {
-        ...makeOkDeps(),
+        ...makeOkDeps(logger),
         state,
         sourcesRoot,
         loadExcludedRecords,
-        logger,
       };
       const authority = {
         kind: "LicensingAuthorities" as const,
@@ -275,5 +281,64 @@ describe("transformSource", () => {
         stderr: expect.stringMatching(/undeclared kind\(s\): Personnel/),
       },
     });
+  });
+
+  it("writes each line it prints to <command-name>.log and ends a failed run's log with its error", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "intake-transform-log-"));
+    try {
+      const sourceId = "gov/az/post/roster";
+      const input = path.join(root, "input");
+      await mkdir(input);
+      await writeFile(path.join(input, "roster.csv"), "id\n1001\n");
+      await writeCommandPointer(path.join(root, "state", sourceId), "acquire", {
+        latest: "input",
+      });
+      const printed: string[] = [];
+      const deps = await buildTransformSourceDeps(
+        sourceId,
+        [path.join(input, "roster.csv")],
+        { INTAKE_WORKSPACE_TEST: root },
+        {
+          commandArgs: ["data", "transform", sourceId],
+          terminal: { write: (text) => printed.push(text) },
+        },
+      );
+      deps.loadSourceModule = async () => async (transformInput) => {
+        transformInput.logger?.info("roster: read 1 row");
+        throw new Error("roster: row 2 has no license number");
+      };
+      expect(
+        await transformSource(
+          sourceId,
+          [path.join(input, "roster.csv")],
+          {},
+          deps,
+        ),
+      ).toEqual({
+        error: {
+          exitCode: 1,
+          stderr: "roster: row 2 has no license number\n",
+        },
+      });
+      expect(printed).toEqual(["roster: read 1 row\n"]);
+      const records = await readLogRecords(
+        (await onlyCommandLog(root)).logPath,
+      );
+      expect(records.map((record) => record.msg)).toEqual([
+        "roster: read 1 row",
+        undefined,
+      ]);
+      expect(records.at(-1)).toMatchObject({
+        level: 50,
+        error: {
+          message: "roster: row 2 has no license number",
+          stack: expect.stringContaining(
+            "Error: roster: row 2 has no license number\n    at ",
+          ),
+        },
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
