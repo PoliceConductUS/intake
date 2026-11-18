@@ -72,7 +72,7 @@ Every arrow to a client goes through the cache. A second `data generate` with no
 
 ### 1. Acquire lists dockets and nothing else
 
-`acquire.ts` keeps its loop over agencies and its search, now made through `CourtListenerClient`. A successful search result carries a `retryAfter` 120 days ahead, which is the refresh interval the source uses today. The acquire writes `<agency>.dockets.json` and nothing else.
+`acquire.ts` keeps its loop over agencies and its search, now made through `CourtListenerClient`. A successful search result carries a `retryAfter` 120 days ahead, which is the refresh interval the source uses today. The acquire writes `<agency source ID>.dockets.json`, the ID encoded with `encodeURIComponent`, as soon as that agency's searches are done, and nothing else. When a search fails for one agency, or is skipped because CourtListener went down during the run, the acquire writes no file for that agency, logs the agency and the reason, and counts it in its last log line.
 
 Removed from the acquire: the entries requests, the PDF downloads, the model calls, `docket-cache.json`, `.api-calls.jsonl`, the `complaints/` folder, and the catch that skipped an agency on any error.
 
@@ -84,10 +84,10 @@ The transform no longer supplies `ai_complaint_summary` or `complaint_summary_un
 
 It checks each docket in this order and counts each outcome for its last log line:
 
-1. **The agency record in the file lacks an ID, a name or a state:** leave the file out; log the file and the reason.
+1. **The agency record in the file lacks an ID, a name or a state:** the transform fails, naming the file (`report-every-left-out-source-record`, decision 6). So does a docket with no ID or no address.
 2. **No party matches an officer of the agency:** leave the docket out; log the docket ID, its URL and "no matching officer".
 3. **A party matches but the docket has no title or no valid filing date:** write no case; report a finding on the licensing authority (section 6).
-4. **Otherwise:** write the case.
+4. **Otherwise:** write the case. A docket that reaches this step with no court, no docket number, or a termination date that is not a date fails the transform, naming the file and the docket; none of the 48,316 docket rows in the dev workspace is like that.
 
 Officer matching runs before the title and date check, so that only a docket that would have become a case can produce the finding in step 3.
 
@@ -107,13 +107,17 @@ One resolution per case fills both `ai_complaint_summary` and `complaint_summary
 | Extract its text                                  | PDF text      | `complaint-no-text`        |
 | Ask for a summary; check the pages it cites exist | Inference     | `complaint-no-summary`     |
 
+A download address that is not on `storage.courtlistener.com` counts as no download address (`complaint-no-copy`). A text extraction that fails, or that finds no text on any page, is `complaint-no-text`. A summary that cites a page number above the file's page count is `complaint-no-summary`.
+
+Every row but one ends the work on that case. `complaint-mismatch` does not: the resolver reports the finding and goes on to extract the served file's text and ask for a summary, and the summary's source records that the SHA-1 did not match (owner's decision, 2026-11-17).
+
 The rule for outages is the clients', not this resolver's. A failure of one item comes back as a value and becomes a row in this table. When a client answers "skipped" because its service went down during the run, the resolver stops work on that case and leaves both fields as they are: the case keeps any summary and state it had, gets no new annotation, and is tried again on the next run. Anything that goes wrong for one case that is not a service failure is one of these nine codes. An entries response that does not have the expected shape is `complaint-entries`, not a thrown error.
 
 A successful entries result carries a `retryAfter` 120 days ahead, so new filings on a docket are seen at that interval.
 
-**The request to the model** holds the model, the reasoning level and other parameters, the full prompt text, and the SHA-256 of the complaint's text. Changing the prompt therefore asks again for every case, and reuses the cached entries, PDF and text.
+**The request to the model** holds the reasoning level and other parameters, the full prompt text, and the SHA-256 of the complaint's text. Changing the prompt therefore asks again for every case, and reuses the cached entries, PDF and text. The model is not in the request (`cache-call-results-and-files`), so changing `COMPLAINT_SUMMARY_MODEL` asks nothing again. The summary's `model` is the model the response named, read from the call's outcome, not the model asked for.
 
-**The text** comes from the PDF text client, not from CourtListener's own extracted text. That gives CourtListener and Minnesota POST one way of reading a PDF, including OCR for a scanned page.
+**The text** comes from the PDF text client, not from CourtListener's own extracted text. The pages are sent to the model joined by a form feed. That gives CourtListener and Minnesota POST one way of reading a PDF, including OCR for a scanned page.
 
 **Nothing derived here is cached a second time.** The summary and the state are worked out on every run from call results that are already cached, so the run makes no request when nothing has changed, and a failure is not frozen in place (ADR 0039, decision 8).
 
@@ -128,7 +132,7 @@ For each code the resolver sets the unavailability state and reports one finding
 | `complaint-no-copy`    | missing_copy           | warning      |
 | `complaint-download`   | retrieval_failed       | warning      |
 | `complaint-no-check`   | retrieval_failed       | error        |
-| `complaint-mismatch`   | retrieval_failed       | error        |
+| `complaint-mismatch`   | none: summary written  | error        |
 | `complaint-not-pdf`    | retrieval_failed       | error        |
 | `complaint-no-text`    | available_unsummarized | warning      |
 | `complaint-no-summary` | available_unsummarized | warning      |
@@ -146,7 +150,7 @@ The finding holds:
 
 The state's `detail` is the same message. Its `checkedAt` is the time of the call result that decided the outcome, so it does not change from run to run while that result stands.
 
-**The message says three things and no more:** that we tried to summarize the complaint, why we could not, and where to look. It gives the docket's address, or the complaint document's page when there is a file to point at. When there is no free copy it also says how a reader can help: buying the complaint from PACER, the federal courts' document system, with the free RECAP browser extension installed makes it free for everyone on CourtListener, with a link to the setup page (`https://free.law/recap/`). An address CourtListener's data gives on any host other than `www.courtlistener.com` is not used.
+**The message says three things and no more:** that we tried to summarize the complaint, why we could not, and where to look. The `complaint-mismatch` message differs: a summary was made, it should not be trusted, and where to look. It gives the docket's address, or the complaint document's page when there is a file to point at. When there is no free copy it also says how a reader can help: buying the complaint from PACER, the federal courts' document system, with the free RECAP browser extension installed makes it free for everyone on CourtListener, with a link to the setup page (`https://free.law/recap/`). An address CourtListener's data gives on any host other than `www.courtlistener.com` is not used.
 
 The message wording is in the spec, because it is public text.
 
@@ -161,9 +165,15 @@ This change adds two groups and no new rule:
 
 A finding's key is its code and field. Because the name already includes the source record ID, two findings with one code about two dockets are two annotations.
 
+The source-findings group of a record is also separate for each source namespace whose artifact carried the record, in the same way the corrections group is separate for each contributing source. Several sources report on one state's licensing authority, so a run of one source resolves only the annotations that source reported.
+
+The source-findings group exists only for a record whose metadata holds `defects`. An empty list resolves that source's earlier findings on the record. A record with no `defects` in its metadata, such as the licensing authority a licensing source emits, leaves earlier source findings as they are.
+
 A finding has no `code` column to land in; the code is used for the name and is not stored on the annotation. ADR 0038 gives it a home later.
 
 `metadata.defects` cannot reach the import today, because record metadata is rebuilt from `name`, `action` and `selector` at each of these places: `toRecordMetadata`, the singular record envelope and the artifact write path in `scripts/generate-envelope-types.ts`; `src/shared/io/Artifacts.ts`; `src/cli/import/artifacts/config.ts`; and the `EmittedRecords` type in `src/cli/transform/source-transform.ts`. Each is changed to validate the metadata once against its strict schema and pass the object on whole.
+
+A resolver that could not decide, because a client answered "skipped", calls `keepFindings()` on its context. The resolver-findings group of that record then resolves nothing: the annotations from earlier runs stay as they are. The civil case resolvers also call it for a case whose primary source URL is not a CourtListener docket.
 
 A finding on a kind that takes no part in annotations (one with no source evidence) fails `data generate`. Today the inspection returns early for such a kind, which would drop the finding silently.
 
@@ -171,7 +181,7 @@ A finding on a kind that takes no part in annotations (one with no source eviden
 
 The transform emits one `LicensingAuthorities` record for each US state it processed agencies for, as a partial update that changes no field and carries `metadata.defects`. The list holds one `docket-not-buildable` warning per such docket, with the docket as the finding's source record ID, and is empty when there are none. Emitting the record every time is what lets `data generate` resolve an annotation once its docket is fixed.
 
-The acquire only lists agencies with at least one officer, and officers come from the three licensing sources, so the states are Texas, Minnesota and Oregon. Each has one licensing authority.
+The acquire only lists agencies with at least one officer. Texas, Minnesota and Oregon each have one licensing authority. **Open point:** the last full acquire in the dev workspace (2026-09-28) also has six agencies in DC, one in Virginia and one in Illinois, and those have no licensing authority, so `data generate` fails for them naming the selector. That behaviour is left as it is until the owner decides.
 
 ## Alternatives considered
 
@@ -186,16 +196,17 @@ The acquire only lists agencies with at least one officer, and officers come fro
 
 ## Risks and mitigations
 
-| Risk                                                                                                                  | Mitigation                                                                                                                                                                                                                                                                 |
-| --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The first `data generate` for CourtListener makes every call for 551 cases and takes hours                            | The cache keeps what is done if it stops; the next run continues. The run is a task that needs the owner's go-ahead.                                                                                                                                                       |
-| A reader sees two texts for one problem: the annotation, and the website's own sentence for the unavailability reason | Accepted for this change. The website's sentence should go, which is a policeconduct.org change; it is listed in the proposal's follow-ups when that repository is next changed.                                                                                           |
-| Up to 551 new public annotations                                                                                      | The count is reported by the validation task before the change is merged.                                                                                                                                                                                                  |
-| `data generate` now makes network calls for this source, and a service can be down                                    | A service that is down at the start stops the command before any record is processed. One that goes down during the run is skipped: the cases that needed it keep what they had and are done on the next run. `data up` is unaffected: it applies only what was generated. |
-| A case that had a summary loses it when a newer complaint on the docket cannot be read                                | Accepted: the existing rule is that an older complaint is not presented as the current one. The annotation says why.                                                                                                                                                       |
-| The partial update that selects a licensing authority by state matches none or several, which fails the import        | The selector form is fixed by a test against a database with the three authorities before the transform change is written. If a state the transform processed has no single authority, the transform fails naming the state, before any mutation is generated.             |
-| The summary text now comes from intake's own PDF extraction, which may differ from CourtListener's                    | No summaries exist yet in any workspace, so nothing is compared against an older result.                                                                                                                                                                                   |
-| Log volume: most of 8,300 dockets have no matching officer                                                            | One line per docket is the record the owner asked for. The last line gives the counts.                                                                                                                                                                                     |
+| Risk                                                                                                                  | Mitigation                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The first `data generate` for CourtListener makes every call for 551 cases and takes hours                            | The cache keeps what is done if it stops; the next run continues. The run is a task that needs the owner's go-ahead.                                                                                                                                                                                                                                                                                                                                                        |
+| A reader sees two texts for one problem: the annotation, and the website's own sentence for the unavailability reason | Accepted for this change. The website's sentence should go, which is a policeconduct.org change; it is listed in the proposal's follow-ups when that repository is next changed.                                                                                                                                                                                                                                                                                            |
+| Up to 551 new public annotations                                                                                      | The count is reported by the validation task before the change is merged.                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `data generate` now makes network calls for this source, and a service can be down                                    | A service that is down at the start stops the command before any record is processed. One that goes down during the run is skipped: the cases that needed it keep what they had and are done on the next run. `data up` is unaffected: it applies only what was generated.                                                                                                                                                                                                  |
+| A case that had a summary loses it when a newer complaint on the docket cannot be read                                | Accepted: the existing rule is that an older complaint is not presented as the current one. The annotation says why.                                                                                                                                                                                                                                                                                                                                                        |
+| The partial update that selects a licensing authority by state matches none or several, which fails the import        | The selector form is fixed by a test against a database with the three authorities before the transform change is written. If a state the transform processed has no single authority, the transform fails naming the state, before any mutation is generated.                                                                                                                                                                                                              |
+| A summary made from a file that failed its check is public                                                            | The case carries an error annotation saying not to trust it, and the summary's source records `sha1Verified: false`. The `civil_cases` check no longer requires `sha1Verified` to be true: `20261111230000_relax_complaint_summary_requirements.sql` already replaced it, and a test stores such a summary in a database built from every migration. No migration is written; whether to add a check that `sha1Verified` is a boolean when present is the owner's decision. |
+| The summary text now comes from intake's own PDF extraction, which may differ from CourtListener's                    | No summaries exist yet in any workspace, so nothing is compared against an older result.                                                                                                                                                                                                                                                                                                                                                                                    |
+| Log volume: most of 8,300 dockets have no matching officer                                                            | One line per docket is the record the owner asked for. The last line gives the counts.                                                                                                                                                                                                                                                                                                                                                                                      |
 
 ## Implementation Plan
 
@@ -212,10 +223,10 @@ Paths are from the repository root. Phases 1 and 2 of `cache-call-results-and-fi
 **Phase B: CourtListener.**
 
 6. Add `docketIdFromUrl(url)` to the CourtListener client, returning the docket ID for a `www.courtlistener.com` docket address and nothing for any other address. Test both.
-7. Modify `sources/com/courtlistener/www/api/acquire.ts` as in section 1. Delete `docket-cache.ts`. Replace `test/sources/courtlistener/docket-cache.test.ts` and rewrite `test/sources/courtlistener/acquire-summary-pipeline.test.ts` as an acquire test: only searches are made; only `dockets.json` files are written.
+7. Modify `sources/com/courtlistener/www/api/acquire.ts` as in section 1. Delete `docket-cache.ts`. Delete `test/sources/courtlistener/docket-cache.test.ts` and `acquire-summary-pipeline.test.ts`; the acquire test is `test/sources/courtlistener/acquire.test.ts`: only searches are made; only `dockets.json` files are written.
 8. Modify `sources/com/courtlistener/www/api/transform.ts` as in sections 2 and 6, and add `LicensingAuthorities` to `produces` in `intake.source.ts`. Before writing it, add a test that fixes the selector that selects a licensing authority by its state. Tests in `test/sources/courtlistener/transform.test.ts`: the summary fields are no longer supplied; each left-out reason is logged and counted; two dockets in one state; an empty list when none.
-9. Create `src/cli/import/artifacts/facades/complaint-summary-resolvers.ts`: the resolution of section 3, with the complaint selection moved from `summary-acquisition.ts`, the address rule and the messages of section 4. Register it for `CivilCase` in `src/cli/import/artifacts/facades/resolver-registry.ts`. Tests in `test/import/artifacts/complaint-summary-resolvers.test.ts`: one per code, asserting the state, the finding's type, value, message and evidence; the address rule; a second run that makes no request; a changed prompt; a problem that goes away.
-10. Delete `sources/com/courtlistener/www/api/summary-acquisition.ts` and `summary-analysis.ts` and their tests, including the review receipt functions. Edit `openspec/changes/add-ai-complaint-summary/specs/ai-complaint-summary/spec.md` to remove the three requirements this change replaces.
+9. Create `src/cli/import/artifacts/facades/complaint-summary-resolvers.ts`: the resolution of section 3, with the complaint selection moved from `summary-acquisition.ts`, the address rule and the messages of section 4. Register it for `CivilCase` in `src/cli/import/artifacts/facades/resolver-registry.ts`. Add `pdfText` to the service clients (`src/shared/services/pdf-text-client.ts`) and `keepFindings()` to the resolver context. Tests in `test/import/artifacts/complaint-summary-resolvers.test.ts`: one per code, asserting the state, the finding's type, value, message and evidence; the address rule; a second run that makes no request; a changed prompt. Tests in `test/import/complaint-summary.integration.test.ts`, against a database built from every migration: a mismatched file; a problem that goes away; an outage.
+10. Delete `sources/com/courtlistener/www/api/summary-acquisition.ts`, `summary-analysis.ts` and `complaint.ts` and their tests, including the review receipt functions. Edit `openspec/changes/add-ai-complaint-summary/specs/ai-complaint-summary/spec.md` to remove the three requirements this change replaces.
 
 **Phase C: verify.**
 

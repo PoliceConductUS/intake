@@ -55,6 +55,29 @@ When a record is emitted again and a finding reported for it earlier is not repo
 - **WHEN** a record that carried a finding is emitted without it
 - **THEN** the annotation's status becomes resolved and its ID is unchanged
 
+### Requirement: A resolver that could not decide keeps its earlier findings
+
+A resolver that cannot work out its result on a run, because a service it needs went down during the run, MAY state that the findings reported by the record's resolvers on earlier runs are kept. `data generate` SHALL then write none of those annotations as resolved on that run.
+
+#### Scenario: A service goes down
+
+- **WHEN** a record's resolver reported a finding on an earlier run, and on this run it states that earlier findings are kept and reports nothing
+- **THEN** the annotation stays active with its ID unchanged
+
+### Requirement: A source's findings are resolved only by that source
+
+The identity of a source finding's annotation SHALL also include the source namespace of the artifact that carried the record. A source finding SHALL be resolved only by a record from the same source namespace whose metadata holds `defects`, which MAY be an empty list. A record whose metadata holds no `defects` SHALL leave earlier source findings on its subject record as they are.
+
+#### Scenario: A record with no defects list
+
+- **WHEN** a record that carried a finding is emitted with no `defects` in its metadata
+- **THEN** the annotation stays active
+
+#### Scenario: Two sources report on one record
+
+- **WHEN** source A and source B have each reported a finding on the same licensing authority, and source A emits that record again with an empty `defects` list
+- **THEN** source A's annotation becomes resolved, and source B's annotation stays active with its ID unchanged
+
 ### Requirement: A finding on a kind that cannot hold annotations fails
 
 A finding reported for a record whose kind does not take part in annotations SHALL fail `data generate`, naming the kind.

@@ -7,14 +7,12 @@ The `sources/youtube.policeactivity/acquire.ts` phase MUST resolve the
 the acquire `agencies(...)` facade, and for each agency search **within that
 channel** by the agency's name and place. Each matched video MUST be stored with
 its `videoId`, `title`, `description`, `publishedAt`, `channelId`, canonical
-`url`, retrieval time, and available caption text (or an explicit no-captions
-marker), **stamped with the agency's namespace-local source id**. It MUST require
-`YOUTUBE_API_KEY`. All network access lives in acquire.
+`url`, and retrieval time, **stamped with the agency's namespace-local source id**.
 
 #### Scenario: a per-agency channel search yields agency-stamped video evidence
 
 - **WHEN** acquire searches the channel for a given agency and gets a video hit
-- **THEN** the video is stored with its videoId, title, description, publishedAt, channelId, url, caption text or a no-captions marker, and the agency source id it was found for
+- **THEN** the video is stored with its videoId, title, description, publishedAt, channelId, url, and the agency source id it was found for
 
 #### Scenario: an unavailable or changed video is a visible source-state result
 
@@ -26,15 +24,34 @@ marker), **stamped with the agency's namespace-local source id**. It MUST requir
 - **WHEN** acquire runs again on an unchanged channel/agency state
 - **THEN** no duplicate video evidence is produced (evidence is keyed by agency source id and videoId)
 
+### Requirement: Captions are never fetched or read
+
+Acquire MUST require `YOUTUBE_API_KEY`, all network access lives in acquire,
+and acquire MUST request only the keyed Data API on `www.googleapis.com`. It MUST
+NOT fetch caption/transcript text: the timedtext track is served from a
+`www.youtube.com` path that host's robots.txt disallows (`Disallow: /api/`), and
+we do not request paths a publisher disallows. Run MUST draw officer mentions
+and their passages from the video's title and description only, never from
+caption text.
+
+#### Scenario: captions are never fetched
+
+- **WHEN** acquire runs any phase of the channel search
+- **THEN** every request goes to `https://www.googleapis.com/youtube/v3`, no request is sent to `www.youtube.com/api/timedtext`, and no stored video holds caption text
+
+#### Scenario: caption text a video file still holds links no officer
+
+- **WHEN** a video file holds a `captions` field naming an officer that the video's title and description do not name
+- **THEN** no officer is resolved from that field and no CoverageLinkAgencyPersonnel is emitted for it
+
 ### Requirement: Run resolves officers at the acquired agency and never guesses
 
 The `run.ts` phase MUST be deterministic and MUST link a video only to
 **existing** personnel at the agency the acquire stamped — it MUST NOT mint an
 agency or personnel record, MUST NOT resolve an agency from free text, and MUST
 NOT infer an officer from appearance, geography, title fragments, or comments.
-Every emitted link MUST carry the source passage (with caption timestamp when
-applicable) supporting it. (Linking a video to an existing civil case is a planned
-extension, gated on a match-only `resolveCivilCase` capability.)
+Every emitted link MUST carry the source passage supporting it. (Linking a video
+to an existing civil case is a planned extension, gated on a match-only `resolveCivilCase` capability.)
 
 #### Scenario: a video naming a resolvable officer at its acquired agency emits a cited link
 

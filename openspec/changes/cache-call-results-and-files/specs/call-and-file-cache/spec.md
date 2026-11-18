@@ -2,7 +2,7 @@
 
 ### Requirement: A call result is cached by its request
 
-The cache SHALL hold a `CallResult` envelope for each distinct request, under the namespace of the source that asked, at `<workspace>/state/intake/namespaces/<namespace>/CallResult/<fingerprint>.CallResult.yaml`, where the fingerprint is the SHA-256 of the request's stable JSON. The request SHALL hold the service, the operation, the URL or the model, the parameters, the prompt text when there is one, and the SHA-256 of each input. It SHALL NOT hold an API key or an authorization header.
+The cache SHALL hold a `CallResult` envelope for each distinct request, under the namespace of the source that asked, at `<workspace>/state/intake/namespaces/<namespace>/CallResult/<fingerprint>.CallResult.yaml`, where the fingerprint is the SHA-256 of the request's stable JSON. The request SHALL hold the service, the operation, the URL when there is one, the parameters, the prompt text when there is one, and the SHA-256 of each input.
 
 #### Scenario: The same request is made twice
 
@@ -14,6 +14,15 @@ The cache SHALL hold a `CallResult` envelope for each distinct request, under th
 - **WHEN** a request differs from a cached one only in its prompt text
 - **THEN** it has a different fingerprint, the service is called, and the earlier envelope is kept
 
+### Requirement: A request holds no key and no model
+
+A request SHALL NOT hold an API key or an authorization header. It SHALL NOT hold the model, so the model is not part of the fingerprint.
+
+#### Scenario: The model changes
+
+- **WHEN** a model call differs from one whose current outcome succeeded only in the model it asks for
+- **THEN** it has the same fingerprint, the cached response is returned and the service is not called
+
 ### Requirement: An outcome records what is needed to reproduce the call
 
 Each outcome SHALL record its status of succeeded or failed, its start and end time, the response or the error, and, when the service gives them, the HTTP status, the provider's request ID, the stop reason and the token counts. It SHALL record the command that made the call and the intake version. An envelope SHALL keep its earlier outcomes; the last is the current one.
@@ -21,7 +30,35 @@ Each outcome SHALL record its status of succeeded or failed, its start and end t
 #### Scenario: A model call fails
 
 - **WHEN** a model call is refused
-- **THEN** the envelope's current outcome is failed and holds the stop reason, the provider's request ID and the model, parameters and prompt of the request
+- **THEN** the envelope's current outcome is failed and holds the stop reason, the provider's request ID, the model asked for and the model that answered, and the request holds the parameters and the prompt
+
+### Requirement: An outcome moved from an earlier cache says so
+
+An outcome written by the one-time workspace move SHALL carry `producedBy`, and MAY leave out its start time and the intake version, which the earlier files do not record. Every other outcome SHALL have both.
+
+#### Scenario: A call carried over from a call log
+
+- **WHEN** the move writes an outcome from a CourtListener call log
+- **THEN** the outcome carries `producedBy` naming the log and has no start time and no intake version
+
+#### Scenario: A call intake makes
+
+- **WHEN** a client records an outcome without `producedBy` and without a start time
+- **THEN** the envelope is rejected
+
+### Requirement: A model call's outcome records the model
+
+An outcome of a model call SHALL record the model the call asked for, and, when the service gave a response, the model that response names. A response that names no model SHALL be recorded as a failure of that item; the model asked for SHALL NOT be recorded in its place.
+
+#### Scenario: The service answers with another model
+
+- **WHEN** a model call asks for one model and the response names another
+- **THEN** the succeeded outcome records the model asked for and the model the response names
+
+#### Scenario: The response names no model
+
+- **WHEN** a model call's response names no model
+- **THEN** the envelope's current outcome is failed with an item error and records no answering model
 
 ### Requirement: An outcome says when to call again
 
@@ -101,8 +138,8 @@ The cache SHALL hold a `BinaryFile` envelope for each distinct file content at `
 
 #### Scenario: A personnel photo is imported
 
-- **WHEN** `intake file import` stores a WebP photo for a person
-- **THEN** a `BinaryFile` record exists for the photo and the person's `photo_id` points at it
+- **WHEN** `intake photo import` stores a WebP photo for a person
+- **THEN** a `BinaryFile` record exists for the photo and the manual update it records sets the person's `photo_id` to that record
 
 #### Scenario: The same file is stored again
 
@@ -117,18 +154,3 @@ A write SHALL fail, naming the file, when a file of the same name exists with di
 
 - **WHEN** a file is stored whose SHA-256 names an existing file with different content
 - **THEN** the write fails and the existing file is unchanged
-
-### Requirement: Existing source caches are moved into the cache once
-
-`intake cache migrate` SHALL move what the workspace holds in the CourtListener, Minnesota POST and personnel photo caches into `CallResult` and `BinaryFile` envelopes, SHALL report what it moved and what it could not, and SHALL change nothing when run again.
-
-#### Scenario: Minnesota documents
-
-- **WHEN** the workspace holds an order PDF in a command folder and its text and analysis in the Minnesota state folder
-- **THEN** after the move the cache holds the PDF as a binary file and the text and analysis as call results whose input is that file's SHA-256
-- **AND** a later `data generate` makes no call for that document
-
-#### Scenario: A reviewed analysis
-
-- **WHEN** a Minnesota analysis was produced by a document review and not by the model
-- **THEN** its call result's outcome says a document review produced it and does not name the model as its producer
