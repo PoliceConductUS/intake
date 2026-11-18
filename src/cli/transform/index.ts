@@ -97,6 +97,8 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+export class NoAcquiredInputError extends Error {}
+
 export async function sourceInputDir(
   workspace: string,
   sourceId: string,
@@ -110,7 +112,7 @@ export async function sourceInputDir(
     "acquire",
   );
   if (latest === undefined) {
-    throw new Error(
+    throw new NoAcquiredInputError(
       `${sourceId} has no acquired input. Run \`intake data acquire ${sourceId}\` ` +
         `(or \`intake data acquire ${sourceId} --from-local <path>\`) before running it.`,
     );

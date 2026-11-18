@@ -31,6 +31,7 @@ import {
 import { registerAcquireCommand } from "../acquire/index.js";
 import { resetData } from "./reset.js";
 import { intakeWorkspace } from "../command-directory.js";
+import { NoAcquiredInputError } from "../transform/index.js";
 import { agencyTableIsEmpty } from "../database/agency-graph.js";
 
 const consoleLogger = {
@@ -232,9 +233,8 @@ export function registerCliCommand(
           );
           return;
         }
-        // No source given: transform every source in dependency order. A source
-        // with no acquired input is skipped (you transform what has been acquired);
-        // only a real transform failure errors the run.
+        // No source given: transform every source in dependency order. Only a
+        // source with no acquired input is skipped; every other error fails the run.
         intakeWorkspace(process.env);
         const transformed: string[] = [];
         const skipped: string[] = [];
@@ -245,9 +245,11 @@ export function registerCliCommand(
           try {
             result = await transformOneSource(id, process.env, process.stderr);
           } catch (error) {
-            skipped.push(
-              `${id} (${error instanceof Error ? error.message.trim() : String(error)})`,
-            );
+            if (error instanceof NoAcquiredInputError) skipped.push(id);
+            else
+              errored.push(
+                `${id} (${error instanceof Error ? error.message.trim() : String(error)})`,
+              );
             continue;
           }
           if ("error" in result) {
@@ -260,7 +262,9 @@ export function registerCliCommand(
         const summary =
           `data: transformed ${transformed.length} source(s):\n` +
           transformed.map((id) => `  + ${id}`).join("\n") +
-          (skipped.length > 0 ? `\nskipped: ${skipped.join(", ")}` : "") +
+          (skipped.length > 0
+            ? `\nskipped ${skipped.length} source(s) with no acquired input: ${skipped.join(", ")}`
+            : "") +
           (errored.length > 0 ? `\nerrored: ${errored.join(", ")}` : "") +
           "\n";
         dependencies.setResult(
