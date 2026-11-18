@@ -31,8 +31,8 @@
 
 - **WHEN** an operator runs `intake data reset`
 - **THEN** the reset's command folder holds `<command-name>.log`
-- **AND** each `data reset:` progress line, and the final stdout of each `data` command it ran, is a record in it
-- **AND** each `data acquire`, `data transform` and `data generate` it ran writes its own log in its own command folder
+- **AND** each `data reset:` progress line, which names each command it runs in order, and the final stdout of each `data` command it ran, is a record in it
+- **AND** each `data acquire`, `data transform` and `data generate` it ran is its own command, with its own command name, command folder and log
 
 #### Scenario: A cache set that succeeds
 
@@ -117,6 +117,12 @@ When `LOG_LEVEL` is set to a value that is not a pino level (`fatal`, `error`, `
 
 - **WHEN** an operator runs `intake data acquire <source-id>` with `LOG_LEVEL=inf`
 - **THEN** the command exits non-zero with a message naming `inf`
+- **AND** no command folder is created
+
+#### Scenario: An empty level
+
+- **WHEN** an operator runs `intake data acquire <source-id>` with `LOG_LEVEL=` (set, but empty)
+- **THEN** the command exits non-zero with a message naming the empty value
 - **AND** no command folder is created
 
 ### Requirement: Secret values are redacted from every record

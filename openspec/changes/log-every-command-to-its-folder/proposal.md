@@ -20,14 +20,14 @@ ADR 0013 (`docs/adr/0013-preserve-command-auditability.md`) makes the command fo
 - Before a record is written, each Parameter Store secret value the command has read (the names in `PARAMETER_STORE_SECRETS`) is replaced by `[redacted]` wherever it appears in the record.
 - With `LOG_LEVEL` unset or at `info`, the terminal output does not change: progress lines still go to their stream, and the command's own result output (its final stdout, or its final stderr message on failure) stays out of its log. A reset records the final stdout of each `data` command it runs.
 - A test in `test/architecture.test.ts` requires every caller of `createCommandDirectory` to open a command log.
-- ADR 0013 and the accepted requirement "Import Logging And Progress" name the current command-folder path and commands.
+- ADR 0013 and the accepted requirement "Import Logging And Progress" name the current command-folder path and commands. ADR 0013 also states two rules the code already follows: a command that fails its input checks leaves no command folder, and a command that runs other commands, such as `data reset`, runs each as its own command (one that creates a command folder has its own name, folder and log), and its own log names each command it runs, in order.
 
 ## Non-Goals And Risks
 
 This change accepts these limits:
 
 - A process killed by `SIGKILL` or by the operating system (for example, out of memory) cannot run a handler, so its log ends at the last record it wrote.
-- A command that fails before it creates its command folder (for example, a `cache set` value that does not validate, or `data reset` without `DATABASE_URL`) leaves no folder and no log, as before; one that fails while writing its `Command` envelope leaves a folder with no log. ADR 0013 asks for a command folder even for a command that fails validation, and for one command name for each execution where a reset gives each folder its own name; this change does not close those gaps.
+- A command that fails before it creates its command folder (for example, a `cache set` value that does not validate, or `data reset` without `DATABASE_URL`) leaves no folder and no log, as ADR 0013 now states; one that fails while writing its `Command` envelope leaves a folder with no log.
 - Commands that create no command folder write no log; `cache get` and `data up` are two. The lines `data up` prints while a reset runs it, the lines `data update` prints while it applies mutations, the per-source lines the `data transform` (no source) and `data update` loops print, and the output of `supabase db reset` during a reset are printed only.
 - At `LOG_LEVEL` `warn` or above, progress lines are neither printed nor logged; at `fatal` or `silent`, the error record is dropped too.
 - Only secret values are redacted. Other data an error carries is written as it is. The final stderr message, which is not a record, is not redacted. Logs have no size limit; each holds one run.
