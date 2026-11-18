@@ -4,15 +4,15 @@ The `requests` CLI tracks the seven confirmed state submissions from
 `records-requests/2026-10-23-state-post/status.json`. Each source has a checked-in
 cuid2 for its historical request. Importing history does not send anything.
 
-| Source          | New submission route                  |
-| --------------- | ------------------------------------- |
-| `gov.ar.clest`  | CLEST recordskeeping assistant, email |
-| `gov.de.post`   | DSHS FOIA coordinator, email          |
-| `gov.fl.cjstc`  | FDLE public records custodian, email  |
-| `gov.ms.bleost` | DPS records contact, email            |
-| `gov.sc.letc`   | Criminal Justice Academy Cognito form |
-| `gov.wi.lesb`   | DOJ Office of Open Government, email  |
-| `gov.wv.leps`   | LEPS program manager, email           |
+| Source                   | New submission route                  |
+| ------------------------ | ------------------------------------- |
+| `gov/arkansas/dps/clest` | CLEST recordskeeping assistant, email |
+| `gov/delaware/post`      | DSHS FOIA coordinator, email          |
+| `us/fl/state/fdle/cjstc` | FDLE public records custodian, email  |
+| `gov/ms/dps/bleost`      | DPS records contact, email            |
+| `gov/sc/sccja`           | Criminal Justice Academy Cognito form |
+| `gov/wisdoj/lesb`        | DOJ Office of Open Government, email  |
+| `gov/wv/das/leps`        | LEPS program manager, email           |
 
 Each `sources/<source>/intake.source.ts` records the official destination evidence.
 Arkansas and West Virginia use published program contacts, not dedicated FOIA
@@ -24,8 +24,8 @@ Mississippi's `26-3320` remain separate from internal cuid2 IDs.
 
 ```sh
 npm run cli -- requests status --json
-npm run cli -- requests submit gov.fl.cjstc
-npm run cli -- requests submit gov.fl.cjstc --force
+npm run cli -- requests submit us/fl/state/fdle/cjstc
+npm run cli -- requests submit us/fl/state/fdle/cjstc --force
 npm run cli -- requests sync
 ```
 
@@ -91,7 +91,7 @@ reported without guessing. For historical correspondence lacking these IDs,
 explicitly associate the received Resend message:
 
 ```sh
-npm run cli -- requests sync gov.ar.clest --request-id <cuid2> --email-id <resend-received-id>
+npm run cli -- requests sync gov/arkansas/dps/clest --request-id <cuid2> --email-id <resend-received-id>
 ```
 
 Acknowledgments, fees, and partial productions remain pending. Fulfillment
