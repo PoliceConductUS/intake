@@ -421,10 +421,10 @@ enabled.
 Use the shared Institute for Police Conduct engineering standards for the
 general Codex/OpenSpec/Superpowers workflow:
 
-- [AI-assisted development](../engineering-standards/docs/ai-assisted-development.md)
-- [Engineering principles](../engineering-standards/docs/engineering-principles.md)
-- [Contribution and review](../engineering-standards/docs/contribution-and-review.md)
-- [Project setup standard](../engineering-standards/docs/project-setup-standard.md)
+- [AI-assisted development](../../engineering-standards/main/docs/ai-assisted-development.md)
+- [Engineering principles](../../engineering-standards/main/docs/engineering-principles.md)
+- [Contribution and review](../../engineering-standards/main/docs/contribution-and-review.md)
+- [Project setup standard](../../engineering-standards/main/docs/project-setup-standard.md)
 
 Repo-specific setup and verification:
 
