@@ -157,7 +157,7 @@ describe("collectSources", () => {
   it("does not resolve or scrape an excluded agency", async () => {
     const sourceDir = await makeSourceDir();
     const cache = fakeCache();
-    await collectSources({
+    const result = await collectSources({
       sourceDir,
       supplementalAgencyNames: [],
       excludedAgencyNames: ["Alpha Police Dept."],
@@ -169,6 +169,56 @@ describe("collectSources", () => {
     expect(
       await filesEndingWith(path.join(sourceDir, "officers"), ".roster.json"),
     ).toEqual([]);
+    expect(result.skippedAgencies).toEqual([
+      {
+        agencyName: "Alpha Police Dept.",
+        reason: "excluded by an Agency entry in excluded.yaml",
+      },
+    ]);
+  });
+
+  it("fails when the site returns fewer details than the officers requested", async () => {
+    const sourceDir = await makeSourceDir();
+    const second = {
+      ...sampleOfficer,
+      contactId: "0034000001second",
+      licenseId: "a2j40000000second",
+    };
+    await expect(
+      collectSources({
+        sourceDir,
+        supplementalAgencyNames: [],
+        excludedAgencyNames: [],
+        fetchAgencyCsv: async () => ({ body: oneAgencyCsv, citation: {} }),
+        cache: fakeCache(),
+        client: fakeClient({
+          fetchOfficerList: vi.fn(async () => [sampleOfficer, second]),
+          fetchOfficerDetails: vi.fn(async () => [{ ...noDisciplineDetail }]),
+        }),
+      }),
+    ).rejects.toThrow(
+      /Alpha Police Dept\.: requested details for 2 officers and the site returned 1/,
+    );
+    expect(
+      await filesEndingWith(path.join(sourceDir, "officers"), ".detail.json"),
+    ).toEqual([]);
+  });
+
+  it("fails on an agency CSV row with a blank agency name", async () => {
+    const sourceDir = await makeSourceDir();
+    await expect(
+      collectSources({
+        sourceDir,
+        supplementalAgencyNames: [],
+        excludedAgencyNames: [],
+        fetchAgencyCsv: async () => ({
+          body: "Agency,City\nAlpha Police Dept.,Alphaville\n,Betaville\n",
+          citation: {},
+        }),
+        cache: fakeCache(),
+        client: fakeClient(),
+      }),
+    ).rejects.toThrow(/agency CSV row 3: blank agency name/);
   });
 
   it("skips (and reports) a roster officer missing a licenseId", async () => {

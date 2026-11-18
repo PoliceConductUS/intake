@@ -11,8 +11,11 @@ describe("withParameterStoreSecrets", () => {
       "ANTHROPIC_API_KEY",
       "CLEARING_HOUSE_API_TOKEN",
       "COURTLISTENER_API_TOKEN",
+      "NEWS_INFERENCE_API_KEY",
       "RESEND_API_KEY",
       "RESEND_API_KEY_FULL_ACCESS",
+      "SEARCH_CONSOLE_CREDENTIALS",
+      "SERPAPI_KEY",
       "YOUTUBE_API_KEY",
     ]);
     expect(parameterName("COURTLISTENER_API_TOKEN")).toBe(

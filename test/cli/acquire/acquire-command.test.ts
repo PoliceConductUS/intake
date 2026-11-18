@@ -1,4 +1,11 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -138,6 +145,78 @@ describe("acquireSource", () => {
       ),
     );
     expect(pointer).toEqual({ latest: outputRel });
+  });
+
+  it("hands the source clients that keep results under its namespace and name the command", async () => {
+    const workspace = await makeWorkspace();
+    vi.stubGlobal("fetch", async () => new Response("hello"));
+    const result = await acquireSource(
+      "acquire-source",
+      baseDeps(workspace, {
+        loadSourceAcquire: async () => async (deps: AcquireDeps) => {
+          const download = await deps.clients.download.download(
+            "https://files.example.org/a.txt",
+          );
+          if (download.status !== "succeeded") throw new Error(download.status);
+          await writeFile(
+            path.join(deps.sourceDir, "command.txt"),
+            download.outcome.commandId,
+          );
+        },
+      }),
+    );
+    vi.unstubAllGlobals();
+
+    expect(result).toEqual({ exitCode: 0 });
+    expect(
+      await readFile(
+        path.join(workspace, "command/cmd-1/acquire-source/output/command.txt"),
+        "utf8",
+      ),
+    ).toBe("cmd-1");
+    expect(
+      (
+        await readdir(
+          path.join(
+            workspace,
+            "state/intake/namespaces/acquire-source/BinaryFile",
+          ),
+        )
+      ).sort(),
+    ).toEqual([
+      // sha256("hello")
+      "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824.BinaryFile.yaml",
+      "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824.txt",
+    ]);
+  });
+
+  it("ends by naming a service that went down, and still succeeds", async () => {
+    const workspace = await makeWorkspace();
+    vi.stubGlobal("fetch", async (url: string) =>
+      new URL(url).pathname === "/"
+        ? new Response("")
+        : new Response("", {
+            status: 503,
+            headers: { "retry-after": "0" },
+          }),
+    );
+    const result = await acquireSource(
+      "acquire-source",
+      baseDeps(workspace, {
+        loadSourceAcquire: async () => async (deps: AcquireDeps) => {
+          const download = await deps.clients.download.download(
+            "https://files.example.org/a.txt",
+          );
+          if (download.status !== "skipped") throw new Error(download.status);
+        },
+      }),
+    );
+    vi.unstubAllGlobals();
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(
+      /^acquire-source: download files\.example\.org: went down at \S+; 1 call\(s\) skipped\. Try again after \S+\.\n$/,
+    );
   });
 
   it("resumes a prior in-progress acquire and reports how to start fresh", async () => {

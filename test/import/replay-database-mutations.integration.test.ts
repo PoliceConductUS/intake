@@ -241,7 +241,8 @@ describe("replay against a real Postgres", () => {
 
     expect(result).toEqual({
       ok: false,
-      error: "DatabaseMutation agency-1 cannot create existing Agency.",
+      error:
+        'DatabaseMutation cannot create Agency: duplicate key value violates unique constraint "agency_pkey": Key (id)=(agency-1) already exists.',
     });
     // The transaction rolled back: the pre-existing row is untouched, no partial writes.
     const rows = await db.query("select slug from public.agency");
@@ -581,7 +582,7 @@ describe("replay against a real Postgres", () => {
       artifactsPath: writtenArtifacts.path,
       env: {
         DATABASE_URL: db.connectionString,
-        INTAKE_WORKSPACE_TEST: rootDir,
+        INTAKE_WORKSPACE: rootDir,
       },
       logger: { info: () => {}, debug: () => {} },
       commandName: runId,

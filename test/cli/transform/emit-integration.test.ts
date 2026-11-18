@@ -173,6 +173,7 @@ describe("emit sink integration (via transformSource)", () => {
         sourceLocationPathKey: "az",
       });
       return {
+        accounting: [],
         artifacts: [
           {
             kind: "LocationPaths",
@@ -289,6 +290,7 @@ async function runStreamedSource(
           });
         }
         const manifest: SourceManifest = {
+          accounting: [],
           artifacts: [
             {
               kind: "LocationPaths",

@@ -66,24 +66,32 @@ const sheets: Record<string, Array<Record<string, string>>> = {
       DEPARTMENT_NUMBER: "201217",
       DEPARTMENT_NAME: "Example Police Dept",
       STATUS: "ACTIVE",
+      DATE_OFFICIAL: "",
       STATE: "TX",
       CITY: "Dallas",
       ADD_LINE1: "100 Main St",
+      ADD_LINE2: "",
       ZIP_CODE: "75201",
       HEAD_NAME: "Jane Doe",
       E_MAIL: "",
       PHONE: "",
+      FAX: "",
     },
     // INACTIVE status does not prevent candidate emission.
     {
       DEPARTMENT_NUMBER: "555555",
       DEPARTMENT_NAME: "Defunct Marshal Office",
       STATUS: "INACTIVE",
+      DATE_OFFICIAL: "",
       STATE: "TX",
       CITY: "Nowhere",
       ADD_LINE1: "1 Old Rd",
+      ADD_LINE2: "",
       ZIP_CODE: "70000",
+      HEAD_NAME: "",
+      E_MAIL: "",
       PHONE: "(512) 555-5555",
+      FAX: "",
     },
   ],
   Services: [
@@ -120,7 +128,7 @@ const sheets: Record<string, Array<Record<string, string>>> = {
       PUBLIC_GUID: "1000038",
       DEPARTMENT_NUMBER: "471100",
       APPOINTMENT: "",
-      LICENSE: "",
+      LICENSE: "Peace Officer License",
       ST_DATE: "2020-01-01T00:00:00.000Z",
       END_DATE: "",
     },
@@ -360,7 +368,7 @@ describe("gov/texas/tcole run", () => {
     expect(Object.keys(records).sort()).toEqual([
       "1000033|471100|Jailer|Temporary Jailer License|2024-10-15|",
       "1000038|201217|Peace Officer|Peace Officer License|1994-06-16|2023-09-30",
-      "1000038|471100|||2020-01-01|",
+      "1000038|471100||Peace Officer License|2020-01-01|",
       "2000001|555555|Jailer|Jailer License|2010-01-01|",
     ]);
     const open =
@@ -388,7 +396,8 @@ describe("gov/texas/tcole run", () => {
     const { records } = (await transform(deps)).artifacts.find(
       (a) => a.kind === "AgencyPersonnel",
     )!;
-    const unknown = records["1000038|471100|||2020-01-01|"];
+    const unknown =
+      records["1000038|471100||Peace Officer License|2020-01-01|"];
     expect(unknown).toBeDefined();
     expect(unknown.spec).toEqual({
       agency_id: "471100",
@@ -396,11 +405,11 @@ describe("gov/texas/tcole run", () => {
       start_date: "2020-01-01",
       end_date: null,
       title: "Unknown",
-      license_id: null,
+      license_id: "1000038|Peace Officer",
     });
     // the "Unknown" fallback is the column value only — never in the key
     expect(Object.keys(records)).not.toContain(
-      "1000038|471100|Unknown||2020-01-01|",
+      "1000038|471100|Unknown|Peace Officer License|2020-01-01|",
     );
     expect(AgencyPersonnelSpec.safeParse(unknown.spec).success).toBe(true);
   });
@@ -503,7 +512,7 @@ describe("gov/texas/tcole run", () => {
     }
   });
 
-  it("links AgencyPersonnel to its License, or null when LICENSE is blank", async () => {
+  it("links AgencyPersonnel to its License", async () => {
     const { records } = (await transform(deps)).artifacts.find(
       (a) => a.kind === "AgencyPersonnel",
     )!;
@@ -515,11 +524,6 @@ describe("gov/texas/tcole run", () => {
         ].spec as Record<string, unknown>
       ).license_id,
     ).toBe("1000038|Peace Officer");
-    // blank-LICENSE assignment -> null (no dangling ref)
-    expect(
-      (records["1000038|471100|||2020-01-01|"].spec as Record<string, unknown>)
-        .license_id,
-    ).toBeNull();
   });
 
   it("is deterministic", async () => {
@@ -596,7 +600,11 @@ it("preserves suspect names and suffixes for shared validation and explicit excl
   const result = await transform({
     ...deps,
     readXlsx: async (file, sheet, columns) =>
-      sheet === "Officers" ? raw : fakeReadXlsx(file, sheet, columns),
+      sheet === "Officers"
+        ? raw
+        : sheet === "Departments"
+          ? fakeReadXlsx(file, sheet, columns)
+          : [],
   });
   const records = result.artifacts.find((a) => a.kind === "Personnel")!.records;
   expect(Object.keys(records)).toEqual(["fixture", "numeric", "real"]);
@@ -605,4 +613,442 @@ it("preserves suspect names and suffixes for shared validation and explicit excl
     suffix: "111",
   });
   expect(records.real.spec).toMatchObject({ first_name: "Foo", suffix: "N/A" });
+});
+
+const withSheet =
+  (name: string, rows: Array<Record<string, string>>) =>
+  async (file: string, sheet?: string, columns?: readonly string[]) =>
+    sheet === name ? rows : fakeReadXlsx(file, sheet, columns);
+
+const editRow = (
+  sheet: string,
+  index: number,
+  change: Record<string, string>,
+) =>
+  withSheet(
+    sheet,
+    sheets[sheet]!.map((row, at) =>
+      at === index ? { ...row, ...change } : row,
+    ),
+  );
+
+const records = (
+  manifest: Awaited<ReturnType<typeof transform>>,
+  kind: string,
+) => manifest.artifacts.find((artifact) => artifact.kind === kind)!.records;
+
+const WORKBOOK = "PublicInformationRequest_2025-02-10_1410.xlsx";
+
+describe("gov/texas/tcole left-out rows", () => {
+  it("accounts for every row of each sheet when nothing is left out", async () => {
+    const manifest = await transform(deps);
+    expect(manifest.accounting).toEqual([
+      {
+        input: "Departments",
+        read: 3,
+        emitted: 3,
+        reported: 0,
+        notSelected: {},
+      },
+      { input: "Officers", read: 4, emitted: 4, reported: 0, notSelected: {} },
+      { input: "Services", read: 4, emitted: 4, reported: 0, notSelected: {} },
+      {
+        input: "OfficersLicensesActions",
+        read: 5,
+        emitted: 5,
+        reported: 0,
+        notSelected: {},
+      },
+    ]);
+    expect(records(manifest, "LicensingAuthorities").tcole.metadata).toEqual({
+      defects: [],
+    });
+  });
+
+  it.each([
+    ["Departments", 1, "DEPARTMENT_NUMBER", 3],
+    ["Officers", 0, "PUBLIC_GUID", 2],
+    ["Services", 2, "PUBLIC_GUID", 4],
+    ["Services", 0, "DEPARTMENT_NUMBER", 2],
+    ["Services", 1, "LICENSE", 3],
+    ["OfficersLicensesActions", 4, "PUBLIC_GUID", 6],
+    ["OfficersLicensesActions", 0, "LICENSE", 2],
+    ["OfficersLicensesActions", 3, "LICENSE_ACTION", 5],
+  ])(
+    "throws for %s row index %i with a blank %s",
+    async (sheet, index, column, rowNumber) => {
+      await expect(
+        transform({
+          ...deps,
+          readXlsx: editRow(sheet, index, { [column]: " " }),
+        }),
+      ).rejects.toThrow(
+        `gov/texas/tcole: ${sheet} row ${rowNumber} has a blank ${column}.`,
+      );
+    },
+  );
+
+  it.each([
+    [
+      "Departments",
+      { ...sheets.Departments![0]!, CITY: "Elsewhere" },
+      "471100",
+    ],
+    [
+      "Departments",
+      { ...sheets.Departments![0]!, FAX: "(512) 111-1111" },
+      "471100",
+    ],
+    ["Officers", { ...sheets.Officers![0]!, LNAME: "Gardner" }, "1000033"],
+    [
+      "Services",
+      { ...sheets.Services![1]!, APPOINTMENT: "Peace  Officer" },
+      "1000038|201217|Peace Officer|Peace Officer License|1994-06-16|2023-09-30",
+    ],
+    [
+      "OfficersLicensesActions",
+      { ...sheets.OfficersLicensesActions![0]!, LICENSE_STATUS: "INACTIVE" },
+      "1000038|Peace Officer|Granted|1994-06-16",
+    ],
+  ])(
+    "throws naming the key when two %s rows produce one key with different content",
+    async (sheet, repeat, key) => {
+      const rows = [...sheets[sheet]!, repeat];
+      await expect(
+        transform({ ...deps, readXlsx: withSheet(sheet, rows) }),
+      ).rejects.toThrow(
+        `gov/texas/tcole: ${sheet} row ${rows.length + 1} repeats key ${key} with different content.`,
+      );
+    },
+  );
+
+  it("treats identical repeated rows as one record and counts each row", async () => {
+    const twice = (rows: Array<Record<string, string>>) => [
+      ...rows,
+      { ...rows[0]! },
+    ];
+    const once = await transform(deps);
+    const manifest = await transform({
+      ...deps,
+      readXlsx: async (file, sheet, columns) =>
+        twice(await fakeReadXlsx(file, sheet, columns)),
+    });
+    expect(manifest.artifacts).toEqual(once.artifacts);
+    expect(
+      manifest.accounting.map(({ input, read, emitted, reported }) => [
+        input,
+        read,
+        emitted,
+        reported,
+      ]),
+    ).toEqual([
+      ["Departments", 4, 4, 0],
+      ["Officers", 5, 5, 0],
+      ["Services", 5, 5, 0],
+      ["OfficersLicensesActions", 6, 6, 0],
+    ]);
+  });
+
+  it("reports a department that fails the agency schema on the TCOLE authority and counts its service rows as reported", async () => {
+    const manifest = await transform({
+      ...deps,
+      readXlsx: editRow("Departments", 2, { ZIP_CODE: "00000-0000" }),
+    });
+    expect(Object.keys(records(manifest, "Agencies")).sort()).toEqual([
+      "201217",
+      "471100",
+    ]);
+    expect(records(manifest, "LicensingAuthorities").tcole.metadata).toEqual({
+      defects: [
+        {
+          code: "department-not-buildable",
+          type: "warning",
+          field: "agencies",
+          value: {
+            DEPARTMENT_NUMBER: "555555",
+            DEPARTMENT_NAME: "Defunct Marshal Office",
+            STATE: "TX",
+            STATUS: "INACTIVE",
+            DATE_OFFICIAL: "",
+            ADD_LINE1: "1 Old Rd",
+            ADD_LINE2: "",
+            CITY: "Nowhere",
+            ZIP_CODE: "00000-0000",
+            HEAD_NAME: "",
+            E_MAIL: "",
+            PHONE: "(512) 555-5555",
+            FAX: "",
+          },
+          message:
+            "Department 555555 (Defunct Marshal Office) is in the commission's records but is not listed here because its ZIP code is missing or not usable. Service at this department is not listed either.",
+          evidence: [
+            {
+              workbook: WORKBOOK,
+              sheet: "Departments",
+              row: 4,
+            },
+          ],
+          source_namespace: "gov/texas/tcole",
+          source_record_id: "555555",
+        },
+      ],
+    });
+    expect(manifest.accounting).toEqual([
+      {
+        input: "Departments",
+        read: 3,
+        emitted: 2,
+        reported: 1,
+        notSelected: {},
+      },
+      { input: "Officers", read: 4, emitted: 4, reported: 0, notSelected: {} },
+      { input: "Services", read: 4, emitted: 3, reported: 1, notSelected: {} },
+      {
+        input: "OfficersLicensesActions",
+        read: 5,
+        emitted: 5,
+        reported: 0,
+        notSelected: {},
+      },
+    ]);
+    expect(() =>
+      buildArtifactsEnvelope("gov/texas/tcole", "left-out", manifest),
+    ).not.toThrow();
+  });
+
+  it("reports a department with a blank name and no address, naming each unusable value", async () => {
+    const manifest = await transform({
+      ...deps,
+      readXlsx: editRow("Departments", 1, {
+        DEPARTMENT_NAME: "",
+        ADD_LINE1: "NULL",
+      }),
+    });
+    const defects = records(manifest, "LicensingAuthorities").tcole.metadata!
+      .defects!;
+    expect(
+      defects.map((finding) => [finding.source_record_id, finding.message]),
+    ).toEqual([
+      [
+        "201217",
+        "Department 201217 is in the commission's records but is not listed here because its name and address are missing or not usable. Service at this department is not listed either.",
+      ],
+    ]);
+  });
+
+  it("reports one finding for a left-out department that is repeated identically", async () => {
+    const bad = { ...sheets.Departments![2]!, CITY: "" };
+    const manifest = await transform({
+      ...deps,
+      readXlsx: withSheet("Departments", [
+        sheets.Departments![0]!,
+        sheets.Departments![1]!,
+        bad,
+        { ...bad },
+      ]),
+    });
+    expect(
+      records(manifest, "LicensingAuthorities").tcole.metadata!.defects!.map(
+        (finding) => finding.source_record_id,
+      ),
+    ).toEqual(["555555"]);
+    expect(manifest.accounting[0]).toEqual({
+      input: "Departments",
+      read: 4,
+      emitted: 2,
+      reported: 2,
+      notSelected: {},
+    });
+  });
+
+  it("reports an officer with no first name on the TCOLE authority and counts the officer's other rows as reported", async () => {
+    const manifest = await transform({
+      ...deps,
+      readXlsx: editRow("Officers", 0, { FNAME: "NULL" }),
+    });
+    expect(Object.keys(records(manifest, "Personnel")).sort()).toEqual([
+      "1000038",
+      "2000001",
+      "3000001",
+    ]);
+    expect(records(manifest, "LicensingAuthorities").tcole.metadata).toEqual({
+      defects: [
+        {
+          code: "officer-not-buildable",
+          type: "warning",
+          field: "personnel",
+          value: {
+            PUBLIC_GUID: "1000033",
+            FNAME: "NULL",
+            LNAME: "Garner",
+            MNAME: "D",
+            SFX: "",
+          },
+          message:
+            "Officer record 1000033 is in the commission's records but is not listed here because it has no first name. The officer's licenses and service are not listed either.",
+          evidence: [{ workbook: WORKBOOK, sheet: "Officers", row: 2 }],
+          source_namespace: "gov/texas/tcole",
+          source_record_id: "1000033",
+        },
+      ],
+    });
+    expect(Object.keys(records(manifest, "Licenses")).sort()).toEqual([
+      "1000038|Peace Officer",
+      "2000001|Jailer",
+    ]);
+    expect(manifest.accounting).toEqual([
+      {
+        input: "Departments",
+        read: 3,
+        emitted: 3,
+        reported: 0,
+        notSelected: {},
+      },
+      { input: "Officers", read: 4, emitted: 3, reported: 1, notSelected: {} },
+      { input: "Services", read: 4, emitted: 3, reported: 1, notSelected: {} },
+      {
+        input: "OfficersLicensesActions",
+        read: 5,
+        emitted: 3,
+        reported: 2,
+        notSelected: {},
+      },
+    ]);
+  });
+
+  it("reports a service row with no start date on the TCOLE authority", async () => {
+    const manifest = await transform({
+      ...deps,
+      readXlsx: editRow("Services", 1, { ST_DATE: "" }),
+    });
+    expect(Object.keys(records(manifest, "AgencyPersonnel")).sort()).toEqual([
+      "1000033|471100|Jailer|Temporary Jailer License|2024-10-15|",
+      "1000038|471100||Peace Officer License|2020-01-01|",
+      "2000001|555555|Jailer|Jailer License|2010-01-01|",
+    ]);
+    expect(records(manifest, "LicensingAuthorities").tcole.metadata).toEqual({
+      defects: [
+        {
+          code: "service-not-buildable",
+          type: "warning",
+          field: "agency_personnel",
+          value: {
+            PUBLIC_GUID: "1000038",
+            DEPARTMENT_NUMBER: "201217",
+            APPOINTMENT: "Peace Officer",
+            LICENSE: "Peace Officer License",
+            ST_DATE: "",
+            END_DATE: "2023-09-30T00:00:00.000Z",
+          },
+          message:
+            "A period of service of officer 1000038 at department 201217 is in the commission's records but is not listed here because it has no start date.",
+          evidence: [{ workbook: WORKBOOK, sheet: "Services", row: 3 }],
+          source_namespace: "gov/texas/tcole",
+          source_record_id:
+            "1000038|201217|Peace Officer|Peace Officer License||2023-09-30",
+        },
+      ],
+    });
+    expect(manifest.accounting[2]).toEqual({
+      input: "Services",
+      read: 4,
+      emitted: 3,
+      reported: 1,
+      notSelected: {},
+    });
+  });
+
+  it("emits every assignment with its findings, reporting a blank APPOINTMENT shown as Unknown", async () => {
+    const assignments = records(await transform(deps), "AgencyPersonnel");
+    expect(
+      Object.fromEntries(
+        Object.entries(assignments).map(([key, record]) => [
+          key,
+          record.metadata,
+        ]),
+      ),
+    ).toEqual({
+      "1000033|471100|Jailer|Temporary Jailer License|2024-10-15|": {
+        defects: [],
+      },
+      "1000038|201217|Peace Officer|Peace Officer License|1994-06-16|2023-09-30":
+        { defects: [] },
+      "2000001|555555|Jailer|Jailer License|2010-01-01|": { defects: [] },
+      "1000038|471100||Peace Officer License|2020-01-01|": {
+        defects: [
+          {
+            code: "blank-appointment",
+            type: "warning",
+            field: "title",
+            value: "",
+            message:
+              "The commission's records give no role for this period of service, so the role is shown as Unknown.",
+            evidence: [{ workbook: WORKBOOK, sheet: "Services", row: 5 }],
+            source_namespace: "gov/texas/tcole",
+            source_record_id:
+              "1000038|471100||Peace Officer License|2020-01-01|",
+          },
+        ],
+      },
+    });
+  });
+
+  it.each([
+    [
+      "Services",
+      0,
+      { DEPARTMENT_NUMBER: "999999" },
+      "gov/texas/tcole: Services row 2 names DEPARTMENT_NUMBER 999999, which is not in the Departments sheet.",
+    ],
+    [
+      "Services",
+      3,
+      { PUBLIC_GUID: "7777777" },
+      "gov/texas/tcole: Services row 5 names PUBLIC_GUID 7777777, which is not in the Officers sheet.",
+    ],
+    [
+      "OfficersLicensesActions",
+      1,
+      { PUBLIC_GUID: "7777777" },
+      "gov/texas/tcole: OfficersLicensesActions row 3 names PUBLIC_GUID 7777777, which is not in the Officers sheet.",
+    ],
+  ])(
+    "throws when a %s row names a department or officer that no row describes",
+    async (sheet, index, change, message) => {
+      await expect(
+        transform({ ...deps, readXlsx: editRow(sheet, index, change) }),
+      ).rejects.toThrow(message);
+    },
+  );
+
+  it.each([
+    ["Departments", 0, "DATE_OFFICIAL", 2],
+    ["Services", 0, "ST_DATE", 2],
+    ["Services", 1, "END_DATE", 3],
+    ["OfficersLicensesActions", 2, "DATE_AWARDED", 4],
+    ["OfficersLicensesActions", 4, "ACTION_DATE", 6],
+  ])(
+    "throws for %s row index %i when %s is not a date",
+    async (sheet, index, column, rowNumber) => {
+      await expect(
+        transform({
+          ...deps,
+          readXlsx: editRow(sheet, index, { [column]: "unknown" }),
+        }),
+      ).rejects.toThrow(
+        `gov/texas/tcole: ${sheet} row ${rowNumber} ${column} is not a date: unknown`,
+      );
+    },
+  );
+
+  it("throws when given more than one workbook", async () => {
+    await expect(
+      transform({
+        ...deps,
+        paths: ["/in/a.xlsx", "/in/notes.txt", "/in/b.XLSX"],
+      }),
+    ).rejects.toThrow(
+      "gov/texas/tcole expects a single .xlsx workbook input, got 2: /in/a.xlsx, /in/b.XLSX",
+    );
+  });
 });

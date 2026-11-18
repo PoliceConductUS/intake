@@ -38,6 +38,7 @@ test.each([true, false])(
     vi.mocked(generateOneSource).mockResolvedValue({
       version: "1",
       mutationCount: 1,
+      serviceSkips: [],
     });
     const program = new Command();
     let result: CommandResult | undefined;

@@ -26,26 +26,28 @@ export async function extractShapefileFromZip(
   zipPath: string,
   state: string,
 ): Promise<string> {
-  const zipBase = path.basename(zipPath, path.extname(zipPath));
-  const destinationDir = path.join(state, "tmp", zipBase);
-  await mkdir(destinationDir, { recursive: true });
-
   const entries = await listZipEntries(zipPath);
   const shapefileEntries = entries.filter((entryName) =>
     /\.(shp|dbf|shx)$/i.test(entryName),
   );
-
-  let shpPath: string | undefined;
-  for (const entryName of shapefileEntries) {
-    const buffer = await readZipEntryBuffer(zipPath, entryName);
-    const destinationPath = path.join(destinationDir, path.basename(entryName));
-    await writeFile(destinationPath, buffer);
-    if (/\.shp$/i.test(entryName)) shpPath = destinationPath;
-  }
-
-  if (shpPath === undefined) {
+  const shpEntry = shapefileEntries
+    .filter((entryName) => /\.shp$/i.test(entryName))
+    .at(-1);
+  if (shpEntry === undefined) {
     throw new Error(`No .shp entry found in zip: ${zipPath}`);
   }
 
-  return shpPath;
+  const zipBase = path.basename(zipPath, path.extname(zipPath));
+  const destinationDir = path.join(state, "tmp", zipBase);
+  await mkdir(destinationDir, { recursive: true });
+
+  for (const entryName of shapefileEntries) {
+    const buffer = await readZipEntryBuffer(zipPath, entryName);
+    await writeFile(
+      path.join(destinationDir, path.basename(entryName)),
+      buffer,
+    );
+  }
+
+  return path.join(destinationDir, path.basename(shpEntry));
 }

@@ -18,10 +18,10 @@ const envelope = {
       videoId: "v1",
       url: "https://www.youtube.com/watch?v=v1",
       title: "Bodycam: Irving PD arrest",
-      description: "Officer John Smith responds to a call. Case 3:23-cv-01234.",
+      description:
+        "Officer John Smith responds to a call. Sergeant Jane Wilson also arrived on scene. Case 3:23-cv-01234.",
       publishedAt: "2024-03-05T12:00:00Z",
       channelId: "UCpolice",
-      captions: "Sergeant Jane Wilson also arrived on scene.",
     },
     {
       // Names an officer who does not resolve at this agency -> no link.
@@ -33,7 +33,6 @@ const envelope = {
         "Officer Nobody Stranger writes a ticket. Case 3:23-cv-01234.",
       publishedAt: "2024-01-01T00:00:00Z",
       channelId: "UCpolice",
-      captions: null,
     },
     {
       // Names no officer -> no link.
@@ -43,7 +42,6 @@ const envelope = {
       description: "General footage, no one named.",
       publishedAt: "2024-02-02T00:00:00Z",
       channelId: "UCpolice",
-      captions: null,
     },
   ],
 };
@@ -72,10 +70,28 @@ function fakeData(
   };
 }
 
+async function transformFiles(
+  contents: Record<string, unknown>,
+  data = fakeData(),
+) {
+  const dir = await mkdtemp(path.join(tmpdir(), "youtube-pa-"));
+  tempDirs.push(dir);
+  for (const [name, content] of Object.entries(contents)) {
+    await writeFile(path.join(dir, name), JSON.stringify(content));
+  }
+  return transform({
+    paths: [dir],
+    readXlsx,
+    state: dir,
+    emit: async () => {},
+    data,
+  });
+}
+
 async function runWith(data = fakeData()) {
   const dir = await mkdtemp(path.join(tmpdir(), "youtube-pa-"));
   tempDirs.push(dir);
-  const file = path.join(dir, "irving-police-department.videos.json");
+  const file = path.join(dir, "a1.videos.json");
   await writeFile(file, JSON.stringify(envelope));
   const manifest = await transform({
     paths: [file],
@@ -102,7 +118,8 @@ describe("com/youtube/policeactivity run", () => {
       title: "Bodycam: Irving PD arrest",
       source_name: "PoliceActivity",
       published_at: "2024-03-05",
-      notes: "Officer John Smith responds to a call. Case 3:23-cv-01234.",
+      notes:
+        "Officer John Smith responds to a call. Sergeant Jane Wilson also arrived on scene. Case 3:23-cv-01234.",
     });
 
     // One link per resolved officer, each citing the naming passage.
@@ -124,6 +141,29 @@ describe("com/youtube/policeactivity run", () => {
         },
       },
     });
+  });
+
+  it("links no officer named only in caption text a video file still holds", async () => {
+    const data = fakeData();
+    const manifest = await transformFiles(
+      {
+        "a1.videos.json": {
+          ...envelope,
+          videos: [
+            {
+              ...envelope.videos[2],
+              captions: "Sergeant Jane Wilson also arrived on scene.",
+            },
+          ],
+        },
+      },
+      data,
+    );
+    expect(data.calls).toEqual([]);
+    expect(manifest.artifacts.map((a) => Object.keys(a.records))).toEqual([
+      [],
+      [],
+    ]);
   });
 
   it("emits no coverage link for an unresolvable or unnamed video", async () => {
@@ -152,5 +192,121 @@ describe("com/youtube/policeactivity run", () => {
     const first = (await runWith()).manifest;
     const second = (await runWith()).manifest;
     expect(second).toEqual(first);
+  });
+
+  it("counts every video once: emitted, or not selected because it names no officer the database knows", async () => {
+    const { manifest } = await runWith();
+    expect(manifest.accounting).toEqual([
+      {
+        input: "videos",
+        read: 3,
+        emitted: 1,
+        reported: 0,
+        notSelected: { "names no officer the database knows": 2 },
+      },
+    ]);
+  });
+
+  it("throws on a file with no agency ID", async () => {
+    await expect(
+      transformFiles({
+        "x.videos.json": { ...envelope, agency: { name: "Irving PD" } },
+      }),
+    ).rejects.toThrow(/x\.videos\.json has no agency ID or name/);
+  });
+
+  it("throws on a file with no agency name", async () => {
+    await expect(
+      transformFiles({
+        "x.videos.json": { ...envelope, agency: { id: "a1", name: " " } },
+      }),
+    ).rejects.toThrow(/x\.videos\.json has no agency ID or name/);
+  });
+
+  it("throws on a file with no videos list", async () => {
+    await expect(
+      transformFiles({ "x.videos.json": { agency: envelope.agency } }),
+    ).rejects.toThrow(/x\.videos\.json has no videos list/);
+  });
+
+  it("throws on a video with no title, naming the file and the video", async () => {
+    await expect(
+      transformFiles({
+        "x.videos.json": {
+          ...envelope,
+          videos: [{ ...envelope.videos[0], title: "" }],
+        },
+      }),
+    ).rejects.toThrow(
+      /x\.videos\.json video 1 \("v1"\) has no video ID, URL or title/,
+    );
+  });
+
+  it("throws on a video whose published date is not a date", async () => {
+    await expect(
+      transformFiles({
+        "x.videos.json": {
+          ...envelope,
+          videos: [{ ...envelope.videos[0], publishedAt: "last week" }],
+        },
+      }),
+    ).rejects.toThrow(/x\.videos\.json video 1 \("v1"\).*"last week"/);
+  });
+
+  it("throws on an input path that does not exist", async () => {
+    const missing = path.join(tmpdir(), "youtube-pa-missing-input");
+    await expect(
+      transform({
+        paths: [missing],
+        readXlsx,
+        state: missing,
+        emit: async () => {},
+        data: fakeData(),
+      }),
+    ).rejects.toThrow(/ENOENT.*youtube-pa-missing-input/);
+  });
+
+  it("throws on an input path that is not a directory of video files", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "youtube-pa-"));
+    tempDirs.push(dir);
+    const file = path.join(dir, "channel.json");
+    await writeFile(file, "{}");
+    await expect(
+      transform({
+        paths: [file],
+        readXlsx,
+        state: dir,
+        emit: async () => {},
+        data: fakeData(),
+      }),
+    ).rejects.toThrow(/ENOTDIR/);
+  });
+
+  it("emits one coverage link for a video two agency files hold with the same content", async () => {
+    const manifest = await transformFiles({
+      "a1.videos.json": envelope,
+      "a2.videos.json": {
+        ...envelope,
+        agency: { id: "a2", name: "Dallas Police Department", state: "TX" },
+      },
+    });
+    const links = manifest.artifacts.find((a) => a.kind === "CoverageLinks");
+    expect(Object.keys(links?.records ?? {})).toEqual(["v1"]);
+    expect(manifest.accounting[0]).toMatchObject({ read: 6, emitted: 2 });
+  });
+
+  it("throws when two agency files hold one video with different content", async () => {
+    await expect(
+      transformFiles({
+        "a1.videos.json": envelope,
+        "a2.videos.json": {
+          ...envelope,
+          agency: { id: "a2", name: "Dallas Police Department", state: "TX" },
+          videos: [{ ...envelope.videos[0], title: "Edited title" }],
+        },
+      }),
+    ).rejects.toThrow(
+      /video v1 in .*a2\.videos\.json differs from .*a1\.videos\.json/,
+    );
   });
 });

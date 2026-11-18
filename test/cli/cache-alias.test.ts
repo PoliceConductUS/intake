@@ -13,7 +13,7 @@ import {
 let workspace: string;
 beforeEach(async () => {
   workspace = await mkdtemp(path.join(tmpdir(), "cache-alias-"));
-  vi.stubEnv("INTAKE_WORKSPACE_TEST", workspace);
+  vi.stubEnv("INTAKE_WORKSPACE", workspace);
 });
 afterEach(async () => {
   vi.unstubAllEnvs();

@@ -161,7 +161,7 @@ describe("canonical slug preservation against the current migrated PostgreSQL sc
       artifactsPath: artifacts.path,
       env: {
         DATABASE_URL: db.connectionString,
-        INTAKE_WORKSPACE_TEST: rootDir,
+        INTAKE_WORKSPACE: rootDir,
       },
       commandName: run,
       commandDirectory: path.join(rootDir, "intake", "commands", run),
@@ -304,7 +304,7 @@ describe("canonical slug preservation against the current migrated PostgreSQL sc
         artifactsPath: artifacts.path,
         env: {
           DATABASE_URL: db.connectionString,
-          INTAKE_WORKSPACE_TEST: rootDir,
+          INTAKE_WORKSPACE: rootDir,
         },
         commandName: "new-before-old",
         commandDirectory: path.join(

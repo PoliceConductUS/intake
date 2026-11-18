@@ -172,13 +172,17 @@ Each Census GEOID keeps its own boundary. Unresolved path collisions fail with b
 source identities; they never merge records or select a name by processing order.
 Neither cache edits nor generation modify already-applied database rows.
 
-Exclude an invalid source record with a documented reason:
+Exclude an invalid source record with a reason written for the public:
 
 ```bash
-npm run cli -- data exclude <source> <kind> <source-id> --reason "Reason for exclusion"
+npm run cli -- data exclude <source> <kind> <source-id> --reason "<what was left out and why, in plain words>"
 npm run cli -- data transform <source>
 npm run cli -- data generate <source>
 ```
+
+The reason is published verbatim on the licensing authority's page, as
+`Explicitly excluded <Kind>: <reason>`. Write it for a reader of that page: say
+what was left out and why, in plain words, with no internal shorthand.
 
 This appends to `$INTAKE_WORKSPACE/state/<source>/excluded.yaml`. Exclusions
 belong to the selected workspace and are shared across checkouts using it.
@@ -195,7 +199,7 @@ For an exclusion that applies only to the source values causing the problem, add
 `--when` with a nonempty JSON object of source spec fields and their exact values:
 
 ```bash
-npm run cli -- data exclude <source> Personnel <source-id> --reason "Invalid source first name" --when '{"first_name":"9"}' --replace
+npm run cli -- data exclude <source> Personnel <source-id> --reason "This officer's first name in the roster is the number 9, so the record is left out until the roster is corrected." --when '{"first_name":"9"}' --replace
 ```
 
 Every condition must match, including its type; a missing field differs from
@@ -279,7 +283,9 @@ as it can from the terminal:
 - Homebrew dependencies from `Brewfile`
 - mise
 - mise trust for this repo's `mise.toml`
-- mise-managed tools from `mise.toml`, including Node.js, GitHub CLI, and uv
+- mise-managed tools from `mise.toml`, including Node.js, GitHub CLI, uv, and
+  the PDF programs `data generate` runs (`pdfinfo`, `pdftotext` and `pdftoppm`
+  from poppler, and `tesseract` with its English data)
 - project npm dependencies, including local OpenSpec and Supabase CLI packages
 - Docker / Docker Desktop installation when possible
 - OpenSpec validation
@@ -364,7 +370,7 @@ checks, shell linting, typechecking, Vitest, build, and OpenSpec validation.
 `npm test` runs the Vitest test suite.
 
 `mise` owns pinned tool versions and shared environment, including Node.js,
-GitHub CLI, uv, SQLFluff cache locations, and Supabase telemetry defaults. npm
+GitHub CLI, uv, poppler, tesseract, SQLFluff cache locations, and Supabase telemetry defaults. npm
 remains the primary workflow surface for this repo. `scripts/bootstrap-dev.sh`
 still exists because mise does not replace first-run workstation setup: it checks
 and installs Homebrew-managed system tools, trusts this repo's `mise.toml`,

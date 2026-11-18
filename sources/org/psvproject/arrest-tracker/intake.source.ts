@@ -5,7 +5,11 @@ import { transform } from "./transform.js";
 export const source = {
   description:
     "Spreadsheet-linked reporting, associated with named officers through article-supported agency identities.",
-  produces: ["CoverageLinks", "CoverageLinkAgencyPersonnel"],
+  produces: [
+    "CoverageLinks",
+    "CoverageLinkAgencyPersonnel",
+    "LicensingAuthorities",
+  ],
   acquire,
   transform,
 } satisfies IntakeSource;

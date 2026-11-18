@@ -38,6 +38,7 @@ import {
   selectActiveExcludedRecords,
 } from "./exclude-records.js";
 import { createEmitSink } from "./emit-sink.js";
+import { accountingTotals } from "./accounting.js";
 import type { EmitRefItem, EmitSink } from "./emit-sink.js";
 import { readCommandPointer } from "../state/command-pointer.js";
 
@@ -113,18 +114,13 @@ export async function sourceInputDir(
 
 export async function sourceInputPaths(inputDir: string): Promise<string[]> {
   const collect = async (dir: string): Promise<string[]> => {
-    let entries;
-    try {
-      entries = await readdir(dir, { withFileTypes: true });
-    } catch {
-      return [];
-    }
     const files: string[] = [];
-    for (const entry of entries) {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
       if (entry.name.startsWith(".")) continue;
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) files.push(...(await collect(full)));
       else if (entry.isFile()) files.push(full);
+      else throw new Error(`Unsupported source input entry: ${full}`);
     }
     return files;
   };
@@ -165,8 +161,7 @@ export async function transformSource(
 
   try {
     const excludedRecords = await deps.loadExcludedRecords(deps.state);
-    const workspaceRoot =
-      deps.env.INTAKE_WORKSPACE_TEST ?? deps.env.INTAKE_WORKSPACE;
+    const workspaceRoot = deps.env.INTAKE_WORKSPACE;
     const workspace = await deps.makeWorkspace(deps.env);
     const sink = deps.createEmitSink(workspace, sourceId);
     const streamedExclusions = new Set<string>();
@@ -206,6 +201,7 @@ export async function transformSource(
           if (configured === undefined) return;
           const candidate: SourceManifest = {
             artifacts: [{ kind: artifactKind, records: { [key]: { spec } } }],
+            accounting: [],
           };
           const rule = selectActiveExcludedRecords(
             candidate,
@@ -220,6 +216,7 @@ export async function transformSource(
     } finally {
       if (dbClient !== undefined) await dbClient.end();
     }
+    const totals = accountingTotals(sourceId, manifest.accounting);
     // Apply excluded.yaml at Artifacts generation (with FK cascade) so an
     // excluded record never enters the Artifacts — the import then sees a clean
     // envelope and needs no exclusion of its own.
@@ -333,6 +330,7 @@ export async function transformSource(
       refItems,
     );
     await deps.complete(artifactsPath);
+    deps.logger?.info(totals);
     return { artifactsPath };
   } catch (error) {
     return { error: { exitCode: 1, stderr: `${errorMessage(error)}\n` } };
@@ -380,7 +378,7 @@ export async function buildTransformSourceDeps(
     produces: await loadSourceProduces(sourceId, sourcesRoot),
     loadSourceModule,
     readXlsx,
-    state: await sourceStateDir(env, sourceId),
+    state,
     digest: digestOfPaths,
     makeWorkspace: async (e) =>
       (

@@ -1,14 +1,17 @@
 import { execFileSync } from "node:child_process";
 
-// The API keys that the acquire and requests commands read. Each lives only in
+// The API keys that the acquire, requests and `sources daily` commands read. Each lives only in
 // AWS Systems Manager Parameter Store, as the SecureString
 // `/policeconduct/secrets/<NAME>`.
 export const PARAMETER_STORE_SECRETS: readonly string[] = [
   "ANTHROPIC_API_KEY",
   "CLEARING_HOUSE_API_TOKEN",
   "COURTLISTENER_API_TOKEN",
+  "NEWS_INFERENCE_API_KEY",
   "RESEND_API_KEY",
   "RESEND_API_KEY_FULL_ACCESS",
+  "SEARCH_CONSOLE_CREDENTIALS",
+  "SERPAPI_KEY",
   "YOUTUBE_API_KEY",
 ];
 

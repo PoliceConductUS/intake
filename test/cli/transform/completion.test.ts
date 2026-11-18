@@ -43,7 +43,7 @@ async function fixture() {
     root,
     input,
     artifactsPath: written.path,
-    env: { INTAKE_WORKSPACE_TEST: root },
+    env: { INTAKE_WORKSPACE: root },
   };
 }
 it("rejects helper-created artifacts before invoking import", async () => {
@@ -225,7 +225,7 @@ it("validates a source id before touching completion state", async () => {
   const file = path.join(victim, "transform-completion.json");
   await writeFile(file, "important");
   await expect(
-    transformOneSource("../../victim", { INTAKE_WORKSPACE_TEST: workspace }),
+    transformOneSource("../../victim", { INTAKE_WORKSPACE: workspace }),
   ).rejects.toThrow(/Invalid source/);
   expect(
     await import("node:fs/promises").then((fs) => fs.readFile(file, "utf8")),
@@ -373,7 +373,7 @@ it("rejects invalid source IDs before the dependency builder creates state", asy
     buildTransformSourceDeps(
       "../../victim",
       [],
-      { INTAKE_WORKSPACE_TEST: workspace },
+      { INTAKE_WORKSPACE: workspace },
       { commandArgs: [], logger: { info() {} } },
     ),
   ).rejects.toThrow(/Invalid source/);

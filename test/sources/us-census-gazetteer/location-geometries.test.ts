@@ -458,4 +458,63 @@ describe("buildLocationPathGeometryPackage", () => {
       second.locationPaths["administrative_area:GEOID:27053"].bbox,
     ).toEqual(first.locationPaths["administrative_area:GEOID:27053"].bbox);
   });
+
+  it("counts the features it uses and throws for a kept feature that matches no location path", async () => {
+    const square: [number, number][] = [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [0, 1],
+      [0, 0],
+    ];
+    const mn = { STATEFP: "27", STUSPS: "MN", GEOID: "27", NAME: "Minnesota" };
+    const pr = {
+      STATEFP: "72",
+      STUSPS: "PR",
+      GEOID: "72",
+      NAME: "Puerto Rico",
+    };
+    const hennepin = {
+      STATEFP: "27",
+      STUSPS: "MN",
+      GEOID: "27053",
+      NAME: "Hennepin",
+    };
+    await writeGeoJson(stateGeometryPath, [
+      feature(mn, square),
+      feature(pr, square),
+    ]);
+    await writeGeoJson(countyGeometryPath, []);
+    await writeGeoJson(placeGeometryPath, []);
+    const options = {
+      locationPaths: {
+        "state:GEOID:27": locationPath("state:GEOID:27", "state"),
+      },
+      locationPathSources: {
+        "state:GEOID:27": { sourceKey: "state:GEOID:27" },
+      },
+      stateGeometryPath,
+      countyGeometryPath,
+      placeGeometryPaths: [placeGeometryPath],
+      selectedYear: "2025",
+      state,
+    };
+
+    const result = await buildLocationPathGeometryPackage(options);
+    expect(result.featureAccounting).toEqual({
+      state: {
+        read: 2,
+        emitted: 1,
+        reported: 0,
+        notSelected: { "outside 50 states plus District of Columbia": 1 },
+      },
+      county: { read: 0, emitted: 0, reported: 0, notSelected: {} },
+      place: { read: 0, emitted: 0, reported: 0, notSelected: {} },
+    });
+
+    await writeGeoJson(countyGeometryPath, [feature(hennepin, square)]);
+    await expect(buildLocationPathGeometryPackage(options)).rejects.toThrow(
+      "gov/census/www2/gazetteer: TIGER county feature 27053 matches no location path",
+    );
+  });
 });

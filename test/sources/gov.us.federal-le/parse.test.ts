@@ -49,4 +49,25 @@ describe("parseFederalLeAgencies", () => {
     expect(agencies).not.toContain("Ignored intro link");
     expect(agencies).not.toContain("Defunct Bureau");
   });
+
+  it("throws for a heading block that holds no heading", () => {
+    expect(() =>
+      parseFederalLeAgencies(
+        `<div id="mw-content-text"><div class="mw-heading mw-heading2">List of federal law enforcement agencies</div></div>`,
+      ),
+    ).toThrow(
+      "org/wikipedia/en/us-federal-law-enforcement-agencies: heading block with no h1 to h6: List of federal law enforcement agencies",
+    );
+  });
+
+  it("throws when two different agency names share a slug", () => {
+    expect(() =>
+      parseFederalLeAgencies(`<div id="mw-content-text">
+        <div class="mw-heading mw-heading2"><h2>List of federal law enforcement agencies</h2></div>
+        <ul><li><a href="/a">Office of Inspector General (A)</a></li><li><a href="/b">Office of Inspector General (B)</a></li></ul>
+      </div>`),
+    ).toThrow(
+      "org/wikipedia/en/us-federal-law-enforcement-agencies: agencies Office of Inspector General (A) and Office of Inspector General (B) share the slug office-of-inspector-general",
+    );
+  });
 });

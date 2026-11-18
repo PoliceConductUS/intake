@@ -5,6 +5,7 @@ import type {
   SourceTransform,
 } from "./transform/source-transform.js";
 import type { ImportArtifactKind } from "../shared/io/import-type-metadata.js";
+import type { Environment } from "./parameter-store-env.js";
 
 interface SourceOperations {
   description?: string;
@@ -12,7 +13,7 @@ interface SourceOperations {
   acquire?: SourceAcquire;
   request?: RequestDefinition;
   portalForm?: PortalForm;
-  daily?: () => Promise<void>;
+  daily?: (env: Environment) => Promise<void>;
 }
 
 /** The public contract exported by each intake.source.ts module. */

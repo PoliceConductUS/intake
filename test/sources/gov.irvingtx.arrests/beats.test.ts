@@ -46,3 +46,15 @@ it("rejects missing names and duplicate patrol codes", () => {
     }),
   ).toThrow();
 });
+it("does not require IsActive on a beat polygon", () => {
+  expect(
+    patrolBeatBoundaries({
+      features: [
+        {
+          properties: { Code: "21", Name: "21", BattalionC: "PD1" },
+          geometry,
+        },
+      ],
+    }),
+  ).toEqual([{ code: "21", name: "21", geometry }]);
+});

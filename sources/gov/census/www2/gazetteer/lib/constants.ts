@@ -1,3 +1,5 @@
+import type { InputAccounting } from "../../../../../../src/cli/transform/accounting.js";
+
 /**
  * Ported verbatim from `intake.us-census-gazetteer/src/address-location-evidence.js`.
  * Only `allowedStateSlugs` — the piece `location-paths.ts` depends on — is
@@ -10,6 +12,24 @@
  * other module that needs the 50-states-plus-DC GEOID allowlist share one
  * copy, deduped as directed by the migration plan.
  */
+
+export const SOURCE_ID = "gov/census/www2/gazetteer";
+
+export const OUTSIDE_ALLOWED_STATES =
+  "outside 50 states plus District of Columbia";
+
+export type RowCounts = Omit<InputAccounting, "input">;
+
+export const rowCounts = (): RowCounts => ({
+  read: 0,
+  emitted: 0,
+  reported: 0,
+  notSelected: {},
+});
+
+export function countNotSelected(counts: RowCounts, reason: string): void {
+  counts.notSelected[reason] = (counts.notSelected[reason] ?? 0) + 1;
+}
 
 export const allowedStateGeoids = new Set([
   "01",

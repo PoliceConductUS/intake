@@ -48,11 +48,13 @@ function fakeCreateCommandDirectory(commandId: string) {
   };
 }
 
+const silent = { info: () => {} };
+
 describe("resolveLocalInputs", () => {
   it("resolves a single file to its basename", async () => {
     const dir = await tempDir("from-local-file-");
     await writeFile(path.join(dir, "roster.xlsx"), "x");
-    const items = await resolveLocalInputs(["roster.xlsx"], dir);
+    const items = await resolveLocalInputs(["roster.xlsx"], dir, silent);
     expect(items).toEqual([
       {
         source: path.join(dir, "roster.xlsx"),
@@ -61,16 +63,27 @@ describe("resolveLocalInputs", () => {
     ]);
   });
 
-  it("resolves a folder to its files, preserving structure and skipping dotfiles", async () => {
+  it("resolves a folder to its files, preserving structure and logging each dotfile left out", async () => {
     const dir = await tempDir("from-local-folder-");
     await mkdir(path.join(dir, "in", "nested"), { recursive: true });
+    await mkdir(path.join(dir, "in", ".cache"));
     await writeFile(path.join(dir, "in", "a.json"), "a");
     await writeFile(path.join(dir, "in", "nested", "b.json"), "b");
     await writeFile(path.join(dir, "in", ".DS_Store"), "junk");
-    const items = await resolveLocalInputs(["in"], dir);
+    await writeFile(path.join(dir, "in", "nested", ".hidden.json"), "h");
+    await writeFile(path.join(dir, "in", ".cache", "inside.json"), "i");
+    const messages: string[] = [];
+    const items = await resolveLocalInputs(["in"], dir, {
+      info: (message) => messages.push(message),
+    });
     expect(items.map((item) => item.destinationRelative).sort()).toEqual([
       "a.json",
       path.join("nested", "b.json"),
+    ]);
+    expect(messages.sort()).toEqual([
+      `--from-local: left out dotfile ${path.join(dir, "in", ".DS_Store")}`,
+      `--from-local: left out dotfile ${path.join(dir, "in", ".cache")}`,
+      `--from-local: left out dotfile ${path.join(dir, "in", "nested", ".hidden.json")}`,
     ]);
   });
 
@@ -79,7 +92,7 @@ describe("resolveLocalInputs", () => {
     await writeFile(path.join(dir, "one.csv"), "1");
     await writeFile(path.join(dir, "two.csv"), "2");
     await writeFile(path.join(dir, "skip.txt"), "3");
-    const items = await resolveLocalInputs(["*.csv"], dir);
+    const items = await resolveLocalInputs(["*.csv"], dir, silent);
     expect(items.map((item) => item.destinationRelative).sort()).toEqual([
       "one.csv",
       "two.csv",
@@ -88,16 +101,16 @@ describe("resolveLocalInputs", () => {
 
   it("fails loud with a plain 'no such file' message for a non-glob path typo", async () => {
     const dir = await tempDir("from-local-typo-");
-    await expect(resolveLocalInputs(["roster.xls"], dir)).rejects.toThrow(
-      /no such file or folder: roster\.xls/,
-    );
+    await expect(
+      resolveLocalInputs(["roster.xls"], dir, silent),
+    ).rejects.toThrow(/no such file or folder: roster\.xls/);
   });
 
   it("fails loud when a glob matches nothing", async () => {
     const dir = await tempDir("from-local-none-");
-    await expect(resolveLocalInputs(["missing-*.csv"], dir)).rejects.toThrow(
-      /glob matched nothing/,
-    );
+    await expect(
+      resolveLocalInputs(["missing-*.csv"], dir, silent),
+    ).rejects.toThrow(/glob matched nothing/);
   });
 
   it("fails loud on a destination-name collision", async () => {
@@ -110,6 +123,7 @@ describe("resolveLocalInputs", () => {
       resolveLocalInputs(
         [path.join("a", "same.json"), path.join("b", "same.json")],
         dir,
+        silent,
       ),
     ).rejects.toThrow(/collide on destination name: same\.json/);
   });

@@ -32,6 +32,7 @@ type ResetDependencies = {
     args: readonly string[],
     context?: {
       useInitialAgencyRoots: boolean;
+      keepCachedCallResults: boolean;
     },
   ) => Promise<CommandResult>;
   prepareManualLocations?: () => Promise<CommandResult>;
@@ -103,6 +104,7 @@ export async function resetData(
       logger.info(`data reset: ${phase}`);
       const result = await runDataCommand(args, {
         useInitialAgencyRoots: true,
+        keepCachedCallResults: !options.acquire,
       });
       if (result.exitCode !== 0)
         throw new Error(result.stderr?.trim() || `${phase} failed.`);

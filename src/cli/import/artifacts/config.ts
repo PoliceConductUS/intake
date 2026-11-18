@@ -1,5 +1,8 @@
 import { requireTransformCompletion } from "../../state/transform-completion.js";
 import { intakeWorkspace } from "../../command-directory.js";
+import { buildServiceClients } from "../../service-clients.js";
+import type { ServiceSkips } from "../../../shared/services/client-base.js";
+import type { ServiceClients } from "../../../shared/services/index.js";
 import { readLocationPathById } from "../../database/location-paths.js";
 import {
   agencyTableIsEmpty,
@@ -24,6 +27,7 @@ import {
 } from "../../database/index.js";
 import { readDatabaseRecordByColumn } from "../../database/entities.js";
 import { DataContext } from "./data-context.js";
+import type { Finding } from "../../../shared/data-annotations.js";
 import { isRegistryKind } from "./facades/resolver-registry.js";
 import type { ApplyArtifactMutationResult } from "./artifact-mutation.js";
 import { readImportArtifacts } from "./artifacts-reader.js";
@@ -79,7 +83,12 @@ type ImportLogger = {
 };
 
 export type ImportArtifactsResult =
-  | { ok: true; counts: DatabaseMutationCounts; databaseMutationsPath: string }
+  | {
+      ok: true;
+      counts: DatabaseMutationCounts;
+      databaseMutationsPath: string;
+      serviceSkips: ServiceSkips[];
+    }
   | { ok: false; error: string };
 
 export type ImportArtifactsCommandInput = {
@@ -95,6 +104,9 @@ export type ImportArtifactsCommandInput = {
   commandDirectory?: string;
   commandName?: string;
   clientFactory?: DatabaseClientFactory;
+  /** `data reset --no-acquire`: use a cached successful call result as it is. */
+  keepCachedCallResults?: boolean;
+  serviceClients?: ServiceClients;
 };
 
 function errorMessage(error: unknown): string {
@@ -104,7 +116,7 @@ function errorMessage(error: unknown): string {
 function workspaceRootFromEnv(
   env: Record<string, string | undefined> | undefined,
 ): string | undefined {
-  return env?.INTAKE_WORKSPACE_TEST ?? env?.INTAKE_WORKSPACE;
+  return env?.INTAKE_WORKSPACE;
 }
 
 function valueAsRecord(value: unknown): Record<string, unknown> {
@@ -115,7 +127,7 @@ function valueAsRecord(value: unknown): Record<string, unknown> {
   throw new Error("Artifacts record must be an object.");
 }
 
-function addSourceFacades(
+export function addSourceFacades(
   dataContext: DataContext,
   artifacts: ArtifactsEnvelope,
 ): void {
@@ -133,23 +145,24 @@ function addSourceFacades(
       for (const [recordName, rawRecord] of Object.entries(
         artifact.spec.records,
       )) {
-        // A record is an envelope (ADR 0034): its metadata (action/selector) rides
-        // with it through the pipeline, never folded into the spec (the payload).
+        // A record is an envelope (ADR 0034): its metadata rides with it whole
+        // (ADR 0040), never folded into the spec (the payload).
         const record = rawRecord as {
           metadata?: {
+            name?: string;
             action?: "PUT" | "PATCH" | "POST";
             selector?: Record<string, unknown>;
+            defects?: Finding[];
           };
           spec: Record<string, unknown>;
         };
         dataContext.facadeFromSource(recordKind, {
+          ...record.metadata,
           apiVersion: INTAKE_API_VERSION,
           namespace,
           name: sourceNameForImportRecord(recordName, record.spec),
           origin: recordOrigin(record.spec),
           spec: valueAsRecord(record.spec),
-          action: record.metadata?.action,
-          selector: record.metadata?.selector,
           sourceFile: artifact.recordSources?.[recordName],
         });
       }
@@ -167,6 +180,7 @@ type ImportArtifactsPipelineContext = {
   ledger: SourceNameToCanonicalIdLedger;
   databaseMutationCounts?: DatabaseMutationCounts;
   databaseMutationsPath?: string;
+  serviceClients?: ServiceClients;
 };
 
 type ImportArtifactsPipelineStage = (
@@ -648,6 +662,16 @@ async function writeDatabaseMutationsStage(
     throw new Error(`Database connection failed: ${errorMessage(error)}`);
   }
 
+  const serviceClients =
+    context.commandInput.serviceClients ??
+    buildServiceClients({
+      workspace: intakeWorkspace(context.commandInput.env ?? process.env),
+      namespace: artifacts.metadata.namespace,
+      commandId: context.commandName,
+      env: context.commandInput.env ?? process.env,
+      keepCachedCallResults: context.commandInput.keepCachedCallResults,
+      logger,
+    });
   let databaseMutations;
   try {
     const { importSchema } = await loadDatabaseSchemaMetadata(client);
@@ -667,6 +691,7 @@ async function writeDatabaseMutationsStage(
       resolvedPropertyStore: deps.resolvedPropertyCache,
       lookupCachedSlugOwner: deps.lookupCachedSlugOwner,
       resolveAddress: (input) => resolveImportAddress(input, deps),
+      serviceClients,
     });
 
     addSourceFacades(dataContext, artifacts);
@@ -732,6 +757,7 @@ async function writeDatabaseMutationsStage(
       ...context,
       databaseMutationCounts,
       databaseMutationsPath: databaseMutationsEnvelope.path,
+      serviceClients,
     };
   }
 
@@ -748,6 +774,7 @@ async function writeDatabaseMutationsStage(
     ...context,
     databaseMutationCounts: replayResult.counts,
     databaseMutationsPath: databaseMutationsEnvelope.path,
+    serviceClients,
   };
 }
 
@@ -804,5 +831,6 @@ export async function importArtifacts(
     ok: true,
     counts: context.databaseMutationCounts,
     databaseMutationsPath: context.databaseMutationsPath,
+    serviceSkips: context.serviceClients?.skips() ?? [],
   };
 }

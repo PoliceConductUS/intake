@@ -20,7 +20,7 @@ export type SourceRow = {
   category: string;
   outcome: string;
   linkText: string;
-  url: string;
+  url: string | null;
 };
 
 // Acquisition reads this publisher's original workbook, including hyperlink
@@ -54,13 +54,15 @@ export async function readSpreadsheet(
   for (let row = 4; row <= sheet.rowCount; row++) {
     const cells = sheet.getRow(row);
     const text = (col: number) => cells.getCell(col).text.trim();
-    if (!text(6)) continue;
+    if ([1, 2, 3, 4, 5, 6].every((col) => text(col) === "")) continue;
     const value = cells.getCell(6).value;
     const url =
-      value && typeof value === "object" && "hyperlink" in value
-        ? value.hyperlink
-        : text(6);
-    if (!/^https?:\/\//.test(url))
+      text(6) === ""
+        ? null
+        : value && typeof value === "object" && "hyperlink" in value
+          ? value.hyperlink
+          : text(6);
+    if (url !== null && !/^https?:\/\//.test(url))
       throw new Error(`Invalid article URL at row ${row}: ${url}`);
     rows.push({
       row,

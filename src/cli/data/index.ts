@@ -26,11 +26,13 @@ import {
 import {
   generateOneSource,
   orderedSourceIds,
+  sourceHasAcquiredInput,
   transformOneSource,
 } from "./source-pipeline.js";
 import { registerAcquireCommand } from "../acquire/index.js";
 import { resetData } from "./reset.js";
 import { agencyTableIsEmpty } from "../database/agency-graph.js";
+import { withParameterStoreSecrets } from "../parameter-store-env.js";
 
 const consoleLogger = {
   info: (message: string) => process.stderr.write(`${message}\n`),
@@ -136,7 +138,7 @@ export function registerCliCommand(
     .argument("<source-id>", "source-local record identity")
     .requiredOption(
       "--reason <reason>",
-      "why this record should not be imported",
+      'shown to the public, verbatim, on the licensing authority\'s page as "Explicitly excluded <Kind>: <reason>"; write it for a reader: what was left out and why, in plain words',
     )
     .option(
       "--when <json>",
@@ -199,6 +201,8 @@ export function registerCliCommand(
     )
     .option("--no-acquire", "reuse existing acquired files without downloading")
     .action(async (options: { acquire: boolean }): Promise<void> => {
+      // Each phase of the reset is a data command that takes its own API keys
+      // from Parameter Store when a client first needs one.
       dependencies.setResult(
         await resetData(options, { env: process.env, logger: consoleLogger }),
       );
@@ -228,19 +232,20 @@ export function registerCliCommand(
           );
           return;
         }
-        // No source given: transform every source in dependency order. A source
-        // with no acquired input is skipped (you transform what has been acquired);
-        // only a real transform failure errors the run.
         const transformed: string[] = [];
         const skipped: string[] = [];
         const errored: string[] = [];
         for (const id of await orderedSourceIds()) {
+          if (!(await sourceHasAcquiredInput(id, process.env))) {
+            skipped.push(`${id} (no acquired input)`);
+            continue;
+          }
           consoleLogger.info(`${id}: transform`);
           let result;
           try {
             result = await transformOneSource(id, process.env, consoleLogger);
           } catch (error) {
-            skipped.push(
+            errored.push(
               `${id} (${error instanceof Error ? error.message.trim() : String(error)})`,
             );
             continue;
@@ -279,21 +284,21 @@ export function registerCliCommand(
         await withClient((client) => assertAtHead(client));
         const result = await generateOneSource(
           source,
-          process.env,
+          withParameterStoreSecrets(process.env),
           dependencies.useInitialAgencyRoots,
+          dependencies.keepCachedCallResults,
         );
         dependencies.setResult(
           "error" in result
             ? result.error
-            : result.version === undefined
-              ? {
-                  exitCode: 0,
-                  stdout: `data: ${source} — empty diff, nothing appended.\n`,
-                }
-              : {
-                  exitCode: 0,
-                  stdout: `data: appended ${result.version} (${result.mutationCount} mutations).\n`,
-                },
+            : {
+                exitCode: 0,
+                stdout:
+                  (result.version === undefined
+                    ? `data: ${source} — empty diff, nothing appended.\n`
+                    : `data: appended ${result.version} (${result.mutationCount} mutations).\n`) +
+                  result.serviceSkips.map((line) => `${line}\n`).join(""),
+              },
         );
       } catch (error) {
         dependencies.setResult(errorResult(error));
@@ -318,7 +323,7 @@ export function registerCliCommand(
           stdout:
             applied.length === 0
               ? "data: up to date.\n"
-              : `data: applied ${applied.length} entrie(s): ${applied
+              : `data: applied ${applied.length} ${applied.length === 1 ? "entry" : "entries"}: ${applied
                   .map((entry) => entry.version)
                   .join(", ")}.\n`,
         });
@@ -377,6 +382,8 @@ export function registerCliCommand(
     .action(async (): Promise<void> => {
       try {
         const useInitialAgencyRoots = await withClient(agencyTableIsEmpty);
+        const env = withParameterStoreSecrets(process.env);
+        const serviceSkips: string[] = [];
         const done: string[] = [];
         // An empty diff is a legitimate no-op (a source unchanged since it was last
         // applied, or one with no acquired input); an error is a broken source. They
@@ -403,7 +410,7 @@ export function registerCliCommand(
           await withClient((client) => assertAtHead(client));
           const generated = await generateOneSource(
             source,
-            process.env,
+            env,
             useInitialAgencyRoots,
           );
           if ("error" in generated) {
@@ -412,6 +419,9 @@ export function registerCliCommand(
             );
             continue;
           }
+          serviceSkips.push(
+            ...generated.serviceSkips.map((line) => `${source}: ${line}`),
+          );
           if (generated.version === undefined) {
             emptyDiff.push(source);
             continue;
@@ -433,7 +443,8 @@ export function registerCliCommand(
           (emptyDiff.length > 0
             ? `already up to date (no change): ${emptyDiff.join(", ")}\n`
             : "") +
-          (errored.length > 0 ? `errored: ${errored.join(", ")}\n` : "");
+          (errored.length > 0 ? `errored: ${errored.join(", ")}\n` : "") +
+          serviceSkips.map((line) => `${line}\n`).join("");
         // Any errored source fails the whole update loud (non-zero); empty diffs
         // are fine.
         dependencies.setResult(

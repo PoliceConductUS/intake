@@ -2,6 +2,8 @@
 node = "26.13.1"
 gh = "2.104.0"
 uv = "0.13.8"
+"conda:poppler" = "26.11.0"
+"conda:tesseract" = "5.5.4"
 
 [env]
 DO_NOT_TRACK = "1"
@@ -9,7 +11,9 @@ SUPABASE_TELEMETRY_DISABLED = "1"
 TMPDIR = false
 UV_CACHE_DIR = ".cache/uv"
 UV_TOOL_DIR = ".cache/uv-tools"
-# Root intake workspace (holds intake/{state,commands,sources}); relative to the
-# repo root, so run intake commands from the repo root. Defaults to the dev
-# environment; override for preview/prod.
-INTAKE_WORKSPACE = "../intake-workspace/dev"
+# Root intake workspace (holds intake/{state,commands,sources}). The repo's
+# branch folders are ~/dev/<owner>/intake/<branch>/ and the workspace is beside
+# the repo at ~/dev/<owner>/intake-workspace/, so the path is relative to a
+# branch folder: run intake commands from the branch folder's root. Defaults to
+# the dev environment; override for preview/prod.
+INTAKE_WORKSPACE = "../../intake-workspace/dev"

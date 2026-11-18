@@ -10,7 +10,7 @@ import {
 import { createSourceNameToCanonicalIdLedger } from "../state/source-name-to-canonical-id/index.js";
 import { sourceStateDir } from "../transform/state.js";
 import { preparePersonnelPhoto } from "./prepare.js";
-import { storePersonnelPhoto } from "./store.js";
+import { readPersonnelPhoto, writePersonnelPhoto } from "./store.js";
 
 const namespace = "org/policeconduct/manual";
 export function registerCliCommand(
@@ -56,7 +56,9 @@ export function registerCliCommand(
                   ).length === 1,
                 sourceIdFor: (id) =>
                   ledger.sourceIdFor(namespace, "Personnel", id),
-                store: (file) => storePersonnelPhoto(workspace, file),
+                read: readPersonnelPhoto,
+                write: (workspacePath, bytes) =>
+                  writePersonnelPhoto(workspace, workspacePath, bytes),
               },
               options.sourceUrl,
             );

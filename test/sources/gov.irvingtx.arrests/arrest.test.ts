@@ -1,9 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
+  clean,
   normalizeWorkbook,
   buildProfile,
   parseNormalizedArrest,
 } from "../../../sources/gov/irvingtx/arrests/arrest.js";
+import { enrichBookings } from "../../../sources/gov/irvingtx/arrests/enrichment.js";
 const row = {
   Booking_No: "1",
   Arrest_Officer_Name: "JONES,MATTHEW",
@@ -127,5 +129,41 @@ describe("complete booking normalization and aggregation", () => {
         chargeLevel: "MC",
       }),
     ).toThrow();
+  });
+  it("treats only the exact text NULL as blank, after trimming", () => {
+    expect(clean(" NULL ")).toBe("");
+    expect(clean(undefined)).toBe("");
+    expect(clean(" 12 MAIN ST ")).toBe("12 MAIN ST");
+    expect(clean("null")).toBe("null");
+    expect(clean("Null")).toBe("Null");
+  });
+  it("keys a padded Booking_No the same way in enrichment and normalization", () => {
+    const padded = { ...row, Booking_No: " 1 " };
+    const { arrests } = normalizeWorkbook(
+      [padded],
+      [{ ...charge, Booking_No: "1 " }],
+      [],
+      enrichBookings(
+        [{ ...padded, Booking_Address: "NULL", "arrest location": "NULL" }],
+        {
+          addressTracts: {},
+          acsRows: [],
+          arrestLocationRows: [],
+          beatGeojson: { type: "FeatureCollection", features: [] },
+        },
+      ),
+    );
+    expect(arrests.map((arrest) => arrest.bookingNo)).toEqual(["1"]);
+    expect(arrests[0]!.charges).toHaveLength(1);
+  });
+  it("throws for a charge row whose Booking_No is NULL", () => {
+    expect(() =>
+      normalizeWorkbook(
+        [row],
+        [{ ...charge, Booking_No: "NULL" }],
+        [],
+        enrichment,
+      ),
+    ).toThrow("gov/irvingtx/arrests: Charges row 2 has no Booking_No");
   });
 });

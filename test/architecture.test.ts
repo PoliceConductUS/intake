@@ -407,6 +407,30 @@ describe("architecture boundaries", () => {
     expect(violations).toEqual([]);
   });
 
+  test("keeps CallResult and BinaryFile IO behind the service clients", async () => {
+    const files = await existingFiles(sourceRoot);
+    const sourceFiles = files.filter((file) => /\.[cm]?tsx?$/.test(file));
+    const allowed = new Set([
+      "src/cli/service-clients.ts",
+      "src/cli/state/call-cache/index.ts",
+    ]);
+    const violations: string[] = [];
+
+    for (const file of sourceFiles) {
+      const contents = await readFile(file, "utf8");
+      if (
+        (contents.includes("call-cache/index.js") ||
+          /\b(CallResult|BinaryFile)\.(read|write|new)\(/.test(contents)) &&
+        !allowed.has(relative(file)) &&
+        !/^src\/shared\/io\/(CallResult|BinaryFile)\.ts$/.test(relative(file))
+      ) {
+        violations.push(relative(file));
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+
   test("keeps new migrations free of ID generation, conflict absorption, and trigger bypasses", async () => {
     const migrationsRoot = path.join(repoRoot, "supabase", "migrations");
     const appliedBeforeThisRule = new Set([
@@ -456,6 +480,36 @@ describe("architecture boundaries", () => {
 
     expect(sourceIds.length).toBeGreaterThan(0);
     expect(violations).toEqual([]);
+  });
+
+  test("every source transform states its row accounting", async () => {
+    const sourcesRoot = path.join(repoRoot, "sources");
+    const declarations = (await existingFiles(sourcesRoot)).filter(
+      (file) => path.basename(file) === "intake.source.ts",
+    );
+    const transformSources: string[] = [];
+    const violations: string[] = [];
+
+    for (const declaration of declarations) {
+      const contents = await readFile(declaration, "utf8");
+      if (!/\btransform\b/.test(contents)) {
+        continue;
+      }
+      transformSources.push(relative(declaration));
+      const transformModule = path.join(
+        path.dirname(declaration),
+        "transform.ts",
+      );
+      const transform = await readFile(transformModule, "utf8").catch(
+        () => contents,
+      );
+      if (!/\baccounting\b\s*[:,}]/.test(transform)) {
+        violations.push(relative(path.dirname(declaration)));
+      }
+    }
+
+    expect(transformSources.length).toBeGreaterThan(0);
+    expect(violations.sort()).toEqual([]);
   });
 
   test("keeps command tests under their command path", async () => {

@@ -39,34 +39,20 @@ const offices = {
       address: "26 Federal Plaza",
       zip_code: "10278",
     },
-    // incomplete (blank address) -> skipped
-    {
-      federal_agency: "dea",
-      slug: "dea-hq",
-      name: "DEA Headquarters",
-      state: "VA",
-      city: "Springfield",
-      address: "",
-      zip_code: "22152",
-    },
-    // references an agency not in federal-agencies.yaml -> skipped
-    {
-      federal_agency: "unknown",
-      slug: "mystery-office",
-      name: "Mystery Office",
-      state: "TX",
-      city: "Austin",
-      address: "1 Main St",
-      zip_code: "78701",
-    },
   ],
 };
 
-async function runWithState() {
+async function runWithState(
+  orgsFile: unknown = orgs,
+  officesFile: unknown = offices,
+) {
   const dir = await mkdtemp(path.join(tmpdir(), "federal-le-"));
   tempDirs.push(dir);
-  await writeFile(path.join(dir, "federal-agencies.yaml"), stringifyYaml(orgs));
-  await writeFile(path.join(dir, "offices.yaml"), stringifyYaml(offices));
+  await writeFile(
+    path.join(dir, "federal-agencies.yaml"),
+    stringifyYaml(orgsFile),
+  );
+  await writeFile(path.join(dir, "offices.yaml"), stringifyYaml(officesFile));
   return transform({
     paths: [],
     readXlsx,
@@ -90,8 +76,6 @@ describe("org/wikipedia/en/us-federal-law-enforcement-agencies run", () => {
       slug: "fbi",
     });
 
-    // fbi-hq + fbi-new-york are complete; dea-hq (blank address) and
-    // mystery-office (unknown agency) are skipped.
     expect(Object.keys(byKind.Agencies).sort()).toEqual([
       "fbi-hq",
       "fbi-new-york",
@@ -115,5 +99,87 @@ describe("org/wikipedia/en/us-federal-law-enforcement-agencies run", () => {
         expect(spec.parse(record.spec)).toBeTruthy();
       }
     }
+  });
+
+  it("accounts for every agency and office it reads", async () => {
+    const manifest = await runWithState();
+    expect(manifest.accounting).toEqual([
+      {
+        input: "federal-agencies.yaml",
+        read: 2,
+        emitted: 2,
+        reported: 0,
+        notSelected: {},
+      },
+      {
+        input: "offices.yaml",
+        read: 2,
+        emitted: 2,
+        reported: 0,
+        notSelected: {},
+      },
+    ]);
+  });
+
+  const withOffice = (change: Record<string, unknown>) => ({
+    offices: [offices.offices[0], { ...offices.offices[1], ...change }],
+  });
+
+  it("throws for an office with a blank field", async () => {
+    await expect(
+      runWithState(orgs, withOffice({ address: " " })),
+    ).rejects.toThrow(
+      /us-federal-law-enforcement-agencies: offices\.yaml is not valid[\s\S]*offices\.1\.address/,
+    );
+  });
+
+  it("throws for an office with a missing field", async () => {
+    await expect(
+      runWithState(orgs, withOffice({ city: undefined })),
+    ).rejects.toThrow(/offices\.yaml is not valid[\s\S]*offices\.1\.city/);
+  });
+
+  it("throws a named error for a zip_code that is a number", async () => {
+    await expect(
+      runWithState(orgs, withOffice({ zip_code: 10278 })),
+    ).rejects.toThrow(/offices\.yaml is not valid[\s\S]*offices\.1\.zip_code/);
+  });
+
+  it("throws for a key the office does not have", async () => {
+    await expect(
+      runWithState(orgs, withOffice({ phone: "555-0100" })),
+    ).rejects.toThrow(/offices\.yaml is not valid[\s\S]*phone/);
+  });
+
+  it("throws for a file whose list key is missing", async () => {
+    await expect(runWithState(orgs, { office: [] })).rejects.toThrow(
+      /offices\.yaml is not valid/,
+    );
+  });
+
+  it("throws for an office that names an agency not in the curated list", async () => {
+    await expect(
+      runWithState(orgs, withOffice({ federal_agency: "atf" })),
+    ).rejects.toThrow(
+      "org/wikipedia/en/us-federal-law-enforcement-agencies: offices.yaml office fbi-new-york names federal agency atf, which is not in federal-agencies.yaml",
+    );
+  });
+
+  it("throws for a repeated office slug", async () => {
+    await expect(
+      runWithState(orgs, withOffice({ slug: "fbi-hq" })),
+    ).rejects.toThrow(
+      "org/wikipedia/en/us-federal-law-enforcement-agencies: offices.yaml repeats slug fbi-hq",
+    );
+  });
+
+  it("throws for a repeated agency slug", async () => {
+    await expect(
+      runWithState({
+        agencies: [...orgs.agencies, { slug: "fbi", name: "Other" }],
+      }),
+    ).rejects.toThrow(
+      "org/wikipedia/en/us-federal-law-enforcement-agencies: federal-agencies.yaml repeats slug fbi",
+    );
   });
 });

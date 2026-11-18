@@ -32,6 +32,7 @@ function makeOkDeps() {
     produces: ["Personnel", "LocationPathGeometries"] as const,
     loadSourceModule: vi.fn(async () =>
       vi.fn(async (_deps: unknown) => ({
+        accounting: [],
         artifacts: [
           {
             kind: "Personnel" as const,
@@ -86,7 +87,9 @@ describe("transformSource", () => {
     );
     expect(okDeps.loadExcludedRecords).toHaveBeenCalledWith(okDeps.state);
     expect(result).toEqual({ artifactsPath: "/ws/artifacts.yaml" });
-    expect(okDeps.logger.info).not.toHaveBeenCalled();
+    expect(okDeps.logger.info.mock.calls).toEqual([
+      ["gov/az/post/roster: row accounting: no rows"],
+    ]);
     const sourceTransform =
       await okDeps.loadSourceModule.mock.results[0]!.value;
     expect(sourceTransform.mock.calls[0]![0]).not.toHaveProperty(
@@ -133,6 +136,7 @@ describe("transformSource", () => {
         ...deps,
         produces: [...deps.produces, "LicensingAuthorities"] as const,
         loadSourceModule: async () => async () => ({
+          accounting: [],
           artifacts: [...originalManifest.artifacts, authority],
         }),
       };
@@ -149,6 +153,7 @@ describe("transformSource", () => {
         "gov/az/post/roster",
         "testdigest",
         {
+          accounting: [],
           artifacts: [
             { kind: "Personnel", records: {} },
             {
@@ -185,7 +190,10 @@ describe("transformSource", () => {
       expect(logger.info).toHaveBeenCalledWith(
         "gov/az/post/roster: exclusion totals (including dependents): Personnel=1",
       );
-      expect(logger.info).toHaveBeenCalledTimes(2);
+      expect(logger.info).toHaveBeenLastCalledWith(
+        "gov/az/post/roster: row accounting: no rows",
+      );
+      expect(logger.info).toHaveBeenCalledTimes(3);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -231,6 +239,69 @@ describe("transformSource", () => {
     } finally {
       await rm(root, { recursive: true, force: true });
     }
+  });
+
+  it("fails without completing when a read row has no stated outcome", async () => {
+    const deps = {
+      ...makeOkDeps(),
+      complete: vi.fn(async () => {}),
+      loadSourceModule: vi.fn(async () => async () => ({
+        artifacts: [],
+        accounting: [
+          {
+            input: "Officers",
+            read: 100,
+            emitted: 99,
+            reported: 0,
+            notSelected: {},
+          },
+        ],
+      })),
+    };
+    const result = await transformSource(
+      "gov/az/post/roster",
+      ["file.xlsx"],
+      {},
+      deps,
+    );
+    expect(result).toEqual({
+      error: {
+        exitCode: 1,
+        stderr: expect.stringContaining(
+          "row accounting for Officers: read 100, accounted for 99, difference 1.",
+        ),
+      },
+    });
+    expect(deps.complete).not.toHaveBeenCalled();
+    expect(deps.writeEnvelope).not.toHaveBeenCalled();
+  });
+
+  it("logs the row accounting totals last when every read row has an outcome", async () => {
+    const deps = {
+      ...makeOkDeps(),
+      loadSourceModule: vi.fn(async () => async () => ({
+        artifacts: [],
+        accounting: [
+          {
+            input: "Officers",
+            read: 100,
+            emitted: 90,
+            reported: 4,
+            notSelected: { "no known officer": 5, "before minimum year": 1 },
+          },
+        ],
+      })),
+    };
+    const result = await transformSource(
+      "gov/az/post/roster",
+      ["file.xlsx"],
+      {},
+      deps,
+    );
+    expect(result).toEqual({ artifactsPath: "/ws/artifacts.yaml" });
+    expect(deps.logger.info).toHaveBeenLastCalledWith(
+      "gov/az/post/roster: row accounting: Officers: read 100, emitted 90, reported 4, not selected 6 (no known officer=5, before minimum year=1)",
+    );
   });
 
   it("fails cleanly when no paths are given", async () => {

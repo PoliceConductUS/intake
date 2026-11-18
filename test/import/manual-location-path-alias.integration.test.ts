@@ -18,6 +18,7 @@ import {
   startIntakeDatabase,
   type IntakeDatabase,
 } from "../cli/database/intake-postgres.js";
+import { unusedServiceClients } from "../shared/services/harness.js";
 
 const NAMESPACE = "org/policeconduct/manual";
 
@@ -56,6 +57,7 @@ describe("manual LocationPathAlias imports against real Postgres", () => {
 
     // Drive the manual source: interview (env-driven) -> chain, then emit.
     await acquire({
+      clients: unusedServiceClients(),
       sourceDir: await mkdtemp(path.join(tmpdir(), "manual-src-")),
       state,
       env: {
@@ -86,7 +88,7 @@ describe("manual LocationPathAlias imports against real Postgres", () => {
       artifactsPath: writtenArtifacts.path,
       env: {
         DATABASE_URL: db.connectionString,
-        INTAKE_WORKSPACE_TEST: rootDir,
+        INTAKE_WORKSPACE: rootDir,
       },
       logger: { info: () => {}, debug: () => {} },
       commandName: runId,
@@ -121,6 +123,7 @@ describe("manual LocationPathAlias imports against real Postgres", () => {
     const state = await mkdtemp(path.join(tmpdir(), "manual-state-"));
 
     await acquire({
+      clients: unusedServiceClients(),
       sourceDir: await mkdtemp(path.join(tmpdir(), "manual-src-")),
       state,
       env: {
@@ -150,7 +153,7 @@ describe("manual LocationPathAlias imports against real Postgres", () => {
       artifactsPath: writtenArtifacts.path,
       env: {
         DATABASE_URL: db.connectionString,
-        INTAKE_WORKSPACE_TEST: rootDir,
+        INTAKE_WORKSPACE: rootDir,
       },
       logger: { info: () => {}, debug: () => {} },
       commandName: runId,

@@ -299,7 +299,7 @@ describe("importArtifacts", () => {
     );
     const result = await importArtifacts({
       artifactsPath,
-      env: { INTAKE_WORKSPACE_TEST: rootDir },
+      env: { INTAKE_WORKSPACE: rootDir },
       logger: {
         info: () => {},
         debug: () => {},
@@ -591,31 +591,6 @@ describe("importArtifacts", () => {
     ]);
   });
 
-  test("uses INTAKE_WORKSPACE for import-artifacts replay artifacts when INTAKE_WORKSPACE_TEST is unset", async () => {
-    const rootDir = await mkdtemp(path.join(tmpdir(), "intake-run-root-"));
-    const artifactsPath = await writeSourceArtifactsFile(rootDir);
-    const artifacts = await Artifacts.read(artifactsPath);
-    const replayImportArtifacts = await DatabaseMutations.write(
-      path.join(rootDir, "command", "2026-06-08T00-00-00-000Z-test-command"),
-      DatabaseMutations.new({
-        metadata: {
-          namespace: artifacts.metadata.namespace,
-          name: "test-command",
-          sourceArtifactsName: artifacts.metadata.name,
-          sourceArtifactsPath: artifactsPath,
-          sourceArtifactsDigest: await Artifacts.digest(artifactsPath),
-        },
-        spec: { mutations: [] },
-      }),
-    );
-
-    expect(replayImportArtifacts?.path).toContain(
-      path.join(rootDir, "command"),
-    );
-    const commandRoot = path.join(rootDir, "command");
-    await expect(readdir(commandRoot)).resolves.toHaveLength(1);
-  });
-
   test("reports a clear error when the import-artifacts replay output directory is not writable", async () => {
     const rootDir = await mkdtemp(path.join(tmpdir(), "intake-run-root-"));
     const workspaceFile = path.join(rootDir, "workspace-file");
@@ -654,6 +629,7 @@ describe("importArtifacts", () => {
       terminal: { write: (text) => (terminalOutput += text) },
       importArtifacts: async () => ({
         ok: true,
+        serviceSkips: [],
         databaseMutationsPath: "current.DatabaseMutations.yaml",
         counts: {
           mutations: 15,
@@ -748,6 +724,7 @@ describe("importArtifacts", () => {
           receivedDryImport = input.dryImport;
           return {
             ok: true,
+            serviceSkips: [],
             databaseMutationsPath: "current.DatabaseMutations.yaml",
             counts: {
               mutations: 15,
@@ -777,6 +754,44 @@ describe("importArtifacts", () => {
     expect(result.stdout).toContain("LocationPathAlias: 5");
   });
 
+  test("the import command ends by naming a service that went down and passes on the rebuild rule", async () => {
+    const rootDir = await mkdtemp(path.join(tmpdir(), "intake-logs-"));
+    const workspace = path.join(rootDir, "workspace");
+    let kept: boolean | undefined;
+
+    const result = await runImportArtifactsCommand(
+      await completedArtifacts(workspace),
+      {
+        env: { INTAKE_WORKSPACE: workspace },
+        terminal: false,
+        keepCachedCallResults: true,
+        importArtifacts: async (input) => {
+          kept = input.keepCachedCallResults;
+          return {
+            ok: true,
+            serviceSkips: [
+              {
+                service: "anthropic",
+                downAt: "2026-11-17T12:00:00.000Z",
+                skipped: 4,
+                retryAfter: "2026-11-17T13:00:00.000Z",
+              },
+            ],
+            databaseMutationsPath: "current.DatabaseMutations.yaml",
+            counts: { mutations: 0, recordsByEntityType: {} },
+          };
+        },
+      },
+    );
+
+    const line =
+      "anthropic: went down at 2026-11-17T12:00:00.000Z; 4 call(s) skipped. Try again after 2026-11-17T13:00:00.000Z.";
+    expect(kept).toBe(true);
+    expect(result.exitCode).toBe(0);
+    expect(result.serviceSkips).toEqual([line]);
+    expect(result.stdout?.trimEnd().split("\n").at(-1)).toBe(line);
+  });
+
   test("CLI honors LOG_LEVEL for observable debug logging", async () => {
     const rootDir = await mkdtemp(path.join(tmpdir(), "intake-logs-"));
     const workspace = path.join(rootDir, "workspace");
@@ -792,6 +807,7 @@ describe("importArtifacts", () => {
         input.logger?.debug({ debugVisible: true }, "Debug import detail.");
         return {
           ok: true,
+          serviceSkips: [],
           databaseMutationsPath: "current.DatabaseMutations.yaml",
           counts: { mutations: 0, recordsByEntityType: {} },
         };
@@ -821,6 +837,28 @@ describe("importArtifacts", () => {
         }),
       ]),
     );
+  });
+
+  test("unreadable Artifacts fail before a command directory is created", async () => {
+    const rootDir = await mkdtemp(path.join(tmpdir(), "intake-logs-"));
+    const workspace = path.join(rootDir, "workspace");
+    const artifactsPath = path.join(rootDir, "broken.Artifacts.yaml");
+    await writeFile(artifactsPath, "kind: [unterminated");
+    let imported = false;
+
+    const result = await runImportArtifactsCommand(artifactsPath, {
+      env: { INTAKE_WORKSPACE: workspace },
+      terminal: false,
+      importArtifacts: async () => {
+        imported = true;
+        return { ok: false, error: "should not run" };
+      },
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain(artifactsPath);
+    expect(imported).toBe(false);
+    await expect(readdir(workspace)).rejects.toThrow("ENOENT");
   });
 
   test("writer failure returns failure and CLI does not report success", async () => {

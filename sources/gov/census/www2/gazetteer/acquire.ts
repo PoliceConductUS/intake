@@ -41,6 +41,10 @@ export const acquire: SourceAcquire = async ({
 }: AcquireDeps) => {
   const log = logger ?? { info() {} };
   const pageUrl = env.CENSUS_GAZETTEER_PAGE_URL ?? DEFAULT_PAGE_URL;
+  if (pageUrl.trim() === "")
+    throw new Error(
+      "gov/census/www2/gazetteer: CENSUS_GAZETTEER_PAGE_URL is set and blank",
+    );
 
   log.info(`census: discovering sources from ${pageUrl}`);
   const html = await (await fetchOk(pageUrl)).text();

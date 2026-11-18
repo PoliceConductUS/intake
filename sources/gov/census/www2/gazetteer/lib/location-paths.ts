@@ -1,4 +1,12 @@
-import { allowedStateSlugs } from "./constants.js";
+import {
+  allowedStateGeoids,
+  allowedStateSlugs,
+  countNotSelected,
+  OUTSIDE_ALLOWED_STATES,
+  rowCounts,
+  SOURCE_ID,
+  type RowCounts,
+} from "./constants.js";
 import type {
   GazetteerAdministrativeAreaRecord,
   GazetteerPlaceRecord,
@@ -86,7 +94,12 @@ export interface BuildLocationPathsResult {
   locationPathSources: Record<string, LocationPathSourceEvidence>;
   locationPathAlias: Record<string, LocationPathAliasEntry>;
   locationPathAliasSources: Record<string, LocationPathAliasSourceEvidence>;
-  warnings: string[];
+  accounting: {
+    states: RowCounts;
+    administrativeAreas: RowCounts;
+    places: RowCounts;
+    hierarchy: RowCounts;
+  };
 }
 
 interface PlaceCandidate {
@@ -110,19 +123,18 @@ type GazetteerLikeRecord = {
   INTPTLONG: string;
 };
 
-interface SkippedWarningParent {
-  type: string;
-  geoid: string;
-  slug: string;
-}
-
 export function buildLocationPaths({
   states,
   administrativeAreas,
   places,
   hierarchy,
 }: BuildLocationPathsInput): BuildLocationPathsResult {
-  const warnings: string[] = [];
+  const accounting = {
+    states: rowCounts(),
+    administrativeAreas: rowCounts(),
+    places: rowCounts(),
+    hierarchy: rowCounts(),
+  };
   const locationPaths = new Map<string, LocationPathRow>();
   const locationPathSources = new Map<string, LocationPathSourceEvidence>();
   const locationPathAlias = new Map<string, LocationPathAliasEntry>();
@@ -137,17 +149,11 @@ export function buildLocationPaths({
   >();
 
   for (const state of states) {
+    accounting.states.read += 1;
     const stateSlug = state.USPS.toLowerCase();
     const statePath = `/${stateSlug}/`;
     if (!allowedStateSlugs.has(stateSlug)) {
-      warnings.push(
-        skippedWarning({
-          type: "state",
-          path: statePath,
-          reason: "outside 50 states plus District of Columbia",
-          record: state,
-        }),
-      );
+      countNotSelected(accounting.states, OUTSIDE_ALLOWED_STATES);
       continue;
     }
 
@@ -161,25 +167,18 @@ export function buildLocationPaths({
     locationPathSources.set(sourceKey("state", state.GEOID), {
       sourceKey: sourceKey("state", state.GEOID),
     });
+    accounting.states.emitted += 1;
   }
 
   for (const administrativeArea of administrativeAreas) {
+    accounting.administrativeAreas.read += 1;
     const state = statesByGeoid.get(administrativeArea.GEOID.slice(0, 2));
     if (state === undefined) {
-      const stateSlug = administrativeArea.USPS.toLowerCase();
-      warnings.push(
-        skippedWarning({
-          type: "administrative_area",
-          path: `/${stateSlug}/${slugFromSourceName(administrativeArea.NAME)}/`,
-          reason: "missing generated state parent",
-          record: administrativeArea,
-          parent: {
-            type: "state",
-            geoid: administrativeArea.GEOID.slice(0, 2),
-            slug: stateSlug,
-          },
-        }),
-      );
+      if (allowedStateSlugs.has(administrativeArea.USPS.toLowerCase()))
+        throw new Error(
+          `${SOURCE_ID}: administrative area ${administrativeArea.GEOID} ${administrativeArea.NAME} has no state ${administrativeArea.GEOID.slice(0, 2)} in the Gazetteer states file`,
+        );
+      countNotSelected(accounting.administrativeAreas, OUTSIDE_ALLOWED_STATES);
       continue;
     }
 
@@ -208,6 +207,7 @@ export function buildLocationPaths({
         parentSourceKey: sourceKey("state", state.GEOID),
       },
     );
+    accounting.administrativeAreas.emitted += 1;
   }
 
   const hierarchyByPlaceGeoid = groupHierarchyByPlaceGeoid(hierarchy);
@@ -216,21 +216,9 @@ export function buildLocationPaths({
     candidates: PlaceCandidate[];
   }[] = [];
   for (const place of places) {
-    const stateSlug = place.USPS.toLowerCase();
-    if (!allowedStateSlugs.has(stateSlug)) {
-      warnings.push(
-        skippedWarning({
-          type: "place",
-          path: `/${stateSlug}/${slugFromSourceName(place.NAME)}/`,
-          reason: "outside 50 states plus District of Columbia",
-          record: place,
-          parent: {
-            type: "state",
-            geoid: place.GEOID.slice(0, 2),
-            slug: stateSlug,
-          },
-        }),
-      );
+    accounting.places.read += 1;
+    if (!allowedStateSlugs.has(place.USPS.toLowerCase())) {
+      countNotSelected(accounting.places, OUTSIDE_ALLOWED_STATES);
       continue;
     }
 
@@ -265,6 +253,8 @@ export function buildLocationPaths({
       sourceKey("place", defaultCandidate.place.GEOID),
       placeLocationPathEvidence(defaultCandidate, candidates),
     );
+    accounting.places.emitted += 1;
+    accounting.hierarchy.emitted += candidates.length;
 
     for (const candidate of candidates) {
       if (
@@ -289,12 +279,25 @@ export function buildLocationPaths({
     }
   }
 
+  const plannedPlaceGeoids = new Set(
+    plannedPlaces.map((plan) => plan.place.GEOID),
+  );
+  for (const match of hierarchy) {
+    accounting.hierarchy.read += 1;
+    if (plannedPlaceGeoids.has(match.placeGeoid)) continue;
+    if (allowedStateGeoids.has(match.stateGeoid))
+      throw new Error(
+        `${SOURCE_ID}: hierarchy record ${match.sourceKey} names place ${match.placeGeoid}, which is not in the Gazetteer places file`,
+      );
+    countNotSelected(accounting.hierarchy, OUTSIDE_ALLOWED_STATES);
+  }
+
   return {
     locationPaths: sortedObject(locationPaths),
     locationPathSources: sortedObject(locationPathSources),
     locationPathAlias: sortedObject(locationPathAlias),
     locationPathAliasSources: sortedObject(locationPathAliasSources),
-    warnings: warnings.sort(),
+    accounting,
   };
 }
 
@@ -606,32 +609,4 @@ function sortedObject<T>(map: Map<string, T>): Record<string, T> {
 
 function sourceKey(type: string, geoid: string): string {
   return `${type}:GEOID:${geoid}`;
-}
-
-function skippedWarning({
-  type,
-  path,
-  reason,
-  record,
-  parent,
-}: {
-  type: string;
-  path: string;
-  reason: string;
-  record: GazetteerLikeRecord;
-  parent?: SkippedWarningParent;
-}): string {
-  const details = [
-    `source GEOID ${record.GEOID}`,
-    `label "${record.NAME}"`,
-    `lat ${record.INTPTLAT}`,
-    `lng ${record.INTPTLONG}`,
-  ];
-  if (parent !== undefined) {
-    details.push(
-      `parent ${parent.type} GEOID ${parent.geoid}`,
-      `parent slug ${parent.slug}`,
-    );
-  }
-  return `skipped ${type}: ${path} due to ${reason} (${details.join(", ")})`;
 }

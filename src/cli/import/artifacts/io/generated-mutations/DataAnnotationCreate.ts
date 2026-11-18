@@ -11,10 +11,7 @@ import {
   readYamlDocumentFile,
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
-import {
-  DataAnnotationSpec,
-  DataAnnotationCreateSpec,
-} from "../../../../../shared/io/generated/entity-specs.js";
+import { DataAnnotationCreateSpec } from "../../../../../shared/io/generated/entity-specs.js";
 
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }

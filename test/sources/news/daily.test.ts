@@ -59,7 +59,7 @@ it("saves one continuing article and combines query clicks across repeated daily
   const empty = "https://source.example/empty";
   const readArticle = vi.fn(async (url: string) =>
     url === blocked
-      ? null
+      ? { url, html: "", reason: "Publisher URL or redirect unavailable" }
       : url === empty
         ? { url, html: "<h1>Title</h1><article></article>" }
         : {
@@ -156,7 +156,7 @@ it("saves one continuing article and combines query clicks across repeated daily
       {
         url: blocked,
         matched: false,
-        reason: "Publisher unavailable",
+        reason: "Publisher URL or redirect unavailable",
         matchingNames: null,
       },
       { url: empty, matched: false, matchingAgencies: null },

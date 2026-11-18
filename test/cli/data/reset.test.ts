@@ -59,6 +59,7 @@ async function fixture() {
         args: readonly string[],
         _context?: {
           useInitialAgencyRoots: boolean;
+          keepCachedCallResults: boolean;
           finalizeMutations?: unknown;
         },
       ) => {
@@ -70,6 +71,22 @@ async function fixture() {
   };
   return { workspace, chain, state, calls, deps };
 }
+
+test.each([
+  [{ acquire: false }, true],
+  [{ acquire: true }, false],
+])(
+  "reset %j keeps cached call results as they are: %s",
+  async (options, kept) => {
+    const f = await fixture();
+    expect((await resetData(options, f.deps)).exitCode).toBe(0);
+    const contexts = f.deps.runDataCommand.mock.calls.map(
+      ([, context]) => context?.keepCachedCallResults,
+    );
+    expect(contexts.length).toBeGreaterThan(0);
+    expect(new Set(contexts)).toEqual(new Set([kept]));
+  },
+);
 
 test("no-acquire rebuilds in dependency order, applies manual records, and retains inputs and state", async () => {
   const f = await fixture();

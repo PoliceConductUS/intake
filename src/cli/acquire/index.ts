@@ -31,6 +31,8 @@ import {
 } from "../state/command-pointer.js";
 import { acquireFromLocal } from "./acquire-from-local.js";
 import { withParameterStoreSecrets } from "../parameter-store-env.js";
+import { buildServiceClients } from "../service-clients.js";
+import { formatServiceSkips } from "../../shared/services/client-base.js";
 
 type AcquireSourceDeps = {
   sourcesRoot: string;
@@ -69,10 +71,18 @@ export async function acquireSource(
 
   try {
     const pointer = await readCommandPointer(deps.state, "acquire");
-    const { outputDirectory: outputDir } = await deps.createCommandDirectory(
-      deps.env,
-      { namespace: sourceId, args: ["acquire", sourceId] },
-    );
+    const { outputDirectory: outputDir, commandName } =
+      await deps.createCommandDirectory(deps.env, {
+        namespace: sourceId,
+        args: ["acquire", sourceId],
+      });
+    const clients = buildServiceClients({
+      workspace: deps.workspace,
+      namespace: sourceId,
+      commandId: commandName,
+      env: deps.env,
+      logger: deps.logger,
+    });
 
     if (pointer.resume) {
       const resumeDir = path.join(deps.workspace, pointer.resume);
@@ -101,6 +111,7 @@ export async function acquireSource(
       env: deps.env,
       data: deps.data,
       logger: deps.logger,
+      clients,
     };
     await acquire(acquireDeps);
 
@@ -108,7 +119,15 @@ export async function acquireSource(
       latest: outputRelative,
     });
     await recordCompletedAcquisition(outputDir);
-    return { exitCode: 0 };
+    const skips = formatServiceSkips(clients.skips());
+    return {
+      exitCode: 0,
+      ...(skips.length === 0
+        ? {}
+        : {
+            stdout: skips.map((line) => `${sourceId}: ${line}\n`).join(""),
+          }),
+    };
   } catch (error) {
     return { exitCode: 1, stderr: `${errorMessage(error)}\n` };
   }
@@ -124,7 +143,8 @@ export const registerAcquireCommand: RegisterCliCommand = (
       "Run the acquire (download/scrape) phase of every source folder matching " +
         "<glob>, writing raw inputs (html/csv/json, no transforms) into a fresh " +
         "command's <source>/output/ for a later `intake data transform`. " +
-        "Only sources that export an acquire function are supported.",
+        "Only sources that export an acquire function are supported; with " +
+        "--from-local, a source that exports only a transform is also accepted.",
     )
     .argument(
       "[glob]",
@@ -193,6 +213,7 @@ export const registerAcquireCommand: RegisterCliCommand = (
               );
             },
           };
+          let stdout = "";
           try {
             for (const sourceId of sourceIds) {
               // The data context is bound to the calling source's namespace so the
@@ -232,8 +253,12 @@ export const registerAcquireCommand: RegisterCliCommand = (
                 });
                 return;
               }
+              stdout += result.stdout ?? "";
             }
-            dependencies.setResult({ exitCode: 0 });
+            dependencies.setResult({
+              exitCode: 0,
+              ...(stdout === "" ? {} : { stdout }),
+            });
           } finally {
             if (client !== undefined) await client.end();
           }

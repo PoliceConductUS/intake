@@ -100,6 +100,7 @@ describe("data reset against disposable Postgres", () => {
         const written = await Artifacts.write(
           command.outputDirectory,
           buildArtifactsEnvelope(args[2], command.commandName, {
+            accounting: [],
             artifacts: selectArtifacts([
               {
                 kind: "LocationPaths",

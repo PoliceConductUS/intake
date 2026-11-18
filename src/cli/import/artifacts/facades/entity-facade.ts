@@ -1,6 +1,7 @@
 import { DATE_PROPERTIES } from "../../../../shared/io/generated/entity-specs.js";
 import { representableDate } from "../../../../shared/inspect-data-annotations.js";
 import {
+  Finding,
   SourceContribution,
   SourceValues,
   replaceSourceExclusions,
@@ -18,7 +19,7 @@ import {
   type BusinessKeyIdBackend,
   type SelectorBackend,
 } from "../resolver-kit.js";
-import { typedInputFingerprint } from "../../../state/resolved-property/index.js";
+import { typedInputFingerprint } from "../../../../shared/io/fingerprint.js";
 import { valuesEqual } from "../../../../shared/values-equal.js";
 import { timestampValue } from "../../../../shared/timestamp-value.js";
 import {
@@ -120,6 +121,27 @@ export class EntityFacade<
   private sourceValues: Record<string, unknown> | undefined;
   private readonly corrections = new Map<string, DataAnnotation>();
   private effectiveValues: Record<string, unknown> | undefined;
+  private reportedBySource: Finding[] | undefined;
+  private readonly reportedByResolvers: Finding[] = [];
+  private resolverFindingsKept = false;
+
+  /** `metadata.defects` of the source record; undefined when it carried none (ADR 0040). */
+  get sourceFindings(): readonly Finding[] | undefined {
+    return this.reportedBySource;
+  }
+
+  get resolverFindings(): readonly Finding[] {
+    return this.reportedByResolvers;
+  }
+
+  /** True when a resolver asked for its earlier findings to stay as they are. */
+  get keepsEarlierResolverFindings(): boolean {
+    return this.resolverFindingsKept;
+  }
+
+  recordSourceFindings(findings: readonly Finding[]): void {
+    this.reportedBySource = [...(this.reportedBySource ?? []), ...findings];
+  }
 
   get inspectionValues(): Record<string, unknown> {
     if (this.effectiveValues === undefined)
@@ -274,6 +296,12 @@ export class EntityFacade<
         backend: this.backend,
         cache: this.cache,
         current: this.current,
+        report: (finding) => {
+          this.reportedByResolvers.push(Finding.parse(finding));
+        },
+        keepFindings: () => {
+          this.resolverFindingsKept = true;
+        },
       };
       const locate = () => this.unresolvedMessage(property);
       if (
@@ -442,12 +470,22 @@ export class EntityFacade<
       if (value === undefined) {
         continue;
       }
-      resolved[column] =
+      if (
         DATE_PROPERTIES[this.kind]?.includes(column) &&
         value !== null &&
         !representableDate(value)
-          ? null
-          : timestampValue(this.kind, column, value);
+      ) {
+        if (
+          !this.supportsSourceEvidence ||
+          this.sourceValues?.[column] === undefined
+        )
+          throw new Error(
+            `${this.kind}.${column} for ${this.source.namespace}/${this.source.name} is not a valid date and has no source evidence to report it under: ${JSON.stringify(value)}.`,
+          );
+        resolved[column] = null;
+        continue;
+      }
+      resolved[column] = timestampValue(this.kind, column, value);
     }
     return { identityValue, resolved };
   }

@@ -6,17 +6,7 @@ import { createCommandDirectory } from "../../command-directory.js";
 import { Artifacts } from "../../../shared/io/index.js";
 import type { CommandResult } from "../../../shared/cli/types.js";
 import type { ExcludedRecords } from "../../../shared/io/excluded-records.js";
-
-async function artifactsNamespace(
-  artifactsRef: string,
-): Promise<string | undefined> {
-  try {
-    return (await Artifacts.read(artifactsRef, { raw: true })).metadata
-      .namespace;
-  } catch {
-    return undefined;
-  }
-}
+import { formatServiceSkips } from "../../../shared/services/client-base.js";
 
 // The import phase is not its own CLI command: `data generate` calls this
 // directly (dry) to diff a source's Artifacts into a DatabaseMutations delta.
@@ -32,21 +22,26 @@ export async function runImportArtifactsCommand(
       commandDirectory?: string;
       commandName?: string;
       excludedRecords?: ExcludedRecords;
+      keepCachedCallResults?: boolean;
     }) => Promise<ImportArtifactsResult>;
     env?: Record<string, string | undefined>;
     terminal?: { write(text: string): unknown } | false;
     dryImport?: boolean;
     useInitialAgencyRoots?: boolean;
     excludedRecords?: ExcludedRecords;
+    keepCachedCallResults?: boolean;
     args?: readonly string[];
     now?: Date;
     createCommandName?: () => string;
   } = {},
-): Promise<CommandResult & { databaseMutationsPath?: string }> {
+): Promise<
+  CommandResult & { databaseMutationsPath?: string; serviceSkips?: string[] }
+> {
   const env = dependencies.env ?? process.env;
-  const namespace = await artifactsNamespace(artifactsRef);
   let command;
   try {
+    const { namespace } = (await Artifacts.read(artifactsRef, { raw: true }))
+      .metadata;
     command = await createCommandDirectory(env, {
       now: dependencies.now,
       createCommandName: dependencies.createCommandName,
@@ -86,6 +81,7 @@ export async function runImportArtifactsCommand(
     commandDirectory: command.outputDirectory,
     commandName: command.commandName,
     excludedRecords: dependencies.excludedRecords,
+    keepCachedCallResults: dependencies.keepCachedCallResults,
   });
 
   if (!result.ok) {
@@ -108,14 +104,17 @@ export async function runImportArtifactsCommand(
     "Artifacts import succeeded.",
   );
 
+  const serviceSkips = formatServiceSkips(result.serviceSkips);
   return {
     exitCode: 0,
     databaseMutationsPath: result.databaseMutationsPath,
+    serviceSkips,
     stdout: [
       dependencies.dryImport === true
         ? "Created DatabaseMutations envelope. Database apply skipped."
         : "Imported artifact database records.",
       ...formatDatabaseMutationCountLines(result.counts),
+      ...serviceSkips,
       "",
     ].join("\n"),
   };

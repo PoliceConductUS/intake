@@ -19,6 +19,7 @@ import {
   startIntakeDatabase,
   type IntakeDatabase,
 } from "../cli/database/intake-postgres.js";
+import { unusedServiceClients } from "../shared/services/harness.js";
 
 const placePath = "/tx/fannin-county/ivanhoe/";
 const countyPath = "/tx/fannin-county/";
@@ -74,6 +75,7 @@ describe("manual community creation and reconstruction", () => {
       ],
     ] as const) {
       await acquire({
+        clients: unusedServiceClients(),
         sourceDir: rootDir,
         state,
         env: { MANUAL_KIND: kind, MANUAL_RECORD: JSON.stringify(record) },
@@ -101,7 +103,7 @@ describe("manual community creation and reconstruction", () => {
       artifactsPath,
       env: {
         DATABASE_URL: db.connectionString,
-        INTAKE_WORKSPACE_TEST: rootDir,
+        INTAKE_WORKSPACE: rootDir,
       },
       commandName: run,
       commandDirectory: path.join(rootDir, run),

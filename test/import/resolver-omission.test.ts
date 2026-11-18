@@ -89,6 +89,8 @@ test.each([undefined, null])(
         facade: { raw: () => raw, value: async () => raw },
         source: { namespace: "test", name: "record" },
         backend: testBackend(),
+        report: () => {},
+        keepFindings: () => {},
       },
       () => "missing parent",
     );

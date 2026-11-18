@@ -46,7 +46,7 @@ describe("loadSourceModule", () => {
 
   it("requires a marker for a directly selected phase module", async () => {
     const id = "org/example/roster";
-    const root = await writeTransformSource(id, "");
+    const root = await writeTransformSource(id, "produces: []");
     expect(typeof (await loadSourceModule(id, root))).toBe("function");
     await rm(path.join(root, id, "intake.source.ts"));
     await expect(loadSourceModule(id, root)).rejects.toThrow(

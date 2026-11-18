@@ -6,6 +6,7 @@ import {
 } from "../state/transform-completion.js";
 import type { CommandResult } from "../../shared/cli/types.js";
 import { intakeWorkspace } from "../command-directory.js";
+import { readCommandPointer } from "../state/command-pointer.js";
 import {
   buildTransformSourceDeps,
   sourceInputDir,
@@ -75,6 +76,17 @@ export async function transformOneSource(
   return transformSource(sourceId, paths, { standalone }, deps);
 }
 
+export async function sourceHasAcquiredInput(
+  sourceId: string,
+  env: Record<string, string | undefined>,
+): Promise<boolean> {
+  const { latest } = await readCommandPointer(
+    path.join(intakeWorkspace(env), "state", sourceId),
+    "acquire",
+  );
+  return latest !== undefined;
+}
+
 /**
  * `data generate <source>`: import the source's latest transform Artifacts against the
  * database at head (a dry import → DatabaseMutations delta) and append it as the next
@@ -84,8 +96,10 @@ export async function generateOneSource(
   sourceId: string,
   env: Record<string, string | undefined>,
   useInitialAgencyRoots?: boolean,
+  keepCachedCallResults?: boolean,
 ): Promise<
-  { version?: string; mutationCount: number } | { error: CommandResult }
+  | { version?: string; mutationCount: number; serviceSkips: string[] }
+  | { error: CommandResult }
 > {
   const workspace = intakeWorkspace(env);
   let artifactsPath: string;
@@ -102,6 +116,7 @@ export async function generateOneSource(
   const importResult = await runImportArtifactsCommand(artifactsPath, {
     dryImport: true,
     useInitialAgencyRoots,
+    keepCachedCallResults,
     env,
     terminal: false,
     args: ["data", "generate", sourceId],
@@ -117,7 +132,10 @@ export async function generateOneSource(
       },
     };
   }
-  return generateEntry(importResult.databaseMutationsPath);
+  return {
+    ...(await generateEntry(importResult.databaseMutationsPath)),
+    serviceSkips: importResult.serviceSkips ?? [],
+  };
 }
 
 /**

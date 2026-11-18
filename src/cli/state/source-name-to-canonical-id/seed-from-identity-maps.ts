@@ -24,8 +24,14 @@ async function readIdentityMap(
   const mappings = parsed?.mappings ?? {};
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(mappings)) {
-    const canonicalId = String(value).trim();
-    if (canonicalId === "") continue;
+    const canonicalId =
+      typeof value === "string" || typeof value === "number"
+        ? String(value).trim()
+        : "";
+    if (canonicalId === "")
+      throw new Error(
+        `${filePath}: mapping ${key} has no canonical ID; expected a non-blank string or a number.`,
+      );
     out[String(key)] = canonicalId;
   }
   return out;

@@ -6,7 +6,7 @@ import { DatabaseMutations } from "./io/DatabaseMutations.js";
 function intakeCommandRoot(
   env: Record<string, string | undefined>,
 ): string | undefined {
-  const workspace = env.INTAKE_WORKSPACE_TEST ?? env.INTAKE_WORKSPACE;
+  const workspace = env.INTAKE_WORKSPACE;
   if (workspace === undefined || workspace.trim().length === 0) {
     return undefined;
   }
@@ -62,14 +62,15 @@ async function findExistingImportPath(
   let entries;
   try {
     entries = await readdir(commandRoot, { withFileTypes: true });
-  } catch {
-    return undefined;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
   }
 
   for (const entry of entries) {
     const entryPath = path.join(commandRoot, entry.name);
     const candidateFiles = entry.isDirectory()
-      ? await readdir(entryPath).catch(() => [])
+      ? await readdir(entryPath)
       : [entry.name];
     for (const fileName of candidateFiles) {
       if (!fileName.endsWith(".DatabaseMutations.yaml")) {

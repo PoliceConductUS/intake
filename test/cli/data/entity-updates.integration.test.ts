@@ -143,6 +143,7 @@ describe("mutable entity edits through the data CLI", () => {
     const rosterArtifacts = await Artifacts.write(
       rosterCommand.outputDirectory,
       buildArtifactsEnvelope(source, rosterCommand.commandName, {
+        accounting: [],
         artifacts: [
           { kind: "Agencies", records: { agency: { spec: agency } } },
           { kind: "Personnel", records: { person: { spec: person } } },

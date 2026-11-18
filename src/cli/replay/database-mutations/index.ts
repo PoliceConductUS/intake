@@ -15,17 +15,6 @@ import type {
   CommandResult,
 } from "../../../shared/cli/types.js";
 
-async function databaseMutationsNamespace(
-  databaseMutationsRef: string,
-): Promise<string | undefined> {
-  try {
-    return (await DatabaseMutations.read(databaseMutationsRef, { raw: true }))
-      .metadata.namespace;
-  } catch {
-    return undefined;
-  }
-}
-
 async function readableDatabaseMutationsFileResult(
   databaseMutationsRef: string,
 ): Promise<CommandResult | undefined> {
@@ -94,7 +83,9 @@ export async function runReplayDatabaseMutationsCommand(
     command = await createCommandDirectory(env, {
       now: dependencies.now,
       createCommandName: dependencies.createCommandName,
-      namespace: await databaseMutationsNamespace(databaseMutationsRef),
+      namespace: (
+        await DatabaseMutations.read(databaseMutationsRef, { raw: true })
+      ).metadata.namespace,
       args: dependencies.args ?? [
         "replay",
         "database-mutations",
