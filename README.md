@@ -332,7 +332,7 @@ Local Supabase state such as `supabase/.temp/` and `supabase/.branches/` is inte
 
 ## Commands
 
-Import this to see every available npm script:
+Run this to see every available npm script:
 
 ```bash
 npm run
