@@ -32,11 +32,14 @@ debug artifact. Once the CLI commits to executing a concrete command, even if
 that command later fails validation, it must create the command name and command
 folder and write command-local audit artifacts.
 
-Command artifacts and logs are persisted under namespace-scoped command folders:
+Command artifacts and logs are persisted under command folders:
 
 ```text
-$INTAKE_WORKSPACE/<namespace>/commands/<created-at-sortable-utc>-<command-name>/
+$INTAKE_WORKSPACE/command/<created-at-sortable-utc>-<command-name>/
 ```
+
+A namespace's output for that command is under `<namespace>/output/` inside the
+command folder.
 
 The command folder is the audit unit. It contains the command envelope,
 structured logs, generated artifacts, debug artifacts, manual workaround
@@ -47,18 +50,21 @@ Structured logs are written to `<command-name>.log` in the command folder for
 the command being executed. Root intake may also emit human-readable terminal
 progress from the same log events, but terminal output is not the audit record.
 Once a command folder exists, command-specific logs must not be written to a
-workspace-root log file.
+workspace-root log file. A command closes its log when it ends. A caught error
+that ends a command is the last record in its log. If the process ends while a
+log is still open (a signal, an exit, an uncaught error), the CLI writes a final
+record naming the cause to that log first.
 
 All durable operations must be persisted as Kubernetes-style envelopes before
 or while they are applied:
 
 - Source modules persist source-produced `Artifacts` and typed artifact
-  envelopes in their namespace command folder.
+  envelopes in their namespace's output folder inside the command folder.
 - Root intake persists `Command`, `ArtifactMutations`,
   `DatabaseMutationsDebug`, `DatabaseMutations`, and
   `DatabaseMutationResults` envelopes in the root intake command folder.
 - Intake-owned cross-command identity and canonical state is persisted under
-  `$INTAKE_WORKSPACE/intake/state/`.
+  `$INTAKE_WORKSPACE/state/intake/`.
 
 Command history is ordered by command folder name. The sortable UTC timestamp
 prefix determines audit and replay order across namespaces. Replay must apply
