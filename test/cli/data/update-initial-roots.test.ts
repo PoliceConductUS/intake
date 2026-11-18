@@ -3,7 +3,10 @@ import { Command } from "commander";
 import { registerCliCommand } from "../../../src/cli/data/index.js";
 import type { CommandResult } from "../../../src/shared/cli/types.js";
 import { agencyTableIsEmpty } from "../../../src/cli/database/agency-graph.js";
-import { generateOneSource } from "../../../src/cli/data/source-pipeline.js";
+import {
+  generateOneSource,
+  transformOneSource,
+} from "../../../src/cli/data/source-pipeline.js";
 
 vi.mock("../../../src/cli/database/index.js", () => ({
   defaultDatabaseClientFactory: () => ({
@@ -20,7 +23,9 @@ vi.mock("../../../src/cli/data/chain.js", () => ({
 }));
 vi.mock("../../../src/cli/data/source-pipeline.js", () => ({
   orderedSourceIds: async () => ["first", "later"],
-  transformOneSource: async () => ({ artifactsPath: "source.Artifacts.yaml" }),
+  transformOneSource: vi.fn(async () => ({
+    artifactsPath: "source.Artifacts.yaml",
+  })),
   generateOneSource: vi.fn(async () => ({ version: "1", mutationCount: 1 })),
 }));
 afterEach(() => {
@@ -59,3 +64,26 @@ test.each([true, false])(
     ]);
   },
 );
+
+test("update runs each source's transform with stderr as its terminal, so each writes and prints its command log", async () => {
+  vi.stubEnv("DATABASE_URL", "postgresql://test");
+  vi.mocked(agencyTableIsEmpty).mockResolvedValue(false);
+  vi.mocked(transformOneSource).mockResolvedValue({
+    artifactsPath: "source.Artifacts.yaml",
+  });
+  vi.mocked(generateOneSource).mockResolvedValue({
+    version: "1",
+    mutationCount: 1,
+  });
+  const program = new Command();
+  registerCliCommand(program, { setResult: () => {} });
+  await program.parseAsync(["data", "update"], { from: "user" });
+  expect(
+    vi
+      .mocked(transformOneSource)
+      .mock.calls.map(([source, , terminal]) => [source, terminal]),
+  ).toEqual([
+    ["first", process.stderr],
+    ["later", process.stderr],
+  ]);
+});

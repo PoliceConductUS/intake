@@ -6,7 +6,7 @@ import * as database from "../../src/cli/database/index.js";
 import { runIntake } from "../../src/cli/index.js";
 import { storePersonnelPhoto } from "../../src/cli/photo/store.js";
 import { EmptyDatabaseClient } from "./database/empty-database-client.js";
-import { onlyCommandLog, readLogRecords } from "./command-log.js";
+import { onlyCommandLog, readLogRecords, wasLogOpen } from "./command-log.js";
 const dirs: string[] = [];
 afterEach(async () => {
   await Promise.all(
@@ -109,7 +109,9 @@ test("photo import writes <command-name>.log in its command folder", async () =>
   const { dir, file } = await photoImportWorkspace();
   const result = await runIntake(["photo", "import", "canonical-person", file]);
   expect(result.exitCode).toBe(0);
-  expect(await readLogRecords((await onlyCommandLog(dir)).logPath)).toEqual([]);
+  const { logPath } = await onlyCommandLog(dir);
+  expect(await readLogRecords(logPath)).toEqual([]);
+  expect(await wasLogOpen(logPath)).toBe(false);
 });
 
 test("photo import records the error that ended it as the last record of its log", async () => {
@@ -130,4 +132,5 @@ test("photo import records the error that ended it as the last record of its log
     level: 50,
     error: { message, stack: expect.stringContaining(`Error: ${message}\n`) },
   });
+  expect(await wasLogOpen((await onlyCommandLog(dir)).logPath)).toBe(false);
 });

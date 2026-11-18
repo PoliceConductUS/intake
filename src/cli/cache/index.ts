@@ -28,7 +28,7 @@ import {
 import {
   createCommandLog,
   recordCommandError,
-  type CommandLogger,
+  type IntakeLog,
 } from "../../logging.js";
 
 function valueError(error: z.ZodError): Error {
@@ -100,7 +100,7 @@ export const registerCliCommand: RegisterCliCommand = (
         existingSourceId: string,
         options: { evidence: string },
       ) => {
-        let commandLogger: CommandLogger | undefined;
+        let commandLog: IntakeLog | undefined;
         try {
           const nonEmpty = z.string().trim().min(1);
           namespace = nonEmpty.parse(namespace);
@@ -151,7 +151,7 @@ export const registerCliCommand: RegisterCliCommand = (
             ],
           });
           const { commandName, outputDirectory } = command;
-          commandLogger = createCommandLog(command, process.env, false).logger;
+          commandLog = createCommandLog(command, process.env, false);
           const provenance = await SourceNameToCanonicalId.write(
             outputDirectory,
             SourceNameToCanonicalId.new({
@@ -184,12 +184,14 @@ export const registerCliCommand: RegisterCliCommand = (
             stdout: `${JSON.stringify({ canonicalId, reverseSourceName, provenancePath: provenance.path }, null, 2)}\n`,
           });
         } catch (error) {
-          if (commandLogger !== undefined)
-            recordCommandError(commandLogger, error);
+          if (commandLog !== undefined)
+            recordCommandError(commandLog.logger, error);
           dependencies.setResult({
             exitCode: 1,
             stderr: `${error instanceof Error ? error.message : String(error)}\n`,
           });
+        } finally {
+          commandLog?.close();
         }
       },
     );
@@ -247,7 +249,7 @@ export const registerCliCommand: RegisterCliCommand = (
           }
           return readLocationPathById(locationClient, id);
         };
-        let commandLogger: CommandLogger | undefined;
+        let commandLog: IntakeLog | undefined;
         try {
           const schema = correctionPropertySchema(kind, property);
           if (action !== "get")
@@ -327,11 +329,7 @@ export const registerCliCommand: RegisterCliCommand = (
                 ],
               });
               const { commandName } = command;
-              commandLogger = createCommandLog(
-                command,
-                process.env,
-                false,
-              ).logger;
+              commandLog = createCommandLog(command, process.env, false);
               await setPropertyCorrection({
                 getLocationPathById,
                 rootDir,
@@ -393,13 +391,14 @@ export const registerCliCommand: RegisterCliCommand = (
             stdout: `${JSON.stringify(current.spec, null, 2)}\n`,
           });
         } catch (error) {
-          if (commandLogger !== undefined)
-            recordCommandError(commandLogger, error);
+          if (commandLog !== undefined)
+            recordCommandError(commandLog.logger, error);
           dependencies.setResult({
             exitCode: 1,
             stderr: `${error instanceof Error ? error.message : String(error)}\n`,
           });
         } finally {
+          commandLog?.close();
           await locationClient?.end();
         }
       },

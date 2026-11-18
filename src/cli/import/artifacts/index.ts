@@ -1,7 +1,10 @@
-import path from "node:path";
 import { importArtifacts, type ImportArtifactsResult } from "./config.js";
 import { formatDatabaseMutationCountLines } from "./io/DatabaseMutationCounts.js";
-import { createIntakeLog } from "../../../logging.js";
+import {
+  createCommandLog,
+  recordCommandError,
+  type IntakeLog,
+} from "../../../logging.js";
 import { createCommandDirectory } from "../../command-directory.js";
 import { Artifacts } from "../../../shared/io/index.js";
 import type { CommandResult } from "../../../shared/cli/types.js";
@@ -25,7 +28,7 @@ export async function runImportArtifactsCommand(
   dependencies: {
     importArtifacts?: (input: {
       artifactsPath: string;
-      logger?: ReturnType<typeof createIntakeLog>["logger"];
+      logger?: IntakeLog["logger"];
       dryImport?: boolean;
       useInitialAgencyRoots?: boolean;
       env?: Record<string, string | undefined>;
@@ -62,61 +65,62 @@ export async function runImportArtifactsCommand(
       stderr: `${error instanceof Error ? error.message : String(error)}\n`,
     };
   }
-  const { logger, logPath } = createIntakeLog({
-    logPath: path.join(command.commandDirectory, `${command.commandName}.log`),
-    level: env.LOG_LEVEL,
-    terminal: dependencies.terminal,
-  });
-  logger.info(`Writing logs to ${logPath}`);
-  logger.info(`Log level: ${env.LOG_LEVEL ?? "info"}`);
-  logger.info(`Importing artifacts: ${artifactsRef}`);
-  if (dependencies.dryImport === true) {
-    logger.info(
-      "Dry run: DatabaseMutations envelope will be created without database create/read/update.",
-    );
-  }
-  logger.info({ artifactsPath: artifactsRef }, "Artifacts import started.");
-
-  const result = await (dependencies.importArtifacts ?? importArtifacts)({
-    artifactsPath: artifactsRef,
-    logger,
-    dryImport: dependencies.dryImport,
-    useInitialAgencyRoots: dependencies.useInitialAgencyRoots,
+  const { logger, logPath, close } = createCommandLog(
+    command,
     env,
-    commandDirectory: command.outputDirectory,
-    commandName: command.commandName,
-    excludedRecords: dependencies.excludedRecords,
-  });
+    dependencies.terminal ?? process.stdout,
+  );
+  try {
+    logger.info(`Writing logs to ${logPath}`);
+    logger.info(`Log level: ${env.LOG_LEVEL ?? "info"}`);
+    logger.info(`Importing artifacts: ${artifactsRef}`);
+    if (dependencies.dryImport === true) {
+      logger.info(
+        "Dry run: DatabaseMutations envelope will be created without database create/read/update.",
+      );
+    }
+    logger.info({ artifactsPath: artifactsRef }, "Artifacts import started.");
 
-  if (!result.ok) {
-    logger.error(
-      { artifactsPath: artifactsRef, error: result.error },
-      "Artifacts import failed.",
+    const result = await (dependencies.importArtifacts ?? importArtifacts)({
+      artifactsPath: artifactsRef,
+      logger,
+      dryImport: dependencies.dryImport,
+      useInitialAgencyRoots: dependencies.useInitialAgencyRoots,
+      env,
+      commandDirectory: command.outputDirectory,
+      commandName: command.commandName,
+      excludedRecords: dependencies.excludedRecords,
+    });
+
+    if (!result.ok) throw result.error;
+
+    logger.info(
+      {
+        artifactsPath: artifactsRef,
+        databaseMutations: result.counts.mutations,
+        recordsByEntityType: result.counts.recordsByEntityType,
+      },
+      "Artifacts import succeeded.",
     );
+
+    return {
+      exitCode: 0,
+      databaseMutationsPath: result.databaseMutationsPath,
+      stdout: [
+        dependencies.dryImport === true
+          ? "Created DatabaseMutations envelope. Database apply skipped."
+          : "Imported artifact database records.",
+        ...formatDatabaseMutationCountLines(result.counts),
+        "",
+      ].join("\n"),
+    };
+  } catch (error) {
+    recordCommandError(logger, error);
     return {
       exitCode: 1,
-      stderr: `${result.error}\n`,
+      stderr: `${error instanceof Error ? error.message : String(error)}\n`,
     };
+  } finally {
+    close();
   }
-
-  logger.info(
-    {
-      artifactsPath: artifactsRef,
-      databaseMutations: result.counts.mutations,
-      recordsByEntityType: result.counts.recordsByEntityType,
-    },
-    "Artifacts import succeeded.",
-  );
-
-  return {
-    exitCode: 0,
-    databaseMutationsPath: result.databaseMutationsPath,
-    stdout: [
-      dependencies.dryImport === true
-        ? "Created DatabaseMutations envelope. Database apply skipped."
-        : "Imported artifact database records.",
-      ...formatDatabaseMutationCountLines(result.counts),
-      "",
-    ].join("\n"),
-  };
 }

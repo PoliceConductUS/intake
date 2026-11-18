@@ -180,7 +180,9 @@ describe("manual community creation and reconstruction", () => {
     const result = await load(artifacts.path, "missing-parent");
     expect(result).toMatchObject({
       ok: false,
-      error: expect.stringContaining("/tx/nonexistent-county/"),
+      error: expect.objectContaining({
+        message: expect.stringContaining("/tx/nonexistent-county/"),
+      }),
     });
     expect(await storedPlace()).toEqual([]);
     expect(

@@ -1,5 +1,7 @@
+import { EventEmitter } from "node:events";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
+import { watchCommandLogs } from "../../src/logging.js";
 
 export async function readLogRecords(
   logPath: string,
@@ -25,4 +27,17 @@ export async function onlyCommandLog(
     folder,
     logPath: path.join(folder, `${commands[0]!.split("-").at(-1)}.log`),
   };
+}
+
+// Ends every command log still open, as a process exit does, and reports
+// whether the log at logPath was one of them.
+export async function wasLogOpen(logPath: string): Promise<boolean> {
+  const proc = Object.assign(new EventEmitter(), {
+    pid: 0,
+    kill: () => true,
+  });
+  watchCommandLogs(proc);
+  const before = (await readLogRecords(logPath)).length;
+  proc.emit("exit", 0);
+  return (await readLogRecords(logPath)).length > before;
 }

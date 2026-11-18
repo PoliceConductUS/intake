@@ -8,7 +8,7 @@ import {
 } from "../../../src/cli/acquire/acquire-from-local.js";
 import { readCommandPointer } from "../../../src/cli/state/command-pointer.js";
 import { parse as parseYaml } from "yaml";
-import { readLogRecords } from "../command-log.js";
+import { readLogRecords, wasLogOpen } from "../command-log.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {
@@ -167,6 +167,9 @@ describe("acquireFromLocal", () => {
         stack: expect.stringContaining("Error: analysis incomplete\n    at "),
       },
     });
+    expect(
+      await wasLogOpen(path.join(workspace, "command/failed/failed.log")),
+    ).toBe(false);
   });
 
   it("copies inputs into the command output and points the acquire pointer at it", async () => {
@@ -231,5 +234,10 @@ describe("acquireFromLocal", () => {
         )
       ).map((record) => record.msg),
     ).toEqual([staged]);
+    expect(
+      await wasLogOpen(
+        path.join(workspace, "command/2026-08-25-abc/2026-08-25-abc.log"),
+      ),
+    ).toBe(false);
   });
 });

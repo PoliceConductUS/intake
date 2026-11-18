@@ -1,5 +1,14 @@
 import { completeTransform } from "../../../src/cli/state/transform-completion.js";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  readdir,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
+import { parse as parseYaml } from "yaml";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
@@ -202,6 +211,28 @@ describe("data reset against disposable Postgres", () => {
     };
   }
 
+  async function commandLogs(
+    workspace: string,
+  ): Promise<{ args: string[]; hasLog: boolean }[]> {
+    const root = path.join(workspace, "command");
+    return Promise.all(
+      (await readdir(root)).map(async (folder) => {
+        const name = folder.split("-").at(-1)!;
+        const command = parseYaml(
+          await readFile(
+            path.join(root, folder, `${name}.Command.yaml`),
+            "utf8",
+          ),
+        ) as { spec: { args: string[] } };
+        const hasLog = await stat(path.join(root, folder, `${name}.log`)).then(
+          () => true,
+          () => false,
+        );
+        return { args: command.spec.args, hasLog };
+      }),
+    );
+  }
+
   test("runs actual schema reset, regenerates source and manual data, and preserves IDs and slugs on repetition", async () => {
     const deps = await fixture();
     await appendEntry(
@@ -249,6 +280,28 @@ describe("data reset against disposable Postgres", () => {
         )
       ).rows,
     ).toEqual([{ count: 3 }]);
+    const logged = await commandLogs(deps.env.INTAKE_WORKSPACE);
+    expect(
+      logged
+        .filter(
+          ({ args }) =>
+            !(
+              args[1] === "transform" &&
+              ["gov/census/www2/gazetteer", "fixture-agencies"].includes(
+                args[2]!,
+              )
+            ),
+        )
+        .filter(({ hasLog }) => !hasLog),
+    ).toEqual([]);
+    expect(logged.map(({ args }) => args.slice(0, 3).join(" "))).toEqual(
+      expect.arrayContaining([
+        "data reset --no-acquire",
+        "data generate fixture-agencies",
+        "data transform org/policeconduct/manual",
+        "data generate org/policeconduct/manual",
+      ]),
+    );
     expect(await resetData({ acquire: false }, deps)).toMatchObject({
       exitCode: 0,
     });

@@ -1,3 +1,4 @@
+import type { EventEmitter } from "node:events";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import pino, {
@@ -15,6 +16,7 @@ export type CommandLogger = Pick<Logger, "info" | "error">;
 export type IntakeLog = {
   logger: Logger;
   logPath: string;
+  close(): void;
 };
 
 type CreateIntakeLogOptions = {
@@ -34,9 +36,7 @@ function createTerminalLogStream(terminal: TerminalStream): DestinationStream {
   };
 }
 
-export function createIntakeLog(
-  options: CreateIntakeLogOptions = {},
-): IntakeLog {
+function createIntakeLog(options: CreateIntakeLogOptions = {}): IntakeLog {
   const logPath = options.logPath;
   if (logPath === undefined || logPath.trim().length === 0) {
     throw new Error("Command log path is required to write intake logs.");
@@ -68,19 +68,87 @@ export function createIntakeLog(
     pino.multistream(streams),
   );
 
-  return { logger, logPath };
+  return {
+    logger,
+    logPath,
+    close() {
+      logger.level = "silent";
+      destination.end();
+    },
+  };
 }
+
+const LOG_LEVELS = [
+  "fatal",
+  "error",
+  "warn",
+  "info",
+  "debug",
+  "trace",
+  "silent",
+] as const;
+
+export function assertLogLevel(env: Record<string, string | undefined>): void {
+  const level = env.LOG_LEVEL;
+  if (level !== undefined && !(LOG_LEVELS as readonly string[]).includes(level))
+    throw new Error(
+      `LOG_LEVEL ${JSON.stringify(level)} is not a log level. Use one of: ${LOG_LEVELS.join(", ")}.`,
+    );
+}
+
+const openCommandLogs = new Set<IntakeLog>();
 
 export function createCommandLog(
   command: { commandDirectory: string; commandName: string },
   env: Record<string, string | undefined>,
   terminal: TerminalStream | false,
 ): IntakeLog {
-  return createIntakeLog({
+  const log = createIntakeLog({
     logPath: path.join(command.commandDirectory, `${command.commandName}.log`),
     level: env.LOG_LEVEL,
     terminal,
   });
+  const commandLog: IntakeLog = {
+    logger: log.logger,
+    logPath: log.logPath,
+    close() {
+      if (!openCommandLogs.delete(commandLog)) return;
+      log.close();
+    },
+  };
+  openCommandLogs.add(commandLog);
+  return commandLog;
+}
+
+function endOpenCommandLogs(record: Record<string, unknown>): void {
+  for (const log of [...openCommandLogs]) {
+    log.logger.error(record);
+    log.close();
+  }
+}
+
+type WatchedProcess = Pick<EventEmitter, "on" | "removeListener"> & {
+  pid: number;
+  kill(pid: number, signal: string): unknown;
+};
+
+// ADR 0013: a process that ends while a command log is open records why in that log.
+export function watchCommandLogs(proc: WatchedProcess): void {
+  proc.on("exit", (exitCode: number) => endOpenCommandLogs({ exitCode }));
+  proc.on("uncaughtExceptionMonitor", (error: unknown, origin: string) =>
+    endOpenCommandLogs({
+      error: pino.stdSerializers.err(error as Error),
+      origin,
+    }),
+  );
+  for (const signal of ["SIGINT", "SIGTERM"]) {
+    const onSignal = () => {
+      endOpenCommandLogs({ signal });
+      proc.removeListener(signal, onSignal);
+      proc.kill(proc.pid, signal);
+    };
+    proc.on(signal, onSignal);
+  }
 }
 
 // A record without a message is written to the log file and not to the terminal.

@@ -5,20 +5,22 @@
 - [x] `data transform`, including the transforms `data update` and `data reset` run: the same. Test in `test/cli/transform/transform-command.test.ts` asserts that a source's progress line is printed and logged and that a failed run's log ends with its error.
 - [x] `data reset`: the same for the reset's own command folder. Tests in `test/cli/data/reset.test.ts`.
 - [x] `cache set`, `cache unset`, `cache alias` and `photo import`: open the command's log with no terminal stream and record a caught error. Tests: `cache set` writes a log and records its error (`test/cli/cache.test.ts`); `cache alias` writes a log (`test/cli/cache-alias.test.ts`); `photo import` writes a log and records its error (`test/cli/personnel-photo.test.ts`).
-- [ ] `createCommandDirectory`: reject an unknown or empty `LOG_LEVEL`, naming the value, before creating the folder. Test in `test/cli/command-directory.test.ts`.
-- [ ] Close each command's log when the command ends, in every command that opens one. Test that a closed log takes no more records.
-- [ ] `src/cli/index.ts`: on `SIGINT`, `SIGTERM`, a process exit with a log still open, an uncaught exception or an unhandled rejection, write a final record to each open command log, then end the process as it would have ended. Tests drive the handlers with a stand-in process.
-- [ ] `data generate` and `replay database-mutations`: open their log with `createCommandLog`, close it when they end, and record a failure with `recordCommandError`; the import and replay results carry the `Error`. Tests in `test/import/artifacts-command.test.ts` and the replay tests.
-- [ ] `test/architecture.test.ts`: every module that calls `createCommandDirectory` also calls `createCommandLog`.
+- [x] `createCommandDirectory`: reject an unknown or empty `LOG_LEVEL`, naming the value, before creating the folder. Test in `test/cli/command-directory.test.ts`.
+- [x] Close each command's log when the command ends, in every command that opens one. Tests: a closed log takes no more records (`test/logging.test.ts`), and each command's log tests assert the log is closed when the command returns.
+- [x] `src/cli/index.ts`: on `SIGINT`, `SIGTERM`, a process exit with a log still open, an uncaught exception or an unhandled rejection, write a final record to each open command log, then end the process as it would have ended. Tests drive the handlers with a stand-in process (`test/logging.test.ts`).
+- [x] `data generate` and `replay database-mutations`: open their log with `createCommandLog`, close it when they end, and record a failure with `recordCommandError`; the import and replay results carry the `Error`. Tests in `test/import/artifacts-command.test.ts`; the tests that read an import or replay error now read its `message`.
+- [x] `test/architecture.test.ts`: every module that calls `createCommandDirectory` also calls `createCommandLog`.
 - [ ] Redact each Parameter Store secret value the command has read from every record, as `[redacted]`. Blocked: it needs `PARAMETER_STORE_SECRETS` and `withParameterStoreSecrets` from `src/cli/parameter-store-env.ts`, which exist only on `feat/parameter-store-secrets`.
 - [ ] Add the missing tests, each reading the log with `readLogRecords` from `test/cli/command-log.ts`:
-  - [ ] `test/cli/cache.test.ts`: `cache unset` writes a log and records its error.
-  - [ ] `test/cli/cache-alias.test.ts`: `cache alias` records its error.
-  - [ ] `test/cli/acquire/acquire-command.test.ts`: an acquire of several sources writes a log in each folder, and the source that fails ends its log with its error; a record is in the file before the next progress line is written.
-  - [ ] `test/cli/transform/transform-command.test.ts`: a transform logs its exclusion lines and records an undeclared-kind error; the transforms `data update` runs each write a log.
-  - [ ] `test/cli/data/reset.test.ts`: a reset logs the final stdout of the `data` commands it runs.
-  - [ ] `test/cli/data/reset.integration.test.ts`: the `data acquire`, `data transform` and `data generate` a reset runs, and its manual-locations transform, each write their own log.
-  - [ ] A `LOG_LEVEL` test: `warn` hides progress lines from the terminal and the log, and `debug` and `trace` still print them.
+  - [x] `test/cli/cache.test.ts`: `cache unset` writes a log and records its error.
+  - [x] `test/cli/cache-alias.test.ts`: `cache alias` records its error.
+  - [x] `test/cli/acquire/acquire-command.test.ts`: a record is in the file before the source continues; a failed acquire ends its log with its error.
+  - [ ] An acquire of several sources writes a log in each folder. Not written: the `data acquire` command reads sources only from `sources/` in the working directory, so a test of its loop would run real acquires.
+  - [x] `test/cli/transform/transform-command.test.ts`: a transform logs its exclusion lines and records an undeclared-kind error.
+  - [x] `test/cli/data/update-initial-roots.test.ts`: `data update` runs each source's transform with stderr as its terminal.
+  - [x] `test/cli/data/reset.test.ts`: a reset logs the final stdout of the `data` commands it runs.
+  - [x] `test/cli/data/reset.integration.test.ts`: every command folder a reset creates holds its own log, except the transforms the test itself stands in for; the folders include the reset, a `data generate` and the manual transforms. The test runs no acquire.
+  - [x] `test/cli/acquire/acquire-command.test.ts`: `LOG_LEVEL` `warn` hides progress lines from the terminal and the log, and `info`, `debug` and `trace` print and log them.
 - [x] `docs/adr/0013-preserve-command-auditability.md`: name the current command-folder path, output folder and state path, and the log's end records.
 - [x] READMEs: on this branch no README under `src/` exists, and the root `README.md` does not describe command folders or logs, so no README changed.
 
@@ -33,5 +35,5 @@
 ## Validate
 
 - [x] Run `npm run validate`, including OpenSpec validation, after the first implementation. No Supabase migration or loaded data changes, so no Supabase validation or integrity assertions apply.
-- [ ] Run `npm run validate` again after the owner decisions of 2026-11-18 are implemented.
+- [x] Run `npm run validate` again after the owner decisions of 2026-11-18 are implemented.
 - [ ] Run one acquire of any source on the dev workspace (`~/dev/PoliceConductUS/intake-workspace/`) with `LOG_LEVEL` unset. Assert that its command folder holds `<command-name>.log` and that the `msg` values of its records appear, in the same order, among the lines the acquire printed to stderr.

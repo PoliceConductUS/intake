@@ -55,9 +55,11 @@ type TransformSourceDeps = {
   readXlsx: typeof readXlsx;
   state: string;
   digest: (paths: string[]) => Promise<string>;
-  makeWorkspace: (
-    env: Record<string, string | undefined>,
-  ) => Promise<{ outputDirectory: string; logger: CommandLogger }>;
+  makeWorkspace: (env: Record<string, string | undefined>) => Promise<{
+    outputDirectory: string;
+    logger: CommandLogger;
+    close(): void;
+  }>;
   createEmitSink: (workspaceDir: string, namespace: string) => EmitSink;
   loadExcludedRecords: (stateDir: string) => Promise<ExcludedRecords>;
   writeEnvelope: (
@@ -173,11 +175,13 @@ export async function transformSource(
   }
 
   let logger: CommandLogger | undefined;
+  let closeLog: (() => void) | undefined;
   try {
     const excludedRecords = await deps.loadExcludedRecords(deps.state);
     const command = await deps.makeWorkspace(deps.env);
     const workspace = command.outputDirectory;
     logger = command.logger;
+    closeLog = command.close;
     const sink = deps.createEmitSink(workspace, sourceId);
     const streamedExclusions = new Set<string>();
     const streamedKinds = new Set<ImportArtifactKind>();
@@ -344,6 +348,8 @@ export async function transformSource(
   } catch (error) {
     if (logger !== undefined) recordCommandError(logger, error);
     return { error: { exitCode: 1, stderr: `${errorMessage(error)}\n` } };
+  } finally {
+    closeLog?.();
   }
 }
 
@@ -395,9 +401,11 @@ export async function buildTransformSourceDeps(
         namespace: sourceId,
         args: options.commandArgs,
       });
+      const log = createCommandLog(command, e, options.terminal);
       return {
         outputDirectory: command.outputDirectory,
-        logger: createCommandLog(command, e, options.terminal).logger,
+        logger: log.logger,
+        close: log.close,
       };
     },
     createEmitSink,

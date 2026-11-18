@@ -120,6 +120,8 @@ export async function acquireSource(
   } catch (error) {
     if (log !== undefined) recordCommandError(log.logger, error);
     return { exitCode: 1, stderr: `${errorMessage(error)}\n` };
+  } finally {
+    log?.close();
   }
 }
 

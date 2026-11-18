@@ -4,6 +4,7 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { createId } from "@paralleldrive/cuid2";
 import { Command } from "../shared/io/Command.js";
+import { assertLogLevel } from "../logging.js";
 
 function timestampForPath(date: Date): string {
   return date.toISOString().replace(/[:.]/g, "-");
@@ -55,6 +56,7 @@ export async function createCommandDirectory(
   outputDirectory: string;
 }> {
   const workspace = intakeWorkspace(env);
+  assertLogLevel(env);
   const commandName = (options.createCommandName ?? createId)();
   const namespace = options.namespace ?? "intake";
   const commandDirectory = path.join(

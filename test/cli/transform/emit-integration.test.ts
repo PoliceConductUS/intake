@@ -209,6 +209,7 @@ describe("emit sink integration (via transformSource)", () => {
         makeWorkspace: async () => ({
           outputDirectory: workspace,
           logger: { info: () => {}, error: () => {} },
+          close: () => {},
         }),
         createEmitSink,
         loadExcludedRecords: async () => new Map(),
@@ -351,6 +352,7 @@ async function runStreamedSource(
           info: (message: string) => logs.push(message),
           error: () => {},
         },
+        close: () => {},
       }),
       createEmitSink,
       loadExcludedRecords,

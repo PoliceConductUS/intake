@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { chmod, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -9,7 +9,7 @@ import {
   createSourceNameToCanonicalIdLedger,
   resolveSourceNameToCanonicalIdPath,
 } from "../../src/cli/state/source-name-to-canonical-id/index.js";
-import { onlyCommandLog, readLogRecords } from "./command-log.js";
+import { onlyCommandLog, readLogRecords, wasLogOpen } from "./command-log.js";
 
 let workspace: string;
 beforeEach(async () => {
@@ -167,7 +167,40 @@ test("alias writes <command-name>.log in its command folder", async () => {
     async () => "existing-id",
   );
   expect((await runIntake(args())).exitCode).toBe(0);
-  expect(
-    await readLogRecords((await onlyCommandLog(workspace)).logPath),
-  ).toEqual([]);
+  const { logPath } = await onlyCommandLog(workspace);
+  expect(await readLogRecords(logPath)).toEqual([]);
+  expect(await wasLogOpen(logPath)).toBe(false);
+});
+
+test("alias records the error that ended it as the last record of its log", async () => {
+  const ledger = createSourceNameToCanonicalIdLedger({ rootDir: workspace });
+  await ledger.findOrCreate(
+    "test.source",
+    "Discipline",
+    "old-case-label",
+    async () => "existing-id",
+  );
+  const directory = path.join(
+    resolveSourceNameToCanonicalIdPath("test.source", { rootDir: workspace }),
+    "Discipline",
+  );
+  await chmod(directory, 0o500);
+  let result;
+  try {
+    result = await runIntake(args());
+  } finally {
+    await chmod(directory, 0o700);
+  }
+  expect(result.exitCode).toBe(1);
+  const { logPath } = await onlyCommandLog(workspace);
+  const records = await readLogRecords(logPath);
+  expect(records).toHaveLength(1);
+  expect(records[0]).toMatchObject({
+    level: 50,
+    error: {
+      message: result.stderr!.trim(),
+      stack: expect.stringContaining("EACCES"),
+    },
+  });
+  expect(await wasLogOpen(logPath)).toBe(false);
 });

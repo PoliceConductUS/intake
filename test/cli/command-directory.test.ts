@@ -105,4 +105,39 @@ describe("createCommandDirectory", () => {
     ).rejects.toThrow("is not an existing folder.");
     await expect(stat(missing)).rejects.toMatchObject({ code: "ENOENT" });
   });
+
+  it.each(["inf", "", "INFO "])(
+    "fails on LOG_LEVEL %j before creating the folder, naming the value",
+    async (level) => {
+      const workspace = await tempDir();
+      await expect(
+        createCommandDirectory({
+          INTAKE_WORKSPACE: workspace,
+          LOG_LEVEL: level,
+        }),
+      ).rejects.toThrow(
+        `LOG_LEVEL ${JSON.stringify(level)} is not a log level. Use one of: fatal, error, warn, info, debug, trace, silent.`,
+      );
+      await expect(stat(path.join(workspace, "command"))).rejects.toMatchObject(
+        { code: "ENOENT" },
+      );
+    },
+  );
+
+  it("accepts each log level", async () => {
+    const workspace = await tempDir();
+    for (const level of [
+      "fatal",
+      "error",
+      "warn",
+      "info",
+      "debug",
+      "trace",
+      "silent",
+    ])
+      await createCommandDirectory({
+        INTAKE_WORKSPACE: workspace,
+        LOG_LEVEL: level,
+      });
+  });
 });

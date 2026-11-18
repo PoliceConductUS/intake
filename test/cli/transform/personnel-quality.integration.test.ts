@@ -376,6 +376,7 @@ async function run(
           info: (message: string) => logs.push(message),
           error: () => {},
         },
+        close: () => {},
       }),
       createEmitSink: () => ({
         emit: async () => {},

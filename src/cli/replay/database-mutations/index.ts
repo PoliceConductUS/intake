@@ -1,13 +1,12 @@
 import { constants } from "node:fs";
 import { access, stat } from "node:fs/promises";
-import path from "node:path";
 import { Command } from "commander";
 import {
   replayDatabaseMutations,
   type ReplayDatabaseMutationsResult,
 } from "./config.js";
 import { formatDatabaseMutationCountLines } from "../../import/artifacts/io/DatabaseMutationCounts.js";
-import { createIntakeLog } from "../../../logging.js";
+import { createCommandLog, recordCommandError } from "../../../logging.js";
 import { createCommandDirectory } from "../../command-directory.js";
 import { DatabaseMutations } from "../../import/artifacts/io/DatabaseMutations.js";
 import type {
@@ -107,49 +106,50 @@ export async function runReplayDatabaseMutationsCommand(
       stderr: `${error instanceof Error ? error.message : String(error)}\n`,
     };
   }
-  const { logger, logPath } = createIntakeLog({
-    logPath: path.join(command.commandDirectory, `${command.commandName}.log`),
-    level: env.LOG_LEVEL,
-    terminal: dependencies.terminal,
-  });
-  logger.info(`Writing logs to ${logPath}`);
-  logger.info(`Log level: ${env.LOG_LEVEL ?? "info"}`);
-  logger.info(`Replaying DatabaseMutations: ${databaseMutationsRef}`);
-  logger.info(
-    { databaseMutationsPath: databaseMutationsRef },
-    "DatabaseMutations replay started.",
+  const { logger, logPath, close } = createCommandLog(
+    command,
+    env,
+    dependencies.terminal ?? process.stdout,
   );
-
-  const result = await (
-    dependencies.replayDatabaseMutations ?? replayDatabaseMutations
-  )({ databaseMutationsPath: databaseMutationsRef, env });
-
-  if (!result.ok) {
-    logger.error(
-      { databaseMutationsPath: databaseMutationsRef, error: result.error },
-      "DatabaseMutations replay failed.",
+  try {
+    logger.info(`Writing logs to ${logPath}`);
+    logger.info(`Log level: ${env.LOG_LEVEL ?? "info"}`);
+    logger.info(`Replaying DatabaseMutations: ${databaseMutationsRef}`);
+    logger.info(
+      { databaseMutationsPath: databaseMutationsRef },
+      "DatabaseMutations replay started.",
     );
+
+    const result = await (
+      dependencies.replayDatabaseMutations ?? replayDatabaseMutations
+    )({ databaseMutationsPath: databaseMutationsRef, env });
+
+    if (!result.ok) throw result.error;
+
+    logger.info(
+      {
+        databaseMutationsPath: databaseMutationsRef,
+        databaseMutations: result.counts.mutations,
+        recordsByEntityType: result.counts.recordsByEntityType,
+      },
+      "DatabaseMutations replay succeeded.",
+    );
+
+    return {
+      exitCode: 0,
+      stdout: [
+        "Replayed DatabaseMutations.",
+        ...formatDatabaseMutationCountLines(result.counts),
+        "",
+      ].join("\n"),
+    };
+  } catch (error) {
+    recordCommandError(logger, error);
     return {
       exitCode: 1,
-      stderr: `${result.error}\n`,
+      stderr: `${error instanceof Error ? error.message : String(error)}\n`,
     };
+  } finally {
+    close();
   }
-
-  logger.info(
-    {
-      databaseMutationsPath: databaseMutationsRef,
-      databaseMutations: result.counts.mutations,
-      recordsByEntityType: result.counts.recordsByEntityType,
-    },
-    "DatabaseMutations replay succeeded.",
-  );
-
-  return {
-    exitCode: 0,
-    stdout: [
-      "Replayed DatabaseMutations.",
-      ...formatDatabaseMutationCountLines(result.counts),
-      "",
-    ].join("\n"),
-  };
 }

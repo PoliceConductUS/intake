@@ -139,7 +139,7 @@ export async function acquireFromLocal(
     args: ["acquire", sourceId, "--from-local", ...paths],
   });
   const { outputDirectory } = command;
-  const { logger } = createCommandLog(command, deps.env, deps.terminal);
+  const { logger, close } = createCommandLog(command, deps.env, deps.terminal);
   try {
     for (const item of items) {
       const destination = path.join(outputDirectory, item.destinationRelative);
@@ -174,5 +174,7 @@ export async function acquireFromLocal(
   } catch (error) {
     recordCommandError(logger, error);
     throw error;
+  } finally {
+    close();
   }
 }

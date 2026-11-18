@@ -14,7 +14,7 @@ import { storePersonnelPhoto } from "./store.js";
 import {
   createCommandLog,
   recordCommandError,
-  type CommandLogger,
+  type IntakeLog,
 } from "../../logging.js";
 
 const namespace = "org/policeconduct/manual";
@@ -36,7 +36,7 @@ export function registerCliCommand(
         options: { sourceUrl?: string },
       ) => {
         const env = process.env;
-        let commandLogger: CommandLogger | undefined;
+        let commandLog: IntakeLog | undefined;
         try {
           const workspace = intakeWorkspace(env);
           if (!env.DATABASE_URL?.trim())
@@ -78,7 +78,7 @@ export function registerCliCommand(
                   : ["--source-url", options.sourceUrl]),
               ],
             });
-            commandLogger = createCommandLog(command, env, false).logger;
+            commandLog = createCommandLog(command, env, false);
             await appendEntry(
               await sourceStateDir(env, namespace),
               entry,
@@ -92,12 +92,14 @@ export function registerCliCommand(
             await client.end();
           }
         } catch (error) {
-          if (commandLogger !== undefined)
-            recordCommandError(commandLogger, error);
+          if (commandLog !== undefined)
+            recordCommandError(commandLog.logger, error);
           dependencies.setResult({
             exitCode: 1,
             stderr: `${error instanceof Error ? error.message : String(error)}\n`,
           });
+        } finally {
+          commandLog?.close();
         }
       },
     );

@@ -80,7 +80,7 @@ type ImportLogger = {
 
 export type ImportArtifactsResult =
   | { ok: true; counts: DatabaseMutationCounts; databaseMutationsPath: string }
-  | { ok: false; error: string };
+  | { ok: false; error: Error };
 
 export type ImportArtifactsCommandInput = {
   artifactsPath: string;
@@ -99,6 +99,10 @@ export type ImportArtifactsCommandInput = {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function asError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
 }
 
 function valueAsRecord(value: unknown): Record<string, unknown> {
@@ -734,7 +738,7 @@ async function writeDatabaseMutationsStage(
     clientFactory: context.commandInput.clientFactory,
   });
   if (!replayResult.ok) {
-    throw new Error(replayResult.error);
+    throw replayResult.error;
   }
   context.commandInput.logger?.info("Database records created/read/updated.");
   return {
@@ -763,7 +767,7 @@ export async function importArtifacts(
   ) {
     return {
       ok: false,
-      error: "Command name is required to import artifacts.",
+      error: new Error("Command name is required to import artifacts."),
     };
   }
 
@@ -771,7 +775,7 @@ export async function importArtifacts(
   try {
     workspaceRoot = intakeWorkspace(commandInput.env ?? process.env);
   } catch (error) {
-    return { ok: false, error: errorMessage(error) };
+    return { ok: false, error: asError(error) };
   }
   let context: ImportArtifactsPipelineContext = {
     commandInput,
@@ -785,7 +789,7 @@ export async function importArtifacts(
       context = await stage(context);
     }
   } catch (error) {
-    return { ok: false, error: errorMessage(error) };
+    return { ok: false, error: asError(error) };
   }
   if (
     context.databaseMutationCounts === undefined ||
@@ -793,7 +797,9 @@ export async function importArtifacts(
   ) {
     return {
       ok: false,
-      error: "DatabaseMutations pipeline finished without mutation counts.",
+      error: new Error(
+        "DatabaseMutations pipeline finished without mutation counts.",
+      ),
     };
   }
   return {

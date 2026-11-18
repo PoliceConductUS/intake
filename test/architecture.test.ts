@@ -485,6 +485,25 @@ describe("architecture boundaries", () => {
     expect(violations).toEqual([]);
   });
 
+  test("opens a command log wherever a command folder is created", async () => {
+    const files = (await existingFiles(sourceRoot))
+      .filter((file) => /\.[cm]?ts$/.test(file))
+      .filter((file) => relative(file) !== "src/cli/command-directory.ts");
+    const creators: string[] = [];
+    const violations: string[] = [];
+
+    for (const file of files) {
+      const contents = await readFile(file, "utf8");
+      if (!/\bcreateCommandDirectory\(/.test(contents)) continue;
+      creators.push(relative(file));
+      if (!/\bcreateCommandLog\(/.test(contents))
+        violations.push(relative(file));
+    }
+
+    expect(creators.length).toBeGreaterThan(0);
+    expect(violations).toEqual([]);
+  });
+
   test("keeps command tests under their command path", async () => {
     const files = await existingFiles(testRoot);
     const violations = files

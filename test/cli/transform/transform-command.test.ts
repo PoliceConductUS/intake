@@ -13,7 +13,8 @@ import {
   transformSource,
 } from "../../../src/cli/transform/index.js";
 import { writeCommandPointer } from "../../../src/cli/state/command-pointer.js";
-import { onlyCommandLog, readLogRecords } from "../command-log.js";
+import type { SourceManifest } from "../../../src/cli/transform/source-transform.js";
+import { onlyCommandLog, readLogRecords, wasLogOpen } from "../command-log.js";
 
 const testRefItems = [
   {
@@ -61,7 +62,11 @@ function makeOkDeps(
     })),
     loadExcludedRecords: vi.fn(async () => new Map()),
     writeEnvelope: vi.fn(async () => ({ path: "/ws/artifacts.yaml" })),
-    makeWorkspace: vi.fn(async () => ({ outputDirectory: "/ws", logger })),
+    makeWorkspace: vi.fn(async () => ({
+      outputDirectory: "/ws",
+      logger,
+      close: () => {},
+    })),
     env: { INTAKE_WORKSPACE: "/ws" },
     logger,
   };
@@ -335,6 +340,88 @@ describe("transformSource", () => {
           stack: expect.stringContaining(
             "Error: roster: row 2 has no license number\n    at ",
           ),
+        },
+      });
+      expect(await wasLogOpen((await onlyCommandLog(root)).logPath)).toBe(
+        false,
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("logs its exclusion lines and records an undeclared-kind error", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "intake-transform-log-"));
+    try {
+      const sourceId = "gov/az/post/roster";
+      const state = path.join(root, "state", sourceId);
+      const input = path.join(root, "input");
+      await mkdir(input);
+      await writeFile(path.join(input, "roster.csv"), "id\n1001\n");
+      await writeCommandPointer(state, "acquire", { latest: "input" });
+      await writeFile(
+        path.join(state, "excluded.yaml"),
+        'excluded:\n  - kind: Personnel\n    key: "1001"\n    reason: duplicate row\n',
+      );
+      const deps = await buildTransformSourceDeps(
+        sourceId,
+        [path.join(input, "roster.csv")],
+        { INTAKE_WORKSPACE_TEST: root },
+        { commandArgs: ["data", "transform", sourceId], terminal: false },
+      );
+      deps.loadSourceModule =
+        async () => async (): Promise<SourceManifest> => ({
+          artifacts: [
+            {
+              kind: "Personnel" as const,
+              records: {
+                "1001": {
+                  spec: {
+                    id: "1001",
+                    first_name: "Skip",
+                    last_name: "Woodward",
+                  },
+                },
+              },
+            },
+            {
+              kind: "LicensingAuthorities" as const,
+              records: {
+                board: {
+                  spec: {
+                    name: "Test board",
+                    location_path_id: "test",
+                    source_namespaces: [sourceId],
+                  },
+                },
+              },
+            },
+          ],
+        });
+      const result = await transformSource(
+        sourceId,
+        [path.join(input, "roster.csv")],
+        {},
+        deps,
+      );
+      expect(result).toEqual({
+        error: {
+          exitCode: 1,
+          stderr: `Source ${sourceId} emitted undeclared kind(s): Personnel, LicensingAuthorities\n`,
+        },
+      });
+      const records = await readLogRecords(
+        (await onlyCommandLog(root)).logPath,
+      );
+      expect(records.map((record) => record.msg)).toEqual([
+        `${sourceId}: excluded Personnel 1001: duplicate row`,
+        `${sourceId}: exclusion totals (including dependents): Personnel=1`,
+        undefined,
+      ]);
+      expect(records.at(-1)).toMatchObject({
+        level: 50,
+        error: {
+          message: `Source ${sourceId} emitted undeclared kind(s): Personnel, LicensingAuthorities`,
         },
       });
     } finally {

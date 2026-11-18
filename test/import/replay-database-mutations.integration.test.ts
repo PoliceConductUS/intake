@@ -241,7 +241,9 @@ describe("replay against a real Postgres", () => {
 
     expect(result).toEqual({
       ok: false,
-      error: "DatabaseMutation agency-1 cannot create existing Agency.",
+      error: new Error(
+        "DatabaseMutation agency-1 cannot create existing Agency.",
+      ),
     });
     // The transaction rolled back: the pre-existing row is untouched, no partial writes.
     const rows = await db.query("select slug from public.agency");

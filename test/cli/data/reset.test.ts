@@ -16,7 +16,7 @@ import {
   readCommandPointer,
   writeCommandPointer,
 } from "../../../src/cli/state/command-pointer.js";
-import { onlyCommandLog, readLogRecords } from "../command-log.js";
+import { onlyCommandLog, readLogRecords, wasLogOpen } from "../command-log.js";
 
 const workspaces: string[] = [];
 afterEach(async () => {
@@ -193,6 +193,30 @@ test("writes each phase it prints to <command-name>.log in its command folder", 
   ];
   expect(records.map((record) => record.msg)).toEqual(lines);
   expect(printed).toEqual(lines.map((line) => `${line}\n`));
+  expect(await wasLogOpen(logPath)).toBe(false);
+});
+
+test("logs the final stdout of each data command it runs", async () => {
+  const f = await fixture();
+  f.deps.runDataCommand.mockImplementation(async (args) => ({
+    exitCode: 0,
+    stdout: `${args.join(" ")}: done\n`,
+  }));
+  const result = await resetData({ acquire: false }, f.deps);
+  expect(result.exitCode).toBe(0);
+  const messages = (
+    await readLogRecords((await onlyCommandLog(f.workspace)).logPath)
+  ).map((record) => record.msg);
+  expect(messages).toEqual(
+    expect.arrayContaining([
+      "data transform places: done",
+      "data generate places: done",
+      "data up: done",
+    ]),
+  );
+  expect(messages.indexOf("data generate places: done")).toBe(
+    messages.indexOf("data reset: data generate places") + 1,
+  );
 });
 
 test("records the error that ended a reset as the last record of its log", async () => {
@@ -222,6 +246,9 @@ test("records the error that ended a reset as the last record of its log", async
       stack: expect.stringContaining("Error: schema reset failed\n    at "),
     },
   });
+  expect(await wasLogOpen((await onlyCommandLog(f.workspace)).logPath)).toBe(
+    false,
+  );
 });
 
 test("schema failure retains the active chain and does not start sources", async () => {

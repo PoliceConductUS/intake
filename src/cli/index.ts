@@ -2,6 +2,7 @@
 
 import { pathToFileURL } from "node:url";
 import { runIntake } from "./run-intake.js";
+import { watchCommandLogs } from "../logging.js";
 
 export { runIntake, type IntakeCliDependencies } from "./run-intake.js";
 export { runImportArtifactsCommand } from "./import/artifacts/index.js";
@@ -21,6 +22,7 @@ export function loadCliEnvironment(): void {
 
 async function main(): Promise<void> {
   loadCliEnvironment();
+  watchCommandLogs(process);
 
   const result = await runIntake(process.argv.slice(2));
 

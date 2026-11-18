@@ -90,6 +90,7 @@ export async function resetData(
   const { env } = dependencies;
   let phase = "preparation";
   let commandLogger: CommandLogger | undefined;
+  let closeLog: (() => void) | undefined;
   try {
     const workspace = intakeWorkspace(env);
     if (!env.DATABASE_URL?.trim())
@@ -98,8 +99,13 @@ export async function resetData(
     const command = await createCommandDirectory(env, {
       args: ["data", "reset", ...(options.acquire ? [] : ["--no-acquire"])],
     });
-    const { logger } = createCommandLog(command, env, dependencies.terminal);
+    const { logger, close } = createCommandLog(
+      command,
+      env,
+      dependencies.terminal,
+    );
     commandLogger = logger;
+    closeLog = close;
     const runDataCommand =
       dependencies.runDataCommand ??
       (async (args, context) => {
@@ -231,5 +237,7 @@ export async function resetData(
       exitCode: 1,
       stderr: `data reset: rebuild incomplete at ${phase}: ${error instanceof Error ? error.message : String(error)}\n`,
     };
+  } finally {
+    closeLog?.();
   }
 }
