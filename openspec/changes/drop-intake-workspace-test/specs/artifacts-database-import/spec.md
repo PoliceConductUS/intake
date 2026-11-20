@@ -98,9 +98,9 @@ The artifacts import pipeline MUST write an intake-owned `ImportArtifacts` artif
 
 #### Scenario: Test import-artifacts replay workspace is isolated
 
-- **WHEN** tests write import-artifacts replay artifacts
-- **THEN** they set `INTAKE_WORKSPACE` to their own temporary workspace
-- **AND** a value in `INTAKE_WORKSPACE_TEST` is not read and changes nothing
+- **WHEN** a test sets `INTAKE_WORKSPACE` to its own temporary folder and runs the artifacts import, which writes its `ImportArtifacts` artifact (in the code, a `DatabaseMutations` file in a command folder)
+- **THEN** the artifact is written under that folder
+- **AND** when `INTAKE_WORKSPACE_TEST` is also set, the import fails before it writes anything, with `INTAKE_WORKSPACE_TEST is no longer read; unset it and set INTAKE_WORKSPACE.`
 
 #### Scenario: Preparation failure writes debug artifact
 
