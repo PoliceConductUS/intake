@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { runIntake } from "../../../src/cli/index.js";
@@ -44,6 +44,49 @@ describe("data transform / source ordering", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr ?? "").toMatch(
       /gov\/texas\/tcole has no acquired input.*intake data acquire gov\/texas\/tcole/s,
+    );
+  });
+
+  it("fails every-source transform on a missing workspace instead of skipping each source", async () => {
+    const missing = path.join(workspace, "absent");
+    process.env.INTAKE_WORKSPACE = missing;
+
+    const result = await runIntake(["data", "transform"]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr ?? "").toContain(
+      `INTAKE_WORKSPACE ${missing} is not an existing folder.`,
+    );
+    expect(result.stderr ?? "").not.toContain("skipped");
+  });
+
+  it("skips every source with no acquired input and counts them", async () => {
+    const order = await orderedSourceIds();
+
+    const result = await runIntake(["data", "transform"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout ?? "").toContain(
+      `skipped ${order.length} source(s) with no acquired input: ${order.join(", ")}\n`,
+    );
+  });
+
+  it("fails every-source transform when a source errors for another reason", async () => {
+    const order = await orderedSourceIds();
+    const state = path.join(workspace, "state", "gov/texas/tcole");
+    await mkdir(state, { recursive: true });
+    await writeFile(path.join(state, "acquire.yaml"), "- not an object\n");
+
+    const result = await runIntake(["data", "transform"]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr ?? "").toContain(
+      "errored: gov/texas/tcole (Invalid acquire command pointer: expected an object.)",
+    );
+    expect(result.stderr ?? "").toContain(
+      `skipped ${order.length - 1} source(s) with no acquired input: ${order
+        .filter((id) => id !== "gov/texas/tcole")
+        .join(", ")}\n`,
     );
   });
 });

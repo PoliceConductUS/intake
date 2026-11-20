@@ -55,7 +55,7 @@ export type SeedLedgerCounts = {
 export async function seedLedgerFromIdentityMaps(
   namespace: string,
   identityDir: string,
-  options: { rootDir?: string } = {},
+  options: { rootDir: string },
 ): Promise<SeedLedgerCounts> {
   const agencyIds = await readIdentityMap(
     path.join(identityDir, "agencies.yaml"),

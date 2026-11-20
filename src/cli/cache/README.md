@@ -68,6 +68,9 @@ property by source identity:
   directory and call `setPropertyCorrection`. They call
   `retireManualResolvedProperty` only when the source name has a canonical ID
   in the ledger.
+- `index.ts:registerCliCommand` - `set`, `unset` and `alias` open a command
+  log in the command directory with no terminal, record a caught error as
+  its last record and close it when the command ends.
 - `index.ts:registerCliCommand` - `get` reads through
   `inspectPropertyCorrection` and `inspectResolvedProperty`.
 - `index.ts:registerCliCommand` - connects to the database only when a

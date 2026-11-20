@@ -63,7 +63,9 @@ canonical IDs. `search` on `LocationPath` returns the row's `path`, and on
   exist, a glob that matches nothing, no input files, and two inputs with the
   same destination name. Inside a directory it leaves out every entry whose
   name starts with `.` and logs `--from-local: left out dotfile <path>` for
-  each one through the `logger` argument.
+  each one through the `logger` argument. `acquireFromLocal` calls it before
+  the command folder exists, so those lines are printed to the terminal and
+  are not in the command log.
 - `acquire-data-context.ts:createAcquireDataContext` - `search` throws for a
   kind other than `LocationPath`, `Agency`, `AgencyPersonnel`, `Review` and
   `CivilCase`.
@@ -78,18 +80,23 @@ canonical IDs. `search` on `LocationPath` returns the row's `path`, and on
   `withParameterStoreSecrets`; reads the workspace through `intakeWorkspace`
   (`INTAKE_WORKSPACE`); reads and imports the
   sources under `<cwd>/sources`; connects to the database when `DATABASE_URL`
-  is set; writes log lines to `process.stderr`.
+  is set; passes `process.stderr` to each command log as its terminal.
 - `index.ts:acquireSource` - builds the command's service clients, which
   read and write the source's `CallResult` and `BinaryFile` envelopes when
-  the source calls them; creates a command directory; copies the
+  the source calls them; creates a command directory and opens its command
+  log (`logging.ts:createCommandLog`), which the source and the service
+  clients log through, records a caught error as the log's last record and
+  closes the log when the acquire ends; copies the
   `resume` directory into the new output when that directory exists; reads
   and writes the `acquire` command pointer in the source's state directory;
   runs the source's `acquire` function; calls `recordCompletedAcquisition`.
-- `acquire-from-local.ts:acquireFromLocal` - creates a command directory;
-  copies the local files into the command's `<source-id>/output/`; reads and
-  writes the `acquire` command pointer; runs the source's `acquire` function
-  when the source has one; calls `recordCompletedAcquisition`; writes one log
-  line through `logger.info`.
+- `acquire-from-local.ts:acquireFromLocal` - creates a command directory and
+  opens its command log; copies the local files into the command's
+  `<source-id>/output/`; reads and writes the `acquire` command pointer; runs
+  the source's `acquire` function when the source has one, then logs one line
+  for each service that went down; calls `recordCompletedAcquisition`; logs
+  one `staged` line; records a caught error as the log's last record and
+  closes the log.
 - `acquire-data-context.ts:createAcquireDataContext` - `select` on `agency`,
   `location_path`, `agency_personnel`, `personnel`, `reviews` and
   `civil_cases`; `ledger.sourceIdFor` may write a ledger record.

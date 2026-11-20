@@ -11,9 +11,6 @@ SUPABASE_TELEMETRY_DISABLED = "1"
 TMPDIR = false
 UV_CACHE_DIR = ".cache/uv"
 UV_TOOL_DIR = ".cache/uv-tools"
-# Root intake workspace (holds intake/{state,commands,sources}). The repo's
-# branch folders are ~/dev/<owner>/intake/<branch>/ and the workspace is beside
-# the repo at ~/dev/<owner>/intake-workspace/, so the path is relative to a
-# branch folder: run intake commands from the branch folder's root. Defaults to
-# the dev environment; override for preview/prod.
-INTAKE_WORKSPACE = "../../intake-workspace/dev"
+# The dev intake workspace, which sits beside the repo folder that holds this
+# branch folder. Override for preview/prod.
+INTAKE_WORKSPACE = "{{config_root}}/../../intake-workspace/dev"

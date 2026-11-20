@@ -306,7 +306,9 @@ describe("initial agency roots in the shared import pipeline", () => {
     await writeFile(file.path, "not: an envelope");
     expect(await load()).toMatchObject({
       ok: false,
-      error: expect.stringContaining("InitialAgencyRoots is malformed"),
+      error: expect.objectContaining({
+        message: expect.stringContaining("InitialAgencyRoots is malformed"),
+      }),
     });
     expect(await agencyNames()).toEqual([]);
   });

@@ -44,7 +44,9 @@ reaches the database later through `data transform`, `data generate` and
   `intakeWorkspace` (`INTAKE_WORKSPACE`) and
   reads `DATABASE_URL`; `select` on `public.personnel`; `ledger.sourceIdFor` may
   write a `SourceNameToCanonicalId` ledger record; creates a command
-  directory; appends to the manual records through `appendEntry`.
+  directory and opens its command log with no terminal; appends to the manual
+  records through `appendEntry`; records a caught error as the log's last
+  record and closes the log when the command ends.
 - `store.ts:readPersonnelPhoto` - reads the image file.
 - `store.ts:writePersonnelPhoto` - writes
   `<workspace>/assets/PersonnelPhoto/<sha256>.<extension>`.

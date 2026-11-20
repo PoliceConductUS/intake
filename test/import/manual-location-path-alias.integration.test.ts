@@ -167,9 +167,11 @@ describe("manual LocationPathAlias imports against real Postgres", () => {
 
     expect(result).toMatchObject({
       ok: false,
-      error: expect.stringContaining(
-        'references LocationPath "/mn/nowhere-county/atlantis/"',
-      ),
+      error: expect.objectContaining({
+        message: expect.stringContaining(
+          'references LocationPath "/mn/nowhere-county/atlantis/"',
+        ),
+      }),
     });
     // Nothing landed: resolve-or-fail aborted before any write.
     expect(

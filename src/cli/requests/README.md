@@ -152,7 +152,9 @@ Anthropic.
 ## Side Effects
 
 - `index.ts:registerCliCommand` - the module wraps `process.env` with
-  `withParameterStoreSecrets` when it loads. It reads `INTAKE_WORKSPACE`,
+  `withParameterStoreSecrets` when it loads. It takes the workspace from
+  `intakeWorkspace` before it builds the `RequestStore`, so a missing
+  workspace fails the subcommand and is not created. It reads
   `RESEND_API_KEY`, `RESEND_API_KEY_FULL_ACCESS`, `ANTHROPIC_API_KEY`,
   `ANTHROPIC_MODEL`, `RECORDS_REQUEST_CONTACT`, `RECORDS_REQUEST_FROM`,
   `RECORDS_REQUEST_RECEIVING_ADDRESS` and `RECORDS_REQUEST_REQUESTER`.

@@ -33,6 +33,12 @@ import { acquireFromLocal } from "./acquire-from-local.js";
 import { withParameterStoreSecrets } from "../parameter-store-env.js";
 import { buildServiceClients } from "../service-clients.js";
 import { formatServiceSkips } from "../../shared/services/client-base.js";
+import {
+  createCommandLog,
+  recordCommandError,
+  type IntakeLog,
+  type TerminalStream,
+} from "../../logging.js";
 
 type AcquireSourceDeps = {
   sourcesRoot: string;
@@ -42,7 +48,7 @@ type AcquireSourceDeps = {
   loadSourceAcquire: typeof loadSourceAcquire;
   createCommandDirectory: typeof createCommandDirectory;
   data: AcquireDataContext;
-  logger: { info: (message: string) => void };
+  terminal: TerminalStream | false;
 };
 
 function errorMessage(error: unknown): string {
@@ -69,25 +75,27 @@ export async function acquireSource(
     return { exitCode: 1, stderr: `${errorMessage(error)}\n` };
   }
 
+  let log: IntakeLog | undefined;
   try {
     const pointer = await readCommandPointer(deps.state, "acquire");
-    const { outputDirectory: outputDir, commandName } =
-      await deps.createCommandDirectory(deps.env, {
-        namespace: sourceId,
-        args: ["acquire", sourceId],
-      });
+    const command = await deps.createCommandDirectory(deps.env, {
+      namespace: sourceId,
+      args: ["acquire", sourceId],
+    });
+    const outputDir = command.outputDirectory;
+    log = createCommandLog(command, deps.env, deps.terminal);
     const clients = buildServiceClients({
       workspace: deps.workspace,
       namespace: sourceId,
-      commandId: commandName,
+      commandId: command.commandName,
       env: deps.env,
-      logger: deps.logger,
+      logger: log.logger,
     });
 
     if (pointer.resume) {
       const resumeDir = path.join(deps.workspace, pointer.resume);
       if (await pathExists(resumeDir)) {
-        deps.logger.info(
+        log.logger.info(
           `${sourceId}: resuming the previous acquire from ${pointer.resume}. ` +
             `To start fresh instead, delete that folder (or the "resume" key in ` +
             `${path.join(deps.state, "acquire.yaml")}) and re-run.`,
@@ -110,7 +118,7 @@ export async function acquireSource(
       state: deps.state,
       env: deps.env,
       data: deps.data,
-      logger: deps.logger,
+      logger: log.logger,
       clients,
     };
     await acquire(acquireDeps);
@@ -129,7 +137,10 @@ export async function acquireSource(
           }),
     };
   } catch (error) {
+    if (log !== undefined) recordCommandError(log.logger, error);
     return { exitCode: 1, stderr: `${errorMessage(error)}\n` };
+  } finally {
+    log?.close();
   }
 }
 
@@ -184,10 +195,6 @@ export const registerAcquireCommand: RegisterCliCommand = (
             return;
           }
 
-          const logger = {
-            info: (message: string) => process.stderr.write(`${message}\n`),
-          };
-
           if (options.fromLocal !== undefined) {
             if (sourceIds.length !== 1) {
               dependencies.setResult({
@@ -230,7 +237,7 @@ export const registerAcquireCommand: RegisterCliCommand = (
                   cwd: process.cwd(),
                   createCommandDirectory,
                   writeCommandPointer,
-                  logger,
+                  terminal: process.stderr,
                   data,
                   acquire: await findSourceAcquire(sourceId, sourcesRoot),
                 });
@@ -244,7 +251,7 @@ export const registerAcquireCommand: RegisterCliCommand = (
                 loadSourceAcquire,
                 createCommandDirectory,
                 data,
-                logger,
+                terminal: process.stderr,
               });
               if (result.exitCode !== 0) {
                 dependencies.setResult({

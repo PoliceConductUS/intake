@@ -1,11 +1,15 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
+import * as database from "../../src/cli/database/index.js";
+import { runIntake } from "../../src/cli/index.js";
 import {
   readPersonnelPhoto,
   writePersonnelPhoto,
 } from "../../src/cli/photo/store.js";
+import { EmptyDatabaseClient } from "./database/empty-database-client.js";
+import { onlyCommandLog, readLogRecords, wasLogOpen } from "./command-log.js";
 const dirs: string[] = [];
 afterEach(async () => {
   await Promise.all(
@@ -113,4 +117,60 @@ test("does not write the image when the record is invalid", async () => {
     }),
   ).rejects.toThrow("content_type");
   expect(written).toBe(false);
+});
+
+class OnePersonnelClient extends EmptyDatabaseClient {
+  async query() {
+    return { rows: [{ id: "canonical-person" }] };
+  }
+}
+
+async function photoImportWorkspace() {
+  const dir = await workspace();
+  const file = path.join(dir, "portrait.webp");
+  await writeFile(
+    file,
+    Buffer.from("5249464610000000574542505650382000000000", "hex"),
+  );
+  vi.stubEnv("INTAKE_WORKSPACE", dir);
+  vi.stubEnv("DATABASE_URL", "postgres://test/photo");
+  vi.spyOn(database, "defaultDatabaseClientFactory").mockImplementation(
+    () => new OnePersonnelClient(),
+  );
+  return { dir, file };
+}
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+});
+
+test("photo import writes <command-name>.log in its command folder", async () => {
+  const { dir, file } = await photoImportWorkspace();
+  const result = await runIntake(["photo", "import", "canonical-person", file]);
+  expect(result.exitCode).toBe(0);
+  const { logPath } = await onlyCommandLog(dir);
+  expect(await readLogRecords(logPath)).toEqual([]);
+  expect(await wasLogOpen(logPath)).toBe(false);
+});
+
+test("photo import records the error that ended it as the last record of its log", async () => {
+  const { dir, file } = await photoImportWorkspace();
+  const chain = path.join(dir, "state", "org/policeconduct/manual", "manual");
+  await mkdir(chain, { recursive: true });
+  await writeFile(path.join(chain, "output-1.json"), "{}");
+  await writeFile(
+    path.join(chain, "latest.json"),
+    JSON.stringify({ path: "output-1.json", sha256: "0".repeat(64) }),
+  );
+  const message = `org/policeconduct/manual: output-1.json sha mismatch (edited out of band); expected ${"0".repeat(64)}.`;
+  const result = await runIntake(["photo", "import", "canonical-person", file]);
+  expect(result).toMatchObject({ exitCode: 1, stderr: `${message}\n` });
+  const records = await readLogRecords((await onlyCommandLog(dir)).logPath);
+  expect(records).toHaveLength(1);
+  expect(records[0]).toMatchObject({
+    level: 50,
+    error: { message, stack: expect.stringContaining(`Error: ${message}\n`) },
+  });
+  expect(await wasLogOpen((await onlyCommandLog(dir)).logPath)).toBe(false);
 });

@@ -17,7 +17,7 @@ test("an invalid DatabaseMutations file fails before a command directory is crea
       terminal: false,
       replayDatabaseMutations: async () => {
         replayed = true;
-        return { ok: false, error: "should not run" };
+        return { ok: false, error: new Error("should not run") };
       },
     });
 

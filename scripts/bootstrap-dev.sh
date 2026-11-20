@@ -51,15 +51,18 @@ append_unique() {
   local array_name="$1"
   local item="$2"
   local existing
-  declare -n target_array="$array_name"
+  local count
 
-  for existing in "${target_array[@]}"; do
-    if [[ "$existing" == "$item" ]]; then
-      return
-    fi
-  done
+  eval "count=\${#${array_name}[@]}"
+  if [[ "$count" -gt 0 ]]; then
+    eval 'for existing in "${'"$array_name"'[@]}"; do
+      if [[ "$existing" == "$item" ]]; then
+        return
+      fi
+    done'
+  fi
 
-  target_array+=("$item")
+  eval "${array_name}+=(\"\$item\")"
 }
 
 load_homebrew_shellenv() {
@@ -82,7 +85,7 @@ ask_to_install() {
   fi
 
   if [[ "$MODE" == "check" ]]; then
-    fail "Missing installable dependencies found. Import ./scripts/bootstrap-dev.sh to install them."
+    fail "Missing installable dependencies found. Run ./scripts/bootstrap-dev.sh to install them."
   fi
 
   if [[ "$ASSUME_YES" == "true" ]]; then
@@ -402,11 +405,11 @@ detect_all() {
 print_summary() {
   printf '\nDependency check summary\n'
   printf '========================\n'
-  print_list "Already available" "${INFO_ITEMS[@]}"
-  print_list "Missing and installable" "${INSTALL_ITEMS[@]}"
-  print_list "Install commands that will run" "${INSTALL_COMMANDS[@]}"
-  print_list "Manual follow-up" "${MANUAL_ITEMS[@]}"
-  print_list "Blocking check errors" "${CHECK_ERRORS[@]}"
+  print_list "Already available" ${INFO_ITEMS[@]+"${INFO_ITEMS[@]}"}
+  print_list "Missing and installable" ${INSTALL_ITEMS[@]+"${INSTALL_ITEMS[@]}"}
+  print_list "Install commands that will run" ${INSTALL_COMMANDS[@]+"${INSTALL_COMMANDS[@]}"}
+  print_list "Manual follow-up" ${MANUAL_ITEMS[@]+"${MANUAL_ITEMS[@]}"}
+  print_list "Blocking check errors" ${CHECK_ERRORS[@]+"${CHECK_ERRORS[@]}"}
   printf '\n'
 }
 
@@ -560,14 +563,14 @@ install_missing() {
 verify_github_cli_auth() {
   info "Verifying GitHub CLI authentication"
 
-  have mise || fail "mise is not installed. Import ./scripts/bootstrap-dev.sh first."
+  have mise || fail "mise is not installed. Run ./scripts/bootstrap-dev.sh first."
 
   if ! mise exec -- gh --version >/dev/null 2>&1; then
-    fail "GitHub CLI is not installed through mise. Import ./scripts/bootstrap-dev.sh first."
+    fail "GitHub CLI is not installed through mise. Run ./scripts/bootstrap-dev.sh first."
   fi
 
   if ! mise exec -- gh auth status -h github.com >/dev/null 2>&1; then
-    fail "GitHub CLI is not authenticated. Import mise exec -- gh auth login, then rerun npm run doctor."
+    fail "GitHub CLI is not authenticated. Run mise exec -- gh auth login, then rerun npm run doctor."
   fi
 }
 

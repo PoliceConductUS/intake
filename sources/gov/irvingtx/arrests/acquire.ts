@@ -13,6 +13,7 @@ import { parse } from "csv-parse/sync";
 import { z } from "zod";
 import type { SourceAcquire } from "../../../../src/cli/transform/source-transform.js";
 import { readXlsx } from "../../../../src/cli/transform/read-xlsx.js";
+import { intakeWorkspace } from "../../../../src/cli/command-directory.js";
 import { clean, normalizeWorkbook } from "./arrest.js";
 import { readChildSheets } from "./workbook.js";
 import { enrichBookings, type GeographyEvidence } from "./enrichment.js";
@@ -138,9 +139,7 @@ async function verifyResidentialEvidence(
 
 /** Acquire an explicit, source-hash-matched evidence bundle; no old truncated-input fallback. */
 export const acquire: SourceAcquire = async ({ sourceDir, env, logger }) => {
-  const workspace = env.INTAKE_WORKSPACE;
-  if (!workspace?.trim())
-    throw new Error("gov/irvingtx/arrests: INTAKE_WORKSPACE is required");
+  const workspace = intakeWorkspace(env);
   const input = path.join(workspace, "gov/irvingtx/arrests", "source"),
     geo = path.join(input, "geography");
   const workbookName = "arrests.xlsx";

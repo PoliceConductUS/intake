@@ -26,11 +26,12 @@ import {
 import {
   generateOneSource,
   orderedSourceIds,
-  sourceHasAcquiredInput,
   transformOneSource,
 } from "./source-pipeline.js";
 import { registerAcquireCommand } from "../acquire/index.js";
 import { resetData } from "./reset.js";
+import { intakeWorkspace } from "../command-directory.js";
+import { NoAcquiredInputError } from "../transform/index.js";
 import { agencyTableIsEmpty } from "../database/agency-graph.js";
 import { withParameterStoreSecrets } from "../parameter-store-env.js";
 
@@ -204,7 +205,10 @@ export function registerCliCommand(
       // Each phase of the reset is a data command that takes its own API keys
       // from Parameter Store when a client first needs one.
       dependencies.setResult(
-        await resetData(options, { env: process.env, logger: consoleLogger }),
+        await resetData(options, {
+          env: process.env,
+          terminal: process.stderr,
+        }),
       );
     });
 
@@ -220,7 +224,7 @@ export function registerCliCommand(
           const result = await transformOneSource(
             source,
             process.env,
-            consoleLogger,
+            process.stderr,
           );
           dependencies.setResult(
             "error" in result
@@ -232,22 +236,23 @@ export function registerCliCommand(
           );
           return;
         }
+        // No source given: transform every source in dependency order. Only a
+        // source with no acquired input is skipped; every other error fails the run.
+        intakeWorkspace(process.env);
         const transformed: string[] = [];
         const skipped: string[] = [];
         const errored: string[] = [];
         for (const id of await orderedSourceIds()) {
-          if (!(await sourceHasAcquiredInput(id, process.env))) {
-            skipped.push(`${id} (no acquired input)`);
-            continue;
-          }
           consoleLogger.info(`${id}: transform`);
           let result;
           try {
-            result = await transformOneSource(id, process.env, consoleLogger);
+            result = await transformOneSource(id, process.env, process.stderr);
           } catch (error) {
-            errored.push(
-              `${id} (${error instanceof Error ? error.message.trim() : String(error)})`,
-            );
+            if (error instanceof NoAcquiredInputError) skipped.push(id);
+            else
+              errored.push(
+                `${id} (${error instanceof Error ? error.message.trim() : String(error)})`,
+              );
             continue;
           }
           if ("error" in result) {
@@ -260,7 +265,9 @@ export function registerCliCommand(
         const summary =
           `data: transformed ${transformed.length} source(s):\n` +
           transformed.map((id) => `  + ${id}`).join("\n") +
-          (skipped.length > 0 ? `\nskipped: ${skipped.join(", ")}` : "") +
+          (skipped.length > 0
+            ? `\nskipped ${skipped.length} source(s) with no acquired input: ${skipped.join(", ")}`
+            : "") +
           (errored.length > 0 ? `\nerrored: ${errored.join(", ")}` : "") +
           "\n";
         dependencies.setResult(
@@ -396,7 +403,7 @@ export function registerCliCommand(
           const transformed = await transformOneSource(
             source,
             process.env,
-            consoleLogger,
+            process.stderr,
           );
           if ("error" in transformed) {
             errored.push(

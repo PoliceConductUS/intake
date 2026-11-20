@@ -512,6 +512,52 @@ describe("architecture boundaries", () => {
     expect(violations.sort()).toEqual([]);
   });
 
+  test("reads the workspace variable only in intakeWorkspace", async () => {
+    const files = (
+      await Promise.all(
+        ["src", "scripts", "sources"].map((folder) =>
+          existingFiles(path.join(repoRoot, folder)),
+        ),
+      )
+    )
+      .flat()
+      .filter((file) => /\.(?:[cm]?ts|mjs)$/.test(file))
+      .filter((file) => relative(file) !== "src/cli/command-directory.ts");
+    const violations: string[] = [];
+
+    for (const file of files) {
+      const lines = (await readFile(file, "utf8")).split("\n");
+      lines.forEach((line, index) => {
+        if (/^\s*(?:\/\/|\/?\*)/.test(line)) return;
+        if (/\bINTAKE_WORKSPACE(?:_TEST)?\b/.test(line)) {
+          violations.push(`${relative(file)}:${index + 1}`);
+        }
+      });
+    }
+
+    expect(files.length).toBeGreaterThan(0);
+    expect(violations).toEqual([]);
+  });
+
+  test("opens a command log wherever a command folder is created", async () => {
+    const files = (await existingFiles(sourceRoot))
+      .filter((file) => /\.[cm]?ts$/.test(file))
+      .filter((file) => relative(file) !== "src/cli/command-directory.ts");
+    const creators: string[] = [];
+    const violations: string[] = [];
+
+    for (const file of files) {
+      const contents = await readFile(file, "utf8");
+      if (!/\bcreateCommandDirectory\(/.test(contents)) continue;
+      creators.push(relative(file));
+      if (!/\bcreateCommandLog\(/.test(contents))
+        violations.push(relative(file));
+    }
+
+    expect(creators.length).toBeGreaterThan(0);
+    expect(violations).toEqual([]);
+  });
+
   test("keeps command tests under their command path", async () => {
     const files = await existingFiles(testRoot);
     const violations = files

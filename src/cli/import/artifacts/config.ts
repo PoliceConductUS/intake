@@ -89,7 +89,7 @@ export type ImportArtifactsResult =
       databaseMutationsPath: string;
       serviceSkips: ServiceSkips[];
     }
-  | { ok: false; error: string };
+  | { ok: false; error: Error };
 
 export type ImportArtifactsCommandInput = {
   artifactsPath: string;
@@ -113,10 +113,8 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function workspaceRootFromEnv(
-  env: Record<string, string | undefined> | undefined,
-): string | undefined {
-  return env?.INTAKE_WORKSPACE;
+function asError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
 }
 
 function valueAsRecord(value: unknown): Record<string, unknown> {
@@ -174,7 +172,7 @@ type ImportArtifactsPipelineContext = {
   commandInput: ImportArtifactsCommandInput;
   artifactsPath: string;
   commandName: string;
-  workspaceRoot?: string;
+  workspaceRoot: string;
   artifacts?: ArtifactsEnvelope;
   artifactMutation?: ApplyArtifactMutationResult;
   ledger: SourceNameToCanonicalIdLedger;
@@ -696,9 +694,8 @@ async function writeDatabaseMutationsStage(
 
     addSourceFacades(dataContext, artifacts);
     const initialRoots =
-      context.workspaceRoot !== undefined &&
       (context.commandInput.useInitialAgencyRoots ??
-        (await agencyTableIsEmpty(client)))
+      (await agencyTableIsEmpty(client)))
         ? await loadInitialAgencyRoots(
             context.workspaceRoot,
             artifacts.metadata.namespace,
@@ -767,7 +764,7 @@ async function writeDatabaseMutationsStage(
     clientFactory: context.commandInput.clientFactory,
   });
   if (!replayResult.ok) {
-    throw new Error(replayResult.error);
+    throw replayResult.error;
   }
   context.commandInput.logger?.info("Database records created/read/updated.");
   return {
@@ -797,26 +794,29 @@ export async function importArtifacts(
   ) {
     return {
       ok: false,
-      error: "Command name is required to import artifacts.",
+      error: new Error("Command name is required to import artifacts."),
     };
   }
 
-  const workspaceRoot = workspaceRootFromEnv(commandInput.env);
+  let workspaceRoot: string;
+  try {
+    workspaceRoot = intakeWorkspace(commandInput.env ?? process.env);
+  } catch (error) {
+    return { ok: false, error: asError(error) };
+  }
   let context: ImportArtifactsPipelineContext = {
     commandInput,
     artifactsPath: commandInput.artifactsPath,
     commandName: commandInput.commandName,
     workspaceRoot,
-    ledger: createSourceNameToCanonicalIdLedger(
-      workspaceRoot === undefined ? {} : { rootDir: workspaceRoot },
-    ),
+    ledger: createSourceNameToCanonicalIdLedger({ rootDir: workspaceRoot }),
   };
   try {
     for (const stage of importArtifactsPipelineStages) {
       context = await stage(context);
     }
   } catch (error) {
-    return { ok: false, error: errorMessage(error) };
+    return { ok: false, error: asError(error) };
   }
   if (
     context.databaseMutationCounts === undefined ||
@@ -824,7 +824,9 @@ export async function importArtifacts(
   ) {
     return {
       ok: false,
-      error: "DatabaseMutations pipeline finished without mutation counts.",
+      error: new Error(
+        "DatabaseMutations pipeline finished without mutation counts.",
+      ),
     };
   }
   return {

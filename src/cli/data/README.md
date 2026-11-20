@@ -11,11 +11,13 @@ Subcommands registered in `index.ts:registerCliCommand`:
 
 - `data acquire [glob]` - added from [acquire](../acquire/README.md).
 - `data transform [source]` - writes a source's `Artifacts`; with no source,
-  every source in dependency order. With no source, a source for which
-  `source-pipeline.ts:sourceHasAcquiredInput` is false is listed as `skipped`
-  and is not transformed, a source whose `transformOneSource` call throws or
-  returns an error is listed as `errored`, and the exit code is 1 when a
-  source is `errored`.
+  every source in dependency order. With no source, it first checks the
+  workspace with `intakeWorkspace`; a source whose `transformOneSource` call
+  throws `transform/index.ts:NoAcquiredInputError` is listed as skipped, with
+  the number of skipped sources; a source whose call throws any other error or
+  returns an error is listed as `errored`; and the exit code is 1 when a
+  source is `errored`. Each transform writes its own command log and prints
+  it to `process.stderr`.
 - `data generate <source>` - checks that the database is at the head of the
   chain, imports the `Artifacts` with `dryImport`, and appends the difference
   as the next chain entry. The import is given `process.env` wrapped by
@@ -70,11 +72,9 @@ Subcommands registered in `index.ts:registerCliCommand`:
   `CommandResult`.
 - `reset.ts:resetConfiguredDatabase` - `(env)`; runs `supabase db reset`.
 - `source-pipeline.ts:transformOneSource` -
-  `(sourceId, env, logger?, kinds?)` returns `{ artifactsPath }` or
+  `(sourceId, env, terminal?, kinds?)` returns `{ artifactsPath }` or
   `{ error }`. It can also throw: the steps before `transformSource` are not
   caught.
-- `source-pipeline.ts:sourceHasAcquiredInput` - `(sourceId, env)` returns
-  whether the source's `acquire` command pointer has a `latest` output.
 - `source-pipeline.ts:generateOneSource` -
   `(sourceId, env, useInitialAgencyRoots?, keepCachedCallResults?)` returns
   `{ version?, mutationCount, serviceSkips }` or `{ error }`. `serviceSkips`
@@ -90,8 +90,9 @@ Subcommands registered in `index.ts:registerCliCommand`:
   `Source <source> does not produce record kind <kind>. Use the singular record kind, such as Agency.`
   when no kind the source produces has that record kind, and with
   `--when must contain valid JSON.` when `--when` is not JSON.
-- `chain.ts:defaultChainRoot` (not exported) - throws when
-  `INTAKE_WORKSPACE` is blank.
+- `chain.ts:defaultChainRoot` (not exported) - takes the workspace from
+  `intakeWorkspace`, so it throws that function's errors and does not read a
+  missing chain as empty.
 - `chain.ts:assertAtHead` - throws on any entry that is not applied. It calls
   `assertIdentityRestorationComplete` for each applied `IdentityRestoration`
   entry.
@@ -170,7 +171,10 @@ Subcommands registered in `index.ts:registerCliCommand`:
   URL, it adds `sslmode=disable` to the URL. The child environment has
   `SUPABASE_TELEMETRY_DISABLED=1`, and `PGSSLMODE` set to the URL's `sslmode`
   when the URL has one.
-- `reset.ts:resetData` - creates a command directory and runs the `data`
+- `reset.ts:resetData` - creates a command directory, opens its command log
+  with `dependencies.terminal` as its terminal, logs each phase and the final
+  stdout of each `data` subcommand it runs, records a caught error as the
+  log's last record and closes the log at the end. It runs the `data`
   subcommands through `runIntake`, each with
   `{ useInitialAgencyRoots: true, keepCachedCallResults: !acquire }`, in this
   order:

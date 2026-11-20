@@ -241,8 +241,9 @@ describe("replay against a real Postgres", () => {
 
     expect(result).toEqual({
       ok: false,
-      error:
+      error: new Error(
         'DatabaseMutation cannot create Agency: duplicate key value violates unique constraint "agency_pkey": Key (id)=(agency-1) already exists.',
+      ),
     });
     // The transaction rolled back: the pre-existing row is untouched, no partial writes.
     const rows = await db.query("select slug from public.agency");

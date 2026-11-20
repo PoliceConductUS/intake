@@ -11,7 +11,8 @@ A mapping written by the ledger is two envelopes, one
 by `persistSourceNameToCanonicalIds`, which `seedLedgerFromIdentityMaps` uses,
 is the `SourceNameToCanonicalId` envelope only. Both are in
 `<workspace>/state/intake/namespaces/<namespace>/<kind>/`. The workspace is
-`options.rootDir` or `INTAKE_WORKSPACE`. This file calls the mapping the
+`options.rootDir`, which every caller passes; callers take it from
+`intakeWorkspace`. This file calls the mapping the
 ledger, as the code does (`createSourceNameToCanonicalIdLedger`).
 
 `restore.ts` moves a mapping back to an original canonical ID for an
@@ -20,7 +21,7 @@ from YAML identity maps.
 
 ## Interface
 
-- `index.ts:createSourceNameToCanonicalIdLedger` - `(options?)` returns a
+- `index.ts:createSourceNameToCanonicalIdLedger` - `({ rootDir })` returns a
   `SourceNameToCanonicalIdLedger`.
 - `index.ts:SourceNameToCanonicalIdLedger` -
   `read(namespace, kind, sourceName)`,
@@ -35,11 +36,11 @@ from YAML identity maps.
 - `index.ts:AgencyMapping`, `PersonnelMapping`, `AgencyPersonnelMapping`,
   `LocationPathMapping`, `LicensingAuthorityMapping`, `LicenseMapping`,
   `LicenseActionMapping` - `{ kind?, canonicalId? }`, one type per kind.
-- `index.ts:sourceLedgerRoot` - `(options?)` returns
+- `index.ts:sourceLedgerRoot` - `({ rootDir })` returns
   `<rootDir>/state/intake/namespaces`.
-- `index.ts:resolveSourceNameToCanonicalIdPath` - `(namespace, options?)`.
+- `index.ts:resolveSourceNameToCanonicalIdPath` - `(namespace, { rootDir })`.
 - `index.ts:persistSourceNameToCanonicalIds` -
-  `(namespace, mappings, options?)`.
+  `(namespace, mappings, { rootDir })`.
 - `SourceNameToCanonicalId.ts:SourceNameToCanonicalId`,
   `CanonicalIdToSourceName.ts:CanonicalIdToSourceName` - canonical IO objects
   with `kind`, `schema`, `new`, `read` and `write`. Both files also export
@@ -53,14 +54,12 @@ from YAML identity maps.
 - `restore.ts:assertIdentityRestorationReady`,
   `restore.ts:assertIdentityRestorationReplayable`,
   `restore.ts:assertIdentityRestorationComplete`,
-  `restore.ts:completeIdentityRestoration` - `(event, rootDir?)`.
+  `restore.ts:completeIdentityRestoration` - `(event, rootDir)`.
 - `seed-from-identity-maps.ts:seedLedgerFromIdentityMaps` -
-  `(namespace, identityDir, options?)` returns `SeedLedgerCounts`.
+  `(namespace, identityDir, { rootDir })` returns `SeedLedgerCounts`.
 
 ## Invariants
 
-- `index.ts:sourceLedgerRoot` - throws when neither `rootDir` nor
-  `INTAKE_WORKSPACE` is set.
 - `index.ts:createSourceNameToCanonicalIdLedger` - the inner `writeMapping`
   is the one place the ledger writes a mapping, and it writes both directions
   together. Two other functions write mappings without it:
@@ -122,8 +121,6 @@ from YAML identity maps.
 - `restore.ts:readState` - lists every namespace directory under
   `<workspace>/state/intake/namespaces`, at every depth, and reads the
   `SourceNameToCanonicalId` and `CanonicalIdToSourceName` records it checks.
-- `index.ts:sourceLedgerRoot` - reads `process.env.INTAKE_WORKSPACE` when
-  `rootDir` is not given.
 - `index.ts:persistSourceNameToCanonicalIds` - creates seven kind
   directories (`LocationPath`, `Agency`, `Personnel`, `AgencyPersonnel`,
   `LicensingAuthority`, `License`, `LicenseAction`) and writes one

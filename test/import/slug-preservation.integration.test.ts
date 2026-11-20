@@ -230,7 +230,7 @@ describe("canonical slug preservation against the current migrated PostgreSQL sc
     });
     const result = await load("conflicting-cache", true);
     expect(result).toMatchObject({ ok: false });
-    if (!result.ok) expect(result.error).toMatch(/slug/i);
+    if (!result.ok) expect(result.error.message).toMatch(/slug/i);
     await expectPublishedIdentities();
     expect(
       (await db.query("select first_name from public.personnel")).rows,
@@ -404,7 +404,9 @@ describe("canonical slug preservation against the current migrated PostgreSQL sc
       });
       expect(result).toMatchObject({ ok: false });
       if (!result.ok)
-        expect(result.error).toMatch(/preserv|immutable|cannot change/i);
+        expect(result.error.message).toMatch(
+          /preserv|immutable|cannot change/i,
+        );
       await expectPublishedIdentities();
       expect(
         (await db.query("select first_name from public.personnel")).rows,

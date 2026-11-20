@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import {
   mkdtemp,
   mkdir,
@@ -14,6 +15,7 @@ import { acquireSource } from "../../../src/cli/acquire/index.js";
 import type { AcquireDeps } from "../../../src/cli/transform/source-transform.js";
 import { loadSourceAcquire } from "../../../src/cli/transform/load-source-module.js";
 import { parse as parseYaml } from "yaml";
+import { readLogRecords, wasLogOpen } from "../command-log.js";
 
 const fixtureSourcesRoot = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -69,7 +71,7 @@ function baseDeps(workspace: string, overrides = {}) {
     loadSourceAcquire,
     createCommandDirectory: fakeCreateCommandDirectory("cmd-1"),
     data: { agencies: async () => ({ items: [] }) },
-    logger: { info: () => {} },
+    terminal: false as const,
     ...overrides,
   };
 }
@@ -240,7 +242,9 @@ describe("acquireSource", () => {
     const logged: string[] = [];
     const result = await acquireSource(
       "acquire-source",
-      baseDeps(workspace, { logger: { info: (m: string) => logged.push(m) } }),
+      baseDeps(workspace, {
+        terminal: { write: (m: string) => logged.push(m) },
+      }),
     );
 
     expect(result.exitCode).toBe(0);
@@ -289,5 +293,109 @@ describe("acquireSource", () => {
         path.join(workspace, "command/cmd-1/acquire-source/acquire-complete"),
       ),
     ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("writes each line it prints to <command-name>.log in the command folder", async () => {
+    const workspace = await makeWorkspace();
+    const printed: string[] = [];
+    const result = await acquireSource(
+      "acquire-source",
+      baseDeps(workspace, {
+        terminal: { write: (text: string) => printed.push(text) },
+      }),
+    );
+    expect(result.exitCode).toBe(0);
+    expect(printed).toEqual(["acquire-source: wrote roster.json\n"]);
+    const records = await readLogRecords(
+      path.join(workspace, "command/cmd-1/cmd-1.log"),
+    );
+    expect(records.map((record) => record.msg)).toEqual([
+      "acquire-source: wrote roster.json",
+    ]);
+    expect(
+      await wasLogOpen(path.join(workspace, "command/cmd-1/cmd-1.log")),
+    ).toBe(false);
+  });
+
+  it("writes each record to the file before the source continues", async () => {
+    const workspace = await makeWorkspace();
+    const logPath = path.join(workspace, "command/cmd-1/cmd-1.log");
+    let onDisk = "";
+    const result = await acquireSource(
+      "acquire-source",
+      baseDeps(workspace, {
+        loadSourceAcquire: vi.fn(async () => async (deps: AcquireDeps) => {
+          deps.logger?.info("fetched page 1");
+          onDisk = readFileSync(logPath, "utf8");
+        }),
+      }),
+    );
+    expect(result.exitCode).toBe(0);
+    expect(onDisk).toContain('"msg":"fetched page 1"');
+  });
+
+  it.each([
+    ["warn", []],
+    ["info", ["fetched page 1\n"]],
+    ["debug", ["fetched page 1\n"]],
+    ["trace", ["fetched page 1\n"]],
+  ])(
+    "at LOG_LEVEL %s prints and logs the progress lines %j",
+    async (level, expected) => {
+      const workspace = await makeWorkspace();
+      const printed: string[] = [];
+      const result = await acquireSource(
+        "acquire-source",
+        baseDeps(workspace, {
+          env: { INTAKE_WORKSPACE: workspace, LOG_LEVEL: level },
+          terminal: { write: (text: string) => printed.push(text) },
+          loadSourceAcquire: vi.fn(async () => async (deps: AcquireDeps) => {
+            deps.logger?.info("fetched page 1");
+          }),
+        }),
+      );
+      expect(result.exitCode).toBe(0);
+      expect(printed).toEqual(expected);
+      expect(
+        (
+          await readLogRecords(path.join(workspace, "command/cmd-1/cmd-1.log"))
+        ).map((record) => `${String(record.msg)}\n`),
+      ).toEqual(expected);
+    },
+  );
+
+  it("records the thrown error as the last record of its log without printing it twice", async () => {
+    const workspace = await makeWorkspace();
+    const printed: string[] = [];
+    const result = await acquireSource(
+      "acquire-source",
+      baseDeps(workspace, {
+        terminal: { write: (text: string) => printed.push(text) },
+        loadSourceAcquire: vi.fn(async () => async (deps: AcquireDeps) => {
+          deps.logger?.info("fetched page 1");
+          throw new Error("HTTP 503 on page 2");
+        }),
+      }),
+    );
+    expect(result).toEqual({ exitCode: 1, stderr: "HTTP 503 on page 2\n" });
+    expect(printed).toEqual(["fetched page 1\n"]);
+    const records = await readLogRecords(
+      path.join(workspace, "command/cmd-1/cmd-1.log"),
+    );
+    expect(records.map((record) => record.msg)).toEqual([
+      "fetched page 1",
+      undefined,
+    ]);
+    expect(records.at(-1)).toMatchObject({
+      level: 50,
+      error: {
+        type: "Error",
+        message: "HTTP 503 on page 2",
+        stack: expect.stringContaining("Error: HTTP 503 on page 2\n    at "),
+      },
+    });
+    expect(
+      await wasLogOpen(path.join(workspace, "command/cmd-1/cmd-1.log")),
+    ).toBe(false);
   });
 });

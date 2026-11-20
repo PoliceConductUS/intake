@@ -50,7 +50,8 @@ ID, using its namespace and source ID:
 
 ```bash
 npm run cli -- cache get <namespace> Agency <source-id> location_path_id
-npm run cli -- cache set <namespace> Agency <source-id> location_path_id <canonical-location-id>
+npm run cli -- cache set <namespace> Agency <source-id> location_path_id <canonical-location-id> \
+  --message "<why this agency belongs in this location>"
 ```
 
 If a value already exists, set reports an error and shows the current cache.

@@ -41,6 +41,12 @@ import { createEmitSink } from "./emit-sink.js";
 import { accountingTotals } from "./accounting.js";
 import type { EmitRefItem, EmitSink } from "./emit-sink.js";
 import { readCommandPointer } from "../state/command-pointer.js";
+import {
+  createCommandLog,
+  recordCommandError,
+  type CommandLogger,
+  type TerminalStream,
+} from "../../logging.js";
 
 type TransformSourceDeps = {
   sourcesRoot: string;
@@ -50,7 +56,11 @@ type TransformSourceDeps = {
   readXlsx: typeof readXlsx;
   state: string;
   digest: (paths: string[]) => Promise<string>;
-  makeWorkspace: (env: Record<string, string | undefined>) => Promise<string>;
+  makeWorkspace: (env: Record<string, string | undefined>) => Promise<{
+    outputDirectory: string;
+    logger: CommandLogger;
+    close(): void;
+  }>;
   createEmitSink: (workspaceDir: string, namespace: string) => EmitSink;
   loadExcludedRecords: (stateDir: string) => Promise<ExcludedRecords>;
   writeEnvelope: (
@@ -62,7 +72,6 @@ type TransformSourceDeps = {
   ) => Promise<{ path: string }>;
   beginCompletion: () => Promise<void>;
   complete: (artifactsPath: string) => Promise<void>;
-  logger?: { info: (message: string) => void };
 };
 
 /**
@@ -91,6 +100,8 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+export class NoAcquiredInputError extends Error {}
+
 export async function sourceInputDir(
   workspace: string,
   sourceId: string,
@@ -104,7 +115,7 @@ export async function sourceInputDir(
     "acquire",
   );
   if (latest === undefined) {
-    throw new Error(
+    throw new NoAcquiredInputError(
       `${sourceId} has no acquired input. Run \`intake data acquire ${sourceId}\` ` +
         `(or \`intake data acquire ${sourceId} --from-local <path>\`) before running it.`,
     );
@@ -159,10 +170,14 @@ export async function transformSource(
     return { error: { exitCode: 1, stderr: `${errorMessage(error)}\n` } };
   }
 
+  let logger: CommandLogger | undefined;
+  let closeLog: (() => void) | undefined;
   try {
     const excludedRecords = await deps.loadExcludedRecords(deps.state);
-    const workspaceRoot = deps.env.INTAKE_WORKSPACE;
-    const workspace = await deps.makeWorkspace(deps.env);
+    const command = await deps.makeWorkspace(deps.env);
+    const workspace = command.outputDirectory;
+    logger = command.logger;
+    closeLog = command.close;
     const sink = deps.createEmitSink(workspace, sourceId);
     const streamedExclusions = new Set<string>();
     const streamedKinds = new Set<ImportArtifactKind>();
@@ -178,9 +193,9 @@ export async function transformSource(
         dbClient !== undefined
           ? createTransformDataContext(
               dbClient,
-              createSourceNameToCanonicalIdLedger(
-                workspaceRoot !== undefined ? { rootDir: workspaceRoot } : {},
-              ),
+              createSourceNameToCanonicalIdLedger({
+                rootDir: intakeWorkspace(deps.env),
+              }),
               sourceId,
             )
           : undefined;
@@ -211,7 +226,7 @@ export async function transformSource(
         },
         env: deps.env,
         data,
-        logger: deps.logger,
+        logger,
       });
     } finally {
       if (dbClient !== undefined) await dbClient.end();
@@ -291,13 +306,13 @@ export async function transformSource(
             Object.hasOwn(artifact.records, exclusion.key),
         )
       ) {
-        deps.logger?.info(
+        logger.info(
           `${sourceId}: excluded ${exclusion.kind} ${exclusion.key}: ${exclusion.reason}`,
         );
       }
     }
     if (Object.keys(removed).length > 0) {
-      deps.logger?.info(
+      logger.info(
         `${sourceId}: exclusion totals (including dependents): ${Object.entries(
           removed,
         )
@@ -315,12 +330,9 @@ export async function transformSource(
     ]);
     const undeclared = [...emitted].filter((kind) => !declared.has(kind));
     if (undeclared.length > 0) {
-      return {
-        error: {
-          exitCode: 1,
-          stderr: `Source ${sourceId} emitted undeclared kind(s): ${undeclared.join(", ")}\n`,
-        },
-      };
+      throw new Error(
+        `Source ${sourceId} emitted undeclared kind(s): ${undeclared.join(", ")}`,
+      );
     }
     const { path: artifactsPath } = await deps.writeEnvelope(
       workspace,
@@ -330,10 +342,13 @@ export async function transformSource(
       refItems,
     );
     await deps.complete(artifactsPath);
-    deps.logger?.info(totals);
+    logger.info(totals);
     return { artifactsPath };
   } catch (error) {
+    if (logger !== undefined) recordCommandError(logger, error);
     return { error: { exitCode: 1, stderr: `${errorMessage(error)}\n` } };
+  } finally {
+    closeLog?.();
   }
 }
 
@@ -347,7 +362,7 @@ export async function buildTransformSourceDeps(
   env: Record<string, string | undefined>,
   options: {
     commandArgs: string[];
-    logger: { info: (message: string) => void };
+    terminal: TerminalStream | false;
   },
 ): Promise<TransformSourceDeps> {
   assertValidSourceId(sourceId);
@@ -380,13 +395,18 @@ export async function buildTransformSourceDeps(
     readXlsx,
     state,
     digest: digestOfPaths,
-    makeWorkspace: async (e) =>
-      (
-        await createCommandDirectory(e, {
-          namespace: sourceId,
-          args: options.commandArgs,
-        })
-      ).outputDirectory,
+    makeWorkspace: async (e) => {
+      const command = await createCommandDirectory(e, {
+        namespace: sourceId,
+        args: options.commandArgs,
+      });
+      const log = createCommandLog(command, e, options.terminal);
+      return {
+        outputDirectory: command.outputDirectory,
+        logger: log.logger,
+        close: log.close,
+      };
+    },
     createEmitSink,
     loadExcludedRecords,
     writeEnvelope: async (directory, id, digest, manifest, refItems) =>
@@ -394,6 +414,5 @@ export async function buildTransformSourceDeps(
         directory,
         buildArtifactsEnvelope(id, digest, manifest, refItems),
       ),
-    logger: options.logger,
   };
 }

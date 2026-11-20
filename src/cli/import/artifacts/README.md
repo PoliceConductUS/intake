@@ -248,8 +248,8 @@ slug allocator, and text helpers.
     when the target record has no `spec` object.
 - `existing-import.ts:assertNoExistingImport` - throws when a
   `DatabaseMutations` file for the same namespace and source `Artifacts` name
-  already exists. It returns without a check when
-  `INTAKE_WORKSPACE` is not set.
+  already exists. It takes the workspace from `intakeWorkspace` and throws
+  that function's errors.
 - `existing-import.ts:existingImportCandidate` - throws
   `Cannot check existing DatabaseMutations file because it is invalid: <path>`
   when a candidate file cannot be read. Not exported.
@@ -269,17 +269,18 @@ slug allocator, and text helpers.
 ## Side Effects
 
 - `index.ts:runImportArtifactsCommand` - creates a command directory and
-  writes `<commandDirectory>/<commandName>.log`; reads `LOG_LEVEL`. It first
+  opens its command log, `<commandDirectory>/<commandName>.log`
+  (`logging.ts:createCommandLog`, which reads `LOG_LEVEL`); records a caught
+  error as the log's last record and closes the log when it returns. It first
   reads the `Artifacts` file raw to get the namespace for the command
   directory. It returns exit code 1, before a command directory is created,
   when that read throws, and exit code 1 when `createCommandDirectory`
   throws.
-- `config.ts:workspaceRootFromEnv` - reads `INTAKE_WORKSPACE` from `commandInput.env` only; it does not fall back to
-  `process.env`. Not exported.
-- `config.ts:readArtifactsStage` - reads the same two variables through
-  `intakeWorkspace`, from `commandInput.env` or else `process.env`.
-- `existing-import.ts:intakeCommandRoot` - reads the same two variables. Not
-  exported.
+- `config.ts:importArtifacts`, `config.ts:readArtifactsStage` and
+  `config.ts:writeDatabaseMutationsStage` (when no service clients are
+  passed) - take the workspace from `intakeWorkspace`, with
+  `commandInput.env` or else `process.env`. `importArtifacts` returns that
+  function's error as `{ ok: false, error }`.
 - `config.ts:writeDatabaseMutationsStage` - reads `DATABASE_URL`; opens a
   database client and reads the schema metadata, the agency graph and
   `location_path` rows; reads the property corrections

@@ -65,7 +65,7 @@ These aggregates support counts, charge distributions and charges per booking. P
 
 ## Invariants
 
-- `acquire.ts:acquire` throws `gov/irvingtx/arrests: INTAKE_WORKSPACE is required` when the workspace is not set.
+- `acquire.ts:acquire` takes the workspace from `intakeWorkspace` and throws that function's errors when `INTAKE_WORKSPACE` is not an absolute path to an existing folder.
 - `acquire.ts:receiptSchema` (not exported) requires a strict `acquisition-receipt.json` with five 64-character lowercase hex SHA256 values, the audit sheet name `Beat Location Audit`, header row 4, `arrestLocationAuditRows` as a non-negative integer, `arrestLocationAuditCsvConversion` as a string, and `addressPointService` as a URL.
 - `acquire.ts:acquire` throws when the workbook hash differs from the receipt, when the income or arrest-location evidence names a different workbook, when the audit workbook, audit CSV, or beat polygon hash differs from its receipt, when the audit CSV row count differs from the receipt, when no raw ACS file exists, and when `income-receipt.json` is not dataset `2024/acs/acs5`, table `B19013`, vintage `ACS2024_Current`.
 - `acquire.ts:verifyResidentialEvidence` (not exported) throws unless all of these hold:

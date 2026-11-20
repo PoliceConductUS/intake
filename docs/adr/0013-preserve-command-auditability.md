@@ -25,18 +25,28 @@ execution, including source-module command envelopes. Submodules must persist
 that command name in their command envelopes and command folders; they must not
 replace it with a local run ID.
 
+A command that runs other commands in order, such as `data reset`, does not
+share its command name with them. Each command it runs is its own command
+execution; one that creates a command folder creates its own, with its own
+command name and log. The running command's log names each command it runs, in
+the order it runs them.
+
 CLI metadata invocations do not create audit artifacts. `--help` invocations
 and argument parsing failures that happen before a concrete command is selected
 must not create a command name, command folder, command envelope, log file, or
-debug artifact. Once the CLI commits to executing a concrete command, even if
-that command later fails validation, it must create the command name and command
-folder and write command-local audit artifacts.
+debug artifact. A concrete command that fails its input checks, before it starts
+its work, also leaves no command folder; its error is reported on the terminal.
+Once a command has created its command folder, it writes command-local audit
+artifacts there, including the error that ends it.
 
-Command artifacts and logs are persisted under namespace-scoped command folders:
+Command artifacts and logs are persisted under command folders:
 
 ```text
-$INTAKE_WORKSPACE/<namespace>/commands/<created-at-sortable-utc>-<command-name>/
+$INTAKE_WORKSPACE/command/<created-at-sortable-utc>-<command-name>/
 ```
+
+A namespace's output for that command is under `<namespace>/output/` inside the
+command folder.
 
 The command folder is the audit unit. It contains the command envelope,
 structured logs, generated artifacts, debug artifacts, manual workaround
@@ -47,18 +57,21 @@ Structured logs are written to `<command-name>.log` in the command folder for
 the command being executed. Root intake may also emit human-readable terminal
 progress from the same log events, but terminal output is not the audit record.
 Once a command folder exists, command-specific logs must not be written to a
-workspace-root log file.
+workspace-root log file. A command closes its log when it ends. A caught error
+that ends a command is the last record in its log. If the process ends while a
+log is still open (a signal, an exit, an uncaught error), the CLI writes a final
+record naming the cause to that log first.
 
 All durable operations must be persisted as Kubernetes-style envelopes before
 or while they are applied:
 
 - Source modules persist source-produced `Artifacts` and typed artifact
-  envelopes in their namespace command folder.
+  envelopes in their namespace's output folder inside the command folder.
 - Root intake persists `Command`, `ArtifactMutations`,
   `DatabaseMutationsDebug`, `DatabaseMutations`, and
   `DatabaseMutationResults` envelopes in the root intake command folder.
 - Intake-owned cross-command identity and canonical state is persisted under
-  `$INTAKE_WORKSPACE/intake/state/`.
+  `$INTAKE_WORKSPACE/state/intake/`.
 
 Command history is ordered by command folder name. The sortable UTC timestamp
 prefix determines audit and replay order across namespaces. Replay must apply

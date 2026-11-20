@@ -12,17 +12,28 @@ declarations.
 
 ## Local Interface & Invariants
 
-- `logging.ts:createIntakeLog`: `(options) => IntakeLog`. Builds a pino logger
-  that writes each record at or above `options.level` (default `info`) to the
-  command's log file and, unless `terminal: false`, the message text of each of
-  those records to the terminal stream (default `process.stdout`). A record
-  below that level reaches neither. The import and the replay of database
-  mutations pass `LOG_LEVEL` as `level`.
-- `logging.ts:IntakeLog`: type `{ logger, logPath }`.
-- Invariant: `logging.ts:createIntakeLog` throws
-  `Command log path is required to write intake logs.` when `logPath` is
-  missing or blank.
-- Side effect: `logging.ts:createIntakeLog` creates the log file's directory
+- `logging.ts:createCommandLog`: `(command, env, terminal) => IntakeLog`.
+  Opens `<commandDirectory>/<commandName>.log` and builds a pino logger that
+  writes each record at or above `LOG_LEVEL` (default `info`) to that file
+  and, unless `terminal` is `false`, the message text of each of those records
+  to `terminal`. A record below that level reaches neither. Every command that
+  creates a command folder opens its log this way.
+- `logging.ts:IntakeLog`: type `{ logger, logPath, close }`. `close()` ends the
+  log; a closed log takes no more records.
+- `logging.ts:CommandLogger`: type; the `info` and `error` methods of the
+  logger.
+- `logging.ts:TerminalStream`: type `{ write(text) }`; where a command log
+  prints its message text.
+- `logging.ts:recordCommandError`: `(logger, error)`. Writes the error, with
+  its stack, as a record with no message, so it reaches the log file and not
+  the terminal.
+- `logging.ts:assertLogLevel`: `(env)`. Throws, naming the value, when
+  `LOG_LEVEL` is set and is not one of `fatal`, `error`, `warn`, `info`,
+  `debug`, `trace` or `silent`.
+- `logging.ts:watchCommandLogs`: `(process)`. On a process exit, an uncaught
+  exception, `SIGINT` or `SIGTERM`, writes a final record to each open command
+  log and closes it (ADR 0013).
+- Side effect: `logging.ts:createCommandLog` creates the log file's directory
   and opens the file for synchronous append.
 
 ## Subdirectories & System Boundaries
@@ -60,9 +71,12 @@ declarations.
 - A command folder under `cli/` is registered only when its index module
   exports `registerCliCommand`
   (`shared/cli/command-discovery.ts:registerDiscoveredCommands`).
-- `cli/command-directory.ts:intakeWorkspace` returns `INTAKE_WORKSPACE`. It
-  throws `INTAKE_WORKSPACE is required to create command output.` when the
-  value is unset or blank.
+- `cli/command-directory.ts:intakeWorkspace` returns `INTAKE_WORKSPACE`; every
+  reader of the workspace calls it. It throws
+  `INTAKE_WORKSPACE is required: the absolute path of an existing workspace folder.`
+  when the value is unset or blank, and an error that names `INTAKE_WORKSPACE`
+  and the value when the value is not an absolute path, is not an existing
+  folder, or cannot be read. No command creates the workspace folder.
 
 ## Global Side Effects
 
@@ -92,9 +106,10 @@ declarations.
     the failure. It throws `<name> in Parameter Store is empty.` when the
     value is empty or `None`.
 - Other environment variables read under `cli/`:
-  - `LOG_LEVEL`: the log level of the import and of the replay of database
-    mutations (`cli/import/artifacts/index.ts`,
-    `cli/replay/database-mutations/index.ts`).
+  - `LOG_LEVEL`: the log level of every command log, for the terminal and
+    the log file alike (`logging.ts:createCommandLog`). An unknown value fails
+    the command before its folder is made
+    (`cli/command-directory.ts:createCommandDirectory`).
   - `INTAKE_SHARED_IO_ROOT`: the `sharedIoRoot` written to a `Command`
     envelope when the caller supplies none; the default is
     `<cwd>/dist/shared/io`

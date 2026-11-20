@@ -3,7 +3,11 @@ import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
-import { runImportArtifactsCommand } from "../../src/cli/index.js";
+import {
+  runImportArtifactsCommand,
+  runReplayDatabaseMutationsCommand,
+} from "../../src/cli/index.js";
+import { readLogRecords, wasLogOpen } from "../cli/command-log.js";
 import { GENERATED_MIGRATION_VERSIONS } from "../../src/shared/io/generated/entity-specs.js";
 import { importArtifacts } from "./completed-artifacts.js";
 import { DataContext } from "../../src/cli/import/artifacts/data-context.js";
@@ -314,10 +318,12 @@ describe("importArtifacts", () => {
 
     expect(result).toEqual({
       ok: false,
-      error: [
-        `DatabaseMutations already exists for source Artifacts test-run: ${existingPath}`,
-        `Replay the existing DatabaseMutations with: intake replay database-mutations ${existingPath}`,
-      ].join("\n"),
+      error: new Error(
+        [
+          `DatabaseMutations already exists for source Artifacts test-run: ${existingPath}`,
+          `Replay the existing DatabaseMutations with: intake replay database-mutations ${existingPath}`,
+        ].join("\n"),
+      ),
     });
   });
 
@@ -449,7 +455,7 @@ describe("importArtifacts", () => {
 
     expect(result).toEqual({
       ok: false,
-      error: "DATABASE_URL is required to replay DatabaseMutations.",
+      error: new Error("DATABASE_URL is required to replay DatabaseMutations."),
     });
     await expect(readdir(commandDirectory)).resolves.toEqual(filesBeforeReplay);
   });
@@ -851,7 +857,7 @@ describe("importArtifacts", () => {
       terminal: false,
       importArtifacts: async () => {
         imported = true;
-        return { ok: false, error: "should not run" };
+        return { ok: false, error: new Error("should not run") };
       },
     });
 
@@ -866,7 +872,7 @@ describe("importArtifacts", () => {
     const workspace = path.join(rootDir, "workspace");
     const importResult = {
       ok: false,
-      error: "duplicate key value violates unique constraint",
+      error: new Error("duplicate key value violates unique constraint"),
     } as const;
 
     const cliResult = await runImportArtifactsCommand(
@@ -884,4 +890,127 @@ describe("importArtifacts", () => {
     );
     expect(cliResult.stdout ?? "").not.toContain("Imported artifacts");
   });
+
+  async function onlyLog(workspace: string): Promise<string> {
+    const [folder] = await readdir(path.join(workspace, "command"));
+    return path.join(
+      workspace,
+      "command",
+      folder!,
+      `${folder!.split("-").at(-1)}.log`,
+    );
+  }
+
+  test.each([
+    [
+      "returns",
+      async () => ({ ok: false as const, error: new Error("duplicate key") }),
+    ],
+    [
+      "throws",
+      async (): Promise<never> => {
+        throw new Error("duplicate key");
+      },
+    ],
+  ])(
+    "an import that %s an error ends its log with that error and closes it",
+    async (_how, importArtifacts) => {
+      const rootDir = await mkdtemp(path.join(tmpdir(), "intake-logs-"));
+      const workspace = path.join(rootDir, "workspace");
+      const cliResult = await runImportArtifactsCommand(
+        await completedArtifacts(workspace),
+        {
+          env: { INTAKE_WORKSPACE: workspace },
+          terminal: false,
+          importArtifacts,
+        },
+      );
+
+      expect(cliResult).toMatchObject({
+        exitCode: 1,
+        stderr: "duplicate key\n",
+      });
+      const logPath = await onlyLog(workspace);
+      const last = (await readLogRecords(logPath)).at(-1);
+      expect(last).toMatchObject({
+        level: 50,
+        error: {
+          message: "duplicate key",
+          stack: expect.stringContaining("Error: duplicate key\n    at "),
+        },
+      });
+      expect(last).not.toHaveProperty("msg");
+      expect(await wasLogOpen(logPath)).toBe(false);
+    },
+  );
+
+  test("a successful import closes its log", async () => {
+    const rootDir = await mkdtemp(path.join(tmpdir(), "intake-logs-"));
+    const workspace = path.join(rootDir, "workspace");
+    const cliResult = await runImportArtifactsCommand(
+      await completedArtifacts(workspace),
+      {
+        env: { INTAKE_WORKSPACE: workspace },
+        terminal: false,
+        importArtifacts: async () => ({
+          ok: true,
+          databaseMutationsPath: "current.DatabaseMutations.yaml",
+          counts: { mutations: 0, recordsByEntityType: {} },
+          serviceSkips: [],
+        }),
+      },
+    );
+    expect(cliResult.exitCode).toBe(0);
+    expect(await wasLogOpen(await onlyLog(workspace))).toBe(false);
+  });
+
+  test.each([
+    [
+      "returns",
+      async () => ({ ok: false as const, error: new Error("lock timeout") }),
+    ],
+    [
+      "throws",
+      async (): Promise<never> => {
+        throw new Error("lock timeout");
+      },
+    ],
+  ])(
+    "a replay that %s an error ends its log with that error and closes it",
+    async (_how, replay) => {
+      const workspace = await mkdtemp(path.join(tmpdir(), "intake-replay-"));
+      const databaseMutations = await DatabaseMutations.write(
+        workspace,
+        DatabaseMutations.new({
+          metadata: {
+            name: "replayed",
+            namespace: "test/replay",
+            sourceArtifactsName: "replayed",
+          },
+          spec: { mutations: [] },
+        }),
+      );
+      const result = await runReplayDatabaseMutationsCommand(
+        databaseMutations!.path,
+        {
+          env: { INTAKE_WORKSPACE: workspace },
+          terminal: false,
+          replayDatabaseMutations: replay,
+        },
+      );
+
+      expect(result).toMatchObject({ exitCode: 1, stderr: "lock timeout\n" });
+      const logPath = await onlyLog(workspace);
+      const last = (await readLogRecords(logPath)).at(-1);
+      expect(last).toMatchObject({
+        level: 50,
+        error: {
+          message: "lock timeout",
+          stack: expect.stringContaining("Error: lock timeout\n    at "),
+        },
+      });
+      expect(last).not.toHaveProperty("msg");
+      expect(await wasLogOpen(logPath)).toBe(false);
+    },
+  );
 });

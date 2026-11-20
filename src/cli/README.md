@@ -72,7 +72,7 @@ Parameter Store.
   has a `produces:` line, and a `consumes:` line when `consumesOf` returns
   any kind. An empty list returns `No sources found under sources/.`
 - `command-directory.ts:intakeWorkspace` - `(env)` returns
-  `INTAKE_WORKSPACE`.
+  `INTAKE_WORKSPACE`, an absolute path to an existing folder.
 - `command-directory.ts:createCommandDirectory` - `(env, options?)` returns
   `{ commandDirectory, commandName, commandPath, outputDirectory }`.
 - `command-directory.ts:commandOutputDir` - `(commandDirectory, namespace)`
@@ -124,11 +124,17 @@ Parameter Store.
 - `run-intake.ts:runIntake` - a `CommanderError` becomes a `CommandResult`
   with that error's exit code; any other error is rethrown.
 - `command-directory.ts:intakeWorkspace` - throws
-  `INTAKE_WORKSPACE is required to create command output.` when the workspace
-  is unset or blank.
+  `INTAKE_WORKSPACE is required: the absolute path of an existing workspace folder.`
+  when the workspace is unset or blank;
+  `INTAKE_WORKSPACE must be an absolute path: <value>` for a relative path;
+  `INTAKE_WORKSPACE <value> is not an existing folder.` when it names nothing
+  or a file; and `INTAKE_WORKSPACE <value> cannot be read: <reason>` when it
+  cannot be checked. It never creates the folder.
 - `command-directory.ts:createCommandDirectory` - throws
   `Command directory is not writable` when the directory cannot be created.
-  The namespace defaults to `intake`.
+  It checks the workspace with `intakeWorkspace` and `LOG_LEVEL` with
+  `logging.ts:assertLogLevel` before it creates anything. The namespace
+  defaults to `intake`.
 - `command-directory.ts:commandOutputDir` - calls `assertValidSourceId` on
   the namespace.
 - `source-discovery.ts:loadIntakeSource` - calls `assertValidSourceId` on the
@@ -161,7 +167,9 @@ Parameter Store.
 - `index.ts:loadCliEnvironment` - `process.loadEnvFile()` sets
   `process.env` from the local environment file.
 - `index.ts:main` - writes the result to `process.stdout` and
-  `process.stderr` and sets `process.exitCode`.
+  `process.stderr` and sets `process.exitCode`. It first calls
+  `logging.ts:watchCommandLogs(process)`, so a process that ends while a
+  command log is open writes a final record to that log.
 - `run-intake.ts:createProgram` (not exported) - `registerDiscoveredCommands`
   lists this directory and imports the `index` module of each subdirectory
   that contains `index.js` or `index.ts`.

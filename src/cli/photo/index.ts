@@ -11,6 +11,11 @@ import { createSourceNameToCanonicalIdLedger } from "../state/source-name-to-can
 import { sourceStateDir } from "../transform/state.js";
 import { preparePersonnelPhoto } from "./prepare.js";
 import { readPersonnelPhoto, writePersonnelPhoto } from "./store.js";
+import {
+  createCommandLog,
+  recordCommandError,
+  type IntakeLog,
+} from "../../logging.js";
 
 const namespace = "org/policeconduct/manual";
 export function registerCliCommand(
@@ -31,6 +36,7 @@ export function registerCliCommand(
         options: { sourceUrl?: string },
       ) => {
         const env = process.env;
+        let commandLog: IntakeLog | undefined;
         try {
           const workspace = intakeWorkspace(env);
           if (!env.DATABASE_URL?.trim())
@@ -62,7 +68,7 @@ export function registerCliCommand(
               },
               options.sourceUrl,
             );
-            await createCommandDirectory(env, {
+            const command = await createCommandDirectory(env, {
               namespace,
               args: [
                 "photo",
@@ -74,6 +80,7 @@ export function registerCliCommand(
                   : ["--source-url", options.sourceUrl]),
               ],
             });
+            commandLog = createCommandLog(command, env, false);
             await appendEntry(
               await sourceStateDir(env, namespace),
               entry,
@@ -87,10 +94,14 @@ export function registerCliCommand(
             await client.end();
           }
         } catch (error) {
+          if (commandLog !== undefined)
+            recordCommandError(commandLog.logger, error);
           dependencies.setResult({
             exitCode: 1,
             stderr: `${error instanceof Error ? error.message : String(error)}\n`,
           });
+        } finally {
+          commandLog?.close();
         }
       },
     );

@@ -104,7 +104,8 @@ transform access to personnel and agencies in the database.
 - `index.ts:transformSource` - exit code 1 with
   `emitted undeclared kind(s)` when the source emits a kind missing from its
   `produces`.
-- `index.ts:sourceInputDir` - throws when the source has no acquired input.
+- `index.ts:sourceInputDir` - throws `index.ts:NoAcquiredInputError` when the
+  source has no acquired input.
 - `index.ts:buildTransformSourceDeps` - `beginCompletion` writes the
   `started` completion record first. It then throws
   `No completed acquisition for transform.` or
@@ -143,14 +144,17 @@ transform access to personnel and agencies in the database.
 - `assert-required-columns.ts:assertRequiredColumns` - throws when a required
   column is missing.
 - `state.ts:sourceStateDir` - throws for an invalid source ID
-  (`assertValidSourceId`), when `INTAKE_WORKSPACE` is not set (`intakeWorkspace`), and when the state directory
-  cannot be created.
+  (`assertValidSourceId`), the errors of `intakeWorkspace`, and when the state
+  directory cannot be created.
 
 ## Side Effects
 
-- `index.ts:transformSource` - reads `DATABASE_URL` and `INTAKE_WORKSPACE`; connects to the database when `DATABASE_URL` is
-  set; runs the source's `transform` function; writes log lines through
-  `deps.logger`. It also:
+- `index.ts:transformSource` - reads `DATABASE_URL` and the workspace (through
+  `intakeWorkspace`); connects to the database when `DATABASE_URL` is set;
+  runs the source's `transform` function; writes log lines, including the
+  exclusion and accounting totals, through the command log that
+  `deps.makeWorkspace` opens, records a caught error as that log's last
+  record and closes the log when it returns. It also:
   - reads the source's excluded records from the state directory
     (`deps.loadExcludedRecords`);
   - reads the system clock for the `validationDate` it passes to the source;
@@ -160,7 +164,8 @@ transform access to personnel and agencies in the database.
     when `DATABASE_URL` is set.
 - `index.ts:buildTransformSourceDeps` - creates the source's state directory
   (`sourceStateDir`); imports the source module to read `standalone` and
-  `produces`; `makeWorkspace` creates a command directory; `writeEnvelope`
+  `produces`; `makeWorkspace` creates a command directory and opens its
+  command log with `options.terminal` as its terminal; `writeEnvelope`
   writes the `Artifacts` file there; `beginCompletion` and `complete` write
   the transform completion record.
 - `emit-sink.ts:createEmitSink` - `emit` writes one `LocationPathGeometry`
@@ -175,7 +180,8 @@ transform access to personnel and agencies in the database.
 - `load-source-module.ts:loadSourceModule` - imports the source's
   `intake.source.ts` module.
 - `read-xlsx.ts:readXlsx` - reads one `.xlsx` file.
-- `state.ts:sourceStateDir` - reads `INTAKE_WORKSPACE` from `env`; creates `<workspace>/state/<sourceId>`.
+- `state.ts:sourceStateDir` - takes the workspace from `intakeWorkspace(env)`;
+  creates `<workspace>/state/<sourceId>`.
 
 ## Verification
 
