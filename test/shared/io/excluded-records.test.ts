@@ -306,6 +306,27 @@ describe("loadExcludedRecords", () => {
     );
   });
 
+  it.each([
+    ["a mapping", "excluded:\n  kind: Agency\n  key: one\n  reason: typo\n"],
+    ["a string", "excluded: Agency one\n"],
+  ])("rejects an excluded value that is %s", async (_label, contents) => {
+    const filePath = path.join(sourceDir, "excluded.yaml");
+    await writeFile(filePath, contents, "utf8");
+
+    await expect(loadExcludedRecords(sourceDir)).rejects.toThrow(
+      `${filePath}: excluded must be a list.`,
+    );
+  });
+
+  it("rejects a document that is not a mapping", async () => {
+    const filePath = path.join(sourceDir, "excluded.yaml");
+    await writeFile(filePath, "- kind: Agency\n  key: one\n  reason: x\n");
+
+    await expect(loadExcludedRecords(sourceDir)).rejects.toThrow(
+      `${filePath}: expected an exclusion mapping.`,
+    );
+  });
+
   it("propagates malformed YAML as an error", async () => {
     await writeFile(
       path.join(sourceDir, "excluded.yaml"),

@@ -99,15 +99,15 @@ describe("parseHierarchyRelationshipFile", () => {
     ]);
   });
 
-  it("defaults overlapTotalArea to 1 when no area column is present", () => {
+  it("throws when no area column has a value", () => {
     const text = [
       "stateGeoid|administrativeAreaGeoid|placeGeoid",
       "27|27053|2743000",
     ].join("\n");
 
-    const records = parseHierarchyRelationshipFile(text, "2025");
-
-    expect(records[0]?.overlapTotalArea).toBe(1);
+    expect(() => parseHierarchyRelationshipFile(text, "2025")).toThrow(
+      "Invalid hierarchy relationship record at record 1: no overlapTotalArea, AREALAND, AREAPT or AREA value",
+    );
   });
 
   it("throws when the file is empty", () => {
@@ -130,8 +130,8 @@ describe("parseHierarchyRelationshipFile", () => {
 
   it("reports invalid record values with record context", () => {
     const text = [
-      "stateGeoid|administrativeAreaGeoid|placeGeoid",
-      "bad|27053|2743000",
+      "stateGeoid|administrativeAreaGeoid|placeGeoid|overlapTotalArea",
+      "bad|27053|2743000|1",
     ].join("\n");
 
     expect(() => parseHierarchyRelationshipFile(text, "2025")).toThrow(

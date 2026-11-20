@@ -1,5 +1,23 @@
-import { describe, expect, it } from "vitest";
-import { pageKey } from "../../../sources/com/serpapi/landing-page-search/storage.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  createNewsStorage,
+  pageKey,
+} from "../../../sources/com/serpapi/landing-page-search/storage.js";
+
+describe("storage environment", () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it.each([
+    ["unset", undefined],
+    ["empty", ""],
+    ["blank", "   "],
+  ])("requires a bucket name that is not %s", (_label, value) => {
+    vi.stubEnv("NEWS_PRIVATE_BUCKET", value);
+    vi.stubEnv("NEWS_SITE_BUCKET", "site");
+    expect(() => createNewsStorage()).toThrow(
+      "NEWS_PRIVATE_BUCKET is required",
+    );
+  });
+});
 
 describe("deployment folder paths", () => {
   it("keeps public build and override paths aligned with the website and data private", () => {

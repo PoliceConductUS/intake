@@ -21,7 +21,7 @@ jobs:
           node-version: "26.13.1"
           cache: npm
       - run: npm ci
-      - uses: aws-actions/configure-aws-credentials@v6
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           role-to-assume: ${{ vars.NEWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
@@ -33,8 +33,5 @@ jobs:
           NEWS_DISTRIBUTION_ID: ${{ vars.NEWS_DISTRIBUTION_ID }}
           NEWS_SITE_ORIGIN: ${{ vars.NEWS_SITE_ORIGIN }}
           SEARCH_CONSOLE_PROPERTY: ${{ vars.SEARCH_CONSOLE_PROPERTY }}
-          SEARCH_CONSOLE_CREDENTIALS: ${{ secrets.SEARCH_CONSOLE_CREDENTIALS }}
-          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
           NEWS_INFERENCE_URL: ${{ vars.NEWS_INFERENCE_URL }}
           NEWS_INFERENCE_MODEL: ${{ vars.NEWS_INFERENCE_MODEL }}
-          NEWS_INFERENCE_API_KEY: ${{ secrets.NEWS_INFERENCE_API_KEY }}

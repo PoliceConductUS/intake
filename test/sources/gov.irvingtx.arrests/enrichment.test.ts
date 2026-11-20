@@ -34,7 +34,7 @@ function evidence(): GeographyEvidence {
       type: "FeatureCollection",
       features: [
         {
-          properties: { Code: "54", BattalionC: "PD2", IsActive: 1 },
+          properties: { Code: "54", BattalionC: "PD2" },
           geometry: {
             type: "Polygon",
             coordinates: [
@@ -71,7 +71,7 @@ describe("private source geographic enrichment", () => {
   it("classifies patrol polygons independently of the enclosing OTHER coverage class", () => {
     const e = evidence();
     e.beatGeojson.features.push({
-      properties: { Code: "9999", BattalionC: "OTHER", IsActive: 1 },
+      properties: { Code: "9999", BattalionC: "OTHER" },
       geometry: {
         type: "Polygon",
         coordinates: [
@@ -215,7 +215,7 @@ describe("private source geographic enrichment", () => {
     e.arrestLocationRows[0]!.Longitude = "1";
     e.beatGeojson.features.push({
       ...e.beatGeojson.features[0]!,
-      properties: { Code: "53", BattalionC: "PD2", IsActive: 1 },
+      properties: { Code: "53", BattalionC: "PD2" },
     });
     expect(enrichBookings([row], e).one?.beatStatus).toBe(
       "ambiguous_polygon_match",
@@ -226,7 +226,6 @@ describe("private source geographic enrichment", () => {
     e.beatGeojson.features[0]!.properties = {
       Code: "9901",
       BattalionC: "FB",
-      IsActive: 1,
     };
     expect(enrichBookings([row], e).one).toMatchObject({
       beat: null,
@@ -235,7 +234,6 @@ describe("private source geographic enrichment", () => {
     e.beatGeojson.features[0]!.properties = {
       Code: "9999",
       BattalionC: "OTHER",
-      IsActive: 1,
     };
     expect(enrichBookings([row], e).one?.beatStatus).toBe("other_polygon");
   });
@@ -249,6 +247,12 @@ describe("private source geographic enrichment", () => {
       enrichBookings([{ ...row, Booking_Address: "NULL" }], e).one
         ?.incomeStatus,
     ).toBe("missing_residential_address");
+  });
+  it("does not treat a lower-case null address as blank", () => {
+    expect(
+      enrichBookings([{ ...row, Booking_Address: "null" }], evidence()).one
+        ?.incomeStatus,
+    ).toBe("missing_residential_geocode_evidence");
   });
   it("retains raw ACS annotations, negative sentinels and topcoded lower bounds", () => {
     const d = parseAcsIncome([

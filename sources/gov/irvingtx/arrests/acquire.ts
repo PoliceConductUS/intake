@@ -13,13 +13,13 @@ import { parse } from "csv-parse/sync";
 import { z } from "zod";
 import type { SourceAcquire } from "../../../../src/cli/transform/source-transform.js";
 import { readXlsx } from "../../../../src/cli/transform/read-xlsx.js";
-import { normalizeWorkbook } from "./arrest.js";
+import { intakeWorkspace } from "../../../../src/cli/command-directory.js";
+import { clean, normalizeWorkbook } from "./arrest.js";
 import { readChildSheets } from "./workbook.js";
 import { enrichBookings, type GeographyEvidence } from "./enrichment.js";
 
 const digest = (value: string | Buffer) =>
   createHash("sha256").update(value).digest("hex");
-const clean = (value: string) => (value.trim() === "NULL" ? "" : value.trim());
 const receiptSchema = z
   .object({
     sourceWorkbookSha256: z.string().regex(/^[a-f0-9]{64}$/),
@@ -57,7 +57,7 @@ async function verifyResidentialEvidence(
 ): Promise<void> {
   const addresses = new Map(
     rows.map((row) => {
-      const raw = clean(row.Booking_Address!);
+      const raw = clean(row.Booking_Address);
       return [digest(raw).slice(0, 24), raw];
     }),
   );
@@ -139,12 +139,11 @@ async function verifyResidentialEvidence(
 
 /** Acquire an explicit, source-hash-matched evidence bundle; no old truncated-input fallback. */
 export const acquire: SourceAcquire = async ({ sourceDir, env, logger }) => {
-  const workspace = env.INTAKE_WORKSPACE_TEST ?? env.INTAKE_WORKSPACE;
-  if (!workspace?.trim())
-    throw new Error("gov/irvingtx/arrests: INTAKE_WORKSPACE is required");
+  const workspace = intakeWorkspace(env);
   const input = path.join(workspace, "gov/irvingtx/arrests", "source"),
     geo = path.join(input, "geography");
-  const workbook = path.join(input, "arrests.xlsx");
+  const workbookName = "arrests.xlsx";
+  const workbook = path.join(input, workbookName);
   const workbookBytes = await readFile(workbook);
   const workbookSha = digest(workbookBytes);
   const receipt = receiptSchema.parse(
@@ -226,7 +225,7 @@ export const acquire: SourceAcquire = async ({ sourceDir, env, logger }) => {
     throw new Error(
       "Income evidence does not match declared ACS 2024 contract",
     );
-  const hashes: Record<string, string> = { "arrests.xlsx": workbookSha };
+  const hashes: Record<string, string> = { [workbookName]: workbookSha };
   for (const filename of files)
     hashes[`geography/${filename}`] = digest(
       await readFile(path.join(geo, filename)),
@@ -238,7 +237,7 @@ export const acquire: SourceAcquire = async ({ sourceDir, env, logger }) => {
     }, {});
   const provenance = {
     workbook: {
-      name: "Arrest Data Since Jan-1-2020 redacted.xlsx",
+      name: workbookName,
       sha256: workbookSha,
     },
     evidenceSha256: hashes,
@@ -260,8 +259,9 @@ export const acquire: SourceAcquire = async ({ sourceDir, env, logger }) => {
       beat: "Arrest location mapped to supplied official polygons; historical effective dates not supplied",
     },
   };
+  const beatBoundaries = patrolBeatBoundaries(beatGeojson);
   await mkdir(path.join(sourceDir, "evidence"), { recursive: true });
-  await copyFile(workbook, path.join(sourceDir, "evidence", "arrests.xlsx"));
+  await copyFile(workbook, path.join(sourceDir, "evidence", workbookName));
   await cp(geo, path.join(sourceDir, "evidence", "geography"), {
     recursive: true,
   });
@@ -274,7 +274,7 @@ export const acquire: SourceAcquire = async ({ sourceDir, env, logger }) => {
     JSON.stringify(
       {
         provenance,
-        beatBoundaries: patrolBeatBoundaries(beatGeojson),
+        beatBoundaries,
         audit: {
           ...normalized.audit,
           arrestBeatStatus: counts("beatStatus"),

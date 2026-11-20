@@ -34,11 +34,9 @@ const importMutationOutputDirectory = path.join(
   "generated-mutations",
 );
 
-// Kinds whose records are written one-file-per-record (a `.records` directory
-// of singular record envelopes plus a small envelope-of-refs). Every import
-// kind currently participates; the set is explicit so the intent is clear and
-// a kind can be opted out without reintroducing the `recordKind !== kind`
-// heuristic.
+// Kinds whose records may be written one-file-per-record (a `.records` directory
+// of singular record envelopes plus a small envelope-of-refs). The set is
+// explicit; every other import kind keeps its records inline.
 const RECORD_ENVELOPE_KINDS = new Set<ImportArtifactKind>([
   "DataAnnotations",
   "LocationPaths",
@@ -75,7 +73,13 @@ function generatedHeader(): string {
   ].join("\n");
 }
 
-function envelopeSupport(label: string): string {
+function envelopeSupport(label: string, readsRefs = true): string {
+  const formatError = `
+function formatError(error: z.ZodError): string {
+  return \`${label} is malformed at \${firstIssuePath(error)}.\`;
+}
+`;
+  if (!readsRefs) return formatError;
   return `
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
@@ -85,11 +89,7 @@ type EnvelopeReadOptions = {
   expectedNamespace?: string;
   relativeTo?: string;
 };
-
-function formatError(error: z.ZodError): string {
-  return \`${label} is malformed at \${firstIssuePath(error)}.\`;
-}
-
+${formatError}
 function refValue(pathOrRef: string | EnvelopeReadRef): {
   path: string;
   kind?: string;
@@ -167,12 +167,11 @@ export const recordSchema = z
     kind: z.literal("${recordEnvelopeKind}"),
     metadata: z
       .object({
+        ...recordMetadataSchema.shape,
         name: z.string().trim().min(1),
         namespace: z.string().trim().min(1),
         labels: z.record(z.string(), z.string()).optional(),
         annotations: z.record(z.string(), z.string()).optional(),
-        action: z.enum(["PUT", "PATCH", "POST"]).optional(),
-        selector: z.record(z.string(), z.unknown()).optional(),
       })
       .strict(),
     spec: z.strictObject(${recordSpecName}Spec.shape).partial(),
@@ -245,8 +244,14 @@ async function write${recordEnvelopeKind}(
           \`${kind} record metadata.name \${record.metadata.name} does not match expected record key \${recordKey}: \${filePath}\`,
         );
       }
+      const {
+        namespace: _namespace,
+        labels: _labels,
+        annotations: _annotations,
+        ...metadata
+      } = record.metadata;
       records[recordKey] = {
-        metadata: toRecordMetadata(recordKey, record.metadata),
+        metadata: toRecordMetadata(recordKey, metadata),
         spec: validateRecord(filePath, recordKey, record.spec, record.metadata.action),
       };
     } else {
@@ -273,14 +278,9 @@ async function write${recordEnvelopeKind}(
       }
       const record = new${recordEnvelopeKind}({
         metadata: {
+          ...recordItem.metadata,
           name: recordKey,
           namespace: artifact.metadata.namespace,
-          ...(recordItem.metadata?.action !== undefined
-            ? { action: recordItem.metadata.action }
-            : {}),
-          ...(recordItem.metadata?.selector !== undefined
-            ? { selector: recordItem.metadata.selector }
-            : {}),
         },
         spec: recordItem.spec as z.infer<typeof ${recordSpecName}Spec>,
       });
@@ -321,23 +321,22 @@ export const ${recordEnvelopeKind} = {
 };
 `
     : "";
-  return `${generatedHeader()}import path from "node:path";
-import { z } from "zod";
+  return `${generatedHeader()}${supportsRecordEnvelope ? 'import path from "node:path";\n' : ""}import { z } from "zod";
 import { INTAKE_API_VERSION } from "../intake-api-version.js";
 import {
   firstIssuePath,
-  yamlDigest,
-  yamlResourceFileName,
+  yamlDigest,${supportsRecordEnvelope ? "\n  yamlResourceFileName," : ""}
   yamlResourcePath,
 } from "../resource.js";
 import {
   readYamlDocumentFile,
   writeYamlDocumentFile,
 } from "../internal/yaml-document.js";
+import { Finding } from "../../data-annotations.js";
 import { ${recordSpecName}Spec } from "./entity-specs.js";
 export { ${recordSpecName}Spec } from "./entity-specs.js";
 
-${envelopeSupport(kind)}
+${envelopeSupport(kind, supportsRecordEnvelope)}
 
 const metadataSchema = z
   .object({
@@ -360,6 +359,7 @@ const recordMetadataSchema = z
     action: z.enum(["PUT", "PATCH", "POST"]).optional(),
     name: z.string().trim().min(1).optional(),
     selector: z.record(z.string(), z.unknown()).optional(),
+    defects: z.array(Finding).optional(),
   })
   .strict();
 export type RecordMetadata = z.infer<typeof recordMetadataSchema>;
@@ -447,26 +447,21 @@ function validateRecord(
   return result.data as z.infer<typeof ${recordSpecName}Spec>;
 }
 
-// The record's metadata, kept with it through resolution (ADR 0034). The record
-// key is its name; the write verb + addressing (action/selector) ride along when
-// present. Works for both an inline item's metadata and a resolved record
-// envelope's metadata (both optionally carry action/selector).
+// The record's validated metadata, passed on whole (ADR 0034, ADR 0040). The
+// record key is its name.
 function toRecordMetadata(
   recordKey: string,
-  metadata?: { action?: "PUT" | "PATCH" | "POST"; selector?: Record<string, unknown> },
+  metadata?: RecordMetadata,
 ): RecordMetadata {
-  return {
-    name: recordKey,
-    ...(metadata?.action !== undefined ? { action: metadata.action } : {}),
-    ...(metadata?.selector !== undefined ? { selector: metadata.selector } : {}),
-  };
+  return { ...metadata, name: recordKey };
 }
 
 ${singularRecordSchema}
 
 async function read${kind}(
   filePath: string,
-  options: EnvelopeReadOptions & {
+  options: {
+    expectedNamespace?: string;
     expectedKind?: "${kind}";
     expectedSha256?: string;
     raw: true;
@@ -474,7 +469,8 @@ async function read${kind}(
 ): Promise<${kind}Envelope>;
 async function read${kind}(
   filePath: string,
-  options?: EnvelopeReadOptions & {
+  options?: {
+    expectedNamespace?: string;
     expectedKind?: "${kind}";
     expectedSha256?: string;
     raw?: false;
@@ -482,7 +478,8 @@ async function read${kind}(
 ): Promise<${kind}ResolvedEnvelope>;
 async function read${kind}(
   filePath: string,
-  options: EnvelopeReadOptions & {
+  options: {
+    expectedNamespace?: string;
     expectedKind?: "${kind}";
     expectedSha256?: string;
     raw?: boolean;
@@ -758,9 +755,8 @@ function mutationModule(
   const envelopeKind = mutationKind(recordKind, operation);
   const specImport =
     operation === "create" || operation === "update"
-      ? `import { ${specBaseName}Spec${operation === "create" ? `, ${specBaseName}CreateSpec` : ""} } from "../../../../../shared/io/generated/entity-specs.js";\n`
+      ? `import { ${specBaseName}${operation === "create" ? "Create" : ""}Spec } from "../../../../../shared/io/generated/entity-specs.js";\n`
       : "";
-  const operationImport = "";
   const updateValidation =
     operation === "update"
       ? `
@@ -864,7 +860,7 @@ import {
   readYamlDocumentFile,
   writeYamlDocumentFile,
 } from "../../../../../shared/io/internal/yaml-document.js";
-${specImport}${operationImport}
+${specImport}
 ${envelopeSupport(envelopeKind)}
 const metadataSchema = z
   .object({

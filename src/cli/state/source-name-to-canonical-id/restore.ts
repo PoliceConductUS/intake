@@ -28,7 +28,7 @@ async function exists(filePath: string): Promise<boolean> {
   }
 }
 
-async function readState(event: IdentityRestorationEnvelope, rootDir?: string) {
+async function readState(event: IdentityRestorationEnvelope, rootDir: string) {
   const { namespace } = event.metadata;
   const { entityKind, sourceName, expectedCurrentId, originalId } = event.spec;
   const directory = path.join(
@@ -120,7 +120,7 @@ async function readState(event: IdentityRestorationEnvelope, rootDir?: string) {
 
 export async function assertIdentityRestorationReady(
   event: IdentityRestorationEnvelope,
-  rootDir?: string,
+  rootDir: string,
 ): Promise<void> {
   const state = await readState(event, rootDir);
   if (
@@ -135,7 +135,7 @@ export async function assertIdentityRestorationReady(
 
 export async function assertIdentityRestorationReplayable(
   event: IdentityRestorationEnvelope,
-  rootDir?: string,
+  rootDir: string,
 ): Promise<void> {
   const state = await readState(event, rootDir);
   if (state.currentId === event.spec.expectedCurrentId)
@@ -145,7 +145,7 @@ export async function assertIdentityRestorationReplayable(
 
 export async function assertIdentityRestorationComplete(
   event: IdentityRestorationEnvelope,
-  rootDir?: string,
+  rootDir: string,
 ): Promise<void> {
   const state = await readState(event, rootDir);
   if (
@@ -162,7 +162,7 @@ export async function assertIdentityRestorationComplete(
 // Each rename is atomic; any interrupted sequence is readable and repeatable.
 export async function completeIdentityRestoration(
   event: IdentityRestorationEnvelope,
-  rootDir?: string,
+  rootDir: string,
 ): Promise<void> {
   const state = await readState(event, rootDir);
   const { namespace } = event.metadata;

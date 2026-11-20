@@ -6,6 +6,8 @@ import { DatabaseMutations } from "../../../src/cli/import/artifacts/io/Database
 import { PersonnelCreate } from "../../../src/cli/import/artifacts/io/generated-mutations/PersonnelCreate.js";
 import { ResolvedProperty } from "../../../src/cli/state/resolved-property/ResolvedProperty.js";
 import { SourceNameToCanonicalId } from "../../../src/cli/state/source-name-to-canonical-id/SourceNameToCanonicalId.js";
+import { BinaryFile } from "../../../src/shared/io/BinaryFile.js";
+import { CallResult } from "../../../src/shared/io/CallResult.js";
 import { Command } from "../../../src/shared/io/Command.js";
 import { read as readLocationPaths } from "../../../src/shared/io/generated/LocationPaths.js";
 import { INTAKE_API_VERSION } from "../../../src/shared/io/import-types.js";
@@ -161,6 +163,57 @@ describe("canonical envelope IO strictness", () => {
         "  confidence: 1",
       ].join("\n"),
       ResolvedProperty.read,
+    );
+  });
+
+  test("rejects spec keys outside the exact call-result schema", async () => {
+    await expectMalformedRead(
+      "CallResult",
+      [
+        `apiVersion: ${INTAKE_API_VERSION}`,
+        "kind: CallResult",
+        "metadata:",
+        "  name: 6a4ba1dc1ca0d0a0e9d4ffd1c8bf2a0c8e5d0d4b1f5f1f5f6a4ba1dc1ca0d0a0",
+        "  namespace: com/courtlistener/www/api",
+        "spec:",
+        "  request:",
+        "    service: download",
+        "    operation: get",
+        "    url: https://example.org/a.pdf",
+        "  outcomes:",
+        "    - status: succeeded",
+        "      startedAt: 2026-11-17T10:00:00.000Z",
+        "      completedAt: 2026-11-17T10:00:01.000Z",
+        "      response: {}",
+        "      commandId: command-1",
+        "      intakeVersion: abc123",
+        "  staleAfter: 2027-01-01T00:00:00.000Z",
+      ].join("\n"),
+      CallResult.read,
+    );
+  });
+
+  test("rejects spec keys outside the exact binary-file schema", async () => {
+    await expectMalformedRead(
+      "BinaryFile",
+      [
+        `apiVersion: ${INTAKE_API_VERSION}`,
+        "kind: BinaryFile",
+        "metadata:",
+        "  name: 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+        "  namespace: com/courtlistener/www/api",
+        "spec:",
+        "  sha256: 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+        "  bytes: 5",
+        "  contentType: application/pdf",
+        "  extension: pdf",
+        "  origin:",
+        "    kind: local",
+        "    filename: hello.pdf",
+        "    importedAt: 2026-11-17T10:00:00.000Z",
+        "  path: /binary-file/hello.pdf",
+      ].join("\n"),
+      BinaryFile.read,
     );
   });
 });

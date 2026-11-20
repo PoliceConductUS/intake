@@ -41,12 +41,12 @@ describe("describeSources", () => {
     await writeSource(
       root,
       "org/example/beta-source",
-      '{ description: "Beta produces records.", transform() {} }',
+      '{ description: "Beta produces records.", transform() {}, produces: [] }',
     );
     await writeSource(
       root,
       "org/example/alpha-source",
-      '{ description: "Alpha produces records.", acquire() {}, transform() {} }',
+      '{ description: "Alpha produces records.", acquire() {}, transform() {}, produces: [] }',
     );
 
     const sources = await describeSources(root);
@@ -56,11 +56,13 @@ describe("describeSources", () => {
         id: "org/example/alpha-source",
         description: "Alpha produces records.",
         phases: ["acquire", "transform"],
+        produces: [],
       },
       {
         id: "org/example/beta-source",
         description: "Beta produces records.",
         phases: ["transform"],
+        produces: [],
       },
     ]);
   });
@@ -123,6 +125,56 @@ describe("describeSources", () => {
       /must export a source object/,
     );
   });
+  it.each([
+    [
+      "a transform with no produces",
+      "{ transform() {} }",
+      "Source example: transform and produces must be declared together.",
+    ],
+    [
+      "produces with no transform",
+      '{ produces: ["Agencies"] }',
+      "Source example: transform and produces must be declared together.",
+    ],
+    [
+      "produces that is not an array",
+      '{ transform() {}, produces: "Agencies" }',
+      "Source example must declare a produces array",
+    ],
+    [
+      "an unknown produced kind",
+      '{ transform() {}, produces: ["Agencies", "Nonsense"] }',
+      "Source example produces an unknown kind: Nonsense",
+    ],
+    [
+      "a request with no channel",
+      '{ request: { agency: "Board", state: "AA", scope: "All", historical: [] } }',
+      "Source example: request is malformed at channel.",
+    ],
+    [
+      "a request with an unknown field",
+      '{ request: { agency: "Board", state: "AA", scope: "All", historical: [], channel: { type: "email", to: "board@example.org", sourceUrl: "https://example.org" }, extra: 1 } }',
+      "Source example: request is malformed at extra.",
+    ],
+  ])(
+    "rejects %s when the source is loaded",
+    async (_label, definition, message) => {
+      const root = await makeSourcesRoot();
+      await writeSource(root, "example", definition);
+      await expect(describeSources(root)).rejects.toThrow(message);
+    },
+  );
+  it("loads a source with a valid request", async () => {
+    const root = await makeSourcesRoot();
+    await writeSource(
+      root,
+      "example",
+      '{ request: { agency: "Board", state: "AA", scope: "All", historical: [], channel: { type: "email", to: "board@example.org", sourceUrl: "https://example.org" } } }',
+    );
+    expect(await describeSources(root)).toEqual([
+      { id: "example", phases: ["request"] },
+    ]);
+  });
   it("ignores unmarked directories and omits a missing description", async () => {
     const root = await makeSourcesRoot();
     await mkdir(path.join(root, "not-a-source"));
@@ -130,12 +182,12 @@ describe("describeSources", () => {
       path.join(root, "not-a-source", "acquire.ts"),
       "export const acquire = () => {};",
     );
-    await writeSource(root, "plain-source", "{ transform() {} }");
+    await writeSource(root, "plain-source", "{ acquire() {} }");
 
     const sources = await describeSources(root);
 
     expect(sources).toEqual([
-      { id: "plain-source", description: undefined, phases: ["transform"] },
+      { id: "plain-source", description: undefined, phases: ["acquire"] },
     ]);
   });
 });

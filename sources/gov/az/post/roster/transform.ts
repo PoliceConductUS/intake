@@ -8,4 +8,7 @@ import type { SourceTransform } from "../../../../../src/cli/transform/source-tr
 // agency_id ← AGENCY, start_date ← APPOINTED ON, end_date ← TERMINATED ON) and the
 // Agency records those reference, alongside Personnel.
 
-export const transform: SourceTransform = async () => ({ artifacts: [] });
+export const transform: SourceTransform = async () => ({
+  artifacts: [],
+  accounting: [],
+});

@@ -1,4 +1,4 @@
-import type { DatabaseClient } from "./index.js";
+import { rowsFromResult, type DatabaseClient } from "./index.js";
 
 // The whitelist of writable/readable entity tables is generated from the schema
 // (one union per entity table) so it can never drift from the model.
@@ -14,17 +14,6 @@ export type ImportDatabaseSchema = {
 export type DatabaseSchemaMetadata = {
   importSchema: ImportDatabaseSchema;
 };
-
-function rowsFromResult(
-  result: { rows?: Record<string, unknown>[] } | unknown,
-): Record<string, unknown>[] {
-  return typeof result === "object" &&
-    result !== null &&
-    "rows" in result &&
-    Array.isArray(result.rows)
-    ? result.rows
-    : [];
-}
 
 function valueAsString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0

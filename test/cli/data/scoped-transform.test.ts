@@ -5,6 +5,7 @@ import { Artifacts } from "../../../src/shared/io/Artifacts.js";
 import { acquire } from "../../../sources/org/policeconduct/manual/acquire.js";
 import { expect, test } from "vitest";
 import { transformOneSource } from "../../../src/cli/data/source-pipeline.js";
+import { unusedServiceClients } from "../../shared/services/harness.js";
 
 test("location-only manual preparation retains agency exclusions without applying them", async () => {
   const workspace = await mkdtemp(path.join(tmpdir(), "scoped-transform-"));
@@ -15,6 +16,7 @@ test("location-only manual preparation retains agency exclusions without applyin
     await mkdir(state, { recursive: true });
     await writeFile(path.join(state, "excluded.yaml"), evidence);
     await acquire({
+      clients: unusedServiceClients(),
       sourceDir: workspace,
       state,
       env: {
@@ -69,6 +71,7 @@ test("full manual transform publishes explicitly assigned exclusions on their au
       "excluded:\n  - kind: Agency\n    key: retired\n    reason: Recorded duplicate exclusion\n",
     );
     await acquire({
+      clients: unusedServiceClients(),
       sourceDir: workspace,
       state,
       env: {

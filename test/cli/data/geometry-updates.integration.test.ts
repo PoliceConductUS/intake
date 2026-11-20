@@ -42,6 +42,7 @@ describe("streamed geometry updates through the data CLI", () => {
     const artifacts = await Artifacts.write(
       output.outputDirectory,
       buildArtifactsEnvelope(source, output.commandName, {
+        accounting: [],
         artifacts: [
           {
             kind: "LocationPathGeometries",

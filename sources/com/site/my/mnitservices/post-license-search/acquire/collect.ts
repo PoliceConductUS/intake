@@ -46,10 +46,13 @@ const OFFICER_DETAIL_BATCH = 25;
 export type CollectLogger = { info: (message: string) => void };
 const silentLogger: CollectLogger = { info() {} };
 
+export const EXCLUDED_AGENCY_REASON =
+  "excluded by an Agency entry in excluded.yaml";
+
 export type SkippedAgency = {
   agencyName: string;
   reason: string;
-  candidateCount: number;
+  candidateCount?: number;
 };
 export type SkippedOfficer = {
   agencyName: string;
@@ -76,8 +79,8 @@ export type CollectDeps = {
  * format (csv stays csv, json stays json): `agencies/agencies.csv`, and per
  * agency `officers/<stem>.roster.json` and `officers/<stem>.detail.json`. Each
  * artifact is written once and reused, so an interrupted scrape resumes. An
- * agency the cache cannot resolve, or an officer with no licenseId, is skipped
- * and reported rather than aborting the scrape.
+ * excluded agency, an agency the cache cannot resolve, or an officer with no
+ * licenseId, is skipped and reported rather than aborting the scrape.
  */
 export async function collectSources({
   sourceDir,
@@ -108,13 +111,16 @@ export async function collectSources({
     supplementalAgencyNames,
   );
   const agencyNames = allAgencyNames.filter((name) => !excluded.has(name));
-  const excludedCount = allAgencyNames.length - agencyNames.length;
+  const skippedAgencies: SkippedAgency[] = allAgencyNames
+    .filter((name) => excluded.has(name))
+    .map((agencyName) => ({ agencyName, reason: EXCLUDED_AGENCY_REASON }));
   logger.info(
     `com/site/my/mnitservices/post-license-search: ${agencyNames.length} agencies` +
-      (excludedCount > 0 ? ` (${excludedCount} excluded)` : ""),
+      (skippedAgencies.length > 0
+        ? ` (${skippedAgencies.length} excluded)`
+        : ""),
   );
 
-  const skippedAgencies: SkippedAgency[] = [];
   const skippedOfficers: SkippedOfficer[] = [];
   for (const [index, agencyName] of agencyNames.entries()) {
     const position = `[${index + 1}/${agencyNames.length}]`;
@@ -169,6 +175,11 @@ export async function collectSources({
       const details = await client.fetchOfficerDetails(
         batch.map((entry) => entry.officer),
       );
+      if (details.length !== batch.length) {
+        throw new Error(
+          `com/site/my/mnitservices/post-license-search: ${agencyName}: requested details for ${batch.length} officers and the site returned ${details.length}.`,
+        );
+      }
       await Promise.all(
         batch.map((entry, index) =>
           writeJson(entry.detailPath, details[index]),
@@ -215,7 +226,14 @@ export function parseAgencyNames(csv: string): string[] {
       'com/site/my/mnitservices/post-license-search agency CSV is missing the "Agency" column',
     );
   }
-  return rows.map((row) => row["Agency"]).filter((name) => Boolean(name));
+  return rows.map((row, index) => {
+    if (!row["Agency"]) {
+      throw new Error(
+        `com/site/my/mnitservices/post-license-search agency CSV row ${index + 2}: blank agency name.`,
+      );
+    }
+    return row["Agency"];
+  });
 }
 
 function asNonEmptyString(value: unknown): string | null {
@@ -228,8 +246,9 @@ async function fileExists(filePath: string): Promise<boolean> {
   try {
     await access(filePath);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
   }
 }
 

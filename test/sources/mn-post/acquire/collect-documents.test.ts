@@ -175,6 +175,54 @@ describe("disciplinaryDocumentReferences", () => {
   });
 });
 
+describe("disciplinaryDocumentReferences left-out actions", () => {
+  async function referencesFor(action: Record<string, unknown>) {
+    const { sourceDir } = await makeFixture();
+    const officersDir = path.join(sourceDir, "officers");
+    await writeFile(
+      path.join(officersDir, "officer-e.detail.json"),
+      JSON.stringify({ disciplinaryActions: [action] }),
+    );
+    return disciplinaryDocumentReferences(officersDir);
+  }
+
+  it("has no reference for an action that links no document", async () => {
+    const references = await referencesFor({
+      contactId: "003E",
+      caseNumber: "PB25-150",
+    });
+    expect(references.map((reference) => reference.url)).toEqual([
+      ORDER_URL,
+      GONE_URL,
+    ]);
+  });
+
+  it.each([{ contactId: "" }, { caseNumber: null }])(
+    "throws on an action that links a document and has %j",
+    async (patch) => {
+      await expect(
+        referencesFor({
+          contactId: "003E",
+          caseNumber: "PB25-150",
+          documentURL: "https://example.mn/orders/PB25-150.pdf",
+          ...patch,
+        }),
+      ).rejects.toThrow(
+        /officer-e\.detail\.json.*PB25-150\.pdf has a blank contactId or caseNumber/,
+      );
+    },
+  );
+
+  it("throws when the officers folder cannot be read", async () => {
+    const { sourceDir } = await makeFixture();
+    await expect(
+      disciplinaryDocumentReferences(
+        path.join(sourceDir, "officers", "officer-a.detail.json"),
+      ),
+    ).rejects.toThrow(/ENOTDIR/);
+  });
+});
+
 describe("joinPages", () => {
   it("joins non-blank pages with a blank line between them", () => {
     expect(joinPages(extracted)).toBe(

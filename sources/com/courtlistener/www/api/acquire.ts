@@ -1,21 +1,12 @@
-import { appendFile, mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type {
+  AcquireAgencyRecord,
   AcquireDeps,
   SourceAcquire,
 } from "../../../../../src/cli/transform/source-transform.js";
-import { slugify } from "../../../../lib/civil-defendants.js";
-import {
-  agencyNeedsSearch,
-  loadDocketCache,
-  REFRESH_DAYS,
-  saveDocketCache,
-  type Docket,
-} from "./docket-cache.js";
-import { prepareComplaint, finishComplaint } from "./summary-acquisition.js";
-import { createComplaintAnalyzer } from "./summary-analysis.js";
 
-const API = "https://www.courtlistener.com/api/rest/v4";
+const SOURCE = "com/courtlistener/www/api";
 // Every state/territory → its active federal district courts plus its circuit
 // (CourtListener court ids; circuit membership per 28 U.S.C. § 41). Any agency
 // with at least one officer is searched against the courts that would hear a
@@ -77,12 +68,19 @@ export const STATE_COURTS: Record<string, string[]> = {
   WY: ["wyd", "ca10"],
 };
 const DEFAULT_MIN_YEAR = 2022;
-const MAX_RETRIES = 5;
-const MAX_BACKOFF_MS = 60_000;
+const REFRESH_DAYS = 120;
 
-function asArray(value: unknown): Record<string, unknown>[] {
-  return Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
-}
+type Docket = {
+  id: string;
+  case_name: string;
+  docket_number: string;
+  court: string;
+  date_filed: string | null;
+  date_terminated: string | null;
+  cause: string;
+  absolute_url: string;
+  parties: string[];
+};
 
 function str(value: unknown): string {
   return typeof value === "string" ? value : value == null ? "" : String(value);
@@ -121,218 +119,122 @@ function partyNames(
   ];
 }
 
-function searchUrl(
+function docketOfHit(
+  hit: Record<string, unknown>,
+  agencyId: string,
   partyName: string,
-  courts: string[],
-  filedAfter: string,
-): string {
-  const params = new URLSearchParams({
-    type: "r",
-    party_name: partyName,
-    filed_after: filedAfter,
-    order_by: "dateFiled desc",
-    court: courts.join(" "),
-  });
-  return `${API}/search/?${params.toString()}`;
-}
-
-async function searchAgencyDockets(
-  agencyName: string,
-  place: string,
-  county: string,
-  courts: string[],
-  filedAfter: string,
-  fetchJson: (url: string) => Promise<Record<string, unknown>>,
-): Promise<Docket[]> {
-  const dockets: Docket[] = [];
-  const seen = new Set<string>();
-  for (const partyName of partyNames(agencyName, place, county)) {
-    let url = searchUrl(partyName, courts, filedAfter);
-    while (url !== "") {
-      const body = await fetchJson(url);
-      for (const hit of asArray(body.results)) {
-        const id = str(hit.docket_id ?? hit.id);
-        if (id === "" || seen.has(id)) continue;
-        seen.add(id);
-        dockets.push({
-          id,
-          case_name: str(hit.caseName ?? hit.case_name),
-          docket_number: str(hit.docketNumber ?? hit.docket_number),
-          court: str(hit.court_id ?? hit.court),
-          date_filed: str(hit.dateFiled ?? hit.date_filed) || null,
-          date_terminated:
-            str(hit.dateTerminated ?? hit.date_terminated) || null,
-          cause: str(hit.cause),
-          absolute_url: str(hit.docket_absolute_url ?? hit.absolute_url),
-          parties: (Array.isArray(hit.party) ? hit.party : [])
-            .map((party) => str(party).trim())
-            .filter((party) => party !== ""),
-        });
-      }
-      url = str(body.next);
-    }
+): Docket {
+  const id = str(hit.docket_id).trim();
+  if (id === "" || !Array.isArray(hit.party)) {
+    throw new Error(
+      `${SOURCE}: a search result for agency ${agencyId} (party ${JSON.stringify(partyName)}) has no ${id === "" ? "docket ID" : "list of parties"}.`,
+    );
   }
-  return dockets;
+  return {
+    id,
+    case_name: str(hit.caseName),
+    docket_number: str(hit.docketNumber),
+    court: str(hit.court_id),
+    date_filed: str(hit.dateFiled) || null,
+    date_terminated: str(hit.dateTerminated) || null,
+    cause: str(hit.cause),
+    absolute_url: str(hit.docket_absolute_url),
+    parties: hit.party
+      .map((party) => str(party).trim())
+      .filter((party) => party !== ""),
+  };
 }
 
 export const acquire: SourceAcquire = async ({
   sourceDir,
-  state,
   env,
   data,
   logger,
+  clients,
 }: AcquireDeps) => {
   const log = logger ?? { info() {} };
-  const token = env.COURT_LISTENER_API_TOKEN;
-  if (token === undefined || token.trim() === "") {
+  const setting = env.COURTLISTENER_MIN_YEAR;
+  const minYear = setting === undefined ? DEFAULT_MIN_YEAR : Number(setting);
+  if (
+    setting !== undefined &&
+    (setting.trim() === "" || !Number.isInteger(minYear))
+  ) {
     throw new Error(
-      "com/courtlistener/www/api: COURT_LISTENER_API_TOKEN is required to search CourtListener.",
+      `${SOURCE}: COURTLISTENER_MIN_YEAR is not a year: ${JSON.stringify(setting)}.`,
     );
   }
-  await mkdir(sourceDir, { recursive: true });
-  const apiLogPath = path.join(sourceDir, ".api-calls.jsonl");
-  const fetchJson = async (url: string): Promise<Record<string, unknown>> => {
-    if (new URL(url).origin !== new URL(API).origin)
-      throw new Error(
-        "Refusing an authenticated request outside the API origin.",
-      );
-    // Retry throttling (429) and transient server errors (5xx) with backoff so a
-    // multi-thousand-agency run rides out CourtListener's rate limit unattended;
-    // honor the Retry-After header when present, else exponential (capped).
-    for (let attempt = 0; ; attempt += 1) {
-      const response = await fetch(url, {
-        headers: { Authorization: `Token ${token}` },
-      });
-      const text = await response.text();
-      let body: unknown;
-      try {
-        body = JSON.parse(text);
-      } catch {
-        body = text;
-      }
-      await appendFile(
-        apiLogPath,
-        `${JSON.stringify({ at: new Date().toISOString(), url, status: response.status, body })}\n`,
-      );
-      if (response.ok) return body as Record<string, unknown>;
-      const retryable = response.status === 429 || response.status >= 500;
-      if (!retryable || attempt >= MAX_RETRIES) {
-        throw new Error(
-          `com/courtlistener/www/api: ${response.status} for ${url}`,
-        );
-      }
-      const retryAfter = Number(response.headers.get("retry-after"));
-      const waitMs =
-        Number.isFinite(retryAfter) && retryAfter > 0
-          ? retryAfter * 1000
-          : Math.min(MAX_BACKOFF_MS, 1000 * 2 ** attempt);
-      log.info(
-        `com/courtlistener/www/api: ${response.status} throttled; retrying in ${Math.round(waitMs / 1000)}s (attempt ${attempt + 1}/${MAX_RETRIES}).`,
-      );
-      await new Promise((resolve) => setTimeout(resolve, waitMs));
-    }
-  };
-  const minYear = Number(env.COURTLISTENER_MIN_YEAR ?? DEFAULT_MIN_YEAR);
   const filedAfter = `${minYear}-01-01`;
+  await mkdir(sourceDir, { recursive: true });
 
-  const cache = await loadDocketCache(state);
-  const nowMs = Date.now();
-  const nowIso = new Date(nowMs).toISOString();
-  const prepared = new Map<
-    string,
-    Awaited<ReturnType<typeof prepareComplaint>>
-  >();
-  const outputs: Array<{
-    file: string;
-    envelope: {
-      agency: {
-        id: string;
-        name: string;
-        state: string;
-        county: string;
-        place: string;
-      };
-      dockets: Docket[];
-    };
-  }> = [];
-  let searched = 0;
-  let cached = 0;
+  let written = 0;
   let failed = 0;
+  let skipped = 0;
 
-  const processAgency = async (
-    agencyId: string,
-    agencyName: string,
-    agencyState: string,
-    place: string,
-    county: string,
-  ): Promise<void> => {
-    const courts = STATE_COURTS[agencyState] ?? [];
-    if (agencyName === "" || courts.length === 0) return;
-    const slug = slugify(agencyName);
+  const processAgency = async (record: AcquireAgencyRecord): Promise<void> => {
+    const agencyId = record.agencyId;
+    const agencyName = record.name.trim();
+    if (agencyName === "") {
+      throw new Error(`${SOURCE}: agency ${agencyId} has no name.`);
+    }
+    const courts = STATE_COURTS[record.state];
+    if (courts === undefined) {
+      throw new Error(
+        `${SOURCE}: agency ${agencyId} is in state ${JSON.stringify(record.state)}, which has no court list.`,
+      );
+    }
+    const place = record.place ?? "";
+    const county = record.county ?? "";
 
-    let dockets: Docket[];
-    if (agencyNeedsSearch(cache.agencies[slug], nowMs)) {
-      try {
-        dockets = await searchAgencyDockets(
-          agencyName,
-          place,
-          county,
-          courts,
-          filedAfter,
-          fetchJson,
-        );
-      } catch (error) {
-        // One agency's search failing (e.g. a persistent CL 500 on an odd party
-        // name) must not abort the whole multi-thousand-agency run — log and skip
-        // it, leaving it uncached so a later run retries it.
-        failed += 1;
+    const dockets: Docket[] = [];
+    const seen = new Set<string>();
+    for (const partyName of partyNames(agencyName, place, county)) {
+      const search = await clients.courtListener.searchDockets(
+        { partyName, courts, filedAfter },
+        { refreshAfterMs: REFRESH_DAYS * 86_400_000 },
+      );
+      if (search.status === "skipped") {
+        skipped += 1;
         log.info(
-          `com/courtlistener/www/api: ${agencyName} — search failed, skipped (${error instanceof Error ? error.message : String(error)}).`,
+          `${SOURCE}: ${agencyName} (${agencyId}): no dockets file written, because CourtListener is down; try again after ${search.retryAfter}.`,
         );
         return;
       }
-      cache.agencies[slug] = { lastSearchedAt: nowIso, dockets };
-      await saveDocketCache(state, cache);
-      searched += 1;
-      log.info(
-        `com/courtlistener/www/api: ${agencyName} — ${dockets.length} docket(s) [searched ${searched}]`,
-      );
-    } else {
-      dockets = cache.agencies[slug].dockets;
-      cached += 1;
+      if (search.status === "failed") {
+        failed += 1;
+        log.info(
+          `${SOURCE}: ${agencyName} (${agencyId}): no dockets file written, because the search for party ${JSON.stringify(partyName)} failed (${search.error.message}).`,
+        );
+        return;
+      }
+      for (const hit of search.results) {
+        const docket = docketOfHit(hit, agencyId, partyName);
+        if (seen.has(docket.id)) continue;
+        seen.add(docket.id);
+        dockets.push(docket);
+      }
     }
 
-    for (const docket of dockets) {
-      if (prepared.has(docket.id)) continue;
-      const result = await prepareComplaint({
-        docketId: docket.id,
-        sourceDir,
-        state,
-        fetchJson,
-        fetchPdf: async (url) => {
-          const response = await fetch(url);
-          if (!response.ok)
-            throw new Error(`Complaint download failed: ${response.status}`);
-          return Buffer.from(await response.arrayBuffer());
+    await writeFile(
+      path.join(sourceDir, `${encodeURIComponent(agencyId)}.dockets.json`),
+      JSON.stringify(
+        {
+          agency: {
+            id: agencyId,
+            name: agencyName,
+            state: record.state,
+            county,
+            place,
+          },
+          dockets,
         },
-      });
-      prepared.set(docket.id, result);
-    }
-    await saveDocketCache(state, cache);
-
-    outputs.push({
-      file: path.join(sourceDir, `${slug}.dockets.json`),
-      envelope: {
-        agency: {
-          id: agencyId,
-          name: agencyName,
-          state: agencyState,
-          county,
-          place,
-        },
-        dockets,
-      },
-    });
+        null,
+        2,
+      ),
+    );
+    written += 1;
+    log.info(
+      `${SOURCE}: ${agencyName} (${agencyId}): ${dockets.length} docket(s).`,
+    );
   };
 
   let cursor: string | undefined;
@@ -344,38 +246,12 @@ export const acquire: SourceAcquire = async ({
       limit: 50,
     });
     for (const record of page.items) {
-      await processAgency(
-        record.agencyId,
-        record.name.trim(),
-        record.state,
-        record.place ?? "",
-        record.county ?? "",
-      );
+      await processAgency(record);
     }
     cursor = page.nextCursor;
   } while (cursor !== undefined);
 
-  const completed = new Map<
-    string,
-    Awaited<ReturnType<typeof finishComplaint>>
-  >();
-  for (const [id, document] of prepared) {
-    completed.set(
-      id,
-      await finishComplaint(document, {
-        state,
-        analyzer: createComplaintAnalyzer(env.ANTHROPIC_API_KEY),
-      }),
-    );
-  }
-  for (const output of outputs) {
-    for (const docket of output.envelope.dockets)
-      Object.assign(docket, completed.get(docket.id));
-    await writeFile(output.file, JSON.stringify(output.envelope, null, 2));
-  }
-  await saveDocketCache(state, cache);
-
   log.info(
-    `com/courtlistener/www/api: ${searched} agencies searched, ${cached} served from cache (< ${REFRESH_DAYS} days), ${failed} skipped after errors.`,
+    `${SOURCE}: ${written} agencies written, ${failed} left out after a failed search, ${skipped} left out while CourtListener was down.`,
   );
 };

@@ -2,15 +2,10 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { expect, it, vi } from "vitest";
-import { acquire as courtListener } from "../../sources/com/courtlistener/www/api/acquire.js";
 import { acquire as clearinghouse } from "../../sources/net/clearinghouse/api/acquire.js";
+import { unusedServiceClients } from "../shared/services/harness.js";
 
 it.each([
-  {
-    acquire: courtListener,
-    origin: "https://www.courtlistener.com",
-    key: "COURT_LISTENER_API_TOKEN",
-  },
   {
     acquire: clearinghouse,
     origin: "https://clearinghouse.net",
@@ -34,6 +29,7 @@ it.each([
       .mockResolvedValue(Response.json({ results: [], next: null }));
     try {
       await acquire({
+        clients: unusedServiceClients(),
         sourceDir: dir,
         state: dir,
         env: { [key]: "fixture" },

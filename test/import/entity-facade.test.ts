@@ -1,4 +1,3 @@
-import { AgencyPersonnelUpdate } from "../../src/cli/import/artifacts/io/generated-mutations/AgencyPersonnelUpdate.js";
 import { describe, it, expect } from "vitest";
 import {
   buildFacadeForKind,
@@ -555,7 +554,7 @@ describe("source annotation mutation contributions", () => {
         source_record_id: "assignment",
       },
     ]);
-    const mutation = await facade.toMutation();
+    await facade.toMutation();
     expect(facade.contribution((await facade.resolvedRow()).resolved)).toEqual({
       source_namespace: "provider.a",
       source_record_id: "assignment",
@@ -603,5 +602,34 @@ describe("unrepresentable reported dates", () => {
       effective_value: "not a date",
     });
     expect(facade.raw("end_date")).toBe("not a date");
+  });
+
+  it("fails for a kind that has no source evidence to report the date under", async () => {
+    const facade = buildFacadeForKind("CoverageHomepageWindow", {
+      ...backend(),
+      source: { namespace: "test", name: "window", commandName: "run" },
+    });
+    const values = { window_end: "2026-02-30", placement_count: 3 };
+    facade.merge(values);
+    facade.recordSourceContribution(values, []);
+    await expect(facade.toMutation()).rejects.toThrow(
+      'CoverageHomepageWindow.window_end for test/window is not a valid date and has no source evidence to report it under: "2026-02-30".',
+    );
+  });
+
+  it("fails when the record holds no source value for the date", async () => {
+    const facade = buildFacadeForKind("AgencyPersonnel", {
+      ...backend(),
+      source: { namespace: "test", name: "assignment", commandName: "run" },
+    });
+    facade.merge({
+      agency_id: "a",
+      personnel_id: "p",
+      start_date: "2020-01-01",
+      end_date: "not a date",
+    });
+    await expect(facade.toMutation()).rejects.toThrow(
+      'AgencyPersonnel.end_date for test/assignment is not a valid date and has no source evidence to report it under: "not a date".',
+    );
   });
 });

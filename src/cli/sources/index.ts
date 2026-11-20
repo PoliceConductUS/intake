@@ -6,6 +6,7 @@ import type {
   RegisterCliCommand,
 } from "../../shared/cli/types.js";
 import { describeSources, renderSourceCatalog } from "../describe-sources.js";
+import { withParameterStoreSecrets } from "../parameter-store-env.js";
 
 export const registerCliCommand: RegisterCliCommand = (
   program: Command,
@@ -31,7 +32,7 @@ export const registerCliCommand: RegisterCliCommand = (
         path.join(process.cwd(), "sources"),
       );
       if (!daily) throw Error(`Source ${id} does not support daily`);
-      await daily();
+      await daily(withParameterStoreSecrets(process.env));
       dependencies.setResult({ exitCode: 0 });
     });
 };

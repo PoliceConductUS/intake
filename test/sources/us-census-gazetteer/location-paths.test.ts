@@ -114,7 +114,6 @@ describe("buildLocationPaths", () => {
       result.locationPathSources["place:GEOID:2743000"].hierarchySelection,
     ).toBe(undefined);
     expect(result.locationPathAlias).toEqual({});
-    expect(result.warnings).toEqual([]);
   });
 
   it("uses common place names while preserving administrative-area suffixes", () => {
@@ -392,41 +391,108 @@ describe("buildLocationPaths", () => {
     ).toThrow(/Duplicate Census source key administrative_area:GEOID:27053/);
   });
 
-  it("reports skipped non-required geographies", () => {
-    const result = buildLocationPaths({
-      states: [{ ...mnState, USPS: "PR", GEOID: "72", NAME: "Puerto Rico" }],
-      administrativeAreas: [],
-      places: [],
-      hierarchy: [],
-    });
+  const outside = "outside 50 states plus District of Columbia";
+  const prState = { ...mnState, USPS: "PR", GEOID: "72", NAME: "Puerto Rico" };
+  const prCounty = {
+    ...hennepinCounty,
+    USPS: "PR",
+    GEOID: "72001",
+    NAME: "Adjuntas Municipio",
+  };
+  const prPlace = {
+    ...minneapolis,
+    USPS: "PR",
+    GEOID: "7200100",
+    NAME: "Adjuntas zona urbana",
+  };
+  const match = {
+    stateGeoid: "27",
+    administrativeAreaGeoid: "27053",
+    placeGeoid: "2743000",
+    overlapTotalArea: 100,
+    sourceKey: "census:overlap:2025:27:27053:2743000",
+  };
 
-    expect(result.locationPaths).toEqual({});
-    expect(result.warnings).toEqual([
-      'skipped state: /pr/ due to outside 50 states plus District of Columbia (source GEOID 72, label "Puerto Rico", lat +46.3159573, lng -094.1996043)',
-    ]);
-  });
-
-  it("reports skipped administrative areas with source context", () => {
+  it("counts every state, area, place and hierarchy record it is given", () => {
     const result = buildLocationPaths({
-      states: [],
-      administrativeAreas: [
+      states: [mnState, prState],
+      administrativeAreas: [hennepinCounty, ramseyCounty, prCounty],
+      places: [minneapolis, prPlace],
+      hierarchy: [
+        match,
         {
-          ...hennepinCounty,
-          USPS: "PR",
-          GEOID: "72001",
-          NAME: "Adjuntas Municipio",
-          INTPTLAT: "+18.179",
-          INTPTLONG: "-066.754",
+          ...match,
+          administrativeAreaGeoid: "27123",
+          sourceKey: "census:overlap:2025:27:27123:2743000",
+        },
+        {
+          stateGeoid: "72",
+          administrativeAreaGeoid: "72001",
+          placeGeoid: "7200100",
+          overlapTotalArea: 5,
+          sourceKey: "census:overlap:2025:72:72001:7200100",
         },
       ],
-      places: [],
-      hierarchy: [],
     });
 
-    expect(result.locationPaths).toEqual({});
-    expect(result.warnings).toEqual([
-      'skipped administrative_area: /pr/adjuntas-municipio/ due to missing generated state parent (source GEOID 72001, label "Adjuntas Municipio", lat +18.179, lng -066.754, parent state GEOID 72, parent slug pr)',
+    expect(Object.keys(result.locationPaths)).toEqual([
+      "administrative_area:GEOID:27053",
+      "administrative_area:GEOID:27123",
+      "place:GEOID:2743000",
+      "state:GEOID:27",
     ]);
+    expect(result.accounting).toEqual({
+      states: {
+        read: 2,
+        emitted: 1,
+        reported: 0,
+        notSelected: { [outside]: 1 },
+      },
+      administrativeAreas: {
+        read: 3,
+        emitted: 2,
+        reported: 0,
+        notSelected: { [outside]: 1 },
+      },
+      places: {
+        read: 2,
+        emitted: 1,
+        reported: 0,
+        notSelected: { [outside]: 1 },
+      },
+      hierarchy: {
+        read: 3,
+        emitted: 2,
+        reported: 0,
+        notSelected: { [outside]: 1 },
+      },
+    });
+  });
+
+  it("throws for an administrative area of an allowed state that has no state record", () => {
+    expect(() =>
+      buildLocationPaths({
+        states: [],
+        administrativeAreas: [hennepinCounty],
+        places: [],
+        hierarchy: [],
+      }),
+    ).toThrow(
+      "gov/census/www2/gazetteer: administrative area 27053 Hennepin County has no state 27 in the Gazetteer states file",
+    );
+  });
+
+  it("throws for a hierarchy record that names a place of an allowed state that is not in the places file", () => {
+    expect(() =>
+      buildLocationPaths({
+        states: [mnState],
+        administrativeAreas: [hennepinCounty],
+        places: [],
+        hierarchy: [match],
+      }),
+    ).toThrow(
+      "gov/census/www2/gazetteer: hierarchy record census:overlap:2025:27:27053:2743000 names place 2743000, which is not in the Gazetteer places file",
+    );
   });
 
   it("fails when a skipped administrative area is needed for place hierarchy", () => {

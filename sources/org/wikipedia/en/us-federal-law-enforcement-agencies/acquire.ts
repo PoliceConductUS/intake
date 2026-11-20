@@ -1,12 +1,19 @@
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { stringify as stringifyYaml, parse as parseYaml } from "yaml";
+import { stringify as stringifyYaml } from "yaml";
 import type {
   AcquireDeps,
   SourceAcquire,
 } from "../../../../../src/cli/transform/source-transform.js";
 import { parseFederalLeAgencies, slugify } from "./acquire/parse.js";
-import { CANDIDATES_FILE, ORGS_FILE, type Org } from "./model.js";
+import {
+  CANDIDATES_FILE,
+  ORGS_FILE,
+  OrgsFileSchema,
+  SOURCE_ID,
+  readCuratedFile,
+  type Org,
+} from "./model.js";
 
 const DEFAULT_PAGE_URL =
   "https://en.wikipedia.org/wiki/List_of_United_States_federal_law_enforcement_agencies";
@@ -17,17 +24,10 @@ async function fileExists(filePath: string): Promise<boolean> {
   try {
     await access(filePath);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
   }
-}
-
-async function readExistingOrgs(filePath: string): Promise<Org[]> {
-  if (!(await fileExists(filePath))) return [];
-  const parsed = parseYaml(await readFile(filePath, "utf8")) as {
-    agencies?: Org[];
-  };
-  return parsed.agencies ?? [];
 }
 
 async function maintainOrgs(
@@ -47,16 +47,19 @@ async function maintainOrgs(
     stringifyYaml({ agencies: discovered }),
   );
 
-  const orgsPath = path.join(stateDir, ORGS_FILE);
-  if (!(await fileExists(orgsPath))) {
-    await writeFile(orgsPath, stringifyYaml({ agencies: discovered }));
+  const curated = (await readCuratedFile(stateDir, ORGS_FILE, OrgsFileSchema))
+    ?.agencies;
+  if (curated === undefined) {
+    await writeFile(
+      path.join(stateDir, ORGS_FILE),
+      stringifyYaml({ agencies: discovered }),
+    );
     log.info(
       `federal-le: created ${ORGS_FILE} with ${discovered.length} agencies — trim it to the agencies you want`,
     );
     return;
   }
 
-  const curated = await readExistingOrgs(orgsPath);
   const curatedSlugs = new Set(curated.map((org) => org.slug));
   const fresh = discovered.filter((org) => !curatedSlugs.has(org.slug));
   log.info(
@@ -72,6 +75,8 @@ export const acquire: SourceAcquire = async ({
 }: AcquireDeps) => {
   const log = logger ?? { info() {} };
   const pageUrl = env.FEDERAL_LE_PAGE_URL ?? DEFAULT_PAGE_URL;
+  if (pageUrl.trim() === "")
+    throw new Error(`${SOURCE_ID}: FEDERAL_LE_PAGE_URL is set and blank`);
   await mkdir(sourceDir, { recursive: true });
   const destination = path.join(sourceDir, SOURCE_HTML_FILE);
 

@@ -22,7 +22,6 @@ import { importMutationEnvelopeTypes } from "./generated-mutations/index.js";
 import {
   type EnvelopeReadOptions,
   type EnvelopeReadRef,
-  refValue,
   resolveReadPath,
 } from "./envelope-ref.js";
 
@@ -187,11 +186,11 @@ async function databaseMutationFromRef(
 }
 
 async function readDatabaseMutations(
-  filePath: string,
+  pathOrRef: string | EnvelopeReadRef,
   options: EnvelopeReadOptions & { raw: true },
 ): Promise<DatabaseMutationsEnvelope>;
 async function readDatabaseMutations(
-  filePath: string,
+  pathOrRef: string | EnvelopeReadRef,
   options?: EnvelopeReadOptions & { raw?: false },
 ): Promise<
   Omit<DatabaseMutationsEnvelope, "spec"> & {
@@ -199,10 +198,10 @@ async function readDatabaseMutations(
   }
 >;
 async function readDatabaseMutations(
-  filePath: string,
+  pathOrRef: string | EnvelopeReadRef,
   options: EnvelopeReadOptions & { raw?: boolean } = {},
 ): Promise<DatabaseMutationsEnvelope> {
-  const ref = resolveReadPath(filePath, options, "DatabaseMutations");
+  const ref = resolveReadPath(pathOrRef, options, "DatabaseMutations");
   const { contents, document } = await readYamlDocumentFile(
     ref.filePath,
     "DatabaseMutations",
@@ -232,17 +231,18 @@ async function readDatabaseMutations(
         }
         if (mutationItem.ref.kind === "DatabaseMutations") {
           // Chunk file: read it (recursively expanding its refs) and inline.
-          const chunkPath = path.resolve(
-            path.dirname(filePath),
-            mutationItem.ref.path,
-          );
-          const chunk = await readDatabaseMutations(chunkPath, {
+          const chunk = await readDatabaseMutations(mutationItem, {
             expectedNamespace: namespace,
+            relativeTo: ref.filePath,
           });
           return chunk.spec.mutations;
         }
         return [
-          await databaseMutationFromRef(filePath, namespace, mutationItem.ref),
+          await databaseMutationFromRef(
+            ref.filePath,
+            namespace,
+            mutationItem.ref,
+          ),
         ];
       },
     ),

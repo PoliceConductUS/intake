@@ -69,9 +69,10 @@ describe("matchInputs", () => {
     expect(() => matchInputs(mismatched)).toThrow(/year/i);
   });
 
-  it("ignores paths that match no known role", () => {
-    const result = matchInputs([...validPaths, "/data/readme.txt"]);
-    expect(result.year).toBe("2025");
+  it("throws for an input path that matches no role", () => {
+    expect(() => matchInputs([...validPaths, "/data/notes.txt"])).toThrow(
+      'gov/census/www2/gazetteer inputs: "/data/notes.txt" matches no input role',
+    );
   });
 });
 

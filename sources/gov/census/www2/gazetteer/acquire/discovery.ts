@@ -146,9 +146,16 @@ export function discoverLatestGazetteerLinks(
   }
 
   const selectedStates = classified.placeTigerUrls.length
-    ? classified.placeTigerUrls.map(
-        (url) => new URL(url).pathname.match(/tl_\d{4}_(\d{2})_place\.zip/)![1],
-      )
+    ? classified.placeTigerUrls.map((url) => {
+        const state = new URL(url).pathname.match(
+          /tl_\d{4}_(\d{2})_place\.zip/,
+        )?.[1];
+        if (state === undefined)
+          throw new Error(
+            `census: place TIGER link is not tl_<year>_<state>_place.zip: ${url}`,
+          );
+        return state;
+      })
     : STATE_GEOIDS;
   return {
     year: String(year),

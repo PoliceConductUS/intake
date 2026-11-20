@@ -19,6 +19,8 @@ import {
 } from "../../../src/cli/state/source-name-to-canonical-id/index.js";
 import { fakeSourceNameLedger } from "../../cli/state/fake-source-name-ledger.js";
 import { EmptyDatabaseClient } from "../../cli/database/empty-database-client.js";
+import type { ServiceClients } from "../../../src/shared/services/index.js";
+import { unusedServiceClients } from "../../shared/services/harness.js";
 
 // Returns injected current rows through the lazy current-row read
 // (`select * from <table> where id = any($1)`), so a facade sees an existing
@@ -2209,6 +2211,23 @@ describe("CivilCase cross-source convergence (ADR 0028)", () => {
     location_path_id: "tx-location-path-id",
   };
 
+  // These tests are about identity, not the complaint summary: CourtListener
+  // is down, so the complaint resolvers leave both fields as they are.
+  const courtListenerDown: ServiceClients = {
+    ...unusedServiceClients(),
+    courtListener: {
+      searchDockets: async () => {
+        throw new Error("No search is made by an import.");
+      },
+      docketEntries: async () => ({
+        status: "skipped",
+        service: "courtlistener",
+        retryAfter: "2026-11-17T13:00:00.000Z",
+      }),
+      skips: () => [],
+    },
+  };
+
   function civilCaseContext(
     databaseCivilCases: Record<string, unknown>[] = [],
   ) {
@@ -2220,6 +2239,7 @@ describe("CivilCase cross-source convergence (ADR 0028)", () => {
         { locationPaths: [txLocationPath] },
       ),
       commandName: "command-name",
+      serviceClients: courtListenerDown,
       ledger: fakeSourceNameLedger({
         agencies: {},
         personnel: {},
@@ -2260,6 +2280,7 @@ describe("CivilCase cross-source convergence (ADR 0028)", () => {
       const context = new DataContext({
         client: new CurrentRowClient({}, { locationPaths: [txLocationPath] }),
         commandName: "command-name",
+        serviceClients: courtListenerDown,
         ledger: createSourceNameToCanonicalIdLedger({ rootDir }),
         resolvedPropertyStore: {
           read: async ({ subject, targetProperty }) =>

@@ -5,6 +5,7 @@ import path from "node:path";
 import ExcelJS from "exceljs";
 import { afterEach, describe, expect, it } from "vitest";
 import { acquire } from "../../../sources/gov/irvingtx/arrests/acquire.js";
+import { unusedServiceClients } from "../../shared/services/harness.js";
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -178,6 +179,7 @@ describe("Irving complete acquisition", () => {
   it("preserves supplied charge literal whitespace instead of collapsing distinct source tuples", async () => {
     const f = await fixture(false, false, true);
     await acquire({
+      clients: unusedServiceClients(),
       sourceDir: f.output,
       state: f.workspace,
       env: { INTAKE_WORKSPACE: f.workspace },
@@ -195,6 +197,7 @@ describe("Irving complete acquisition", () => {
   it("validates source street addresses containing an apartment comma", async () => {
     const f = await fixture(false, true);
     await acquire({
+      clients: unusedServiceClients(),
       sourceDir: f.output,
       state: f.workspace,
       env: { INTAKE_WORKSPACE: f.workspace },
@@ -211,6 +214,7 @@ describe("Irving complete acquisition", () => {
   it("reads the actual mixed-width Census match and no-match response format", async () => {
     const f = await fixture(true);
     await acquire({
+      clients: unusedServiceClients(),
       sourceDir: f.output,
       state: f.workspace,
       env: { INTAKE_WORKSPACE: f.workspace },
@@ -228,6 +232,7 @@ describe("Irving complete acquisition", () => {
   it("retains every charge row, groups bookings, enriches geography and snapshots raw evidence", async () => {
     const f = await fixture();
     await acquire({
+      clients: unusedServiceClients(),
       sourceDir: f.output,
       state: path.join(f.workspace, "state"),
       env: { INTAKE_WORKSPACE: f.workspace },
@@ -261,6 +266,7 @@ describe("Irving complete acquisition", () => {
       { code: "21", name: "21", geometry: { type: "Polygon" } },
     ]);
     expect(provenance.audit.sourceChargeRows).toBe(3);
+    expect(provenance.provenance.workbook.name).toBe("arrests.xlsx");
     expect(JSON.stringify(provenance)).not.toContain("1 MAIN ST");
     expect(JSON.stringify(provenance)).not.toContain(f.workspace);
   });
@@ -276,6 +282,7 @@ describe("Irving complete acquisition", () => {
     );
     await expect(
       acquire({
+        clients: unusedServiceClients(),
         sourceDir: f.output,
         state: f.workspace,
         env: { INTAKE_WORKSPACE: f.workspace },
@@ -292,6 +299,7 @@ describe("Irving complete acquisition", () => {
     await writeFile(file, JSON.stringify(mapping));
     await expect(
       acquire({
+        clients: unusedServiceClients(),
         sourceDir: f.output,
         state: f.workspace,
         env: { INTAKE_WORKSPACE: f.workspace },

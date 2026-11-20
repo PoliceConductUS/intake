@@ -2,7 +2,7 @@ import type { IntakeSource } from "../../../../../src/cli/intake-source.js";
 
 export const source = {
   description:
-    "Arkansas Arkansas Commission on Law Enforcement Standards and Training public-records requests",
+    "Arkansas Commission on Law Enforcement Standards and Training public-records requests",
   request: {
     agency: "Arkansas Commission on Law Enforcement Standards and Training",
     state: "Arkansas",

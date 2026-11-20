@@ -42,10 +42,6 @@ export function excludedRecordKey(kind: string, sourceKey: string): string {
   return `${kind}:${sourceKey}`;
 }
 
-type ExcludedRecordsFile = {
-  excluded?: unknown;
-};
-
 function requiredStringField(
   filePath: string,
   index: number,
@@ -103,15 +99,20 @@ function parseExcludedRecords(
   contents: string,
   filePath: string,
 ): ExcludedRecords {
-  let parsed: ExcludedRecordsFile;
+  let parsed: unknown;
   try {
-    parsed = (parse(contents) ?? {}) as ExcludedRecordsFile;
+    parsed = parse(contents) ?? {};
   } catch (error) {
     const message = error instanceof Error ? `: ${error.message}` : "";
     throw new Error(`${filePath} is malformed${message}`);
   }
+  if (typeof parsed !== "object" || Array.isArray(parsed))
+    throw new Error(`${filePath}: expected an exclusion mapping.`);
+  const excluded = (parsed as { excluded?: unknown }).excluded ?? [];
+  if (!Array.isArray(excluded))
+    throw new Error(`${filePath}: excluded must be a list.`);
 
-  const entries = Array.isArray(parsed.excluded) ? parsed.excluded : [];
+  const entries: unknown[] = excluded;
   const records = new Map<string, ExcludedRecord>();
   entries.forEach((rawEntry, index) => {
     if (typeof rawEntry !== "object" || rawEntry === null) {

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -55,5 +55,15 @@ describe("extractShapefileFromZip", () => {
     await expect(extractShapefileFromZip(textOnlyZip, state)).rejects.toThrow(
       /No \.shp entry found in zip/,
     );
+  });
+
+  it("writes nothing when the zip has .dbf and .shx entries and no .shp", async () => {
+    const noShpZip = fileURLToPath(
+      new URL("./fixtures/tiger/tl_2025_no_shp.zip", import.meta.url),
+    );
+    await expect(extractShapefileFromZip(noShpZip, state)).rejects.toThrow(
+      /No \.shp entry found in zip/,
+    );
+    expect(await readdir(state, { recursive: true })).toEqual([]);
   });
 });
