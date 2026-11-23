@@ -211,7 +211,7 @@ Rollback: revert the migrations and run `data reset` from the previous commit.
 ## Open Questions
 
 1. Status words: store `Current`/`Former`/`Unknown` and `Open`/`Closed`/`Unknown` as shown, or lowercase codes plus a label table? The site used to show "Ongoing"; is `Open` the right public word?
-2. Employment status when a roster stops listing an assignment that has no end date: `Former` or `Unknown`?
+2. Answered (owner, 2026-11-22): when a list of currently employed officers stops listing an assignment that has no end date, intake changes nothing; the omission is not evidence of what happened.
 3. Should intake's agency inclusion rule (`agency-record-selection`: assignments with a null effective `end_date`) switch to `employment_status = 'Current'`, so inclusion and agency pages use the same test? Agencies included only as civil-case roots or federal offices have no agency page today; is that intended?
 4. Report agency for existing manual reports: which agency when a report links officers at two agencies?
 5. Agency report count: by `reviews.agency_id` (proposed) or by linked personnel (today)?
