@@ -87,3 +87,17 @@ A `personnel` row with `deceased_on` or `deceased_source` SHALL hold a nonblank 
 
 - **WHEN** a source reports a death on 2024-02-01
 - **THEN** the row holds `deceased_message` and the site generates no notice text of its own
+
+### Requirement: Location rows store their own URL segment
+
+Every `location_path` row SHALL hold `segment`, its own URL segment, matching `^[a-z0-9-]+$`, written by the Census source. `public.assert_site_projections()` SHALL raise when a row's `path` is not its parent's `path` followed by its `segment` and `/`, or, for a row with no parent, `/` followed by its `segment` and `/`.
+
+#### Scenario: Place row
+
+- **WHEN** the place `/tx/dallas-county/irving/` has the parent `/tx/dallas-county/`
+- **THEN** its `segment` is `irving`, and the site reads it instead of splitting the path
+
+#### Scenario: Segment that does not match the path
+
+- **WHEN** a row has path `/tx/dallas-county/irving/` and segment `irving-city`
+- **THEN** `refresh_site_projections()` fails and names the row

@@ -2,12 +2,12 @@
 
 ### Requirement: Build projections are database relations
 
-`location_path_closure` SHALL be a recursive view over `location_path.parent_location_path_id`. `agency_zip_index` SHALL be a view returning the first five characters of `agency.zip_code` for `site_agency_page` agencies with a ZIP. `build_page_payload` SHALL be a materialized view with the columns `path`, `page_type`, `entity_id`, `payload`, `content_hash`, `content_updated_at` and `generated_at`, built from the page-selection and count views. No website script SHALL write these relations.
+The recursive plain view `site_location_ancestor` over `location_path.parent_location_path_id` SHALL replace `location_path_closure`. The materialized view `site_page` (capability `site-page-views`) SHALL replace `build_page_payload` as the list of pages and the unique-path check. After the website reads only the page views, a migration SHALL drop the `build_page_payload`, `location_path_closure` and `agency_zip_index` tables. No website script SHALL write any site relation.
 
 #### Scenario: Website script attempts a write
 
-- **WHEN** a client inserts into `build_page_payload`
-- **THEN** the database rejects the write
+- **WHEN** a client inserts into `site_page`
+- **THEN** the database rejects the write, because `site_page` is a materialized view
 
 ### Requirement: One function refreshes and checks the projections
 

@@ -52,7 +52,7 @@ Option C. Facts are columns written only through envelopes and recorded mutation
 - Status columns hold reader-facing words with a `CHECK` constraint (for example `Current`, `Former`, `Unknown`). The site shows the stored word as stored.
 - Manual records (license action texts and types, annotation messages, standard values) enter through the manual source `org/policeconduct/manual` (ADR 0031). Their IDs come from the source-name mapping. No migration hard-codes a data row ID.
 - Annotation message codes reuse the message table proposed by the change `type-annotation-envelopes` (ADR 0038). This change adds the codes the corrections queue needs.
-- A primary (headline) assignment is not needed: no page uses one after `84c5cec`. Listing rules use employment status instead.
+- The headline assignment is a database view (owner, 2026-11-22). Removing it in website commit `84c5cec` dropped the agency from personnel page titles, the profile hero, form prefills and schema.org `worksFor`; the owner called that a release-blocking bug. The site never selects the assignment; `site_personnel_headline_assignment` does (design D12).
 - A phone order or primary flag is not needed: the agency page lists every phone. Only the phone kind is needed, so a fax number does not render as a call link.
 - The arrest-profile link (`arrest_profile.agency_arrest_profile_id`) is not part of this change. The owner later replaced arrest profiles with a complete import of arrest records (change `import-arrest-records`).
 

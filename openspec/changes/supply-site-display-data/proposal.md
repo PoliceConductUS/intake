@@ -12,6 +12,7 @@ The owner decided on 2026-11-22 that the website is a generated view of the data
 - **Foreign-key chain views:** `site_agency_staff_other_civil_case` and the report, case and assignment joins the site follows.
 - **Public count views:** done in `supabase/migrations/20261122000000_site_public_counts.sql`: `site_agency_personnel_employment`, `site_agency_count`, `site_federal_agency_count`, `site_personnel_state_count` and `site_personnel_count`. Still to do: `site_location_count`, `site_licensing_authority_count`, and the report, civil-case and discipline columns listed in `design.md` D8.
 - **Annotations about a person:** intake attaches every annotation whose subject is a person, or a record a person owns, to the licensing authority as well, and keeps the person as the subject. The authority page always shows it; the person's page shows it once that page is built.
+- **Page-shaped views:** one materialized view per page type (for example `site_agency_page`, `site_location_page`, `site_personnel_page`), list views read by a parent path, `site_state_map` for the home and `/personnel/` maps, `site_annotation`, and `site_page`, which replaces `build_page_payload`. `location_path.segment` and `site_location_state` remove every path split. Annotations store the page they attach to and display-safe values. Legacy redirects become stored pairs in intake's `redirects.json`, generated once. See `design.md`, "Page-shaped views".
 - **Build projections move to the database:** `build_page_payload` becomes a materialized view. `location_path_closure` and `agency_zip_index` become views. One function, `public.refresh_site_projections()`, refreshes the materialized views. **BREAKING** for the website: its projection script can no longer write these relations.
 
 ## Capabilities
@@ -25,6 +26,8 @@ The owner decided on 2026-11-22 that the website is a generated view of the data
 - `site-page-selection-views`: Views that decide which pages exist and which records a page lists, and views for foreign-key chains.
 - `site-public-counts`: Views that define every public count from stored data.
 - `person-annotation-attachment`: Annotations about a person are attached to the licensing authority and keep the person link.
+- `site-page-views`: Materialized page and list views shaped to each page, the state map view, `site_page`, the state of each location from the parent chain, and stored legacy redirects.
+- `annotation-page-attachment`: Annotation attachment columns, display-safe values, type labels, and the `site_annotation` view.
 - `site-build-projections`: `build_page_payload`, `location_path_closure` and `agency_zip_index` as database relations and their refresh function.
 
 ### Modified Capabilities

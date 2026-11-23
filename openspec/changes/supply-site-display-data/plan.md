@@ -75,3 +75,13 @@ Note: this plan was written by hand from `tasks.md`; the Superpowers `writing-pl
 - [ ] **Step 2:** Confirm no other worktree is mid-verification; run `npm run supabase:reset` and `npm run cli -- data reset --no-acquire`.
 - [ ] **Step 3:** Run the integrity assertions in task 8.3.
 - [ ] **Step 4:** Run `npm run validate`; commit; run `git town sync`.
+
+## Task 9: Page-shaped views (tasks 9.1-9.15)
+
+- [ ] **Step 1:** Record the owner's approval and answers to open questions 16 to 21 in `design.md`.
+- [ ] **Step 2:** Add `location_path.segment` (task 9.2): failing SQL test, migration, Census source change, regenerated envelope types.
+- [ ] **Step 3:** For each page type in the order of tasks 9.3 to 9.12: write failing SQL tests from `specs/site-page-views/spec.md`, write the migration with its indexes, add the views to `refresh_site_projections()`, make the tests pass, time one lookup by `path`, commit, and tell the website which page type can switch.
+- [ ] **Step 4:** Add the annotation columns and `data_annotation_type` (task 9.11): failing tests per scenario in `specs/annotation-page-attachment/spec.md`, migration, producer changes, manual records.
+- [ ] **Step 5:** Run the one-time legacy redirect script (task 9.13); stop for owner review; store the reviewed pairs in `redirects.json`.
+- [ ] **Step 6:** After the website has switched every page type, drop the projection tables (task 9.14); record the full refresh time.
+- [ ] **Step 7:** Run task 9.15; commit; run `git town sync`.
