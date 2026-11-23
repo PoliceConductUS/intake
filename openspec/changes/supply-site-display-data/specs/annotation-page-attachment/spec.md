@@ -19,9 +19,19 @@
 - **WHEN** intake writes an annotation on an `AuthorityLicense` row
 - **THEN** it sets only `licensing_authority_id`
 
+#### Scenario: News coverage annotation
+
+- **WHEN** intake writes an annotation on a `CoverageLink` row whose `coverage_link_agency_personnel` rows name two people
+- **THEN** it sets `personnel_id` to the person of the row with the lowest `id`, and links each person and agency once
+
+#### Scenario: News coverage without linked people
+
+- **WHEN** intake writes an annotation on a `CoverageLink` row with no `coverage_link_agency_personnel` rows
+- **THEN** generation fails and says the annotation has no page attachment
+
 #### Scenario: Subject kind without a rule
 
-- **WHEN** intake writes an annotation on a `CoverageLink` row
+- **WHEN** intake writes an annotation on a subject kind with no attachment rule
 - **THEN** generation fails and names the kind
 
 #### Scenario: Two attachments
@@ -69,7 +79,7 @@ The manual-records table `data_annotation_type` SHALL hold each annotation `type
 #### Scenario: Error label
 
 - **WHEN** an annotation has type `error`
-- **THEN** `site_annotation` returns the label stored for `error`, and the site holds no type-to-label map
+- **THEN** `site_annotation` returns the label stored for `error` (`Data error`, owner 2026-11-22), and the site holds no type-to-label map
 
 ### Requirement: One view gives every annotation its page
 

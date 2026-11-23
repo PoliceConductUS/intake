@@ -187,25 +187,29 @@ The rule intake applies, for every annotation, from the records its subject conn
 
 Exactly one attachment column is set (`data_annotation_one_attachment` allows at most one; `assert_site_projections()` raises on an active annotation with none until the later migration in task 9.11a makes it a check). `subject_kind` and `subject_id` stay the audit link to the record the finding is about. The connected records per subject kind:
 
-| Subject kind                                                | Connected records (link order)            | Attaches to         |
-| ----------------------------------------------------------- | ----------------------------------------- | ------------------- |
-| `Personnel`, `PersonnelPhoto`                               | person                                    | person              |
-| `PersonnelEducation`                                        | person `#personnel-education-records`     | person              |
-| `AgencyPersonnel`                                           | person `#agency-assignments`, agency      | person              |
-| `ArrestProfile`, `CoverageLinkAgencyPersonnel`              | person, agency (of the assignment)        | person              |
-| `Discipline`                                                | person `#discipline`, licensing authority | person              |
-| `DisciplineAgencyPersonnel`                                 | person `#discipline`, agency              | person              |
-| `License`, `LicenseAction`                                  | person, licensing authority               | person              |
-| `CivilCasePersonnel`                                        | person, agency, civil case                | person              |
-| `ReviewPersonnel`                                           | person, agency, report                    | person              |
-| `Agency`, `AgencyPhoneNumber`, `AgencyArrestProfile`        | agency                                    | agency              |
-| `CivilCase`, `CivilCaseLink`                                | civil case                                | civil case          |
-| `Review`, `ReviewLink`                                      | report                                    | report              |
-| `LocationPath`, `LocationPathGeometry`, `LocationPathAlias` | location                                  | location            |
-| `FederalAgency`                                             | federal agency                            | federal agency      |
-| `LicensingAuthority`, `AuthorityLicense`                    | licensing authority                       | licensing authority |
+| Subject kind                                                | Connected records (link order)                                                 | Attaches to         |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------- |
+| `Personnel`, `PersonnelPhoto`                               | person                                                                         | person              |
+| `PersonnelEducation`                                        | person `#personnel-education-records`                                          | person              |
+| `AgencyPersonnel`                                           | person `#agency-assignments`, agency                                           | person              |
+| `ArrestProfile`, `CoverageLinkAgencyPersonnel`              | person, agency (of the assignment)                                             | person              |
+| `Discipline`                                                | person `#discipline`, licensing authority                                      | person              |
+| `DisciplineAgencyPersonnel`                                 | person `#discipline`, agency                                                   | person              |
+| `License`, `LicenseAction`                                  | person, licensing authority                                                    | person              |
+| `CivilCasePersonnel`                                        | person, agency, civil case                                                     | person              |
+| `ReviewPersonnel`                                           | person, agency, report                                                         | person              |
+| `Agency`, `AgencyPhoneNumber`, `AgencyArrestProfile`        | agency                                                                         | agency              |
+| `CivilCase`, `CivilCaseLink`                                | civil case                                                                     | civil case          |
+| `Review`, `ReviewLink`                                      | report                                                                         | report              |
+| `LocationPath`, `LocationPathGeometry`, `LocationPathAlias` | location                                                                       | location            |
+| `FederalAgency`                                             | federal agency                                                                 | federal agency      |
+| `LicensingAuthority`, `AuthorityLicense`                    | licensing authority                                                            | licensing authority |
+| `CoverageLink`, `CoverageHomepagePlacement`                 | each person, agency of its `coverage_link_agency_personnel` rows (by row `id`) | first person        |
+| `CoverageHomepageWindow`                                    | the above for each placement, by `position`                                    | first person        |
 
-Any other subject kind (today `CoverageLink`, `CoverageHomepageWindow`, `CoverageHomepagePlacement`) fails generation with "has no page attachment rule". The fragments are the existing section ids on the website's personnel page. A person without a personnel page (no `agency_personnel` row) still gets `personnel_id`; `site_annotation.page_path` is then null and the annotation shows only on the full list.
+News coverage records (owner, 2026-11-22) follow the same order: a linked person, else a linked agency, else the licensing authority. A coverage record reaches people and agencies only through `coverage_link_agency_personnel`, so it always has a person when it has an agency, and the licensing authority (the person's or agency's state authority) is never reached. When a record links several people, the existing rule applies: the first linked person in link order gets the attachment and every person is a link. A record linked twice (two people at one agency, one person in two placements) is listed once. A coverage record with no linked people, or a window with no placements, fails generation with "has no page attachment". Intake reads the link rows through `findRowsByColumnsWithEmitted`: stored rows overlaid by rows written earlier in the same generation, so a coverage record created with its links in one generation finds them.
+
+Any other subject kind fails generation with "has no page attachment rule". The fragments are the existing section ids on the website's personnel page. A person without a personnel page (no `agency_personnel` row) still gets `personnel_id`; `site_annotation.page_path` is then null and the annotation shows only on the full list.
 
 ### Annotation read shape
 
@@ -414,7 +418,7 @@ Comparison with the current `build_page_payload` and website loader queries (tas
 
 - Same page sets: 1,830 location, 3,397 agency and 3 report pages, no path only on one side. `site_personnel_page` has 162,266 rows, the website's personnel route count. `site_personnel_listing` has the same 132,454 people as `personnel.ts`.
 - Same values: location agency counts, display names, parent paths, state names, child counts; every one-child shortcut (1,826 children); every place agency entry (name, address, staff, report and civil case counts); agency name, address, city, ZIP, area; report path, place, area, state names and date; every headline assignment, basis and end date against `site_personnel_headline_assignment`; federal branch, staff, report and civil case counts (11 agencies); agency `lastmod` (3,397); agency topic page counts; the state map agency counts.
-- Differences, all from rules the design changed: location `current_personnel_count` differs on 417 of 1,830 location pages because the view counts distinct people and the script summed agency counts (for example `/mn/` 11,517 to 10,797); location `report_count` differs on 2 pages (`/mn/` 1 to 2, `/mn/jackson-county/` 0 to 1) because the view counts reports within the location and the script counted only reports at places with an agency page. The report payload's agency name has no column yet (reviews.agency_id).
+- Differences, all from rules the design changed: location `current_personnel_count` differs on 417 of 1,830 location pages because the view counts distinct people and the script summed agency counts (for example `/mn/` 11,517 to 10,797); location `report_count` differs on 2 pages (`/mn/` 1 to 2, `/mn/jackson-county/` 0 to 1) because the view counts reports within the location and the script counted only reports at places with an agency page. Owner decision, 2026-11-22: location report counts include every report within the location, the view's rule (`site_location_count.report_count`). The report payload's agency name has no column yet (reviews.agency_id).
 
 ### Website follow-up per page type (cross-repo note, not intake tasks)
 

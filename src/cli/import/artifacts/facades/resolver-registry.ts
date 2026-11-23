@@ -150,12 +150,21 @@ function annotationSubjectResolver(
   ) as AnyResolver;
 }
 
+/** The annotation resolvers' backend: the entity backend plus the rows of a
+ * kind matching columns, including rows emitted earlier in this run. */
+export type AnnotationBackend = EntityFacadeBackend & {
+  findRowsByColumnsWithEmitted(
+    kind: string,
+    columnValues: Record<string, string>,
+  ): Promise<Row[]>;
+};
+
 // One attachment-and-links computation per annotation facade; every derived
 // column of the annotation reads it.
 const annotationPages = new WeakMap<object, Promise<AnnotationPage>>();
 
 function annotationPageFor(
-  context: ResolverContext<Row, EntityFacadeBackend>,
+  context: ResolverContext<Row, AnnotationBackend>,
 ): Promise<AnnotationPage> {
   const existing = annotationPages.get(context.facade);
   if (existing !== undefined) return existing;
@@ -166,16 +175,24 @@ function annotationPageFor(
       throw new Error(
         "Annotation requires a known subject kind and subject identity.",
       );
-    return annotationPage(kind, id, async (rowKind, rowId) => {
-      const rows = await context.backend.findRowsByColumns(rowKind, {
-        [identityColumnForKind(rowKind)]: rowId,
-      });
-      if (rows.length !== 1)
-        throw new Error(
-          `Annotation on ${kind} ${id}: expected one ${rowKind} ${rowId}, found ${rows.length}.`,
-        );
-      return rows[0]!;
-    });
+    return annotationPage(
+      kind,
+      id,
+      async (rowKind, rowId) => {
+        const rows = await context.backend.findRowsByColumns(rowKind, {
+          [identityColumnForKind(rowKind)]: rowId,
+        });
+        if (rows.length !== 1)
+          throw new Error(
+            `Annotation on ${kind} ${id}: expected one ${rowKind} ${rowId}, found ${rows.length}.`,
+          );
+        return rows[0]!;
+      },
+      (rowKind, column, value) =>
+        context.backend.findRowsByColumnsWithEmitted(rowKind, {
+          [column]: value,
+        }),
+    );
   })();
   annotationPages.set(context.facade, page);
   return page;
@@ -189,12 +206,12 @@ function annotationPageFor(
 function derivedAnnotationColumn(
   column: string,
   derive: (
-    context: ResolverContext<Row, EntityFacadeBackend>,
+    context: ResolverContext<Row, AnnotationBackend>,
   ) => Promise<unknown>,
 ): [string, AnyResolver] {
   return [
     column,
-    new Resolver(async (context: ResolverContext<Row, EntityFacadeBackend>) => {
+    new Resolver(async (context: ResolverContext<Row, AnnotationBackend>) => {
       const supplied = context.facade.raw(column);
       return supplied === undefined ? derive(context) : supplied;
     }) as AnyResolver,
@@ -202,7 +219,7 @@ function derivedAnnotationColumn(
 }
 
 async function shownAnnotationValue(
-  context: ResolverContext<Row, EntityFacadeBackend>,
+  context: ResolverContext<Row, AnnotationBackend>,
   valueColumn: "value" | "replacement_value",
 ): Promise<string | null> {
   const field = valueAsString(await context.facade.value("field"));

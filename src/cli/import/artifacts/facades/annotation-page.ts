@@ -9,6 +9,13 @@ type Row = Record<string, unknown>;
 /** Reads one row of a kind by its primary key; fails when it is missing. */
 export type AnnotationRowReader = (kind: string, id: string) => Promise<Row>;
 
+/** Reads every row of a kind whose column holds the value (none is an empty list). */
+export type AnnotationRowsReader = (
+  kind: string,
+  column: string,
+  value: string,
+) => Promise<Row[]>;
+
 export const ANNOTATION_ATTACHMENT_COLUMNS = [
   "personnel_id",
   "agency_id",
@@ -232,6 +239,84 @@ async function licenseTargets(
   ];
 }
 
+// The same record linked twice (two people at one agency, one person in two
+// placements) is listed once, at its first position.
+function uniqueTargets(targets: Target[]): Target[] {
+  const seen = new Set<string>();
+  return targets.filter((target) => {
+    const key = `${target.column}\n${target.id}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+// A news coverage record connects the people (and their agencies) its
+// assignment links name, in the order of the link rows' ids.
+async function coverageLinkTargets(
+  read: AnnotationRowReader,
+  readAll: AnnotationRowsReader,
+  coverageLinkId: string,
+): Promise<Target[]> {
+  const links = await readAll(
+    "CoverageLinkAgencyPersonnel",
+    "coverage_link_id",
+    coverageLinkId,
+  );
+  const ordered = links
+    .map((link) => ({
+      id: text(link, "id", "CoverageLinkAgencyPersonnel"),
+      agencyPersonnelId: text(
+        link,
+        "agency_personnel_id",
+        "CoverageLinkAgencyPersonnel",
+      ),
+    }))
+    .sort((left, right) =>
+      left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
+    );
+  const targets: Target[] = [];
+  for (const link of ordered)
+    targets.push(...(await assignmentTargets(read, link.agencyPersonnelId)));
+  return uniqueTargets(targets);
+}
+
+// A homepage window connects the records of its placements, in position order.
+async function coverageWindowTargets(
+  read: AnnotationRowReader,
+  readAll: AnnotationRowsReader,
+  windowId: string,
+): Promise<Target[]> {
+  const placements = await readAll(
+    "CoverageHomepagePlacement",
+    "window_id",
+    windowId,
+  );
+  const ordered = placements
+    .map((placement) => {
+      const position = placement.position;
+      if (typeof position !== "number")
+        throw new Error(
+          "Annotation link: CoverageHomepagePlacement requires position.",
+        );
+      return {
+        position,
+        coverageLinkId: text(
+          placement,
+          "coverage_link_id",
+          "CoverageHomepagePlacement",
+        ),
+      };
+    })
+    .sort((left, right) => left.position - right.position);
+  const targets: Target[] = [];
+  for (const placement of ordered)
+    targets.push(
+      ...(await coverageLinkTargets(read, readAll, placement.coverageLinkId)),
+    );
+  return uniqueTargets(targets);
+}
+
 // The records an annotation's subject connects, in display order. Fragments
 // name the section of the person page that shows a record without a page of
 // its own.
@@ -239,6 +324,7 @@ async function subjectTargets(
   kind: string,
   id: string,
   read: AnnotationRowReader,
+  readAll: AnnotationRowsReader,
 ): Promise<Target[]> {
   switch (kind) {
     case "Personnel":
@@ -357,6 +443,16 @@ async function subjectTargets(
           text(await read(kind, id), "licensing_authority_id", kind),
         ),
       ];
+    case "CoverageLink":
+      return coverageLinkTargets(read, readAll, id);
+    case "CoverageHomepagePlacement":
+      return coverageLinkTargets(
+        read,
+        readAll,
+        text(await read(kind, id), "coverage_link_id", kind),
+      );
+    case "CoverageHomepageWindow":
+      return coverageWindowTargets(read, readAll, id);
     default:
       throw new Error(
         `Annotation subject kind ${kind} has no page attachment rule.`,
@@ -369,8 +465,9 @@ export async function annotationPage(
   kind: string,
   id: string,
   read: AnnotationRowReader,
+  readAll: AnnotationRowsReader,
 ): Promise<AnnotationPage> {
-  const targets = await subjectTargets(kind, id, read);
+  const targets = await subjectTargets(kind, id, read, readAll);
   const attached = ATTACHMENT_PRIORITY.map((column) =>
     targets.find((target) => target.column === column),
   ).find((target) => target !== undefined);

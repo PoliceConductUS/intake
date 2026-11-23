@@ -19,11 +19,9 @@ import {
   type PropertyCache,
   type ForeignKeyIdSource,
 } from "./resolver-kit.js";
-import type {
-  EntityFacade,
-  EntityFacadeBackend,
-} from "./facades/entity-facade.js";
+import type { EntityFacade } from "./facades/entity-facade.js";
 import {
+  type AnnotationBackend,
   buildFacadeForKind,
   identityColumnForKind,
   urlOwnershipForKind,
@@ -160,7 +158,7 @@ type RegistryFacade = EntityFacade<
 // The single backend the resolver builder injects: the generic facade backend
 // plus the slug and agency-geocode capabilities the Personnel/Agency resolvers
 // reach through. Inert for kinds whose resolvers never call them.
-type UnifiedFacadeBackend = EntityFacadeBackend & {
+type UnifiedFacadeBackend = AnnotationBackend & {
   getLocationPathById: AgencyLocationPathLookup;
   ensureUniqueSlug(input: {
     kind: string;
@@ -363,6 +361,30 @@ export class DataContext {
         )
           return Promise.resolve([emitted]);
         return this.rows.getRowsByColumns(targetKind, columnValues);
+      },
+      findRowsByColumnsWithEmitted: async (targetKind, columnValues) => {
+        // Stored rows overlaid by this run's emitted rows: an emitted row
+        // replaces its stored version and is kept only when it still matches.
+        const identityColumn = identityColumnForKind(targetKind);
+        const rows = new Map<string, Record<string, unknown>>();
+        for (const row of await this.rows.getRowsByColumns(
+          targetKind,
+          columnValues,
+        ))
+          rows.set(String(row[identityColumn]), row);
+        const prefix = DataContext.emittedKey(targetKind, "");
+        for (const [key, row] of this.emittedRows) {
+          if (!key.startsWith(prefix)) continue;
+          const identity = key.slice(prefix.length);
+          if (
+            Object.entries(columnValues).every(
+              ([column, value]) => row[column] === value,
+            )
+          )
+            rows.set(identity, row);
+          else rows.delete(identity);
+        }
+        return [...rows.values()];
       },
       ensureUniqueSlug: (input) =>
         this.slugs.ensureUnique(input.kind, {

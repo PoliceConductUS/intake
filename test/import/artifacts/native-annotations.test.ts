@@ -2,6 +2,7 @@ import { EmptyDatabaseClient } from "../../cli/database/empty-database-client.js
 import { expect, test } from "vitest";
 import { DataContext } from "../../../src/cli/import/artifacts/data-context.js";
 import { INTAKE_API_VERSION } from "../../../src/shared/io/import-types.js";
+import { fakeSourceNameLedger } from "../../cli/state/fake-source-name-ledger.js";
 
 test("manual native annotations use normal facade and mutation registry", async () => {
   const context = new DataContext({
@@ -326,4 +327,83 @@ test("a later converging source can clear a finding created earlier in the same 
       (item) => "kind" in item && item.kind.startsWith("DataAnnotation"),
     ),
   ).toEqual([]);
+});
+
+test("an annotation on news coverage created in the same generation attaches to the person its new link names", async () => {
+  // The assignment, person, agency and place are stored; the coverage record
+  // and its link to the assignment are created in this generation.
+  const rowsByTable: Record<string, Record<string, unknown>[]> = {
+    agency_personnel: [
+      { id: "assignment", agency_id: "agency", personnel_id: "person" },
+    ],
+    personnel: [{ id: "person", slug: "person", first_name: "Pat" }],
+    agency: [
+      { id: "agency", name: "Agency", slug: "agency", location_path_id: "lp" },
+    ],
+    location_path: [{ location_path_id: "lp", path: "/zz/area/place/" }],
+  };
+  class StoredClient extends EmptyDatabaseClient {
+    async query(text = "") {
+      const table = /from public\.(\w+)/.exec(text)?.[1];
+      return { rows: table === undefined ? [] : (rowsByTable[table] ?? []) };
+    }
+  }
+  const ctx = new DataContext({
+    commandName: "coverage-annotation",
+    client: new StoredClient(),
+    ledger: fakeSourceNameLedger({
+      agencyPersonnel: { assignment: { canonicalId: "assignment" } },
+    }),
+  });
+  ctx.facadeFromSource("CoverageLink", {
+    apiVersion: INTAKE_API_VERSION,
+    namespace: "news",
+    name: "story",
+    spec: {
+      url: "https://example.org/story",
+      normalized_url: "https://example.org/story",
+      title: "Story",
+    },
+  });
+  ctx.facadeFromSource("CoverageLinkAgencyPersonnel", {
+    apiVersion: INTAKE_API_VERSION,
+    namespace: "news",
+    name: "story-assignment",
+    spec: {
+      coverage_link_id: "story",
+      agency_personnel_id: "assignment",
+      confidence: "documented",
+    },
+  });
+  ctx.facadeFromSource("DataAnnotation", {
+    apiVersion: INTAKE_API_VERSION,
+    namespace: "news",
+    name: "finding",
+    spec: {
+      subject_kind: "CoverageLink",
+      subject_id: "story",
+      producer_namespace: "news",
+      producer_record_id: "finding",
+      source_namespace: "news",
+      source_record_id: "story",
+      type: "warning",
+      field: "title",
+      value: "Story",
+      message: "Check the supplied title",
+      status: "active",
+    },
+  });
+  const annotation = (await ctx.toMutations()).find(
+    (item) => item.kind === "DataAnnotationCreate",
+  );
+  expect(annotation?.spec).toMatchObject({
+    subject_kind: "CoverageLink",
+    personnel_id: "person",
+    agency_id: null,
+    licensing_authority_id: null,
+    links: [
+      { url: "/personnel/person/", label: "Pat" },
+      { url: "/zz/area/place/agency/", label: "Agency" },
+    ],
+  });
 });
