@@ -6,7 +6,7 @@
 
 ## 2. Officer identity
 
-- [ ] 2.1 Write the migration for `agency_personnel.employee_number` with a unique index on `(agency_id, employee_number)`, and for `agency_personnel_badge`; regenerate envelope types.
+- [ ] 2.1 Write the migration for `agency_personnel.employee_number` with a unique index on `(agency_id, employee_number)`; regenerate envelope types. `agency_personnel.badge_number` already exists and needs no migration.
 
 ## 3. Arrest tables
 
@@ -26,7 +26,7 @@
 ## 5. Employee and badge number requests
 
 - [ ] 5.1 Send the Irving PD Public Information Act request for the sworn employee roster with employee numbers and badge numbers, using the draft [`docs/requests/irving-pd-employee-roster-2026-11-22-v1.txt`](../../../docs/requests/irving-pd-employee-roster-2026-11-22-v1.txt), after the owner fills in the requester fields and approves sending it; record the send date and request number.
-- [ ] 5.2 When Irving responds, import the roster as a source (or as manual records if the response is not machine-readable) that maps each entry to an existing Irving `agency_personnel` row through the name resolver and fills `employee_number` and `agency_personnel_badge` (with badge history when given), failing on duplicate numbers, overlapping badge dates and unmatched names, with tests.
+- [ ] 5.2 When Irving responds, import the roster as a source (or as manual records if the response is not machine-readable) that maps each entry to an existing Irving `agency_personnel` row through the name resolver and fills `employee_number` and the current `badge_number` (no badge history is stored), failing on duplicate employee numbers and unmatched names, with tests.
 - [ ] 5.3 For each other agency whose arrest data names officers only by internal number, draft the same request under `docs/requests/`, send it after owner approval, and import the response as in 5.2.
 
 ## 6. Richer CSV
@@ -38,5 +38,5 @@
 
 - [ ] 7.1 Run `npx openspec validate import-arrest-records` and `npm run openspec:validate`.
 - [ ] 7.2 Run `npm run supabase:reset` to apply every migration, then `data reset` on a database with no other rebuild in progress.
-- [ ] 7.3 Assert integrity: every `arrest.agency_id`, `arrest.police_beat_id`, `arrest_agency_personnel.arrest_id` and `agency_personnel_id`, `arrest_charge.arrest_id`, `arrest_offense.arrest_id` and `agency_personnel_badge.agency_personnel_id` resolves; every `arrest_agency_personnel` row's assignment is at the arrest's agency; every source field has a column; a repeated generate gives an empty diff.
+- [ ] 7.3 Assert integrity: every `arrest.agency_id`, `arrest.police_beat_id`, `arrest_agency_personnel.arrest_id` and `agency_personnel_id`, `arrest_charge.arrest_id` and `arrest_offense.arrest_id` resolves; every `arrest_agency_personnel` row's assignment is at the arrest's agency; every source field has a column; a repeated generate gives an empty diff.
 - [ ] 7.4 Run `npm run validate`.

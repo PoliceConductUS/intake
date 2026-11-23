@@ -20,7 +20,7 @@ Note: this plan was written by hand from `tasks.md`; the Superpowers `writing-pl
 
 ## Task 2: Officer identity (task 2.1)
 
-- [ ] **Step 1:** Write failing SQL tests for the unique index and `agency_personnel_badge`; write the migration; regenerate types.
+- [ ] **Step 1:** Write failing SQL tests for the `employee_number` unique index; write the migration; regenerate types.
 
 ## Task 3: Arrest tables (tasks 3.1-3.7)
 
@@ -38,7 +38,7 @@ Note: this plan was written by hand from `tasks.md`; the Superpowers `writing-pl
 ## Task 5: Employee and badge number requests (tasks 5.1-5.3)
 
 - [ ] **Step 1:** Owner fills in and approves `docs/requests/irving-pd-employee-roster-2026-11-22-v1.txt`; send it; record the date.
-- [ ] **Step 2:** When the roster arrives, write failing tests for the roster source (numbers, badge history, duplicates, unmatched names); implement; commit.
+- [ ] **Step 2:** When the roster arrives, write failing tests for the roster source (employee numbers, current badge numbers, duplicates, unmatched names); implement; commit.
 - [ ] **Step 3:** Draft and send the same request to other agencies whose arrest data uses internal numbers.
 
 ## Task 6: Richer CSV (tasks 6.1-6.2)

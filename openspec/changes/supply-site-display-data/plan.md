@@ -42,6 +42,12 @@ Note: this plan was written by hand from `tasks.md`; the Superpowers `writing-pl
 - [ ] **Step 2:** Write failing tests for the code on each producer and for an unknown code.
 - [ ] **Step 3:** Implement; add messages; commit.
 
+## Task 4a: Annotations about a person (tasks 4a.1-4a.2)
+
+- [ ] **Step 1:** Write a failing SQL test: an annotation with a person subject kind and no `licensing_authority_id` is rejected.
+- [ ] **Step 2:** Write the migration; regenerate envelope types.
+- [ ] **Step 3:** Write failing producer tests; supply the authority in each producer; commit.
+
 ## Task 5: Text standardization (tasks 5.1-5.3)
 
 - [ ] **Step 1:** Write failing canonical-IO tests for `StandardValue`.
@@ -54,7 +60,7 @@ Note: this plan was written by hand from `tasks.md`; the Superpowers `writing-pl
 
 - [ ] **Step 1:** Record the website rule and count inventory in `design.md`.
 - [ ] **Step 2:** Write failing SQL tests per scenario in the selection and count specs.
-- [ ] **Step 3:** Write the view migration; make the tests pass.
+- [ ] **Step 3:** Write the view migration; make the tests pass. The five count views in `supabase/migrations/20261122000000_site_public_counts.sql` are done (task 6.3); this step covers task 6.3a.
 - [ ] **Step 4:** Run the comparison against current website counts; report differences; commit.
 
 ## Task 7: Build projections (tasks 7.1-7.3)

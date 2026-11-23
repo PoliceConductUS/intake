@@ -27,7 +27,7 @@ Source files and record values are not committed to the repository, as today. Te
 - Link each booking to its agency, and to each resolved arresting officer's `agency_personnel` row.
 - Replace the two aggregate tables with views over the rows.
 - Record every arrest with no resolved officer as an annotation.
-- Store officer employee numbers and badge numbers so the richer CSV and other agencies' arrest data can name officers.
+- Store officer employee numbers and current badge numbers so the richer CSV and other agencies' arrest data can name officers.
 - Keep the website build to the arrest counts and breakdowns it already shows.
 
 **Non-Goals:**
@@ -89,9 +89,9 @@ The source resolves each `Arrest_Officer_Name` with the existing name resolver (
 
 `agency_personnel.employee_number` (`text null`, unique with `agency_id`) holds the agency's internal employee number, the identifier the richer CSV uses for the arresting officer. A column is enough because an employee number belongs to one assignment at one agency. If Irving reports that numbers were reassigned, a dated mapping table replaces the column (open question 2).
 
-`agency_personnel_badge` holds badge numbers: `id`, `agency_personnel_id` (`not null`), `badge_number` (`text not null`), `start_date` (`date null`), `end_date` (`date null`), `data_source_values`. One row per badge number an `agency_personnel` row held. When the roster gives badge history, each earlier badge is its own row with its dates; when it gives only the current badge, there is one row with null dates. A table, not a column on `agency_personnel`, so the current badge and earlier badges have one representation. Two rows at one agency with the same badge number and overlapping dates fail generation.
+`agency_personnel.badge_number` holds the assignment's current badge number. Owner decision, 2026-11-22: "agency_personnel.badge_number is the current badge - historical badge numbers are not needed yet". The column already exists: it was created as `agency_officers.badge_number` (`text null`) in `supabase/migrations/20250303232529_initial_schema.sql`, gained the not-blank check `agency_officers_badge_number_not_blank` in `20260702000000_intake_schema_envelope_sync.sql`, and was kept when `20260825000100_rename_officer_to_personnel.sql` renamed the table to `agency_personnel`. This change adds no badge migration. Intake stores no earlier badge numbers; when a roster lists badge history, only the current badge is stored.
 
-Both are filled only by a source for the roster Irving returns to the Public Information Act request in `docs/requests/irving-pd-employee-roster-2026-11-22-v1.txt`, which asks for names, employee numbers, badge numbers with history, ranks, hire and separation dates, reassignments and a data dictionary. The roster source maps each roster entry to an existing Irving `agency_personnel` row through the name resolver and fails on duplicates and unmatched names. Intake never infers a number. Once filled, the richer CSV resolves officers by `(agency_id, employee_number)`. The same request goes to every other agency whose arrest data names officers only by internal number.
+Both are filled only by a source for the roster Irving returns to the Public Information Act request in `docs/requests/irving-pd-employee-roster-2026-11-22-v1.txt`, which asks for names, employee numbers, badge numbers with history, ranks, hire and separation dates, reassignments and a data dictionary. The request may still ask for badge history, but intake stores only the current badge. The roster source maps each roster entry to an existing Irving `agency_personnel` row through the name resolver and fails on duplicate employee numbers and unmatched names. Intake never infers a number. Once filled, the richer CSV resolves officers by `(agency_id, employee_number)`. The same request goes to every other agency whose arrest data names officers only by internal number.
 
 ### D3. Annotations
 
@@ -142,7 +142,7 @@ The website build reads arrest data only through `arrest_coverage`, `arrest_brea
 
 ## Migration Plan
 
-1. Migrations: new tables, `employee_number` and `agency_personnel_badge`; views; drop `arrest_profile` and `agency_arrest_profile`.
+1. Migrations: new tables and `employee_number`; views; drop `arrest_profile` and `agency_arrest_profile`.
 2. Update the source; add `HouseholdIncomeBand` manual records.
 3. `data reset` on a database with no other rebuild in progress; integrity checks.
 4. Rebuild production; deploy the website follow-up.

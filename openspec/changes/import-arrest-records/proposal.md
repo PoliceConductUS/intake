@@ -7,7 +7,7 @@ A second owner decision the same day: "arrests - import everything". Arrest reco
 ## What Changes
 
 - **New tables:** `arrest` (one row per booking, with every field the source supplies, including the arrestee's name, home address, home ZIP, home coordinates, booking number and arrest location), `arrest_charge` (one row per source charge row), `arrest_offense` (one row per source offense row), `arrest_agency_personnel` (one row per resolved arresting officer of a booking), `police_beat` (official beat polygons), `census_tract_household_income` (ACS income per tract) and `household_income_band` (manual records: band labels and limits).
-- **Officer identity:** `agency_personnel.employee_number`, unique per agency, and `agency_personnel_badge` (one row per badge number an `agency_personnel` row held, with dates when the source gives them). Both are filled from the roster Irving returns to a Public Information Act request (draft: `docs/requests/irving-pd-employee-roster-2026-11-22-v1.txt`). Sending that request, importing the response, and repeating the request for other agencies whose arrest data uses internal numbers are tasks.
+- **Officer identity:** a new column `agency_personnel.employee_number`, unique per agency, and the existing column `agency_personnel.badge_number`, which holds the current badge only. Owner decision, 2026-11-22: "agency_personnel.badge_number is the current badge - historical badge numbers are not needed yet". Both are filled from the roster Irving returns to a Public Information Act request (draft: `docs/requests/irving-pd-employee-roster-2026-11-22-v1.txt`). Sending that request, importing the response, and repeating the request for other agencies whose arrest data uses internal numbers are tasks.
 - **Annotations:** an arrest with no resolved officer gets an annotation; a booking with no linked charge row gets an annotation. They replace the JSON `dataQualityFindings`.
 - **Views replace the aggregate tables:** `arrest_coverage` and `arrest_breakdown` give the same measures per agency and per `agency_personnel`. **BREAKING:** `arrest_profile` and `agency_arrest_profile` are dropped.
 - **Website boundary:** the website build reads only the counts and breakdowns the site already shows. Publishing any other arrest-record field needs a new OpenSpec change.
@@ -26,7 +26,7 @@ A second owner decision the same day: "arrests - import everything". Arrest reco
 
 ## Impact
 
-- **Supabase migrations:** the new tables, the `agency_personnel.employee_number` column and unique index, `agency_personnel_badge`, the views, and dropping `arrest_profile` and `agency_arrest_profile`.
+- **Supabase migrations:** the new tables, the `agency_personnel.employee_number` column and unique index (no migration for `agency_personnel.badge_number`, which already exists), the views, and dropping `arrest_profile` and `agency_arrest_profile`.
 - **Intake sources:** `sources/gov/irvingtx/arrests/` produces the new kinds. A source for the employee and badge roster is added when the roster arrives. The manual source handles `HouseholdIncomeBand`.
 - **Generated contracts:** envelope types regenerated; `ArrestProfiles` and `AgencyArrestProfiles` removed.
 - **Data reset:** required. The new rows are produced by regenerating the source.

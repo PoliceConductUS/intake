@@ -28,6 +28,11 @@
 - [ ] 4.2 Make every annotation producer report its finding code as the message code, and fail on a code with no message, with tests.
 - [ ] 4.3 Add the messages for `standardized_text`, `excluded_duplicate`, `excluded_record`, `administrative_correction` and every existing finding code, in plain English with no IDs or slugs.
 
+## 4a. Annotations about a person
+
+- [ ] 4a.1 Write the migration for `data_annotation.licensing_authority_id` (`text null references licensing_authority(id)`) with a check that it is set for every person subject kind in `design.md` D11; regenerate envelope types.
+- [ ] 4a.2 Make every producer of an annotation about a person supply the licensing authority in the annotation envelope, keeping `subject_kind` and `subject_id` on the person record, with tests per scenario in `specs/person-annotation-attachment/spec.md`.
+
 ## 5. Text standardization
 
 - [ ] 5.1 Add the `StandardValue` manual kind with canonical IO and tests.
@@ -38,7 +43,9 @@
 
 - [ ] 6.1 Read the website (read-only) and list every page-selection rule and every public count it shows, including the civil case page rule and the licensing-authority page counts; record the list in `design.md`.
 - [ ] 6.2 Write the migration for the `site_*` page-selection and chain views, with SQL tests per scenario.
-- [ ] 6.3 Write the migration for the `site_*` count views, with SQL tests per scenario, including the civil-case scope rules.
+- [x] 6.3 Write the migration for the count views `site_agency_personnel_employment`, `site_agency_count`, `site_federal_agency_count`, `site_personnel_state_count` and `site_personnel_count`: done in `supabase/migrations/20261122000000_site_public_counts.sql`.
+- [ ] 6.3a Write the migration for the remaining count views and columns in `design.md` D8 ("Still to do": `site_location_count`, `site_licensing_authority_count`, and the report, civil-case and discipline columns), with SQL tests per scenario, including the civil-case scope rules.
+- [ ] 6.3b Get the owner's decision on the agency current count (`current_assignment_count`, today, or `current_personnel_count`; `design.md` open question 14) and record it in `design.md`.
 - [ ] 6.4 Compare each new count with the website's current count on a copy of the current data; report every difference to the owner before release.
 
 ## 7. Build projections
@@ -51,5 +58,5 @@
 
 - [ ] 8.1 Run `npx openspec validate supply-site-display-data` and `npm run openspec:validate`.
 - [ ] 8.2 Run `npm run supabase:reset` to apply every migration, then `data reset` on a database with no other rebuild in progress.
-- [ ] 8.3 Assert integrity: every `reviews.agency_id`, `license_action.license_action_type_id`, `license_action_text.license_action_type_id`, `location_path.administrative_area_kind_id` and `data_annotation.message_code` resolves; no `NOT NULL` column is null; every annotation's subject exists; existing record IDs and slugs are unchanged.
+- [ ] 8.3 Assert integrity: every `reviews.agency_id`, `license_action.license_action_type_id`, `license_action_text.license_action_type_id`, `location_path.administrative_area_kind_id`, `data_annotation.message_code` and `data_annotation.licensing_authority_id` resolves; every annotation about a person has a `licensing_authority_id`; no `NOT NULL` column is null; every annotation's subject exists; existing record IDs and slugs are unchanged.
 - [ ] 8.4 Run `npm run validate`.

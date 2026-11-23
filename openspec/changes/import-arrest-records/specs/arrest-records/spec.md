@@ -76,17 +76,12 @@ An arrest with no officer name SHALL get an annotation with code `arrest_officer
 
 ### Requirement: Employee and badge numbers identify officers when supplied
 
-`agency_personnel.employee_number` SHALL hold an agency's internal employee number, unique within the agency. `agency_personnel_badge` SHALL hold one row per badge number an `agency_personnel` row held, with start and end dates when the source gives them. Both SHALL be filled only from a source that maps numbers to named personnel. Intake SHALL NOT infer a number.
+`agency_personnel.employee_number` SHALL hold an agency's internal employee number, unique within the agency. `agency_personnel.badge_number` SHALL hold the assignment's current badge number only. Intake SHALL NOT store earlier badge numbers. Both SHALL be filled only from a source that maps numbers to named personnel. Intake SHALL NOT infer a number.
 
 #### Scenario: Roster arrives
 
 - **WHEN** a roster source maps employee number 1234 and badge number 567 to a named Irving officer
-- **THEN** that officer's Irving `agency_personnel` row holds `employee_number` 1234 and has an `agency_personnel_badge` row with `badge_number` 567
-
-#### Scenario: Badge history
-
-- **WHEN** the roster lists an earlier badge number with the dates it was used
-- **THEN** the officer has one `agency_personnel_badge` row per badge number, each with its dates
+- **THEN** that officer's Irving `agency_personnel` row holds `employee_number` 1234 and `badge_number` 567
 
 #### Scenario: Duplicate number
 

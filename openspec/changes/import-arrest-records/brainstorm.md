@@ -14,7 +14,7 @@ The new design imports the records themselves:
 - `arrest_offense`: one row per source offense row.
 - `police_beat` and `census_tract_household_income`: the reference data the aggregates use today, now as rows.
 - Views replace `arrest_profile` and `agency_arrest_profile`.
-- `agency_personnel.employee_number` and `agency_personnel_badge`, so the richer Irving CSV can name officers once Irving supplies a roster with employee and badge numbers.
+- `agency_personnel.employee_number` and the existing `agency_personnel.badge_number` (current badge only; owner decision 2026-11-22: "historical badge numbers are not needed yet"), so the richer Irving CSV can name officers once Irving supplies a roster with employee and badge numbers.
 
 A later owner decision the same day replaced an earlier plan to leave out arrestee names and home addresses: "arrests - import everything - the database is not on the internet, the site will not include that information when building ... the data is already public by law and by definition ... it is up to the source to never expose non-public data during its work." Every field of the public release is imported. The website build reads only the counts and breakdowns it already shows; publishing more is a new change. The owner also asked to queue a records request for Irving's employee and badge numbers (`docs/requests/irving-pd-employee-roster-2026-11-22-v1.txt`).
 
