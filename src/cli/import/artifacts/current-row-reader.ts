@@ -56,6 +56,11 @@ export class CurrentRowReader {
     return this.rowByColumn(tableForKind(kind), id, identityColumn);
   }
 
+  /** Releases a memoized row the caller no longer reads from the database. */
+  forgetById(kind: string, id: string, identityColumn = "id"): void {
+    this.loader.forget({ tableName: tableForKind(kind), identityColumn, id });
+  }
+
   // The row whose business-key columns hold these values (an entity's unique
   // constraint). Not batched — a business-key lookup is per new record.
   getByColumns(

@@ -705,6 +705,9 @@ export class DataContext {
         DataContext.emittedKey(kind, identityValue),
         facade.inspectionValues,
       );
+      // existingRow now answers from the emitted row, so the stored row read
+      // for this mutation is no longer needed; keeping it doubles the heap.
+      this.rows.forgetById(kind, identityValue, identityColumnForKind(kind));
       const contribution = facade.contribution(resolved);
       // Only entity kinds carrying source evidence participate in automatic inspection.
       // Native annotations have no such column and do not recursively annotate themselves.
