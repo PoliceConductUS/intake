@@ -173,6 +173,12 @@ import {
   read as readDataAnnotations,
   write as writeDataAnnotations,
 } from "./DataAnnotations.js";
+import {
+  DataAnnotationTypes,
+  DataAnnotationTypeSpec,
+  read as readDataAnnotationTypes,
+  write as writeDataAnnotationTypes,
+} from "./DataAnnotationTypes.js";
 
 export const ARTIFACT_MODULES = {
   LocationPaths: {
@@ -348,5 +354,11 @@ export const ARTIFACT_MODULES = {
     recordSpec: DataAnnotationSpec,
     read: readDataAnnotations,
     write: writeDataAnnotations,
+  },
+  DataAnnotationTypes: {
+    envelope: DataAnnotationTypes,
+    recordSpec: DataAnnotationTypeSpec,
+    read: readDataAnnotationTypes,
+    write: writeDataAnnotationTypes,
   },
 } as const;

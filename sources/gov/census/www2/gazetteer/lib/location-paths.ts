@@ -35,6 +35,8 @@ export interface LocationPathRow {
   path: string;
   level: "state" | "administrative_area" | "place";
   display_name: string;
+  /** The USPS code of a state row; absent on other rows. */
+  state_code?: string;
   resolution_class?: "primary" | "county_subdivision" | "consolidated_city";
   parent_location_path_id: string | null;
   latitude: string;
@@ -315,6 +317,7 @@ function stateLocationPath(
     path: statePath,
     level: "state",
     display_name: state.NAME,
+    state_code: state.USPS,
     parent_location_path_id: null,
     latitude: state.INTPTLAT,
     longitude: state.INTPTLONG,

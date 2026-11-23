@@ -207,13 +207,15 @@ async function readGazetteerZip<T extends GazetteerRecordType>(
  * Maps the ported `LocationPathWithGeometryExtent` shape (which still
  * carries the original's `latitude`/`longitude` strings) onto exactly the
  * fields the target `LocationPathSpec` (`.strict()`) validates: the same
- * eleven descriptive fields, plus `centroid`/`bbox` in place of
+ * eleven descriptive fields (a state row also carries its state_code), plus `centroid`/`bbox` in place of
  * `latitude`/`longitude`.
  */
 function toLocationPathSpec(row: LocationPathWithGeometryExtent) {
   return {
     location_path_id: row.location_path_id,
-    ...(row.level === "state" ? { path: row.path } : {}),
+    ...(row.level === "state"
+      ? { path: row.path, state_code: row.state_code }
+      : {}),
     level: row.level,
     resolution_class: row.resolution_class ?? "primary",
     display_name: row.display_name,

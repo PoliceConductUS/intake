@@ -66,9 +66,13 @@ export const GENERATED_MIGRATION_VERSIONS = [
   "20261122000000",
   "20261122100000",
   "20261122200000",
+  "20261123000000",
+  "20261123100000",
+  "20261123200000",
+  "20261123300000",
 ] as const;
 export const GENERATED_MIGRATION_FINGERPRINT =
-  "409302fc42f015523012be4f7dfc83cbae037b8792a24386e086a5638a6bc4e6";
+  "97747db09d909f0c23c8fd7eac7a11cfeb45c48490819026633b7631519d2604";
 
 // Entity record kinds in database-dependency order (topological sort of the
 // foreign-key graph): a referenced entity precedes its referrer, so mutations
@@ -103,6 +107,7 @@ export const RECORD_KINDS_IN_DEPENDENCY_ORDER = [
   "ArrestProfile",
   "AgencyArrestProfile",
   "DataAnnotation",
+  "DataAnnotationType",
 ] as const;
 
 // Each record kind's foreign keys to other entity kinds (field → target kind),
@@ -176,6 +181,15 @@ export const FK_REFERENCES: Record<
     { field: "agency_personnel_id", targetKind: "AgencyPersonnel" },
   ],
   AgencyArrestProfile: [{ field: "agency_id", targetKind: "Agency" }],
+  DataAnnotation: [
+    { field: "agency_id", targetKind: "Agency" },
+    { field: "civil_case_id", targetKind: "CivilCase" },
+    { field: "federal_agency_id", targetKind: "FederalAgency" },
+    { field: "licensing_authority_id", targetKind: "LicensingAuthority" },
+    { field: "location_path_id", targetKind: "LocationPath" },
+    { field: "personnel_id", targetKind: "Personnel" },
+    { field: "review_id", targetKind: "Review" },
+  ],
 };
 
 // Each record kind that has a foreign key to itself (field name), e.g.
@@ -251,6 +265,7 @@ export const RESOLVED_PROPERTIES: Record<string, readonly string[]> = {
   ArrestProfile: ["id"],
   AgencyArrestProfile: ["id"],
   DataAnnotation: ["id"],
+  DataAnnotationType: ["type"],
 };
 
 export const JSON_REQUIRED_PROPERTIES: Record<string, readonly string[]> = {
@@ -283,6 +298,7 @@ export const JSON_REQUIRED_PROPERTIES: Record<string, readonly string[]> = {
   ArrestProfile: ["coverage", "breakdowns", "data_source_values"],
   AgencyArrestProfile: ["coverage", "breakdowns", "data_source_values"],
   DataAnnotation: ["value"],
+  DataAnnotationType: ["data_source_values"],
 };
 
 export const JSON_PROPERTIES: Record<string, readonly string[]> = {
@@ -318,7 +334,8 @@ export const JSON_PROPERTIES: Record<string, readonly string[]> = {
   ReviewLink: ["data_source_values"],
   ArrestProfile: ["coverage", "breakdowns", "data_source_values"],
   AgencyArrestProfile: ["coverage", "breakdowns", "data_source_values"],
-  DataAnnotation: ["value", "replacement_value", "evidence"],
+  DataAnnotation: ["value", "replacement_value", "evidence", "links"],
+  DataAnnotationType: ["data_source_values"],
 };
 
 export const DATE_PROPERTIES: Record<string, readonly string[]> = {
@@ -351,6 +368,7 @@ export const DATE_PROPERTIES: Record<string, readonly string[]> = {
   ArrestProfile: [],
   AgencyArrestProfile: [],
   DataAnnotation: [],
+  DataAnnotationType: [],
 };
 
 // Timestamp instants require value comparison across PostgreSQL and ISO string
@@ -390,6 +408,7 @@ export const TABLE_BY_KIND: Record<string, string> = {
   ArrestProfile: "public.arrest_profile",
   AgencyArrestProfile: "public.agency_arrest_profile",
   DataAnnotation: "public.data_annotation",
+  DataAnnotationType: "public.data_annotation_type",
 };
 
 // Every entity table the database layer may read or write — the compile-time
@@ -424,7 +443,8 @@ export type SupportedTableName =
   | "public.review_links"
   | "public.arrest_profile"
   | "public.agency_arrest_profile"
-  | "public.data_annotation";
+  | "public.data_annotation"
+  | "public.data_annotation_type";
 
 // Each record kind's primary-key column — the column a mutation keys existing
 // rows on (its identity in WHERE clauses). `id` for most tables; a natural key
@@ -459,6 +479,7 @@ export const PRIMARY_KEY_BY_KIND: Record<string, string> = {
   ArrestProfile: "id",
   AgencyArrestProfile: "id",
   DataAnnotation: "id",
+  DataAnnotationType: "type",
 };
 
 // Import artifact metadata per kind: kind/entityName naming plus the FK-derived
@@ -667,6 +688,21 @@ export const importTypeMetadata = {
     recordKind: "DataAnnotation",
     entityName: "dataAnnotations",
     targetTable: "public.data_annotation",
+    dependsOn: [
+      "LocationPaths",
+      "Agencies",
+      "Personnel",
+      "LicensingAuthorities",
+      "FederalAgencies",
+      "CivilCases",
+      "Reviews",
+    ],
+  },
+  DataAnnotationTypes: {
+    kind: "DataAnnotationTypes",
+    recordKind: "DataAnnotationType",
+    entityName: "dataAnnotationTypes",
+    targetTable: "public.data_annotation_type",
     dependsOn: [],
   },
 } as const;
@@ -705,6 +741,7 @@ export const IMPORT_ARTIFACT_KINDS = [
   "ArrestProfiles",
   "AgencyArrestProfiles",
   "DataAnnotations",
+  "DataAnnotationTypes",
 ] as const satisfies readonly ImportArtifactKind[];
 
 export type ImportEntityName =
@@ -763,6 +800,15 @@ export const LocationPathSpec = z
       .enum(["primary", "county_subdivision", "consolidated_city"])
       .default("primary"),
     data_source_values: SourceValues.optional(),
+    segment: z
+      .string()
+      .regex(/^[a-z0-9-]+$/)
+      .optional(),
+    state_code: z
+      .string()
+      .regex(/^[A-Z]{2}$/)
+      .nullable()
+      .optional(),
   })
   .strict()
   .superRefine((row, context) => {
@@ -1313,6 +1359,24 @@ export const DataAnnotationSpec = z
     message: nonEmptyString,
     evidence: z.array(z.record(z.string(), z.json())).nullable().optional(),
     status: z.enum(["active", "resolved"]),
+    personnel_id: z.string().nullable().optional(),
+    agency_id: z.string().nullable().optional(),
+    review_id: z.string().nullable().optional(),
+    civil_case_id: z.string().nullable().optional(),
+    location_path_id: z.string().nullable().optional(),
+    federal_agency_id: z.string().nullable().optional(),
+    licensing_authority_id: z.string().nullable().optional(),
+    links: z
+      .array(
+        z
+          .object({ url: z.string().nullable(), label: nonEmptyString })
+          .strict(),
+      )
+      .min(1)
+      .nullable()
+      .optional(),
+    display_value: nullableNonEmptyString.optional(),
+    display_replacement_value: nullableNonEmptyString.optional(),
   })
   .strict()
   .superRefine((row, context) => {
@@ -1328,4 +1392,16 @@ export const DataAnnotationSpec = z
 
 export const DataAnnotationCreateSpec = DataAnnotationSpec.safeExtend({
   id: z.string(),
+});
+
+export const DataAnnotationTypeSpec = z
+  .object({
+    type: nonEmptyString.optional(),
+    label: nonEmptyString,
+    data_source_values: SourceValues.optional(),
+  })
+  .strict();
+
+export const DataAnnotationTypeCreateSpec = DataAnnotationTypeSpec.safeExtend({
+  type: nonEmptyString,
 });

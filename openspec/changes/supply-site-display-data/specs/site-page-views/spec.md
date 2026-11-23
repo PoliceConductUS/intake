@@ -69,11 +69,20 @@ Rule and count views SHALL stay plain views and SHALL be the one definition of e
 - **WHEN** an agency page and a report page have the same `path`
 - **THEN** the refresh fails and names the path
 
-### Requirement: Legacy redirects are stored data
+### Requirement: Each page names the record it is about
 
-Legacy-to-current redirect pairs SHALL be generated once by an intake script from intake's own data, reviewed by the owner, and stored in intake's `redirects.json`. Neither `data generate` nor the website build SHALL generate them. No stored redirect SHALL have a source path that is a `site_page` path.
+`site_page` SHALL hold, for every page, `entity_kind` (the intake record kind) and `entity_id` (its primary key) of the record the page is about; a topic or report archive page SHALL name its scope's record. Intake SHALL store no redirect pairs; the website build derives redirects from the previous release's sitemap and pages using these columns (owner, 2026-11-22).
 
-#### Scenario: Old agency URL
+#### Scenario: Agency topic page
 
-- **WHEN** the reviewed list holds `/law-enforcement-agency/tx/irving-police-department/`
-- **THEN** `redirects.json` maps it to the agency's `site_page` path, and the build reads it without querying the database
+- **WHEN** the agency `/tx/dallas-county/irving/irving-police-department/` has a `reports/` topic page
+- **THEN** both `site_page` rows have `entity_kind` `Agency` and the agency's ID, with page types `agency` and `topic`
+
+### Requirement: The personnel page row holds the whole page container
+
+`site_personnel_page` SHALL hold everything the personnel page container renders: the path, the person's names, the deceased date and message, the headline assignment chosen by the headline rule inside the view (agency name and path, title, badge, employment status, end date, basis), the schema.org `worksFor` agency only when the basis is `Current`, the counts, the page title, the page description and `lastmod`.
+
+#### Scenario: Most recent agency in the title
+
+- **WHEN** every assignment of Pat One is `Former` and the latest ended at Agency B on 2015-01-01
+- **THEN** the row's `page_title` is `Personnel Pat One | Most recent: Agency B | PoliceConduct.org`, its description says the assignment ended Jan 1, 2015, and `works_for_agency_name` is null

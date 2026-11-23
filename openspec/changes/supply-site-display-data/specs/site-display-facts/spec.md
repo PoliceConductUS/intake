@@ -90,7 +90,7 @@ A `personnel` row with `deceased_on` or `deceased_source` SHALL hold a nonblank 
 
 ### Requirement: Location rows store their own URL segment
 
-Every `location_path` row SHALL hold `segment`, its own URL segment, matching `^[a-z0-9-]+$`, written by the Census source. `public.assert_site_projections()` SHALL raise when a row's `path` is not its parent's `path` followed by its `segment` and `/`, or, for a row with no parent, `/` followed by its `segment` and `/`.
+Every `location_path` row SHALL hold `segment`, its own URL segment, matching `^[a-z0-9-]+$`, derived by intake where it resolves the row's path: the resolved `path` minus the parent's path (`/` for a row with no parent). Generation SHALL fail when the path is not the parent path plus one segment. `public.assert_site_projections()` SHALL raise when a row's `path` is not its parent's `path` followed by its `segment` and `/`, or, for a row with no parent, `/` followed by its `segment` and `/`.
 
 #### Scenario: Place row
 

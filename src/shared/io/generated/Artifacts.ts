@@ -37,6 +37,7 @@ import { ReviewLinks } from "./ReviewLinks.js";
 import { ArrestProfiles } from "./ArrestProfiles.js";
 import { AgencyArrestProfiles } from "./AgencyArrestProfiles.js";
 import { DataAnnotations } from "./DataAnnotations.js";
+import { DataAnnotationTypes } from "./DataAnnotationTypes.js";
 
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
@@ -135,6 +136,7 @@ const artifactSpecSchemas: Record<string, z.ZodType> = {
   ArrestProfiles: ArrestProfiles.schema.shape.spec,
   AgencyArrestProfiles: AgencyArrestProfiles.schema.shape.spec,
   DataAnnotations: DataAnnotations.schema.shape.spec,
+  DataAnnotationTypes: DataAnnotationTypes.schema.shape.spec,
 };
 const artifactReferenceSchema = z
   .object({

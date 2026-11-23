@@ -212,3 +212,11 @@ export type {
   DataAnnotationEnvelope,
   DataAnnotationInput,
 } from "./DataAnnotations.js";
+export {
+  DataAnnotationTypes,
+  DataAnnotationTypeSpec,
+} from "./DataAnnotationTypes.js";
+export type {
+  DataAnnotationTypesEnvelope,
+  DataAnnotationTypesInput,
+} from "./DataAnnotationTypes.js";

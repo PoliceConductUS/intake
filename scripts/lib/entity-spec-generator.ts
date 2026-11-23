@@ -86,6 +86,10 @@ const DESCRIPTORS: EntityDescriptor[] = [
         'z.enum(["primary", "county_subdivision", "consolidated_city"]).default("primary")',
       centroid: "LocationPathCentroidSpec.nullable().optional()",
       bbox: "LocationPathBboxSpec.nullable().optional()",
+      // Derived at import from the resolved path and the parent's path.
+      segment: "z.string().regex(/^[a-z0-9-]+$/).optional()",
+      // The Census source supplies the USPS code on state rows.
+      state_code: "z.string().regex(/^[A-Z]{2}$/).nullable().optional()",
     },
     superRefine: LEVEL_SUPERREFINE,
   },
@@ -314,8 +318,18 @@ const DESCRIPTORS: EntityDescriptor[] = [
     override: {
       value: "z.json()",
       replacement_value: "z.json().nullable().optional()",
+      // Derived by intake from the subject and the connected records' stored
+      // paths and slugs (resolver-registry annotationPageResolvers).
+      links:
+        "z.array(z.object({ url: z.string().nullable(), label: nonEmptyString }).strict()).min(1).nullable().optional()",
       evidence: "z.array(z.record(z.string(), z.json())).nullable().optional()",
     },
+  },
+  {
+    // Public label of each annotation type (manual records).
+    recordKind: "DataAnnotationType",
+    table: "data_annotation_type",
+    createRequired: ["type"],
   },
 ];
 
@@ -485,6 +499,7 @@ const ENTITY_NAME_BY_RECORD_KIND: Record<string, string> = {
   ReviewLink: "reviewLinks",
   ArrestProfile: "arrestProfiles",
   AgencyArrestProfile: "agencyArrestProfiles",
+  DataAnnotationType: "dataAnnotationTypes",
 };
 
 function capitalizeFirst(value: string): string {

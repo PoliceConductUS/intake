@@ -2,8 +2,9 @@ import { afterAll, beforeAll, expect, test } from "vitest";
 import { startIntakeDatabase, type IntakeDatabase } from "./intake-postgres.js";
 
 // Synthetic records for the site_* count views
-// (20261122000000_site_public_counts.sql and
-// 20261122100000_site_agency_personnel_counts.sql). Every date is far in the past or
+// (20261122000000_site_public_counts.sql,
+// 20261122100000_site_agency_personnel_counts.sql and, for
+// site_personnel_state_count, 20261123100000_site_location_views.sql). Every date is far in the past or
 // future, or computed from the database's UTC date, so results do not change
 // with the clock.
 let database: IntakeDatabase;
@@ -16,19 +17,18 @@ beforeAll(async () => {
              ('lp-zz-place','/zz/test-county/test-city/','place','Test City','lp-zz-area'),
              ('lp-yy','/yy/','state','Other State',null),
              ('lp-yy-area','/yy/other-county/','administrative_area','Other County','lp-yy'),
-             ('lp-yy-place','/yy/other-county/other-city/','place','Other City','lp-yy-area');
+             ('lp-yy-place','/yy/other-county/other-city/','place','Other City','lp-yy-area'),
+             -- A place with no administrative_area parent: its agencies have no page.
+             ('lp-yy-odd','/yy/odd-city/','place','Odd City','lp-yy');
     insert into public.federal_agency(id,name,slug)
       values ('fed','Test Federal Agency','test-federal-agency'),
              ('fed-empty','Empty Federal Agency','empty-federal-agency');
     insert into public.agency(id,name,city,state,address,zip_code,latitude,longitude,slug,location_path_id,parent_federal_agency_id)
       values ('agency-a','Agency A','Test City','ZZ','1 Test St','00001',1,1,'agency-a','lp-zz-place',null),
              ('agency-b','Agency B','Other City','YY','2 Test St','00002',1,1,'agency-b','lp-yy-place','fed'),
-             ('agency-c','Agency C','Other City','YY','3 Test St','00003',1,1,'agency-c','lp-yy-place','fed'),
+             ('agency-c','Agency C','Other City','YY','3 Test St','00003',1,1,'agency-c','lp-yy-odd','fed'),
              ('agency-d','Agency D','Test City','ZZ','5 Test St','00005',1,1,'agency-d','lp-zz-place',null),
              ('agency-empty','Agency Empty','Test City','ZZ','4 Test St','00004',1,1,'agency-empty','lp-zz-place',null);
-    insert into public.build_page_payload(path,page_type,entity_id,payload,content_hash)
-      values ('/zz/test-county/test-city/agency-a/','agency','agency-a','{}','hash-a'),
-             ('/yy/other-county/other-city/agency-b/','agency','agency-b','{}','hash-b');
     insert into public.personnel(id,first_name,slug)
       select 'p' || n, 'Person' || n, 'person-' || n from generate_series(1, 12) as n;
   `);
@@ -182,9 +182,11 @@ test("site_federal_agency_count counts each current person once across branches"
 });
 
 test("site_personnel_state_count counts each person once under the state of the latest-started current assignment's agency page", async () => {
-  // p1's latest-started current row is at agency-c, which has no page, so p1
-  // is not counted. p2's is at agency-b (state /yy/). p7 and p11 are current
-  // only at agency-a (state /zz/).
+  // An agency has a page by site_agency_page_selection (a Current person and a
+  // place under an area under a state). p1's latest-started current row is at
+  // agency-c, whose place has no area parent, so p1 is not counted. p2's is at
+  // agency-b (state /yy/). p7 and p11 are current only at agency-a, and p4 and
+  // p5 are current at agency-d (state /zz/).
   expect(
     (
       await database.query(
@@ -200,7 +202,7 @@ test("site_personnel_state_count counts each person once under the state of the 
     {
       state_location_path_id: "lp-zz",
       state_path: "/zz/",
-      listed_personnel_count: 2,
+      listed_personnel_count: 4,
     },
   ]);
 });

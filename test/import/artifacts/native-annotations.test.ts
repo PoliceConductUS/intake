@@ -63,11 +63,19 @@ test("generation retains distinct same-field warnings and inspects current end d
       },
     },
   };
+  // The assignment's person, agency and place, which the annotation links to.
+  const rowsByTable: Record<string, Record<string, unknown>[]> = {
+    agency_personnel: [row],
+    personnel: [{ id: "person", slug: "person", first_name: "Pat" }],
+    agency: [
+      { id: "agency", name: "Agency", slug: "agency", location_path_id: "lp" },
+    ],
+    location_path: [{ location_path_id: "lp", path: "/zz/area/place/" }],
+  };
   class SubjectClient extends EmptyDatabaseClient {
     async query(text = "") {
-      return {
-        rows: text.includes("from public.agency_personnel") ? [row] : [],
-      };
+      const table = /from public\.(\w+)/.exec(text)?.[1];
+      return { rows: table === undefined ? [] : (rowsByTable[table] ?? []) };
     }
   }
   const ctx = new DataContext({
@@ -94,6 +102,13 @@ test("generation retains distinct same-field warnings and inspects current end d
       field: "end_date",
       subject_kind: "AgencyPersonnel",
       subject_id: "assignment",
+      personnel_id: "person",
+      agency_id: null,
+      links: [
+        { url: "/personnel/person/#agency-assignments", label: "Pat" },
+        { url: "/zz/area/place/agency/", label: "Agency" },
+      ],
+      display_value: "2100-01-01",
     });
 });
 
