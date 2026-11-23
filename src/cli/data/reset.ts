@@ -115,26 +115,6 @@ export async function resetData(
           ? null
           : retainedAcquiredInputs(workspace, id));
 
-    for (const source of sources) {
-      phase = `inventory acquisitions ${source}`;
-      const state = path.join(workspace, "state", source);
-      const pointer = await readCommandPointer(state, "acquire");
-      if (options.acquire && pointer.latest === undefined) continue;
-      const inputs = await acquiredInputs(source);
-      if (inputs === null) continue;
-      try {
-        for (const input of inputs) {
-          await writeCommandPointer(state, "acquire", {
-            ...pointer,
-            latest: input,
-          });
-          await executePhase(["data", "transform", source]);
-        }
-      } finally {
-        await writeCommandPointer(state, "acquire", pointer);
-      }
-    }
-
     phase = "schema reset";
     logger.info(
       "data reset: resetting the configured database to current migrations.",
