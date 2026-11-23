@@ -2,7 +2,12 @@
 
 ### Requirement: Assignments store an employment status
 
-Every `agency_personnel` row SHALL hold `employment_status`, one of `Current`, `Former` or `Unknown`, set by intake's documented rule and cached as a resolved property. `Former` SHALL mean the assignment has an `end_date`. `Current` SHALL mean no `end_date` and a source that lists currently employed officers has listed the assignment. When a later list from that source omits the assignment and gives no end date, intake SHALL change nothing, because the omission does not say what happened (owner, 2026-11-22). Every other case SHALL be `Unknown`. Each source SHALL document which input is a current roster.
+Every `agency_personnel` row SHALL hold `employment_status`, one of `Current`, `Former` or `Unknown`, set by intake's documented rule and cached as a resolved property. `Former` SHALL mean the assignment has an `end_date`. `Current` SHALL mean no `end_date` and a source that lists currently employed officers has listed the assignment. Every other case SHALL be `Unknown`. Each source SHALL document which input is a current roster.
+
+#### Scenario: A later list omits the assignment
+
+- **WHEN** a source that lists currently employed officers listed an assignment before, and its newest list omits it with no end date
+- **THEN** intake changes nothing on that assignment, because the omission does not say what happened (owner, 2026-11-22)
 
 #### Scenario: Ended assignment
 
