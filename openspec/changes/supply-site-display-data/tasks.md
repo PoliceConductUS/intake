@@ -45,7 +45,7 @@
 - [ ] 6.2 Write the migration for the `site_*` page-selection and chain views, with SQL tests per scenario.
 - [x] 6.3 Write the migration for the count views `site_agency_personnel_employment`, `site_agency_count`, `site_federal_agency_count`, `site_personnel_state_count` and `site_personnel_count`: done in `supabase/migrations/20261122000000_site_public_counts.sql`.
 - [ ] 6.3a Write the migration for the remaining count views and columns in `design.md` D8 ("Still to do": `site_location_count`, `site_licensing_authority_count`, and the report, civil-case and discipline columns), with SQL tests per scenario, including the civil-case scope rules.
-- [ ] 6.3b Get the owner's decision on the agency current count (`current_assignment_count`, today, or `current_personnel_count`; `design.md` open question 14) and record it in `design.md`.
+- [x] 6.3b Get the owner's decision on the agency current count (`current_assignment_count`, today, or `current_personnel_count`; `design.md` open question 14) and record it in `design.md`: distinct people (2026-11-22), in `supabase/migrations/20261122100000_site_agency_personnel_counts.sql`.
 - [ ] 6.4 Compare each new count with the website's current count on a copy of the current data; report every difference to the owner before release.
 
 ## 7. Build projections

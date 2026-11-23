@@ -23,6 +23,15 @@ A current staff count SHALL count distinct `personnel_id` values with an `agency
 - **WHEN** one person has two `Current` `agency_personnel` rows at the same agency
 - **THEN** that agency's `current_assignment_count` is 2 and its `current_personnel_count` is 1
 
+### Requirement: Agency staff counts count distinct people
+
+`site_agency_count` SHALL count each person once per agency in `personnel_count`, and in exactly one of `current_personnel_count`, `unknown_personnel_count` and `former_personnel_count`. A person's status at an agency SHALL be the first of `Current`, `Unknown`, `Former` that any of the person's `agency_personnel` rows at that agency has. The agency page and the agency roster SHALL show these counts.
+
+#### Scenario: Person with a former row and an uncertain row at one agency
+
+- **WHEN** one person has a `Former` row and an `Unknown` row at the same agency, and no `Current` row there
+- **THEN** that agency's `personnel_count` is 1, its `unknown_personnel_count` is 1 and its `former_personnel_count` is 0
+
 ### Requirement: The personnel state map counts each listed person once
 
 `site_personnel_state_count.listed_personnel_count` SHALL count each person once, under the state of the agency on the person's latest-started `Current` row (`start_date` descending, nulls last, then `id` descending), when that agency has an agency page. It SHALL NOT count a person under every state where the person has an assignment.

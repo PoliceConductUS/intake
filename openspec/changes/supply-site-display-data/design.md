@@ -147,7 +147,7 @@ Every count is distinct and comes from recorded rows. Civil-case scopes follow t
 
 "Within" uses `location_path_closure` (D9), not path prefixes.
 
-**Open decision: agency current count.** `site_agency_count` holds both `current_assignment_count` (`Current` `agency_personnel` rows, what the site shows today) and `current_personnel_count` (distinct people). The owner has not decided which one the agency current count shows (open question 14).
+**Decision (owner, 2026-11-22): agency staff counts are distinct people.** Public staff counts count each person once per agency, not `agency_personnel` rows. The migration `supabase/migrations/20261122100000_site_agency_personnel_counts.sql` adds `personnel_count`, `former_personnel_count` and `unknown_personnel_count` to `site_agency_count`, beside `current_personnel_count`. A person's status at an agency is the first of `Current`, `Unknown`, `Former` that any of the person's rows there has, so each person is in exactly one of the three and they add up to `personnel_count`. `Unknown` ranks above `Former` because an `Unknown` row (for example an end date in the future, or a date that is not a calendar date) does not show that the person left. The same migration adds btree indexes `agency_personnel_agency_id_idx` and `agency_personnel_personnel_id_idx` (owner, 2026-11-22). The `*_assignment_count` columns stay.
 
 ### D9. Build projections in the database
 
@@ -223,5 +223,5 @@ Rollback: revert the migrations and run `data reset` from the previous commit.
 11. Deferred inventory items, each needing its own decision: preferred coverage copy and alias target on `coverage_links` (release news); a typed link kind on `civil_case_links` (CourtListener link); roster provenance text; collection status per scope; a primary assignment if the profile headline should return.
 12. Production database: is production rebuilt by `data reset` like local, or does it need a separate migration path?
 13. Should `site_agency_personnel_employment` read the stored `agency_personnel.employment_status` (D1, D2) once it exists, instead of deriving the status from dates?
-14. Agency current count: `Current` assignment rows (`site_agency_count.current_assignment_count`, what the site shows today) or distinct people (`site_agency_count.current_personnel_count`)?
+14. Agency current count: answered 2026-11-22. Agency staff counts are distinct people (D8).
 15. Annotations about a person whose producing source publishes no licensing authority's records (for example a news or court source): which licensing authority, if any, do they attach to (D11)?

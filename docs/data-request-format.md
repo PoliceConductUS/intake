@@ -666,7 +666,7 @@ there are no records or that the data is not maintained. If you do not know the
 columns, an availability entry without a file is enough. Do not use a redaction
 marker for data you do not have.
 
-**Format version: `20261122000000`.** If you use the Simplified Export Format,
+**Format version: `20261122100000`.** If you use the Simplified Export Format,
 include this number as `spec_version` in the file list described below.
 
 ## File naming and layout
@@ -697,7 +697,7 @@ which record type each file holds. It carries:
 `manifest.json`:
 
     {
-      "spec_version": "20261122000000",
+      "spec_version": "20261122100000",
       "request_id": "az-post-2026-06",
       "files": [
         { "file": "az-post-2026-06.Agency.csv", "kind": "Agency", "rows": 1234 },

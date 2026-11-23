@@ -2,7 +2,8 @@ import { afterAll, beforeAll, expect, test } from "vitest";
 import { startIntakeDatabase, type IntakeDatabase } from "./intake-postgres.js";
 
 // Synthetic records for the site_* count views
-// (20261122000000_site_public_counts.sql). Every date is far in the past or
+// (20261122000000_site_public_counts.sql and
+// 20261122100000_site_agency_personnel_counts.sql). Every date is far in the past or
 // future, or computed from the database's UTC date, so results do not change
 // with the clock.
 let database: IntakeDatabase;
@@ -23,6 +24,7 @@ beforeAll(async () => {
       values ('agency-a','Agency A','Test City','ZZ','1 Test St','00001',1,1,'agency-a','lp-zz-place',null),
              ('agency-b','Agency B','Other City','YY','2 Test St','00002',1,1,'agency-b','lp-yy-place','fed'),
              ('agency-c','Agency C','Other City','YY','3 Test St','00003',1,1,'agency-c','lp-yy-place','fed'),
+             ('agency-d','Agency D','Test City','ZZ','5 Test St','00005',1,1,'agency-d','lp-zz-place',null),
              ('agency-empty','Agency Empty','Test City','ZZ','4 Test St','00004',1,1,'agency-empty','lp-zz-place',null);
     insert into public.build_page_payload(path,page_type,entity_id,payload,content_hash)
       values ('/zz/test-county/test-city/agency-a/','agency','agency-a','{}','hash-a'),
@@ -65,7 +67,21 @@ beforeAll(async () => {
       ('ap-b1','agency-b','p1','Agent','2021-01-01',null,'{}'),
       ('ap-b2','agency-b','p2','Agent','2021-01-01',null,'{}'),
       ('ap-c1','agency-c','p1','Agent','2022-01-01',null,'{}'),
-      ('ap-c3','agency-c','p3','Agent','2010-01-01','2015-01-01','{}');
+      ('ap-c3','agency-c','p3','Agent','2010-01-01','2015-01-01','{}'),
+      -- agency-d: people with rows of more than one status. The comment
+      -- names the person's status at agency-d.
+      -- p3 Unknown: a Former row and an Unknown row.
+      ('ap-d1','agency-d','p3','Officer','2010-01-01','2015-01-01','{}'),
+      ('ap-d2','agency-d','p3','Officer','2016-01-01','2999-01-01','{}'),
+      -- p4 Current: a Former row and a Current row.
+      ('ap-d3','agency-d','p4','Officer','2010-01-01','2015-01-01','{}'),
+      ('ap-d4','agency-d','p4','Officer','2016-01-01',null,'{}'),
+      -- p5 Current: a Current row and an Unknown row.
+      ('ap-d5','agency-d','p5','Officer','2016-01-01',null,'{}'),
+      ('ap-d6','agency-d','p5','Officer','2999-01-01',null,'{}'),
+      -- p6 Former: two Former rows.
+      ('ap-d7','agency-d','p6','Officer','2000-01-01','2005-01-01','{}'),
+      ('ap-d8','agency-d','p6','Officer','2006-01-01','2009-01-01','{}');
     insert into public.civil_cases(id,title,cause_number,filed_date,claims_summary,slug,location_path_id,date_terminated)
       values ('case-open','Open case','TEST-OPEN','2020-01-01','Synthetic claims','case-open','lp-zz-place',null),
              ('case-closed','Closed case','TEST-CLOSED','2020-01-01','Synthetic claims','case-closed','lp-zz-place','2021-01-01');
@@ -106,11 +122,13 @@ test("site_agency_personnel_employment classifies each assignment", async () => 
   });
 });
 
-test("site_agency_count counts assignments by status and distinct current personnel", async () => {
+test("site_agency_count counts assignments by status and distinct personnel by their status at the agency", async () => {
+  // A person's status at an agency is the first of Current, Unknown, Former
+  // that any of the person's rows there has.
   expect(
     (
       await database.query(
-        "select * from public.site_agency_count where agency_id in ('agency-a','agency-empty') order by agency_id",
+        "select * from public.site_agency_count where agency_id in ('agency-a','agency-d','agency-empty') order by agency_id",
       )
     ).rows,
   ).toEqual([
@@ -121,6 +139,20 @@ test("site_agency_count counts assignments by status and distinct current person
       former_assignment_count: 2,
       unknown_assignment_count: 6,
       current_personnel_count: 4,
+      personnel_count: 12,
+      former_personnel_count: 2,
+      unknown_personnel_count: 6,
+    },
+    {
+      agency_id: "agency-d",
+      assignment_count: 8,
+      current_assignment_count: 2,
+      former_assignment_count: 4,
+      unknown_assignment_count: 2,
+      current_personnel_count: 2,
+      personnel_count: 4,
+      former_personnel_count: 1,
+      unknown_personnel_count: 1,
     },
     {
       agency_id: "agency-empty",
@@ -129,6 +161,9 @@ test("site_agency_count counts assignments by status and distinct current person
       former_assignment_count: 0,
       unknown_assignment_count: 0,
       current_personnel_count: 0,
+      personnel_count: 0,
+      former_personnel_count: 0,
+      unknown_personnel_count: 0,
     },
   ]);
 });
