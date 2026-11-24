@@ -1,2 +1,2 @@
 import { transform } from "./transform.js";
-export const source = { transform };
+export const source = { transform, produces: [] };

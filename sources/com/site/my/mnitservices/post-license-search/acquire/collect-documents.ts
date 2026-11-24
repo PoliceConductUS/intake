@@ -14,6 +14,10 @@ import {
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
+import type {
+  DocumentPage,
+  DocumentText,
+} from "../../../../../../../src/shared/services/pdf-text-client.js";
 import type { CollectLogger, OfficerDetail } from "./collect.js";
 
 export type DocumentAction = { contactId: string; caseNumber: string };
@@ -21,12 +25,7 @@ export type DocumentAction = { contactId: string; caseNumber: string };
 export type FetchedDocument =
   { kind: "pdf"; bytes: Buffer } | { kind: "unavailable"; reason: string };
 
-export type DocumentPage = {
-  page: number;
-  method: "text" | "ocr";
-  text: string;
-};
-export type DocumentText = { pages: DocumentPage[] };
+export type { DocumentPage, DocumentText };
 
 export type OrderAnalysis = {
   allegation: string | null;
@@ -305,7 +304,12 @@ export async function disciplinaryDocumentReferences(
   officersDir: string,
 ): Promise<DocumentReference[]> {
   const byUrl = new Map<string, DocumentReference>();
-  const files = (await readdir(officersDir).catch(() => []))
+  const files = (
+    await readdir(officersDir).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return [] as string[];
+      throw error;
+    })
+  )
     .filter((name) => name.endsWith(".detail.json"))
     .sort();
   for (const name of files) {
@@ -318,7 +322,12 @@ export async function disciplinaryDocumentReferences(
       const url = nonEmpty(action.documentURL);
       const contactId = nonEmpty(action.contactId);
       const caseNumber = nonEmpty(action.caseNumber);
-      if (url === null || contactId === null || caseNumber === null) continue;
+      if (url === null) continue;
+      if (contactId === null || caseNumber === null) {
+        throw new Error(
+          `com/site/my/mnitservices/post-license-search detail ${name}: a disciplinary action that links ${url} has a blank contactId or caseNumber.`,
+        );
+      }
       const reference = byUrl.get(url) ?? {
         url,
         documentName: nonEmpty(action.documentName),
@@ -367,8 +376,9 @@ async function fileExists(filePath: string): Promise<boolean> {
   try {
     await access(filePath);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
   }
 }
 

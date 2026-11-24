@@ -1,8 +1,11 @@
 import { createSign } from "node:crypto";
 import { shiftDate, type SearchRow } from "./discovery.js";
 
-export function required(name: string) {
-  const value = process.env[name]?.trim();
+export function required(
+  name: string,
+  env: Record<string, string | undefined>,
+) {
+  const value = env[name]?.trim();
   if (!value) throw new Error(name + " is required");
   return value;
 }

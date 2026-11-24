@@ -14,5 +14,6 @@ describe("gov/az/post/roster run (disabled)", () => {
       emit: async () => {},
     });
     expect(manifest.artifacts).toEqual([]);
+    expect(manifest.accounting).toEqual([]);
   });
 });

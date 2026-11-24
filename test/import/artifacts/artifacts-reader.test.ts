@@ -13,6 +13,7 @@ test("reading agency artifacts preserves source city spellings", async () => {
     const written = await Artifacts.write(
       directory,
       buildArtifactsEnvelope("gov/texas/tcole", "test", {
+        accounting: [],
         artifacts: [
           {
             kind: "Agencies",

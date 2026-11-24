@@ -46,6 +46,7 @@ import {
 } from "./agency-personnel-resolvers.js";
 import { latLngFromAddress } from "./geocode-resolvers.js";
 import { coverageLinkIdResolver } from "./coverage-resolvers.js";
+import { complaintSummaryResolvers } from "./complaint-summary-resolvers.js";
 import {
   EntityFacade,
   type EntityFacadeBackend,
@@ -439,6 +440,7 @@ const REGISTRY: Record<string, KindConfig> = {
       location_path_id: facadeStateLocationPathResolver<Row>(
         "CivilCase",
       ) as AnyResolver,
+      ...(complaintSummaryResolvers() as Record<string, AnyResolver>),
     },
   },
   CivilCasePersonnel: {

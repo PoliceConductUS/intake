@@ -16,8 +16,13 @@ import type {
   SourceTransform,
   EmittedRecords,
 } from "../../../../../../src/cli/transform/source-transform.js";
-import { artifactStem } from "./acquire/collect.js";
+import type { InputAccounting } from "../../../../../../src/cli/transform/accounting.js";
+import type { Finding } from "../../../../../../src/shared/data-annotations.js";
+import { artifactStem, EXCLUDED_AGENCY_REASON } from "./acquire/collect.js";
 import type { OrderAnalysis } from "./acquire/collect-documents.js";
+import { WORKBOOK_FILES } from "./acquire/discipline-workbooks.js";
+
+const SOURCE = moduleSourceNamespace(import.meta.url);
 
 /**
  * MN POST — reconstructs the Minnesota rows from the scraped POST License Search
@@ -84,8 +89,11 @@ type OfficerDetail = {
 };
 
 type DisciplineInventory = {
+  missingActions: Array<{ licenseNumber: string; contactId: string }>;
   people: Array<{
     licenseNumber: string;
+    name: string;
+    sourceRow: number;
     officer: {
       contactId: string;
       licenseId: string;
@@ -103,7 +111,7 @@ type DisciplineInventory = {
   }>;
 };
 
-export const transform: SourceTransform = async ({ paths, logger }) => {
+export const transform: SourceTransform = async ({ paths }) => {
   const rosterPaths = paths.filter((p) => p.endsWith(".roster.json")).sort();
   const idMapPath = paths.find((p) => path.basename(p) === "agency-ids.yaml");
   const csvPath = paths.find((p) => p.toLowerCase().endsWith(".csv"));
@@ -117,17 +125,92 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
     string,
     { id?: string }
   >;
+  const accounting = {
+    agencyIds: newAccounting("agency-ids.yaml"),
+    csv: newAccounting("agencies.csv"),
+    roster: newAccounting("roster.json officers"),
+    detailLicenses: newAccounting("detail.json licenses"),
+    employment: newAccounting("detail.json activeEmployment"),
+    actions: newAccounting("detail.json disciplinaryActions"),
+    education: newAccounting("detail.json education"),
+    people: newAccounting("discipline-personnel.json people"),
+    history: newAccounting("discipline-personnel.json history"),
+    missingActions: newAccounting("discipline-personnel.json missingActions"),
+    unresolvedLicenses: newAccounting("discipline-unresolved-licenses.json"),
+    documents: newAccounting("document.json"),
+    skippedAgencies: newAccounting("skipped.yaml skippedAgencies"),
+    skippedDocuments: newAccounting("skipped.yaml skippedDocuments"),
+  };
+  const authorityFindings: Finding[] = [];
+  const personnelFindings = new Map<string, Finding[]>();
+
   const agencyBySlug = new Map<string, { name: string; id: string }>();
   for (const [name, entry] of Object.entries(idMap)) {
+    accounting.agencyIds.read += 1;
     const id = entry?.id;
-    if (typeof id === "string" && id.trim() !== "") {
-      agencyBySlug.set(slugify(name), { name, id });
+    if (typeof id !== "string" || id.trim() === "") {
+      throw new Error(
+        `${SOURCE} agency-ids.yaml: agency ${name} has a blank id.`,
+      );
     }
+    agencyBySlug.set(slugify(name), { name, id });
   }
 
+  const unavailable = [] as Array<
+    import("./acquire/collect-documents.js").SkippedDocument
+  >;
+  const skippedAgencyReasons = new Map<string, string>();
+  for (const file of paths.filter((p) => path.basename(p) === "skipped.yaml")) {
+    const report = parseYaml(await readFile(file, "utf8")) as {
+      skippedAgencies?: unknown;
+      skippedDocuments?: unknown;
+    };
+    if (!Array.isArray(report.skippedDocuments))
+      throw new Error(
+        "com/site/my/mnitservices/post-license-search: malformed skipped document report",
+      );
+    unavailable.push(
+      ...report.skippedDocuments.map((entry) =>
+        UnavailableDocumentSchema.parse(entry),
+      ),
+    );
+    if (!Array.isArray(report.skippedAgencies))
+      throw new Error(`${SOURCE}: malformed skipped agency report`);
+    for (const entry of report.skippedAgencies as Array<{
+      agencyName?: unknown;
+      reason?: unknown;
+    }>) {
+      accounting.skippedAgencies.read += 1;
+      const agencyName = nullIfBlank(asString(entry?.agencyName));
+      const reason = nullIfBlank(asString(entry?.reason));
+      if (agencyName === null || reason === null)
+        throw new Error(`${SOURCE}: malformed skipped agency report`);
+      skippedAgencyReasons.set(agencyName, reason);
+      if (reason === EXCLUDED_AGENCY_REASON) {
+        count(accounting.skippedAgencies, "excluded");
+        continue;
+      }
+      accounting.skippedAgencies.reported += 1;
+      authorityFindings.push({
+        code: "agency-not-found",
+        type: "error",
+        field: AGENCY_CSV.agency,
+        value: agencyName,
+        message: `${agencyName} is on the state's list of law enforcement agencies, but the state's license search did not return exactly one agency with that name, so the agency and its officers were left out.`,
+        evidence: [{ file: path.basename(file), agency: agencyName }],
+        source_namespace: SOURCE,
+        source_record_id: agencyName,
+      });
+    }
+  }
+  accounting.skippedDocuments.read = unavailable.length;
+  const usedUnavailable = new Set<(typeof unavailable)[number]>();
+
   const csvByName = new Map<string, Record<string, string>>();
+  const csvNamesUsed = new Set<string>();
+  const csvRows: Array<Record<string, string>> = [];
   if (csvPath !== undefined) {
-    const csvRows = parseCsv(await readFile(csvPath, "utf8"));
+    csvRows.push(...parseCsv(await readFile(csvPath, "utf8")));
     if (csvRows[0] !== undefined) {
       // Fail loud if the roster CSV is missing a column this source reads,
       // rather than silently emitting agencies with no address/contact.
@@ -137,11 +220,21 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
         csvPath,
       );
     }
-    for (const row of csvRows) {
+    for (const [index, row] of csvRows.entries()) {
+      accounting.csv.read += 1;
       const name = (row[AGENCY_CSV.agency] ?? "").trim();
-      if (name !== "") {
-        csvByName.set(name, row);
+      if (name === "") {
+        throw new Error(
+          `${SOURCE} ${path.basename(csvPath)} row ${index + 2}: blank agency name.`,
+        );
       }
+      const previous = csvByName.get(name);
+      if (previous !== undefined && !isDeepStrictEqual(previous, row)) {
+        throw new Error(
+          `${SOURCE} ${path.basename(csvPath)} row ${index + 2}: agency ${name} is listed twice with different content.`,
+        );
+      }
+      csvByName.set(name, row);
     }
   }
 
@@ -166,13 +259,14 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
     contactsByDetailFilename.set(filename, contactId);
   }
 
-  const details: OfficerDetail[] = [];
+  const details: Array<{ file: string; detail: OfficerDetail }> = [];
   const assignmentsByContact = new Map<string, Map<string, Set<string>>>();
+  const employmentRows: Array<{ file: string; keys: string[] }> = [];
   for (const file of paths.filter((p) =>
     p.toLowerCase().endsWith(".detail.json"),
   )) {
     const detail = JSON.parse(await readFile(file, "utf8")) as OfficerDetail;
-    details.push(detail);
+    details.push({ file: path.basename(file), detail });
     const contactIds = new Set<string>();
     const requestedContact = contactsByDetailFilename.get(path.basename(file));
     if (requestedContact !== undefined) contactIds.add(requestedContact);
@@ -186,24 +280,39 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
       }
       contactIds.add(contactId);
     }
-    for (const contactId of contactIds) {
-      const agencies =
-        assignmentsByContact.get(contactId) ?? new Map<string, Set<string>>();
-      for (const employment of detail.activeEmployment ?? []) {
-        const rosterId = nullIfBlank(employment.rosterId);
-        const name = nullIfBlank(employment.agencyName);
-        if (rosterId === null || name === null) continue;
-        const key = slugify(name);
+    for (const [index, rawEmployment] of rowsOf(
+      detail.activeEmployment,
+      "No employment found",
+      `detail ${path.basename(file)} activeEmployment`,
+    ).entries()) {
+      accounting.employment.read += 1;
+      const employment = (rawEmployment ?? {}) as Record<string, unknown>;
+      const rosterId = nullIfBlank(asString(employment.rosterId));
+      const name = nullIfBlank(asString(employment.agencyName));
+      if (rosterId === null || name === null) {
+        throw new Error(
+          `${SOURCE} detail ${path.basename(file)} activeEmployment row ${index + 1}: blank rosterId or agencyName.`,
+        );
+      }
+      const key = slugify(name);
+      employmentRows.push({
+        file: path.basename(file),
+        keys: [...contactIds].map((contactId) => `${contactId}|${key}`),
+      });
+      for (const contactId of contactIds) {
+        const agencies =
+          assignmentsByContact.get(contactId) ?? new Map<string, Set<string>>();
         const assignments = agencies.get(key) ?? new Set<string>();
         assignments.add(rosterId);
         agencies.set(key, assignments);
+        assignmentsByContact.set(contactId, agencies);
       }
-      assignmentsByContact.set(contactId, agencies);
     }
   }
 
   const licensingAuthorities: EmittedRecords = {
     "mn-post": {
+      metadata: { defects: authorityFindings },
       spec: {
         name: "Minnesota Board of Peace Officer Standards and Training",
         abbreviation: "MN POST",
@@ -254,6 +363,7 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
   const addAgency = (agency: { id: string; name: string }): void => {
     if (agencies[agency.id] === undefined) {
       const csv = csvByName.get(agency.name);
+      if (csv !== undefined) csvNamesUsed.add(agency.name);
       // address/city/zip are OMITTED (undefined) when the Q2 sheet lacks them —
       // never null. An omitted field is the temporarily-absent partial state,
       // resolved at import from a CLI-managed cache value and required non-empty by
@@ -282,12 +392,18 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
     }
   };
 
+  const rosterOutcomes = new Map<string, "emitted" | "reported">();
   for (const rosterPath of rosterPaths) {
+    const rosterFile = path.basename(rosterPath);
     const fileSlug = path
       .basename(rosterPath, ".roster.json")
       .replace(/-[0-9a-f]{12}$/, "");
-    const parsed = JSON.parse(await readFile(rosterPath, "utf8"));
-    const roster: unknown[] = Array.isArray(parsed) ? parsed : [];
+    const roster: unknown = JSON.parse(await readFile(rosterPath, "utf8"));
+    if (!Array.isArray(roster)) {
+      throw new Error(
+        `${SOURCE} roster ${rosterFile}: expected a list of officers.`,
+      );
+    }
     const agency = agencyBySlug.get(fileSlug);
     if (agency === undefined) {
       // An allow-empty agency has no officers and no id, so it is absent from
@@ -297,85 +413,132 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
         continue;
       }
       throw new Error(
-        `com/site/my/mnitservices/post-license-search roster ${path.basename(rosterPath)} has no agency in agency-ids.yaml (slug ${fileSlug}).`,
+        `com/site/my/mnitservices/post-license-search roster ${rosterFile} has no agency in agency-ids.yaml (slug ${fileSlug}).`,
       );
     }
 
     addAgency(agency);
 
-    for (const rawRow of roster) {
+    for (const [index, rawRow] of roster.entries()) {
+      accounting.roster.read += 1;
       const row = (rawRow ?? {}) as Record<string, unknown>;
+      const where = `roster ${rosterFile} row ${index + 1}`;
       // Every officer on the roster is imported, disciplined or not — an
       // officer's discipline history is exactly what this database exists to
       // record, so it is never a reason to drop them. (The per-officer detail
       // JSONs carry the `disciplinaryActions` themselves; importing those as
       // LicenseActions is a separate, additive step.)
       const contactId = nullIfBlank(asString(row.contactId));
-      // A person needs a stable id and a first name; skip rows without them.
       if (contactId === null) {
-        continue;
-      }
-      const name = parseOfficerName(asString(row.name));
-      if (name.first === null) {
-        continue;
+        throw new Error(`${SOURCE} ${where}: blank contactId.`);
       }
       const licenseId = nullIfBlank(asString(row.licenseId));
-      const licenseType = nullIfBlank(asString(row.licenseType));
-      const startDate = toDate(asString(row.originalLicenseIssueDate));
-
-      personnel[contactId] = {
-        spec: {
-          id: contactId,
-          first_name: name.first,
-          last_name: name.last,
-          middle_name: name.middle,
-        },
+      if (licenseId === null) {
+        throw new Error(`${SOURCE} ${where}: blank licenseId.`);
+      }
+      const outcomeKey = `${contactId}|${slugify(agency.name)}`;
+      const rowFinding = {
+        type: "error" as const,
+        evidence: [{ file: rosterFile, row: index + 1 }],
+        source_namespace: SOURCE,
+        source_record_id: `${agency.id}|${licenseId}`,
       };
+      const name = parseOfficerName(asString(row.name));
+      if (name.first === null) {
+        accounting.roster.reported += 1;
+        rosterOutcomes.set(outcomeKey, "reported");
+        authorityFindings.push({
+          ...rowFinding,
+          code: "roster-officer-without-name",
+          field: "name",
+          value: asString(row.name) ?? null,
+          message: `An officer on the roster of ${agency.name} was left out because the roster gives no first name for the officer.`,
+        });
+        continue;
+      }
+      const licenseType = nullIfBlank(asString(row.licenseType));
+      const startDate = toDate(
+        asString(row.originalLicenseIssueDate),
+        `${where} originalLicenseIssueDate`,
+      );
+
+      const person = {
+        id: contactId,
+        first_name: name.first,
+        last_name: name.last,
+        middle_name: name.middle,
+      };
+      const previousPerson = personnel[contactId]?.spec;
+      if (
+        previousPerson !== undefined &&
+        !isDeepStrictEqual(previousPerson, person)
+      ) {
+        throw new Error(
+          `${SOURCE}: conflicting person ${contactId} (${where})`,
+        );
+      }
+      personnel[contactId] = { spec: person };
 
       // The officer's holding of an MN POST license type. Keyed and referenced by
       // (officer, canonical type); the type is its own AuthorityLicense.
       const licenseHoldingKey =
         licenseType === null
           ? null
-          : `${contactId}|${canonicalLicenseType(licenseType)}`;
-      if (licenseId !== null && licenseType !== null) {
-        addLicense(
-          contactId,
-          licenseType,
-          nullIfBlank(asString(row.status)),
-          startDate,
-          licenseId,
-        );
+          : addLicense(
+              contactId,
+              licenseType,
+              nullIfBlank(asString(row.status)),
+              startDate,
+              licenseId,
+            );
+
+      if (startDate === null || licenseType === null) {
+        accounting.roster.reported += 1;
+        rosterOutcomes.set(outcomeKey, "reported");
+        const missing =
+          startDate !== null
+            ? "license type"
+            : licenseType !== null
+              ? "license issue date"
+              : "license issue date or license type";
+        authorityFindings.push({
+          ...rowFinding,
+          code: "roster-officer-without-assignment",
+          field:
+            startDate === null ? "originalLicenseIssueDate" : "licenseType",
+          value:
+            (startDate === null
+              ? asString(row.originalLicenseIssueDate)
+              : asString(row.licenseType)) ?? null,
+          message: `${[name.first, name.middle, name.last].filter((part) => part !== null).join(" ")} is on the roster of ${agency.name}, but the roster gives no ${missing} for this officer, so the officer's job at the agency was left out.`,
+        });
+        continue;
       }
 
       // Preserve POST's assignment identity; multiple jobs at one agency are distinct.
       // The existing role and license-issue-date interpretation is unchanged.
-      if (startDate !== null && licenseType !== null) {
-        const rosterIds = assignmentsByContact
-          .get(contactId)
-          ?.get(slugify(agency.name));
-        if (rosterIds === undefined || rosterIds.size === 0) {
-          throw new Error(
-            `com/site/my/mnitservices/post-license-search: no activeEmployment rosterId for contact ${contactId} at ${agency.name} (${agency.id}); check the acquired officer details.`,
-          );
-        }
-        for (const rosterId of rosterIds) {
-          agencyPersonnel[rosterId] = {
-            spec: {
-              agency_id: agency.id,
-              personnel_id: contactId,
-              start_date: startDate,
-              end_date: null,
-              title: licenseType,
-              license_id:
-                licenseHoldingKey !== null &&
-                licenses[licenseHoldingKey] !== undefined
-                  ? licenseHoldingKey
-                  : null,
-            },
-          };
-        }
+      const rosterIds = assignmentsByContact
+        .get(contactId)
+        ?.get(slugify(agency.name));
+      if (rosterIds === undefined || rosterIds.size === 0) {
+        throw new Error(
+          `com/site/my/mnitservices/post-license-search: no activeEmployment rosterId for contact ${contactId} at ${agency.name} (${agency.id}); check the acquired officer details.`,
+        );
       }
+      for (const rosterId of rosterIds) {
+        agencyPersonnel[rosterId] = {
+          spec: {
+            agency_id: agency.id,
+            personnel_id: contactId,
+            start_date: startDate,
+            end_date: null,
+            title: licenseType,
+            license_id: licenseHoldingKey,
+          },
+        };
+      }
+      accounting.roster.emitted += 1;
+      rosterOutcomes.set(outcomeKey, "emitted");
     }
   }
 
@@ -404,6 +567,7 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
       }
     }
     for (const person of inventory.people) {
+      accounting.people.read += 1;
       const row = person.officer;
       const contactId = nullIfBlank(row.contactId);
       const name = parseOfficerName(row.name);
@@ -430,19 +594,31 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
         contactId,
         row.licenseType,
         nullIfBlank(row.status),
-        toDate(row.originalLicenseIssueDate),
+        toDate(
+          row.originalLicenseIssueDate,
+          `discipline license ${person.licenseNumber} originalLicenseIssueDate`,
+        ),
         row.licenseId,
       );
+      accounting.people.emitted += 1;
       for (const employment of person.history) {
+        accounting.history.read += 1;
         const agencyId = idMap[employment.agencyName]?.id;
-        if (typeof agencyId !== "string" || agencyId.trim() === "") {
-          const unresolvedReason = unresolvedAgencies.get(
-            employment.agencyName,
-          );
-          if (unresolvedReason !== undefined) {
-            logger?.info(
-              `com/site/my/mnitservices/post-license-search: omitted history assignment for license ${person.licenseNumber}, row ${employment.sourceRow}, ${employment.agencyName}: ${unresolvedReason}`,
-            );
+        if (agencyId === undefined) {
+          if (unresolvedAgencies.has(employment.agencyName)) {
+            accounting.history.reported += 1;
+            authorityFindings.push({
+              code: "employment-history-agency-not-found",
+              type: "error",
+              field: "agencyName",
+              value: employment.agencyName,
+              message: `A past job at ${employment.agencyName} (${employment.startDate} to ${employment.endDate}) for license ${person.licenseNumber} was left out because the state's license search did not return exactly one agency with that name.`,
+              evidence: [
+                { file: WORKBOOK_FILES.history, row: employment.sourceRow },
+              ],
+              source_namespace: SOURCE,
+              source_record_id: `${WORKBOOK_FILES.history}#${employment.sourceRow}`,
+            });
             continue;
           }
           throw new Error(
@@ -472,15 +648,88 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
           );
         }
         agencyPersonnel[key] = { spec: assignment };
+        accounting.history.emitted += 1;
       }
+    }
+
+    if (!Array.isArray(inventory.missingActions)) {
+      throw new Error(
+        `${SOURCE} discipline-personnel.json: missingActions is not a list.`,
+      );
+    }
+    const peopleByLicense = new Map(
+      inventory.people.map((person) => [person.licenseNumber, person]),
+    );
+    for (const missing of inventory.missingActions) {
+      accounting.missingActions.read += 1;
+      const person = peopleByLicense.get(missing.licenseNumber);
+      if (person === undefined) {
+        throw new Error(
+          `${SOURCE} discipline-personnel.json: missingActions names license ${missing.licenseNumber}, which is not in people.`,
+        );
+      }
+      accounting.missingActions.reported += 1;
+      authorityFindings.push({
+        code: "disciplined-license-without-action",
+        type: "error",
+        field: "disciplinaryActions",
+        value: null,
+        message: `License ${person.licenseNumber} (${person.name}) is on the state's list of disciplined officers, but the state's license search lists no disciplinary action for it, so no discipline was added for this officer.`,
+        evidence: [{ file: WORKBOOK_FILES.discipline, row: person.sourceRow }],
+        source_namespace: SOURCE,
+        source_record_id: person.licenseNumber,
+      });
+    }
+
+    const unresolvedLicensesPath = paths.find(
+      (file) => path.basename(file) === "discipline-unresolved-licenses.json",
+    );
+    if (unresolvedLicensesPath === undefined) {
+      throw new Error(
+        `${SOURCE} expects discipline-unresolved-licenses.json with discipline-personnel.json.`,
+      );
+    }
+    const unresolvedLicenses: unknown = JSON.parse(
+      await readFile(unresolvedLicensesPath, "utf8"),
+    );
+    if (!Array.isArray(unresolvedLicenses)) {
+      throw new Error(
+        `${SOURCE} discipline-unresolved-licenses.json: expected a list.`,
+      );
+    }
+    for (const entry of unresolvedLicenses as Array<Record<string, unknown>>) {
+      accounting.unresolvedLicenses.read += 1;
+      const licenseNumber = nullIfBlank(asString(entry?.licenseNumber));
+      const name = nullIfBlank(asString(entry?.name));
+      if (
+        licenseNumber === null ||
+        name === null ||
+        typeof entry.sourceRow !== "number"
+      ) {
+        throw new Error(
+          `${SOURCE} discipline-unresolved-licenses.json: an entry has no licenseNumber, name or sourceRow.`,
+        );
+      }
+      accounting.unresolvedLicenses.reported += 1;
+      authorityFindings.push({
+        code: "disciplined-license-not-found",
+        type: "error",
+        field: "licenseNumber",
+        value: licenseNumber,
+        message: `License ${licenseNumber} (${name}) is on the state's list of disciplined officers, but the state's license search did not return exactly one matching license, so the officer and the discipline were left out.`,
+        evidence: [{ file: WORKBOOK_FILES.discipline, row: entry.sourceRow }],
+        source_namespace: SOURCE,
+        source_record_id: licenseNumber,
+      });
     }
   }
 
   // The person detail API carries additional and historical license types that
   // are not necessarily present on the current agency roster. Preserve every
   // valid holding for a person admitted by a roster or exact license search.
-  for (const detail of details) {
+  for (const { file, detail } of details) {
     for (const row of detail.licenses?.POSTLicenseList ?? []) {
+      accounting.detailLicenses.read += 1;
       const contactId = nullIfBlank(asString(row.contactId));
       const licenseId = nullIfBlank(asString(row.licenseId));
       const licenseType = nullIfBlank(asString(row.licenseType));
@@ -498,9 +747,13 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
         contactId,
         licenseType,
         nullIfBlank(asString(row.status)),
-        toDate(asString(row.originalLicenseIssueDate)),
+        toDate(
+          asString(row.originalLicenseIssueDate),
+          `detail ${file} license ${licenseId} originalLicenseIssueDate`,
+        ),
         licenseId,
       );
+      accounting.detailLicenses.emitted += 1;
     }
   }
 
@@ -509,9 +762,7 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
   // action is a POST order — read them for all officers, since the roster's
   // boolean flag can drift from the authoritative list.
   const discipline: EmittedRecords = {};
-  const disciplineAgencyPersonnel: EmittedRecords = {};
   const coverageLinks: EmittedRecords = {};
-  const coverageLinkAgencyPersonnel: EmittedRecords = {};
 
   // What each order document says, by the URL the action links to. An action
   // whose document the site no longer serves (see acquire's skip report) has no
@@ -522,6 +773,7 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
     actions: { contactId: string; caseNumber: string }[];
   };
   const documentsByUrl = new Map<string, OrderEvidence[]>();
+  const documentFiles = new Map<OrderEvidence, string>();
   const evidenceByComplaint = new Map<
     string,
     Pick<OrderEvidence, "sha256" | "analysis">
@@ -538,32 +790,17 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
     const documents = documentsByUrl.get(document.url) ?? [];
     documents.push(evidence);
     documentsByUrl.set(document.url, documents);
+    documentFiles.set(evidence, path.basename(jsonPath));
   }
+  const usedDocuments = new Set<OrderEvidence>();
 
-  const unavailable = [] as Array<
-    import("./acquire/collect-documents.js").SkippedDocument
-  >;
-  for (const file of paths.filter((p) => path.basename(p) === "skipped.yaml")) {
-    const report = parseYaml(await readFile(file, "utf8")) as {
-      skippedDocuments?: unknown;
-    };
-    if (!Array.isArray(report.skippedDocuments))
-      throw new Error(
-        "com/site/my/mnitservices/post-license-search: malformed skipped document report",
-      );
-    unavailable.push(
-      ...report.skippedDocuments.map((entry) =>
-        UnavailableDocumentSchema.parse(entry),
-      ),
-    );
-  }
-
-  for (const detail of details) {
-    const actions = detail.disciplinaryActions;
-    if (!Array.isArray(actions)) {
-      continue;
-    }
-    for (const rawAction of actions) {
+  for (const { file, detail } of details) {
+    for (const rawAction of rowsOf(
+      detail.disciplinaryActions,
+      "No POST Disciplinary Actions found",
+      `detail ${file} disciplinaryActions`,
+    )) {
+      accounting.actions.read += 1;
       const action = (rawAction ?? {}) as Record<string, unknown>;
       const contactId = nullIfBlank(asString(action.contactId));
       const caseNumber = nullIfBlank(asString(action.caseNumber));
@@ -580,7 +817,15 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
       }
       const documentName = nullIfBlank(asString(action.documentName));
       const documentUrl = nullIfBlank(asString(action.documentURL));
-      const effectiveDate = toDate(asString(action.effectiveDate));
+      const effectiveDate = toDate(
+        asString(action.effectiveDate),
+        `discipline ${caseNumber} effectiveDate`,
+      );
+      const expirationDate = toDate(
+        asString(action.expirationDate),
+        `discipline ${caseNumber} expirationDate`,
+      );
+      const defects: Finding[] = [];
       // Case labels can repeat for distinct orders; official complaint identity
       // distinguishes them while the supplied label remains reader-facing data.
       const disciplineKey = `${contactId}|${complaintId}`;
@@ -607,23 +852,33 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
           const unfinished = paths.some((p) =>
             path.basename(p).endsWith(`${stem.slice(-12)}.pdf`),
           );
-          if (
-            unfinished ||
-            !unavailable.some(
-              (entry) => entry.url === documentUrl && matches(entry),
-            )
-          )
+          const skipped = unavailable.filter(
+            (entry) => entry.url === documentUrl && matches(entry),
+          );
+          if (unfinished || skipped.length === 0)
             throw new Error(
               `com/site/my/mnitservices/post-license-search document incomplete for ${caseNumber}: ${documentUrl}`,
             );
+          for (const entry of skipped) usedUnavailable.add(entry);
+          defects.push({
+            code: "order-document-unavailable",
+            type: "warning",
+            field: "document_url",
+            value: documentUrl,
+            message: `The order for case ${caseNumber} could not be downloaded from the state's site, so what the order says is not shown.`,
+            evidence: [{ url: documentUrl, reason: skipped[0].reason }],
+            source_namespace: SOURCE,
+            source_record_id: complaintId,
+          });
         }
       }
+      for (const document of documents) usedDocuments.add(document);
       const order = documents.at(-1)?.analysis;
       const substantive = {
         case_number: caseNumber,
         action: documentName ?? "POST Disciplinary Action",
         effective_date: effectiveDate,
-        expiration_date: toDate(asString(action.expirationDate)),
+        expiration_date: expirationDate,
       };
       const previous = discipline[disciplineKey]?.spec as
         typeof substantive | undefined;
@@ -657,13 +912,14 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
         evidenceByComplaint.set(disciplineKey, evidence);
       }
       discipline[disciplineKey] = {
+        metadata: { defects },
         spec: {
           personnel_id: contactId,
           licensing_authority_id: "mn-post",
           document_url: documentUrl,
           action: documentName ?? "POST Disciplinary Action",
           effective_date: effectiveDate,
-          expiration_date: toDate(asString(action.expirationDate)),
+          expiration_date: expirationDate,
           case_number: caseNumber,
           ...(order === undefined
             ? {}
@@ -690,14 +946,36 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
           },
         };
       }
+      accounting.actions.emitted += 1;
     }
+  }
+  for (const [document, file] of documentFiles) {
+    accounting.documents.read += 1;
+    if (!usedDocuments.has(document)) {
+      throw new Error(
+        `${SOURCE} ${file}: no disciplinary action in the officer details cites this document.`,
+      );
+    }
+    accounting.documents.emitted += 1;
+  }
+  for (const entry of unavailable) {
+    if (!usedUnavailable.has(entry)) {
+      throw new Error(
+        `${SOURCE} skipped.yaml: no disciplinary action in the officer details cites the skipped document ${entry.url}.`,
+      );
+    }
+    accounting.skippedDocuments.emitted += 1;
   }
 
   const education: EmittedRecords = {};
   const educationByCourse = new Map<string, unknown>();
-  for (const detail of details) {
-    if (!Array.isArray(detail.education)) continue;
-    for (const rawCourse of detail.education) {
+  for (const { file, detail } of details) {
+    for (const rawCourse of rowsOf(
+      detail.education,
+      "No Courses found",
+      `detail ${file} education`,
+    )) {
+      accounting.education.read += 1;
       const course = (rawCourse ?? {}) as Record<string, unknown>;
       const courseId = nullIfBlank(asString(course.courseId));
       const contactId = nullIfBlank(asString(course.contactId));
@@ -714,7 +992,10 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
       const spec = {
         personnel_id: contactId,
         name: nullIfBlank(asString(course.name)),
-        completion_date: toDate(asString(course.endDate)),
+        completion_date: toDate(
+          asString(course.endDate),
+          `education ${courseId} endDate`,
+        ),
         credits: course.credits ?? null,
         sponsor_name: nullIfBlank(asString(course.sponsorname)),
         sponsor_instructor: nullIfBlank(asString(course.sponsorInstructor)),
@@ -727,12 +1008,62 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
       }
       educationByCourse.set(courseId, spec);
       if (spec.name === null) {
-        const message = `com/site/my/mnitservices/post-license-search: omitted education ${courseId}: missing or blank course name`;
-        logger?.info(message);
+        accounting.education.reported += 1;
+        if (previous === undefined) {
+          const findings = personnelFindings.get(contactId) ?? [];
+          findings.push({
+            code: "education-course-without-name",
+            type: "warning",
+            field: "name",
+            value: asString(course.name) ?? null,
+            message:
+              "A completed training course was left out because the state's record gives no course name.",
+            evidence: [{ file, courseId }],
+            source_namespace: SOURCE,
+            source_record_id: courseId,
+          });
+          personnelFindings.set(contactId, findings);
+        }
         continue;
       }
       education[courseId] = { spec };
+      accounting.education.emitted += 1;
     }
+  }
+
+  for (const [contactId, record] of Object.entries(personnel)) {
+    record.metadata = { defects: personnelFindings.get(contactId) ?? [] };
+  }
+
+  for (const entry of Object.values(idMap)) {
+    if (agencies[entry.id!] !== undefined) accounting.agencyIds.emitted += 1;
+    else count(accounting.agencyIds, "no roster or employment history");
+  }
+  for (const [index, row] of csvRows.entries()) {
+    const name = row[AGENCY_CSV.agency].trim();
+    if (csvNamesUsed.has(name)) {
+      accounting.csv.emitted += 1;
+      continue;
+    }
+    const reason = skippedAgencyReasons.get(name);
+    if (reason === undefined) {
+      throw new Error(
+        `${SOURCE} agencies.csv row ${index + 2}: agency ${name} has no roster, no employment history and no entry in skipped.yaml.`,
+      );
+    }
+    if (reason === EXCLUDED_AGENCY_REASON) count(accounting.csv, "excluded");
+    else accounting.csv.reported += 1;
+  }
+  for (const { file, keys } of employmentRows) {
+    if (keys.length === 0) {
+      throw new Error(
+        `${SOURCE} detail ${file}: activeEmployment names no contact.`,
+      );
+    }
+    const outcomes = keys.map((key) => rosterOutcomes.get(key));
+    if (outcomes.includes("emitted")) accounting.employment.emitted += 1;
+    else if (outcomes.includes("reported")) accounting.employment.reported += 1;
+    else count(accounting.employment, "officer is not on that agency's roster");
   }
 
   return {
@@ -748,15 +1079,27 @@ export const transform: SourceTransform = async ({ paths, logger }) => {
       { kind: "Licenses", records: licenses },
       { kind: "AgencyPersonnel", records: agencyPersonnel },
       { kind: "Disciplines", records: discipline },
-      { kind: "DisciplineAgencyPersonnel", records: disciplineAgencyPersonnel },
       { kind: "CoverageLinks", records: coverageLinks },
-      {
-        kind: "CoverageLinkAgencyPersonnel",
-        records: coverageLinkAgencyPersonnel,
-      },
     ],
+    accounting: Object.values(accounting),
   };
 };
+
+function newAccounting(input: string): InputAccounting {
+  return { input, read: 0, emitted: 0, reported: 0, notSelected: {} };
+}
+
+function count(accounting: InputAccounting, reason: string): void {
+  accounting.notSelected[reason] = (accounting.notSelected[reason] ?? 0) + 1;
+}
+
+function rowsOf(value: unknown, none: string, label: string): unknown[] {
+  if (value === undefined || value === none) return [];
+  if (!Array.isArray(value)) {
+    throw new Error(`${SOURCE} ${label}: expected a list or "${none}".`);
+  }
+  return value;
+}
 
 function asString(value: unknown): string | undefined {
   return typeof value === "string"
@@ -771,10 +1114,15 @@ function nullIfBlank(value: string | undefined): string | null {
   return text === "" ? null : text;
 }
 
-/** Trims a scraped date to `YYYY-MM-DD`, or null when absent/malformed. */
-function toDate(value: string | undefined): string | null {
-  const match = (value ?? "").trim().match(/^\d{4}-\d{2}-\d{2}/);
-  return match ? match[0] : null;
+/** Trims a scraped date to `YYYY-MM-DD`; null when blank. */
+function toDate(value: string | undefined, label: string): string | null {
+  const text = nullIfBlank(value);
+  if (text === null) return null;
+  const match = text.match(/^\d{4}-\d{2}-\d{2}/);
+  if (!match) {
+    throw new Error(`${SOURCE} ${label}: ${text} is not a date.`);
+  }
+  return match[0];
 }
 
 /** Normalize a document URL for dedup: lowercase scheme+host, drop fragment and trailing slash. */

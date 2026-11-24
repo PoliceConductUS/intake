@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { DatabaseClient } from "./index.js";
+import { rowsFromResult, type DatabaseClient } from "./index.js";
 import type {
   LocationPathCreateSpec,
   LocationPathAliasCreateSpec,
@@ -11,17 +11,6 @@ export type DatabaseLocationPathRow = z.infer<typeof LocationPathCreateSpec>;
 export type DatabaseLocationPathAliasRow = z.infer<
   typeof LocationPathAliasCreateSpec
 >;
-
-function rowsFromResult(
-  result: { rows?: Record<string, unknown>[] } | unknown,
-): Record<string, unknown>[] {
-  return typeof result === "object" &&
-    result !== null &&
-    "rows" in result &&
-    Array.isArray(result.rows)
-    ? result.rows
-    : [];
-}
 
 function firstRow<T>(result: unknown): T | undefined {
   return rowsFromResult(result)[0] as T | undefined;

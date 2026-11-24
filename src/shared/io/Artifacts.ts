@@ -194,11 +194,11 @@ function artifactFromInlineItem(
       );
     }
 
-    // A record is an envelope (ADR 0034): keep its metadata (action/selector) with
-    // it, and validate the spec against the full entity spec for PUT/POST or a
-    // partial for PATCH (a partial update sets only some fields).
+    // A record is an envelope (ADR 0034): its validated metadata is passed on
+    // whole (ADR 0040), and the spec is validated against the full entity spec for
+    // PUT/POST or a partial for PATCH (a partial update sets only some fields).
     const envelope = recordItem as {
-      metadata?: { action?: "PUT" | "PATCH" | "POST"; selector?: unknown };
+      metadata?: { action?: "PUT" | "PATCH" | "POST" };
       spec: unknown;
     };
     const specSchema = artifactRecordSpecs[item.kind];
@@ -213,15 +213,7 @@ function artifactFromInlineItem(
       );
     }
     records[recordKey] = {
-      metadata: {
-        name: recordKey,
-        ...(envelope.metadata?.action !== undefined
-          ? { action: envelope.metadata.action }
-          : {}),
-        ...(envelope.metadata?.selector !== undefined
-          ? { selector: envelope.metadata.selector }
-          : {}),
-      },
+      metadata: { ...envelope.metadata, name: recordKey },
       spec: envelope.spec,
     };
   }

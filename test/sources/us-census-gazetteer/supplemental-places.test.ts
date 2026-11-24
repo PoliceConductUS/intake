@@ -75,7 +75,17 @@ function baseline(): BuildLocationPathsResult {
     },
     locationPathAlias: {},
     locationPathAliasSources: {},
-    warnings: [],
+    accounting: {
+      states: { read: 0, emitted: 0, reported: 0, notSelected: {} },
+      administrativeAreas: {
+        read: 0,
+        emitted: 0,
+        reported: 0,
+        notSelected: {},
+      },
+      places: { read: 0, emitted: 0, reported: 0, notSelected: {} },
+      hierarchy: { read: 0, emitted: 0, reported: 0, notSelected: {} },
+    },
   } as BuildLocationPathsResult;
 }
 const county = feature("27063", "Jackson County", [0, 0, 10, 10]);

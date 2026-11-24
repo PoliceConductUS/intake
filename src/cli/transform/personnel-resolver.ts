@@ -148,7 +148,7 @@ export function createTransformDataContext(
       // Match an agency by name, normalizing both sides (lowercase, non-alnum →
       // single space) so punctuation/casing never blocks a hit. A unique match
       // mints (or reuses) its source id (ADR 0023); anything else — no match or
-      // more than one agency sharing the name — is null (resolve-or-fail).
+      // more than one agency sharing the name — is null.
       const normalized = expandAgencyAbbreviations(agencyName)
         .trim()
         .toLowerCase()

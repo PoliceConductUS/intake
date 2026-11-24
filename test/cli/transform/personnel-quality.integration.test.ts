@@ -61,6 +61,7 @@ test.each([
       reason: "administrative entry",
     });
     const input: SourceManifest = {
+      accounting: [],
       artifacts: [
         {
           kind: "Personnel",
@@ -176,6 +177,7 @@ test("changed invalid source values still fail normal required-name validation",
       when: { first_name: "9" },
     });
     const result = await run(root, "test.provider", {
+      accounting: [],
       artifacts: [
         {
           kind: "Personnel",
@@ -217,6 +219,7 @@ for (const namespace of [
     const root = await mkdtemp(path.join(tmpdir(), "name-quality-"));
     try {
       const manifest: SourceManifest = {
+        accounting: [],
         artifacts: [
           {
             kind: "Personnel",
@@ -269,6 +272,7 @@ for (const namespace of [
       });
       const spec = { first_name: "Chester", last_name: "Test" };
       const manifest: SourceManifest = {
+        accounting: [],
         artifacts: [
           { kind: "Personnel", records: { fixture: { spec }, real: { spec } } },
           {
@@ -370,7 +374,14 @@ async function run(
       loadSourceModule: async () => async () => manifest,
       readXlsx: async () => [],
       digest: async () => "source-digest",
-      makeWorkspace: async () => root,
+      makeWorkspace: async () => ({
+        outputDirectory: root,
+        logger: {
+          info: (message: string) => logs.push(message),
+          error: () => {},
+        },
+        close: () => {},
+      }),
       createEmitSink: () => ({
         emit: async () => {},
         records: async function* () {},
@@ -382,7 +393,6 @@ async function run(
           directory,
           buildArtifactsEnvelope(source, digest, filtered),
         ),
-      logger: { info: (message) => logs.push(message) },
     },
   );
 }

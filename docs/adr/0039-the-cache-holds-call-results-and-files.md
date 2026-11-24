@@ -13,7 +13,7 @@ Proposed
 ADR 0019 gave intake one cache for resolved properties: a `ResolvedProperty`
 envelope per record and property, holding one entry per fingerprint of the input
 that produced the value. It is stored at
-`<workspace>/state/intake/namespaces/intake/ResolvedProperty/`.
+`<workspace>/state/intake/ResolvedProperty/`.
 
 Three sources then grew caches of their own, each with its own files, keys and
 rules:
@@ -47,14 +47,17 @@ keeps goes through them.**
 **1. `CallResult`.** One envelope per distinct request, at
 `<workspace>/state/intake/namespaces/<namespace>/CallResult/<fingerprint>.CallResult.yaml`.
 The fingerprint is the SHA-256 of the request's stable JSON, computed the way ADR
-0019 computes an input fingerprint. The request holds everything that decides the
-answer and nothing else: the service, the operation, the URL or the model, the
-parameters (including the reasoning level), the prompt text, and the SHA-256 of
-each input. It never holds a key or an authorization header.
+0019 computes an input fingerprint. The request holds what the caller asks about and
+nothing else: the service, the operation, the URL, the parameters (including the
+reasoning level), the prompt text, and the SHA-256 of each input. It never holds
+a key or an authorization header. It does not hold the model: a change of model
+does not change the fingerprint and reuses the cached answers (owner's decision,
+2026-11-17).
 
 **2. An outcome, success or failure.** The envelope holds a list of outcomes; the
 last is the current one. An outcome records its status, start and end time, the
-HTTP status, the provider's request ID, the stop reason, the token counts, the
+HTTP status, the provider's request ID, the stop reason, the token counts, for a
+model call the model asked for and the model the response names, the
 response or the error, the command that made the call, and the intake version. A
 developer can reproduce the call from the envelope alone, whoever made it.
 

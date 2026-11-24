@@ -10,3 +10,7 @@
 - [x] Read `ANTHROPIC_API_KEY` in the CourtListener and Minnesota POST sources only when an analysis is needed.
 - [x] Remove the four keys from `.env.example` and update `docs/records-requests.md`.
 - [x] Run `npm run validate` again.
+- [x] Add `SERPAPI_KEY` to the Parameter Store environment and its test.
+- [x] Give the source's `daily` the Parameter Store environment in `sources daily`, with a test, and read `SERPAPI_KEY` from it in the SerpApi landing-page search.
+- [x] Remove `SERPAPI_KEY` from the news discovery workflow, `.env.example` and the source README.
+- [x] Do the same for `SEARCH_CONSOLE_CREDENTIALS` and `NEWS_INFERENCE_API_KEY`, with tests.

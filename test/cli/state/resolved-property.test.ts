@@ -7,9 +7,9 @@ import {
   readResolvedProperty,
   type ResolvedPropertyCacheInput,
   resolvedPropertyCacheName,
-  typedInputFingerprint,
   writeResolvedProperty,
 } from "../../../src/cli/state/resolved-property/index.js";
+import { typedInputFingerprint } from "../../../src/shared/io/fingerprint.js";
 import { ResolvedProperty } from "../../../src/cli/state/resolved-property/ResolvedProperty.js";
 
 async function createTempRoot(): Promise<string> {

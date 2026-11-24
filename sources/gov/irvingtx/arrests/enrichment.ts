@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { BookingEnrichment } from "./arrest.js";
+import { bookingNumber, clean, type BookingEnrichment } from "./arrest.js";
 
 export type GeographyEvidence = {
   addressTracts: Record<
@@ -10,7 +10,7 @@ export type GeographyEvidence = {
   beatGeojson: {
     type: "FeatureCollection";
     features: {
-      properties: { Code: string; BattalionC: string; IsActive: number };
+      properties: { Code: string; BattalionC: string };
       geometry: {
         type: "Polygon" | "MultiPolygon";
         coordinates: number[][][] | number[][][][];
@@ -19,11 +19,6 @@ export type GeographyEvidence = {
   };
   arrestLocationRows: Record<string, string>[];
 };
-
-function clean(value: string | undefined): string {
-  const result = (value ?? "").trim();
-  return result.toUpperCase() === "NULL" ? "" : result;
-}
 
 export function parseAcsIncome(
   rows: GeographyEvidence["acsRows"],
@@ -135,9 +130,8 @@ export function enrichBookings(
     locations.set(key, [...(locations.get(key) ?? []), row]);
   }
   const bookings = new Map<string, Record<string, string>[]>();
-  for (const row of rows) {
-    const booking = clean(row.Booking_No);
-    if (!booking) throw new Error("Missing booking identity");
+  for (const [index, row] of rows.entries()) {
+    const booking = bookingNumber(row, "Arrest Data", index);
     bookings.set(booking, [...(bookings.get(booking) ?? []), row]);
   }
   const result: Record<string, BookingEnrichment> = {};
@@ -211,11 +205,7 @@ export function enrichBookings(
             item.beatStatus = "outside_polygon_coverage";
           else {
             const fields = matched[0]!.properties;
-            if (fields.IsActive !== 1) item.beatStatus = "inactive_polygon";
-            else if (
-              fields.BattalionC === "PD1" ||
-              fields.BattalionC === "PD2"
-            ) {
+            if (fields.BattalionC === "PD1" || fields.BattalionC === "PD2") {
               item.beat = fields.Code;
               item.beatStatus = "matched";
             } else

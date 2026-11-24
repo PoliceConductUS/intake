@@ -51,7 +51,10 @@ from the record's own: a record for a licensing authority can carry findings abo
 several dockets, each with its docket as the source record ID.
 
 **3. A resolver reports through its context.** A resolver may report a finding and
-return no value. The command continues.
+return no value. The command continues. A resolver that could not decide on a run,
+because a service it needs went down, may instead state that the findings its
+record's resolvers reported on earlier runs are kept; none of them is then resolved
+on that run.
 
 **4. Two more groups, same rules.** Source findings and resolver findings are two
 more groups beside corrections and validation. A finding's key is its code and

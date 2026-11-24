@@ -144,3 +144,17 @@ test("refuses ledger recovery from an edited already-applied restoration", async
     "checksum drift",
   );
 });
+
+test("a `to` that names no pending entry fails and applies nothing", async () => {
+  const { root, event, client } = await setup();
+  await generateIdentityRestorationEntry(client, event, root);
+  await expect(applyPending(client, { root, to: "000009" })).rejects.toThrow(
+    "data: --to 000009 matches no pending entry (pending: 000001).",
+  );
+  expect(client.query.mock.calls.map((call) => call[0])).not.toContain("begin");
+
+  await applyPending(client, { root, to: "000001" });
+  await expect(applyPending(client, { root, to: "000001" })).rejects.toThrow(
+    "data: --to 000001 matches no pending entry (pending: none).",
+  );
+});

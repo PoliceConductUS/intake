@@ -5,8 +5,22 @@ import type {
   SourceTransform,
   EmittedRecords,
 } from "../../../../src/cli/transform/source-transform.js";
+import { stateAuthorityRecords } from "../../../lib/state-authority-findings.js";
+import type { Finding } from "../../../../src/shared/data-annotations.js";
 import { articleText, digest, type Article } from "./acquire.js";
 import type { SourceRow } from "./spreadsheet.js";
+
+const SOURCE = "org/psvproject/arrest-tracker";
+const EMITTED = "emitted";
+const ARTICLE_UNAVAILABLE = "article could not be retrieved";
+const ARTICLE_NOT_REVIEWED = "article not reviewed";
+const NO_OFFICER_IDENTITY = "article supports no officer identity";
+const NO_KNOWN_OFFICER = "names no officer the database knows";
+type Reason =
+  | typeof ARTICLE_UNAVAILABLE
+  | typeof ARTICLE_NOT_REVIEWED
+  | typeof NO_OFFICER_IDENTITY
+  | typeof NO_KNOWN_OFFICER;
 
 const Review = z
   .object({
@@ -50,7 +64,10 @@ export const transform: SourceTransform = async ({
         rows: SourceRow[];
       };
       if (!sheet.url) throw new Error("Missing spreadsheet URL");
-      return sheet;
+      return {
+        ...sheet,
+        file: path.relative(root, file).split(path.sep).join("/"),
+      };
     }),
   );
   const reviews = z
@@ -61,6 +78,15 @@ export const transform: SourceTransform = async ({
   const byUrl = new Map(reviews.map((review) => [review.url, review]));
   if (byUrl.size !== reviews.length)
     throw new Error("Duplicate reviewed article URL");
+  const acquired = new Set(articles.map((article) => article.url));
+  if (acquired.size !== articles.length)
+    throw new Error(`${SOURCE}: articles.json repeats an article URL`);
+  for (const review of reviews)
+    if (!acquired.has(review.url))
+      throw new Error(
+        `${SOURCE}: reviewed.json entry is not in articles.json: ${review.url}`,
+      );
+  const outcomeOf = new Map<string, typeof EMITTED | Reason>();
   const links: EmittedRecords = {};
   const associations: EmittedRecords = {};
   const report: unknown[] = [];
@@ -73,6 +99,10 @@ export const transform: SourceTransform = async ({
           .map((row) => row.row),
       }))
       .filter((reference) => reference.rows.length);
+    if (!references.length)
+      throw new Error(
+        `${SOURCE}: no workbook row cites the article ${article.url}`,
+      );
     const review = byUrl.get(article.url);
     if (article.error || !article.textFile || !article.bodyFile) {
       report.push({
@@ -81,6 +111,7 @@ export const transform: SourceTransform = async ({
         status: "article-unavailable",
         error: article.error,
       });
+      outcomeOf.set(article.url, ARTICLE_UNAVAILABLE);
       continue;
     }
     if (!review) {
@@ -89,12 +120,17 @@ export const transform: SourceTransform = async ({
         spreadsheets: references,
         status: "identity-unreviewed",
       });
+      outcomeOf.set(article.url, ARTICLE_NOT_REVIEWED);
       continue;
     }
     const body = await readFile(path.join(root, article.bodyFile));
     if (digest(body) !== article.sha256 || review.sha256 !== article.sha256)
       throw new Error(`Article digest changed: ${article.url}`);
     const { text } = articleText(body);
+    outcomeOf.set(
+      article.url,
+      review.officers.length === 0 ? NO_OFFICER_IDENTITY : NO_KNOWN_OFFICER,
+    );
     for (const officer of review.officers) {
       if (officer.passages.some((passage) => !text.includes(passage)))
         throw new Error(`Unsupported article passage: ${article.url}`);
@@ -123,6 +159,7 @@ export const transform: SourceTransform = async ({
       if (!person) continue;
       if (!article.title?.trim())
         throw new Error(`Article title unavailable: ${article.url}`);
+      outcomeOf.set(article.url, EMITTED);
       const key = digest(article.url);
       const provenance = [
         ...references.map(
@@ -155,6 +192,58 @@ export const transform: SourceTransform = async ({
         status: "no-supported-officer-identity",
       });
   }
+  const states = new Set<string>();
+  const leftOut = new Map<string, Finding[]>();
+  let read = 0;
+  let emitted = 0;
+  let reported = 0;
+  const notSelected: Record<Reason, number> = {
+    [ARTICLE_UNAVAILABLE]: 0,
+    [ARTICLE_NOT_REVIEWED]: 0,
+    [NO_OFFICER_IDENTITY]: 0,
+    [NO_KNOWN_OFFICER]: 0,
+  };
+  for (const { file, url, rows } of workbooks) {
+    for (const row of rows) {
+      read += 1;
+      if (row.state !== "") states.add(row.state);
+      const place = `${file} GENERAL row ${row.row}`;
+      if (row.url === null) {
+        if (row.state === "")
+          throw new Error(
+            `${SOURCE}: ${place} has an empty link cell and names no state: ${JSON.stringify(row.name)}`,
+          );
+        leftOut.set(row.state, [
+          ...(leftOut.get(row.state) ?? []),
+          {
+            code: "tracker-entry-without-link",
+            type: "warning",
+            field: "coverage_links",
+            value: {
+              name: row.name,
+              title: row.title,
+              state: row.state,
+              category: row.category,
+              outcome: row.outcome,
+            },
+            message: `The Police Sexual Violence Project arrest tracker lists ${row.name === "" ? "an officer" : row.name} in ${row.state} with no link to a news report, so the entry is not listed here.`,
+            evidence: [{ workbook: url, sheet: "GENERAL", row: row.row }],
+            source_namespace: SOURCE,
+            source_record_id: `${file}#${row.row}`,
+          },
+        ]);
+        reported += 1;
+        continue;
+      }
+      const outcome = outcomeOf.get(row.url);
+      if (outcome === undefined)
+        throw new Error(
+          `${SOURCE}: ${place} cites an article that is not in articles.json: ${row.url}`,
+        );
+      if (outcome === EMITTED) emitted += 1;
+      else notSelected[outcome] += 1;
+    }
+  }
   await mkdir(state, { recursive: true });
   await writeFile(
     path.join(state, "mapping-report.json"),
@@ -167,6 +256,13 @@ export const transform: SourceTransform = async ({
     artifacts: [
       { kind: "CoverageLinks", records: links },
       { kind: "CoverageLinkAgencyPersonnel", records: associations },
+      {
+        kind: "LicensingAuthorities",
+        records: stateAuthorityRecords(states, leftOut),
+      },
+    ],
+    accounting: [
+      { input: "GENERAL rows", read, emitted, reported, notSelected },
     ],
   };
 };

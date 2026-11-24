@@ -117,7 +117,7 @@ async function activeSnapshot() {
           "lambda",
           "invoke",
           "--function-name",
-          required("NEWS_RELEASE_FUNCTION"),
+          required("NEWS_RELEASE_FUNCTION", process.env),
           "--cli-binary-format",
           "raw-in-base64-out",
           "--payload",
@@ -136,23 +136,26 @@ async function activeSnapshot() {
     await rm(tmp, { recursive: true, force: true });
   }
 }
-export async function runDaily(
-  at?: Date,
-  deps = {
+export function dailyDeps(env: Record<string, string | undefined>) {
+  return {
     store: createNewsStorage(),
     snapshot: activeSnapshot,
     consoleApi: searchConsole(
-      required("SEARCH_CONSOLE_PROPERTY"),
-      JSON.parse(required("SEARCH_CONSOLE_CREDENTIALS")),
+      required("SEARCH_CONSOLE_PROPERTY", env),
+      JSON.parse(required("SEARCH_CONSOLE_CREDENTIALS", env)),
     ),
-    infer: createNewsInference(process.env),
+    infer: createNewsInference(env),
     newsResults,
     readArticle,
     publish: publishDestinations,
-    origin: new URL(required("NEWS_SITE_ORIGIN")).origin,
-    bucket: required("NEWS_PRIVATE_BUCKET"),
-    apiKey: required("SERPAPI_KEY"),
-  },
+    origin: new URL(required("NEWS_SITE_ORIGIN", env)).origin,
+    bucket: required("NEWS_PRIVATE_BUCKET", env),
+    apiKey: required("SERPAPI_KEY", env),
+  };
+}
+export async function runDaily(
+  at: Date | undefined,
+  deps: ReturnType<typeof dailyDeps>,
 ) {
   const { store, consoleApi, origin, infer } = deps;
   const clock = () => at ?? new Date();
@@ -340,12 +343,12 @@ export async function runDaily(
       reuseBody && cached
         ? { ...cached.value, reason: undefined, extractionFailed: undefined }
         : await deps.readArticle(url);
-    if (!source || source.reason) {
-      const reason = source?.reason ?? "Publisher unavailable";
+    if (source.reason) {
+      const reason = source.reason;
       if (
         !(await store.writeJson(
           key,
-          { ...source, url: source?.url ?? url, reason, checkedDate },
+          { ...source, reason, checkedDate },
           cached?.etag ?? null,
         ))
       )
@@ -416,7 +419,11 @@ export async function runDaily(
       const ref = await store.readJson<{ occurrence?: NewsOccurrence }>(
         prefix + "urls/" + hash(other) + ".json",
       );
-      if (ref?.value.occurrence)
+      if (!ref)
+        throw new Error(
+          `Missing saved evidence for ${other}, named by a paragraph of ${url}`,
+        );
+      if (ref.value.occurrence)
         known.push({
           ...ref.value.occurrence,
           ...publisherRef(ref.value.occurrence.url),
@@ -738,7 +745,11 @@ export async function runDaily(
     const article = state.articles.find((a) =>
       articleKeys(a, aliases).has(resolveKey(m.articleKey)),
     );
-    const visible = article && visibleAt(m.path, article);
+    if (!article)
+      throw new Error(
+        `Missing article ${m.articleKey} for the match of ${JSON.stringify(m.term)} on ${m.path}`,
+      );
+    const visible = visibleAt(m.path, article);
     if (!visible || state.comparisons[key]) continue;
     const day = new Intl.DateTimeFormat("en-CA", {
       timeZone: "America/Los_Angeles",

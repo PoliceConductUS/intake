@@ -1,13 +1,7 @@
 import yauzl from "yauzl";
 import { crc32 } from "node:zlib";
 
-/** Verify every entry's actual contents, not just its central-directory metadata. */
-export async function verifyZipContents(zipPath: string): Promise<void> {
-  const zipfile = await openZip(zipPath);
-  await verifyOpenedZipContents(zipfile);
-}
-
-/** Verify ZIP contents from an existing descriptor to avoid reopening a path. */
+/** Verify every entry's actual contents, not just its central-directory metadata, from an existing descriptor. */
 export async function verifyZipContentsFromFd(fd: number): Promise<void> {
   const zipfile = await yauzl.fromFdPromise(fd, {
     lazyEntries: true,

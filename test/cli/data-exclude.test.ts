@@ -23,7 +23,8 @@ beforeEach(async () => {
   root = await mkdtemp(path.join(tmpdir(), "data-exclude-"));
   sourceDir = path.join(root, "sources", "test.source");
   stateDir = path.join(root, "workspace", "state", "test.source");
-  vi.stubEnv("INTAKE_WORKSPACE_TEST", path.join(root, "workspace"));
+  vi.stubEnv("INTAKE_WORKSPACE", path.join(root, "workspace"));
+  await mkdir(path.join(root, "workspace"));
   await mkdir(sourceDir, { recursive: true });
   await writeFile(
     path.join(sourceDir, "intake.source.ts"),
@@ -59,6 +60,7 @@ test("saves an exclusion used by the transform cascade, preserving existing entr
   ).toContain("# Existing curation");
   const { manifest, removed } = excludeManifestRecords(
     {
+      accounting: [],
       artifacts: [
         {
           kind: "Agencies",
@@ -217,7 +219,8 @@ test("keeps exclusions in the selected workspace without reading or changing rep
   expect(
     (await loadExcludedRecords(stateDir)).get("Agency:515001")?.reason,
   ).toBe(args[6]);
-  vi.stubEnv("INTAKE_WORKSPACE_TEST", path.join(root, "other-workspace"));
+  vi.stubEnv("INTAKE_WORKSPACE", path.join(root, "other-workspace"));
+  await mkdir(path.join(root, "other-workspace"));
   expect(
     (await runIntake([...args.slice(0, 6), "other workspace reason"])).exitCode,
   ).toBe(0);
@@ -266,6 +269,7 @@ test("operator can exclude a future-dated assignment before mutation generation"
   );
   const { manifest } = excludeManifestRecords(
     {
+      accounting: [],
       artifacts: [
         { kind: "AgencyPersonnel", records: { "bad-date": { spec } } },
       ],

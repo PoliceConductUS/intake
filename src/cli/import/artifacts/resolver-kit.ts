@@ -1,3 +1,4 @@
+import type { Finding } from "../../../shared/data-annotations.js";
 import { normalizeTextWhitespace } from "../../../shared/text.js";
 import {
   expandAgencyAbbreviations,
@@ -137,6 +138,13 @@ export type ResolverContext<Row, Backend> = {
   /** Canonical property storage for resolvers that own their cache flow. */
   cache?: PropertyCache;
   current?: Record<string, unknown>;
+  /** Report a problem with this record without stopping the command (ADR 0040). */
+  report(finding: Finding): void;
+  /**
+   * Leave the findings this record's resolvers reported on earlier runs as they
+   * are: the resolver could not decide this time, as when a service is down.
+   */
+  keepFindings(): void;
 };
 
 /**
@@ -292,10 +300,11 @@ export type SelectorBackend = {
 
 /**
  * The identity resolver honoring the metadata disposition (ADR 0034), named for the
- * HTTP verbs. PUT (default) and POST defer to the kind's normal identity resolver —
- * the ledger mint/find, byte-for-byte unchanged. PATCH addresses an existing row: by
- * `selector` (resolved through the standard chain — same links every reference uses)
- * or by a scalar `name`, and never mints. The disposition lives in metadata; the
+ * HTTP verbs. PUT (default) defers to the kind's normal identity resolver — the
+ * ledger mint/find, byte-for-byte unchanged. PATCH with a `selector` addresses an
+ * existing row (resolved through the standard chain — same links every reference
+ * uses) and never mints. POST, and PATCH without a selector, are not implemented
+ * and throw. The disposition lives in metadata; the
  * spec is only the payload.
  */
 export function facadeSelectorOrIdResolver<Row, B extends ReferenceBackend>(

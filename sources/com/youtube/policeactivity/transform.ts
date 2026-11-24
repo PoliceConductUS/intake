@@ -1,5 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import type {
   EmittedRecords,
   TransformDeps,
@@ -9,9 +10,11 @@ import { isPersonName } from "../../../lib/civil-defendants.js";
 import type { AcquiredVideo } from "./video-cache.js";
 
 type VideoEnvelope = {
-  agency: { id?: string; name?: string; state?: string };
+  agency?: { id?: string; name?: string; state?: string };
   videos?: AcquiredVideo[];
 };
+
+const NO_KNOWN_OFFICER = "names no officer the database knows";
 
 // A named officer the publisher asserts, and the passage asserting it. Names are
 // only ever CANDIDATES — the intake-owned resolver gates them against the agency
@@ -27,12 +30,12 @@ function text(value: unknown): string {
 }
 
 // The distinct officer mentions in a video, each with its first supporting
-// passage across the title, description, and captions.
+// passage across the title and description.
 function officerMentions(
   video: AcquiredVideo,
 ): Array<{ name: string; passage: string }> {
   const found = new Map<string, string>();
-  for (const field of [video.title, video.description, video.captions ?? ""]) {
+  for (const field of [video.title, video.description]) {
     for (const match of field.matchAll(OFFICER_MENTION)) {
       const name = match[1].trim();
       if (!isPersonName(name) || found.has(name)) continue;
@@ -65,18 +68,43 @@ export const transform: SourceTransform = async ({
 
   const coverageLinks: EmittedRecords = {};
   const coverageLinkAgencyPersonnel: EmittedRecords = {};
+  const fileOfVideo = new Map<string, string>();
+  let read = 0;
+  let emitted = 0;
+  let noKnownOfficer = 0;
 
   for (const file of files) {
     const envelope = JSON.parse(await readFile(file, "utf8")) as VideoEnvelope;
-    const agencyId = text(envelope.agency.id);
-    const agencyName = text(envelope.agency.name);
-    if (agencyId === "" || agencyName === "") continue;
+    const agencyId = text(envelope.agency?.id);
+    const agencyName = text(envelope.agency?.name);
+    if (agencyId === "" || agencyName === "") {
+      throw new Error(
+        `com/youtube/policeactivity: ${file} has no agency ID or name.`,
+      );
+    }
+    if (!Array.isArray(envelope.videos)) {
+      throw new Error(
+        `com/youtube/policeactivity: ${file} has no videos list.`,
+      );
+    }
 
-    for (const video of envelope.videos ?? []) {
+    for (const [index, video] of envelope.videos.entries()) {
+      read += 1;
       const videoId = text(video.videoId);
       const url = text(video.url);
       const title = text(video.title);
-      if (videoId === "" || url === "" || title === "") continue;
+      const row = `${file} video ${index + 1} (${JSON.stringify(videoId)})`;
+      if (videoId === "" || url === "" || title === "") {
+        throw new Error(
+          `com/youtube/policeactivity: ${row} has no video ID, URL or title.`,
+        );
+      }
+      const publishedAt = text(video.publishedAt).slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(publishedAt)) {
+        throw new Error(
+          `com/youtube/policeactivity: ${row} has a published date that is not a date: ${JSON.stringify(video.publishedAt)}.`,
+        );
+      }
 
       // Resolve every officer the video names AT THIS AGENCY (the agency is fixed
       // by acquire). A name resolving to no existing officer, or ambiguously,
@@ -91,22 +119,28 @@ export const transform: SourceTransform = async ({
           resolved.set(match.agencyPersonnelId, mention.passage);
         }
       }
-      if (resolved.size === 0) continue;
+      if (resolved.size === 0) {
+        noKnownOfficer += 1;
+        continue;
+      }
 
-      const publishedAt = text(video.publishedAt).slice(0, 10);
-      coverageLinks[videoId] = {
-        spec: {
-          url,
-          normalized_url: normalizedUrl(url),
-          title,
-          source_name: "PoliceActivity",
-          published_at: /^\d{4}-\d{2}-\d{2}$/.test(publishedAt)
-            ? publishedAt
-            : null,
-          // The publisher's framing, kept as an attributed claim (#52).
-          notes: text(video.description) || null,
-        },
+      const spec = {
+        url,
+        normalized_url: normalizedUrl(url),
+        title,
+        source_name: "PoliceActivity",
+        published_at: publishedAt,
+        // The publisher's framing, kept as an attributed claim (#52).
+        notes: text(video.description) || null,
       };
+      const earlier = coverageLinks[videoId];
+      if (earlier !== undefined && !isDeepStrictEqual(earlier.spec, spec)) {
+        throw new Error(
+          `com/youtube/policeactivity: video ${videoId} in ${file} differs from the same video in ${fileOfVideo.get(videoId)}.`,
+        );
+      }
+      coverageLinks[videoId] = { spec };
+      fileOfVideo.set(videoId, file);
       for (const [agencyPersonnelId, passage] of resolved) {
         coverageLinkAgencyPersonnel[`${videoId}|${agencyPersonnelId}`] = {
           spec: {
@@ -117,6 +151,7 @@ export const transform: SourceTransform = async ({
           },
         };
       }
+      emitted += 1;
     }
   }
 
@@ -133,18 +168,23 @@ export const transform: SourceTransform = async ({
         records: coverageLinkAgencyPersonnel,
       },
     ],
+    accounting: [
+      {
+        input: "videos",
+        read,
+        emitted,
+        reported: 0,
+        notSelected: { [NO_KNOWN_OFFICER]: noKnownOfficer },
+      },
+    ],
   };
 };
 
 async function collectEnvelopePaths(paths: string[]): Promise<string[]> {
   const files: string[] = [];
   for (const base of paths) {
-    try {
-      for (const entry of await readdir(base)) {
-        if (entry.endsWith(".videos.json")) files.push(path.join(base, entry));
-      }
-    } catch {
-      // A non-directory path is not an envelope root; skip it.
+    for (const entry of await readdir(base)) {
+      if (entry.endsWith(".videos.json")) files.push(path.join(base, entry));
     }
   }
   return files;

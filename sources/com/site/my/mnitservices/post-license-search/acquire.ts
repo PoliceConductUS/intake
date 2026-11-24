@@ -18,7 +18,7 @@ import {
 } from "./acquire/collect.js";
 import { collectDocuments } from "./acquire/collect-documents.js";
 import { createDocumentFetcher } from "./acquire/document-fetch.js";
-import { extractDocumentText } from "./acquire/document-text.js";
+import { extractDocumentText } from "../../../../../../src/shared/services/pdf-text-client.js";
 import { createLazyOrderAnalyzer } from "./acquire/order-analysis.js";
 import { fetchPostAgencyCsv } from "./acquire/agency-csv.js";
 import {
@@ -39,13 +39,15 @@ const FILTERS_PATH = path.join(
 );
 
 async function loadAgencyFilters(): Promise<AgencyFilters> {
-  const config =
-    (parseYaml(
-      await readFile(FILTERS_PATH, "utf8"),
-    ) as Partial<AgencyFilters>) ?? {};
-  return {
-    supplementalAgencies: config.supplementalAgencies ?? [],
-  };
+  const config = parseYaml(
+    await readFile(FILTERS_PATH, "utf8"),
+  ) as Partial<AgencyFilters> | null;
+  if (!Array.isArray(config?.supplementalAgencies)) {
+    throw new Error(
+      `com/site/my/mnitservices/post-license-search: ${FILTERS_PATH}: supplementalAgencies is not a list.`,
+    );
+  }
+  return { supplementalAgencies: config.supplementalAgencies };
 }
 
 // Excluded agencies live in state (they change without a software version): a
@@ -93,6 +95,11 @@ export const acquire: SourceAcquire = async ({
   const captchaWaitMs = env.MN_POST_CAPTCHA_WAIT_MS
     ? Number(env.MN_POST_CAPTCHA_WAIT_MS)
     : undefined;
+  if (captchaWaitMs !== undefined && !Number.isFinite(captchaWaitMs)) {
+    throw new Error(
+      `com/site/my/mnitservices/post-license-search: MN_POST_CAPTCHA_WAIT_MS is not a number: ${env.MN_POST_CAPTCHA_WAIT_MS}`,
+    );
+  }
   const filters = await loadAgencyFilters();
   const excludedAgencyNames = await loadExcludedAgencyNames(state);
 

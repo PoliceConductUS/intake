@@ -2,7 +2,7 @@ import type { IntakeSource } from "../../../../src/cli/intake-source.js";
 
 export const source = {
   description:
-    "South Carolina South Carolina Law Enforcement Training Council public-records requests",
+    "South Carolina Law Enforcement Training Council public-records requests",
   request: {
     agency: "South Carolina Law Enforcement Training Council",
     state: "South Carolina",

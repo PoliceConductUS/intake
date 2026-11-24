@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, it, expect } from "vitest";
-import { readVerifiedReportSubmissions } from "../../../sources/org/policeconduct/submissions/submissions.js";
+import { readSubmissions } from "../../../sources/org/policeconduct/submissions/submissions.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {
@@ -36,16 +36,30 @@ async function bucket(): Promise<string> {
   tempDirs.push(dir);
   const submissions = path.join(dir, "submissions");
 
-  // s1: a verified reportNew (included). s2: reportNew but unverified (excluded).
+  // s1: a verified reportNew. s2: reportNew but unverified.
   await writeJson(path.join(submissions, "verify", "v1.json"), {
+    verificationId: "v1",
     submissionId: "s1",
     formName: "reportNew",
     verifiedAt: "2026-01-02T00:00:00Z",
   });
   await writeJson(path.join(submissions, "verify", "v2.json"), {
+    verificationId: "v2",
     submissionId: "s2",
     formName: "reportNew",
-    verifiedAt: "",
+    verifiedAt: null,
+    email: "jane@example.com",
+    secretHash: "c2VjcmV0",
+  });
+  await writeJson(path.join(submissions, "status", "s1.json"), {
+    submissionId: "s1",
+    status: "approved",
+    decision: { at: "2026-01-03T00:00:00Z", by: "curator", reason: "Clear." },
+  });
+  await writeJson(path.join(submissions, "status", "v2.json"), {
+    verificationId: "v2",
+    status: "in_review",
+    statusChangedAt: "2026-01-03T00:00:00Z",
   });
 
   await writeJson(
@@ -75,7 +89,7 @@ async function bucket(): Promise<string> {
     reportEnvelope("s2", "2026-01-01T11:00:00Z", { title: "Unverified" }),
   );
 
-  // A different form on the same day is ignored entirely.
+  // A different form on the same day: only its submission ID is taken.
   await writeJson(path.join(submissions, "2026-01-01", "contact", "c1.json"), {
     submissionId: "c1",
     receivedAt: "2026-01-01T09:00:00Z",
@@ -85,11 +99,15 @@ async function bucket(): Promise<string> {
   return submissions;
 }
 
-describe("readVerifiedReportSubmissions", () => {
-  it("returns only verified reportNew submissions, parsed without PII or traits", async () => {
-    const reports = await readVerifiedReportSubmissions(await bucket());
+describe("readSubmissions", () => {
+  it("returns every reportNew submission by receipt, parsed without PII or traits", async () => {
+    const { reports } = await readSubmissions(await bucket());
 
-    expect(reports.map((r) => r.submissionId)).toEqual(["s1"]);
+    expect(reports.map((r) => r.submissionId)).toEqual(["s1", "s2"]);
+    expect(reports.map((r) => r.file)).toEqual([
+      "2026-01-01/reportNew/s1.json",
+      "2026-01-01/reportNew/s2.json",
+    ]);
     const [report] = reports;
     expect(report.title).toBe("Stop on Main St");
     expect(report.location).toBe("Palestine");
@@ -114,6 +132,7 @@ describe("readVerifiedReportSubmissions", () => {
     tempDirs.push(dir);
     const submissions = path.join(dir, "submissions");
     await writeJson(path.join(submissions, "verify", "v1.json"), {
+      verificationId: "v1",
       submissionId: "flat1",
       formName: "reportNew",
       verifiedAt: "2026-01-02T00:00:00Z",
@@ -132,7 +151,7 @@ describe("readVerifiedReportSubmissions", () => {
       }),
     );
 
-    const [report] = await readVerifiedReportSubmissions(submissions);
+    const [report] = (await readSubmissions(submissions)).reports;
     expect(report.officers).toEqual([
       {
         name: "James Markham",
@@ -145,5 +164,87 @@ describe("readVerifiedReportSubmissions", () => {
         department: "Irving Police Department",
       },
     ]);
+  });
+
+  it("returns the verify and status records without the fields it does not use, and the IDs of other forms", async () => {
+    const read = await readSubmissions(await bucket());
+    expect(read.verifyRecords).toEqual([
+      {
+        file: "verify/v1.json",
+        verificationId: "v1",
+        submissionId: "s1",
+        formName: "reportNew",
+        verified: true,
+      },
+      {
+        file: "verify/v2.json",
+        verificationId: "v2",
+        submissionId: "s2",
+        formName: "reportNew",
+        verified: false,
+      },
+    ]);
+    expect(read.statusRecords).toEqual([
+      { file: "status/s1.json", submissionId: "s1", status: "approved" },
+      { file: "status/v2.json", verificationId: "v2", status: "in_review" },
+    ]);
+    expect([...read.otherFormSubmissionIds]).toEqual(["c1"]);
+  });
+
+  it("fails when payload.formName is not the name of the folder", async () => {
+    const submissions = await bucket();
+    await writeJson(
+      path.join(submissions, "2026-01-02", "reportNew", "s3.json"),
+      {
+        submissionId: "s3",
+        receivedAt: "2026-01-02T10:00:00Z",
+        payload: { formName: "contact", data: { title: "Misfiled" } },
+      },
+    );
+    await expect(readSubmissions(submissions)).rejects.toThrow(
+      `org/policeconduct/submissions: ${path.join(submissions, "2026-01-02", "reportNew", "s3.json")} is in a reportNew folder but its payload.formName is not reportNew.`,
+    );
+  });
+
+  it("fails when two reportNew files hold one submissionId", async () => {
+    const submissions = await bucket();
+    await writeJson(
+      path.join(submissions, "2026-01-02", "reportNew", "copy.json"),
+      reportEnvelope("s1", "2026-01-02T10:00:00Z", { title: "Copy" }),
+    );
+    await expect(readSubmissions(submissions)).rejects.toThrow(
+      "org/policeconduct/submissions: 2026-01-01/reportNew/s1.json and 2026-01-02/reportNew/copy.json hold one submissionId.",
+    );
+  });
+
+  it("names the file and no file content when a submission is not JSON", async () => {
+    const submissions = await bucket();
+    const file = path.join(submissions, "2026-01-02", "reportNew", "bad.json");
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, "Wobblethorpe wrote this", "utf8");
+    const error = await readSubmissions(submissions).then(
+      () => undefined,
+      (thrown: Error) => thrown,
+    );
+    expect(error?.message).toBe(
+      `org/policeconduct/submissions: ${file} is not valid JSON.`,
+    );
+  });
+
+  it("names the file and the field when a submission does not fit the schema", async () => {
+    const submissions = await bucket();
+    const file = path.join(submissions, "2026-01-02", "reportNew", "odd.json");
+    await writeJson(
+      file,
+      reportEnvelope("odd", "2026-01-02T10:00:00Z", { title: 7 }),
+    );
+    const error = await readSubmissions(submissions).then(
+      () => undefined,
+      (thrown: Error) => thrown,
+    );
+    expect(error?.message).toContain(
+      `org/policeconduct/submissions: ${file} is not a valid reportNew submission: `,
+    );
+    expect(error?.message).toContain("title");
   });
 });

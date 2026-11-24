@@ -2,6 +2,7 @@ import { BeatBoundariesSchema } from "./beats.js";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
+import type { InputAccounting } from "../../../../src/cli/transform/accounting.js";
 import type {
   EmittedRecords,
   SourceManifest,
@@ -40,10 +41,19 @@ export const transform: SourceTransform = async ({
       "gov/irvingtx/arrests: no acquired arrests-normalized.jsonl (run acquire first).",
     );
   }
-  const arrests = (await readFile(file, "utf8"))
-    .split("\n")
-    .filter((line) => line.trim() !== "")
-    .map((line) => parseNormalizedArrest(JSON.parse(line)));
+  const bookings: InputAccounting = {
+    input: "arrests-normalized.jsonl",
+    read: 0,
+    emitted: 0,
+    reported: 0,
+    notSelected: {},
+  };
+  const arrests: NormalizedArrest[] = [];
+  for (const line of (await readFile(file, "utf8")).split("\n")) {
+    if (line.trim() === "") continue;
+    bookings.read += 1;
+    arrests.push(parseNormalizedArrest(JSON.parse(line)));
+  }
 
   const provenanceFile = paths.find((candidate) =>
     candidate.endsWith("analytics-provenance.json"),
@@ -60,6 +70,7 @@ export const transform: SourceTransform = async ({
     .parse(JSON.parse(await readFile(provenanceFile, "utf8")));
   // Validate uniqueness even if a duplicate booking has no resolvable officer.
   const agencyProfile = buildProfile(arrests);
+  bookings.emitted = agencyProfile.coverage.totalArrests;
   const beatCodes = new Set(evidence.beatBoundaries.map((beat) => beat.code));
   for (const arrest of arrests) {
     if (
@@ -70,8 +81,12 @@ export const transform: SourceTransform = async ({
         `Missing patrol boundary for beat ${arrest.enrichment.beat}`,
       );
   }
-  const agency = await data.resolveAgency?.({ agencyName: AGENCY_NAME });
-  if (agency === undefined || agency === null) {
+  if (data.resolveAgency === undefined)
+    throw new Error(
+      "gov/irvingtx/arrests: the data context has no resolveAgency.",
+    );
+  const agency = await data.resolveAgency({ agencyName: AGENCY_NAME });
+  if (agency === null) {
     throw new Error(
       `gov/irvingtx/arrests: ${AGENCY_NAME} does not resolve to an agency — import the roster first.`,
     );
@@ -182,6 +197,16 @@ export const transform: SourceTransform = async ({
             },
           },
         },
+      },
+    ],
+    accounting: [
+      bookings,
+      {
+        input: "analytics-provenance.json",
+        read: 1,
+        emitted: 1,
+        reported: 0,
+        notSelected: {},
       },
     ],
   };

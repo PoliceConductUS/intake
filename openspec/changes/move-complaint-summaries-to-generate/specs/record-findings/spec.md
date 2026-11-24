@@ -48,12 +48,40 @@ A resolver MAY report a finding about the record it is resolving and return no v
 
 ### Requirement: A finding that is no longer reported is resolved
 
-When a record is emitted again and a finding reported for it earlier is not reported, `data generate` SHALL write that finding's annotation as resolved, keeping its ID. A source that reports findings on a record SHALL emit that record whenever it runs, with an empty list when it has none.
+When a record is emitted again and a finding reported for it earlier is not reported, `data generate` SHALL write that finding's annotation as resolved, keeping its ID, except as the requirements "A resolver that could not decide keeps its earlier findings" and "A source's findings are resolved only by that source" state. A source that reports findings on a record SHALL emit that record whenever it runs, with an empty list when it has none.
 
 #### Scenario: The problem is fixed
 
-- **WHEN** a record that carried a finding is emitted without it
+- **WHEN** a record that carried a source finding is emitted by the same source with a `defects` list that does not hold it
 - **THEN** the annotation's status becomes resolved and its ID is unchanged
+
+### Requirement: A resolver that could not decide keeps its earlier findings
+
+A resolver that cannot work out its result on a run, because a service it needs is down, MAY state that the findings reported by the record's resolvers on earlier runs are kept. `data generate` SHALL then write none of the resolver annotations of that record and that source namespace as resolved on that run.
+
+#### Scenario: A service goes down
+
+- **WHEN** a record's resolver reported a finding on an earlier run, and on this run it states that earlier findings are kept and reports nothing
+- **THEN** the annotation stays active with its ID unchanged
+
+### Requirement: A source's findings are resolved only by that source
+
+The identity of a source or resolver finding's annotation SHALL also include the source namespace of the artifact that carried the record, and a resolver finding SHALL be resolved only in a run of that source namespace. A source finding SHALL be resolved only by a record from the same source namespace whose metadata holds `defects`, which MAY be an empty list. A record whose metadata holds no `defects` SHALL leave earlier source findings on its subject record as they are.
+
+#### Scenario: A record with no defects list
+
+- **WHEN** a record that carried a finding is emitted with no `defects` in its metadata
+- **THEN** the annotation stays active
+
+#### Scenario: Two sources carry one record with resolver findings
+
+- **WHEN** a resolver reported a finding on a record in a run of source A, and a run of source B carries the same record and its resolvers report nothing
+- **THEN** source A's resolver annotation stays active with its ID unchanged
+
+#### Scenario: Two sources report on one record
+
+- **WHEN** source A and source B have each reported a finding on the same licensing authority, and source A emits that record again with an empty `defects` list
+- **THEN** source A's annotation becomes resolved, and source B's annotation stays active with its ID unchanged
 
 ### Requirement: A finding on a kind that cannot hold annotations fails
 

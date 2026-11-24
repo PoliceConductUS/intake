@@ -21,7 +21,7 @@ are ever minted from a video.
   mn-post.
 - To: mirroring clearinghouse-api / courtlistener, `acquire.ts` pages agencies
   via the `data.agencies(...)` facade and searches the PoliceActivity channel
-  **per agency** (YouTube Data API v3, keyed), storing each hit's video + captions
+  **per agency** (YouTube Data API v3, keyed), storing each hit's video (never its captions)
   stamped with the agency's source id; `run.ts` reads them and, for each video at
   that known agency, resolves officers (and any docketed case) to existing records
   and emits CoverageLink + CoverageLinkAgencyPersonnel + CoverageLinkCivilCase for

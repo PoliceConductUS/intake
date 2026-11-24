@@ -109,7 +109,7 @@ async function readPublicArticle(
   return null;
 }
 
-export async function readArticle(url: string): Promise<ArticleRead | null> {
+export async function readArticle(url: string): Promise<ArticleRead> {
   const responses: HttpStep[] = [];
   try {
     return (

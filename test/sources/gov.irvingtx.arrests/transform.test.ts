@@ -193,6 +193,23 @@ describe("arrests run", () => {
     expect(report.officersProfiled).toBe(2);
     expect(report.unresolvedNameCount).toBe(1);
     expect(report.arrestsWithNoResolvedOfficer).toBe(1);
+
+    expect(manifest.accounting).toEqual([
+      {
+        input: "arrests-normalized.jsonl",
+        read: 4,
+        emitted: 4,
+        reported: 0,
+        notSelected: {},
+      },
+      {
+        input: "analytics-provenance.json",
+        read: 1,
+        emitted: 1,
+        reported: 0,
+        notSelected: {},
+      },
+    ]);
   });
 
   it("round trips more than 100 officer profiles through canonical IO without shared aliases", async () => {
@@ -315,5 +332,30 @@ describe("arrests run", () => {
         data: noAgency,
       }),
     ).rejects.toThrow(/does not resolve to an agency/);
+  });
+
+  it("throws its own error when the data context has no resolveAgency", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "arrests-"));
+    tempDirs.push(dir);
+    const jsonl = path.join(dir, "arrests-normalized.jsonl");
+    await writeFile(jsonl, JSON.stringify(arrest({})), "utf8");
+    await writeFile(
+      path.join(dir, "analytics-provenance.json"),
+      JSON.stringify({ provenance: {}, audit: {}, beatBoundaries: boundaries }),
+    );
+    await expect(
+      transform({
+        paths: [jsonl, path.join(dir, "analytics-provenance.json")],
+        readXlsx: (() => {
+          throw new Error("unused");
+        }) as never,
+        state: dir,
+        emit: async () => {},
+        env: {},
+        data: { resolvePersonnel: data.resolvePersonnel },
+      }),
+    ).rejects.toThrow(
+      "gov/irvingtx/arrests: the data context has no resolveAgency.",
+    );
   });
 });

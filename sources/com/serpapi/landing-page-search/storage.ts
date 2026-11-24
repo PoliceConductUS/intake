@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { required } from "./providers.js";
 
 export type Stored<T> = { value: T; etag: string };
 export interface NewsStorage {
@@ -66,14 +67,9 @@ function awsError(error: unknown, codes: string[]) {
   const stderr = (error as { stderr?: string }).stderr ?? "";
   return codes.some((code) => stderr.includes("(" + code + ")"));
 }
-function required(name: string) {
-  const value = process.env[name];
-  if (!value) throw new Error("Missing " + name);
-  return value;
-}
 export function createNewsStorage(): NewsStorage {
-  const privateBucket = required("NEWS_PRIVATE_BUCKET"),
-    siteBucket = required("NEWS_SITE_BUCKET");
+  const privateBucket = required("NEWS_PRIVATE_BUCKET", process.env),
+    siteBucket = required("NEWS_SITE_BUCKET", process.env);
   async function get(bucket: string, key: string) {
     return withFile(async (file) => {
       try {
@@ -186,7 +182,7 @@ export function createNewsStorage(): NewsStorage {
           "lambda",
           "invoke",
           "--function-name",
-          required("NEWS_RELEASE_FUNCTION"),
+          required("NEWS_RELEASE_FUNCTION", process.env),
           "--cli-binary-format",
           "raw-in-base64-out",
           "--payload",
@@ -205,7 +201,7 @@ export function createNewsStorage(): NewsStorage {
         "wait",
         "invalidation-completed",
         "--distribution-id",
-        required("NEWS_DISTRIBUTION_ID"),
+        required("NEWS_DISTRIBUTION_ID", process.env),
         "--id",
         invalidationId,
       ]);

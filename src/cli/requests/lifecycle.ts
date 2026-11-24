@@ -266,14 +266,14 @@ async function sendReserved(
   options: SubmitOptions,
 ) {
   if (!row.spec.payload) throw new Error("Request has no saved payload");
+  const send =
+    row.spec.transport === "portal" ? options.sendPortal : options.send;
+  if (!send) throw new Error("Portal has no verified submission adapter");
   row.spec.submission = "reserved";
   row.spec.attemptedAt = options.now.toISOString();
   delete row.spec.error;
   await store.save(row);
   try {
-    const send =
-      row.spec.transport === "portal" ? options.sendPortal : options.send;
-    if (!send) throw new Error("Portal has no verified submission adapter");
     const receipt = await send(row.metadata.name, row.spec.payload);
     row.spec.providerId = receipt.id;
     row.spec.evidence.push(...(receipt.evidence ?? []));

@@ -99,4 +99,14 @@ describe("discoverLatestGazetteerLinks", () => {
       ),
     ).toThrow(/Missing required 2024 Gazetteer source links/);
   });
+
+  it("throws a named error for a place link whose URL is not a place TIGER file", () => {
+    const html = page([
+      ...gazetteer2024,
+      anchor(`${W2}/geo/tiger/TIGER2024/PLACE/`, "tl_2024_27_place.zip"),
+    ]);
+    expect(() => discoverLatestGazetteerLinks(html, BASE)).toThrow(
+      `census: place TIGER link is not tl_<year>_<state>_place.zip: ${W2}/geo/tiger/TIGER2024/PLACE/`,
+    );
+  });
 });
