@@ -193,6 +193,6 @@ export function validateWorkbookHeader(
   for (const [index, label] of Object.entries(expected))
     if (values[Number(index)] !== label)
       throw new Error(
-        `Unexpected workbook header at column ${Number(index) + 1}: expected ${label}`,
+        `Unexpected workbook header at column ${Number(index) + 1}: expected ${label}, received ${JSON.stringify(values[Number(index)])}`,
       );
 }

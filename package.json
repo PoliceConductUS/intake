@@ -19,10 +19,10 @@
     "doctor": "bash scripts/bootstrap-dev.sh --check",
     "cli": "NODE_OPTIONS=\"${NODE_OPTIONS:-} --max-old-space-size=12288\" tsx src/cli/index.ts",
     "format": "prettier --write \"**/*.{json,md,ts,yml,yaml}\"",
-    "format:sql": "mise exec -- uvx sqlfluff==4.1.0 format --dialect postgres --processes 1 --disable-progress-bar .",
+    "format:sql": "mise exec -- uvx sqlfluff==4.5.0 format --dialect postgres --processes 1 --disable-progress-bar .",
     "format:check": "prettier --check \"**/*.{json,md,ts,yml,yaml}\"",
     "lint": "bash -n scripts/bootstrap-dev.sh && npm run typecheck",
-    "lint:sql": "mise exec -- uvx sqlfluff==4.1.0 lint --dialect postgres --processes 1 --disable-progress-bar .",
+    "lint:sql": "mise exec -- uvx sqlfluff==4.5.0 lint --dialect postgres --processes 1 --disable-progress-bar .",
     "openspec:status": "openspec status",
     "openspec:validate": "openspec validate --all",
     "publish:import-schemas": "tsx scripts/publish-import-schemas.ts",
@@ -35,28 +35,28 @@
     "validate": "npm run format:check && npm run lint && npm run test:vitest && npm run build && npm run openspec:validate"
   },
   "devDependencies": {
-    "@fission-ai/openspec": "1.3.1",
-    "@testcontainers/postgresql": "^12.1.0",
-    "@types/node": "^25.9.9",
+    "@fission-ai/openspec": "^2.0.0",
+    "@testcontainers/postgresql": "^12.2.1",
+    "@types/node": "^26.6.6",
     "@types/pg": "^8.20.4",
     "@types/shapefile": "^0.6.4",
     "@types/yauzl": "^3.4.0",
-    "prettier": "3.8.5",
-    "supabase": "2.122.0",
+    "prettier": "^3.10.1",
+    "supabase": "^3.1.0",
     "tsx": "^4.22.5",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.12"
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.125.0",
+    "@anthropic-ai/sdk": "^1.8.0",
     "@paralleldrive/cuid2": "^3.3.0",
-    "commander": "^15.0.0",
+    "commander": "^15.1.0",
     "csv-parse": "^7.0.3",
     "exceljs": "^4.4.0",
     "namecase": "^1.1.2",
-    "node-html-parser": "^7.1.0",
-    "pg": "^8.21.0",
-    "pino": "^10.3.1",
+    "node-html-parser": "^9.0.7",
+    "pg": "^8.23.1",
+    "pino": "^10.4.0",
     "polygon-clipping": "^0.15.7",
     "shapefile": "^0.6.6",
     "yaml": "^2.9.1",
@@ -64,7 +64,7 @@
     "zod": "^4.4.3"
   },
   "optionalDependencies": {
-    "playwright": "^1.60.0"
+    "playwright": "^1.65.1"
   },
   "overrides": {
     "exceljs": {
@@ -85,7 +85,7 @@
     "esbuild@0.28.2": true,
     "fsevents@2.3.3": true,
     "fsevents@2.3.2": true,
-    "protobufjs@7.6.5": true,
-    "ssh2@1.17.0": true
+    "ssh2@1.17.0": true,
+    "protobufjs@7.6.6": true
   }
 }

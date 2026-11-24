@@ -1,4 +1,5 @@
--- IDs are assigned before the write; the database never generates one (ADR 0008).
+-- IDs are assigned before the write; the database never generates one.
+-- See ADR 0008.
 alter table public.agency alter column id drop default;
 alter table public.agency_personnel alter column id drop default;
 alter table public.agency_phone_numbers alter column id drop default;

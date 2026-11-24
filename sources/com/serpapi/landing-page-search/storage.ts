@@ -24,11 +24,18 @@ export interface NewsStorage {
 }
 export function pageKey(
   id: string,
-  folder: "static" | "override" | "data",
+  folder: "build" | "override" | "data",
   path: string,
 ) {
   if (
-    !/^[a-z0-9-]+$/.test(id) ||
+    !id ||
+    id === "." ||
+    id === ".." ||
+    /[\\/]/.test(id) ||
+    Array.from(id).some(
+      (character) =>
+        character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127,
+    ) ||
     !path.startsWith("/") ||
     !path.endsWith("/") ||
     new URL(path, "https://local.invalid").pathname !== path ||
@@ -36,7 +43,7 @@ export function pageKey(
     /[?#\\]/.test(path)
   )
     throw new Error("Invalid release or canonical page path");
-  return `builds/${id}/${folder}${path}index.${folder === "data" ? "json" : "html"}`;
+  return `${folder === "data" ? "builds/" : ""}${id}/${folder}${path}index.${folder === "data" ? "json" : "html"}`;
 }
 const run = promisify(execFile);
 async function aws(args: string[]) {
@@ -141,7 +148,7 @@ export function createNewsStorage(): NewsStorage {
       );
     },
     async readOriginal(id, path) {
-      const object = await get(siteBucket, pageKey(id, "static", path));
+      const object = await get(siteBucket, pageKey(id, "build", path));
       if (!object) throw new Error("Missing release original: " + path);
       return object.value;
     },

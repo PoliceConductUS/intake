@@ -1,10 +1,8 @@
-import * as annotationSchema from "../../src/shared/data-annotations.js";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { tsImport } from "tsx/esm/api";
 import { afterAll, beforeAll, expect, test } from "vitest";
-import { createRequire } from "node:module";
-import ts from "typescript";
-import * as timestampSchema from "../../src/shared/timestamp-schema.js";
-import * as complaintSummarySchema from "../../src/shared/ai-complaint-summary.js";
-import * as addressSchema from "../../src/shared/agency-address-schema.js";
 import { introspectSchema } from "../../scripts/lib/schema-introspection.js";
 import {
   ENTITY_TABLES,
@@ -47,21 +45,19 @@ test("generated agency record and create schemas reject the database-owned colum
     database.connectionString,
     ENTITY_TABLES,
   );
-  const code = ts.transpileModule(generateEntitySpecsModule(schema, ""), {
-    compilerOptions: {
-      module: ts.ModuleKind.CommonJS,
-      target: ts.ScriptTarget.ES2022,
-    },
-  }).outputText;
-  const localRequire = createRequire(import.meta.url);
-  const exports: Record<string, any> = {};
-  new Function("require", "exports", code)((name: string) => {
-    if (name === "../../data-annotations.js") return annotationSchema;
-    if (name === "../../timestamp-schema.js") return timestampSchema;
-    if (name === "../../agency-address-schema.js") return addressSchema;
-    if (name === "../../ai-complaint-summary.js") return complaintSummarySchema;
-    return localRequire(name);
-  }, exports);
+  const directory = mkdtempSync(
+    fileURLToPath(
+      new URL("../../src/shared/io/.generated-contract-", import.meta.url),
+    ),
+  );
+  let exports: Record<string, any>;
+  try {
+    const file = join(directory, "entity-specs.ts");
+    writeFileSync(file, generateEntitySpecsModule(schema, ""));
+    exports = await tsImport(pathToFileURL(file).href, import.meta.url);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
   for (const name of ["AgencySpec", "AgencyCreateSpec"]) {
     const spec = exports[name];
     expect(Object.hasOwn(spec.shape, "location_path_level")).toBe(false);

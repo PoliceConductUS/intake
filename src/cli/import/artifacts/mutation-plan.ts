@@ -135,7 +135,7 @@ function sortByDependencyOrder(
 
   // Re-order each self-referential kind's create run root-down (parents first).
   const result: DatabaseMutationItem[] = [];
-  for (let start = 0; start < sorted.length; ) {
+  for (let start = 0; start < sorted.length;) {
     const item = sorted[start]!;
     const selfFk =
       "kind" in item &&
