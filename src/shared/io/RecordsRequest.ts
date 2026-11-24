@@ -1,3 +1,4 @@
+import { sourceNamespacePattern } from "../source-namespace.js";
 import { z } from "zod";
 import { rename } from "node:fs/promises";
 import { INTAKE_API_VERSION } from "./intake-api-version.js";
@@ -60,7 +61,7 @@ const schema = z
     metadata: z
       .object({
         name: z.string().regex(/^[a-z][a-z0-9]{23}$/),
-        namespace: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/),
+        namespace: z.string().regex(sourceNamespacePattern),
       })
       .strict(),
     spec: z

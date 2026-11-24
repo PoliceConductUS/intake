@@ -1,3 +1,4 @@
+import { assertValidSourceId } from "./load-source-module.js";
 import { Artifacts } from "../../shared/io/index.js";
 import type {
   ArtifactsEnvelope,
@@ -6,7 +7,29 @@ import type {
 import type { EmitRefItem } from "./emit-sink.js";
 import type { readXlsx } from "./read-xlsx.js";
 
-export type EmittedRecords = Record<string, { spec: unknown }>;
+export type EmittedRecords = Record<
+  string,
+  {
+    metadata?: { action: "PATCH"; selector: Record<string, unknown> };
+    spec: unknown;
+  }
+>;
+export function recordOrigin(spec: Record<string, unknown>) {
+  const namespace = spec.source_namespace;
+  const name = spec.source_id;
+  if (namespace == null && name == null) return undefined;
+  if (
+    typeof namespace !== "string" ||
+    !namespace.trim() ||
+    typeof name !== "string" ||
+    !name.trim()
+  )
+    throw new Error(
+      "Source namespace and source ID must be supplied together.",
+    );
+  assertValidSourceId(namespace);
+  return { namespace, name };
+}
 export type SourceManifest = {
   personnelSourceNames?: string[];
   artifacts: Array<{ kind: ImportArtifactKind; records: EmittedRecords }>;

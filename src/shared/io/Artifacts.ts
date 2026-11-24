@@ -204,7 +204,7 @@ function artifactFromInlineItem(
     const specSchema = artifactRecordSpecs[item.kind];
     const schema =
       envelope.metadata?.action === "PATCH" && specSchema instanceof z.ZodObject
-        ? specSchema.partial()
+        ? z.strictObject(specSchema.shape).partial()
         : specSchema;
     const result = schema.safeParse(envelope.spec);
     if (!result.success) {

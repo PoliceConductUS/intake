@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { addSupplementalPlaces } from "../../../sources/us-census-gazetteer/lib/supplemental-places.js";
-import type { BuildLocationPathsResult } from "../../../sources/us-census-gazetteer/lib/location-paths.js";
-import type { TigerFeatureRow } from "../../../sources/us-census-gazetteer/lib/tiger-hierarchy.js";
+import { addSupplementalPlaces } from "../../../sources/gov/census/www2/gazetteer/lib/supplemental-places.js";
+import type { BuildLocationPathsResult } from "../../../sources/gov/census/www2/gazetteer/lib/location-paths.js";
+import type { TigerFeatureRow } from "../../../sources/gov/census/www2/gazetteer/lib/tiger-hierarchy.js";
 
 function feature(
   geoid: string,

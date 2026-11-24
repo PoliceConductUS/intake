@@ -1,6 +1,5 @@
-import { access, constants } from "node:fs/promises";
-import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { loadIntakeSource } from "../source-discovery.js";
+export { assertValidSourceId } from "../../shared/source-namespace.js";
 import {
   IMPORT_ARTIFACT_KINDS,
   type ImportArtifactKind,
@@ -11,129 +10,43 @@ const IMPORT_ARTIFACT_KIND_SET: ReadonlySet<string> = new Set(
   IMPORT_ARTIFACT_KINDS,
 );
 
-export function assertValidSourceId(sourceId: string): void {
-  if (!/^[a-z0-9][a-z0-9.\-]*$/i.test(sourceId)) {
-    throw new Error(`Invalid source id: ${sourceId}`);
-  }
-}
-
-async function fileExists(filePath: string): Promise<boolean> {
-  try {
-    await access(filePath, constants.R_OK);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-// A source is a folder under sources/ defining phase modules named for the CLI
-// verb that runs them: transform.ts (produce) and the optional acquire.ts
-// (download/scrape). transform.ts is what makes the folder a source.
-function sourcePhasePath(
-  sourceId: string,
-  sourcesRoot: string,
-  phase: "transform" | "acquire",
-): string {
-  return path.join(sourcesRoot, sourceId, `${phase}.ts`);
-}
-
 export async function loadSourceModule(
   sourceId: string,
   sourcesRoot: string,
 ): Promise<SourceTransform> {
-  assertValidSourceId(sourceId);
-  const modulePath = sourcePhasePath(sourceId, sourcesRoot, "transform");
-  if (!(await fileExists(modulePath))) {
-    throw new Error(`Unknown source id: no transform module at ${modulePath}`);
-  }
-  const module = (await import(pathToFileURL(modulePath).href)) as {
-    transform?: unknown;
-  };
-  if (typeof module.transform !== "function") {
-    throw new Error(
-      `Source ${sourceId} transform.ts must export a transform function`,
-    );
-  }
-  return module.transform as SourceTransform;
+  const { transform } = await loadIntakeSource(sourceId, sourcesRoot);
+  if (!transform) throw Error(`Source ${sourceId} does not support transform`);
+  return transform;
 }
 
-// A source's declared produces (ADR 0021), validated fail-loud. The consumed
-// set is derived from it (see consumesOf), never declared.
 export async function loadSourceProduces(
   sourceId: string,
   sourcesRoot: string,
 ): Promise<ImportArtifactKind[]> {
-  assertValidSourceId(sourceId);
-  const modulePath = sourcePhasePath(sourceId, sourcesRoot, "transform");
-  if (!(await fileExists(modulePath))) {
-    throw new Error(`Unknown source id: no transform module at ${modulePath}`);
-  }
-  const module = (await import(pathToFileURL(modulePath).href)) as {
-    produces?: unknown;
-  };
-  const produces = module.produces;
-  // An empty array is allowed: a disabled/no-op source produces nothing (it runs
-  // and emits no artifacts). A missing or non-array `produces` is still an error.
-  if (!Array.isArray(produces)) {
-    throw new Error(
-      `Source ${sourceId} transform.ts must export a produces array`,
-    );
-  }
+  const { produces } = await loadIntakeSource(sourceId, sourcesRoot);
+  if (!Array.isArray(produces))
+    throw Error(`Source ${sourceId} must declare a produces array`);
   for (const kind of produces) {
-    if (typeof kind !== "string" || !IMPORT_ARTIFACT_KIND_SET.has(kind)) {
-      throw new Error(
+    if (!IMPORT_ARTIFACT_KIND_SET.has(kind))
+      throw Error(
         `Source ${sourceId} produces an unknown kind: ${String(kind)}`,
       );
-    }
   }
-  return produces as ImportArtifactKind[];
+  return [...produces];
 }
 
-// A standalone source (e.g. org.policeconduct.manual) is a manual intervention —
-// run on its own to stage creates/updates into the database between group runs —
-// so it is excluded from a multi-source group run. Default false.
 export async function loadSourceStandalone(
   sourceId: string,
   sourcesRoot: string,
 ): Promise<boolean> {
-  assertValidSourceId(sourceId);
-  const modulePath = sourcePhasePath(sourceId, sourcesRoot, "transform");
-  if (!(await fileExists(modulePath))) {
-    throw new Error(`Unknown source id: no transform module at ${modulePath}`);
-  }
-  const module = (await import(pathToFileURL(modulePath).href)) as {
-    standalone?: unknown;
-  };
-  return module.standalone === true;
+  return (await loadIntakeSource(sourceId, sourcesRoot)).standalone === true;
 }
 
-// Load a source's optional acquire (download/scrape) phase. A source with no
-// acquire.ts is a valid source that simply does not support acquire.
 export async function findSourceAcquire(
   sourceId: string,
   sourcesRoot: string,
 ): Promise<SourceAcquire | undefined> {
-  assertValidSourceId(sourceId);
-  if (
-    !(await fileExists(sourcePhasePath(sourceId, sourcesRoot, "transform")))
-  ) {
-    throw new Error(
-      `Unknown source id: no transform module at ${sourcePhasePath(sourceId, sourcesRoot, "transform")}`,
-    );
-  }
-  const modulePath = sourcePhasePath(sourceId, sourcesRoot, "acquire");
-  if (!(await fileExists(modulePath))) {
-    return undefined;
-  }
-  const module = (await import(pathToFileURL(modulePath).href)) as {
-    acquire?: unknown;
-  };
-  if (typeof module.acquire !== "function") {
-    throw new Error(
-      `Source ${sourceId} acquire.ts must export an acquire function`,
-    );
-  }
-  return module.acquire as SourceAcquire;
+  return (await loadIntakeSource(sourceId, sourcesRoot)).acquire;
 }
 
 export async function loadSourceAcquire(
@@ -141,7 +54,6 @@ export async function loadSourceAcquire(
   sourcesRoot: string,
 ): Promise<SourceAcquire> {
   const acquire = await findSourceAcquire(sourceId, sourcesRoot);
-  if (acquire === undefined)
-    throw new Error(`Source ${sourceId} does not support acquire`);
+  if (!acquire) throw Error(`Source ${sourceId} does not support acquire`);
   return acquire;
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { matchInputs } from "../../../sources/us-census-gazetteer/lib/inputs.js";
+import { matchInputs } from "../../../sources/gov/census/www2/gazetteer/lib/inputs.js";
 
 const validPaths = [
   "/data/2025_Gaz_state_national.zip",

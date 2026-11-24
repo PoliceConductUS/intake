@@ -10,7 +10,7 @@ import {
   test,
 } from "vitest";
 import { importArtifacts } from "./completed-artifacts.js";
-import { transform } from "../../sources/gov.tx.tcole/transform.js";
+import { transform } from "../../sources/gov/texas/tcole/transform.js";
 import { excludeManifestRecords } from "../../src/cli/transform/exclude-records.js";
 import { buildArtifactsEnvelope } from "../../src/cli/transform/source-transform.js";
 import {
@@ -21,13 +21,11 @@ import {
 } from "../../src/shared/io/index.js";
 import { persistSourceNameToCanonicalIds } from "../../src/cli/state/source-name-to-canonical-id/index.js";
 import {
-  dockerAvailable,
   startIntakeDatabase,
   type IntakeDatabase,
 } from "../cli/database/intake-postgres.js";
 
-const describeWithDocker = dockerAvailable() ? describe : describe.skip;
-describeWithDocker("initial agency roots in the shared import pipeline", () => {
+describe("initial agency roots in the shared import pipeline", () => {
   let db: IntakeDatabase;
   let root: string;
   const roots: string[] = [];
@@ -158,13 +156,17 @@ describeWithDocker("initial agency roots in the shared import pipeline", () => {
       commandDirectory: path.join(root, "command"),
     });
   }
+  const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
   test.each([
     ["2024-06-03", "2024-05-22", "error"],
     ["2024-06-17", "2024-06-14", "error"],
     ["2024-01-22", "2024-01-17", "error"],
     ["2024-08-15", "2024-08-05", "error"],
     ["2024-08-19", "2024-08-07", "error"],
-    ["2026-11-16", null, "warning"],
+    // A start date after the validation day; a fixed date stops being one.
+    [futureDate, null, "warning"],
   ])(
     "preserves assignment %s to %s and stable identities through repeated generation/apply",
     async (start_date, end_date, findingType) => {

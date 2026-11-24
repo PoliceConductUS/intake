@@ -1,5 +1,6 @@
 import { normalizeTextWhitespace } from "../../../shared/text.js";
 import {
+  expandAgencyAbbreviations,
   lowerCaseEmail,
   nameCase,
   nameSuffix,
@@ -107,6 +108,7 @@ export class Resolver<T, Ctx> {
 
 /** Identity of the source record a facade resolves for (error context + FK keys). */
 export type FacadeSource = {
+  referenceNamespace?: string;
   namespace: string;
   name: string;
   canonicalId?: string;
@@ -179,6 +181,7 @@ export type CanonicalIdBackend = {
     sourceId: string;
   }): Promise<string | undefined>;
   findOrCreateCanonicalId(input: {
+    resolve?: () => Promise<string>;
     namespace: string;
     kind: string;
     sourceId: string;
@@ -304,7 +307,24 @@ export function facadeSelectorOrIdResolver<Row, B extends ReferenceBackend>(
     const { source } = context;
     const action = source.action ?? "PUT";
     if (action === "PATCH" && source.selector !== undefined) {
-      return resolveReference(kind, source.selector as Selector, context);
+      const selected = await resolveReference(
+        kind,
+        source.selector as Selector,
+        context,
+      );
+      if (context.facade.raw("source_namespace" as keyof Row) != null) {
+        const mapped = await context.backend.findOrCreateCanonicalId({
+          kind,
+          namespace: source.namespace,
+          sourceId: source.name,
+          resolve: async () => selected,
+        });
+        if (mapped !== selected)
+          throw Error(
+            "Source identity conflicts with selected " + kind + " row.",
+          );
+      }
+      return selected;
     }
     if (action === "PATCH" || action === "POST") {
       throw new Error(
@@ -393,7 +413,7 @@ function sameRunLink<Row>(targetKind: string): ReferenceLink<Row> {
     if (typeof reference !== "string") return undefined;
     const target = backend.findForeignKeyTarget({
       kind: targetKind,
-      namespace: source.namespace,
+      namespace: source.referenceNamespace ?? source.namespace,
       sourceId: reference,
     });
     return target === undefined ? undefined : target.value("id");
@@ -406,7 +426,7 @@ function ledgerFindLink<Row>(targetKind: string): ReferenceLink<Row> {
     typeof reference !== "string"
       ? Promise.resolve(undefined)
       : backend.findCanonicalId({
-          namespace: source.namespace,
+          namespace: source.referenceNamespace ?? source.namespace,
           kind: targetKind,
           sourceId: reference,
         });
@@ -692,6 +712,16 @@ export function titleCaseResolver<Row, Backend>(
 ): Resolver<string, ResolverContext<Row, Backend>> {
   return new Resolver<string, ResolverContext<Row, Backend>>(
     casingResolveFn<Row, Backend>(property, titleCase),
+  );
+}
+
+export function agencyNameResolver<Row, Backend>(
+  property: keyof Row & string,
+): Resolver<string, ResolverContext<Row, Backend>> {
+  return new Resolver(
+    casingResolveFn<Row, Backend>(property, (name) =>
+      titleCase(expandAgencyAbbreviations(name)),
+    ),
   );
 }
 

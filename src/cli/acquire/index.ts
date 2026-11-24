@@ -1,3 +1,4 @@
+import { recordCompletedAcquisition } from "./acquisition-completion.js";
 import { cp, access } from "node:fs/promises";
 import path from "node:path";
 import { Command } from "commander";
@@ -105,6 +106,7 @@ export async function acquireSource(
     await writeCommandPointer(deps.state, "acquire", {
       latest: outputRelative,
     });
+    await recordCompletedAcquisition(outputDir);
     return { exitCode: 0 };
   } catch (error) {
     return { exitCode: 1, stderr: `${errorMessage(error)}\n` };
@@ -125,7 +127,7 @@ export const registerAcquireCommand: RegisterCliCommand = (
     )
     .argument(
       "[glob]",
-      "glob matching source folder name(s) under sources/ — quote it, e.g. 'mn-post'; defaults to all sources",
+      "glob matching source folder name(s) under sources/ — quote it, e.g. 'com/site/my/mnitservices/post-license-search'; defaults to all sources",
       "*",
     )
     .option(
@@ -147,7 +149,11 @@ export const registerAcquireCommand: RegisterCliCommand = (
         const sourcesRoot = path.join(process.cwd(), "sources");
         try {
           const workspace = intakeWorkspace(env);
-          const sourceIds = await matchSourceIds(sourcesRoot, glob);
+          const sourceIds = await matchSourceIds(
+            sourcesRoot,
+            glob,
+            options.fromLocal ? ["acquire", "transform"] : ["acquire"],
+          );
           if (sourceIds.length === 0) {
             dependencies.setResult({
               exitCode: 1,

@@ -5,11 +5,11 @@ import { afterEach, describe, it, expect, vi } from "vitest";
 import {
   collectSources,
   type PostClient,
-} from "../../../../sources/mn-post/acquire/collect.js";
+} from "../../../../sources/com/site/my/mnitservices/post-license-search/acquire/collect.js";
 import type {
   AgencyIdCache,
   AgencyIdLookup,
-} from "../../../../sources/mn-post/acquire/agency-id-cache.js";
+} from "../../../../sources/com/site/my/mnitservices/post-license-search/acquire/agency-id-cache.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {

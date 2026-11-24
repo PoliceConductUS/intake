@@ -10,7 +10,7 @@ const migrationPath =
   "supabase/migrations/20260929190000_enforce_agency_place_location.sql";
 let container: StartedPostgreSqlContainer;
 beforeAll(async () => {
-  container = await new PostgreSqlContainer("postgis/postgis:15-3.4").start();
+  container = await new PostgreSqlContainer("postgis/postgis:17-3.5").start();
 }, 180000);
 afterAll(async () => {
   await container?.stop();

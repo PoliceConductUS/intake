@@ -54,10 +54,17 @@ describe("data-mutation chain generate", () => {
     const first = await writeEnvelope(
       root,
       "in1",
-      envelope("gov.a", [aliasCreate("/tx/a/")]),
+      envelope("gov/example/agency", [aliasCreate("/tx/a/")]),
     );
     const gen1 = await generateEntry(first, root);
     expect(gen1.version).toBe("000001");
+    expect(gen1.written).toBe(
+      path.join(
+        root,
+        "mutations",
+        "000001-gov%2Fexample%2Fagency.DatabaseMutations.yaml",
+      ),
+    );
     expect(gen1.mutationCount).toBe(1);
 
     const second = await writeEnvelope(

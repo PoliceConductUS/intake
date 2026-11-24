@@ -1,9 +1,7 @@
 import { z } from "zod";
+import { ledgerRecordPath } from "./ledger-record-path.js";
 import { INTAKE_API_VERSION } from "../../../shared/io/import-types.js";
-import {
-  firstIssuePath,
-  yamlResourcePath,
-} from "../../../shared/io/resource.js";
+import { firstIssuePath } from "../../../shared/io/resource.js";
 import {
   readYamlDocumentFile,
   writeYamlDocumentFile,
@@ -88,7 +86,11 @@ async function writeCanonicalIdToSourceName(
   envelope: CanonicalIdToSourceNameEnvelope,
 ): Promise<{ path: string }> {
   const parsed = parse(envelope);
-  const filePath = yamlResourcePath(directory, parsed);
+  const filePath = await ledgerRecordPath(
+    directory,
+    parsed.metadata.name,
+    parsed.kind,
+  );
   await writeYamlDocumentFile(filePath, parsed);
   return { path: filePath };
 }

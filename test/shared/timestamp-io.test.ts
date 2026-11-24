@@ -3,7 +3,7 @@ import { Artifacts } from "../../src/shared/io/Artifacts.js";
 import { importTypeRegistry } from "../../src/shared/io/import-types.js";
 import { DatabaseMutations } from "../../src/cli/import/artifacts/io/DatabaseMutations.js";
 
-const metadata = { name: "report", namespace: "org.policeconduct.manual" };
+const metadata = { name: "report", namespace: "org/policeconduct/manual" };
 const operationSource = {
   namespace: metadata.namespace,
   command: { name: "generate" },

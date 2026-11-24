@@ -80,7 +80,7 @@ it.each([
     });
     const facade = context.facadeFromSource(kind, {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "5904",
     });
     facade.merge({
@@ -120,7 +120,7 @@ it.each([
       );
       await expect(result).rejects.toThrow("properties=location_path_id");
       await expect(result).rejects.toThrow(
-        `cache set gov.tx.tcole ${kind} 5904 location_path_id`,
+        `cache set gov/texas/tcole ${kind} 5904 location_path_id`,
       );
       await expect(result).rejects.not.toThrow("properties=latitude");
       expect(containmentReads).toBe(1);
@@ -173,7 +173,7 @@ it.each(["network", "http", "timeout", "body"])(
     });
     const facade = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "5904",
     });
     facade.merge({
@@ -232,14 +232,14 @@ it("reports source identity and usable cache correction instructions when a chan
   });
   const facade = context.facadeFromSource("Agency", {
     apiVersion: INTAKE_API_VERSION,
-    namespace: "gov.tx.tcole",
+    namespace: "gov/texas/tcole",
     name: "1101",
   });
   facade.merge(raw);
   const result = facade.value("latitude");
   for (const detail of [
     "cm76wpxay0008vrvgb79ptov8",
-    "gov.tx.tcole",
+    "gov/texas/tcole",
     "1101",
     raw.name,
     raw.address,
@@ -249,10 +249,10 @@ it("reports source identity and usable cache correction instructions when a chan
     "physical",
     "location_path_id",
     "--force",
-    "npm run cli -- cache get gov.tx.tcole Agency 1101 latitude",
-    "npm run cli -- cache get gov.tx.tcole Agency 1101 longitude",
-    "npm run cli -- cache set gov.tx.tcole Agency 1101 latitude",
-    "npm run cli -- cache set gov.tx.tcole Agency 1101 longitude",
+    "npm run cli -- cache get gov/texas/tcole Agency 1101 latitude",
+    "npm run cli -- cache get gov/texas/tcole Agency 1101 longitude",
+    "npm run cli -- cache set gov/texas/tcole Agency 1101 latitude",
+    "npm run cli -- cache set gov/texas/tcole Agency 1101 longitude",
   ])
     await expect(result).rejects.toThrow(detail);
   const error = await result.catch((error: Error) => error);
@@ -549,7 +549,7 @@ it.each([true, false])(
     });
     const facade = context.facadeFromSource("Agency", {
       apiVersion: INTAKE_API_VERSION,
-      namespace: "gov.tx.tcole",
+      namespace: "gov/texas/tcole",
       name: "source",
     });
     facade.merge({

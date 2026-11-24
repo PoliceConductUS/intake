@@ -36,6 +36,7 @@ import {
   LocationPathGeometries,
   LocationPathGeometry,
 } from "../../../shared/io/index.js";
+import { recordOrigin } from "../../transform/source-transform.js";
 import { assertNoExistingImport } from "./existing-import.js";
 import {
   DatabaseMutations,
@@ -145,6 +146,7 @@ function addSourceFacades(
           apiVersion: INTAKE_API_VERSION,
           namespace,
           name: sourceNameForImportRecord(recordName, record.spec),
+          origin: recordOrigin(record.spec),
           spec: valueAsRecord(record.spec),
           action: record.metadata?.action,
           selector: record.metadata?.selector,

@@ -9,7 +9,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, it, expect } from "vitest";
-import { transform } from "../../../sources/org.policeconduct.submissions/transform.js";
+import { transform } from "../../../sources/org/policeconduct/submissions/transform.js";
 import { Artifacts } from "../../../src/shared/io/Artifacts.js";
 import { buildArtifactsEnvelope } from "../../../src/cli/transform/source-transform.js";
 import type {
@@ -193,7 +193,7 @@ describe("submissions run", () => {
     expect(() =>
       Artifacts.new(
         buildArtifactsEnvelope(
-          "org.policeconduct.submissions",
+          "org/policeconduct/submissions",
           "transform",
           manifest,
         ),

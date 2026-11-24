@@ -9,8 +9,12 @@ import {
 } from "node:fs/promises";
 import path from "node:path";
 import type { IdentityRestorationEnvelope } from "../../../shared/io/IdentityRestoration.js";
-import { yamlResourceFileName } from "../../../shared/io/resource.js";
-import { resolveSourceNameToCanonicalIdPath } from "./index.js";
+import { ledgerRecordPath } from "./ledger-record-path.js";
+import {
+  resolveSourceNameToCanonicalIdPath,
+  sourceLedgerRoot,
+} from "./index.js";
+import { sourceNamespacePattern } from "../../../shared/source-namespace.js";
 import { SourceNameToCanonicalId } from "./SourceNameToCanonicalId.js";
 import { CanonicalIdToSourceName } from "./CanonicalIdToSourceName.js";
 
@@ -31,37 +35,48 @@ async function readState(event: IdentityRestorationEnvelope, rootDir?: string) {
     resolveSourceNameToCanonicalIdPath(namespace, { rootDir }),
     entityKind,
   );
-  const namespaces = path.dirname(
-    resolveSourceNameToCanonicalIdPath(namespace, { rootDir }),
-  );
-  for (const other of await readdir(namespaces, { withFileTypes: true })) {
-    if (!other.isDirectory() || other.name === namespace) continue;
-    const otherReverse = path.join(
-      namespaces,
-      other.name,
-      entityKind,
-      yamlResourceFileName(expectedCurrentId, "CanonicalIdToSourceName"),
-    );
-    if (await exists(otherReverse)) {
-      await CanonicalIdToSourceName.read(otherReverse, {
-        expectedNamespace: other.name,
-      });
-      throw new Error(
-        `Identity restoration erroneous ID is owned by another namespace: ${other.name}.`,
-      );
+  const namespaces = sourceLedgerRoot({ rootDir });
+  async function checkOtherOwners(prefix: string): Promise<void> {
+    const children = await readdir(path.join(namespaces, prefix), {
+      withFileTypes: true,
+    });
+    for (const child of children) {
+      if (!child.isDirectory() || !sourceNamespacePattern.test(child.name))
+        continue;
+      const other = prefix ? `${prefix}/${child.name}` : child.name;
+      if (other !== namespace) {
+        const reverse = await ledgerRecordPath(
+          path.join(namespaces, other, entityKind),
+          expectedCurrentId,
+          "CanonicalIdToSourceName",
+        );
+        if (await exists(reverse)) {
+          await CanonicalIdToSourceName.read(reverse, {
+            expectedNamespace: other,
+          });
+          throw new Error(
+            `Identity restoration erroneous ID is owned by another namespace: ${other}.`,
+          );
+        }
+      }
+      await checkOtherOwners(other);
     }
   }
-  const forwardPath = path.join(
+  await checkOtherOwners("");
+  const forwardPath = await ledgerRecordPath(
     directory,
-    yamlResourceFileName(sourceName, "SourceNameToCanonicalId"),
+    sourceName,
+    "SourceNameToCanonicalId",
   );
-  const oldPath = path.join(
+  const oldPath = await ledgerRecordPath(
     directory,
-    yamlResourceFileName(expectedCurrentId, "CanonicalIdToSourceName"),
+    expectedCurrentId,
+    "CanonicalIdToSourceName",
   );
-  const originalPath = path.join(
+  const originalPath = await ledgerRecordPath(
     directory,
-    yamlResourceFileName(originalId, "CanonicalIdToSourceName"),
+    originalId,
+    "CanonicalIdToSourceName",
   );
   if (!(await exists(forwardPath)))
     throw new Error("Identity restoration mapping is missing.");

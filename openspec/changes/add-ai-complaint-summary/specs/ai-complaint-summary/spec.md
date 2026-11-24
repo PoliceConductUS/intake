@@ -2,12 +2,12 @@
 
 ### Requirement: Provenance-bearing complaint summary
 
-The system SHALL store AI complaint summaries independently of claims_summary and reject non-null summaries missing complaint URL, source page, filing date, retrieval timestamp, verified SHA-1, SHA-256, confidence, model, generation date, paragraph page support, limitations, or separately sourced procedural context.
+The system SHALL store AI complaint summaries independently of claims_summary. Only nonblank summary text and an HTTP(S) complaint link (`source.sourcePage`) are required. Other retained provenance metadata is optional; its absence SHALL NOT gate persistence or rendering.
 
-#### Scenario: Incomplete provenance
+#### Scenario: Summary without extra metadata
 
-- **WHEN** intake or website data access receives an incomplete summary
-- **THEN** it fails visibly before persistence or rendering
+- **WHEN** a summary contains text and a complaint link but no hashes, verification flags, model details, dates, paragraph support, limitations, or procedural context
+- **THEN** intake accepts it and the website renders it
 
 #### Scenario: Source-bounded rendering
 

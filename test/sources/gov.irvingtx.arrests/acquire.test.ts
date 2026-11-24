@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import ExcelJS from "exceljs";
 import { afterEach, describe, expect, it } from "vitest";
-import { acquire } from "../../../sources/gov.irvingtx.arrests/acquire.js";
+import { acquire } from "../../../sources/gov/irvingtx/arrests/acquire.js";
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -22,7 +22,7 @@ async function fixture(
     : "1 MAIN ST, IRVING, TX";
   const workspace = await mkdtemp(path.join(tmpdir(), "irving-acquire-"));
   dirs.push(workspace);
-  const input = path.join(workspace, "gov.irvingtx.arrests", "source");
+  const input = path.join(workspace, "gov/irvingtx/arrests", "source");
   const geo = path.join(input, "geography");
   await mkdir(geo, { recursive: true });
   const workbook = new ExcelJS.Workbook();

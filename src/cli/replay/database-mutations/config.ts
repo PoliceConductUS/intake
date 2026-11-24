@@ -9,8 +9,7 @@ import {
 } from "./execute.js";
 
 export type ReplayDatabaseMutationsResult =
-  | { ok: true; counts: DatabaseMutationCounts }
-  | { ok: false; error: string };
+  { ok: true; counts: DatabaseMutationCounts } | { ok: false; error: string };
 
 export type ReplayDatabaseMutationsCommandInput = {
   databaseMutationsPath: string;

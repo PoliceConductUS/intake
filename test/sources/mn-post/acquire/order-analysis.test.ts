@@ -1,16 +1,18 @@
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { expect, it, vi } from "vitest";
 import {
   createOrderAnalyzer,
   ORDER_ANALYSIS_INSTRUCTIONS,
-  ORDER_ANALYSIS_PROMPT_VERSION,
-} from "../../../../sources/mn-post/acquire/order-analysis.js";
+  ORDER_ANALYSIS_PROMPT_SHA256,
+} from "../../../../sources/com/site/my/mnitservices/post-license-search/acquire/order-analysis.js";
 const { parse } = vi.hoisted(() => ({ parse: vi.fn() }));
 vi.mock("@anthropic-ai/sdk", () => ({
   default: class {
     beta = { messages: { parse } };
   },
 }));
-it("requests structured narratives and separate absence reasons under prompt2", async () => {
+it("requests structured narratives and separate absence reasons with the current prompt", async () => {
   const result = {
     analysis: {
       allegation:
@@ -36,7 +38,18 @@ it("requests structured narratives and separate absence reasons under prompt2", 
   const input = parse.mock.calls.at(-1)![0];
   expect(input.system).toBe(ORDER_ANALYSIS_INSTRUCTIONS);
   expect(input.messages).toEqual([{ role: "user", content: "Order text" }]);
-  expect(ORDER_ANALYSIS_PROMPT_VERSION).toBe(2);
+  expect(input.system).toBe(
+    await readFile(
+      new URL(
+        "../../../../sources/com/site/my/mnitservices/post-license-search/acquire/order-analysis-prompt.txt",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
+  expect(createOrderAnalyzer("test").promptSha256).toBe(
+    createHash("sha256").update(input.system).digest("hex"),
+  );
 });
 it("rejects automated parsed output missing a null justification", async () => {
   parse.mockResolvedValueOnce({

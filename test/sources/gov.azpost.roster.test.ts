@@ -1,12 +1,10 @@
 import { describe, it, expect } from "vitest";
-import {
-  produces,
-  transform,
-} from "../../sources/gov.azpost.roster/transform.js";
+import { source } from "../../sources/gov/az/post/roster/intake.source.js";
+const { transform, produces } = source;
 
 // Disabled for now: the roster only yields agency-less Personnel, so this source
 // is a no-op until it emits Agency + AgencyPersonnel (see transform.ts).
-describe("gov.azpost.roster run (disabled)", () => {
+describe("gov/az/post/roster run (disabled)", () => {
   it("produces nothing and emits no artifacts", async () => {
     expect(produces).toEqual([]);
     const manifest = await transform({

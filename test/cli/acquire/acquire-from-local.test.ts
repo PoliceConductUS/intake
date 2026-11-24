@@ -142,6 +142,9 @@ describe("acquireFromLocal", () => {
         data: { agencies: async () => ({ items: [] }) },
       }),
     ).rejects.toThrow("analysis incomplete");
+    await expect(
+      readFile(path.join(workspace, "command/failed/test/acquire-complete")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
     expect(await readCommandPointer(state, "acquire")).toEqual({
       latest: "previous",
       resume: path.join("command", "failed", "test", "output"),
@@ -152,10 +155,10 @@ describe("acquireFromLocal", () => {
     const workspace = await tempDir("from-local-ws-");
     const inputs = await tempDir("from-local-src-");
     await writeFile(path.join(inputs, "PublicInfo.xlsx"), "workbook-bytes");
-    const state = path.join(workspace, "state", "gov.tx.tcole");
+    const state = path.join(workspace, "state", "gov/texas/tcole");
 
     const messages: string[] = [];
-    await acquireFromLocal("gov.tx.tcole", ["PublicInfo.xlsx"], {
+    await acquireFromLocal("gov/texas/tcole", ["PublicInfo.xlsx"], {
       env: { INTAKE_WORKSPACE: workspace },
       workspace,
       state,
@@ -176,7 +179,7 @@ describe("acquireFromLocal", () => {
         workspace,
         "command",
         "2026-08-25-abc",
-        "gov.tx.tcole",
+        "gov/texas/tcole",
         "output",
         "PublicInfo.xlsx",
       ),
@@ -187,9 +190,15 @@ describe("acquireFromLocal", () => {
     // The acquire pointer resolves to that output dir — exactly what the run reads.
     const pointer = await readCommandPointer(state, "acquire");
     expect(pointer.latest).toBe(
-      path.join("command", "2026-08-25-abc", "gov.tx.tcole", "output"),
+      path.join("command", "2026-08-25-abc", "gov/texas/tcole", "output"),
     );
 
+    expect(
+      await readFile(
+        path.join(workspace, pointer.latest!, "../acquire-complete"),
+        "utf8",
+      ),
+    ).toBe("");
     // The pointer file is valid YAML with the latest key.
     const raw = parseYaml(
       await readFile(path.join(state, "acquire.yaml"), "utf8"),

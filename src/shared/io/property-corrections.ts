@@ -1,3 +1,4 @@
+import { assertValidSourceId } from "../source-namespace.js";
 import { CorrectionAnnotation } from "../data-annotations.js";
 import type { AgencyLocationPathLookup } from "../agency-location-path.js";
 import { isDeepStrictEqual } from "node:util";
@@ -24,15 +25,17 @@ export function correctionPropertySchema(
     throw new Error(`Unknown property ${kind}.${property}.`);
   return schema.shape[property];
 }
-const directory = (root: string, namespace: string) =>
-  path.join(
+function directory(root: string, namespace: string) {
+  assertValidSourceId(namespace);
+  return path.join(
     root,
     "state",
     "intake",
     "namespaces",
-    encodeURIComponent(namespace),
+    namespace,
     "PropertyCorrection",
   );
+}
 const nameFor = (kind: string, name: string, property: string) =>
   JSON.stringify([kind, name, property]);
 export async function inspectPropertyCorrection(

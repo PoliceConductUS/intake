@@ -3,7 +3,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { afterEach, expect, test, vi } from "vitest";
-import { acquireComplaintSummary } from "../../../sources/courtlistener/summary-acquisition.js";
+import {
+  acquireComplaintSummary,
+  prepareComplaint,
+  recordComplaintReview,
+} from "../../../sources/com/courtlistener/www/api/summary-acquisition.js";
 const dirs: string[] = [];
 afterEach(async () => {
   await Promise.all(
@@ -175,6 +179,24 @@ test("does not follow pagination onto another host", async () => {
   expect(s.fetchJson).toHaveBeenCalledTimes(1);
 });
 
+test("records and reuses a reviewed summary with only text and complaint link", async () => {
+  const s = await setup([
+    { entry_number: 1, date_filed: "2025-01-01", recap_documents: [doc] },
+  ]);
+  const prepared = await prepareComplaint(s.args);
+  const summary = {
+    summary: "The plaintiff alleges an unlawful arrest.",
+    source: {
+      sourcePage: "https://www.courtlistener.com/docket/12/1/example/",
+    },
+  };
+  await recordComplaintReview(prepared, s.args.state, summary, "1");
+  expect((await acquireComplaintSummary(s.args)).ai_complaint_summary).toEqual(
+    summary,
+  );
+  expect(s.analyze).not.toHaveBeenCalled();
+});
+
 test("reuses a hash-bound reviewed summary without calling the configured model", async () => {
   const s = await setup([
     { entry_number: 1, date_filed: "2025-01-01", recap_documents: [doc] },
@@ -211,7 +233,7 @@ test("reuses a hash-bound reviewed summary without calling the configured model"
 
 test("replays a locally extracted review while preserving empty API text", async () => {
   const { prepareComplaint, recordComplaintReview } =
-    await import("../../../sources/courtlistener/summary-acquisition.js");
+    await import("../../../sources/com/courtlistener/www/api/summary-acquisition.js");
   const s = await setup([
     { entry_number: 1, date_filed: "2025-01-01", recap_documents: [doc] },
   ]);
@@ -438,7 +460,7 @@ test.each(["", doc.plain_text])(
   "replays a source-bound unsummarized disposition without analysis for text %j",
   async (plain_text) => {
     const { prepareComplaint, recordComplaintUnavailability } =
-      await import("../../../sources/courtlistener/summary-acquisition.js");
+      await import("../../../sources/com/courtlistener/www/api/summary-acquisition.js");
     const s = await setup([
       {
         entry_number: 1,
@@ -492,7 +514,7 @@ test.each([
   "rejects an unsummarized receipt with altered source %s",
   async (field, value) => {
     const { prepareComplaint, recordComplaintUnavailability } =
-      await import("../../../sources/courtlistener/summary-acquisition.js");
+      await import("../../../sources/com/courtlistener/www/api/summary-acquisition.js");
     const s = await setup([
       { entry_number: 1, date_filed: "2025-01-01", recap_documents: [doc] },
     ]);
@@ -516,7 +538,7 @@ test.each([
 );
 test("rejects an unsummarized receipt for a different prompt or PDF link", async () => {
   const { prepareComplaint, recordComplaintUnavailability } =
-    await import("../../../sources/courtlistener/summary-acquisition.js");
+    await import("../../../sources/com/courtlistener/www/api/summary-acquisition.js");
   const s = await setup([
     { entry_number: 1, date_filed: "2025-01-01", recap_documents: [doc] },
   ]);
@@ -541,7 +563,7 @@ test("rejects an unsummarized receipt for a different prompt or PDF link", async
 });
 test("does not register an unsummarized review without a verified available PDF", async () => {
   const { prepareComplaint, recordComplaintUnavailability } =
-    await import("../../../sources/courtlistener/summary-acquisition.js");
+    await import("../../../sources/com/courtlistener/www/api/summary-acquisition.js");
   const s = await setup([]);
   await expect(
     recordComplaintUnavailability(

@@ -1,6 +1,6 @@
 import { buildArtifactsEnvelope } from "../../src/cli/transform/source-transform.js";
 import { describe, it, expect } from "vitest";
-import { transform } from "../../sources/gov.tx.tcole/transform.js";
+import { transform } from "../../sources/gov/texas/tcole/transform.js";
 import {
   AgencySpec,
   PersonnelSpec,
@@ -207,7 +207,7 @@ const deps = {
   emit: fakeEmit,
 };
 
-describe("gov.tx.tcole run", () => {
+describe("gov/texas/tcole run", () => {
   it("normalizes role and license whitespace in assignment keys without altering raw evidence", async () => {
     const service = {
       PUBLIC_GUID: "1000038",
@@ -412,7 +412,7 @@ describe("gov.tx.tcole run", () => {
     expect(records["tcole"].spec).toEqual({
       name: "Texas Commission on Law Enforcement",
       abbreviation: "TCOLE",
-      source_namespaces: ["gov.tx.tcole"],
+      source_namespaces: ["gov/texas/tcole"],
       website: "https://www.tcole.texas.gov",
       location_path_id: "tx",
     });
@@ -550,7 +550,7 @@ it.each([
           : fakeReadXlsx(file, sheet, columns),
     });
     expect(() =>
-      buildArtifactsEnvelope("gov.tx.tcole", "invalid-address", manifest),
+      buildArtifactsEnvelope("gov/texas/tcole", "invalid-address", manifest),
     ).not.toThrow();
     const agencies = manifest.artifacts.find(
       (artifact) => artifact.kind === "Agencies",

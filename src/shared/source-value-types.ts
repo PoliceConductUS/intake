@@ -133,13 +133,11 @@ export function cleanSourceValues(
   const today = validationDate.toISOString().slice(0, 10);
   const defects: SourceValueDefect[] = [...dateRangeDefects(input)];
   for (const [field, value] of Object.entries(input)) {
-    if (
-      !(
-        field === "date" ||
-        field.startsWith("date_") ||
-        field.endsWith("_date")
-      )
-    )
+    if (!(
+      field === "date" ||
+      field.startsWith("date_") ||
+      field.endsWith("_date")
+    ))
       continue;
     const date = asDate(value);
     if (date !== undefined && date.toISOString().slice(0, 10) > today) {

@@ -1,3 +1,4 @@
+import { assertValidSourceId } from "../../shared/source-namespace.js";
 import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
 import { createHash } from "node:crypto";
@@ -61,8 +62,7 @@ export function eligibility(
 export class RequestStore {
   constructor(readonly workspace: string) {}
   directory(source: string) {
-    if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(source))
-      throw new Error("Invalid source namespace");
+    assertValidSourceId(source);
     return path.join(
       this.workspace,
       "intake/state/namespaces",

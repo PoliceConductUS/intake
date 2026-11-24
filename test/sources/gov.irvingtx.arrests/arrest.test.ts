@@ -3,7 +3,7 @@ import {
   normalizeWorkbook,
   buildProfile,
   parseNormalizedArrest,
-} from "../../../sources/gov.irvingtx.arrests/arrest.js";
+} from "../../../sources/gov/irvingtx/arrests/arrest.js";
 const row = {
   Booking_No: "1",
   Arrest_Officer_Name: "JONES,MATTHEW",

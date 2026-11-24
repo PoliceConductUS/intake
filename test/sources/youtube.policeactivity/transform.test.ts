@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, it, expect } from "vitest";
-import { transform } from "../../../sources/youtube.policeactivity/transform.js";
+import { transform } from "../../../sources/com/youtube/policeactivity/transform.js";
 import { readXlsx } from "../../../src/cli/transform/read-xlsx.js";
 
 const tempDirs: string[] = [];
@@ -88,7 +88,7 @@ async function runWith(data = fakeData()) {
   return { manifest, byKind };
 }
 
-describe("youtube.policeactivity run", () => {
+describe("com/youtube/policeactivity run", () => {
   it("links a video to every officer it names that resolves at the acquired agency", async () => {
     const { byKind } = await runWith();
 

@@ -16,6 +16,19 @@ const DB_MANAGED = new Set(["created_at", "updated_at"]);
 // a source that has lat/lng should send them; otherwise we geocode.)
 const INTAKE_COMPUTED = new Set(["slug", "location_path_id"]);
 
+// Columns only the Institute fills in; a provider is never asked for them.
+const INSTITUTE_CONTROLLED = new Set([
+  "ai_complaint_summary",
+  "complaint_summary_unavailability",
+  "confidence",
+  "created_by",
+  "data_source_values",
+  "normalized_url",
+  "source_exclusions",
+  "source_namespaces",
+  "updated_by",
+]);
+
 // Fields a source may supply but is not required to — a valid row has them, but
 // they can be derived from the other fields when a source doesn't have them.
 const PROVIDER_OPTIONAL = new Set(["latitude", "longitude"]);
@@ -25,9 +38,13 @@ const PROVIDER_OPTIONAL = new Set(["latitude", "longitude"]);
 // itself tolerates their absence (e.g. an officer's last name).
 const SPEC_REQUIRED = new Set(["Personnel.last_name"]);
 
-// Internal geography and derived summaries are not provider-supplied records.
+// Internal geography, derived summaries, annotations, and intake's photo files
+// are not provider-supplied records.
 const OMITTED_KINDS = new Set([
+  "AgencyArrestProfile",
   "ArrestProfile",
+  "DataAnnotation",
+  "PersonnelPhoto",
   "LocationPath",
   "LocationPathGeometry",
   "LocationPathAlias",
@@ -161,6 +178,7 @@ function classifyTable(
     if (DB_MANAGED.has(column.name)) continue;
     // A source can neither know nor provide these; omit them from the request.
     if (INTAKE_COMPUTED.has(column.name)) continue;
+    if (INSTITUTE_CONTROLLED.has(column.name)) continue;
     const type = fieldType(table, column.name);
     const constraintParts: string[] = [];
     if (table.enums.has(column.name)) {

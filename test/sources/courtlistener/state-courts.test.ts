@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { STATE_COURTS } from "../../../sources/courtlistener/acquire.js";
+import { STATE_COURTS } from "../../../sources/com/courtlistener/www/api/acquire.js";
 
 // Independent oracle: the 50 states + DC that any U.S. agency can sit in must all
 // be searchable (every one carries at least a district and a circuit), and a
@@ -116,7 +116,7 @@ const CIRCUIT_BY_STATE: Record<string, string> = {
   DC: "cadc",
 };
 
-describe("courtlistener STATE_COURTS", () => {
+describe("com/courtlistener/www/api STATE_COURTS", () => {
   test("covers all 50 states plus DC", () => {
     for (const state of FIFTY_STATES_PLUS_DC) {
       expect(STATE_COURTS[state], `missing ${state}`).toBeDefined();

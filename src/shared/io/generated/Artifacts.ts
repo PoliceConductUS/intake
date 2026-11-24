@@ -22,6 +22,8 @@ import { PersonnelEducations } from "./PersonnelEducations.js";
 import { PersonnelPhotos } from "./PersonnelPhotos.js";
 import { Disciplines } from "./Disciplines.js";
 import { DisciplineAgencyPersonnel } from "./DisciplineAgencyPersonnel.js";
+import { CoverageHomepageWindows } from "./CoverageHomepageWindows.js";
+import { CoverageHomepagePlacements } from "./CoverageHomepagePlacements.js";
 import { CoverageLinks } from "./CoverageLinks.js";
 import { CoverageLinkAgencyPersonnel } from "./CoverageLinkAgencyPersonnel.js";
 import { AgencyPhoneNumbers } from "./AgencyPhoneNumbers.js";
@@ -118,6 +120,8 @@ const artifactSpecSchemas: Record<string, z.ZodType> = {
   PersonnelPhotos: PersonnelPhotos.schema.shape.spec,
   Disciplines: Disciplines.schema.shape.spec,
   DisciplineAgencyPersonnel: DisciplineAgencyPersonnel.schema.shape.spec,
+  CoverageHomepageWindows: CoverageHomepageWindows.schema.shape.spec,
+  CoverageHomepagePlacements: CoverageHomepagePlacements.schema.shape.spec,
   CoverageLinks: CoverageLinks.schema.shape.spec,
   CoverageLinkAgencyPersonnel: CoverageLinkAgencyPersonnel.schema.shape.spec,
   AgencyPhoneNumbers: AgencyPhoneNumbers.schema.shape.spec,

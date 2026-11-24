@@ -16,7 +16,7 @@ import {
   readFeaturesByState,
   toClippingGeometry,
   writeCachedStateHierarchy,
-} from "../../../sources/us-census-gazetteer/lib/tiger-hierarchy.js";
+} from "../../../sources/gov/census/www2/gazetteer/lib/tiger-hierarchy.js";
 
 /**
  * Ported from `intake.us-census-gazetteer/test/tiger-hierarchy.test.js`.

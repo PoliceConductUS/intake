@@ -11,8 +11,8 @@ Use `--source-url URL` only when a verified source URL is known. Intake retains 
 Apply the record through the shared source pipeline:
 
 ```sh
-npm run cli -- data transform org.policeconduct.manual
-npm run cli -- data generate org.policeconduct.manual
+npm run cli -- data transform org/policeconduct/manual
+npm run cli -- data generate org/policeconduct/manual
 npm run cli -- data up
 ```
 

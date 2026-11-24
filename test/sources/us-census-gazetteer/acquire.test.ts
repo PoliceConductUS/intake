@@ -2,9 +2,9 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
-import { acquire } from "../../../sources/us-census-gazetteer/acquire.js";
-import { discoverLatestGazetteerLinks } from "../../../sources/us-census-gazetteer/acquire/discovery.js";
-import { gazetteerSourceUrls } from "../../../sources/us-census-gazetteer/acquire/download.js";
+import { acquire } from "../../../sources/gov/census/www2/gazetteer/acquire.js";
+import { discoverLatestGazetteerLinks } from "../../../sources/gov/census/www2/gazetteer/acquire/discovery.js";
+import { gazetteerSourceUrls } from "../../../sources/gov/census/www2/gazetteer/acquire/download.js";
 
 const pageUrl =
   "https://www.census.gov/geographies/reference-files/time-series/geo/gazetteer-files.html";

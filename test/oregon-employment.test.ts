@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   buildEmploymentEpisodes,
   sourceDate,
-} from "../sources/gov.or.dpsst/employment.js";
+} from "../sources/net/bpl-orsnapshot/www/public-inquiry-cj/employment.js";
 import type {
   EmploymentEvent,
   Affiliation,
-} from "../sources/gov.or.dpsst/parse.js";
+} from "../sources/net/bpl-orsnapshot/www/public-inquiry-cj/parse.js";
 const event = (
   date: string,
   action: string,

@@ -1,12 +1,12 @@
 [tools]
-node = "24"
-gh = "2.92.0"
-uv = "0.11.14"
+node = "26.13.1"
+gh = "2.104.0"
+uv = "0.13.8"
 
 [env]
 DO_NOT_TRACK = "1"
 SUPABASE_TELEMETRY_DISABLED = "1"
-TMPDIR = ".cache/tmp"
+TMPDIR = false
 UV_CACHE_DIR = ".cache/uv"
 UV_TOOL_DIR = ".cache/uv-tools"
 # Root intake workspace (holds intake/{state,commands,sources}); relative to the

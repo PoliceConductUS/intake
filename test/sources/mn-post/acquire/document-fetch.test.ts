@@ -1,9 +1,10 @@
+import { ORDER_ANALYSIS_PROMPT_SHA256 } from "../../../../sources/com/site/my/mnitservices/post-license-search/acquire/order-prompt.js";
 import { describe, expect, it, vi } from "vitest";
 import {
   createDocumentFetcher,
   isPublicContentLink,
   publicContentDownloadUrl,
-} from "../../../../sources/mn-post/acquire/document-fetch.js";
+} from "../../../../sources/com/site/my/mnitservices/post-license-search/acquire/document-fetch.js";
 
 const PAGE_URL =
   "https://mnitservices.my.salesforce.com/sfc/p/40000000N34b/a/cr000005TZ4L/iKCiIn3RberMIga8JemP4UBVgyqQb9VFA3gIdBOWKmU";
@@ -94,7 +95,7 @@ it("preserves the source URL in acquired document evidence after transport mappi
     const detailPath = path.join(sourceDir, "officers", "person.detail.json");
     await writeFile(detailPath, detail);
     const { collectDocuments } =
-      await import("../../../../sources/mn-post/acquire/collect-documents.js");
+      await import("../../../../sources/com/site/my/mnitservices/post-license-search/acquire/collect-documents.js");
     const f = fetcher();
     await collectDocuments({
       sourceDir,
@@ -105,7 +106,7 @@ it("preserves the source URL in acquired document evidence after transport mappi
       }),
       analyzer: {
         model: "test",
-        promptVersion: 2,
+        promptSha256: ORDER_ANALYSIS_PROMPT_SHA256,
         analyze: async () => ({
           analysis: {
             allegation: null,

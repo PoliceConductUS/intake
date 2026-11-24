@@ -87,17 +87,24 @@ test("refuses mismatched mapping and occupied original identity", async () => {
 });
 
 test("rejects another namespace that also owns the erroneous canonical identity", async () => {
+  const namespace = "net/publisher/feed";
   const rootDir = await mkdtemp(path.join(tmpdir(), "identity-restore-"));
   const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
-  await ledger.findOrCreate("test", "Agency", "source", async () => "wrong");
+  await ledger.findOrCreate(namespace, "Agency", "source", async () => "wrong");
   await ledger.findOrCreate(
-    "other",
+    "gov/other/roster",
     "Agency",
     "foreign-source",
     async () => "wrong",
   );
   await expect(
-    completeIdentityRestoration(IdentityRestoration.new(input), rootDir),
+    completeIdentityRestoration(
+      IdentityRestoration.new({
+        ...input,
+        metadata: { ...input.metadata, namespace },
+      }),
+      rootDir,
+    ),
   ).rejects.toThrow("another namespace");
-  expect(await ledger.read("test", "Agency", "source")).toBe("wrong");
+  expect(await ledger.read(namespace, "Agency", "source")).toBe("wrong");
 });

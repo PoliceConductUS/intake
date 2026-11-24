@@ -14,7 +14,7 @@ cuid2 for its historical request. Importing history does not send anything.
 | `gov.wi.lesb`   | DOJ Office of Open Government, email  |
 | `gov.wv.leps`   | LEPS program manager, email           |
 
-Each `sources/<source>/request.ts` records the official destination evidence.
+Each `sources/<source>/intake.source.ts` records the official destination evidence.
 Arkansas and West Virginia use published program contacts, not dedicated FOIA
 inboxes. Historical submissions retain their original portal transport even
 where subsequent submissions use email. Florida's `GRR-2026-5434` and
