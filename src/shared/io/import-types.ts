@@ -9,7 +9,7 @@ import {
   importTypeMetadata,
   type ImportTypeMetadata,
 } from "./import-type-metadata.js";
-import { ARTIFACT_MODULES } from "./generated/artifact-modules.js";
+import { ARTIFACT_MODULES } from "./artifact-modules.js";
 
 export { IMPORT_ARTIFACT_KINDS };
 export type { ImportArtifactKind, ImportEntityName };

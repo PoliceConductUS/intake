@@ -4,7 +4,7 @@ import {
 } from "../database/index.js";
 import { readLocationPathById } from "../database/location-paths.js";
 import { z } from "zod";
-import { RECORD_KINDS_IN_DEPENDENCY_ORDER } from "../../shared/io/generated/entity-specs.js";
+import { RECORD_KINDS_IN_DEPENDENCY_ORDER } from "../../shared/io/entity-specs.js";
 import { SourceNameToCanonicalId } from "../state/source-name-to-canonical-id/SourceNameToCanonicalId.js";
 import {
   correctionPropertySchema,

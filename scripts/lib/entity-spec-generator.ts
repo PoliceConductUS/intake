@@ -795,7 +795,7 @@ ${createExtends}
 }
 
 /**
- * Renders `generated/entity-specs.ts` from the introspected schema. Column-backed
+ * Renders `entity-specs.ts` from the introspected schema. Column-backed
  * fields are generated and asserted against the database; descriptors add only
  * the non-schema nuance. The applied-migration fingerprint is embedded so the
  * runtime can refuse to run stale specs.
@@ -805,10 +805,10 @@ export function generateEntitySpecsModule(
   header: string,
 ): string {
   const preamble = `${header}import { z } from "zod";
-import { timestampWithTimezone } from "../../timestamp-schema.js";
-import { aiComplaintSummary, complaintSummaryUnavailability } from "../../ai-complaint-summary.js";
-import { SourceValues, SourceExclusions } from "../../data-annotations.js";
-import { agencyAddressText, agencyZipCode } from "../../agency-address-schema.js";
+import { timestampWithTimezone } from "../timestamp-schema.js";
+import { aiComplaintSummary, complaintSummaryUnavailability } from "../ai-complaint-summary.js";
+import { SourceValues, SourceExclusions } from "../data-annotations.js";
+import { agencyAddressText, agencyZipCode } from "../agency-address-schema.js";
 
 // Fingerprint of the applied database migrations these specs were generated
 // against. The importer refuses to run when the live database's migrations

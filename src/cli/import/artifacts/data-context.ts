@@ -31,7 +31,7 @@ import {
 import {
   BUSINESS_KEYS,
   RECORD_KINDS_IN_DEPENDENCY_ORDER,
-} from "../../../shared/io/generated/entity-specs.js";
+} from "../../../shared/io/entity-specs.js";
 import { INTAKE_API_VERSION } from "../../../shared/io/import-types.js";
 import type { DatabaseClient } from "../../database/index.js";
 import { SlugAllocator } from "./slug.js";
