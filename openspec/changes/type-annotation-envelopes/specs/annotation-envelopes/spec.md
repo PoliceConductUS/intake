@@ -1,32 +1,37 @@
 ## ADDED Requirements
 
-### Requirement: An annotation is a typed envelope
+### Requirement: An annotation names its kind and is checked against it
 
-An annotation SHALL be an intake envelope with `apiVersion: policeconduct.org/intake/v1alpha1`, a `kind`, `metadata` and a strict `spec`, read and written only through canonical IO. An annotation SHALL name its annotation kind, which says what sort of annotation it is. Each annotation kind SHALL have its own strict schema, and an annotation SHALL be checked against the schema of the annotation kind it names.
+Every annotation SHALL be one `DataAnnotation` record, read and written only through canonical IO, whose row holds its annotation kind (what sort of annotation it is) and a payload. Each annotation kind SHALL have its own strict schema, and every create or update of an annotation SHALL check the whole resulting record against the schema of the kind it names. The first kinds SHALL be `general` and `excluded-record`.
+
+#### Scenario: The kind is not the type
+
+- **WHEN** an annotation of kind `general` is a warning
+- **THEN** its row holds `kind` `general` and `type` `warning`, and `type` keeps its values of warning, error and correction
 
 #### Scenario: An unknown key is rejected
 
-- **WHEN** an annotation holds a key its annotation kind does not declare
+- **WHEN** an annotation's payload holds a key its kind does not declare
 - **THEN** the read fails naming the key
 
-#### Scenario: An annotation that does not match its annotation kind is rejected
+#### Scenario: An update that breaks the kind's schema is rejected
 
-- **WHEN** an annotation is valid for one annotation kind but names another
-- **THEN** the read fails
+- **WHEN** an update to an annotation would leave a payload that does not match the schema of the kind it names
+- **THEN** the update fails
 
-### Requirement: An annotation carries sources
+### Requirement: An annotation carries sources a reader can open
 
-An annotation SHALL carry a list of sources, and each source SHALL state whether it is a public source or an intake reference. A public source SHALL state what it is and its full `http` or `https` URL, with the retrieval time and SHA-256 when its URL is a file intake retained. An intake reference SHALL pinpoint the retained material it points at, and SHALL name the part of a file (such as a sheet and row) when it points at part of one.
+An annotation's payload SHALL hold a list of sources, and each source SHALL state which sort it is. A public source SHALL state what it is and its full `http` or `https` URL. A file source SHALL point at the file's `BinaryFile` record through the annotation's `binary_file_id` foreign key, SHALL name the part of the file it means (such as a sheet and row, or a page), and SHALL show the source's own URL as its public part when the source has one. An annotation SHALL have at most one file source.
 
 #### Scenario: A complaint that failed verification
 
 - **WHEN** an annotation records a complaint PDF that did not match its recorded SHA-1
-- **THEN** its sources hold a public source for the complaint's page on CourtListener and an intake reference to the retained PDF
+- **THEN** its sources hold a public source for the docket and a file source pointing at the PDF's `BinaryFile` record, whose public part is the complaint's page on CourtListener
 
 #### Scenario: A workbook row is kept
 
 - **WHEN** a finding comes from one row of one sheet of a source workbook
-- **THEN** its intake reference names that sheet and row
+- **THEN** its file source points at the workbook's `BinaryFile` record and names that sheet and row
 
 #### Scenario: A public source without a web address is rejected
 
@@ -35,40 +40,45 @@ An annotation SHALL carry a list of sources, and each source SHALL state whether
 
 #### Scenario: A source that does not say which sort it is is rejected
 
-- **WHEN** a source does not state whether it is a public source or an intake reference
+- **WHEN** a source does not state which sort it is
 - **THEN** the read fails
 
-### Requirement: An intake reference stays in intake
+### Requirement: Audit references stay out of the database
 
-An intake reference SHALL NOT appear on any policeconduct.org page or download, including the default rendering and the CSV.
+Intake's internal audit references (the command, a workspace path, a source ID) SHALL be kept only in the transform output and in the chain entry beside the annotation's mutation. The `data_annotation` row, the published annotation contract and policeconduct.org SHALL NOT hold them.
 
-#### Scenario: The listing of a complaint that failed verification
+#### Scenario: An annotation applied to the database
 
-- **WHEN** the data-annotations listing and its CSV are built for an annotation with a public source and an intake reference
-- **THEN** they show the public source and not the intake reference
+- **WHEN** an annotation whose transform output holds an audit reference is applied with `data up`
+- **THEN** its database row holds no audit reference
+- **AND** the chain entry holds it beside the annotation's mutation
 
-### Requirement: The message is plain English kept in one place
+### Requirement: The message is a template kept in one place
 
-An annotation's message SHALL be plain reader-facing text written by intake, in words a typical site visitor knows and would use correctly, and SHALL NOT hold markup. An annotation SHALL refer to its wording by a message code, and each message code SHALL resolve to one wording that intake owns.
+An annotation SHALL refer through its `message_id` foreign key to the record of its message code, and SHALL hold the named values that message's template uses. Each message code's wording SHALL be a `DataAnnotationMessage` record (the record kind for one message code's wording) holding a plain-English template with no markup, written by intake from one checked-in catalogue. No value SHALL depend on the time of the run.
+
+#### Scenario: A value contains markup characters
+
+- **WHEN** an annotation's value is a case name containing `<` or `*`
+- **THEN** policeconduct.org shows those characters as written
+
+### Requirement: The shared import writes the messages it uses
+
+In every `data generate`, `DataContext` SHALL emit the `DataAnnotationMessage` record of each message code its annotations use, under namespace `intake`, in the same mutation as those annotations. `data generate` SHALL fail when a template names a value its annotation lacks, when an annotation holds a value its template does not name, or when a message code is not in the catalogue.
 
 #### Scenario: Wording is changed once
 
-- **WHEN** the wording for a message code is changed
-- **THEN** every annotation with that code shows the new wording after the next site build that includes the change
+- **WHEN** the wording for a message code is changed in the catalogue and `data generate` runs
+- **THEN** it writes one update to that message's record and no update to the annotations that use it
 
-#### Scenario: Source text contains markup characters
+#### Scenario: A template names a missing value
 
-- **WHEN** a message quotes a case name containing `<` or `*`
-- **THEN** policeconduct.org shows those characters as written
+- **WHEN** an annotation lacks a value its message's template names
+- **THEN** `data generate` fails naming the code and the value
 
-### Requirement: The annotation record names its kind
+### Requirement: The annotation contract is published
 
-The annotation row in the database SHALL hold the annotation's kind. Intake SHALL publish each annotation kind's schema in the annotation contract that `scripts/publish-data-annotation-contract.ts` writes for policeconduct.org. The kind SHALL be distinct from the row's `type`, which SHALL keep its values of warning, error and correction.
-
-#### Scenario: A stored annotation
-
-- **WHEN** an annotation of a given kind is imported
-- **THEN** its database row holds that kind
+Intake SHALL publish each annotation kind's schema and the shape of the message records in the annotation contract that `scripts/publish-data-annotation-contract.ts` writes for policeconduct.org.
 
 #### Scenario: The schema is published
 
@@ -101,7 +111,7 @@ Moving an annotation to the new shape SHALL NOT change its ID. `DataContext` SHA
 
 ### Requirement: The website renders an annotation by its kind
 
-A record page on policeconduct.org SHALL show only an annotation's label and message. During static generation of the data-annotations listings, including those of a licensing authority, policeconduct.org SHALL look up a component for the annotation's kind and use it when one exists. When none exists it SHALL use a default renderer that shows the annotation's kind-specific fields as preformatted JSON, without intake references.
+A record page on policeconduct.org SHALL show only an annotation's label and message. During static generation of the data-annotations listings, including those of a licensing authority, policeconduct.org SHALL look up a component for the annotation's kind and use it when one exists. When none exists it SHALL use a default renderer that shows the annotation's payload as preformatted JSON.
 
 #### Scenario: A record page
 
@@ -116,4 +126,4 @@ A record page on policeconduct.org SHALL show only an annotation's label and mes
 #### Scenario: A kind with no component
 
 - **WHEN** intake adds an annotation kind and policeconduct.org has no component for it
-- **THEN** the listing shows the default rendering with no intake reference, and the build does not fail
+- **THEN** the listing shows the default rendering, and the build does not fail
