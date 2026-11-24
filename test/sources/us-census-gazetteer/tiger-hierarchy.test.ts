@@ -373,3 +373,85 @@ it.each([{}, { STATEFP: "27" }])(
     ).rejects.toThrow(/Census.*identity/);
   },
 );
+
+describe("readFeaturesByState left-out features", () => {
+  const polygon = {
+    type: "Polygon",
+    coordinates: [
+      [
+        [2, 2],
+        [2, 6],
+        [6, 6],
+        [6, 2],
+        [2, 2],
+      ],
+    ],
+  };
+  const properties = {
+    STATEFP: "27",
+    STUSPS: "MN",
+    GEOID: "2743000",
+    NAME: "Minneapolis",
+    NAMELSAD: "Minneapolis city",
+    LSAD: "25",
+    PLACEFP: "43000",
+  };
+  async function read(feature: {
+    properties: Record<string, unknown>;
+    geometry: unknown;
+  }) {
+    const file = path.join(workDir, "place.geojson");
+    await writeFile(
+      file,
+      JSON.stringify({
+        type: "FeatureCollection",
+        features: [{ type: "Feature", ...feature }],
+      }),
+    );
+    return readFeaturesByState(file, "place", workDir);
+  }
+
+  it("counts the features it reads and the ones outside the allowed states", async () => {
+    const tally = { read: 0, outsideStates: 0 };
+    await readFeaturesByState(placeZip, "place", workDir, tally);
+    expect(tally).toEqual({ read: 3, outsideStates: 1 });
+  });
+
+  it("throws for a feature with no STATEFP", async () => {
+    await expect(
+      read({
+        properties: { ...properties, STATEFP: undefined },
+        geometry: polygon,
+      }),
+    ).rejects.toThrow(
+      "Invalid Census place source identity: STATEFP=undefined, GEOID=2743000",
+    );
+  });
+
+  it("throws for a feature with no GEOID", async () => {
+    await expect(
+      read({
+        properties: { ...properties, GEOID: undefined, PLACEFP: undefined },
+        geometry: polygon,
+      }),
+    ).rejects.toThrow(
+      "Invalid Census place source identity: STATEFP=27, GEOID=undefined",
+    );
+  });
+
+  it("throws for an allowed STATEFP with a state abbreviation outside the allowed states", async () => {
+    await expect(
+      read({ properties: { ...properties, STUSPS: "PR" }, geometry: polygon }),
+    ).rejects.toThrow(
+      "gov/census/www2/gazetteer: TIGER place 2743000 has STATEFP 27 and STUSPS PR",
+    );
+  });
+
+  it("throws for a feature that is not a Polygon or MultiPolygon", async () => {
+    await expect(
+      read({ properties, geometry: { type: "Point", coordinates: [2, 2] } }),
+    ).rejects.toThrow(
+      "gov/census/www2/gazetteer: TIGER place 2743000 has geometry type Point, not Polygon or MultiPolygon",
+    );
+  });
+});

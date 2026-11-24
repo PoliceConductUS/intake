@@ -43,7 +43,6 @@ export function patrolBeatBoundaries(input: unknown) {
             Code: z.string(),
             Name: z.string(),
             BattalionC: z.string(),
-            IsActive: z.number(),
           }),
           geometry: z.unknown(),
         }),

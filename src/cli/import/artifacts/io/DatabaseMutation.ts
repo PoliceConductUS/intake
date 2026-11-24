@@ -33,7 +33,7 @@ export function parseDatabaseMutationKind(kind: string): {
 
 function kindFromEnvelopeFileName(filePath: string): string | undefined {
   const fileName = filePath.split(/[\\/]/).at(-1);
-  const match = fileName?.match(/^[^.]+\.(.+)\.ya?ml$/);
+  const match = fileName?.match(/^.+\.([^.]+)\.ya?ml$/);
   return match?.[1];
 }
 

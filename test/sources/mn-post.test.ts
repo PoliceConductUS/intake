@@ -89,16 +89,6 @@ const betaRoster = JSON.stringify([
     originalLicenseIssueDate: "2010-05-01",
     disciplinaryAction: false,
   },
-  // blank contactId -> skipped (no stable person id)
-  {
-    name: "No, Id",
-    contactId: "",
-    licenseId: "a2jLICXX",
-    licenseType: "Peace Officer",
-    status: "Active",
-    originalLicenseIssueDate: "2018-08-08",
-    disciplinaryAction: false,
-  },
 ]);
 
 // Officer 0031's detail JSON carries a disciplinary order. 0031 is assigned to
@@ -253,6 +243,8 @@ beforeAll(async () => {
   await writeFile(
     path.join(sourceDir, "skipped.yaml"),
     stringifyYaml({
+      skippedAgencies: [],
+      skippedOfficers: [],
       skippedDocuments: [
         {
           url: JSON.parse(detail0099).disciplinaryActions[0].documentURL,
@@ -284,6 +276,10 @@ async function runFixture(): Promise<SourceManifest> {
 
 function recordsOf(manifest: SourceManifest, kind: string) {
   return manifest.artifacts.find((a) => a.kind === kind)!.records;
+}
+
+function accountingOf(manifest: SourceManifest, input: string) {
+  return manifest.accounting.find((entry) => entry.input === input);
 }
 
 describe("com/site/my/mnitservices/post-license-search document completion", () => {
@@ -508,9 +504,7 @@ describe("com/site/my/mnitservices/post-license-search run", () => {
       "Licenses",
       "AgencyPersonnel",
       "Disciplines",
-      "DisciplineAgencyPersonnel",
       "CoverageLinks",
-      "CoverageLinkAgencyPersonnel",
     ]);
   });
 
@@ -609,9 +603,9 @@ describe("com/site/my/mnitservices/post-license-search run", () => {
     },
   );
 
-  it("maps Personnel keyed by contactId, splitting names, importing disciplined officers and skipping only blank rows", async () => {
+  it("maps Personnel keyed by contactId, splitting names and importing disciplined officers", async () => {
     const personnel = recordsOf(await runFixture(), "Personnel");
-    // 0099 is disciplined but still imported; only the blank-contactId row is skipped.
+    // 0099 is disciplined but still imported.
     expect(Object.keys(personnel).sort()).toEqual(["0031", "0032", "0099"]);
     expect(personnel["0031"].spec).toEqual({
       id: "0031",
@@ -805,12 +799,6 @@ describe("com/site/my/mnitservices/post-license-search run", () => {
       expect(assignments.a2m31ALPHA.spec).toEqual(
         assignments.a2m31SECONDARY.spec,
       );
-      for (const kind of [
-        "DisciplineAgencyPersonnel",
-        "CoverageLinkAgencyPersonnel",
-      ]) {
-        expect(recordsOf(result, kind)).toEqual({});
-      }
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -833,9 +821,7 @@ describe("com/site/my/mnitservices/post-license-search run", () => {
   it("emits person and issuer discipline with stable coverage links", async () => {
     const manifest = await runFixture();
     const discipline = recordsOf(manifest, "Disciplines");
-    const attributions = recordsOf(manifest, "DisciplineAgencyPersonnel");
     const coverage = recordsOf(manifest, "CoverageLinks");
-    const coverageAttr = recordsOf(manifest, "CoverageLinkAgencyPersonnel");
 
     // 0031 and 0099 have one order each; 0032's sentinel string yields nothing.
     expect(Object.keys(discipline).sort()).toEqual([
@@ -869,16 +855,12 @@ describe("com/site/my/mnitservices/post-license-search run", () => {
       case_number: "PB20-1-09",
     });
 
-    expect(attributions).toEqual({});
-
     expect(coverage["0031|cmp-001"].spec).toMatchObject({
       url: "https://example.mn/orders/PB24-1-01.pdf",
       title: "SACO PB24-1-01",
       source_name: "Minnesota POST",
       published_at: "2024-03-01",
     });
-    expect(coverageAttr).toEqual({});
-
     for (const record of Object.values(discipline)) {
       expect(DisciplineSpec.safeParse(record.spec).success).toBe(true);
     }
@@ -954,8 +936,9 @@ describe("com/site/my/mnitservices/post-license-search personnel details", () =>
   async function runDetails(
     detail: unknown,
     documents: unknown[] = [],
-    roster = [{ contactId: "0031", name: "Smith, John" }],
-    messages: string[] = [],
+    roster: unknown[] = [
+      { contactId: "0031", licenseId: "a2jLIC31", name: "Smith, John" },
+    ],
   ) {
     const dir = await mkdtemp(path.join(tmpdir(), "mn-post-details-"));
     const files: Record<string, string> = {
@@ -983,6 +966,8 @@ describe("com/site/my/mnitservices/post-license-search personnel details", () =>
       ),
       ...Object.fromEntries(documents.map((doc, i) => [`${i}.pdf`, "pdf"])),
       "skipped.yaml": stringifyYaml({
+        skippedAgencies: [],
+        skippedOfficers: [],
         skippedDocuments: ((detail as { disciplinaryActions?: unknown })
           .disciplinaryActions instanceof Array
           ? (detail as { disciplinaryActions: Record<string, string>[] })
@@ -1013,7 +998,6 @@ describe("com/site/my/mnitservices/post-license-search personnel details", () =>
         readXlsx: async () => [],
         state: "/unused",
         emit: async () => {},
-        logger: { info: (message) => messages.push(message) },
       });
       for (const [name, contents] of Object.entries(files))
         expect(await readFile(path.join(dir, name), "utf8")).toBe(contents);
@@ -1032,8 +1016,6 @@ describe("com/site/my/mnitservices/post-license-search personnel details", () =>
         document_url: action.documentURL,
       },
     );
-    expect(recordsOf(result, "DisciplineAgencyPersonnel")).toEqual({});
-    expect(recordsOf(result, "CoverageLinkAgencyPersonnel")).toEqual({});
   });
   it.each([
     { contactId: null },
@@ -1086,29 +1068,40 @@ describe("com/site/my/mnitservices/post-license-search personnel details", () =>
       ).rejects.toThrow(/education.*(course|contact|person)/i);
     },
   );
-  it("reports each of three unnamed completions and retains the named completion", async () => {
-    const messages: string[] = [];
-    const result = await runDetails(
-      {
-        education: [
-          course,
-          ...[null, "", "  "].map((name, i) => ({
-            ...course,
-            courseId: `unnamed-${i}`,
-            name,
-          })),
-        ],
-      },
-      [],
-      undefined,
-      messages,
-    );
+  it("reports each of three unnamed completions on the officer's record and retains the named completion", async () => {
+    const result = await runDetails({
+      education: [
+        course,
+        ...[null, "", "  "].map((name, i) => ({
+          ...course,
+          courseId: `unnamed-${i}`,
+          name,
+        })),
+      ],
+    });
     expect(Object.keys(recordsOf(result, "PersonnelEducations"))).toEqual([
       "course-1",
     ]);
-    expect(messages).toHaveLength(3);
-    for (let i = 0; i < 3; i++)
-      expect(messages[i]).toMatch(new RegExp(`unnamed-${i}.*name`));
+    expect(recordsOf(result, "Personnel")["0031"].metadata?.defects).toEqual(
+      [null, "", "  "].map((name, i) => ({
+        code: "education-course-without-name",
+        type: "warning",
+        field: "name",
+        value: name,
+        message:
+          "A completed training course was left out because the state's record gives no course name.",
+        evidence: [{ file: "person.detail.json", courseId: `unnamed-${i}` }],
+        source_namespace: "com/site/my/mnitservices/post-license-search",
+        source_record_id: `unnamed-${i}`,
+      })),
+    );
+    expect(accountingOf(result, "detail.json education")).toEqual({
+      input: "detail.json education",
+      read: 4,
+      emitted: 1,
+      reported: 3,
+      notSelected: {},
+    });
   });
   it("coalesces identical education and rejects conflicting course IDs", async () => {
     expect(
@@ -1311,22 +1304,31 @@ describe("com/site/my/mnitservices/post-license-search discipline workbook perso
       kind: string;
       candidateCount: number;
     }>,
-    messages: string[] = [],
+    extra: { missingActions?: unknown[]; unresolvedLicenses?: unknown[] } = {},
   ) {
     const dir = await mkdtemp(path.join(tmpdir(), "mn-post-standalone-"));
     const files: Record<string, string> = {
       "agency-ids.yaml": agencyIds,
-      "agencies.csv": agenciesCsv,
       "discipline-personnel.json": JSON.stringify({
         people,
-        missingActions: [],
+        missingActions: extra.missingActions ?? [],
       }),
+      "discipline-unresolved-licenses.json": JSON.stringify(
+        extra.unresolvedLicenses ?? [],
+      ),
       "person.detail.json": JSON.stringify({
         licenses: { POSTLicenseList: people.map((p) => p.officer) },
         disciplinaryActions: actions,
       }),
     };
     if (roster) files["alpha-police-dept.roster.json"] = JSON.stringify(roster);
+    if (
+      roster ||
+      people.some((p) =>
+        p.history.some((row) => row.agencyName === "Alpha Police Dept."),
+      )
+    )
+      files["agencies.csv"] = agenciesCsv;
     if (unresolvedAgencies !== undefined)
       files["discipline-unresolved-agencies.json"] =
         JSON.stringify(unresolvedAgencies);
@@ -1338,7 +1340,6 @@ describe("com/site/my/mnitservices/post-license-search discipline workbook perso
         readXlsx: async () => [],
         state: "/unused",
         emit: async () => {},
-        logger: { info: (message) => messages.push(message) },
       }).then(async (result) => {
         for (const [name, content] of Object.entries(files))
           expect(await readFile(path.join(dir, name), "utf8")).toBe(content);
@@ -1351,7 +1352,13 @@ describe("com/site/my/mnitservices/post-license-search discipline workbook perso
   it("declares only workbook personnel even when no action details are returned", async () => {
     const result = await runPeople(
       [person],
-      [{ contactId: "unrelated-roster-person", name: "Someone, Else" }],
+      [
+        {
+          contactId: "unrelated-roster-person",
+          licenseId: "unrelated-license",
+          name: "Someone, Else",
+        },
+      ],
       [],
     );
     expect(Object.keys(recordsOf(result, "Personnel"))).toHaveLength(2);
@@ -1371,7 +1378,6 @@ describe("com/site/my/mnitservices/post-license-search discipline workbook perso
     ).toMatchObject({ personnel_id: officer.contactId });
     expect(recordsOf(result, "AgencyPersonnel")).toEqual({});
     expect(recordsOf(result, "Agencies")).toEqual({});
-    expect(recordsOf(result, "DisciplineAgencyPersonnel")).toEqual({});
   });
   it("reuses an existing roster contact without merging a different contact with the same name", async () => {
     const second = {
@@ -1386,7 +1392,13 @@ describe("com/site/my/mnitservices/post-license-search discipline workbook perso
     };
     const result = await runPeople(
       [person, second],
-      [{ contactId: officer.contactId, name: officer.name }],
+      [
+        {
+          contactId: officer.contactId,
+          licenseId: officer.licenseId,
+          name: officer.name,
+        },
+      ],
     );
     expect(Object.keys(recordsOf(result, "Personnel")).sort()).toEqual([
       "revoked-person",
@@ -1408,7 +1420,13 @@ describe("com/site/my/mnitservices/post-license-search discipline workbook perso
     await expect(
       runPeople(
         [person],
-        [{ contactId: officer.contactId, name: "Other, Person" }],
+        [
+          {
+            contactId: officer.contactId,
+            licenseId: officer.licenseId,
+            name: "Other, Person",
+          },
+        ],
       ),
     ).rejects.toThrow(/conflicting person.*revoked-person/);
   });
@@ -1434,7 +1452,6 @@ describe("com/site/my/mnitservices/post-license-search discipline workbook perso
       address: "100 Main St",
       city: "Alphaville",
     });
-    expect(recordsOf(result, "DisciplineAgencyPersonnel")).toEqual({});
   });
   it("rejects conflicting license-derived titles for the same employment", async () => {
     const other = {
@@ -1453,7 +1470,6 @@ describe("com/site/my/mnitservices/post-license-search discipline workbook perso
     ).rejects.toThrow(/conflicting history assignment.*revoked-person/);
   });
   it("retains personnel and discipline while reporting explicitly unresolved history relationships", async () => {
-    const messages: string[] = [];
     const result = await runPeople(
       [
         {
@@ -1474,17 +1490,40 @@ describe("com/site/my/mnitservices/post-license-search discipline workbook perso
           candidateCount: 0,
         },
       ],
-      messages,
     );
     expect(result.personnelSourceNames).toEqual(["revoked-person"]);
     expect(Object.keys(recordsOf(result, "Disciplines"))).toEqual([
       "revoked-person|complaint1",
     ]);
     expect(Object.keys(recordsOf(result, "AgencyPersonnel"))).toHaveLength(1);
-    expect(messages).toHaveLength(1);
-    expect(messages[0]).toMatch(
-      /omitted history.*12345.*row 7.*Missing Police.*no resolvable id/,
-    );
+    expect(
+      recordsOf(result, "LicensingAuthorities")["mn-post"].metadata?.defects,
+    ).toEqual([
+      {
+        code: "employment-history-agency-not-found",
+        type: "error",
+        field: "agencyName",
+        value: "Missing Police",
+        message:
+          "A past job at Missing Police (1995-02-03 to 2001-04-05) for license 12345 was left out because the state's license search did not return exactly one agency with that name.",
+        evidence: [
+          {
+            file: "Law Enforcement Agencies request item 3 agency history DL 2026.xlsx",
+            row: 7,
+          },
+        ],
+        source_namespace: "com/site/my/mnitservices/post-license-search",
+        source_record_id:
+          "Law Enforcement Agencies request item 3 agency history DL 2026.xlsx#7",
+      },
+    ]);
+    expect(accountingOf(result, "discipline-personnel.json history")).toEqual({
+      input: "discipline-personnel.json history",
+      read: 2,
+      emitted: 1,
+      reported: 1,
+      notSelected: {},
+    });
   });
   it("an unresolved report for another agency does not authorize omitting unknown history", async () => {
     await expect(
@@ -1555,6 +1594,7 @@ describe("com/site/my/mnitservices/post-license-search confirmed detail request 
         ],
         missingActions: [],
       }),
+      "discipline-unresolved-licenses.json": "[]",
       [filename]: detail,
     };
     try {
@@ -1595,5 +1635,561 @@ describe("com/site/my/mnitservices/post-license-search confirmed detail request 
         "other-contact",
       ),
     ).rejects.toThrow(/detail.*contact mismatch/);
+  });
+});
+
+describe("com/site/my/mnitservices/post-license-search left-out records", () => {
+  const namespace = "com/site/my/mnitservices/post-license-search";
+  const officer = {
+    name: "Jones, Mary Ann",
+    contactId: "0032",
+    licenseId: "a2jLIC32",
+    licenseType: "Peace Officer",
+    status: "Active",
+    originalLicenseIssueDate: "2015-03-15",
+  };
+  const employment = {
+    activeEmployment: [
+      { rosterId: "a2m32ALPHA", agencyName: "Alpha Police Dept." },
+    ],
+  };
+  async function run(files: Record<string, string>) {
+    const dir = await mkdtemp(path.join(tmpdir(), "mn-post-left-out-"));
+    try {
+      for (const [name, content] of Object.entries(files))
+        await writeFile(path.join(dir, name), content);
+      return await transform({
+        paths: Object.keys(files).map((name) => path.join(dir, name)),
+        readXlsx: async () => [],
+        state: "/unused",
+        emit: async () => {},
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+  const rosterFile = "alpha-police-dept-000000000001.roster.json";
+  const authorityFindings = (manifest: SourceManifest) =>
+    recordsOf(manifest, "LicensingAuthorities")["mn-post"].metadata?.defects;
+
+  it.each([
+    {
+      patch: { originalLicenseIssueDate: "" },
+      field: "originalLicenseIssueDate",
+      value: "",
+      missing: "license issue date",
+    },
+    {
+      patch: { licenseType: null },
+      field: "licenseType",
+      value: null,
+      missing: "license type",
+    },
+    {
+      patch: { originalLicenseIssueDate: null, licenseType: "" },
+      field: "originalLicenseIssueDate",
+      value: null,
+      missing: "license issue date or license type",
+    },
+  ])(
+    "reports a roster row with no $missing on the Minnesota authority and emits no assignment",
+    async ({ patch, field, value, missing }) => {
+      const manifest = await run({
+        "agency-ids.yaml": agencyIds,
+        [rosterFile]: JSON.stringify([{ ...officer, ...patch }]),
+        "a.detail.json": JSON.stringify({
+          ...employment,
+          licenses: {
+            POSTLicenseList: [
+              "licenseType" in patch ? officer : { ...officer, ...patch },
+            ],
+          },
+        }),
+      });
+      expect(recordsOf(manifest, "AgencyPersonnel")).toEqual({});
+      expect(Object.keys(recordsOf(manifest, "Personnel"))).toEqual(["0032"]);
+      expect(authorityFindings(manifest)).toEqual([
+        {
+          code: "roster-officer-without-assignment",
+          type: "error",
+          field,
+          value,
+          message: `Mary Ann Jones is on the roster of Alpha Police Dept., but the roster gives no ${missing} for this officer, so the officer's job at the agency was left out.`,
+          evidence: [{ file: rosterFile, row: 1 }],
+          source_namespace: namespace,
+          source_record_id: "a2jALPHA|a2jLIC32",
+        },
+      ]);
+      expect(accountingOf(manifest, "roster.json officers")).toEqual({
+        input: "roster.json officers",
+        read: 1,
+        emitted: 0,
+        reported: 1,
+        notSelected: {},
+      });
+      expect(accountingOf(manifest, "detail.json activeEmployment")).toEqual({
+        input: "detail.json activeEmployment",
+        read: 1,
+        emitted: 0,
+        reported: 1,
+        notSelected: {},
+      });
+    },
+  );
+
+  it("reports a roster row with no first name on the Minnesota authority and emits no person", async () => {
+    const manifest = await run({
+      "agency-ids.yaml": agencyIds,
+      [rosterFile]: JSON.stringify([{ ...officer, name: "Jones," }]),
+    });
+    expect(recordsOf(manifest, "Personnel")).toEqual({});
+    expect(authorityFindings(manifest)).toEqual([
+      {
+        code: "roster-officer-without-name",
+        type: "error",
+        field: "name",
+        value: "Jones,",
+        message:
+          "An officer on the roster of Alpha Police Dept. was left out because the roster gives no first name for the officer.",
+        evidence: [{ file: rosterFile, row: 1 }],
+        source_namespace: namespace,
+        source_record_id: "a2jALPHA|a2jLIC32",
+      },
+    ]);
+  });
+
+  it("emits every reportable record with a defects list on a run with no findings", async () => {
+    const manifest = await run({
+      "agency-ids.yaml": agencyIds,
+      [rosterFile]: JSON.stringify([officer]),
+      "a.detail.json": JSON.stringify({
+        ...employment,
+        licenses: { POSTLicenseList: [officer] },
+        disciplinaryActions: [
+          {
+            contactId: "0032",
+            caseNumber: "PB-9",
+            complaintId: "cmp-9",
+            documentName: "Order",
+            effectiveDate: "2020-01-01",
+          },
+        ],
+      }),
+    });
+    expect(authorityFindings(manifest)).toEqual([]);
+    expect(recordsOf(manifest, "Personnel")["0032"].metadata).toEqual({
+      defects: [],
+    });
+    expect(recordsOf(manifest, "Disciplines")["0032|cmp-9"].metadata).toEqual({
+      defects: [],
+    });
+  });
+
+  it.each([
+    [{ contactId: "" }, /row 2: blank contactId/],
+    [{ licenseId: null }, /row 2: blank licenseId/],
+    [{ originalLicenseIssueDate: "03/15/2015" }, /row 2 .*03\/15\/2015/],
+  ])("throws on a roster row with %j", async (patch, message) => {
+    await expect(
+      run({
+        "agency-ids.yaml": agencyIds,
+        [rosterFile]: JSON.stringify([
+          { ...officer, contactId: "0031", licenseId: "a2jLIC31" },
+          { ...officer, ...patch },
+        ]),
+        "a.detail.json": JSON.stringify({
+          activeEmployment: [
+            { rosterId: "a2m31ALPHA", agencyName: "Alpha Police Dept." },
+          ],
+          licenses: { POSTLicenseList: [{ contactId: "0031" }] },
+        }),
+      }),
+    ).rejects.toThrow(message);
+  });
+
+  it("throws when one contact has two names on the rosters", async () => {
+    await expect(
+      run({
+        "agency-ids.yaml": agencyIds,
+        [rosterFile]: JSON.stringify([{ ...officer, licenseType: null }]),
+        "beta-county-sheriff-000000000002.roster.json": JSON.stringify([
+          { ...officer, licenseType: null, name: "Jones, Marie" },
+        ]),
+      }),
+    ).rejects.toThrow(/conflicting person 0032/);
+  });
+
+  it.each([
+    ["a roster that is not a list", { [rosterFile]: "{}" }, /expected a list/],
+    [
+      "an agency-ids.yaml entry with a blank id",
+      { "agency-ids.yaml": "Alpha Police Dept.:\n  id: ''\n" },
+      /Alpha Police Dept\. has a blank id/,
+    ],
+    [
+      "an agency CSV row with a blank agency name",
+      {
+        "agencies.csv": `${agenciesCsv}\n,Police,A Chief,1 St,Town,MN,55111,555,a@b.mn`,
+      },
+      /agencies\.csv row 3: blank agency name/,
+    ],
+    [
+      "an agency CSV row with no roster and no skip report entry",
+      {
+        "agencies.csv": `${agenciesCsv}\nGamma Police Dept.,Police,A Chief,1 St,Town,MN,55111,555,a@b.mn`,
+      },
+      /agencies\.csv row 3: agency Gamma Police Dept\. has no roster/,
+    ],
+    [
+      "an activeEmployment row with a blank rosterId",
+      {
+        "a.detail.json": JSON.stringify({
+          licenses: { POSTLicenseList: [officer] },
+          activeEmployment: [
+            { rosterId: "", agencyName: "Alpha Police Dept." },
+          ],
+        }),
+      },
+      /a\.detail\.json activeEmployment row 1: blank rosterId or agencyName/,
+    ],
+    [
+      "a detail value that is neither a list nor the site's none text",
+      {
+        "a.detail.json": JSON.stringify({
+          ...employment,
+          licenses: { POSTLicenseList: [officer] },
+          education: null,
+        }),
+      },
+      /a\.detail\.json education: expected a list or "No Courses found"/,
+    ],
+    [
+      "an order document that no disciplinary action cites",
+      { "orphan.document.json": document0031, "orphan.pdf": "pdf" },
+      /orphan\.document\.json: no disciplinary action/,
+    ],
+    [
+      "a skipped document that no disciplinary action cites",
+      {
+        "skipped.yaml": stringifyYaml({
+          skippedAgencies: [],
+          skippedOfficers: [],
+          skippedDocuments: [
+            {
+              url: "https://example.mn/orders/none.pdf",
+              actions: [{ contactId: "0032", caseNumber: "PB-0" }],
+              reason: "source returned 404",
+            },
+          ],
+        }),
+      },
+      /skipped\.yaml: no disciplinary action.*none\.pdf/,
+    ],
+    [
+      "a skip report with no skippedAgencies list",
+      { "skipped.yaml": stringifyYaml({ skippedDocuments: [] }) },
+      /malformed skipped agency report/,
+    ],
+    [
+      "discipline people with no unresolved-license report",
+      {
+        "discipline-personnel.json": JSON.stringify({
+          people: [],
+          missingActions: [],
+        }),
+      },
+      /expects discipline-unresolved-licenses\.json/,
+    ],
+  ])("throws on %s", async (_case, files, message) => {
+    await expect(
+      run({
+        "agency-ids.yaml": agencyIds,
+        "agencies.csv": agenciesCsv,
+        [rosterFile]: JSON.stringify([officer]),
+        "a.detail.json": JSON.stringify({
+          ...employment,
+          licenses: { POSTLicenseList: [officer] },
+        }),
+        ...files,
+      }),
+    ).rejects.toThrow(message);
+  });
+
+  it("reports an unavailable order document on the discipline record", async () => {
+    const discipline = recordsOf(await runFixture(), "Disciplines");
+    expect(discipline["0099|complaint99"].metadata).toEqual({
+      defects: [
+        {
+          code: "order-document-unavailable",
+          type: "warning",
+          field: "document_url",
+          value: "https://example.mn/orders/PB20-1-09.pdf",
+          message:
+            "The order for case PB20-1-09 could not be downloaded from the state's site, so what the order says is not shown.",
+          evidence: [
+            {
+              url: "https://example.mn/orders/PB20-1-09.pdf",
+              reason: "source returned 404",
+            },
+          ],
+          source_namespace: namespace,
+          source_record_id: "complaint99",
+        },
+      ],
+    });
+    expect(discipline["0031|cmp-001"].metadata).toEqual({ defects: [] });
+  });
+
+  it("reports skipped agencies, unresolved licenses and licenses with no listed action on the Minnesota authority", async () => {
+    const disciplined = {
+      contactId: "0050",
+      licenseId: "a2jLIC50",
+      licenseNumber: "50000",
+      name: "Doe, Pat",
+      licenseType: "Peace Officer",
+      status: "Revoked",
+      originalLicenseIssueDate: "1990-01-01",
+    };
+    const manifest = await run({
+      "agency-ids.yaml": agencyIds,
+      "agencies.csv": [
+        agenciesCsv,
+        "Gamma Police Dept.,Police,A Chief,1 St,Town,MN,55111,555,a@b.mn",
+        "Delta Police Dept.,Police,B Chief,2 St,Town,MN,55111,555,b@b.mn",
+      ].join("\n"),
+      [rosterFile]: JSON.stringify([officer]),
+      "a.detail.json": JSON.stringify({
+        ...employment,
+        licenses: { POSTLicenseList: [officer] },
+        disciplinaryActions: "No POST Disciplinary Actions found",
+        education: "No Courses found",
+      }),
+      "b.detail.json": JSON.stringify({
+        licenses: { POSTLicenseList: [disciplined] },
+        disciplinaryActions: "No POST Disciplinary Actions found",
+        activeEmployment: "No employment found",
+      }),
+      "skipped.yaml": stringifyYaml({
+        skippedAgencies: [
+          {
+            agencyName: "Gamma Police Dept.",
+            reason: "excluded by an Agency entry in excluded.yaml",
+          },
+          {
+            agencyName: "Delta Police Dept.",
+            reason: "site agency search returned no resolvable id",
+            candidateCount: 0,
+          },
+        ],
+        skippedOfficers: [],
+        skippedDocuments: [],
+      }),
+      "discipline-personnel.json": JSON.stringify({
+        people: [
+          {
+            licenseNumber: "50000",
+            name: "Pat Doe",
+            sourceRow: 12,
+            officer: disciplined,
+            history: [],
+          },
+        ],
+        missingActions: [{ licenseNumber: "50000", contactId: "0050" }],
+      }),
+      "discipline-unresolved-licenses.json": JSON.stringify([
+        {
+          licenseNumber: "83259",
+          name: "Alan Gene Wahl",
+          sourceRow: 196,
+          history: [],
+          reason: "License 83259: expected one exact search result, got 0",
+          results: [],
+        },
+      ]),
+    });
+    const workbook = "Final Disciplinary Actions item 5 DL 9-26.xlsx";
+    expect(authorityFindings(manifest)).toEqual([
+      {
+        code: "agency-not-found",
+        type: "error",
+        field: "Agency",
+        value: "Delta Police Dept.",
+        message:
+          "Delta Police Dept. is on the state's list of law enforcement agencies, but the state's license search did not return exactly one agency with that name, so the agency and its officers were left out.",
+        evidence: [{ file: "skipped.yaml", agency: "Delta Police Dept." }],
+        source_namespace: namespace,
+        source_record_id: "Delta Police Dept.",
+      },
+      {
+        code: "disciplined-license-without-action",
+        type: "error",
+        field: "disciplinaryActions",
+        value: null,
+        message:
+          "License 50000 (Pat Doe) is on the state's list of disciplined officers, but the state's license search lists no disciplinary action for it, so no discipline was added for this officer.",
+        evidence: [{ file: workbook, row: 12 }],
+        source_namespace: namespace,
+        source_record_id: "50000",
+      },
+      {
+        code: "disciplined-license-not-found",
+        type: "error",
+        field: "licenseNumber",
+        value: "83259",
+        message:
+          "License 83259 (Alan Gene Wahl) is on the state's list of disciplined officers, but the state's license search did not return exactly one matching license, so the officer and the discipline were left out.",
+        evidence: [{ file: workbook, row: 196 }],
+        source_namespace: namespace,
+        source_record_id: "83259",
+      },
+    ]);
+    expect(manifest.accounting).toEqual([
+      {
+        input: "agency-ids.yaml",
+        read: 2,
+        emitted: 1,
+        reported: 0,
+        notSelected: { "no roster or employment history": 1 },
+      },
+      {
+        input: "agencies.csv",
+        read: 3,
+        emitted: 1,
+        reported: 1,
+        notSelected: { excluded: 1 },
+      },
+      {
+        input: "roster.json officers",
+        read: 1,
+        emitted: 1,
+        reported: 0,
+        notSelected: {},
+      },
+      {
+        input: "detail.json licenses",
+        read: 2,
+        emitted: 2,
+        reported: 0,
+        notSelected: {},
+      },
+      {
+        input: "detail.json activeEmployment",
+        read: 1,
+        emitted: 1,
+        reported: 0,
+        notSelected: {},
+      },
+      {
+        input: "detail.json disciplinaryActions",
+        read: 0,
+        emitted: 0,
+        reported: 0,
+        notSelected: {},
+      },
+      {
+        input: "detail.json education",
+        read: 0,
+        emitted: 0,
+        reported: 0,
+        notSelected: {},
+      },
+      {
+        input: "discipline-personnel.json people",
+        read: 1,
+        emitted: 1,
+        reported: 0,
+        notSelected: {},
+      },
+      {
+        input: "discipline-personnel.json history",
+        read: 0,
+        emitted: 0,
+        reported: 0,
+        notSelected: {},
+      },
+      {
+        input: "discipline-personnel.json missingActions",
+        read: 1,
+        emitted: 0,
+        reported: 1,
+        notSelected: {},
+      },
+      {
+        input: "discipline-unresolved-licenses.json",
+        read: 1,
+        emitted: 0,
+        reported: 1,
+        notSelected: {},
+      },
+      {
+        input: "document.json",
+        read: 0,
+        emitted: 0,
+        reported: 0,
+        notSelected: {},
+      },
+      {
+        input: "skipped.yaml skippedAgencies",
+        read: 2,
+        emitted: 0,
+        reported: 1,
+        notSelected: { excluded: 1 },
+      },
+      {
+        input: "skipped.yaml skippedDocuments",
+        read: 0,
+        emitted: 0,
+        reported: 0,
+        notSelected: {},
+      },
+    ]);
+  });
+
+  it("counts an active employment at an agency whose roster does not list the officer", async () => {
+    const manifest = await run({
+      "agency-ids.yaml": agencyIds,
+      [rosterFile]: JSON.stringify([officer]),
+      "a.detail.json": JSON.stringify({
+        licenses: { POSTLicenseList: [officer] },
+        activeEmployment: [
+          ...employment.activeEmployment,
+          { rosterId: "a2m32BETA", agencyName: "Beta County Sheriff" },
+        ],
+      }),
+    });
+    expect(Object.keys(recordsOf(manifest, "AgencyPersonnel"))).toEqual([
+      "a2m32ALPHA",
+    ]);
+    expect(accountingOf(manifest, "detail.json activeEmployment")).toEqual({
+      input: "detail.json activeEmployment",
+      read: 2,
+      emitted: 1,
+      reported: 0,
+      notSelected: { "officer is not on that agency's roster": 1 },
+    });
+  });
+
+  it("accounts for every row of the shared fixture", async () => {
+    const { accountingTotals } =
+      await import("../../src/cli/transform/accounting.js");
+    expect(accountingTotals(namespace, (await runFixture()).accounting)).toBe(
+      `${namespace}: row accounting: ` +
+        [
+          "agency-ids.yaml: read 2, emitted 2, reported 0, not selected 0",
+          "agencies.csv: read 1, emitted 1, reported 0, not selected 0",
+          "roster.json officers: read 4, emitted 4, reported 0, not selected 0",
+          "detail.json licenses: read 4, emitted 4, reported 0, not selected 0",
+          "detail.json activeEmployment: read 4, emitted 4, reported 0, not selected 0",
+          "detail.json disciplinaryActions: read 2, emitted 2, reported 0, not selected 0",
+          "detail.json education: read 0, emitted 0, reported 0, not selected 0",
+          "discipline-personnel.json people: read 0, emitted 0, reported 0, not selected 0",
+          "discipline-personnel.json history: read 0, emitted 0, reported 0, not selected 0",
+          "discipline-personnel.json missingActions: read 0, emitted 0, reported 0, not selected 0",
+          "discipline-unresolved-licenses.json: read 0, emitted 0, reported 0, not selected 0",
+          "document.json: read 1, emitted 1, reported 0, not selected 0",
+          "skipped.yaml skippedAgencies: read 0, emitted 0, reported 0, not selected 0",
+          "skipped.yaml skippedDocuments: read 1, emitted 1, reported 0, not selected 0",
+        ].join("; "),
+    );
   });
 });

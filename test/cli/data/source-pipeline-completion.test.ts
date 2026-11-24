@@ -37,8 +37,8 @@ it("generation uses this import's explicit mutation output even with older saved
       databaseMutationsPath: current,
     });
     expect(
-      await generateOneSource("test", { INTAKE_WORKSPACE_TEST: workspace }),
-    ).toEqual({ mutationCount: 0 });
+      await generateOneSource("test", { INTAKE_WORKSPACE: workspace }),
+    ).toEqual({ mutationCount: 0, serviceSkips: [] });
     expect(generateEntry).toHaveBeenCalledWith(current);
   } finally {
     await rm(workspace, { recursive: true, force: true });

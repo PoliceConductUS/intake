@@ -12,6 +12,7 @@ import {
   readYamlDocumentFile,
   writeYamlDocumentFile,
 } from "../internal/yaml-document.js";
+import { Finding } from "../../data-annotations.js";
 import { LicensingAuthoritySpec } from "./entity-specs.js";
 export { LicensingAuthoritySpec } from "./entity-specs.js";
 
@@ -91,6 +92,7 @@ const recordMetadataSchema = z
     action: z.enum(["PUT", "PATCH", "POST"]).optional(),
     name: z.string().trim().min(1).optional(),
     selector: z.record(z.string(), z.unknown()).optional(),
+    defects: z.array(Finding).optional(),
   })
   .strict();
 export type RecordMetadata = z.infer<typeof recordMetadataSchema>;
@@ -214,24 +216,13 @@ function validateRecord(
   return result.data as z.infer<typeof LicensingAuthoritySpec>;
 }
 
-// The record's metadata, kept with it through resolution (ADR 0034). The record
-// key is its name; the write verb + addressing (action/selector) ride along when
-// present. Works for both an inline item's metadata and a resolved record
-// envelope's metadata (both optionally carry action/selector).
+// The record's validated metadata, passed on whole (ADR 0034, ADR 0040). The
+// record key is its name.
 function toRecordMetadata(
   recordKey: string,
-  metadata?: {
-    action?: "PUT" | "PATCH" | "POST";
-    selector?: Record<string, unknown>;
-  },
+  metadata?: RecordMetadata,
 ): RecordMetadata {
-  return {
-    name: recordKey,
-    ...(metadata?.action !== undefined ? { action: metadata.action } : {}),
-    ...(metadata?.selector !== undefined
-      ? { selector: metadata.selector }
-      : {}),
-  };
+  return { ...metadata, name: recordKey };
 }
 
 export const recordSchema = z
@@ -240,12 +231,11 @@ export const recordSchema = z
     kind: z.literal("LicensingAuthority"),
     metadata: z
       .object({
+        ...recordMetadataSchema.shape,
         name: z.string().trim().min(1),
         namespace: z.string().trim().min(1),
         labels: z.record(z.string(), z.string()).optional(),
         annotations: z.record(z.string(), z.string()).optional(),
-        action: z.enum(["PUT", "PATCH", "POST"]).optional(),
-        selector: z.record(z.string(), z.unknown()).optional(),
       })
       .strict(),
     spec: z.strictObject(LicensingAuthoritySpec.shape).partial(),
@@ -320,7 +310,8 @@ async function writeLicensingAuthority(
 
 async function readLicensingAuthorities(
   filePath: string,
-  options: EnvelopeReadOptions & {
+  options: {
+    expectedNamespace?: string;
     expectedKind?: "LicensingAuthorities";
     expectedSha256?: string;
     raw: true;
@@ -328,7 +319,8 @@ async function readLicensingAuthorities(
 ): Promise<LicensingAuthoritiesEnvelope>;
 async function readLicensingAuthorities(
   filePath: string,
-  options?: EnvelopeReadOptions & {
+  options?: {
+    expectedNamespace?: string;
     expectedKind?: "LicensingAuthorities";
     expectedSha256?: string;
     raw?: false;
@@ -336,7 +328,8 @@ async function readLicensingAuthorities(
 ): Promise<LicensingAuthoritiesResolvedEnvelope>;
 async function readLicensingAuthorities(
   filePath: string,
-  options: EnvelopeReadOptions & {
+  options: {
+    expectedNamespace?: string;
     expectedKind?: "LicensingAuthorities";
     expectedSha256?: string;
     raw?: boolean;
@@ -390,8 +383,14 @@ async function readLicensingAuthorities(
           `LicensingAuthorities record metadata.name ${record.metadata.name} does not match expected record key ${recordKey}: ${filePath}`,
         );
       }
+      const {
+        namespace: _namespace,
+        labels: _labels,
+        annotations: _annotations,
+        ...metadata
+      } = record.metadata;
       records[recordKey] = {
-        metadata: toRecordMetadata(recordKey, record.metadata),
+        metadata: toRecordMetadata(recordKey, metadata),
         spec: validateRecord(
           filePath,
           recordKey,
@@ -447,14 +446,9 @@ async function writeLicensingAuthorities(
       }
       const record = newLicensingAuthority({
         metadata: {
+          ...recordItem.metadata,
           name: recordKey,
           namespace: artifact.metadata.namespace,
-          ...(recordItem.metadata?.action !== undefined
-            ? { action: recordItem.metadata.action }
-            : {}),
-          ...(recordItem.metadata?.selector !== undefined
-            ? { selector: recordItem.metadata.selector }
-            : {}),
         },
         spec: recordItem.spec as z.infer<typeof LicensingAuthoritySpec>,
       });

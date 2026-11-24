@@ -92,3 +92,34 @@ describe("seedLedgerFromIdentityMaps", () => {
     ).toBe("cm7ao2");
   });
 });
+
+describe("seedLedgerFromIdentityMaps rejects a mapping without a canonical ID", () => {
+  it.each([
+    ["blank", "''"],
+    ["null", "null"],
+    ["empty", ""],
+    ["a mapping", "{ id: cm7person3 }"],
+  ])("%s", async (_label, value) => {
+    const filePath = path.join(identityDir, "personnel.yaml");
+    await writeFile(
+      filePath,
+      [
+        "id_field: PUBLIC_GUID",
+        "mappings:",
+        "  '1000033': cm7person1",
+        `  '1000039': ${value}`,
+      ].join("\n"),
+      "utf8",
+    );
+
+    await expect(
+      seedLedgerFromIdentityMaps("gov/texas/tcole", identityDir, { rootDir }),
+    ).rejects.toThrow(
+      `${filePath}: mapping 1000039 has no canonical ID; expected a non-blank string or a number.`,
+    );
+    const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
+    expect(
+      await ledger.read("gov/texas/tcole", "Agency", "101100"),
+    ).toBeUndefined();
+  });
+});

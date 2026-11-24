@@ -11,6 +11,12 @@ const finding = {
   evidence: z.array(z.record(z.string(), z.json())).optional(),
   ...sourceContribution,
 };
+export const Finding = z.strictObject({
+  ...finding,
+  code: z.string().trim().min(1),
+  type: z.enum(["warning", "error"]),
+});
+export type Finding = z.infer<typeof Finding>;
 export const CorrectionAnnotation = z.strictObject({
   ...finding,
   type: z.literal("correction"),

@@ -124,3 +124,17 @@ export {
 } from "./initial-agency-roots.js";
 export { RecordsRequest } from "./RecordsRequest.js";
 export type { RecordsRequestEnvelope } from "./RecordsRequest.js";
+export { CallResult, callRequestFingerprint } from "./CallResult.js";
+export type {
+  CallOutcome,
+  CallRequest,
+  CallResultEnvelope,
+  CallResultInput,
+} from "./CallResult.js";
+export { BinaryFile } from "./BinaryFile.js";
+export type {
+  BinaryFileEnvelope,
+  BinaryFileInput,
+  BinaryFileOrigin,
+  StoredBinaryFile,
+} from "./BinaryFile.js";

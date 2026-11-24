@@ -53,7 +53,10 @@ export function matchInputs(paths: string[]): MatchedInputs {
   for (const p of paths) {
     const basename = path.basename(p);
     const role = classifyGazetteerRole(basename);
-    if (!role) continue;
+    if (!role)
+      throw new Error(
+        `gov/census/www2/gazetteer inputs: "${p}" matches no input role`,
+      );
     const year = extractYear(basename);
     if (!year) {
       throw new Error(

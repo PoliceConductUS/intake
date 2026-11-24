@@ -10,14 +10,17 @@ import {
   assertCanSubmit,
 } from "./lifecycle.js";
 import { Resend } from "./resend.js";
+import { intakeWorkspace } from "../command-directory.js";
 import {
   portalFormSchema,
   portalProfileSchema,
   submitPortal,
 } from "./portal.js";
 import { createAnalyzer, syncMessages } from "./responses.js";
+import { withParameterStoreSecrets } from "../parameter-store-env.js";
+const env = withParameterStoreSecrets(process.env);
 function required(name: string) {
-  const value = process.env[name];
+  const value = env[name];
   if (!value?.trim()) throw new Error(`${name} is required`);
   return value;
 }
@@ -65,7 +68,7 @@ export const registerCliCommand: RegisterCliCommand = (
     .action(
       run(async (source: string, options: { force?: boolean }) => {
         const [entry] = await loadSources(source);
-        const store = new RequestStore(required("INTAKE_WORKSPACE"));
+        const store = new RequestStore(intakeWorkspace(env));
         await store.importHistory(entry.id, entry.definition);
         assertCanSubmit(
           await store.list(entry.id),
@@ -126,7 +129,7 @@ export const registerCliCommand: RegisterCliCommand = (
     .action(
       run(async (source: string | undefined, options: { json?: boolean }) => {
         const entries = await loadSources(source);
-        const store = new RequestStore(required("INTAKE_WORKSPACE"));
+        const store = new RequestStore(intakeWorkspace(env));
         for (const entry of entries)
           await store.importHistory(entry.id, entry.definition);
         const rows = (
@@ -180,7 +183,7 @@ export const registerCliCommand: RegisterCliCommand = (
               "--request-id and --email-id must be supplied together",
             );
           const entries = await loadSources(source);
-          const store = new RequestStore(required("INTAKE_WORKSPACE"));
+          const store = new RequestStore(intakeWorkspace(env));
           for (const entry of entries)
             await store.importHistory(entry.id, entry.definition);
           if (options.requestId) {

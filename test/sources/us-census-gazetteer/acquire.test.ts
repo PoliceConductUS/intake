@@ -5,6 +5,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { acquire } from "../../../sources/gov/census/www2/gazetteer/acquire.js";
 import { discoverLatestGazetteerLinks } from "../../../sources/gov/census/www2/gazetteer/acquire/discovery.js";
 import { gazetteerSourceUrls } from "../../../sources/gov/census/www2/gazetteer/acquire/download.js";
+import { unusedServiceClients } from "../../shared/services/harness.js";
 
 const pageUrl =
   "https://www.census.gov/geographies/reference-files/time-series/geo/gazetteer-files.html";
@@ -110,6 +111,7 @@ async function run(
   let error: unknown;
   try {
     await acquire({
+      clients: unusedServiceClients(),
       sourceDir,
       previousSourceDirs,
       state: sourceDir,
@@ -196,3 +198,23 @@ test.each([
     expect(result.requested.filter((url) => url.endsWith(".zip"))).toEqual([]);
   },
 );
+
+test("throws for a blank CENSUS_GAZETTEER_PAGE_URL before any request", async () => {
+  const requested: string[] = [];
+  vi.stubGlobal("fetch", async (url: string) => {
+    requested.push(url);
+    return new Response("");
+  });
+  await expect(
+    acquire({
+      clients: unusedServiceClients(),
+      sourceDir: "/nonexistent/source",
+      state: "/nonexistent/state",
+      env: { CENSUS_GAZETTEER_PAGE_URL: " " },
+      data: {} as never,
+    }),
+  ).rejects.toThrow(
+    "gov/census/www2/gazetteer: CENSUS_GAZETTEER_PAGE_URL is set and blank",
+  );
+  expect(requested).toEqual([]);
+});

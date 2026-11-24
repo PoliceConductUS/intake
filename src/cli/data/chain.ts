@@ -15,6 +15,7 @@ import {
 import { createHash } from "node:crypto";
 import { mkdir, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
+import { intakeWorkspace } from "../command-directory.js";
 import { DatabaseMutations } from "../import/artifacts/io/DatabaseMutations.js";
 import type { DatabaseMutationsEnvelope } from "../import/artifacts/io/DatabaseMutations.js";
 import { executeDatabaseMutations } from "../replay/database-mutations/execute.js";
@@ -39,13 +40,7 @@ const PREVIOUS_KEY = "data-mutation/previous";
 // explicit root; the CLI uses this default so the chain sits beside command/ and
 // state/ in the workspace.
 function defaultChainRoot(): string {
-  const workspace = process.env.INTAKE_WORKSPACE;
-  if (workspace === undefined || workspace.trim() === "") {
-    throw new Error(
-      "INTAKE_WORKSPACE is required to locate the data-mutation chain.",
-    );
-  }
-  return path.join(workspace, "data");
+  return path.join(intakeWorkspace(process.env), "data");
 }
 
 export function chainDir(root: string = defaultChainRoot()): string {
@@ -240,7 +235,7 @@ export type ApplyResult = { version: string; mutationCount: number }[];
  * Apply pending chain entries in order (ADR 0033). Each entry requires its
  * predecessor already in the ledger and the database schema at ≥ its min-version;
  * each entry + its ledger row commit in one transaction. `to` stops after that
- * version.
+ * version and must name a pending entry.
  */
 export async function applyPending(
   client: DatabaseClient,
@@ -263,9 +258,16 @@ export async function applyPending(
   const pending = entries.filter((entry) => !applied.has(entry.version));
   const toIndex =
     options.to === undefined
-      ? -1
+      ? pending.length - 1
       : pending.findIndex((entry) => entry.version === options.to);
-  const targetCount = toIndex === -1 ? pending.length : toIndex + 1;
+  if (toIndex === -1 && options.to !== undefined) {
+    throw new Error(
+      `data: --to ${options.to} matches no pending entry (pending: ${
+        pending.map((entry) => entry.version).join(", ") || "none"
+      }).`,
+    );
+  }
+  const targetCount = toIndex + 1;
   options.logger?.info(
     `data up: ${targetCount} pending entr${
       targetCount === 1 ? "y" : "ies"

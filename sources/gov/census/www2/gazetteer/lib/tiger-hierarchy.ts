@@ -9,7 +9,11 @@ import {
   readGeoJson,
   readShapefile,
 } from "../../../../../../src/cli/transform/parse/geo.js";
-import { allowedStateGeoids, allowedStateSlugs } from "./constants.js";
+import {
+  allowedStateGeoids,
+  allowedStateSlugs,
+  SOURCE_ID,
+} from "./constants.js";
 import { extractShapefileFromZip } from "./extract.js";
 import {
   deterministicTotalAreaOverlapRecordSchema,
@@ -75,6 +79,11 @@ export interface TigerFeatureRow {
   bbox: BBox;
 }
 
+export interface TigerFeatureTally {
+  read: number;
+  outsideStates: number;
+}
+
 export interface BuildHierarchyFromTigerOptions {
   countyShapefilePath: string;
   placeShapefilePaths: string[];
@@ -122,13 +131,14 @@ export async function buildHierarchyFromTiger({
 
     const stateHierarchy: DeterministicTotalAreaOverlapRecord[] = [];
     for (const place of statePlaces) {
-      const placeGeometry = toClippingGeometry(place.geometry);
-      if (placeGeometry === undefined) continue;
+      const placeGeometry = polygonsOf(place.geometry, `place ${place.geoid}`);
       const placeBox = bboxForGeometry(place.geometry);
       for (const county of stateCounties) {
         if (!boxesIntersect(placeBox, county.bbox)) continue;
-        const countyGeometry = toClippingGeometry(county.geometry);
-        if (countyGeometry === undefined) continue;
+        const countyGeometry = polygonsOf(
+          county.geometry,
+          `county ${county.geoid}`,
+        );
         const intersection = polygonClipping.intersection(
           placeGeometry,
           countyGeometry,
@@ -276,9 +286,10 @@ export async function readFeaturesByState(
   geometryPath: string,
   type: TigerFeatureType,
   state: string,
+  tally?: TigerFeatureTally,
 ): Promise<Map<string, TigerFeatureRow[]>> {
   if (geometryPath.toLowerCase().endsWith(".geojson")) {
-    return readGeoJsonFeaturesByState(geometryPath, type);
+    return readGeoJsonFeaturesByState(geometryPath, type, tally);
   }
 
   const shpPath = geometryPath.toLowerCase().endsWith(".zip")
@@ -287,7 +298,7 @@ export async function readFeaturesByState(
 
   const featuresByState = new Map<string, TigerFeatureRow[]>();
   for await (const feature of readShapefile(shpPath)) {
-    addFeatureByState(featuresByState, feature, type);
+    addFeatureByState(featuresByState, feature, type, tally);
   }
 
   return featuresByState;
@@ -296,11 +307,12 @@ export async function readFeaturesByState(
 async function readGeoJsonFeaturesByState(
   geometryPath: string,
   type: TigerFeatureType,
+  tally: TigerFeatureTally | undefined,
 ): Promise<Map<string, TigerFeatureRow[]>> {
   const features = await readGeoJson(geometryPath);
   const featuresByState = new Map<string, TigerFeatureRow[]>();
   for (const feature of features) {
-    addFeatureByState(featuresByState, feature, type);
+    addFeatureByState(featuresByState, feature, type, tally);
   }
   return featuresByState;
 }
@@ -309,27 +321,32 @@ function addFeatureByState(
   featuresByState: Map<string, TigerFeatureRow[]>,
   feature: { properties: Record<string, unknown>; geometry: unknown },
   type: TigerFeatureType,
+  tally: TigerFeatureTally | undefined,
 ): void {
+  if (tally) tally.read += 1;
   const properties = feature.properties ?? {};
-  const stateGeoid = properties.STATEFP as string;
-  if (type === "county_subdivision" || type === "consolidated_city") {
-    const geoidPattern = type === "county_subdivision" ? /^\d{10}$/ : /^\d{7}$/;
-    if (
-      typeof stateGeoid !== "string" ||
-      !/^\d{2}$/.test(stateGeoid) ||
-      typeof properties.GEOID !== "string" ||
-      !geoidPattern.test(properties.GEOID)
-    ) {
-      throw new Error(
-        `Invalid Census ${type} source identity: STATEFP=${String(properties.STATEFP)}, GEOID=${String(properties.GEOID)}`,
-      );
-    }
-  }
-  if (!allowedStateGeoids.has(stateGeoid)) return;
-  const stateSlug = (properties.STUSPS as string | undefined)?.toLowerCase();
-  if (stateSlug !== undefined && !allowedStateSlugs.has(stateSlug)) return;
+  const stateGeoid = properties.STATEFP;
   const geoid = featureGeoid(properties, type);
-  if (typeof geoid !== "string") return;
+  if (
+    typeof stateGeoid !== "string" ||
+    !/^\d{2}$/.test(stateGeoid) ||
+    typeof geoid !== "string" ||
+    !GEOID_PATTERNS[type].test(geoid)
+  ) {
+    throw new Error(
+      `Invalid Census ${type} source identity: STATEFP=${String(properties.STATEFP)}, GEOID=${String(properties.GEOID)}`,
+    );
+  }
+  if (!allowedStateGeoids.has(stateGeoid)) {
+    if (tally) tally.outsideStates += 1;
+    return;
+  }
+  const stateSlug = (properties.STUSPS as string | undefined)?.toLowerCase();
+  if (stateSlug !== undefined && !allowedStateSlugs.has(stateSlug))
+    throw new Error(
+      `${SOURCE_ID}: TIGER ${type} ${geoid} has STATEFP ${stateGeoid} and STUSPS ${String(properties.STUSPS)}`,
+    );
+  polygonsOf(feature.geometry as GeoJsonGeometry, `${type} ${geoid}`);
 
   const records = featuresByState.get(stateGeoid) ?? [];
   records.push({
@@ -344,6 +361,26 @@ function addFeatureByState(
     bbox: bboxForGeometry(feature.geometry as GeoJsonGeometry),
   });
   featuresByState.set(stateGeoid, records);
+}
+
+const GEOID_PATTERNS: Record<TigerFeatureType, RegExp> = {
+  state: /^\d{2}$/,
+  county: /^\d{5}$/,
+  place: /^\d{7}$/,
+  county_subdivision: /^\d{10}$/,
+  consolidated_city: /^\d{7}$/,
+};
+
+function polygonsOf(
+  geometry: GeoJsonGeometry | undefined,
+  feature: string,
+): MultiPolygon {
+  const polygons = toClippingGeometry(geometry);
+  if (polygons === undefined)
+    throw new Error(
+      `${SOURCE_ID}: TIGER ${feature} has geometry type ${String(geometry?.type)}, not Polygon or MultiPolygon`,
+    );
+  return polygons;
 }
 
 function featureGeoid(

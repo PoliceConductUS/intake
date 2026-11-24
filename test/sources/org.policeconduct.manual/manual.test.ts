@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { describeKind } from "../../../sources/org/policeconduct/manual/entity-model.js";
 import {
   appendEntry,
@@ -9,7 +9,20 @@ import {
 } from "../../../sources/org/policeconduct/manual/chain.js";
 import { acquire } from "../../../sources/org/policeconduct/manual/acquire.js";
 import { source } from "../../../sources/org/policeconduct/manual/intake.source.js";
+import { unusedServiceClients } from "../../shared/services/harness.js";
 const { transform, produces } = source;
+
+const prompts: string[] = [];
+let answers: string[] = [];
+vi.mock("node:readline/promises", () => ({
+  createInterface: () => ({
+    question: async (prompt: string) => {
+      prompts.push(prompt);
+      return answers.shift() ?? "";
+    },
+    close: () => {},
+  }),
+}));
 
 const tempDirs: string[] = [];
 afterEach(async () => {
@@ -69,6 +82,7 @@ describe("acquire -> run (env-driven, non-interactive)", () => {
       location_path_id: "ca",
     };
     await acquire({
+      clients: unusedServiceClients(),
       sourceDir: state,
       state,
       env: {
@@ -97,6 +111,7 @@ describe("acquire -> run (env-driven, non-interactive)", () => {
     const state = await tempDir();
     await expect(
       acquire({
+        clients: unusedServiceClients(),
         sourceDir: state,
         state,
         env: {
@@ -112,6 +127,7 @@ describe("acquire -> run (env-driven, non-interactive)", () => {
   it("interviews a LocationPathAlias into the chain and emits it as an artifact", async () => {
     const state = await tempDir();
     await acquire({
+      clients: unusedServiceClients(),
       sourceDir: await tempDir(),
       state,
       env: {
@@ -147,6 +163,7 @@ describe("acquire -> run (env-driven, non-interactive)", () => {
     const state = await tempDir();
     await expect(
       acquire({
+        clients: unusedServiceClients(),
         sourceDir: await tempDir(),
         state,
         env: {
@@ -165,6 +182,7 @@ describe("manual review restoration", () => {
     const state = await tempDir();
     await expect(
       acquire({
+        clients: unusedServiceClients(),
         sourceDir: state,
         state,
         env: {
@@ -208,6 +226,7 @@ describe("manual review restoration", () => {
     ];
     for (const entry of entries)
       await acquire({
+        clients: unusedServiceClients(),
         sourceDir: state,
         state,
         env: {
@@ -304,6 +323,7 @@ it("acquires coverage articles and emits their existing personnel references unc
   ];
   for (const entry of entries)
     await acquire({
+      clients: unusedServiceClients(),
       sourceDir: state,
       state,
       env: {
@@ -352,6 +372,7 @@ it("creates and updates native annotations through the normal manual chain", asy
   };
   for (const status of ["active", "resolved"]) {
     await acquire({
+      clients: unusedServiceClients(),
       sourceDir: state,
       state,
       env: {
@@ -376,4 +397,78 @@ it("creates and updates native annotations through the normal manual chain", asy
       },
     ]);
   }
+});
+
+it("rejects a kind that is not handled before it asks for any field", async () => {
+  const state = await tempDir();
+  prompts.length = 0;
+  answers = ["Agency"];
+  await expect(
+    acquire({
+      clients: unusedServiceClients(),
+      sourceDir: state,
+      state,
+      env: {},
+      data: {} as never,
+    }),
+  ).rejects.toThrow(/kind Agency is not handled/);
+  expect(prompts).toHaveLength(1);
+  expect(prompts[0]).toMatch(/^Kind /);
+  expect((await readLatest(state)).entries).toEqual([]);
+});
+
+describe("row accounting", () => {
+  it("states no rows for an empty chain", async () => {
+    const manifest = await transform({
+      paths: [],
+      state: await tempDir(),
+      emit: async () => {},
+    } as never);
+    expect(manifest.artifacts).toEqual([]);
+    expect(manifest.accounting).toEqual([
+      {
+        input: "manual records",
+        read: 0,
+        emitted: 0,
+        reported: 0,
+        notSelected: {},
+      },
+    ]);
+  });
+
+  it("counts every record in the chain as read and emitted", async () => {
+    const state = await tempDir();
+    await appendEntry(
+      state,
+      { kind: "CoverageLink", record: { id: "one", url: "https://a.example" } },
+      "id",
+    );
+    await appendEntry(
+      state,
+      { kind: "CoverageLink", record: { id: "two", url: "https://b.example" } },
+      "id",
+    );
+    await appendEntry(
+      state,
+      {
+        kind: "LocationPathAlias",
+        record: { alias_path: "/a/b/", location_path_id: "/a/c/" },
+      },
+      "alias_path",
+    );
+    const manifest = await transform({
+      paths: [],
+      state,
+      emit: async () => {},
+    } as never);
+    expect(manifest.accounting).toEqual([
+      {
+        input: "manual records",
+        read: 3,
+        emitted: 3,
+        reported: 0,
+        notSelected: {},
+      },
+    ]);
+  });
 });

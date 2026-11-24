@@ -6,9 +6,15 @@ import {
   resolvedPropertyCacheName,
 } from "../../../src/cli/state/resolved-property/index.js";
 import path from "node:path";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, type Mock } from "vitest";
 import { loadExcludedRecords } from "../../../src/shared/io/excluded-records.js";
-import { transformSource } from "../../../src/cli/transform/index.js";
+import {
+  buildTransformSourceDeps,
+  transformSource,
+} from "../../../src/cli/transform/index.js";
+import { writeCommandPointer } from "../../../src/cli/state/command-pointer.js";
+import type { SourceManifest } from "../../../src/cli/transform/source-transform.js";
+import { onlyCommandLog, readLogRecords, wasLogOpen } from "../command-log.js";
 
 const testRefItems = [
   {
@@ -22,7 +28,9 @@ const testRefItems = [
 
 // A factory (not a shared const) so each test gets fresh vi.fn() call
 // history — vitest does not auto-reset mocks between `it` blocks here.
-function makeOkDeps() {
+function makeOkDeps(
+  logger: { info: Mock; error: Mock } = { info: vi.fn(), error: vi.fn() },
+) {
   return {
     beginCompletion: async () => {},
     complete: async () => {},
@@ -32,6 +40,7 @@ function makeOkDeps() {
     produces: ["Personnel", "LocationPathGeometries"] as const,
     loadSourceModule: vi.fn(async () =>
       vi.fn(async (_deps: unknown) => ({
+        accounting: [],
         artifacts: [
           {
             kind: "Personnel" as const,
@@ -54,9 +63,13 @@ function makeOkDeps() {
     })),
     loadExcludedRecords: vi.fn(async () => new Map()),
     writeEnvelope: vi.fn(async () => ({ path: "/ws/artifacts.yaml" })),
-    makeWorkspace: vi.fn(async () => "/ws"),
+    makeWorkspace: vi.fn(async () => ({
+      outputDirectory: "/ws",
+      logger,
+      close: () => {},
+    })),
     env: { INTAKE_WORKSPACE: "/ws" },
-    logger: { info: vi.fn() },
+    logger,
   };
 }
 
@@ -86,7 +99,9 @@ describe("transformSource", () => {
     );
     expect(okDeps.loadExcludedRecords).toHaveBeenCalledWith(okDeps.state);
     expect(result).toEqual({ artifactsPath: "/ws/artifacts.yaml" });
-    expect(okDeps.logger.info).not.toHaveBeenCalled();
+    expect(okDeps.logger.info.mock.calls).toEqual([
+      ["gov/az/post/roster: row accounting: no rows"],
+    ]);
     const sourceTransform =
       await okDeps.loadSourceModule.mock.results[0]!.value;
     expect(sourceTransform.mock.calls[0]![0]).not.toHaveProperty(
@@ -107,13 +122,12 @@ describe("transformSource", () => {
         'excluded:\n  - kind: Personnel\n    key: "1001"\n    reason: workspace exclusion\n  - kind: Personnel\n    key: "9999"\n    reason: absent from source\n',
       );
       await writeFile(path.join(sourceDir, "excluded.yaml"), "excluded: []\n");
-      const logger = { info: vi.fn() };
+      const logger = { info: vi.fn(), error: vi.fn() };
       const deps = {
-        ...makeOkDeps(),
+        ...makeOkDeps(logger),
         state,
         sourcesRoot,
         loadExcludedRecords,
-        logger,
       };
       const authority = {
         kind: "LicensingAuthorities" as const,
@@ -133,6 +147,7 @@ describe("transformSource", () => {
         ...deps,
         produces: [...deps.produces, "LicensingAuthorities"] as const,
         loadSourceModule: async () => async () => ({
+          accounting: [],
           artifacts: [...originalManifest.artifacts, authority],
         }),
       };
@@ -149,6 +164,7 @@ describe("transformSource", () => {
         "gov/az/post/roster",
         "testdigest",
         {
+          accounting: [],
           artifacts: [
             { kind: "Personnel", records: {} },
             {
@@ -185,7 +201,10 @@ describe("transformSource", () => {
       expect(logger.info).toHaveBeenCalledWith(
         "gov/az/post/roster: exclusion totals (including dependents): Personnel=1",
       );
-      expect(logger.info).toHaveBeenCalledTimes(2);
+      expect(logger.info).toHaveBeenLastCalledWith(
+        "gov/az/post/roster: row accounting: no rows",
+      );
+      expect(logger.info).toHaveBeenCalledTimes(3);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -233,6 +252,69 @@ describe("transformSource", () => {
     }
   });
 
+  it("fails without completing when a read row has no stated outcome", async () => {
+    const deps = {
+      ...makeOkDeps(),
+      complete: vi.fn(async () => {}),
+      loadSourceModule: vi.fn(async () => async () => ({
+        artifacts: [],
+        accounting: [
+          {
+            input: "Officers",
+            read: 100,
+            emitted: 99,
+            reported: 0,
+            notSelected: {},
+          },
+        ],
+      })),
+    };
+    const result = await transformSource(
+      "gov/az/post/roster",
+      ["file.xlsx"],
+      {},
+      deps,
+    );
+    expect(result).toEqual({
+      error: {
+        exitCode: 1,
+        stderr: expect.stringContaining(
+          "row accounting for Officers: read 100, accounted for 99, difference 1.",
+        ),
+      },
+    });
+    expect(deps.complete).not.toHaveBeenCalled();
+    expect(deps.writeEnvelope).not.toHaveBeenCalled();
+  });
+
+  it("logs the row accounting totals last when every read row has an outcome", async () => {
+    const deps = {
+      ...makeOkDeps(),
+      loadSourceModule: vi.fn(async () => async () => ({
+        artifacts: [],
+        accounting: [
+          {
+            input: "Officers",
+            read: 100,
+            emitted: 90,
+            reported: 4,
+            notSelected: { "no known officer": 5, "before minimum year": 1 },
+          },
+        ],
+      })),
+    };
+    const result = await transformSource(
+      "gov/az/post/roster",
+      ["file.xlsx"],
+      {},
+      deps,
+    );
+    expect(result).toEqual({ artifactsPath: "/ws/artifacts.yaml" });
+    expect(deps.logger.info).toHaveBeenLastCalledWith(
+      "gov/az/post/roster: row accounting: Officers: read 100, emitted 90, reported 4, not selected 6 (no known officer=5, before minimum year=1)",
+    );
+  });
+
   it("fails cleanly when no paths are given", async () => {
     const okDeps = makeOkDeps();
     const result = await transformSource("gov/az/post/roster", [], {}, okDeps);
@@ -275,5 +357,147 @@ describe("transformSource", () => {
         stderr: expect.stringMatching(/undeclared kind\(s\): Personnel/),
       },
     });
+  });
+
+  it("writes each line it prints to <command-name>.log and ends a failed run's log with its error", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "intake-transform-log-"));
+    try {
+      const sourceId = "gov/az/post/roster";
+      const input = path.join(root, "input");
+      await mkdir(input);
+      await writeFile(path.join(input, "roster.csv"), "id\n1001\n");
+      await writeCommandPointer(path.join(root, "state", sourceId), "acquire", {
+        latest: "input",
+      });
+      const printed: string[] = [];
+      const deps = await buildTransformSourceDeps(
+        sourceId,
+        [path.join(input, "roster.csv")],
+        { INTAKE_WORKSPACE: root },
+        {
+          commandArgs: ["data", "transform", sourceId],
+          terminal: { write: (text) => printed.push(text) },
+        },
+      );
+      deps.loadSourceModule = async () => async (transformInput) => {
+        transformInput.logger?.info("roster: read 1 row");
+        throw new Error("roster: row 2 has no license number");
+      };
+      expect(
+        await transformSource(
+          sourceId,
+          [path.join(input, "roster.csv")],
+          {},
+          deps,
+        ),
+      ).toEqual({
+        error: {
+          exitCode: 1,
+          stderr: "roster: row 2 has no license number\n",
+        },
+      });
+      expect(printed).toEqual(["roster: read 1 row\n"]);
+      const records = await readLogRecords(
+        (await onlyCommandLog(root)).logPath,
+      );
+      expect(records.map((record) => record.msg)).toEqual([
+        "roster: read 1 row",
+        undefined,
+      ]);
+      expect(records.at(-1)).toMatchObject({
+        level: 50,
+        error: {
+          message: "roster: row 2 has no license number",
+          stack: expect.stringContaining(
+            "Error: roster: row 2 has no license number\n    at ",
+          ),
+        },
+      });
+      expect(await wasLogOpen((await onlyCommandLog(root)).logPath)).toBe(
+        false,
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("logs its exclusion lines and records an undeclared-kind error", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "intake-transform-log-"));
+    try {
+      const sourceId = "gov/az/post/roster";
+      const state = path.join(root, "state", sourceId);
+      const input = path.join(root, "input");
+      await mkdir(input);
+      await writeFile(path.join(input, "roster.csv"), "id\n1001\n");
+      await writeCommandPointer(state, "acquire", { latest: "input" });
+      await writeFile(
+        path.join(state, "excluded.yaml"),
+        'excluded:\n  - kind: Personnel\n    key: "1001"\n    reason: duplicate row\n',
+      );
+      const deps = await buildTransformSourceDeps(
+        sourceId,
+        [path.join(input, "roster.csv")],
+        { INTAKE_WORKSPACE: root },
+        { commandArgs: ["data", "transform", sourceId], terminal: false },
+      );
+      deps.loadSourceModule =
+        async () => async (): Promise<SourceManifest> => ({
+          artifacts: [
+            {
+              kind: "Personnel" as const,
+              records: {
+                "1001": {
+                  spec: {
+                    id: "1001",
+                    first_name: "Skip",
+                    last_name: "Woodward",
+                  },
+                },
+              },
+            },
+            {
+              kind: "LicensingAuthorities" as const,
+              records: {
+                board: {
+                  spec: {
+                    name: "Test board",
+                    location_path_id: "test",
+                    source_namespaces: [sourceId],
+                  },
+                },
+              },
+            },
+          ],
+          accounting: [],
+        });
+      const result = await transformSource(
+        sourceId,
+        [path.join(input, "roster.csv")],
+        {},
+        deps,
+      );
+      expect(result).toEqual({
+        error: {
+          exitCode: 1,
+          stderr: `Source ${sourceId} emitted undeclared kind(s): Personnel, LicensingAuthorities\n`,
+        },
+      });
+      const records = await readLogRecords(
+        (await onlyCommandLog(root)).logPath,
+      );
+      expect(records.map((record) => record.msg)).toEqual([
+        `${sourceId}: excluded Personnel 1001: duplicate row`,
+        `${sourceId}: exclusion totals (including dependents): Personnel=1`,
+        undefined,
+      ]);
+      expect(records.at(-1)).toMatchObject({
+        level: 50,
+        error: {
+          message: `Source ${sourceId} emitted undeclared kind(s): Personnel, LicensingAuthorities`,
+        },
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });

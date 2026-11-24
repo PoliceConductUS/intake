@@ -80,6 +80,7 @@ describe("gov/census/www2/gazetteer run", () => {
     expect(Object.keys(locationPaths).sort()).toEqual([
       "administrative_area:GEOID:27053",
       "county_subdivision:GEOID:2705300001",
+      "place:GEOID:2701000",
       "place:GEOID:2743000",
       "state:GEOID:27",
     ]);
@@ -159,6 +160,7 @@ describe("gov/census/www2/gazetteer run", () => {
     expect(geometryEmits.map(([, key]) => key)).toEqual([
       "administrative_area:GEOID:27053",
       "county_subdivision:GEOID:2705300001",
+      "place:GEOID:2701000",
       "place:GEOID:2743000",
       "state:GEOID:27",
     ]);
@@ -198,6 +200,27 @@ describe("gov/census/www2/gazetteer run", () => {
       ],
     });
 
+    const counts = (
+      input: string,
+      read: number,
+      emitted: number,
+      notSelected: Record<string, number> = {},
+    ) => ({ input, read, emitted, reported: 0, notSelected });
+    expect(manifest.accounting).toEqual([
+      counts("2025_Gaz_state_national.zip", 1, 1),
+      counts("2025_Gaz_counties_national.zip", 1, 1),
+      counts("2025_Gaz_place_national.zip", 2, 2),
+      counts("tl_2025_us_state.zip", 1, 1),
+      counts("tl_2025_us_county.zip", 1, 1),
+      counts("tl_2025_<state>_place.zip", 3, 2, {
+        "outside 50 states plus District of Columbia": 1,
+      }),
+      counts("tl_2025_<state>_cousub.zip", 2, 1, {
+        "statistical or undefined county subdivision": 1,
+      }),
+      counts("tl_2025_<state>_concity.zip", 0, 0),
+    ]);
+
     // --- envelope build must not throw: proves strict-schema compatibility
     // for every inline (non-streamed) record kind in the manifest ---
     expect(() =>
@@ -235,5 +258,16 @@ describe("gov/census/www2/gazetteer run", () => {
     const second = await runOnce();
     expect(second.manifest).toEqual(first.manifest);
     expect(second.emitted).toEqual(first.emitted);
+  });
+
+  it("throws for an input path that matches no role", async () => {
+    await expect(
+      transform({
+        paths: [...paths, path.join(fixturesDir, "states.psv")],
+        readXlsx: notUsed,
+        state,
+        emit: async () => {},
+      }),
+    ).rejects.toThrow(/states\.psv" matches no input role/);
   });
 });

@@ -1,4 +1,5 @@
 import { parse as parseHtml } from "node-html-parser";
+import { SOURCE_ID } from "../model.js";
 
 export type FederalLeList = {
   agencies: string[];
@@ -27,14 +28,17 @@ export function parseFederalLeAgencies(html: string): FederalLeList {
   const root = parseHtml(html);
   const content = root.querySelector("#mw-content-text") ?? root;
   const agencies: string[] = [];
-  const seen = new Set<string>();
+  const seen = new Map<string, string>();
   let inMainSection = false;
 
   for (const node of content.querySelectorAll("div.mw-heading, ul")) {
-    if ((node.getAttribute("class") ?? "").includes("mw-heading")) {
+    if (node.tagName === "DIV") {
       const heading = node.querySelector("h1, h2, h3, h4, h5, h6");
-      const level = heading ? Number(heading.tagName.slice(1)) : 0;
-      if (level <= 2) {
+      if (!heading)
+        throw new Error(
+          `${SOURCE_ID}: heading block with no h1 to h6: ${cleanText(node.text)}`,
+        );
+      if (Number(heading.tagName.slice(1)) <= 2) {
         inMainSection = MAIN_SECTION.test(cleanText(node.text));
       }
       continue;
@@ -44,8 +48,15 @@ export function parseFederalLeAgencies(html: string): FederalLeList {
       const name = cleanText(item.querySelector("a")?.text ?? "");
       if (name === "") continue;
       const slug = slugify(name);
-      if (seen.has(slug)) continue;
-      seen.add(slug);
+      const earlier = seen.get(slug);
+      if (earlier !== undefined) {
+        if (earlier !== name)
+          throw new Error(
+            `${SOURCE_ID}: agencies ${earlier} and ${name} share the slug ${slug}`,
+          );
+        continue;
+      }
+      seen.set(slug, name);
       agencies.push(name);
     }
   }

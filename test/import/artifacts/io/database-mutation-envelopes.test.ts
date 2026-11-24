@@ -2,6 +2,8 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
+import { readDatabaseMutation } from "../../../../src/cli/import/artifacts/io/DatabaseMutation.js";
+import { LocationPathAliasCreate } from "../../../../src/cli/import/artifacts/io/generated-mutations/LocationPathAliasCreate.js";
 import { DatabaseMutations } from "../../../../src/cli/import/artifacts/io/DatabaseMutations.js";
 import { AgencyCreate } from "../../../../src/cli/import/artifacts/io/generated-mutations/AgencyCreate.js";
 import { AgencyPersonnelUpdate } from "../../../../src/cli/import/artifacts/io/generated-mutations/AgencyPersonnelUpdate.js";
@@ -15,6 +17,31 @@ async function tempDir(): Promise<string> {
 }
 
 describe("database mutation envelopes", () => {
+  test("reads a mutation by path when its name contains a dot", async () => {
+    const directory = await tempDir();
+    const written = await LocationPathAliasCreate.write(
+      directory,
+      LocationPathAliasCreate.new({
+        metadata: { name: "/mn/st.paul/", namespace: "test" },
+        spec: {
+          alias_path: "/mn/st.paul/",
+          location_path_id: "cabc1234def5678ghij90kl1",
+        },
+      }),
+    );
+    expect(path.basename(written.path)).toBe(
+      "%2Fmn%2Fst.paul%2F.LocationPathAliasCreate.yaml",
+    );
+
+    expect(await readDatabaseMutation(written.path)).toMatchObject({
+      kind: "LocationPathAliasCreate",
+      metadata: { name: "/mn/st.paul/" },
+    });
+    await expect(
+      readDatabaseMutation(path.join(directory, "no-kind.yaml")),
+    ).rejects.toThrow("DatabaseMutation filename is malformed");
+  });
+
   test("DatabaseMutations writes and reads database mutation refs through exact kind IO", async () => {
     const directory = await tempDir();
     const mutation = await AgencyCreate.write(

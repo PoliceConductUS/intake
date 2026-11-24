@@ -1,4 +1,10 @@
 import type { MultiPolygon } from "polygon-clipping";
+import {
+  OUTSIDE_ALLOWED_STATES,
+  rowCounts,
+  SOURCE_ID,
+  type RowCounts,
+} from "./constants.js";
 import type {
   LocationPathRow,
   LocationPathSourceEvidence,
@@ -86,7 +92,10 @@ export interface BuildLocationPathGeometryPackageResult {
   >;
   locationPathGeometries?: Record<string, LocationPathGeometryRow>;
   locationPathGeometryCount: number;
+  featureAccounting: Record<FeatureKind, RowCounts>;
 }
+
+type FeatureKind = "state" | "county" | "place";
 
 export async function buildLocationPathGeometryPackage({
   locationPaths,
@@ -99,21 +108,33 @@ export async function buildLocationPathGeometryPackage({
   onGeometryRow,
   supplementalGeometries,
 }: BuildLocationPathGeometryPackageOptions): Promise<BuildLocationPathGeometryPackageResult> {
+  const tallies = {
+    state: { read: 0, outsideStates: 0 },
+    county: { read: 0, outsideStates: 0 },
+    place: { read: 0, outsideStates: 0 },
+  };
   const statesByState = await readFeaturesByState(
     stateGeometryPath,
     "state",
     state,
+    tallies.state,
   );
   const countiesByState = await readFeaturesByState(
     countyGeometryPath,
     "county",
     state,
+    tallies.county,
   );
   const placesByState = new Map<string, TigerFeatureRow[]>();
   for (const placeGeometryPath of placeGeometryPaths) {
     mergeFeatureMaps(
       placesByState,
-      await readFeaturesByState(placeGeometryPath, "place", state),
+      await readFeaturesByState(
+        placeGeometryPath,
+        "place",
+        state,
+        tallies.place,
+      ),
     );
   }
 
@@ -130,6 +151,16 @@ export async function buildLocationPathGeometryPackage({
   >();
   const locationPathRows = new Map<string, LocationPathWithGeometryExtent>();
   let locationPathGeometryCount = 0;
+  const featuresByKind = {
+    state: statesByGeoid,
+    county: countiesByGeoid,
+    place: placesByGeoid,
+  };
+  const used: Record<FeatureKind, Set<string>> = {
+    state: new Set(),
+    county: new Set(),
+    place: new Set(),
+  };
 
   const locationPathEntries = Object.entries(locationPaths).sort(
     ([left], [right]) => left.localeCompare(right),
@@ -141,15 +172,17 @@ export async function buildLocationPathGeometryPackage({
       throw new Error(`Missing source key for location path geometry ${path}`);
     }
 
-    const geometry =
-      supplementalGeometries?.get(path) ??
-      geometryForLocationPath({
+    let geometry = supplementalGeometries?.get(path);
+    if (geometry === undefined) {
+      geometry = geometryForLocationPath({
         locationPath,
         source,
         statesByGeoid,
         countiesByGeoid,
         placesByGeoid,
       });
+      used[FEATURE_KIND_BY_LEVEL[locationPath.level]].add(source.geoid);
+    }
     const geometryRow: LocationPathGeometryRow = {
       location_path_id: locationPath.location_path_id,
       geometry,
@@ -173,7 +206,27 @@ export async function buildLocationPathGeometryPackage({
     });
   }
 
+  const featureAccounting = {
+    state: rowCounts(),
+    county: rowCounts(),
+    place: rowCounts(),
+  };
+  for (const kind of ["state", "county", "place"] as const) {
+    const counts = featureAccounting[kind];
+    counts.read = tallies[kind].read;
+    if (tallies[kind].outsideStates > 0)
+      counts.notSelected[OUTSIDE_ALLOWED_STATES] = tallies[kind].outsideStates;
+    for (const geoid of featuresByKind[kind].keys()) {
+      if (!used[kind].has(geoid))
+        throw new Error(
+          `${SOURCE_ID}: TIGER ${kind} feature ${geoid} matches no location path`,
+        );
+      counts.emitted += 1;
+    }
+  }
+
   return {
+    featureAccounting,
     locationPaths: sortedObject(locationPathRows),
     locationPathGeometrySources: sortedObject(geometrySourceRows),
     locationPathGeometries:
@@ -181,6 +234,12 @@ export async function buildLocationPathGeometryPackage({
     locationPathGeometryCount,
   };
 }
+
+const FEATURE_KIND_BY_LEVEL: Record<LocationPathRow["level"], FeatureKind> = {
+  state: "state",
+  administrative_area: "county",
+  place: "place",
+};
 
 interface SourceKeyParts {
   type:

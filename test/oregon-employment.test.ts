@@ -48,6 +48,7 @@ describe("Oregon AgencyPersonnel", () => {
           },
         ],
         issues: [],
+        rows: ["assigned", "assigned"],
       });
     },
   );
@@ -88,7 +89,7 @@ describe("Oregon AgencyPersonnel", () => {
           {
             agencyId: "8",
             startDate: "2010-01-01",
-            endDate: "2017-01-17",
+            endDate: "2017-08-21",
             title: "Lieutenant",
           },
           {
@@ -105,10 +106,140 @@ describe("Oregon AgencyPersonnel", () => {
           },
         ],
         issues: [],
+        rows: [
+          "assigned",
+          "assigned",
+          "assigned",
+          "assigned",
+          "assigned",
+          "assigned",
+          "assigned",
+        ],
       });
     },
   );
 
+  it.each([
+    "Resigned",
+    "Retired",
+    "Discharged",
+    "Prob Dschg",
+    "Layoff",
+    "Inactive",
+    "InactiveAG",
+    "Deceased",
+    "Terminated",
+    "Rtrd Disab",
+    "DOC-Transf",
+  ])("ends employment on %s after a leave with no return", (action) => {
+    expect(
+      buildEmploymentEpisodes(
+        [
+          event("3/1/2020", action),
+          event("2/1/2020", "LOA"),
+          event("1/1/2020", "Hired"),
+        ],
+        [{ ...affiliation, status: "Inactive" }],
+      ),
+    ).toEqual({
+      assignments: [
+        {
+          agencyId: "7",
+          startDate: "2020-01-01",
+          endDate: "2020-03-01",
+          title: "Officer",
+        },
+      ],
+      issues: [],
+      rows: ["assigned", "assigned", "assigned"],
+    });
+  });
+  it("keeps two AgencyPersonnel records when a return from leave precedes the separation", () => {
+    expect(
+      buildEmploymentEpisodes(
+        [
+          event("4/1/2020", "Resigned"),
+          event("3/1/2020", "Return LOA"),
+          event("2/1/2020", "LOA"),
+          event("1/1/2020", "Hired"),
+        ],
+        [{ ...affiliation, status: "Inactive" }],
+      ),
+    ).toEqual({
+      assignments: [
+        {
+          agencyId: "7",
+          startDate: "2020-01-01",
+          endDate: "2020-02-01",
+          title: "Officer",
+        },
+        {
+          agencyId: "7",
+          startDate: "2020-03-01",
+          endDate: "2020-04-01",
+          title: "Officer",
+        },
+      ],
+      issues: [],
+      rows: ["assigned", "assigned", "assigned", "assigned"],
+    });
+  });
+  it("counts a second separation and does not move the end date", () => {
+    expect(
+      buildEmploymentEpisodes(
+        [
+          event("3/1/2020", "Resigned"),
+          event("2/1/2020", "Resigned"),
+          event("1/1/2020", "Hired"),
+        ],
+        [{ ...affiliation, status: "Inactive" }],
+      ),
+    ).toEqual({
+      assignments: [
+        {
+          agencyId: "7",
+          startDate: "2020-01-01",
+          endDate: "2020-02-01",
+          title: "Officer",
+        },
+      ],
+      issues: [],
+      rows: ["ended", "assigned", "assigned"],
+    });
+  });
+  it("uses the first separation after a leave and counts the later one and a second leave", () => {
+    expect(
+      buildEmploymentEpisodes(
+        [
+          event("6/1/2020", "LOA"),
+          event("5/1/2020", "Deceased"),
+          event("4/1/2020", "Retired", "Sergeant"),
+          event("3/1/2020", "Mil-LOA"),
+          event("2/1/2020", "LOA"),
+          event("1/1/2020", "Hired"),
+        ],
+        [{ ...affiliation, status: "Inactive" }],
+      ),
+    ).toEqual({
+      assignments: [
+        {
+          agencyId: "7",
+          startDate: "2020-01-01",
+          endDate: "2020-04-01",
+          title: "Sergeant",
+        },
+      ],
+      issues: [],
+      rows: [
+        "leave-while-inactive",
+        "ended",
+        "assigned",
+        "leave-while-inactive",
+        "assigned",
+        "assigned",
+      ],
+    });
+  });
   it("preserves overlapping employment under one source label", () => {
     const result = buildEmploymentEpisodes(
       [
@@ -135,6 +266,7 @@ describe("Oregon AgencyPersonnel", () => {
         },
       ],
       issues: [],
+      rows: ["assigned", "assigned", "assigned", "assigned"],
     });
   });
   it("does not choose between indistinguishable concurrent hires", () => {
@@ -186,7 +318,11 @@ describe("Oregon AgencyPersonnel", () => {
       [{ ...event("1/1/2020", "InstrApp", ""), agencyName: "DPSST Use Only" }],
       [],
     );
-    expect(result).toEqual({ assignments: [], issues: [] });
+    expect(result).toEqual({
+      assignments: [],
+      issues: [],
+      rows: ["certification-action"],
+    });
   });
   it("starts restored employment without altering a prior separation", () => {
     const result = buildEmploymentEpisodes(
@@ -286,7 +422,11 @@ describe("Oregon AgencyPersonnel", () => {
         [event("1/1/2020", action)],
         [affiliation],
       );
-      expect(result).toEqual({ assignments: [], issues: [] });
+      expect(result).toEqual({
+        assignments: [],
+        issues: [],
+        rows: ["certification-action"],
+      });
     },
   );
   it("uses Active to start employment and update an existing title", () => {
@@ -420,6 +560,28 @@ describe("Oregon AgencyPersonnel", () => {
       },
     ]);
   });
+  it("states the outcome of each row in the order the rows were given", () => {
+    const hired = event("1/1/2020", "Hired");
+    const r = buildEmploymentEpisodes(
+      [
+        event("5/1/2020", "Retired"),
+        event("4/1/2020", "CertRevoke"),
+        event("3/1/2020", "Resigned"),
+        hired,
+        hired,
+        event("12/1/2019", "Promotion"),
+      ],
+      [affiliation],
+    );
+    expect(r.rows).toEqual([
+      "ended",
+      "certification-action",
+      "assigned",
+      "repeated",
+      "assigned",
+      "no-start",
+    ]);
+  });
   it("rejects invalid calendar dates", () => {
     expect(() => sourceDate("2/30/2020")).toThrow();
     expect(() => sourceDate("junk")).toThrow();
@@ -527,6 +689,7 @@ describe("Oregon AgencyPersonnel", () => {
         },
       ],
       issues: [],
+      rows: ["assigned", "assigned"],
     });
   });
 });
@@ -549,5 +712,6 @@ it("uses source sequence for same-day title changes", () => {
       },
     ],
     issues: [],
+    rows: ["assigned", "assigned"],
   });
 });

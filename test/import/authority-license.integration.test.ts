@@ -160,7 +160,7 @@ describe("authority_license + license import (real Postgres)", () => {
       artifactsPath: written.path,
       env: {
         DATABASE_URL: db.connectionString,
-        INTAKE_WORKSPACE_TEST: rootDir,
+        INTAKE_WORKSPACE: rootDir,
       },
       logger: { info: () => {}, debug: () => {} },
       commandName: runId,
