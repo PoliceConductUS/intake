@@ -42,8 +42,8 @@ import {
   DatabaseMutations,
   type DatabaseMutationItem,
 } from "./io/DatabaseMutations.js";
-import { LocationPathGeometryCreate } from "./io/generated-mutations/LocationPathGeometryCreate.js";
-import { LocationPathGeometryUpdate } from "./io/generated-mutations/LocationPathGeometryUpdate.js";
+import { LocationPathGeometryCreate } from "./io/LocationPathGeometryCreate.js";
+import { LocationPathGeometryUpdate } from "./io/LocationPathGeometryUpdate.js";
 import { valuesEqual } from "../../../shared/values-equal.js";
 import { geoJsonValue } from "../../database/location-path-spatial.js";
 import {

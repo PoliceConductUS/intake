@@ -1,4 +1,4 @@
-import { DATE_PROPERTIES } from "../../../../shared/io/generated/entity-specs.js";
+import { DATE_PROPERTIES } from "../../../../shared/io/entity-specs.js";
 import { representableDate } from "../../../../shared/inspect-data-annotations.js";
 import {
   SourceContribution,

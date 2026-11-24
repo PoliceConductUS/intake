@@ -3,7 +3,7 @@ import type { DatabaseClient } from "./index.js";
 import type {
   LocationPathCreateSpec,
   LocationPathAliasCreateSpec,
-} from "../../shared/io/generated/entity-specs.js";
+} from "../../shared/io/entity-specs.js";
 
 // The envelope spec is the schema↔database contract (ADR 0025), so a database row
 // is just its record type — no separate generated Row shape.

@@ -3,12 +3,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
 import { DatabaseMutations } from "../../../../src/cli/import/artifacts/io/DatabaseMutations.js";
-import { AgencyCreate } from "../../../../src/cli/import/artifacts/io/generated-mutations/AgencyCreate.js";
-import { AgencyPersonnelUpdate } from "../../../../src/cli/import/artifacts/io/generated-mutations/AgencyPersonnelUpdate.js";
-import { AgencyUpdate } from "../../../../src/cli/import/artifacts/io/generated-mutations/AgencyUpdate.js";
-import { LocationPathCreate } from "../../../../src/cli/import/artifacts/io/generated-mutations/LocationPathCreate.js";
-import { LocationPathUpdate } from "../../../../src/cli/import/artifacts/io/generated-mutations/LocationPathUpdate.js";
-import { PersonnelUpdate } from "../../../../src/cli/import/artifacts/io/generated-mutations/PersonnelUpdate.js";
+import { AgencyCreate } from "../../../../src/cli/import/artifacts/io/AgencyCreate.js";
+import { AgencyPersonnelUpdate } from "../../../../src/cli/import/artifacts/io/AgencyPersonnelUpdate.js";
+import { AgencyUpdate } from "../../../../src/cli/import/artifacts/io/AgencyUpdate.js";
+import { LocationPathCreate } from "../../../../src/cli/import/artifacts/io/LocationPathCreate.js";
+import { LocationPathUpdate } from "../../../../src/cli/import/artifacts/io/LocationPathUpdate.js";
+import { PersonnelUpdate } from "../../../../src/cli/import/artifacts/io/PersonnelUpdate.js";
 
 async function tempDir(): Promise<string> {
   return mkdtemp(path.join(tmpdir(), "intake-database-mutations-"));

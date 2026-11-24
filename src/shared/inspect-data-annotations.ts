@@ -1,4 +1,4 @@
-import { DATE_PROPERTIES } from "./io/generated/entity-specs.js";
+import { DATE_PROPERTIES } from "./io/entity-specs.js";
 import {
   DataAnnotation,
   SourceExclusions,

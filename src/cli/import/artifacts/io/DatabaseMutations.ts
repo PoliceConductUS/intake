@@ -18,7 +18,7 @@ import {
   type DatabaseMutationEnvelope,
   readDatabaseMutation,
 } from "./DatabaseMutation.js";
-import { importMutationEnvelopeTypes } from "./generated-mutations/index.js";
+import { importMutationEnvelopeTypes } from "./index.js";
 import {
   type EnvelopeReadOptions,
   type EnvelopeReadRef,

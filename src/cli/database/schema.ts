@@ -2,7 +2,7 @@ import type { DatabaseClient } from "./index.js";
 
 // The whitelist of writable/readable entity tables is generated from the schema
 // (one union per entity table) so it can never drift from the model.
-export type { SupportedTableName } from "../../shared/io/generated/entity-specs.js";
+export type { SupportedTableName } from "../../shared/io/entity-specs.js";
 
 export type ImportDatabaseSchema = {
   appliedMigrations: {

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
 import { runImportArtifactsCommand } from "../../src/cli/index.js";
-import { GENERATED_MIGRATION_VERSIONS } from "../../src/shared/io/generated/entity-specs.js";
+import { GENERATED_MIGRATION_VERSIONS } from "../../src/shared/io/entity-specs.js";
 import { importArtifacts } from "./completed-artifacts.js";
 import { DataContext } from "../../src/cli/import/artifacts/data-context.js";
 import { applyOptionalArtifactMutation } from "../../src/cli/import/artifacts/artifact-mutation.js";
@@ -22,7 +22,7 @@ import {
 } from "../../src/cli/state/resolved-property/index.js";
 import { Artifacts } from "../../src/shared/io/Artifacts.js";
 import { Command as CommandEnvelope } from "../../src/shared/io/Command.js";
-import { write as writeAgencies } from "../../src/shared/io/generated/Agencies.js";
+import { write as writeAgencies } from "../../src/shared/io/Agencies.js";
 import { INTAKE_API_VERSION } from "../../src/shared/io/import-types.js";
 import { yamlResourceFileName } from "../../src/shared/io/resource.js";
 

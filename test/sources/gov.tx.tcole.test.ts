@@ -11,7 +11,7 @@ import {
   AgencyPhoneNumberSpec,
 } from "../../src/shared/io/index.js";
 // AuthorityLicense is not yet re-exported from the io barrel (see report).
-import { AuthorityLicenseSpec } from "../../src/shared/io/generated/entity-specs.js";
+import { AuthorityLicenseSpec } from "../../src/shared/io/entity-specs.js";
 
 const sheets: Record<string, Array<Record<string, string>>> = {
   Officers: [

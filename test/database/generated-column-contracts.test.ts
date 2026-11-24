@@ -47,7 +47,7 @@ test("generated agency record and create schemas reject the database-owned colum
   );
   const directory = mkdtempSync(
     fileURLToPath(
-      new URL("../../src/shared/io/.generated-contract-", import.meta.url),
+      new URL("../../src/shared/.generated-contract-", import.meta.url),
     ),
   );
   let exports: Record<string, any>;

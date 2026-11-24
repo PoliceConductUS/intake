@@ -2,7 +2,7 @@ import {
   type ImportOperation,
   parseMutationKind,
 } from "../../../../shared/io/import-types.js";
-import { importMutationEnvelopeTypes } from "./generated-mutations/index.js";
+import { importMutationEnvelopeTypes } from "./index.js";
 import type { EnvelopeReadOptions, EnvelopeReadRef } from "./envelope-ref.js";
 
 export type DatabaseMutationEnvelope = {

@@ -1,11 +1,11 @@
-import { AgencyPersonnelUpdate } from "../../src/cli/import/artifacts/io/generated-mutations/AgencyPersonnelUpdate.js";
+import { AgencyPersonnelUpdate } from "../../src/cli/import/artifacts/io/AgencyPersonnelUpdate.js";
 import { describe, it, expect } from "vitest";
 import {
   buildFacadeForKind,
   isRegistryKind,
   identityColumnForKind,
 } from "../../src/cli/import/artifacts/facades/resolver-registry.js";
-import { RECORD_KINDS_IN_DEPENDENCY_ORDER } from "../../src/shared/io/generated/entity-specs.js";
+import { RECORD_KINDS_IN_DEPENDENCY_ORDER } from "../../src/shared/io/entity-specs.js";
 import type { EntityFacadeBackend } from "../../src/cli/import/artifacts/facades/entity-facade.js";
 
 // A backend whose canonical id is derived from the source id so assertions are
@@ -593,7 +593,7 @@ describe("unrepresentable reported dates", () => {
     facade.merge(values);
     facade.recordSourceContribution(values, []);
     const { AgencyPersonnelCreate } =
-      await import("../../src/cli/import/artifacts/io/generated-mutations/AgencyPersonnelCreate.js");
+      await import("../../src/cli/import/artifacts/io/AgencyPersonnelCreate.js");
     const mutation = AgencyPersonnelCreate.schema.parse(
       await facade.toMutation(),
     );

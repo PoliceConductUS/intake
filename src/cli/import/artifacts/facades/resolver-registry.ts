@@ -1,14 +1,14 @@
 import { childPathResolver } from "./path-resolver.js";
 import { z } from "zod";
-import * as entitySpecs from "../../../../shared/io/generated/entity-specs.js";
+import * as entitySpecs from "../../../../shared/io/entity-specs.js";
 import {
   FK_REFERENCES,
   RESOLVED_PROPERTIES,
   BUSINESS_KEYS,
   PRIMARY_KEY_BY_KIND,
   RECORD_KINDS_IN_DEPENDENCY_ORDER,
-} from "../../../../shared/io/generated/entity-specs.js";
-import { importMutationEnvelopeTypes } from "../io/generated-mutations/index.js";
+} from "../../../../shared/io/entity-specs.js";
+import { importMutationEnvelopeTypes } from "../io/index.js";
 import {
   Resolver,
   resolveReference,

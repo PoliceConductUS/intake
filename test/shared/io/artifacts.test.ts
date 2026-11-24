@@ -5,8 +5,8 @@ import path from "node:path";
 import { describe, expect, test } from "vitest";
 import { INTAKE_API_VERSION } from "../../../src/shared/io/import-types.js";
 import { Artifacts } from "../../../src/shared/io/Artifacts.js";
-import { read as readLocationPathAliases } from "../../../src/shared/io/generated/LocationPathAliases.js";
-import { read as readLocationPaths } from "../../../src/shared/io/generated/LocationPaths.js";
+import { read as readLocationPathAliases } from "../../../src/shared/io/LocationPathAliases.js";
+import { read as readLocationPaths } from "../../../src/shared/io/LocationPaths.js";
 
 async function createTempArtifactsDirectory(): Promise<string> {
   return await mkdtemp(path.join(tmpdir(), "intake-artifacts-"));

@@ -10,8 +10,8 @@ import {
   test,
 } from "vitest";
 import { DatabaseMutations } from "../../src/cli/import/artifacts/io/DatabaseMutations.js";
-import { LocationPathCreate } from "../../src/cli/import/artifacts/io/generated-mutations/LocationPathCreate.js";
-import { LocationPathGeometryCreate } from "../../src/cli/import/artifacts/io/generated-mutations/LocationPathGeometryCreate.js";
+import { LocationPathCreate } from "../../src/cli/import/artifacts/io/LocationPathCreate.js";
+import { LocationPathGeometryCreate } from "../../src/cli/import/artifacts/io/LocationPathGeometryCreate.js";
 import { replayDatabaseMutations } from "../../src/cli/replay/database-mutations/config.js";
 import { importArtifacts } from "./completed-artifacts.js";
 import { Artifacts } from "../../src/shared/io/Artifacts.js";

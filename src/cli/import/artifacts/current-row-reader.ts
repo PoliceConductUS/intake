@@ -1,5 +1,5 @@
 import { BatchLoader } from "./batch-loader.js";
-import { TABLE_BY_KIND } from "../../../shared/io/generated/entity-specs.js";
+import { TABLE_BY_KIND } from "../../../shared/io/entity-specs.js";
 import type { DatabaseClient } from "../../database/index.js";
 import {
   databaseRecordProjection,
