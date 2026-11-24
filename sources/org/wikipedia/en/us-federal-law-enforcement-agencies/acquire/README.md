@@ -51,4 +51,4 @@ law-enforcement agency names. It is called by
 
 ## Verification
 
-- Run: `npx vitest run test/sources/gov.us.federal-le/parse.test.ts`
+- Run: `npx vitest run test/sources/org/wikipedia/en/us-federal-law-enforcement-agencies/acquire/parse.test.ts`

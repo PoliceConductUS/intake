@@ -324,4 +324,4 @@ their phone records are omitted.
 ## Verification
 
 - Run:
-  `npx vitest run test/oregon-dpsst-acquire.test.ts test/oregon-dpsst-parse.test.ts test/oregon-employment.test.ts test/oregon-transform.test.ts`
+  `npx vitest run test/sources/net/bpl-orsnapshot/www/public-inquiry-cj`

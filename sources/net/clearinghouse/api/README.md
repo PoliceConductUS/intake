@@ -184,4 +184,4 @@ Shared code used: `slugify` and `isPersonName` from
 ## Verification
 
 - Run:
-  `npx vitest run test/sources/clearinghouse-api test/sources/api-pagination.test.ts`
+  `npx vitest run test/sources/net/clearinghouse/api test/sources/api-pagination.test.ts`

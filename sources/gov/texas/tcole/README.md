@@ -62,4 +62,4 @@ Every row a sheet holds ends in one outcome: it is emitted, it is reported as a 
 
 ## Verification
 
-- Run: `npx vitest run test/sources/gov.tx.tcole.test.ts`
+- Run: `npx vitest run test/sources/gov/texas/tcole/transform.test.ts`

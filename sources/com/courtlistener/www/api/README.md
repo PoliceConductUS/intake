@@ -54,4 +54,4 @@ Every docket row the transform reads ends in one of four outcomes:
 
 ## Verification
 
-- Run: `npx vitest run test/sources/courtlistener test/import/artifacts/complaint-summary-resolvers.test.ts test/import/complaint-summary.integration.test.ts`
+- Run: `npx vitest run test/sources/com/courtlistener/www/api test/import/artifacts/complaint-summary-resolvers.test.ts test/import/complaint-summary.integration.test.ts`
