@@ -1,0 +1,17 @@
+{
+  "state": "tn",
+  "status": "pending",
+  "asOf": null,
+  "report": {
+    "id": "locrep_tn_licensing_summary",
+    "key": "licensing-summary",
+    "title": "Officer licensing in Tennessee",
+    "summary": null,
+    "sortOrder": 20,
+    "publishedAt": null
+  },
+  "organization": null,
+  "facts": [],
+  "note": null,
+  "sources": []
+}

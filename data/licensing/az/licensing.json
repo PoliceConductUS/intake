@@ -1,0 +1,17 @@
+{
+  "state": "az",
+  "status": "pending",
+  "asOf": null,
+  "report": {
+    "id": "locrep_az_licensing_summary",
+    "key": "licensing-summary",
+    "title": "Officer licensing in Arizona",
+    "summary": null,
+    "sortOrder": 20,
+    "publishedAt": null
+  },
+  "organization": null,
+  "facts": [],
+  "note": null,
+  "sources": []
+}

@@ -1,0 +1,17 @@
+{
+  "state": "ak",
+  "status": "pending",
+  "asOf": null,
+  "report": {
+    "id": "locrep_ak_licensing_summary",
+    "key": "licensing-summary",
+    "title": "Officer licensing in Alaska",
+    "summary": null,
+    "sortOrder": 20,
+    "publishedAt": null
+  },
+  "organization": null,
+  "facts": [],
+  "note": null,
+  "sources": []
+}

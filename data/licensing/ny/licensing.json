@@ -1,0 +1,17 @@
+{
+  "state": "ny",
+  "status": "pending",
+  "asOf": null,
+  "report": {
+    "id": "locrep_ny_licensing_summary",
+    "key": "licensing-summary",
+    "title": "Officer licensing in New York",
+    "summary": null,
+    "sortOrder": 20,
+    "publishedAt": null
+  },
+  "organization": null,
+  "facts": [],
+  "note": null,
+  "sources": []
+}
