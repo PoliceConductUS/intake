@@ -3,13 +3,13 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
 import { DatabaseMutations } from "../../../src/cli/import/artifacts/io/DatabaseMutations.js";
-import { PersonnelCreate } from "../../../src/cli/import/artifacts/io/generated-mutations/PersonnelCreate.js";
+import { PersonnelCreate } from "../../../src/cli/import/artifacts/io/PersonnelCreate.js";
 import { ResolvedProperty } from "../../../src/cli/state/resolved-property/ResolvedProperty.js";
 import { SourceNameToCanonicalId } from "../../../src/cli/state/source-name-to-canonical-id/SourceNameToCanonicalId.js";
 import { BinaryFile } from "../../../src/shared/io/BinaryFile.js";
 import { CallResult } from "../../../src/shared/io/CallResult.js";
 import { Command } from "../../../src/shared/io/Command.js";
-import { read as readLocationPaths } from "../../../src/shared/io/generated/LocationPaths.js";
+import { read as readLocationPaths } from "../../../src/shared/io/LocationPaths.js";
 import { INTAKE_API_VERSION } from "../../../src/shared/io/import-types.js";
 
 type EnvelopeReader = (filePath: string) => Promise<unknown>;

@@ -48,6 +48,7 @@ const OMITTED_KINDS = new Set([
   "LocationPath",
   "LocationPathGeometry",
   "LocationPathAlias",
+  "DataAnnotationType",
 ]);
 
 // The identity column per record kind (the source's own stable id for the

@@ -123,4 +123,4 @@ Geometry:
 
 ## Verification
 
-- Run: `npx vitest run test/sources/us-census-gazetteer`
+- Run: `npx vitest run test/sources/gov/census/www2/gazetteer`

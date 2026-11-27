@@ -50,4 +50,4 @@ The two steps behind the `gov/census/www2/gazetteer` acquire. `discovery.ts` rea
 
 ## Verification
 
-- Run: `npx vitest run test/sources/us-census-gazetteer/discovery.test.ts test/sources/us-census-gazetteer/download.test.ts`
+- Run: `npx vitest run test/sources/gov/census/www2/gazetteer/acquire/discovery.test.ts test/sources/gov/census/www2/gazetteer/acquire/download.test.ts`

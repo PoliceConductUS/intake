@@ -3,7 +3,7 @@ import { DataContext } from "../../../src/cli/import/artifacts/data-context.js";
 import { EmptyDatabaseClient } from "../../cli/database/empty-database-client.js";
 import { fakeSourceNameLedger } from "../../cli/state/fake-source-name-ledger.js";
 import { INTAKE_API_VERSION } from "../../../src/shared/io/import-types.js";
-import { CivilCaseUpdate } from "../../../src/cli/import/artifacts/io/generated-mutations/CivilCaseUpdate.js";
+import { CivilCaseUpdate } from "../../../src/cli/import/artifacts/io/CivilCaseUpdate.js";
 import { planDatabaseMutationItems } from "../../../src/cli/import/artifacts/mutation-plan.js";
 
 // A DB with only the /tx/ location_path (no rows), so CivilCase's state resolver

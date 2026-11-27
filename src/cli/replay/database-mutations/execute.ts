@@ -16,7 +16,7 @@ import {
   JSON_PROPERTIES,
   JSON_REQUIRED_PROPERTIES,
   TABLE_BY_KIND,
-} from "../../../shared/io/generated/entity-specs.js";
+} from "../../../shared/io/entity-specs.js";
 import { valuesEqual } from "../../../shared/values-equal.js";
 import { timestampValue } from "../../../shared/timestamp-value.js";
 import path from "node:path";

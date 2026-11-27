@@ -1,0 +1,37 @@
+To: Irving Police Department, Public Information / Open Records
+Via: [REQUEST_EMAIL_OR_PORTAL]
+From: [REQUESTER_NAME], [REQUESTER_ORGANIZATION]
+Email: [REQUESTER_EMAIL]
+Date: [REQUEST_DATE]
+Subject: Public Information Act request - sworn employee roster with employee numbers and badge numbers
+
+Dear Public Information Officer,
+
+Under the Texas Public Information Act (Texas Government Code, Chapter 552), I request the following records from the Irving Police Department.
+
+1. A roster of every sworn officer employed by the Irving Police Department at any time from January 1, 2020 to the date this request is processed, with these fields for each officer:
+   - full name (last, first, middle);
+   - internal employee number (the number used to identify the arresting officer in the department's arrest data, for example the officer field in "Police_Arrests_20250718.csv");
+   - badge number, and every earlier badge number with the dates each was used, if the department keeps that history;
+   - rank or title;
+   - hire date and, if applicable, separation date;
+   - current employment status (active or separated).
+
+2. If employee numbers or badge numbers were ever reassigned from one person to another, a list of each reassignment with the dates.
+
+3. Any data dictionary, field list or code table that explains the officer identifier fields in the department's arrest data exports.
+
+This request asks only for names, employment dates, ranks and identifying numbers of public employees acting in their official capacity. I am not asking for home addresses, personal phone numbers, birth dates, Social Security numbers or any other information made confidential by law. If any part of a record is confidential, please release the rest of the record and tell me which exception you are relying on.
+
+Format: I ask for the records in an electronic, machine-readable format such as CSV or Excel, sent by email or through the portal. If the department already has a report that contains these fields, that report is fine.
+
+Purpose: PoliceConduct.org publishes public records about law-enforcement agencies and officers. We need the employee and badge numbers to connect the department's own arrest records, which identify officers only by internal employee number, to the correct officer.
+
+Fees: Please tell me before doing work that would cost more than [MAX_FEE_WITHOUT_APPROVAL]. If the cost estimate is higher, I may narrow the request.
+
+If you have questions or need me to clarify the request, please contact me at [REQUESTER_EMAIL].
+
+Thank you,
+
+[REQUESTER_NAME]
+[REQUESTER_ORGANIZATION]

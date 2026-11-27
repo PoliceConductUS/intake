@@ -1,5 +1,5 @@
 import { BatchLoader } from "./batch-loader.js";
-import { TABLE_BY_KIND } from "../../../shared/io/generated/entity-specs.js";
+import { TABLE_BY_KIND } from "../../../shared/io/entity-specs.js";
 import type { DatabaseClient } from "../../database/index.js";
 import {
   databaseRecordProjection,
@@ -54,6 +54,11 @@ export class CurrentRowReader {
     identityColumn = "id",
   ): Promise<Record<string, unknown> | undefined> {
     return this.rowByColumn(tableForKind(kind), id, identityColumn);
+  }
+
+  /** Releases a memoized row the caller no longer reads from the database. */
+  forgetById(kind: string, id: string, identityColumn = "id"): void {
+    this.loader.forget({ tableName: tableForKind(kind), identityColumn, id });
   }
 
   // The row whose business-key columns hold these values (an entity's unique

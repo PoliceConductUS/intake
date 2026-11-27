@@ -222,4 +222,4 @@ The other symbols named below (`s3Sync`, `readJson`, `parse`, `jsonFileNames`,
 
 ## Verification
 
-- Run: `npx vitest run test/sources/org.policeconduct.submissions`
+- Run: `npx vitest run test/sources/org/policeconduct/submissions`

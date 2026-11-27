@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { INTAKE_API_VERSION } from "./intake-api-version.js";
-import { TABLE_BY_KIND } from "./generated/entity-specs.js";
+import { TABLE_BY_KIND } from "./entity-specs.js";
 import { yamlResourcePath } from "./resource.js";
 import {
   readYamlDocumentFile,

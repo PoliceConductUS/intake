@@ -3,7 +3,7 @@ import {
   ReviewLinkSpec,
   FK_REFERENCES,
   importTypeMetadata,
-} from "../src/shared/io/generated/entity-specs.js";
+} from "../src/shared/io/entity-specs.js";
 
 test("report links accept a case relationship without a copied title or URL", () => {
   const record = {

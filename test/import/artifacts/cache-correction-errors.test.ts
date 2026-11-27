@@ -4,7 +4,7 @@ import {
   type EntityResolvers,
 } from "../../../src/cli/import/artifacts/facades/entity-facade.js";
 import { Resolver } from "../../../src/cli/import/artifacts/resolver-kit.js";
-import { RESOLVED_PROPERTIES } from "../../../src/shared/io/generated/entity-specs.js";
+import { RESOLVED_PROPERTIES } from "../../../src/shared/io/entity-specs.js";
 
 type Row = Record<string, unknown>;
 function fixture(kind: string, property: string, sourceId = "source-123") {

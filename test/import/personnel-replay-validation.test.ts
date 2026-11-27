@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { expect, test, vi } from "vitest";
 import { DatabaseMutations } from "../../src/cli/import/artifacts/io/DatabaseMutations.js";
-import { PersonnelCreate } from "../../src/cli/import/artifacts/io/generated-mutations/PersonnelCreate.js";
+import { PersonnelCreate } from "../../src/cli/import/artifacts/io/PersonnelCreate.js";
 import { executeDatabaseMutations } from "../../src/cli/replay/database-mutations/execute.js";
 
 for (const namespace of [

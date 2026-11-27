@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { z } from "zod";
 import { referenceResolver } from "../../src/cli/import/artifacts/resolver-kit.js";
-import * as entitySpecs from "../../src/shared/io/generated/entity-specs.js";
+import * as entitySpecs from "../../src/shared/io/entity-specs.js";
 import {
   buildFacadeForKind,
   isRegistryKind,

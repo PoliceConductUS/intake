@@ -101,4 +101,4 @@ not exported.
 
 ## Verification
 
-- Run: `npx vitest run test/sources/gov.us.federal-le`
+- Run: `npx vitest run test/sources/org/wikipedia/en/us-federal-law-enforcement-agencies`

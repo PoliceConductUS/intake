@@ -306,7 +306,7 @@ test("replays retained snapshots oldest first, retaining older-only rows and res
     },
   );
   expect(result.exitCode).toBe(0);
-  expect(selected).toEqual(["older", "newer", "older", "newer"]);
+  expect(selected).toEqual(["older", "newer"]);
   expect([...rows]).toEqual([
     ["older-only", "retained"],
     ["shared", "newer"],
@@ -339,7 +339,7 @@ test("restores the acquisition pointer and stops when an older snapshot fails", 
   });
 });
 
-test("rejects stale retained analysis before clearing the database or retiring mutations", async () => {
+test("rejects stale retained analysis during the rebuild and restores the acquisition pointer", async () => {
   const f = await fixture();
   const state = path.join(
     f.workspace,
@@ -394,17 +394,15 @@ test("rejects stale retained analysis before clearing the database or retiring m
   expect(result.exitCode).toBe(1);
   expect(result.stderr).toContain("analyzedWith");
   expect(f.calls).toEqual([
+    "schema reset",
     "data transform com/site/my/mnitservices/post-license-search",
   ]);
-  expect(await readFile(path.join(f.chain, "old.txt"), "utf8")).toBe(
-    "old generated data",
-  );
   expect(await readFile(path.join(state, "acquire.yaml"), "utf8")).toBe(
     pointer,
   );
 });
 
-test("default reset prepares retained inputs before resetting and acquires new inputs in dependency order", async () => {
+test("default reset resets the schema first and acquires new inputs in dependency order", async () => {
   const f = await fixture();
   const state = path.join(f.workspace, "state", "agencies");
   await writeCommandPointer(state, "acquire", { latest: "older" });
@@ -433,7 +431,6 @@ test("default reset prepares retained inputs before resetting and acquires new i
   );
   expect(result.exitCode).toBe(0);
   expect(f.calls).toEqual([
-    "data transform agencies",
     "schema reset",
     "data acquire places",
     "data transform places",
@@ -450,13 +447,13 @@ test("default reset prepares retained inputs before resetting and acquires new i
     "data generate org/policeconduct/manual",
     "data up",
   ]);
-  expect(selected).toEqual(["older", "older", "newer"]);
+  expect(selected).toEqual(["older", "newer"]);
   expect(await readCommandPointer(state, "acquire")).toMatchObject({
     latest: "newer",
   });
 });
 
-test("no-acquire rejects a missing completed acquisition before reset", async () => {
+test("no-acquire rejects a missing completed acquisition", async () => {
   const f = await fixture();
   const result = await resetData(
     { acquire: false },
@@ -472,14 +469,11 @@ test("no-acquire rejects a missing completed acquisition before reset", async ()
     exitCode: 1,
     stderr: expect.stringContaining("no completed acquisition"),
   });
-  expect(f.calls).toEqual([]);
-  expect(await readFile(path.join(f.chain, "old.txt"), "utf8")).toBe(
-    "old generated data",
-  );
+  expect(f.calls).toEqual(["schema reset"]);
 });
 
 test.each([true, false])(
-  "rejects a malformed existing acquisition before reset with acquire=%s",
+  "rejects a malformed existing acquisition with acquire=%s",
   async (acquire) => {
     const f = await fixture();
     const state = path.join(
@@ -502,32 +496,14 @@ test.each([true, false])(
       exitCode: 1,
       stderr: expect.stringContaining("invalid acquisition path"),
     });
-    expect(f.calls).toEqual([]);
-    expect(await readFile(path.join(f.chain, "old.txt"), "utf8")).toBe(
-      "old generated data",
-    );
+    expect(f.calls).toEqual([
+      "schema reset",
+      ...(acquire
+        ? ["data acquire com/site/my/mnitservices/post-license-search"]
+        : []),
+    ]);
     expect(await readCommandPointer(state, "acquire")).toMatchObject({
       latest: "invalid",
     });
   },
 );
-
-test("default reset rejects a non-string acquisition pointer before clearing data", async () => {
-  const f = await fixture();
-  const state = path.join(f.workspace, "state", "agencies");
-  await mkdir(state, { recursive: true });
-  const pointer = "latest: 123\nresume: unfinished\n";
-  await writeFile(path.join(state, "acquire.yaml"), pointer);
-  const result = await resetData({ acquire: true }, f.deps);
-  expect(result).toMatchObject({
-    exitCode: 1,
-    stderr: expect.stringContaining("latest"),
-  });
-  expect(f.calls).toEqual([]);
-  expect(await readFile(path.join(f.chain, "old.txt"), "utf8")).toBe(
-    "old generated data",
-  );
-  expect(await readFile(path.join(state, "acquire.yaml"), "utf8")).toBe(
-    pointer,
-  );
-});

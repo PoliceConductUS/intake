@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
-import { FK_REFERENCES } from "../../shared/io/generated/entity-specs.js";
+import { FK_REFERENCES } from "../../shared/io/entity-specs.js";
 import { importTypeMetadata } from "../../shared/io/import-type-metadata.js";
 import type { ExcludedRecords } from "../../shared/io/index.js";
 import type { SourceManifest } from "./source-transform.js";

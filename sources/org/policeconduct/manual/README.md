@@ -111,4 +111,4 @@ artifact kind. The source is declared `standalone: true`.
 
 ## Verification
 
-- Run: `npx vitest run test/sources/org.policeconduct.manual`
+- Run: `npx vitest run test/sources/org/policeconduct/manual`

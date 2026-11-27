@@ -3,8 +3,8 @@
 ## Overview
 
 YAML document reading, parsing, writing, and digesting shared by every
-envelope IO. The envelope IO modules in [`../`](../README.md), the generated
-artifact IO in `../generated/`, and the envelope IO
+envelope IO. The envelope IO modules in [`../`](../README.md), both
+hand-written and generated, and the envelope IO
 under `src/cli/` (state and mutation envelopes) call these functions to read,
 parse, and write YAML files. Two modules in `../` also do file work of their
 own: `../excluded-records.ts` uses `yaml` and `node:fs/promises` directly for
