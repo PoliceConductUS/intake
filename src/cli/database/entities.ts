@@ -94,23 +94,38 @@ export async function readDatabaseRecordsByColumn(
   );
 }
 
-// Insert one multi-row statement, doing nothing where `conflictKeyColumn`
-// already holds a key. Returns the set of keys actually inserted, so the caller
-// can fail loud on any pre-existing key without a separate existence read (the
-// key column's unique constraint is the authority). Every record must carry the
-// same defined columns — the caller batches by column signature.
+// Insert one multi-row statement and return the inserted keys. A key that
+// already exists fails in the database (AGENTS.md: duplicates fail).
 export async function createDatabaseRecords(
   client: DatabaseClient,
   tableName: SupportedTableName,
   records: readonly Record<string, unknown>[],
-  conflictKeyColumn: string,
+  keyColumn: string,
 ): Promise<Set<string>> {
   if (records.length === 0) {
     return new Set();
   }
-  const columns = Object.entries(records[0]!)
-    .filter(([, value]) => value !== undefined)
-    .map(([columnName]) => columnName);
+  const definedColumns = (record: Record<string, unknown>): string[] =>
+    Object.entries(record)
+      .filter(([, value]) => value !== undefined)
+      .map(([columnName]) => columnName);
+  const columns = definedColumns(records[0]!);
+  records.forEach((record, index) => {
+    const recordColumns = definedColumns(record);
+    const differences = [
+      ...recordColumns
+        .filter((columnName) => !columns.includes(columnName))
+        .map((columnName) => `extra ${columnName}`),
+      ...columns
+        .filter((columnName) => !recordColumns.includes(columnName))
+        .map((columnName) => `missing ${columnName}`),
+    ];
+    if (differences.length > 0) {
+      throw new Error(
+        `Cannot insert into ${tableName}: record ${index} (${keyColumn} ${String(record[keyColumn])}) does not have the columns of record 0 (${differences.join(", ")}).`,
+      );
+    }
+  });
   const values: unknown[] = [];
   const rowClauses = records.map(
     (record) =>
@@ -124,12 +139,10 @@ export async function createDatabaseRecords(
   const result = await client.query(
     `insert into ${tableName} (${columns.join(", ")}) values ${rowClauses.join(
       ", ",
-    )} on conflict (${conflictKeyColumn}) do nothing returning ${conflictKeyColumn}`,
+    )} returning ${keyColumn}`,
     values,
   );
-  return new Set(
-    rowsFromResult(result).map((row) => String(row[conflictKeyColumn])),
-  );
+  return new Set(rowsFromResult(result).map((row) => String(row[keyColumn])));
 }
 
 export async function updateDatabaseRecordFields(

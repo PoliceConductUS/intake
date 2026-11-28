@@ -11,7 +11,7 @@ const filename = "20260927000001_personnel_discipline_education.sql";
 let container: StartedPostgreSqlContainer;
 let db: pg.Client;
 beforeAll(async () => {
-  container = await new PostgreSqlContainer("postgis/postgis:15-3.4").start();
+  container = await new PostgreSqlContainer("postgis/postgis:17-3.5").start();
   db = new pg.Client({ connectionString: container.getConnectionUri() });
   await db.connect();
   await db.query("create extension if not exists postgis");

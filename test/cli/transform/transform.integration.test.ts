@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { runIntake } from "../../../src/cli/index.js";
@@ -28,22 +28,65 @@ describe("data transform / source ordering", () => {
   });
 
   it("excludes a disabled source (produces nothing) from the update order", async () => {
-    // gov.azpost.roster is disabled (produces is empty), so planSourceOrder drops
+    // gov/az/post/roster is disabled (produces is empty), so planSourceOrder drops
     // it — `data update` never transforms it. Re-enable and rewrite once it
-    // produces Agency + AgencyPersonnel (see gov.azpost.roster/transform.ts).
+    // produces Agency + AgencyPersonnel (see gov/az/post/roster/transform.ts).
     const order = await orderedSourceIds();
-    expect(order).not.toContain("gov.azpost.roster");
+    expect(order).not.toContain("gov/az/post/roster");
   });
 
   it("fails loud when a source has not been acquired", async () => {
-    // Fresh workspace: gov.tx.tcole has no acquire pointer, and there is no
+    // Fresh workspace: gov/texas/tcole has no acquire pointer, and there is no
     // <source-id>/source/ fallback — so transform must refuse rather than silently
     // find nothing.
-    const result = await runIntake(["data", "transform", "gov.tx.tcole"]);
+    const result = await runIntake(["data", "transform", "gov/texas/tcole"]);
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr ?? "").toMatch(
-      /gov\.tx\.tcole has no acquired input.*intake data acquire gov\.tx\.tcole/s,
+      /gov\/texas\/tcole has no acquired input.*intake data acquire gov\/texas\/tcole/s,
+    );
+  });
+
+  it("fails every-source transform on a missing workspace instead of skipping each source", async () => {
+    const missing = path.join(workspace, "absent");
+    process.env.INTAKE_WORKSPACE = missing;
+
+    const result = await runIntake(["data", "transform"]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr ?? "").toContain(
+      `INTAKE_WORKSPACE ${missing} is not an existing folder.`,
+    );
+    expect(result.stderr ?? "").not.toContain("skipped");
+  });
+
+  it("skips every source with no acquired input and counts them", async () => {
+    const order = await orderedSourceIds();
+
+    const result = await runIntake(["data", "transform"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout ?? "").toContain(
+      `skipped ${order.length} source(s) with no acquired input: ${order.join(", ")}\n`,
+    );
+  });
+
+  it("fails every-source transform when a source errors for another reason", async () => {
+    const order = await orderedSourceIds();
+    const state = path.join(workspace, "state", "gov/texas/tcole");
+    await mkdir(state, { recursive: true });
+    await writeFile(path.join(state, "acquire.yaml"), "- not an object\n");
+
+    const result = await runIntake(["data", "transform"]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr ?? "").toContain(
+      "errored: gov/texas/tcole (Invalid acquire command pointer: expected an object.)",
+    );
+    expect(result.stderr ?? "").toContain(
+      `skipped ${order.length - 1} source(s) with no acquired input: ${order
+        .filter((id) => id !== "gov/texas/tcole")
+        .join(", ")}\n`,
     );
   });
 });

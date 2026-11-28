@@ -3,11 +3,13 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
 import { DatabaseMutations } from "../../../src/cli/import/artifacts/io/DatabaseMutations.js";
-import { PersonnelCreate } from "../../../src/cli/import/artifacts/io/generated-mutations/PersonnelCreate.js";
+import { PersonnelCreate } from "../../../src/cli/import/artifacts/io/PersonnelCreate.js";
 import { ResolvedProperty } from "../../../src/cli/state/resolved-property/ResolvedProperty.js";
 import { SourceNameToCanonicalId } from "../../../src/cli/state/source-name-to-canonical-id/SourceNameToCanonicalId.js";
+import { BinaryFile } from "../../../src/shared/io/BinaryFile.js";
+import { CallResult } from "../../../src/shared/io/CallResult.js";
 import { Command } from "../../../src/shared/io/Command.js";
-import { read as readLocationPaths } from "../../../src/shared/io/generated/LocationPaths.js";
+import { read as readLocationPaths } from "../../../src/shared/io/LocationPaths.js";
 import { INTAKE_API_VERSION } from "../../../src/shared/io/import-types.js";
 
 type EnvelopeReader = (filePath: string) => Promise<unknown>;
@@ -56,7 +58,7 @@ describe("canonical envelope IO strictness", () => {
         "kind: LocationPath",
         "metadata:",
         "  name: paths",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  records: {}",
       ].join("\n"),
@@ -72,7 +74,7 @@ describe("canonical envelope IO strictness", () => {
         "kind: LocationPaths",
         "metadata:",
         "  name: paths",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  records: {}",
         "  unexpected: true",
@@ -89,7 +91,7 @@ describe("canonical envelope IO strictness", () => {
         "kind: PersonnelCreate",
         "metadata:",
         "  name: personnel-1",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  id: personnel-1",
         "  first_name: Ada",
@@ -109,7 +111,7 @@ describe("canonical envelope IO strictness", () => {
         "kind: DatabaseMutations",
         "metadata:",
         "  name: database-mutations",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  mutations: []",
         "  commands: []",
@@ -126,7 +128,7 @@ describe("canonical envelope IO strictness", () => {
         "kind: SourceNameToCanonicalId",
         "metadata:",
         "  name: agency-1",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  kind: Agency",
         "  canonicalId: agency-canonical-1",
@@ -154,13 +156,64 @@ describe("canonical envelope IO strictness", () => {
         "  entries:",
         "    - value: /mn/",
         "      sources:",
-        "        mn-post:",
+        "        com/site/my/mnitservices/post-license-search:",
         "          kind: Agency",
         "          name: source-agency-1",
         "          inputFingerprint: abc123",
         "  confidence: 1",
       ].join("\n"),
       ResolvedProperty.read,
+    );
+  });
+
+  test("rejects spec keys outside the exact call-result schema", async () => {
+    await expectMalformedRead(
+      "CallResult",
+      [
+        `apiVersion: ${INTAKE_API_VERSION}`,
+        "kind: CallResult",
+        "metadata:",
+        "  name: 6a4ba1dc1ca0d0a0e9d4ffd1c8bf2a0c8e5d0d4b1f5f1f5f6a4ba1dc1ca0d0a0",
+        "  namespace: com/courtlistener/www/api",
+        "spec:",
+        "  request:",
+        "    service: download",
+        "    operation: get",
+        "    url: https://example.org/a.pdf",
+        "  outcomes:",
+        "    - status: succeeded",
+        "      startedAt: 2026-11-17T10:00:00.000Z",
+        "      completedAt: 2026-11-17T10:00:01.000Z",
+        "      response: {}",
+        "      commandId: command-1",
+        "      intakeVersion: abc123",
+        "  staleAfter: 2027-01-01T00:00:00.000Z",
+      ].join("\n"),
+      CallResult.read,
+    );
+  });
+
+  test("rejects spec keys outside the exact binary-file schema", async () => {
+    await expectMalformedRead(
+      "BinaryFile",
+      [
+        `apiVersion: ${INTAKE_API_VERSION}`,
+        "kind: BinaryFile",
+        "metadata:",
+        "  name: 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+        "  namespace: com/courtlistener/www/api",
+        "spec:",
+        "  sha256: 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+        "  bytes: 5",
+        "  contentType: application/pdf",
+        "  extension: pdf",
+        "  origin:",
+        "    kind: local",
+        "    filename: hello.pdf",
+        "    importedAt: 2026-11-17T10:00:00.000Z",
+        "  path: /binary-file/hello.pdf",
+      ].join("\n"),
+      BinaryFile.read,
     );
   });
 });

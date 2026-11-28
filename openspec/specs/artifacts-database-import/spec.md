@@ -198,8 +198,8 @@ The artifacts import pipeline MUST read source-key mappings from entity-scoped l
 
 #### Scenario: MN POST mapping file is selected
 
-- **WHEN** the Artifacts envelope has `metadata.namespace: mn-post`
-- **THEN** intake reads entity-scoped mapping ledger files under `$INTAKE_WORKSPACE/intake/state/namespaces/mn-post/`
+- **WHEN** the Artifacts envelope has `metadata.namespace: com/site/my/mnitservices/post-license-search`
+- **THEN** intake reads entity-scoped mapping ledger files under `$INTAKE_WORKSPACE/intake/state/namespaces/com/site/my/mnitservices/post-license-search/`
 
 #### Scenario: SourceNameToCanonicalId records are entity-scoped record ledgers
 
@@ -424,24 +424,24 @@ SourceNameToCanonicalId files MUST be Kubernetes-style YAML resources with `apiV
 
 #### Scenario: Agency mapping record is complete
 
-- **WHEN** an agency source key is imported from `mn-post`
+- **WHEN** an agency source key is imported from `com/site/my/mnitservices/post-license-search`
 - **THEN** its mapping record includes `canonicalId`
 - **AND** the mapping file `metadata.name` equals the source key
-- **AND** the mapping file `metadata.namespace` equals `mn-post`
+- **AND** the mapping file `metadata.namespace` equals `com/site/my/mnitservices/post-license-search`
 
 #### Scenario: Personnel mapping record is complete
 
-- **WHEN** a personnel source key is imported from `mn-post`
+- **WHEN** a personnel source key is imported from `com/site/my/mnitservices/post-license-search`
 - **THEN** its mapping record includes `canonicalId`
 - **AND** the mapping file `metadata.name` equals the source key
-- **AND** the mapping file `metadata.namespace` equals `mn-post`
+- **AND** the mapping file `metadata.namespace` equals `com/site/my/mnitservices/post-license-search`
 
 #### Scenario: Agency-personnel mapping record is complete
 
-- **WHEN** an agency-personnel source key is imported from `mn-post`
+- **WHEN** an agency-personnel source key is imported from `com/site/my/mnitservices/post-license-search`
 - **THEN** its mapping record includes `canonicalId`
 - **AND** the mapping file `metadata.name` equals the source key
-- **AND** the mapping file `metadata.namespace` equals `mn-post`
+- **AND** the mapping file `metadata.namespace` equals `com/site/my/mnitservices/post-license-search`
 
 #### Scenario: SourceNameToCanonicalId resource shape is required
 
@@ -837,21 +837,21 @@ The artifacts import pipeline MUST write an intake-owned `ImportArtifacts` artif
 
 ### Requirement: Initial MN POST Mapping Setup
 
-The implementation MUST seed the initial MN POST SourceNameToCanonicalId records in intake-owned workspace state under `$INTAKE_WORKSPACE/intake/state/namespaces/mn-post/` as setup data, not as a generated product feature.
+The implementation MUST seed the initial MN POST SourceNameToCanonicalId records in intake-owned workspace state under `$INTAKE_WORKSPACE/intake/state/namespaces/com/site/my/mnitservices/post-license-search/` as setup data, not as a generated product feature.
 
 #### Scenario: Known seeded agency mapping is present
 
-- **WHEN** `$INTAKE_WORKSPACE/intake/state/namespaces/mn-post/Agency/a2j40000000crR2AAI.SourceNameToCanonicalId.yaml` is created
+- **WHEN** `$INTAKE_WORKSPACE/intake/state/namespaces/com/site/my/mnitservices/post-license-search/Agency/a2j40000000crR2AAI.SourceNameToCanonicalId.yaml` is created
 - **THEN** it maps agency source key `a2j40000000crR2AAI` to canonical ID `cm90a1b2c3d4e5f6g7h8i9j1l`
 
 #### Scenario: Known seeded personnel mappings are present
 
-- **WHEN** initial MN POST personnel mapping records are created under `$INTAKE_WORKSPACE/intake/state/namespaces/mn-post/Personnel/`
+- **WHEN** initial MN POST personnel mapping records are created under `$INTAKE_WORKSPACE/intake/state/namespaces/com/site/my/mnitservices/post-license-search/Personnel/`
 - **THEN** they include personnel source keys `003t000000MgMrLAAV` and `0034000001mtGzaAAE` mapped to their known canonical IDs
 
 #### Scenario: Known seeded agency-personnel mappings are present
 
-- **WHEN** initial MN POST agency-personnel mapping records are created under `$INTAKE_WORKSPACE/intake/state/namespaces/mn-post/AgencyPersonnel/`
+- **WHEN** initial MN POST agency-personnel mapping records are created under `$INTAKE_WORKSPACE/intake/state/namespaces/com/site/my/mnitservices/post-license-search/AgencyPersonnel/`
 - **THEN** it includes agency-personnel source keys `a2mt0000000ncuQAAQ` and `a2m40000000oVI3AAM` mapped to their known canonical IDs from current seed data
 
 #### Scenario: No mapping generator command is exposed

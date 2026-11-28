@@ -1,11 +1,10 @@
-import { AgencyPersonnelUpdate } from "../../src/cli/import/artifacts/io/generated-mutations/AgencyPersonnelUpdate.js";
 import { describe, it, expect } from "vitest";
 import {
   buildFacadeForKind,
   isRegistryKind,
   identityColumnForKind,
 } from "../../src/cli/import/artifacts/facades/resolver-registry.js";
-import { RECORD_KINDS_IN_DEPENDENCY_ORDER } from "../../src/shared/io/generated/entity-specs.js";
+import { RECORD_KINDS_IN_DEPENDENCY_ORDER } from "../../src/shared/io/entity-specs.js";
 import type { EntityFacadeBackend } from "../../src/cli/import/artifacts/facades/entity-facade.js";
 
 // A backend whose canonical id is derived from the source id so assertions are
@@ -43,7 +42,10 @@ function backend(
   };
 }
 
-const source = { namespace: "mn-post", name: "0031|PB24-1-01" };
+const source = {
+  namespace: "com/site/my/mnitservices/post-license-search",
+  name: "0031|PB24-1-01",
+};
 
 describe("existing records retain mutable fields", () => {
   it.each([
@@ -331,7 +333,7 @@ describe("selector-resolved partial update (ADR 0034)", () => {
     };
     const facade = buildFacadeForKind("AgencyPersonnel", {
       source: {
-        namespace: "org.policeconduct.manual",
+        namespace: "org/policeconduct/manual",
         name: "markham-badge",
         commandName: "manual-badge-backfill",
         action: "PATCH",
@@ -385,7 +387,7 @@ describe("registry coverage and identity", () => {
 });
 
 describe("shared structured-text whitespace resolution", () => {
-  it.each(["mn-post", "gov.tx.tcole"])(
+  it.each(["com/site/my/mnitservices/post-license-search", "gov/texas/tcole"])(
     "normalizes assignment titles for %s without changing raw input",
     async (namespace) => {
       const facade = buildFacadeForKind("AgencyPersonnel", {
@@ -552,7 +554,7 @@ describe("source annotation mutation contributions", () => {
         source_record_id: "assignment",
       },
     ]);
-    const mutation = await facade.toMutation();
+    await facade.toMutation();
     expect(facade.contribution((await facade.resolvedRow()).resolved)).toEqual({
       source_namespace: "provider.a",
       source_record_id: "assignment",
@@ -590,7 +592,7 @@ describe("unrepresentable reported dates", () => {
     facade.merge(values);
     facade.recordSourceContribution(values, []);
     const { AgencyPersonnelCreate } =
-      await import("../../src/cli/import/artifacts/io/generated-mutations/AgencyPersonnelCreate.js");
+      await import("../../src/cli/import/artifacts/io/AgencyPersonnelCreate.js");
     const mutation = AgencyPersonnelCreate.schema.parse(
       await facade.toMutation(),
     );
@@ -600,5 +602,34 @@ describe("unrepresentable reported dates", () => {
       effective_value: "not a date",
     });
     expect(facade.raw("end_date")).toBe("not a date");
+  });
+
+  it("fails for a kind that has no source evidence to report the date under", async () => {
+    const facade = buildFacadeForKind("CoverageHomepageWindow", {
+      ...backend(),
+      source: { namespace: "test", name: "window", commandName: "run" },
+    });
+    const values = { window_end: "2026-02-30", placement_count: 3 };
+    facade.merge(values);
+    facade.recordSourceContribution(values, []);
+    await expect(facade.toMutation()).rejects.toThrow(
+      'CoverageHomepageWindow.window_end for test/window is not a valid date and has no source evidence to report it under: "2026-02-30".',
+    );
+  });
+
+  it("fails when the record holds no source value for the date", async () => {
+    const facade = buildFacadeForKind("AgencyPersonnel", {
+      ...backend(),
+      source: { namespace: "test", name: "assignment", commandName: "run" },
+    });
+    facade.merge({
+      agency_id: "a",
+      personnel_id: "p",
+      start_date: "2020-01-01",
+      end_date: "not a date",
+    });
+    await expect(facade.toMutation()).rejects.toThrow(
+      'AgencyPersonnel.end_date for test/assignment is not a valid date and has no source evidence to report it under: "not a date".',
+    );
   });
 });

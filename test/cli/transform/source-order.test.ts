@@ -61,23 +61,23 @@ describe("planSourceOrder", () => {
     expect(order).toEqual(["census", "roster"]);
   });
 
-  it("orders the eight real sources so every producer precedes its consumers", () => {
+  it("orders the seven example sources so every producer precedes its consumers", () => {
     const { order } = planSourceOrder([
       {
-        id: "courtlistener",
+        id: "com/courtlistener/www/api",
         produces: ["CivilCases", "CivilCasePersonnel", "CivilCaseLinks"],
       },
       {
-        id: "clearinghouse-api",
+        id: "net/clearinghouse/api",
         produces: ["CivilCases", "CivilCasePersonnel", "CivilCaseLinks"],
       },
       {
-        id: "gov.us.federal-le",
+        id: "org/wikipedia/en/us-federal-law-enforcement-agencies",
         produces: ["FederalAgencies", "Agencies"],
       },
-      { id: "gov.azpost.roster", produces: ["Personnel"] },
+      { id: "gov/az/post/roster", produces: ["Personnel"] },
       {
-        id: "mn-post",
+        id: "com/site/my/mnitservices/post-license-search",
         produces: [
           "LicensingAuthorities",
           "Agencies",
@@ -91,7 +91,7 @@ describe("planSourceOrder", () => {
         ],
       },
       {
-        id: "gov.tx.tcole",
+        id: "gov/texas/tcole",
         produces: [
           "LicensingAuthorities",
           "Agencies",
@@ -103,7 +103,7 @@ describe("planSourceOrder", () => {
         ],
       },
       {
-        id: "us-census-gazetteer",
+        id: "gov/census/www2/gazetteer",
         produces: [
           "LocationPaths",
           "LocationPathGeometries",
@@ -112,13 +112,13 @@ describe("planSourceOrder", () => {
       },
     ]);
     expect(order).toEqual([
-      "us-census-gazetteer",
-      "gov.us.federal-le",
-      "gov.tx.tcole",
-      "mn-post",
-      "clearinghouse-api",
-      "courtlistener",
-      "gov.azpost.roster",
+      "gov/census/www2/gazetteer",
+      "org/wikipedia/en/us-federal-law-enforcement-agencies",
+      "com/site/my/mnitservices/post-license-search",
+      "gov/texas/tcole",
+      "com/courtlistener/www/api",
+      "gov/az/post/roster",
+      "net/clearinghouse/api",
     ]);
   });
 
@@ -153,11 +153,11 @@ describe("planSourceOrder", () => {
   it("runs a single consumer alone with no producer in the set", () => {
     const { order } = planSourceOrder([
       {
-        id: "courtlistener",
+        id: "com/courtlistener/www/api",
         produces: ["CivilCases", "CivilCasePersonnel", "CivilCaseLinks"],
       },
     ]);
-    expect(order).toEqual(["courtlistener"]);
+    expect(order).toEqual(["com/courtlistener/www/api"]);
   });
 
   it("drops a source that produces nothing and returns it as skipped", () => {

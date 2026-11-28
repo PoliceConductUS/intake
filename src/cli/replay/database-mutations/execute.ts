@@ -16,7 +16,7 @@ import {
   JSON_PROPERTIES,
   JSON_REQUIRED_PROPERTIES,
   TABLE_BY_KIND,
-} from "../../../shared/io/generated/entity-specs.js";
+} from "../../../shared/io/entity-specs.js";
 import { valuesEqual } from "../../../shared/values-equal.js";
 import { timestampValue } from "../../../shared/timestamp-value.js";
 import path from "node:path";
@@ -158,6 +158,8 @@ const MAX_INSERT_PARAMETERS = 60000;
 const MAX_INSERT_PAYLOAD_BYTES = 1024 * 1024;
 const MAX_INSERT_ROWS = 1000;
 
+const POSTGRES_UNIQUE_VIOLATION = "23505";
+
 function definedColumns(spec: Record<string, unknown>): string[] {
   return Object.entries(spec)
     .filter(([, value]) => value !== undefined)
@@ -173,12 +175,26 @@ async function executeCreateBatch(
     return;
   }
   const metadata = databaseMutationMetadata(recordKind);
-  const insertedKeys = await createDatabaseRecords(
-    client,
-    metadata.tableName,
-    creates.map((create) => create.databaseSpec),
-    metadata.keyColumnName,
-  );
+  let insertedKeys: Set<string>;
+  try {
+    insertedKeys = await createDatabaseRecords(
+      client,
+      metadata.tableName,
+      creates.map((create) => create.databaseSpec),
+      metadata.keyColumnName,
+    );
+  } catch (error) {
+    const { code, message, detail } = error as {
+      code?: unknown;
+      message: string;
+      detail?: string;
+    };
+    if (code !== POSTGRES_UNIQUE_VIOLATION) throw error;
+    throw new Error(
+      `DatabaseMutation cannot create ${recordKind}: ${message}${detail === undefined ? "" : `: ${detail}`}`,
+      { cause: error },
+    );
+  }
   for (const create of creates) {
     const keyValue = String(create.databaseSpec[metadata.keyColumnName]);
     if (!insertedKeys.has(keyValue)) {
@@ -292,12 +308,15 @@ async function* iterateMutations(
   const namespace = databaseMutations.metadata.namespace;
   for (const item of databaseMutations.spec.mutations) {
     if ("ref" in item && item.ref.kind === "DatabaseMutations") {
-      const chunkPath = path.resolve(
-        path.dirname(databaseMutationsPath),
-        item.ref.path,
+      const chunk = await DatabaseMutations.read(item, {
+        raw: true,
+        expectedNamespace: namespace,
+        relativeTo: databaseMutationsPath,
+      });
+      yield* iterateMutations(
+        chunk,
+        path.resolve(path.dirname(databaseMutationsPath), item.ref.path),
       );
-      const chunk = await DatabaseMutations.read(chunkPath, { raw: true });
-      yield* iterateMutations(chunk, chunkPath);
       continue;
     }
     const mutation: DatabaseMutationEnvelope =

@@ -38,3 +38,7 @@ supabase/.env.*.local
 /.cache/
 supabase/seed.sql.bak
 genesis.mjs
+
+# Local agent notes (AFK runs, EGM reviews); never committed
+.afk/
+.egm/

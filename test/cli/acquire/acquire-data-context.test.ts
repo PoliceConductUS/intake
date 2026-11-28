@@ -60,7 +60,7 @@ function context() {
       ],
     }),
     fakeLedger(),
-    "org.policeconduct.manual",
+    "org/policeconduct/manual",
   );
 }
 

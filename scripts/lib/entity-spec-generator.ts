@@ -96,6 +96,10 @@ const DESCRIPTORS: EntityDescriptor[] = [
         'z.enum(["primary", "county_subdivision", "consolidated_city"]).default("primary")',
       centroid: "LocationPathCentroidSpec.nullable().optional()",
       bbox: "LocationPathBboxSpec.nullable().optional()",
+      // Derived at import from the resolved path and the parent's path.
+      segment: "z.string().regex(/^[a-z0-9-]+$/).optional()",
+      // The Census source supplies the USPS code on state rows.
+      state_code: "z.string().regex(/^[A-Z]{2}$/).nullable().optional()",
     },
     superRefine: LEVEL_SUPERREFINE,
   },
@@ -203,6 +207,16 @@ const DESCRIPTORS: EntityDescriptor[] = [
     createRequired: ["id"],
   },
   {
+    recordKind: "CoverageHomepageWindow",
+    table: "coverage_homepage_windows",
+    createRequired: ["id"],
+  },
+  {
+    recordKind: "CoverageHomepagePlacement",
+    table: "coverage_homepage_placements",
+    createRequired: ["id"],
+  },
+  {
     recordKind: "CoverageLink",
     table: "coverage_links",
     createRequired: ["id"],
@@ -239,7 +253,7 @@ const DESCRIPTORS: EntityDescriptor[] = [
     recordKind: "CivilCasePersonnel",
     table: "civil_case_personnel",
     // Matches the table exactly: civil_case_id + agency_personnel_id, both source
-    // ids the courtlistener run already stamped (ADR 0023) — agency_personnel_id
+    // ids the com/courtlistener/www/api run already stamped (ADR 0023) — agency_personnel_id
     // resolves cross-source via the ledger, civil_case_id same-source. No
     // resolution inputs: the personnel is matched in run, not at import.
     createRequired: ["id"],
@@ -276,6 +290,18 @@ const DESCRIPTORS: EntityDescriptor[] = [
     recordKind: "ReviewLink",
     table: "review_links",
     createRequired: ["id"],
+    superRefine: `.superRefine((row, context) => {
+      const hasCase = row.civil_case_id != null;
+      const hasUrl = row.url != null;
+      const hasTitle = row.title != null;
+      if (hasCase ? hasUrl || hasTitle : !hasUrl || !hasTitle) {
+        context.addIssue({
+          code: "custom",
+          path: ["civil_case_id"],
+          message: "must target either a civil case or a URL with a title",
+        });
+      }
+    })`,
   },
   {
     // A per-officer arrest profile (ADR 0032): one recomputed row per officer,
@@ -302,8 +328,18 @@ const DESCRIPTORS: EntityDescriptor[] = [
     override: {
       value: "z.json()",
       replacement_value: "z.json().nullable().optional()",
+      // Derived by intake from the subject and the connected records' stored
+      // paths and slugs (resolver-registry annotationPageResolvers).
+      links:
+        "z.array(z.object({ url: z.string().nullable(), label: nonEmptyString }).strict()).min(1).nullable().optional()",
       evidence: "z.array(z.record(z.string(), z.json())).nullable().optional()",
     },
+  },
+  {
+    // Public label of each annotation type (manual records).
+    recordKind: "DataAnnotationType",
+    table: "data_annotation_type",
+    createRequired: ["type"],
   },
 ];
 
@@ -461,6 +497,8 @@ const ENTITY_NAME_BY_RECORD_KIND: Record<string, string> = {
   PersonnelPhoto: "personnelPhotos",
   Discipline: "disciplines",
   DisciplineAgencyPersonnel: "disciplineAgencyPersonnel",
+  CoverageHomepageWindow: "coverageHomepageWindows",
+  CoverageHomepagePlacement: "coverageHomepagePlacements",
   CoverageLink: "coverageLinks",
   CoverageLinkAgencyPersonnel: "coverageLinkAgencyPersonnel",
   AgencyPhoneNumber: "agencyPhoneNumbers",
@@ -473,6 +511,7 @@ const ENTITY_NAME_BY_RECORD_KIND: Record<string, string> = {
   ReviewLink: "reviewLinks",
   ArrestProfile: "arrestProfiles",
   AgencyArrestProfile: "agencyArrestProfiles",
+  DataAnnotationType: "dataAnnotationTypes",
 };
 
 function capitalizeFirst(value: string): string {
@@ -768,7 +807,7 @@ ${createExtends}
 }
 
 /**
- * Renders `generated/entity-specs.ts` from the introspected schema. Column-backed
+ * Renders `entity-specs.ts` from the introspected schema. Column-backed
  * fields are generated and asserted against the database; descriptors add only
  * the non-schema nuance. The applied-migration fingerprint is embedded so the
  * runtime can refuse to run stale specs.
@@ -778,10 +817,10 @@ export function generateEntitySpecsModule(
   header: string,
 ): string {
   const preamble = `${header}import { z } from "zod";
-import { timestampWithTimezone } from "../../timestamp-schema.js";
-import { aiComplaintSummary, complaintSummaryUnavailability } from "../../ai-complaint-summary.js";
-import { SourceValues, SourceExclusions } from "../../data-annotations.js";
-import { agencyAddressText, agencyZipCode } from "../../agency-address-schema.js";
+import { timestampWithTimezone } from "../timestamp-schema.js";
+import { aiComplaintSummary, complaintSummaryUnavailability } from "../ai-complaint-summary.js";
+import { SourceValues, SourceExclusions } from "../data-annotations.js";
+import { agencyAddressText, agencyZipCode } from "../agency-address-schema.js";
 
 // Fingerprint of the applied database migrations these specs were generated
 // against. The importer refuses to run when the live database's migrations

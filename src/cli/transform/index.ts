@@ -8,7 +8,11 @@ import { intakeWorkspace } from "../command-directory.js";
 import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
-import { Artifacts, loadExcludedRecords } from "../../shared/io/index.js";
+import {
+  Artifacts,
+  excludedRecordKey,
+  loadExcludedRecords,
+} from "../../shared/io/index.js";
 import type { ExcludedRecords } from "../../shared/io/index.js";
 import { createCommandDirectory } from "../command-directory.js";
 import type { CommandResult } from "../../shared/cli/types.js";
@@ -27,10 +31,22 @@ import type { ImportArtifactKind } from "../../shared/io/index.js";
 import { importTypeMetadata } from "../../shared/io/import-type-metadata.js";
 import { readXlsx } from "./read-xlsx.js";
 import { sourceStateDir } from "./state.js";
-import { excludeManifestRecords } from "./exclude-records.js";
+import {
+  excludeManifestRecords,
+  cascadeExcludedRecord,
+  filterManifestRecords,
+  selectActiveExcludedRecords,
+} from "./exclude-records.js";
 import { createEmitSink } from "./emit-sink.js";
+import { accountingTotals } from "./accounting.js";
 import type { EmitRefItem, EmitSink } from "./emit-sink.js";
 import { readCommandPointer } from "../state/command-pointer.js";
+import {
+  createCommandLog,
+  recordCommandError,
+  type CommandLogger,
+  type TerminalStream,
+} from "../../logging.js";
 
 type TransformSourceDeps = {
   sourcesRoot: string;
@@ -40,7 +56,11 @@ type TransformSourceDeps = {
   readXlsx: typeof readXlsx;
   state: string;
   digest: (paths: string[]) => Promise<string>;
-  makeWorkspace: (env: Record<string, string | undefined>) => Promise<string>;
+  makeWorkspace: (env: Record<string, string | undefined>) => Promise<{
+    outputDirectory: string;
+    logger: CommandLogger;
+    close(): void;
+  }>;
   createEmitSink: (workspaceDir: string, namespace: string) => EmitSink;
   loadExcludedRecords: (stateDir: string) => Promise<ExcludedRecords>;
   writeEnvelope: (
@@ -52,7 +72,6 @@ type TransformSourceDeps = {
   ) => Promise<{ path: string }>;
   beginCompletion: () => Promise<void>;
   complete: (artifactsPath: string) => Promise<void>;
-  logger?: { info: (message: string) => void };
 };
 
 /**
@@ -81,6 +100,8 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+export class NoAcquiredInputError extends Error {}
+
 export async function sourceInputDir(
   workspace: string,
   sourceId: string,
@@ -94,7 +115,7 @@ export async function sourceInputDir(
     "acquire",
   );
   if (latest === undefined) {
-    throw new Error(
+    throw new NoAcquiredInputError(
       `${sourceId} has no acquired input. Run \`intake data acquire ${sourceId}\` ` +
         `(or \`intake data acquire ${sourceId} --from-local <path>\`) before running it.`,
     );
@@ -104,18 +125,13 @@ export async function sourceInputDir(
 
 export async function sourceInputPaths(inputDir: string): Promise<string[]> {
   const collect = async (dir: string): Promise<string[]> => {
-    let entries;
-    try {
-      entries = await readdir(dir, { withFileTypes: true });
-    } catch {
-      return [];
-    }
     const files: string[] = [];
-    for (const entry of entries) {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
       if (entry.name.startsWith(".")) continue;
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) files.push(...(await collect(full)));
       else if (entry.isFile()) files.push(full);
+      else throw new Error(`Unsupported source input entry: ${full}`);
     }
     return files;
   };
@@ -154,12 +170,17 @@ export async function transformSource(
     return { error: { exitCode: 1, stderr: `${errorMessage(error)}\n` } };
   }
 
+  let logger: CommandLogger | undefined;
+  let closeLog: (() => void) | undefined;
   try {
     const excludedRecords = await deps.loadExcludedRecords(deps.state);
-    const workspaceRoot =
-      deps.env.INTAKE_WORKSPACE_TEST ?? deps.env.INTAKE_WORKSPACE;
-    const workspace = await deps.makeWorkspace(deps.env);
+    const command = await deps.makeWorkspace(deps.env);
+    const workspace = command.outputDirectory;
+    logger = command.logger;
+    closeLog = command.close;
     const sink = deps.createEmitSink(workspace, sourceId);
+    const streamedExclusions = new Set<string>();
+    const streamedKinds = new Set<ImportArtifactKind>();
     const databaseUrl = deps.env.DATABASE_URL;
     const dbClient =
       databaseUrl !== undefined && databaseUrl.trim().length > 0
@@ -172,9 +193,9 @@ export async function transformSource(
         dbClient !== undefined
           ? createTransformDataContext(
               dbClient,
-              createSourceNameToCanonicalIdLedger(
-                workspaceRoot !== undefined ? { rootDir: workspaceRoot } : {},
-              ),
+              createSourceNameToCanonicalIdLedger({
+                rootDir: intakeWorkspace(deps.env),
+              }),
               sourceId,
             )
           : undefined;
@@ -183,36 +204,115 @@ export async function transformSource(
         paths,
         readXlsx: deps.readXlsx,
         state: deps.state,
-        emit: sink.emit,
+        emit: async (kind, key, spec) => {
+          await sink.emit(kind, key, spec);
+          const artifactKind = kind as ImportArtifactKind;
+          streamedKinds.add(artifactKind);
+          const identity = excludedRecordKey(
+            importTypeMetadata[artifactKind].recordKind,
+            key,
+          );
+          const configured = excludedRecords.get(identity);
+          if (configured === undefined) return;
+          const candidate: SourceManifest = {
+            artifacts: [{ kind: artifactKind, records: { [key]: { spec } } }],
+            accounting: [],
+          };
+          const rule = selectActiveExcludedRecords(
+            candidate,
+            new Map([[identity, configured]]),
+          ).get(identity);
+          if (rule !== undefined) streamedExclusions.add(identity);
+        },
         env: deps.env,
         data,
-        logger: deps.logger,
+        logger,
       });
     } finally {
       if (dbClient !== undefined) await dbClient.end();
     }
+    const totals = accountingTotals(sourceId, manifest.accounting);
     // Apply excluded.yaml at Artifacts generation (with FK cascade) so an
     // excluded record never enters the Artifacts — the import then sees a clean
     // envelope and needs no exclusion of its own.
-    const { manifest: filteredManifest, removed } = excludeManifestRecords(
-      attachExclusionEvidence(manifest, excludedRecords, sourceId),
+    const inlineExclusions = selectActiveExcludedRecords(
+      manifest,
       excludedRecords,
     );
-    for (const exclusion of excludedRecords.values()) {
+    const activeExclusions = new Map(
+      [...excludedRecords].filter(
+        ([identity]) =>
+          inlineExclusions.has(identity) || streamedExclusions.has(identity),
+      ),
+    );
+    const annotatedManifest = attachExclusionEvidence(
+      manifest,
+      activeExclusions,
+      sourceId,
+    );
+    const { removedKeys } = excludeManifestRecords(
+      annotatedManifest,
+      activeExclusions,
+    );
+    if (activeExclusions.size > 0) {
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for await (const record of sink.records()) {
+          if (
+            cascadeExcludedRecord(
+              record.kind,
+              record.key,
+              record.spec,
+              removedKeys,
+            )
+          )
+            changed = true;
+        }
+        for (const artifact of manifest.artifacts) {
+          for (const [key, record] of Object.entries(artifact.records)) {
+            if (
+              cascadeExcludedRecord(
+                artifact.kind,
+                key,
+                record.spec,
+                removedKeys,
+              )
+            )
+              changed = true;
+          }
+        }
+      }
+    }
+    const { manifest: filteredManifest, removed } = filterManifestRecords(
+      annotatedManifest,
+      removedKeys,
+    );
+    const digest = await deps.digest(paths);
+    const refItems = await sink.flush((kind, key) => {
+      const recordKind = importTypeMetadata[kind].recordKind;
+      if (!removedKeys.get(recordKind)?.has(key)) return true;
+      removed[recordKind] = (removed[recordKind] ?? 0) + 1;
+      return false;
+    });
+    for (const exclusion of activeExclusions.values()) {
       if (
+        streamedExclusions.has(
+          excludedRecordKey(exclusion.kind, exclusion.key),
+        ) ||
         manifest.artifacts.some(
           (artifact) =>
             importTypeMetadata[artifact.kind].recordKind === exclusion.kind &&
             Object.hasOwn(artifact.records, exclusion.key),
         )
       ) {
-        deps.logger?.info(
+        logger.info(
           `${sourceId}: excluded ${exclusion.kind} ${exclusion.key}: ${exclusion.reason}`,
         );
       }
     }
     if (Object.keys(removed).length > 0) {
-      deps.logger?.info(
+      logger.info(
         `${sourceId}: exclusion totals (including dependents): ${Object.entries(
           removed,
         )
@@ -220,23 +320,19 @@ export async function transformSource(
           .join(", ")}`,
       );
     }
-    const digest = await deps.digest(paths);
-    const refItems = await sink.flush();
     // Emitted kinds (manifest + sink) must be declared: produces drives run
     // ordering (ADR 0021), so undeclared drift would mis-order consumers.
     const declared = new Set<string>(deps.produces);
     const emitted = new Set<string>([
       ...manifest.artifacts.map((artifact) => artifact.kind),
+      ...streamedKinds,
       ...refItems.map((item) => item.ref.kind),
     ]);
     const undeclared = [...emitted].filter((kind) => !declared.has(kind));
     if (undeclared.length > 0) {
-      return {
-        error: {
-          exitCode: 1,
-          stderr: `Source ${sourceId} emitted undeclared kind(s): ${undeclared.join(", ")}\n`,
-        },
-      };
+      throw new Error(
+        `Source ${sourceId} emitted undeclared kind(s): ${undeclared.join(", ")}`,
+      );
     }
     const { path: artifactsPath } = await deps.writeEnvelope(
       workspace,
@@ -246,9 +342,13 @@ export async function transformSource(
       refItems,
     );
     await deps.complete(artifactsPath);
+    logger.info(totals);
     return { artifactsPath };
   } catch (error) {
+    if (logger !== undefined) recordCommandError(logger, error);
     return { error: { exitCode: 1, stderr: `${errorMessage(error)}\n` } };
+  } finally {
+    closeLog?.();
   }
 }
 
@@ -262,7 +362,7 @@ export async function buildTransformSourceDeps(
   env: Record<string, string | undefined>,
   options: {
     commandArgs: string[];
-    logger: { info: (message: string) => void };
+    terminal: TerminalStream | false;
   },
 ): Promise<TransformSourceDeps> {
   assertValidSourceId(sourceId);
@@ -293,15 +393,20 @@ export async function buildTransformSourceDeps(
     produces: await loadSourceProduces(sourceId, sourcesRoot),
     loadSourceModule,
     readXlsx,
-    state: await sourceStateDir(env, sourceId),
+    state,
     digest: digestOfPaths,
-    makeWorkspace: async (e) =>
-      (
-        await createCommandDirectory(e, {
-          namespace: sourceId,
-          args: options.commandArgs,
-        })
-      ).outputDirectory,
+    makeWorkspace: async (e) => {
+      const command = await createCommandDirectory(e, {
+        namespace: sourceId,
+        args: options.commandArgs,
+      });
+      const log = createCommandLog(command, e, options.terminal);
+      return {
+        outputDirectory: command.outputDirectory,
+        logger: log.logger,
+        close: log.close,
+      };
+    },
     createEmitSink,
     loadExcludedRecords,
     writeEnvelope: async (directory, id, digest, manifest, refItems) =>
@@ -309,6 +414,5 @@ export async function buildTransformSourceDeps(
         directory,
         buildArtifactsEnvelope(id, digest, manifest, refItems),
       ),
-    logger: options.logger,
   };
 }

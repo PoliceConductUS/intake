@@ -33,10 +33,10 @@ test("the executable reset reaches acquisition inventory instead of awaiting its
     expect(result.stderr).not.toContain("unsettled top-level await");
     expect(result.code).toBe(1);
     expect(result.stderr).toContain(
-      "us-census-gazetteer: no completed acquisition.",
+      "gov/census/www2/gazetteer: no completed acquisition.",
     );
     expect(result.stderr).toContain(
-      "rebuild incomplete at inventory acquisitions us-census-gazetteer",
+      "rebuild incomplete at inventory acquisitions gov/census/www2/gazetteer",
     );
   } finally {
     await rm(workspace, { recursive: true, force: true });

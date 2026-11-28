@@ -13,11 +13,213 @@ import {
   loadExcludedRecords,
 } from "../../../src/shared/io/excluded-records.js";
 
-for (const namespace of ["gov.tx.tcole", "gov.or.dpsst", "example.future"]) {
+test.each([
+  [
+    "original value",
+    { first_name: "9", last_name: "Townsend" },
+    { first_name: "9" },
+    true,
+  ],
+  [
+    "changed value",
+    { first_name: "Pat", last_name: "Townsend" },
+    { first_name: "9" },
+    false,
+  ],
+  [
+    "explicit null",
+    { first_name: "Pat", last_name: null },
+    { last_name: null },
+    true,
+  ],
+  ["absent field", { first_name: "Pat" }, { last_name: null }, false],
+  [
+    "all conditions match",
+    { first_name: "9", last_name: "Townsend" },
+    { first_name: "9", last_name: "Townsend" },
+    true,
+  ],
+  [
+    "one condition differs",
+    { first_name: "9", last_name: "Smith" },
+    { first_name: "9", last_name: "Townsend" },
+    false,
+  ],
+  ["typed values differ", { first_name: "9" }, { first_name: 9 }, false],
+])("conditional exclusions: %s", async (_label, spec, when, active) => {
+  const root = await mkdtemp(path.join(tmpdir(), "conditional-exclusion-"));
+  try {
+    await appendExcludedRecord(root, {
+      kind: "Personnel",
+      key: "person",
+      reason: "incomplete source name",
+      when,
+    });
+    await appendExcludedRecord(root, {
+      kind: "Personnel",
+      key: "administrative",
+      reason: "administrative entry",
+    });
+    const input: SourceManifest = {
+      accounting: [],
+      artifacts: [
+        {
+          kind: "Personnel",
+          records: {
+            person: { spec },
+            administrative: { spec: { first_name: "Office" } },
+          },
+        },
+        {
+          kind: "AgencyPersonnel",
+          records: {
+            assignment: {
+              spec: {
+                personnel_id: "person",
+                agency_id: "agency",
+                start_date: "2000-01-01",
+                title: "Officer",
+              },
+            },
+            administrative: {
+              spec: {
+                personnel_id: "administrative",
+                agency_id: "agency",
+                start_date: "2000-01-01",
+                title: "Officer",
+              },
+            },
+          },
+        },
+        {
+          kind: "LicensingAuthorities",
+          records: {
+            board: {
+              spec: {
+                name: "Test board",
+                location_path_id: "test",
+                source_namespaces: ["test.provider"],
+                source_exclusions: {
+                  "test.provider": [
+                    {
+                      kind: "Personnel",
+                      key: "person",
+                      reason: "earlier exclusion",
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+      ],
+    };
+    const before = structuredClone(input);
+    const logs: string[] = [];
+    const result = await run(root, "test.provider", input, logs);
+    expect(result, JSON.stringify(result)).toHaveProperty("artifactsPath");
+    if (!("artifactsPath" in result)) throw new Error(JSON.stringify(result));
+    const output = await Artifacts.read(result.artifactsPath);
+    const personnel = output.spec.artifacts.find(
+      (item) => item.kind === "Personnel",
+    )!.spec.records;
+    const assignments = output.spec.artifacts.find(
+      (item) => item.kind === "AgencyPersonnel",
+    )!.spec.records;
+    expect(Object.keys(personnel)).toEqual(active ? [] : ["person"]);
+    expect(Object.keys(assignments)).toEqual(active ? [] : ["assignment"]);
+    const authority = output.spec.artifacts.find(
+      (item) => item.kind === "LicensingAuthorities",
+    )!.spec.records.board;
+    const evidence = [
+      {
+        kind: "Personnel",
+        key: "administrative",
+        reason: "administrative entry",
+      },
+    ];
+    expect(authority).toMatchObject({
+      spec: {
+        source_exclusions: {
+          "test.provider": active
+            ? [
+                {
+                  kind: "Personnel",
+                  key: "person",
+                  reason: "incomplete source name",
+                },
+                ...evidence,
+              ]
+            : evidence,
+        },
+      },
+    });
+    expect(
+      logs.some((line) => line.includes("excluded Personnel person:")),
+    ).toBe(active);
+    expect(
+      logs.some((line) => line.includes("excluded Personnel administrative:")),
+    ).toBe(true);
+    expect(input).toEqual(before);
+    if (!active) expect(personnel.person).toMatchObject({ spec });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("changed invalid source values still fail normal required-name validation", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "conditional-validation-"));
+  try {
+    await appendExcludedRecord(root, {
+      kind: "Personnel",
+      key: "person",
+      reason: "bad source name",
+      when: { first_name: "9" },
+    });
+    const result = await run(root, "test.provider", {
+      accounting: [],
+      artifacts: [
+        {
+          kind: "Personnel",
+          records: { person: { spec: { first_name: "" } } },
+        },
+        {
+          kind: "LicensingAuthorities",
+          records: {
+            board: {
+              spec: {
+                name: "Test board",
+                location_path_id: "test",
+                source_namespaces: ["test.provider"],
+              },
+            },
+          },
+        },
+      ],
+    });
+    expect(result).toMatchObject({
+      error: {
+        exitCode: 1,
+        stderr: expect.stringMatching(
+          /records.person.spec.first_name.*Too small/,
+        ),
+      },
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+for (const namespace of [
+  "gov/texas/tcole",
+  "net/bpl-orsnapshot/www/public-inquiry-cj",
+  "example.future",
+]) {
   test(`${namespace}: shared transform preserves source name and suffix for generation corrections`, async () => {
     const root = await mkdtemp(path.join(tmpdir(), "name-quality-"));
     try {
       const manifest: SourceManifest = {
+        accounting: [],
         artifacts: [
           {
             kind: "Personnel",
@@ -70,6 +272,7 @@ for (const namespace of ["gov.tx.tcole", "gov.or.dpsst", "example.future"]) {
       });
       const spec = { first_name: "Chester", last_name: "Test" };
       const manifest: SourceManifest = {
+        accounting: [],
         artifacts: [
           { kind: "Personnel", records: { fixture: { spec }, real: { spec } } },
           {
@@ -171,15 +374,25 @@ async function run(
       loadSourceModule: async () => async () => manifest,
       readXlsx: async () => [],
       digest: async () => "source-digest",
-      makeWorkspace: async () => root,
-      createEmitSink: () => ({ emit: async () => {}, flush: async () => [] }),
+      makeWorkspace: async () => ({
+        outputDirectory: root,
+        logger: {
+          info: (message: string) => logs.push(message),
+          error: () => {},
+        },
+        close: () => {},
+      }),
+      createEmitSink: () => ({
+        emit: async () => {},
+        records: async function* () {},
+        flush: async () => [],
+      }),
       loadExcludedRecords,
       writeEnvelope: async (directory, source, digest, filtered) =>
         Artifacts.write(
           directory,
           buildArtifactsEnvelope(source, digest, filtered),
         ),
-      logger: { info: (message) => logs.push(message) },
     },
   );
 }

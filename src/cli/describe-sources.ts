@@ -1,10 +1,8 @@
-import { access, constants, readdir } from "node:fs/promises";
-import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { discoverSources, type SourcePhase } from "./source-discovery.js";
 import { consumesOf } from "./transform/source-order.js";
 import type { ImportArtifactKind } from "../shared/io/index.js";
 
-export type SourcePhase = "acquire" | "transform" | "request";
+export type { SourcePhase } from "./source-discovery.js";
 
 export type SourceDescription = {
   id: string;
@@ -13,80 +11,15 @@ export type SourceDescription = {
   produces?: readonly ImportArtifactKind[];
 };
 
-async function fileExists(filePath: string): Promise<boolean> {
-  try {
-    await access(filePath, constants.R_OK);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function readPhaseDescription(
-  modulePath: string,
-): Promise<string | undefined> {
-  const module = (await import(pathToFileURL(modulePath).href)) as {
-    description?: unknown;
-  };
-  return typeof module.description === "string"
-    ? module.description
-    : undefined;
-}
-
-// Lenient read for the catalog; the run path is where invalid produces fails loud.
-async function readPhaseProduces(
-  modulePath: string,
-): Promise<readonly ImportArtifactKind[] | undefined> {
-  const module = (await import(pathToFileURL(modulePath).href)) as {
-    produces?: unknown;
-  };
-  return Array.isArray(module.produces) &&
-    module.produces.every((kind) => typeof kind === "string")
-    ? (module.produces as ImportArtifactKind[])
-    : undefined;
-}
-
-/**
- * Enumerate the sources under `sourcesRoot`, deriving each one's supported
- * phases from the presence of its phase modules (transform.ts is required and
- * defines a source; acquire.ts is optional) and its human description from the
- * phase module's optional `description` export — so the catalog is generated
- * from the sources themselves and cannot drift from a separate list.
- */
 export async function describeSources(
   sourcesRoot: string,
 ): Promise<SourceDescription[]> {
-  const entries = await readdir(sourcesRoot, { withFileTypes: true });
-  const sources: SourceDescription[] = [];
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    const transformPath = path.join(sourcesRoot, entry.name, "transform.ts");
-    const hasTransform = await fileExists(transformPath);
-    const requestPath = path.join(sourcesRoot, entry.name, "request.ts");
-    const hasRequest = await fileExists(requestPath);
-    if (!hasTransform && !hasRequest) continue;
-    const acquirePath = path.join(sourcesRoot, entry.name, "acquire.ts");
-    const phases: SourcePhase[] = [];
-    if (await fileExists(acquirePath)) phases.push("acquire");
-    if (hasTransform) phases.push("transform");
-    if (hasRequest) phases.push("request");
-    sources.push({
-      id: entry.name,
-      description:
-        (hasTransform
-          ? await readPhaseDescription(transformPath)
-          : await readPhaseDescription(requestPath)) ??
-        ((await fileExists(acquirePath))
-          ? await readPhaseDescription(acquirePath)
-          : undefined),
-      phases,
-      produces: hasTransform
-        ? await readPhaseProduces(transformPath)
-        : undefined,
-    });
-  }
-  sources.sort((left, right) => left.id.localeCompare(right.id));
-  return sources;
+  return (await discoverSources(sourcesRoot)).map(({ id, phases, source }) => ({
+    id,
+    phases,
+    description: source.description,
+    produces: source.produces,
+  }));
 }
 
 export function renderSourceCatalog(sources: SourceDescription[]): string {

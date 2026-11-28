@@ -29,7 +29,7 @@ inputs and mutation state are outside Git.
 
 ## 3. Source module
 
-- [x] 3.1 `sources/org.washingtonpost.fatal-force/acquire.ts` — download both v2
+- [x] 3.1 `sources/org/washingtonpost/fatal-force/acquire.ts` — download both v2
       CSVs pinned to an explicit upstream **commit SHA**; preserve original bytes
       plus `sourceUrl`, `commit`, `sha256`, `byteLength`, `retrievedAt` (D5).
 - [x] 3.2 Re-acquire against an unchanged pin does not re-download and does not

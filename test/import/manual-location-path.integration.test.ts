@@ -9,24 +9,22 @@ import {
   expect,
   test,
 } from "vitest";
-import { acquire } from "../../sources/org.policeconduct.manual/acquire.js";
-import { transform } from "../../sources/org.policeconduct.manual/transform.js";
+import { acquire } from "../../sources/org/policeconduct/manual/acquire.js";
+import { transform } from "../../sources/org/policeconduct/manual/transform.js";
 import { buildArtifactsEnvelope } from "../../src/cli/transform/source-transform.js";
 import { importArtifacts } from "./completed-artifacts.js";
 import { replayDatabaseMutations } from "../../src/cli/replay/database-mutations/config.js";
 import { Artifacts } from "../../src/shared/io/Artifacts.js";
 import {
-  dockerAvailable,
   startIntakeDatabase,
   type IntakeDatabase,
 } from "../cli/database/intake-postgres.js";
+import { unusedServiceClients } from "../shared/services/harness.js";
 
 const placePath = "/tx/fannin-county/ivanhoe/";
 const countyPath = "/tx/fannin-county/";
 const aliasPath = "/tx/fannin-county/ivanhoe-community/";
-const describeWithDocker = dockerAvailable() ? describe : describe.skip;
-
-describeWithDocker("manual community creation and reconstruction", () => {
+describe("manual community creation and reconstruction", () => {
   let db: IntakeDatabase;
   let rootDir: string;
   const workspaces: string[] = [];
@@ -77,6 +75,7 @@ describeWithDocker("manual community creation and reconstruction", () => {
       ],
     ] as const) {
       await acquire({
+        clients: unusedServiceClients(),
         sourceDir: rootDir,
         state,
         env: { MANUAL_KIND: kind, MANUAL_RECORD: JSON.stringify(record) },
@@ -92,7 +91,7 @@ describeWithDocker("manual community creation and reconstruction", () => {
     return Artifacts.write(
       path.join(rootDir, "output"),
       buildArtifactsEnvelope(
-        "org.policeconduct.manual",
+        "org/policeconduct/manual",
         "manual-community",
         manifest,
       ),
@@ -104,7 +103,7 @@ describeWithDocker("manual community creation and reconstruction", () => {
       artifactsPath,
       env: {
         DATABASE_URL: db.connectionString,
-        INTAKE_WORKSPACE_TEST: rootDir,
+        INTAKE_WORKSPACE: rootDir,
       },
       commandName: run,
       commandDirectory: path.join(rootDir, run),
@@ -183,7 +182,9 @@ describeWithDocker("manual community creation and reconstruction", () => {
     const result = await load(artifacts.path, "missing-parent");
     expect(result).toMatchObject({
       ok: false,
-      error: expect.stringContaining("/tx/nonexistent-county/"),
+      error: expect.objectContaining({
+        message: expect.stringContaining("/tx/nonexistent-county/"),
+      }),
     });
     expect(await storedPlace()).toEqual([]);
     expect(

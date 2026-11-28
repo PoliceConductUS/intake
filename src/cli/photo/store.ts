@@ -20,19 +20,28 @@ function imageType(bytes: Buffer): { extension: string; contentType: string } {
   throw new Error("Unsupported image bytes; use WebP, PNG, JPEG or AVIF.");
 }
 
-export async function storePersonnelPhoto(workspace: string, filename: string) {
+export async function readPersonnelPhoto(filename: string) {
   const bytes = await readFile(filename);
   const type = imageType(bytes);
   const sha256 = createHash("sha256").update(bytes).digest("hex");
-  const workspacePath = `assets/PersonnelPhoto/${sha256}.${type.extension}`;
+  return {
+    bytes,
+    photo: {
+      workspace_path: `assets/PersonnelPhoto/${sha256}.${type.extension}`,
+      sha256,
+      content_type: type.contentType,
+      byte_size: bytes.length,
+      source_filename: path.basename(filename),
+    },
+  };
+}
+
+export async function writePersonnelPhoto(
+  workspace: string,
+  workspacePath: string,
+  bytes: Buffer,
+): Promise<void> {
   const destination = path.join(workspace, workspacePath);
   await mkdir(path.dirname(destination), { recursive: true });
   await writeFile(destination, bytes);
-  return {
-    workspace_path: workspacePath,
-    sha256,
-    content_type: type.contentType,
-    byte_size: bytes.length,
-    source_filename: path.basename(filename),
-  };
 }

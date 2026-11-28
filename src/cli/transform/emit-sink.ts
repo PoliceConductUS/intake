@@ -19,7 +19,14 @@ export type EmitRefItem = {
 
 export type EmitSink = {
   emit(kind: string, key: string, spec: unknown): Promise<void>;
-  flush(): Promise<EmitRefItem[]>;
+  records(): AsyncIterable<{
+    kind: ImportArtifactKind;
+    key: string;
+    spec: unknown;
+  }>;
+  flush(
+    keep?: (kind: ImportArtifactKind, key: string) => boolean,
+  ): Promise<EmitRefItem[]>;
 };
 
 /**
@@ -84,20 +91,37 @@ export function createEmitSink(
     };
   }
 
-  async function flush(): Promise<EmitRefItem[]> {
+  async function* records() {
+    for (const [key, item] of Object.entries(geometryRefs)) {
+      const record = await LocationPathGeometry.read(item.ref, {
+        relativeTo: path.join(workspaceDir, geometriesFileName),
+        expectedNamespace: namespace,
+      });
+      yield { kind: GEOMETRIES_KIND, key, spec: record.spec };
+    }
+  }
+
+  async function flush(
+    keep?: (kind: ImportArtifactKind, key: string) => boolean,
+  ): Promise<EmitRefItem[]> {
     if (flushed) {
       // Already flushed: return the cached refs instead of re-writing the
       // envelope (and re-reading/duplicating it) on a second call.
       return flushResult ?? [];
     }
     flushed = true;
-    if (Object.keys(geometryRefs).length === 0) {
+    const retained = Object.fromEntries(
+      Object.entries(geometryRefs).filter(
+        ([key]) => keep?.(GEOMETRIES_KIND, key) ?? true,
+      ),
+    );
+    if (Object.keys(retained).length === 0) {
       flushResult = [];
       return flushResult;
     }
     const written = await LocationPathGeometries.write(workspaceDir, {
       metadata: { name: GEOMETRIES_NAME, namespace },
-      spec: { records: geometryRefs },
+      spec: { records: retained },
     });
     flushResult = [
       {
@@ -111,5 +135,5 @@ export function createEmitSink(
     return flushResult;
   }
 
-  return { emit, flush };
+  return { emit, records, flush };
 }

@@ -21,14 +21,14 @@ Two things make a closed corpus worth ingesting:
 
 ## What Changes
 
-**New source `sources/org.washingtonpost.fatal-force/` (acquire + transform)**
+**New source `sources/org/washingtonpost/fatal-force/` (acquire + transform)**
 
 - From: no fatal-shooting entity and no way to ingest one.
 - To: `acquire.ts` downloads the two v2 CSVs **pinned to an upstream commit SHA**
   and preserves them with per-file sha256, byte length, URL, and retrieval time;
   `transform.ts` reads only the saved bytes and emits `FatalShootings` and
   `FatalShootingAgencies`.
-- Impact: additive namespace `org.washingtonpost.fatal-force`; **two new tables**,
+- Impact: additive namespace `org/washingtonpost/fatal-force`; **two new tables**,
   and therefore a **generated type refresh**.
 
 **New entity tables `public.fatal_shooting` and `public.fatal_shooting_agency`**

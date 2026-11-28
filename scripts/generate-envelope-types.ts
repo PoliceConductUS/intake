@@ -1,4 +1,4 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   IMPORT_OPERATIONS,
@@ -17,13 +17,7 @@ import {
 // generated output — the plural artifact kind is just a string here.
 type ImportArtifactKind = string;
 
-const outputDirectory = path.join(
-  process.cwd(),
-  "src",
-  "shared",
-  "io",
-  "generated",
-);
+const outputDirectory = path.join(process.cwd(), "src", "shared", "io");
 const importMutationOutputDirectory = path.join(
   process.cwd(),
   "src",
@@ -31,14 +25,11 @@ const importMutationOutputDirectory = path.join(
   "import",
   "artifacts",
   "io",
-  "generated-mutations",
 );
 
-// Kinds whose records are written one-file-per-record (a `.records` directory
-// of singular record envelopes plus a small envelope-of-refs). Every import
-// kind currently participates; the set is explicit so the intent is clear and
-// a kind can be opted out without reintroducing the `recordKind !== kind`
-// heuristic.
+// Kinds whose records may be written one-file-per-record (a `.records` directory
+// of singular record envelopes plus a small envelope-of-refs). The set is
+// explicit; every other import kind keeps its records inline.
 const RECORD_ENVELOPE_KINDS = new Set<ImportArtifactKind>([
   "FatalShootings",
   "FatalShootingAgencies",
@@ -77,7 +68,13 @@ function generatedHeader(): string {
   ].join("\n");
 }
 
-function envelopeSupport(label: string): string {
+function envelopeSupport(label: string, readsRefs = true): string {
+  const formatError = `
+function formatError(error: z.ZodError): string {
+  return \`${label} is malformed at \${firstIssuePath(error)}.\`;
+}
+`;
+  if (!readsRefs) return formatError;
   return `
 type EnvelopeReadRef =
   | { path: string; kind?: string; sha256?: string }
@@ -87,11 +84,7 @@ type EnvelopeReadOptions = {
   expectedNamespace?: string;
   relativeTo?: string;
 };
-
-function formatError(error: z.ZodError): string {
-  return \`${label} is malformed at \${firstIssuePath(error)}.\`;
-}
-
+${formatError}
 function refValue(pathOrRef: string | EnvelopeReadRef): {
   path: string;
   kind?: string;
@@ -169,12 +162,11 @@ export const recordSchema = z
     kind: z.literal("${recordEnvelopeKind}"),
     metadata: z
       .object({
+        ...recordMetadataSchema.shape,
         name: z.string().trim().min(1),
         namespace: z.string().trim().min(1),
         labels: z.record(z.string(), z.string()).optional(),
         annotations: z.record(z.string(), z.string()).optional(),
-        action: z.enum(["PUT", "PATCH", "POST"]).optional(),
-        selector: z.record(z.string(), z.unknown()).optional(),
       })
       .strict(),
     spec: z.strictObject(${recordSpecName}Spec.shape).partial(),
@@ -247,8 +239,14 @@ async function write${recordEnvelopeKind}(
           \`${kind} record metadata.name \${record.metadata.name} does not match expected record key \${recordKey}: \${filePath}\`,
         );
       }
+      const {
+        namespace: _namespace,
+        labels: _labels,
+        annotations: _annotations,
+        ...metadata
+      } = record.metadata;
       records[recordKey] = {
-        metadata: toRecordMetadata(recordKey, record.metadata),
+        metadata: toRecordMetadata(recordKey, metadata),
         spec: validateRecord(filePath, recordKey, record.spec, record.metadata.action),
       };
     } else {
@@ -275,14 +273,9 @@ async function write${recordEnvelopeKind}(
       }
       const record = new${recordEnvelopeKind}({
         metadata: {
+          ...recordItem.metadata,
           name: recordKey,
           namespace: artifact.metadata.namespace,
-          ...(recordItem.metadata?.action !== undefined
-            ? { action: recordItem.metadata.action }
-            : {}),
-          ...(recordItem.metadata?.selector !== undefined
-            ? { selector: recordItem.metadata.selector }
-            : {}),
         },
         spec: recordItem.spec as z.infer<typeof ${recordSpecName}Spec>,
       });
@@ -323,23 +316,22 @@ export const ${recordEnvelopeKind} = {
 };
 `
     : "";
-  return `${generatedHeader()}import path from "node:path";
-import { z } from "zod";
-import { INTAKE_API_VERSION } from "../intake-api-version.js";
+  return `${generatedHeader()}${supportsRecordEnvelope ? 'import path from "node:path";\n' : ""}import { z } from "zod";
+import { INTAKE_API_VERSION } from "./intake-api-version.js";
 import {
   firstIssuePath,
-  yamlDigest,
-  yamlResourceFileName,
+  yamlDigest,${supportsRecordEnvelope ? "\n  yamlResourceFileName," : ""}
   yamlResourcePath,
-} from "../resource.js";
+} from "./resource.js";
 import {
   readYamlDocumentFile,
   writeYamlDocumentFile,
-} from "../internal/yaml-document.js";
+} from "./internal/yaml-document.js";
+import { Finding } from "../data-annotations.js";
 import { ${recordSpecName}Spec } from "./entity-specs.js";
 export { ${recordSpecName}Spec } from "./entity-specs.js";
 
-${envelopeSupport(kind)}
+${envelopeSupport(kind, supportsRecordEnvelope)}
 
 const metadataSchema = z
   .object({
@@ -362,6 +354,7 @@ const recordMetadataSchema = z
     action: z.enum(["PUT", "PATCH", "POST"]).optional(),
     name: z.string().trim().min(1).optional(),
     selector: z.record(z.string(), z.unknown()).optional(),
+    defects: z.array(Finding).optional(),
   })
   .strict();
 export type RecordMetadata = z.infer<typeof recordMetadataSchema>;
@@ -449,26 +442,21 @@ function validateRecord(
   return result.data as z.infer<typeof ${recordSpecName}Spec>;
 }
 
-// The record's metadata, kept with it through resolution (ADR 0034). The record
-// key is its name; the write verb + addressing (action/selector) ride along when
-// present. Works for both an inline item's metadata and a resolved record
-// envelope's metadata (both optionally carry action/selector).
+// The record's validated metadata, passed on whole (ADR 0034, ADR 0040). The
+// record key is its name.
 function toRecordMetadata(
   recordKey: string,
-  metadata?: { action?: "PUT" | "PATCH" | "POST"; selector?: Record<string, unknown> },
+  metadata?: RecordMetadata,
 ): RecordMetadata {
-  return {
-    name: recordKey,
-    ...(metadata?.action !== undefined ? { action: metadata.action } : {}),
-    ...(metadata?.selector !== undefined ? { selector: metadata.selector } : {}),
-  };
+  return { ...metadata, name: recordKey };
 }
 
 ${singularRecordSchema}
 
 async function read${kind}(
   filePath: string,
-  options: EnvelopeReadOptions & {
+  options: {
+    expectedNamespace?: string;
     expectedKind?: "${kind}";
     expectedSha256?: string;
     raw: true;
@@ -476,7 +464,8 @@ async function read${kind}(
 ): Promise<${kind}Envelope>;
 async function read${kind}(
   filePath: string,
-  options?: EnvelopeReadOptions & {
+  options?: {
+    expectedNamespace?: string;
     expectedKind?: "${kind}";
     expectedSha256?: string;
     raw?: false;
@@ -484,7 +473,8 @@ async function read${kind}(
 ): Promise<${kind}ResolvedEnvelope>;
 async function read${kind}(
   filePath: string,
-  options: EnvelopeReadOptions & {
+  options: {
+    expectedNamespace?: string;
     expectedKind?: "${kind}";
     expectedSha256?: string;
     raw?: boolean;
@@ -556,176 +546,6 @@ export const write = write${kind};
 `;
 }
 
-function artifactsModule(): string {
-  const artifactImports = IMPORT_ARTIFACT_KINDS.map(
-    (kind) => `import { ${kind} } from "./${kind}.js";`,
-  ).join("\n");
-  const artifactSpecSchemas = IMPORT_ARTIFACT_KINDS.map(
-    (kind) => `  ${kind}: ${kind}.schema.shape.spec,`,
-  ).join("\n");
-  return `${generatedHeader()}import path from "node:path";
-import { z } from "zod";
-import { INTAKE_API_VERSION } from "../intake-api-version.js";
-import { IMPORT_ARTIFACT_KINDS } from "../import-types.js";
-import {
-  firstIssuePath,
-  yamlDigest,
-  yamlResourcePath,
-} from "../resource.js";
-import {
-  readYamlDocumentFile,
-  writeYamlDocumentFile,
-} from "../internal/yaml-document.js";
-${artifactImports}
-
-${envelopeSupport("Artifacts")}
-
-const metadataSchema = z
-  .object({
-    name: z.string().trim().min(1),
-    namespace: z.string().trim().min(1),
-    labels: z.record(z.string(), z.string()).optional(),
-    annotations: z.record(z.string(), z.string()).optional(),
-    producedAt: z.string().trim().min(1).optional(),
-    producer: z.string().trim().min(1).optional(),
-  })
-  .strict();
-
-const artifactKindSchema = z.enum(IMPORT_ARTIFACT_KINDS);
-const artifactSpecSchemas: Record<string, z.ZodType> = {
-${artifactSpecSchemas}
-};
-const artifactReferenceSchema = z
-  .object({
-    ref: z
-      .object({
-        path: z.string().trim().min(1),
-        kind: artifactKindSchema,
-        sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
-      })
-      .strict(),
-  })
-  .strict();
-const inlineArtifactSchema = z
-  .object({
-    kind: artifactKindSchema,
-    spec: z.record(z.string(), z.unknown()),
-  })
-  .strict()
-  .superRefine((artifact, context) => {
-    const specSchema = artifactSpecSchemas[artifact.kind];
-    const result = specSchema.safeParse(artifact.spec);
-    if (!result.success) {
-      for (const issue of result.error.issues) {
-        context.addIssue({ ...issue, path: ["spec", ...issue.path] });
-      }
-    }
-  });
-
-export const schema = z
-  .object({
-    apiVersion: z.literal(INTAKE_API_VERSION),
-    kind: z.literal("Artifacts"),
-    metadata: metadataSchema,
-    spec: z
-      .object({
-        personnelSourceNames: z.array(z.string().trim().min(1)).optional(),
-        artifacts: z
-          .array(
-            z.union([artifactReferenceSchema, inlineArtifactSchema]),
-          ),
-      })
-      .strict(),
-  })
-  .strict();
-
-export type ArtifactsEnvelope = z.infer<typeof schema>;
-export type ArtifactsInput = Omit<z.infer<typeof schema>, "apiVersion" | "kind">;
-
-function parseArtifacts(value: unknown): ArtifactsEnvelope {
-  const result = schema.safeParse(value);
-  if (!result.success) {
-    throw new Error(
-      result.error.issues
-        .map((issue) => {
-          let rejected: unknown = value;
-          for (const segment of issue.path) {
-            rejected = rejected !== null && typeof rejected === "object"
-              ? Reflect.get(rejected, segment)
-              : undefined;
-          }
-          return formatError(new z.ZodError([issue])) + " " + issue.message
-            + " Received: " + (JSON.stringify(rejected) ?? "undefined") + ".";
-        })
-        .join("\\n"),
-    );
-  }
-  return result.data;
-}
-
-function newArtifacts(input: ArtifactsInput): ArtifactsEnvelope {
-  return parseArtifacts({
-    apiVersion: INTAKE_API_VERSION,
-    kind: "Artifacts",
-    ...input,
-  });
-}
-
-async function readArtifacts(
-  pathOrRef: string | EnvelopeReadRef,
-  options: EnvelopeReadOptions = {},
-): Promise<ArtifactsEnvelope> {
-  const ref = resolveReadPath(pathOrRef, options);
-  if (ref.kind !== undefined && ref.kind !== "Artifacts") {
-    throw new Error(\`Artifacts ref.kind \${ref.kind} does not match expected kind Artifacts: \${ref.filePath}\`);
-  }
-  const { contents, document } = await readYamlDocumentFile(ref.filePath, "Artifacts");
-  if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
-    throw new Error(\`Artifacts sha256 mismatch: \${ref.filePath}\`);
-  }
-  const envelope = parseArtifacts(document);
-  if (
-    options.expectedNamespace !== undefined &&
-    envelope.metadata.namespace !== options.expectedNamespace
-  ) {
-    throw new Error(
-      \`Artifacts namespace \${envelope.metadata.namespace} does not match expected namespace \${options.expectedNamespace}: \${ref.filePath}\`,
-    );
-  }
-  return envelope;
-}
-
-async function writeArtifacts(
-  directory: string,
-  envelope: ArtifactsEnvelope,
-): Promise<{ path: string }> {
-  const parsed = parseArtifacts(envelope);
-  const filePath = yamlResourcePath(directory, parsed);
-  await writeYamlDocumentFile(filePath, parsed);
-  return { path: filePath };
-}
-
-export const Artifacts = {
-  kind: "Artifacts",
-  schema,
-  new: newArtifacts,
-  read: readArtifacts,
-  write: writeArtifacts,
-};
-
-export async function read(
-  filePath: string,
-  options: Parameters<typeof Artifacts.read>[1] = {},
-) {
-  return Artifacts.read(filePath, options);
-}
-
-export async function write(directory: string, envelope: ArtifactsInput) {
-  return Artifacts.write(directory, Artifacts.new(envelope));
-}
-`;
-}
-
 function mutationKind(recordKind: string, operation: ImportOperation): string {
   return `${recordKind}${IMPORT_OPERATION_SUFFIXES[operation]}`;
 }
@@ -760,9 +580,8 @@ function mutationModule(
   const envelopeKind = mutationKind(recordKind, operation);
   const specImport =
     operation === "create" || operation === "update"
-      ? `import { ${specBaseName}Spec${operation === "create" ? `, ${specBaseName}CreateSpec` : ""} } from "../../../../../shared/io/generated/entity-specs.js";\n`
+      ? `import { ${specBaseName}${operation === "create" ? "Create" : ""}Spec } from "../../../../shared/io/entity-specs.js";\n`
       : "";
-  const operationImport = "";
   const updateValidation =
     operation === "update"
       ? `
@@ -856,17 +675,17 @@ const operationSchema = z.union([
       : "";
   return `${generatedHeader()}import path from "node:path";
 import { z } from "zod";
-import { INTAKE_API_VERSION } from "../../../../../shared/io/intake-api-version.js";
+import { INTAKE_API_VERSION } from "../../../../shared/io/intake-api-version.js";
 import {
   firstIssuePath,
   yamlDigest,
   yamlResourcePath,
-} from "../../../../../shared/io/resource.js";
+} from "../../../../shared/io/resource.js";
 import {
   readYamlDocumentFile,
   writeYamlDocumentFile,
-} from "../../../../../shared/io/internal/yaml-document.js";
-${specImport}${operationImport}
+} from "../../../../shared/io/internal/yaml-document.js";
+${specImport}
 ${envelopeSupport(envelopeKind)}
 const metadataSchema = z
   .object({
@@ -973,30 +792,21 @@ ${mapItems.join("\n")}
 `;
 }
 
-function indexModule(): string {
-  const artifactExports = IMPORT_ARTIFACT_KINDS.map((kind) => {
-    const recordKind = RECORD_KIND_BY_ARTIFACT_KIND[kind];
-    if (!supportsRecordEnvelopeFor(kind)) {
-      return `export { ${kind}, ${recordKind}Spec } from "./${kind}.js";
-export type { ${kind}Envelope, ${kind}Input } from "./${kind}.js";`;
-    }
-    const recordEnvelopeKind = recordEnvelopeKindFor(kind);
-    return `export { ${kind}, ${recordEnvelopeKind}, ${recordKind}Spec } from "./${kind}.js";
-export type { ${kind}Envelope, ${kind}Input, ${recordEnvelopeKind}Envelope, ${recordEnvelopeKind}Input } from "./${kind}.js";`;
-  }).join("\n");
-  return `${generatedHeader()}export { Artifacts } from "./Artifacts.js";
-export type { ArtifactsEnvelope, ArtifactsInput } from "./Artifacts.js";
-${artifactExports}
-`;
-}
-
 // A uniform per-kind module registry (envelope, record spec, read, write) so the
 // hand io layer builds its maps by looping over this — no kind enumerated by hand.
 function artifactModulesModule(): string {
   const imports = IMPORT_ARTIFACT_KINDS.map((kind) => {
     const recordKind = RECORD_KIND_BY_ARTIFACT_KIND[kind];
-    return `import { ${kind}, ${recordKind}Spec, read as read${kind}, write as write${kind} } from "./${kind}.js";`;
+    const recordEnvelope = supportsRecordEnvelopeFor(kind)
+      ? `, ${recordEnvelopeKindFor(kind)}`
+      : "";
+    return `import { ${kind}${recordEnvelope}, ${recordKind}Spec, read as read${kind}, write as write${kind} } from "./${kind}.js";`;
   }).join("\n");
+  const recordEnvelopes = IMPORT_ARTIFACT_KINDS.filter(
+    supportsRecordEnvelopeFor,
+  )
+    .map((kind) => `  ${recordEnvelopeKindFor(kind)},`)
+    .join("\n");
   const entries = IMPORT_ARTIFACT_KINDS.map((kind) => {
     const recordKind = RECORD_KIND_BY_ARTIFACT_KIND[kind];
     return `  ${kind}: { envelope: ${kind}, recordSpec: ${recordKind}Spec, read: read${kind}, write: write${kind} },`;
@@ -1005,6 +815,10 @@ function artifactModulesModule(): string {
 
 export const ARTIFACT_MODULES = {
 ${entries}
+} as const;
+
+export const RECORD_ENVELOPES = {
+${recordEnvelopes}
 } as const;
 `;
 }
@@ -1017,37 +831,49 @@ if (databaseUrl === undefined || databaseUrl.trim() === "") {
 }
 const schema = await introspectSchema(databaseUrl, ENTITY_TABLES);
 
-await rm(outputDirectory, { recursive: true, force: true });
-await mkdir(outputDirectory, { recursive: true });
-await rm(importMutationOutputDirectory, { recursive: true, force: true });
-await mkdir(importMutationOutputDirectory, { recursive: true });
-await writeFile(
-  path.join(outputDirectory, "entity-specs.ts"),
+async function removeGeneratedFiles(directory: string): Promise<void> {
+  await mkdir(directory, { recursive: true });
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    const filePath = path.join(directory, entry.name);
+    const contents = await readFile(filePath, "utf8");
+    if (contents.startsWith(generatedHeader())) await rm(filePath);
+  }
+}
+
+function writeGeneratedFile(
+  directory: string,
+  fileName: string,
+  contents: string,
+): Promise<void> {
+  return writeFile(path.join(directory, fileName), contents, { flag: "wx" });
+}
+
+await removeGeneratedFiles(outputDirectory);
+await removeGeneratedFiles(importMutationOutputDirectory);
+await writeGeneratedFile(
+  outputDirectory,
+  "entity-specs.ts",
   generateEntitySpecsModule(schema, generatedHeader()),
 );
-await writeFile(path.join(outputDirectory, "Artifacts.ts"), artifactsModule());
 for (const kind of IMPORT_ARTIFACT_KINDS) {
-  await writeFile(
-    path.join(outputDirectory, `${kind}.ts`),
-    artifactModule(kind),
-  );
+  await writeGeneratedFile(outputDirectory, `${kind}.ts`, artifactModule(kind));
   for (const operation of IMPORT_OPERATIONS) {
-    await writeFile(
-      path.join(
-        importMutationOutputDirectory,
-        `${mutationKind(RECORD_KIND_BY_ARTIFACT_KIND[kind], operation)}.ts`,
-      ),
+    await writeGeneratedFile(
+      importMutationOutputDirectory,
+      `${mutationKind(RECORD_KIND_BY_ARTIFACT_KIND[kind], operation)}.ts`,
       mutationModule(kind, operation),
     );
   }
 }
-await writeFile(
-  path.join(outputDirectory, "artifact-modules.ts"),
+await writeGeneratedFile(
+  outputDirectory,
+  "artifact-modules.ts",
   artifactModulesModule(),
 );
-await writeFile(path.join(outputDirectory, "index.ts"), indexModule());
-await writeFile(
-  path.join(importMutationOutputDirectory, "index.ts"),
+await writeGeneratedFile(
+  importMutationOutputDirectory,
+  "index.ts",
   mutationIndexModule(),
 );
 

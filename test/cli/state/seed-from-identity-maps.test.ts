@@ -53,7 +53,7 @@ afterEach(async () => {
 describe("seedLedgerFromIdentityMaps", () => {
   it("seeds the ledger and round-trips through point reads", async () => {
     const counts = await seedLedgerFromIdentityMaps(
-      "gov.tx.tcole",
+      "gov/texas/tcole",
       identityDir,
       { rootDir },
     );
@@ -63,32 +63,63 @@ describe("seedLedgerFromIdentityMaps", () => {
     // read matches on (namespace, kind, sourceName): a hit both confirms the id
     // and that the record was written under the correct entity kind.
     // numeric-looking keys are preserved as strings
-    expect(await ledger.read("gov.tx.tcole", "Agency", "101100")).toBe(
+    expect(await ledger.read("gov/texas/tcole", "Agency", "101100")).toBe(
       "cm76agency1",
     );
-    expect(await ledger.read("gov.tx.tcole", "Agency", "103070")).toBe(
+    expect(await ledger.read("gov/texas/tcole", "Agency", "103070")).toBe(
       "cm76agency2",
     );
-    expect(await ledger.read("gov.tx.tcole", "Personnel", "1000033")).toBe(
+    expect(await ledger.read("gov/texas/tcole", "Personnel", "1000033")).toBe(
       "cm7person1",
     );
-    expect(await ledger.read("gov.tx.tcole", "Personnel", "1000038")).toBe(
+    expect(await ledger.read("gov/texas/tcole", "Personnel", "1000038")).toBe(
       "cm7person2",
     );
     // the piped synthetic tuple survives round-trip as the ledger key
     expect(
       await ledger.read(
-        "gov.tx.tcole",
+        "gov/texas/tcole",
         "AgencyPersonnel",
         "1000033|471100|Jailer|Temporary Jailer License|2024-10-15|",
       ),
     ).toBe("cm7ao1");
     expect(
       await ledger.read(
-        "gov.tx.tcole",
+        "gov/texas/tcole",
         "AgencyPersonnel",
         "1000038|201217|Peace Officer|Peace Officer License|1994-06-16|2023-09-30",
       ),
     ).toBe("cm7ao2");
+  });
+});
+
+describe("seedLedgerFromIdentityMaps rejects a mapping without a canonical ID", () => {
+  it.each([
+    ["blank", "''"],
+    ["null", "null"],
+    ["empty", ""],
+    ["a mapping", "{ id: cm7person3 }"],
+  ])("%s", async (_label, value) => {
+    const filePath = path.join(identityDir, "personnel.yaml");
+    await writeFile(
+      filePath,
+      [
+        "id_field: PUBLIC_GUID",
+        "mappings:",
+        "  '1000033': cm7person1",
+        `  '1000039': ${value}`,
+      ].join("\n"),
+      "utf8",
+    );
+
+    await expect(
+      seedLedgerFromIdentityMaps("gov/texas/tcole", identityDir, { rootDir }),
+    ).rejects.toThrow(
+      `${filePath}: mapping 1000039 has no canonical ID; expected a non-blank string or a number.`,
+    );
+    const ledger = createSourceNameToCanonicalIdLedger({ rootDir });
+    expect(
+      await ledger.read("gov/texas/tcole", "Agency", "101100"),
+    ).toBeUndefined();
   });
 });

@@ -5,8 +5,8 @@ import path from "node:path";
 import { describe, expect, test } from "vitest";
 import { INTAKE_API_VERSION } from "../../../src/shared/io/import-types.js";
 import { Artifacts } from "../../../src/shared/io/Artifacts.js";
-import { read as readLocationPathAliases } from "../../../src/shared/io/generated/LocationPathAliases.js";
-import { read as readLocationPaths } from "../../../src/shared/io/generated/LocationPaths.js";
+import { read as readLocationPathAliases } from "../../../src/shared/io/LocationPathAliases.js";
+import { read as readLocationPaths } from "../../../src/shared/io/LocationPaths.js";
 
 async function createTempArtifactsDirectory(): Promise<string> {
   return await mkdtemp(path.join(tmpdir(), "intake-artifacts-"));
@@ -111,7 +111,7 @@ describe("Artifacts shared IO", () => {
       "kind: LocationPathAliases",
       "metadata:",
       "  name: test-run",
-      "  namespace: mn-post",
+      "  namespace: com/site/my/mnitservices/post-license-search",
       "spec:",
       "  records:",
       "    /mn/ramsey-county/st-paul/:",
@@ -124,7 +124,7 @@ describe("Artifacts shared IO", () => {
       "kind: LocationPaths",
       "metadata:",
       "  name: test-run",
-      "  namespace: mn-post",
+      "  namespace: com/site/my/mnitservices/post-license-search",
       "spec:",
       "  records:",
       "    /mn/ramsey-county/saint-paul/:",
@@ -144,7 +144,7 @@ describe("Artifacts shared IO", () => {
         "kind: Artifacts",
         "metadata:",
         "  name: test-run",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  artifacts:",
         "    - ref:",
@@ -172,7 +172,10 @@ describe("Artifacts shared IO", () => {
     expect(artifactsEnvelope).toMatchObject({
       apiVersion: INTAKE_API_VERSION,
       kind: "Artifacts",
-      metadata: { name: "test-run", namespace: "mn-post" },
+      metadata: {
+        name: "test-run",
+        namespace: "com/site/my/mnitservices/post-license-search",
+      },
       spec: {
         artifacts: [
           {
@@ -206,7 +209,7 @@ describe("Artifacts shared IO", () => {
         "kind: Artifacts",
         "metadata:",
         "  name: test-run",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  artifacts:",
         "    - ref:",
@@ -233,7 +236,7 @@ describe("Artifacts shared IO", () => {
       "kind: LocationPaths",
       "metadata:",
       "  name: test-run",
-      "  namespace: mn-post",
+      "  namespace: com/site/my/mnitservices/post-license-search",
       "spec:",
       "  records:",
       "    /mn/:",
@@ -252,7 +255,7 @@ describe("Artifacts shared IO", () => {
         "kind: Artifacts",
         "metadata:",
         "  name: test-run",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  artifacts:",
         "    - ref:",
@@ -283,7 +286,7 @@ describe("Artifacts shared IO", () => {
         "kind: Artifacts",
         "metadata:",
         "  name: test-run",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  artifacts:",
         "    - kind: LocationPaths",
@@ -311,7 +314,10 @@ describe("Artifacts shared IO", () => {
     const result = await Artifacts.write(directory, {
       apiVersion: INTAKE_API_VERSION,
       kind: "Artifacts",
-      metadata: { name: "test-run", namespace: "mn-post" },
+      metadata: {
+        name: "test-run",
+        namespace: "com/site/my/mnitservices/post-license-search",
+      },
       spec: {
         artifacts: [
           {
@@ -410,7 +416,7 @@ describe("Artifacts shared IO", () => {
         "kind: Artifacts",
         "metadata:",
         "  name: test-run",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  entities: {}",
       ].join("\n"),
@@ -431,7 +437,7 @@ describe("Artifacts shared IO", () => {
         "kind: SourcePackage",
         "metadata:",
         "  name: test-run",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  entities: {}",
       ].join("\n"),
@@ -472,11 +478,11 @@ describe("Artifacts shared IO", () => {
         "kind: Artifacts",
         "metadata:",
         "  name: test-run",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  artifacts: []",
         "  source:",
-        "    namespace: mn-post",
+        "    namespace: com/site/my/mnitservices/post-license-search",
       ].join("\n"),
     );
 
@@ -494,7 +500,7 @@ describe("Artifacts shared IO", () => {
         `apiVersion: ${INTAKE_API_VERSION}`,
         "kind: Artifacts",
         "metadata:",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  entities: {}",
       ].join("\n"),
@@ -515,7 +521,7 @@ describe("Artifacts shared IO", () => {
         "kind: Artifacts",
         "metadata:",
         "  name: test-run",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  artifacts: []",
         "  entities:",

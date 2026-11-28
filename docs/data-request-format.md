@@ -666,7 +666,7 @@ there are no records or that the data is not maintained. If you do not know the
 columns, an availability entry without a file is enough. Do not use a redaction
 marker for data you do not have.
 
-**Format version: `20261010000000`.** If you use the Simplified Export Format,
+**Format version: `20261123300000`.** If you use the Simplified Export Format,
 include this number as `spec_version` in the file list described below.
 
 ## File naming and layout
@@ -697,7 +697,7 @@ which record type each file holds. It carries:
 `manifest.json`:
 
     {
-      "spec_version": "20261010000000",
+      "spec_version": "20261123300000",
       "request_id": "az-post-2026-06",
       "files": [
         { "file": "az-post-2026-06.Agency.csv", "kind": "Agency", "rows": 1234 },
@@ -743,6 +743,64 @@ from ours: prefix the field name with **`x-`** (e.g. `x-rank`, `x-badge_issued_o
 them, and we never guess their meaning.
 
 ## Simplified record types
+
+### FatalShooting
+
+One row per FatalShooting.
+
+| Field                        | Type                 | Required | Constraints                                      | Relationship / notes                                       |
+| ---------------------------- | -------------------- | -------- | ------------------------------------------------ | ---------------------------------------------------------- |
+| `id`                         | text                 | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
+| `date`                       | date (`YYYY-MM-DD`)  | yes      | format `YYYY-MM-DD`                              | —                                                          |
+| `name`                       | text                 | optional | —                                                | —                                                          |
+| `age`                        | number               | optional | —                                                | —                                                          |
+| `gender`                     | text                 | optional | —                                                | —                                                          |
+| `race`                       | text                 | optional | —                                                | —                                                          |
+| `race_source`                | text                 | optional | —                                                | —                                                          |
+| `city`                       | text                 | optional | —                                                | —                                                          |
+| `county`                     | text                 | optional | —                                                | —                                                          |
+| `state`                      | text                 | optional | —                                                | —                                                          |
+| `latitude`                   | number               | optional | —                                                | —                                                          |
+| `longitude`                  | number               | optional | —                                                | —                                                          |
+| `location_precision`         | text                 | optional | —                                                | —                                                          |
+| `body_camera`                | boolean              | optional | —                                                | —                                                          |
+| `was_mental_illness_related` | boolean              | optional | —                                                | —                                                          |
+| `threat_type`                | text                 | optional | —                                                | —                                                          |
+| `armed_with`                 | text                 | optional | —                                                | —                                                          |
+| `flee_status`                | text                 | optional | —                                                | —                                                          |
+| `reported_agency_ids`        | text                 | optional | —                                                | —                                                          |
+| `source_dataset`             | text                 | yes      | non-empty                                        | —                                                          |
+| `source_record_id`           | text                 | yes      | non-empty                                        | —                                                          |
+| `source_url`                 | text                 | yes      | non-empty                                        | —                                                          |
+| `source_commit`              | text                 | yes      | —                                                | —                                                          |
+| `source_sha256`              | text                 | yes      | —                                                | —                                                          |
+| `retrieved_at`               | timestamp (ISO 8601) | yes      | ISO 8601                                         | —                                                          |
+| `license`                    | text                 | yes      | non-empty                                        | —                                                          |
+| `redistribution_class`       | text                 | yes      | non-empty                                        | —                                                          |
+| `evidence_status`            | text                 | yes      | —                                                | —                                                          |
+
+### FatalShootingAgency
+
+One row per FatalShootingAgency.
+
+| Field                  | Type                 | Required | Constraints                                      | Relationship / notes                                                     |
+| ---------------------- | -------------------- | -------- | ------------------------------------------------ | ------------------------------------------------------------------------ |
+| `id`                   | text                 | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time.               |
+| `agency_id`            | text                 | optional | —                                                | → **Agency**: your id for the linked Agency, present in the same export. |
+| `name`                 | text                 | yes      | non-empty                                        | —                                                                        |
+| `type`                 | text                 | optional | —                                                | —                                                                        |
+| `state`                | text                 | optional | —                                                | —                                                                        |
+| `oricodes`             | text                 | optional | —                                                | —                                                                        |
+| `total_shootings`      | integer              | yes      | —                                                | —                                                                        |
+| `source_dataset`       | text                 | yes      | non-empty                                        | —                                                                        |
+| `source_record_id`     | text                 | yes      | non-empty                                        | —                                                                        |
+| `source_url`           | text                 | yes      | non-empty                                        | —                                                                        |
+| `source_commit`        | text                 | yes      | —                                                | —                                                                        |
+| `source_sha256`        | text                 | yes      | —                                                | —                                                                        |
+| `retrieved_at`         | timestamp (ISO 8601) | yes      | ISO 8601                                         | —                                                                        |
+| `license`              | text                 | yes      | non-empty                                        | —                                                                        |
+| `redistribution_class` | text                 | yes      | non-empty                                        | —                                                                        |
+| `evidence_status`      | text                 | yes      | —                                                | —                                                                        |
 
 ### Agency
 
@@ -796,7 +854,7 @@ One row per AgencyPersonnel.
 | `agency_id`    | text                | yes      | non-empty                                                   | → **Agency**: your id for the linked Agency, present in the same export.       |
 | `personnel_id` | text                | yes      | non-empty                                                   | → **Personnel**: your id for the linked Personnel, present in the same export. |
 | `badge_number` | text                | optional | non-empty                                                   | —                                                                              |
-| `start_date`   | date (`YYYY-MM-DD`) | yes      | format `YYYY-MM-DD`                                         | —                                                                              |
+| `start_date`   | date (`YYYY-MM-DD`) | optional | format `YYYY-MM-DD`                                         | —                                                                              |
 | `end_date`     | date (`YYYY-MM-DD`) | optional | format `YYYY-MM-DD`                                         | —                                                                              |
 | `title`        | text                | yes      | non-empty                                                   | —                                                                              |
 | `license_id`   | text                | optional | non-empty                                                   | → **License**: your id for the linked License, present in the same export.     |
@@ -900,21 +958,46 @@ One row per DisciplineAgencyPersonnel.
 | `discipline_id`       | text | yes      | —                                                | → **Discipline**: your id for the linked Discipline, present in the same export.           |
 | `agency_personnel_id` | text | yes      | —                                                | → **AgencyPersonnel**: your id for the linked AgencyPersonnel, present in the same export. |
 
+### CoverageHomepageWindow
+
+One row per CoverageHomepageWindow.
+
+| Field             | Type                | Required | Constraints                                      | Relationship / notes                                       |
+| ----------------- | ------------------- | -------- | ------------------------------------------------ | ---------------------------------------------------------- |
+| `id`              | text                | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
+| `window_end`      | date (`YYYY-MM-DD`) | yes      | format `YYYY-MM-DD`                              | —                                                          |
+| `placement_count` | integer             | yes      | —                                                | —                                                          |
+
+### CoverageHomepagePlacement
+
+One row per CoverageHomepagePlacement.
+
+| Field              | Type    | Required | Constraints                                      | Relationship / notes                                                                                     |
+| ------------------ | ------- | -------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `id`               | text    | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time.                                               |
+| `window_id`        | text    | yes      | —                                                | → **CoverageHomepageWindow**: your id for the linked CoverageHomepageWindow, present in the same export. |
+| `coverage_link_id` | text    | yes      | —                                                | → **CoverageLink**: your id for the linked CoverageLink, present in the same export.                     |
+| `position`         | integer | yes      | —                                                | —                                                                                                        |
+| `clicks`           | integer | yes      | —                                                | —                                                                                                        |
+
 ### CoverageLink
 
 A news article, report, or record documenting an incident or person.
 
 One row per CoverageLink.
 
-| Field            | Type                | Required | Constraints                                      | Relationship / notes                                       |
-| ---------------- | ------------------- | -------- | ------------------------------------------------ | ---------------------------------------------------------- |
-| `id`             | text                | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
-| `url`            | text                | yes      | —                                                | —                                                          |
-| `normalized_url` | text                | yes      | —                                                | —                                                          |
-| `title`          | text                | yes      | —                                                | —                                                          |
-| `source_name`    | text                | optional | —                                                | —                                                          |
-| `published_at`   | date (`YYYY-MM-DD`) | optional | format `YYYY-MM-DD`                              | —                                                          |
-| `notes`          | text                | optional | —                                                | —                                                          |
+| Field              | Type                | Required | Constraints                                      | Relationship / notes                                       |
+| ------------------ | ------------------- | -------- | ------------------------------------------------ | ---------------------------------------------------------- |
+| `id`               | text                | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
+| `url`              | text                | yes      | —                                                | —                                                          |
+| `title`            | text                | yes      | —                                                | —                                                          |
+| `source_name`      | text                | optional | —                                                | —                                                          |
+| `published_at`     | date (`YYYY-MM-DD`) | optional | format `YYYY-MM-DD`                              | —                                                          |
+| `notes`            | text                | optional | —                                                | —                                                          |
+| `source_namespace` | text                | optional | —                                                | —                                                          |
+| `source_id`        | text                | optional | —                                                | —                                                          |
+| `summary`          | text                | optional | —                                                | —                                                          |
+| `occurrences`      | object (JSON)       | optional | —                                                | —                                                          |
 
 ### CoverageLinkAgencyPersonnel
 
@@ -927,8 +1010,11 @@ One row per CoverageLinkAgencyPersonnel.
 | `id`                  | text | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time.                                 |
 | `coverage_link_id`    | text | yes      | —                                                | → **CoverageLink**: your id for the linked CoverageLink, present in the same export.       |
 | `agency_personnel_id` | text | yes      | —                                                | → **AgencyPersonnel**: your id for the linked AgencyPersonnel, present in the same export. |
-| `confidence`          | text | yes      | —                                                | —                                                                                          |
 | `notes`               | text | optional | —                                                | —                                                                                          |
+| `source_namespace`    | text | optional | —                                                | —                                                                                          |
+| `source_id`           | text | optional | —                                                | —                                                                                          |
+| `occurrence_url`      | text | optional | —                                                | —                                                                                          |
+| `correction_reason`   | text | optional | —                                                | —                                                                                          |
 
 ### AgencyPhoneNumber
 
@@ -1033,8 +1119,6 @@ One row per ReviewPersonnel.
 | --------------------- | ------ | -------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------ |
 | `id`                  | text   | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time.                                 |
 | `review_id`           | text   | yes      | —                                                | → **Review**: your id for the linked Review, present in the same export.                   |
-| `created_by`          | text   | optional | —                                                | —                                                                                          |
-| `updated_by`          | text   | optional | —                                                | —                                                                                          |
 | `rating_overall`      | number | optional | —                                                | —                                                                                          |
 | `agency_personnel_id` | text   | yes      | —                                                | → **AgencyPersonnel**: your id for the linked AgencyPersonnel, present in the same export. |
 
@@ -1042,11 +1126,10 @@ One row per ReviewPersonnel.
 
 One row per ReviewLink.
 
-| Field        | Type | Required | Constraints                                      | Relationship / notes                                                     |
-| ------------ | ---- | -------- | ------------------------------------------------ | ------------------------------------------------------------------------ |
-| `id`         | text | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time.               |
-| `review_id`  | text | yes      | —                                                | → **Review**: your id for the linked Review, present in the same export. |
-| `url`        | text | yes      | —                                                | —                                                                        |
-| `title`      | text | yes      | —                                                | —                                                                        |
-| `created_by` | text | optional | —                                                | —                                                                        |
-| `updated_by` | text | optional | —                                                | —                                                                        |
+| Field           | Type | Required | Constraints                                      | Relationship / notes                                                           |
+| --------------- | ---- | -------- | ------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `id`            | text | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time.                     |
+| `review_id`     | text | yes      | —                                                | → **Review**: your id for the linked Review, present in the same export.       |
+| `url`           | text | optional | —                                                | —                                                                              |
+| `title`         | text | optional | —                                                | —                                                                              |
+| `civil_case_id` | text | optional | —                                                | → **CivilCase**: your id for the linked CivilCase, present in the same export. |

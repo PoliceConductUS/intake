@@ -44,12 +44,12 @@ same order.
 
 #### Scenario: Producer precedes its consumers
 
-- **WHEN** a run selects `us-census-gazetteer` (produces `LocationPaths`) and `gov.tx.tcole` (consumes `LocationPaths`)
-- **THEN** `us-census-gazetteer` runs before `gov.tx.tcole`
+- **WHEN** a run selects `gov/census/www2/gazetteer` (produces `LocationPaths`) and `gov/texas/tcole` (consumes `LocationPaths`)
+- **THEN** `gov/census/www2/gazetteer` runs before `gov/texas/tcole`
 
 #### Scenario: Civil-case sources run after the rosters that supply officers
 
-- **WHEN** a run selects `gov.tx.tcole` / `mn-post` (produce `AgencyPersonnel`) and `courtlistener` / `clearinghouse-api` (consume `AgencyPersonnel`)
+- **WHEN** a run selects `gov/texas/tcole` / `com/site/my/mnitservices/post-license-search` (produce `AgencyPersonnel`) and `com/courtlistener/www/api` / `net/clearinghouse/api` (consume `AgencyPersonnel`)
 - **THEN** both roster sources run before both civil-case sources
 
 #### Scenario: Order is stable and independent of glob match order
@@ -68,8 +68,8 @@ resolve-or-fail reference still fails at import time (unchanged).
 
 #### Scenario: A consumer runs alone against persisted state
 
-- **WHEN** an operator runs `intake run courtlistener` and no roster source is selected
-- **THEN** the runtime runs `courtlistener` and does not add a roster source, resolving officers from intake state / the database
+- **WHEN** an operator runs `intake run com/courtlistener/www/api` and no roster source is selected
+- **THEN** the runtime runs `com/courtlistener/www/api` and does not add a roster source, resolving officers from intake state / the database
 
 #### Scenario: Unproduced consumed kind is not an ordering error
 

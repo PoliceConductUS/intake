@@ -49,3 +49,28 @@ test("generates an unchanged 100,000-record education update within a 512 MiB he
   ).toBe(0);
   expect(JSON.parse(result.stdout)).toMatchObject({ count: 0 });
 }, 60_000);
+
+test("generates an unchanged 100,000-record education update read from the database within a 340 MiB heap", () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      "--expose-gc",
+      "--max-old-space-size=340",
+      "--import",
+      "tsx",
+      fileURLToPath(
+        new URL(
+          "./fixtures/generate-unchanged-education-from-database.ts",
+          import.meta.url,
+        ),
+      ),
+    ],
+    { encoding: "utf8", timeout: 55_000 },
+  );
+  expect(result.error).toBeUndefined();
+  expect(
+    result.status,
+    `${result.signal ?? ""}\n${result.stderr.slice(0, 1_000)}`,
+  ).toBe(0);
+  expect(JSON.parse(result.stdout)).toMatchObject({ count: 0 });
+}, 60_000);

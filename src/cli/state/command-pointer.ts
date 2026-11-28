@@ -12,11 +12,27 @@ export async function readCommandPointer(
     const parsed =
       (parseYaml(
         await readFile(path.join(statePath, `${command}.yaml`), "utf8"),
-      ) as CommandPointer | null) ?? {};
-    return {
-      resume: typeof parsed.resume === "string" ? parsed.resume : undefined,
-      latest: typeof parsed.latest === "string" ? parsed.latest : undefined,
-    };
+      ) as unknown) ?? {};
+    if (typeof parsed !== "object" || Array.isArray(parsed))
+      throw new Error(
+        `Invalid ${command} command pointer: expected an object.`,
+      );
+    const pointer: CommandPointer = {};
+    if ("resume" in parsed) {
+      if (typeof parsed.resume !== "string")
+        throw new Error(
+          `Invalid ${command} command pointer: resume must be a string.`,
+        );
+      pointer.resume = parsed.resume;
+    }
+    if ("latest" in parsed) {
+      if (typeof parsed.latest !== "string")
+        throw new Error(
+          `Invalid ${command} command pointer: latest must be a string.`,
+        );
+      pointer.latest = parsed.latest;
+    }
+    return pointer;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
     throw error;

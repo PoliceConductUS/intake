@@ -1,8 +1,7 @@
 import path from "node:path";
-import { pathToFileURL } from "node:url";
 import { readFile } from "node:fs/promises";
 import type { RegisterCliCommand } from "../../shared/cli/types.js";
-import { describeSources } from "../describe-sources.js";
+import { discoverSources } from "../source-discovery.js";
 import {
   RequestStore,
   requestDefinitionSchema,
@@ -11,40 +10,36 @@ import {
   assertCanSubmit,
 } from "./lifecycle.js";
 import { Resend } from "./resend.js";
+import { intakeWorkspace } from "../command-directory.js";
 import {
   portalFormSchema,
   portalProfileSchema,
   submitPortal,
 } from "./portal.js";
 import { createAnalyzer, syncMessages } from "./responses.js";
+import { withParameterStoreSecrets } from "../parameter-store-env.js";
+const env = withParameterStoreSecrets(process.env);
 function required(name: string) {
-  const value = process.env[name];
+  const value = env[name];
   if (!value?.trim()) throw new Error(`${name} is required`);
   return value;
 }
 async function loadSources(source?: string) {
   const root = path.join(process.cwd(), "sources");
-  const catalog = (await describeSources(root)).filter(
+  const catalog = (await discoverSources(root)).filter(
     (entry) =>
       entry.phases.includes("request") && (!source || entry.id === source),
   );
   if (source && !catalog.length)
     throw new Error(`No request source: ${source}`);
-  return Promise.all(
-    catalog.map(async (entry) => {
-      const module = await import(
-        pathToFileURL(path.join(root, entry.id, "request.ts")).href
-      );
-      return {
-        id: entry.id,
-        definition: requestDefinitionSchema.parse(module.request),
-        portalForm:
-          module.portalForm === undefined
-            ? undefined
-            : portalFormSchema.parse(module.portalForm),
-      };
-    }),
-  );
+  return catalog.map(({ id, source: module }) => ({
+    id,
+    definition: requestDefinitionSchema.parse(module.request),
+    portalForm:
+      module.portalForm === undefined
+        ? undefined
+        : portalFormSchema.parse(module.portalForm),
+  }));
 }
 export const registerCliCommand: RegisterCliCommand = (
   program,
@@ -73,7 +68,7 @@ export const registerCliCommand: RegisterCliCommand = (
     .action(
       run(async (source: string, options: { force?: boolean }) => {
         const [entry] = await loadSources(source);
-        const store = new RequestStore(required("INTAKE_WORKSPACE"));
+        const store = new RequestStore(intakeWorkspace(env));
         await store.importHistory(entry.id, entry.definition);
         assertCanSubmit(
           await store.list(entry.id),
@@ -134,7 +129,7 @@ export const registerCliCommand: RegisterCliCommand = (
     .action(
       run(async (source: string | undefined, options: { json?: boolean }) => {
         const entries = await loadSources(source);
-        const store = new RequestStore(required("INTAKE_WORKSPACE"));
+        const store = new RequestStore(intakeWorkspace(env));
         for (const entry of entries)
           await store.importHistory(entry.id, entry.definition);
         const rows = (
@@ -188,7 +183,7 @@ export const registerCliCommand: RegisterCliCommand = (
               "--request-id and --email-id must be supplied together",
             );
           const entries = await loadSources(source);
-          const store = new RequestStore(required("INTAKE_WORKSPACE"));
+          const store = new RequestStore(intakeWorkspace(env));
           for (const entry of entries)
             await store.importHistory(entry.id, entry.definition);
           if (options.requestId) {

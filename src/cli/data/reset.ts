@@ -3,6 +3,7 @@ import { rename } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { CommandResult } from "../../shared/cli/types.js";
+import type { ImportArtifactKind } from "../../shared/io/index.js";
 import {
   createCommandDirectory,
   intakeWorkspace,
@@ -10,23 +11,34 @@ import {
 import { orderedSourceIds, transformOneSource } from "./source-pipeline.js";
 
 import { retainedAcquiredInputs } from "./acquired-inputs.js";
-import { loadSourceStandalone } from "../transform/load-source-module.js";
+import {
+  loadSourceProduces,
+  loadSourceStandalone,
+} from "../transform/load-source-module.js";
 import {
   readCommandPointer,
   writeCommandPointer,
 } from "../state/command-pointer.js";
+import {
+  createCommandLog,
+  recordCommandError,
+  type CommandLogger,
+  type TerminalStream,
+} from "../../logging.js";
 
 type ResetOptions = { acquire: boolean };
 type ResetDependencies = {
   env: Record<string, string | undefined>;
-  logger: { info(message: string): void };
+  terminal: TerminalStream | false;
   orderedSourceIds?: () => Promise<string[]>;
   acquiredInputs?: (source: string) => Promise<string[] | null>;
+  sourceProduces?: (source: string) => Promise<readonly ImportArtifactKind[]>;
   resetDatabase?: (env: Record<string, string | undefined>) => Promise<void>;
   runDataCommand?: (
     args: readonly string[],
     context?: {
       useInitialAgencyRoots: boolean;
+      keepCachedCallResults: boolean;
     },
   ) => Promise<CommandResult>;
   prepareManualLocations?: () => Promise<CommandResult>;
@@ -40,7 +52,7 @@ export async function resetConfiguredDatabase(
     new URL("../../../node_modules/.bin/supabase", import.meta.url),
   );
   const target = new URL(env.DATABASE_URL!);
-  // Supabase's --db-url assumes TLS, unlike the local Postgres connection.
+  // Supabase's remote URL assumes TLS, unlike the local Postgres connection.
   if (
     ["localhost", "127.0.0.1", "[::1]"].includes(target.hostname) &&
     !target.searchParams.has("sslmode")
@@ -50,7 +62,7 @@ export async function resetConfiguredDatabase(
   await new Promise<void>((resolve, reject) => {
     const child = spawn(
       binary,
-      ["db", "reset", "--db-url", target.toString(), "--no-seed", "--yes"],
+      ["db", "reset", `--remote=${target.toString()}`, "--no-seed", "--yes"],
       {
         env: {
           ...process.env,
@@ -76,8 +88,10 @@ export async function resetData(
   options: ResetOptions,
   dependencies: ResetDependencies,
 ): Promise<CommandResult> {
-  const { env, logger } = dependencies;
+  const { env } = dependencies;
   let phase = "preparation";
+  let commandLogger: CommandLogger | undefined;
+  let closeLog: (() => void) | undefined;
   try {
     const workspace = intakeWorkspace(env);
     if (!env.DATABASE_URL?.trim())
@@ -86,12 +100,37 @@ export async function resetData(
     const command = await createCommandDirectory(env, {
       args: ["data", "reset", ...(options.acquire ? [] : ["--no-acquire"])],
     });
+    const { logger, close } = createCommandLog(
+      command,
+      env,
+      dependencies.terminal,
+    );
+    commandLogger = logger;
+    closeLog = close;
     const runDataCommand =
       dependencies.runDataCommand ??
       (async (args, context) => {
         const { runIntake } = await import("../run-intake.js");
         return runIntake(args, context);
       });
+
+    const executePhase = async (args: string[]) => {
+      phase = args.join(" ");
+      logger.info(`data reset: ${phase}`);
+      const result = await runDataCommand(args, {
+        useInitialAgencyRoots: true,
+        keepCachedCallResults: !options.acquire,
+      });
+      if (result.exitCode !== 0)
+        throw new Error(result.stderr?.trim() || `${phase} failed.`);
+      if (result.stdout?.trim()) logger.info(result.stdout.trim());
+    };
+    const acquiredInputs =
+      dependencies.acquiredInputs ??
+      (async (id: string) =>
+        (await loadSourceStandalone(id, path.join(process.cwd(), "sources")))
+          ? null
+          : retainedAcquiredInputs(workspace, id));
 
     phase = "schema reset";
     logger.info(
@@ -108,27 +147,9 @@ export async function resetData(
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
 
-    const executePhase = async (args: string[]) => {
-      phase = args.join(" ");
-      logger.info(`data reset: ${phase}`);
-      const result = await runDataCommand(args, {
-        useInitialAgencyRoots: true,
-      });
-      if (result.exitCode !== 0)
-        throw new Error(result.stderr?.trim() || `${phase} failed.`);
-      if (result.stdout?.trim()) logger.info(result.stdout.trim());
-    };
-    for (const source of [...sources, "org.policeconduct.manual"]) {
-      if (options.acquire && source !== "org.policeconduct.manual")
-        await executePhase(["data", "acquire", source]);
+    const rebuildSource = async (source: string) => {
       phase = `inventory acquisitions ${source}`;
-      const inputs = await (
-        dependencies.acquiredInputs ??
-        (async (id: string) =>
-          (await loadSourceStandalone(id, path.join(process.cwd(), "sources")))
-            ? null
-            : retainedAcquiredInputs(workspace, id))
-      )(source);
+      const inputs = await acquiredInputs(source);
       const state = path.join(workspace, "state", source);
       const pointer =
         inputs === null ? null : await readCommandPointer(state, "acquire");
@@ -151,16 +172,29 @@ export async function resetData(
         if (pointer !== null)
           await writeCommandPointer(state, "acquire", pointer);
       }
-      if (source === "us-census-gazetteer") {
+    };
+    const sourceProduces =
+      dependencies.sourceProduces ??
+      ((id: string) =>
+        loadSourceProduces(id, path.join(process.cwd(), "sources")));
+    let lastLocationProducer: string | undefined;
+    for (const source of sources) {
+      if ((await sourceProduces(source)).includes("LocationPaths"))
+        lastLocationProducer = source;
+    }
+    for (const source of sources) {
+      if (options.acquire) await executePhase(["data", "acquire", source]);
+      await rebuildSource(source);
+      if (source === lastLocationProducer) {
         phase = "preparing manual locations";
         logger.info(`data reset: ${phase}`);
         const prepared = await (
           dependencies.prepareManualLocations ??
           (async () => {
             const result = await transformOneSource(
-              "org.policeconduct.manual",
+              "org/policeconduct/manual",
               env,
-              logger,
+              dependencies.terminal,
               ["LocationPaths", "LocationPathAliases"],
             );
             return "error" in result ? result.error : { exitCode: 0 };
@@ -170,18 +204,22 @@ export async function resetData(
           throw new Error(
             prepared.stderr?.trim() || "Manual location preparation failed.",
           );
-        await executePhase(["data", "generate", "org.policeconduct.manual"]);
+        await executePhase(["data", "generate", "org/policeconduct/manual"]);
         await executePhase(["data", "up"]);
       }
     }
+    await rebuildSource("org/policeconduct/manual");
     return {
       exitCode: 0,
       stdout: `data reset: rebuilt ${sources.length} source(s) and manual records${options.acquire ? "" : " without acquisition"}.\n`,
     };
   } catch (error) {
+    if (commandLogger !== undefined) recordCommandError(commandLogger, error);
     return {
       exitCode: 1,
       stderr: `data reset: rebuild incomplete at ${phase}: ${error instanceof Error ? error.message : String(error)}\n`,
     };
+  } finally {
+    closeLog?.();
   }
 }

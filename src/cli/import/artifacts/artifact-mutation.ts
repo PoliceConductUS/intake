@@ -20,8 +20,7 @@ export type ArtifactMutationReference = {
 };
 
 export type ApplyArtifactMutationResult =
-  | { applied: false }
-  | { applied: true; reference: ArtifactMutationReference };
+  { applied: false } | { applied: true; reference: ArtifactMutationReference };
 
 type ArtifactMutationItem = ArtifactMutationSpec;
 type ArtifactMutationEntityName = "agencies" | "personnel" | "agencyPersonnel";

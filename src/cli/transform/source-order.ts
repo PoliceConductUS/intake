@@ -1,5 +1,5 @@
 import { importTypeMetadata } from "../../shared/io/import-type-metadata.js";
-import { FK_REFERENCES } from "../../shared/io/generated/entity-specs.js";
+import { FK_REFERENCES } from "../../shared/io/entity-specs.js";
 import type { ImportArtifactKind } from "../../shared/io/index.js";
 
 export type SourceProduces = {

@@ -1,4 +1,4 @@
-import { afterEach, describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, expectTypeOf } from "vitest";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import {
@@ -8,6 +8,9 @@ import {
 } from "../../../src/cli/transform/load-source-module.js";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+
+import type { IntakeSource } from "../../../src/cli/intake-source.js";
+import type { SourceTransform } from "../../../src/cli/transform/source-transform.js";
 
 const sourcesRoot = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -23,12 +26,15 @@ afterEach(async () => {
 
 async function writeTransformSource(
   id: string,
-  transformBody: string,
+  properties: string,
 ): Promise<string> {
   const root = await mkdtemp(path.join(tmpdir(), "produces-"));
   tempRoots.push(root);
   await mkdir(path.join(root, id), { recursive: true });
-  await writeFile(path.join(root, id, "transform.ts"), transformBody);
+  await writeFile(
+    path.join(root, id, "intake.source.ts"),
+    `export const source = { transform() {}, ${properties} };`,
+  );
   return root;
 }
 
@@ -38,6 +44,15 @@ describe("loadSourceModule", () => {
     expect(typeof transform).toBe("function");
   });
 
+  it("requires a marker for a directly selected phase module", async () => {
+    const id = "org/example/roster";
+    const root = await writeTransformSource(id, "produces: []");
+    expect(typeof (await loadSourceModule(id, root))).toBe("function");
+    await rm(path.join(root, id, "intake.source.ts"));
+    await expect(loadSourceModule(id, root)).rejects.toThrow(
+      /intake.source.ts/,
+    );
+  });
   it("fails clearly for an unknown source id", async () => {
     await expect(loadSourceModule("missing", sourcesRoot)).rejects.toThrow(
       /missing/,
@@ -77,10 +92,19 @@ describe("loadSourceAcquire", () => {
 });
 
 describe("loadSourceProduces", () => {
+  it("requires each transform to declare its output kinds in the source contract", () => {
+    expectTypeOf<{
+      transform: SourceTransform;
+    }>().not.toMatchTypeOf<IntakeSource>();
+    expectTypeOf<{
+      transform: SourceTransform;
+      produces: [];
+    }>().toMatchTypeOf<IntakeSource>();
+  });
   it("returns the declared produces kinds", async () => {
     const root = await writeTransformSource(
       "s",
-      `export const transform = () => {};\nexport const produces = ["Agencies", "Personnel"];\n`,
+      'produces: ["Agencies", "Personnel"]',
     );
     await expect(loadSourceProduces("s", root)).resolves.toEqual([
       "Agencies",
@@ -89,25 +113,19 @@ describe("loadSourceProduces", () => {
   });
 
   it("fails when produces is missing", async () => {
-    const root = await writeTransformSource(
-      "s",
-      `export const transform = () => {};\n`,
-    );
+    const root = await writeTransformSource("s", "");
     await expect(loadSourceProduces("s", root)).rejects.toThrow(/produces/);
   });
 
   it("allows an empty produces (a disabled/no-op source)", async () => {
-    const root = await writeTransformSource(
-      "s",
-      `export const transform = () => {};\nexport const produces = [];\n`,
-    );
+    const root = await writeTransformSource("s", "produces: []");
     await expect(loadSourceProduces("s", root)).resolves.toEqual([]);
   });
 
   it("fails when produces names an unknown kind", async () => {
     const root = await writeTransformSource(
       "s",
-      `export const transform = () => {};\nexport const produces = ["Agencies", "Nonsense"];\n`,
+      'produces: ["Agencies", "Nonsense"]',
     );
     await expect(loadSourceProduces("s", root)).rejects.toThrow(
       /unknown kind: Nonsense/,

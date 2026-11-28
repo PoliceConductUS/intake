@@ -7,8 +7,7 @@ import { importArtifacts as importCompleted } from "../../src/cli/import/artifac
 export async function importArtifacts(
   input: Parameters<typeof importCompleted>[0],
 ) {
-  const workspace =
-    input.env?.INTAKE_WORKSPACE_TEST ?? input.env?.INTAKE_WORKSPACE;
+  const workspace = input.env?.INTAKE_WORKSPACE;
   if (workspace === undefined)
     throw new Error("Import test fixture requires a workspace.");
   const artifacts = await Artifacts.read(input.artifactsPath, { raw: true });

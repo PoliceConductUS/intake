@@ -96,7 +96,7 @@ agency or assignment beyond the included agency graph.
 
 ### Requirement: Acquire preserves and reads every disciplinary order document
 
-The `sources/mn-post/acquire.ts` phase MUST download the document behind every
+The `sources/com/site/my/mnitservices/post-license-search/acquire.ts` phase MUST download the document behind every
 disciplinary action's `documentURL`, preserve it unchanged as
 `documents/<stem>.pdf`, extract its text page by page (the embedded text
 layer, or OCR of a page without one), have the text analyzed for what the
@@ -176,7 +176,7 @@ it.
 ### Requirement: Discipline carries what its order says
 
 The `discipline` table MUST have nullable `allegation`, `violation`,
-`finding`, `chief_action`, and `sanction` columns, and the mn-post transform
+`finding`, `chief_action`, and `sanction` columns, and the com/site/my/mnitservices/post-license-search transform
 MUST fill them on each `Discipline` record from the document record whose URL
 matches the action's `documentURL`, null when there is no such record or the
 field is null.

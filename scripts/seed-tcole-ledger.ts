@@ -1,3 +1,4 @@
+import { intakeWorkspace } from "../src/cli/command-directory.js";
 import { seedLedgerFromIdentityMaps } from "../src/cli/state/source-name-to-canonical-id/seed-from-identity-maps.js";
 
 /**
@@ -7,7 +8,7 @@ import { seedLedgerFromIdentityMaps } from "../src/cli/state/source-name-to-cano
  *
  * Usage:
  *   INTAKE_WORKSPACE=/abs/workspace \
- *     tsx scripts/seed-tcole-ledger.ts gov.tx.tcole /abs/identity/sources/tcole
+ *     tsx scripts/seed-tcole-ledger.ts gov/texas/tcole /abs/identity/sources/tcole
  */
 const [namespace, identityDir] = process.argv.slice(2);
 if (namespace === undefined || identityDir === undefined) {
@@ -17,7 +18,9 @@ if (namespace === undefined || identityDir === undefined) {
   process.exit(1);
 }
 
-const counts = await seedLedgerFromIdentityMaps(namespace, identityDir);
+const counts = await seedLedgerFromIdentityMaps(namespace, identityDir, {
+  rootDir: intakeWorkspace(process.env),
+});
 console.log(
   `Seeded ${namespace} ledger: ${counts.agencies} agencies, ${counts.personnel} personnel, ${counts.agencyPersonnel} agency-personnel.`,
 );

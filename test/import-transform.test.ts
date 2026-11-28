@@ -60,7 +60,10 @@ function artifactsWithEntities(entities: EntityMaps): ArtifactsEnvelope {
   return {
     apiVersion: "policeconduct.org/intake/v1alpha1",
     kind: "Artifacts",
-    metadata: { name: "test-run", namespace: "mn-post" },
+    metadata: {
+      name: "test-run",
+      namespace: "com/site/my/mnitservices/post-license-search",
+    },
     spec: {
       artifacts: Object.entries(entities).map(([entityName, records]) => ({
         kind: kindByEntityName[entityName as keyof EntityMaps],

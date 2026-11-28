@@ -1,6 +1,8 @@
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { Command } from "../../shared/io/Command.js";
+import { assertValidSourceId } from "../../shared/source-namespace.js";
+import { hasCompletedAcquisition } from "../acquire/acquisition-completion.js";
 import { readCommandPointer } from "../state/command-pointer.js";
 
 async function isDirectory(directory: string): Promise<boolean> {
@@ -12,37 +14,44 @@ async function isDirectory(directory: string): Promise<boolean> {
   }
 }
 
-/** Retained snapshots through the latest completed acquisition, in acquisition order. */
+/** Retained outputs of successful acquire executions, in command order. */
 export async function retainedAcquiredInputs(
   workspace: string,
   source: string,
 ): Promise<string[]> {
-  const { latest, resume } = await readCommandPointer(
+  assertValidSourceId(source);
+  const { latest } = await readCommandPointer(
     path.join(workspace, "state", source),
     "acquire",
   );
-  if (latest === undefined)
-    throw new Error(`${source}: no completed acquisition.`);
-  const parts = latest.split(path.sep);
-  if (
-    parts.length !== 4 ||
-    parts[0] !== "command" ||
-    parts[2] !== source ||
-    parts[3] !== "output" ||
-    !/^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z-/.test(parts[1])
-  )
-    throw new Error(`${source}: invalid acquisition path ${latest}.`);
-  if (!(await isDirectory(path.join(workspace, latest))))
-    throw new Error(`${source}: latest acquired output is missing: ${latest}.`);
-  const inputs: string[] = [];
-  for (const entry of (
-    await readdir(path.join(workspace, "command"), { withFileTypes: true })
-  ).sort((a, b) => a.name.localeCompare(b.name))) {
-    if (!entry.isDirectory() || entry.name > parts[1]) continue;
-    const relative = path.join("command", entry.name, source, "output");
+  const chronological = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z-/;
+  if (latest !== undefined) {
+    const run = latest.split(path.sep)[1];
     if (
-      relative === resume ||
-      !(await isDirectory(path.join(workspace, relative)))
+      !run ||
+      !chronological.test(run) ||
+      latest !== path.join("command", run, source, "output")
+    ) {
+      throw Error(`${source}: invalid acquisition path ${latest}.`);
+    }
+    if (!(await isDirectory(path.join(workspace, latest))))
+      throw Error(`${source}: latest acquired output is missing: ${latest}.`);
+  }
+  const inputs: string[] = [];
+  const commands = path.join(workspace, "command");
+  const entries = await readdir(commands, { withFileTypes: true }).catch(
+    (error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return [];
+      throw error;
+    },
+  );
+  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+    if (!entry.isDirectory()) continue;
+    const relative = path.join("command", entry.name, source, "output");
+    const output = path.join(workspace, relative);
+    if (
+      !(await hasCompletedAcquisition(output)) ||
+      !(await isDirectory(output))
     )
       continue;
     const directory = path.join(workspace, "command", entry.name);
@@ -59,16 +68,19 @@ export async function retainedAcquiredInputs(
       !(args[0] === "acquire" && args[1] === source) &&
       !(args[0] === "data" && args[1] === "acquire" && args[2] === source)
     )
-      continue;
-    if (!/^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z-/.test(entry.name))
+      throw Error(
+        `Completed acquisition refers to a different command at ${directory}.`,
+      );
+    if (!chronological.test(entry.name))
       throw new Error(
         `Acquisition has no chronological command name: ${entry.name}.`,
       );
     inputs.push(relative);
   }
-  if (!inputs.includes(latest))
+  if (latest !== undefined && !inputs.includes(latest))
     throw new Error(
       `${source}: latest acquisition Command is missing or invalid: ${latest}.`,
     );
+  if (!inputs.length) throw Error(`${source}: no completed acquisition.`);
   return inputs;
 }

@@ -1,4 +1,4 @@
-import { access, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
@@ -8,7 +8,7 @@ import {
   AgencySpec,
   read as readAgencies,
   write as writeAgencies,
-} from "../../src/shared/io/generated/Agencies.js";
+} from "../../src/shared/io/Agencies.js";
 
 async function createTempRoot(): Promise<string> {
   return mkdtemp(path.join(tmpdir(), "intake-artifacts-"));
@@ -21,7 +21,7 @@ describe("canonical import artifact reader and writer", () => {
     const result = await writeAgencies(rootDir, {
       metadata: {
         name: "test-run",
-        namespace: "mn-post",
+        namespace: "com/site/my/mnitservices/post-license-search",
       },
       spec: {
         records: {
@@ -52,7 +52,7 @@ describe("canonical import artifact reader and writer", () => {
 
     const artifact = await readAgencies(artifactPath, {
       expectedKind: "Agencies",
-      expectedNamespace: "mn-post",
+      expectedNamespace: "com/site/my/mnitservices/post-license-search",
       expectedSha256: result.sha256,
     });
 
@@ -60,7 +60,7 @@ describe("canonical import artifact reader and writer", () => {
       kind: "Agencies",
       metadata: {
         name: "test-run",
-        namespace: "mn-post",
+        namespace: "com/site/my/mnitservices/post-license-search",
       },
       spec: {
         records: {
@@ -86,7 +86,7 @@ describe("canonical import artifact reader and writer", () => {
       writeAgencies(rootDir, {
         metadata: {
           name: "test-run",
-          namespace: "mn-post",
+          namespace: "com/site/my/mnitservices/post-license-search",
         },
         spec: {
           records: {
@@ -117,7 +117,7 @@ describe("canonical import artifact reader and writer", () => {
         "kind: Agency",
         "metadata:",
         "  name: agency-source-id",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  name: Baxter Police Dept.",
         "  state: MN",
@@ -131,7 +131,7 @@ describe("canonical import artifact reader and writer", () => {
         "kind: Agencies",
         "metadata:",
         "  name: test-run",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  records:",
         "    agency-source-id:",
@@ -162,7 +162,7 @@ describe("canonical import artifact reader and writer", () => {
         "kind: Agency",
         "metadata:",
         "  name: agency-source-id",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  name: Baxter Police Dept.",
         "  state: MN",
@@ -175,7 +175,7 @@ describe("canonical import artifact reader and writer", () => {
         "kind: Agencies",
         "metadata:",
         "  name: test-run",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  records:",
         "    agency-source-id:",
@@ -212,7 +212,7 @@ describe("canonical import artifact reader and writer", () => {
         "kind: Agency",
         "metadata:",
         "  name: agency-source-id",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  name: Baxter Police Dept.",
         "  state: MN",
@@ -225,10 +225,16 @@ describe("canonical import artifact reader and writer", () => {
           path: `records/${yamlResourceFileName("agency-source-id", "Agency")}`,
           kind: "Agency",
         },
-        { relativeTo: parentPath, expectedNamespace: "mn-post" },
+        {
+          relativeTo: parentPath,
+          expectedNamespace: "com/site/my/mnitservices/post-license-search",
+        },
       ),
     ).resolves.toMatchObject({
-      metadata: { name: "agency-source-id", namespace: "mn-post" },
+      metadata: {
+        name: "agency-source-id",
+        namespace: "com/site/my/mnitservices/post-license-search",
+      },
       spec: { name: "Baxter Police Dept.", state: "MN" },
     });
   });
@@ -245,7 +251,7 @@ describe("canonical import artifact reader and writer", () => {
       {
         metadata: {
           name: "test-run",
-          namespace: "mn-post",
+          namespace: "com/site/my/mnitservices/post-license-search",
         },
         spec: {
           records: {
@@ -299,13 +305,13 @@ describe("canonical import artifact reader and writer", () => {
         "kind: Agencies",
         "metadata:",
         "  name: test-run",
-        "  namespace: mn-post",
+        "  namespace: com/site/my/mnitservices/post-license-search",
         "spec:",
         "  records:",
         "    agency-source-id:",
         "      metadata:",
         "        name: agency-source-id",
-        "        namespace: mn-post",
+        "        namespace: com/site/my/mnitservices/post-license-search",
         "      spec:",
         "        name: Baxter Police Dept.",
         "        state: MN",
@@ -318,31 +324,26 @@ describe("canonical import artifact reader and writer", () => {
   });
 
   test("generated shared IO excludes source module command files", async () => {
-    await expect(
-      access(
-        path.join(
-          process.cwd(),
-          "src",
-          "shared",
-          "io",
-          "generated",
-          "Command.ts",
-        ),
-      ),
-    ).rejects.toMatchObject({ code: "ENOENT" });
+    const directory = path.join(process.cwd(), "src", "shared", "io");
+    const generatedFiles: string[] = [];
+    const commandFiles: string[] = [];
+    for (const name of await readdir(directory)) {
+      if (!name.endsWith(".ts")) continue;
+      const contents = await readFile(path.join(directory, name), "utf8");
+      if (
+        !contents.startsWith(
+          "// Generated by scripts/generate-envelope-types.ts. Do not edit.\n",
+        )
+      ) {
+        continue;
+      }
+      generatedFiles.push(name);
+      if (name === "Command.ts" || contents.includes("Command")) {
+        commandFiles.push(name);
+      }
+    }
 
-    await expect(
-      readFile(
-        path.join(
-          process.cwd(),
-          "src",
-          "shared",
-          "io",
-          "generated",
-          "index.ts",
-        ),
-        "utf8",
-      ),
-    ).resolves.not.toContain("Command");
+    expect(generatedFiles.length).toBeGreaterThan(0);
+    expect(commandFiles).toEqual([]);
   });
 });

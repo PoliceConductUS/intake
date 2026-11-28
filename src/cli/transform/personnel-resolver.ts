@@ -1,3 +1,4 @@
+import { expandAgencyAbbreviations } from "../import/artifacts/case-normalization.js";
 import { rowsFromResult, type DatabaseClient } from "../database/index.js";
 import type { SourceNameToCanonicalIdLedger } from "../state/source-name-to-canonical-id/index.js";
 import type {
@@ -46,6 +47,7 @@ function agencyLocation(
  * minting happen here, where the canonical id is known; only the source id
  * crosses back to the source.
  */
+
 export function createTransformDataContext(
   client: DatabaseClient,
   ledger: SourceNameToCanonicalIdLedger,
@@ -146,8 +148,8 @@ export function createTransformDataContext(
       // Match an agency by name, normalizing both sides (lowercase, non-alnum →
       // single space) so punctuation/casing never blocks a hit. A unique match
       // mints (or reuses) its source id (ADR 0023); anything else — no match or
-      // more than one agency sharing the name — is null (resolve-or-fail).
-      const normalized = agencyName
+      // more than one agency sharing the name — is null.
+      const normalized = expandAgencyAbbreviations(agencyName)
         .trim()
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, " ")

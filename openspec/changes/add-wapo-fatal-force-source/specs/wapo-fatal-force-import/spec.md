@@ -2,7 +2,7 @@
 
 ### Requirement: Acquire pins an upstream commit and preserves file provenance
 
-The `sources/org.washingtonpost.fatal-force/acquire.ts` phase MUST download the
+The `sources/org/washingtonpost/fatal-force/acquire.ts` phase MUST download the
 two v2 files — `fatal-police-shootings-data.csv` and
 `fatal-police-shootings-agencies.csv` — from an **explicit upstream commit SHA**,
 never from a moving branch ref. It MUST preserve the original bytes unmodified

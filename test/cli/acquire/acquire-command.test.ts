@@ -1,4 +1,12 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
+import {
+  mkdtemp,
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,6 +15,7 @@ import { acquireSource } from "../../../src/cli/acquire/index.js";
 import type { AcquireDeps } from "../../../src/cli/transform/source-transform.js";
 import { loadSourceAcquire } from "../../../src/cli/transform/load-source-module.js";
 import { parse as parseYaml } from "yaml";
+import { readLogRecords, wasLogOpen } from "../command-log.js";
 
 const fixtureSourcesRoot = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -62,7 +71,7 @@ function baseDeps(workspace: string, overrides = {}) {
     loadSourceAcquire,
     createCommandDirectory: fakeCreateCommandDirectory("cmd-1"),
     data: { agencies: async () => ({ items: [] }) },
-    logger: { info: () => {} },
+    terminal: false as const,
     ...overrides,
   };
 }
@@ -120,6 +129,12 @@ describe("acquireSource", () => {
     expect(result.exitCode).toBe(0);
     const outputRel = "command/cmd-1/acquire-source/output";
     expect(
+      await readFile(
+        path.join(workspace, "command/cmd-1/acquire-source/acquire-complete"),
+        "utf8",
+      ),
+    ).toBe("");
+    expect(
       JSON.parse(
         await readFile(path.join(workspace, outputRel, "roster.json"), "utf8"),
       ),
@@ -132,6 +147,78 @@ describe("acquireSource", () => {
       ),
     );
     expect(pointer).toEqual({ latest: outputRel });
+  });
+
+  it("hands the source clients that keep results under its namespace and name the command", async () => {
+    const workspace = await makeWorkspace();
+    vi.stubGlobal("fetch", async () => new Response("hello"));
+    const result = await acquireSource(
+      "acquire-source",
+      baseDeps(workspace, {
+        loadSourceAcquire: async () => async (deps: AcquireDeps) => {
+          const download = await deps.clients.download.download(
+            "https://files.example.org/a.txt",
+          );
+          if (download.status !== "succeeded") throw new Error(download.status);
+          await writeFile(
+            path.join(deps.sourceDir, "command.txt"),
+            download.outcome.commandId,
+          );
+        },
+      }),
+    );
+    vi.unstubAllGlobals();
+
+    expect(result).toEqual({ exitCode: 0 });
+    expect(
+      await readFile(
+        path.join(workspace, "command/cmd-1/acquire-source/output/command.txt"),
+        "utf8",
+      ),
+    ).toBe("cmd-1");
+    expect(
+      (
+        await readdir(
+          path.join(
+            workspace,
+            "state/intake/namespaces/acquire-source/BinaryFile",
+          ),
+        )
+      ).sort(),
+    ).toEqual([
+      // sha256("hello")
+      "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824.BinaryFile.yaml",
+      "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824.txt",
+    ]);
+  });
+
+  it("ends by naming a service that went down, and still succeeds", async () => {
+    const workspace = await makeWorkspace();
+    vi.stubGlobal("fetch", async (url: string) =>
+      new URL(url).pathname === "/"
+        ? new Response("")
+        : new Response("", {
+            status: 503,
+            headers: { "retry-after": "0" },
+          }),
+    );
+    const result = await acquireSource(
+      "acquire-source",
+      baseDeps(workspace, {
+        loadSourceAcquire: async () => async (deps: AcquireDeps) => {
+          const download = await deps.clients.download.download(
+            "https://files.example.org/a.txt",
+          );
+          if (download.status !== "skipped") throw new Error(download.status);
+        },
+      }),
+    );
+    vi.unstubAllGlobals();
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(
+      /^acquire-source: download files\.example\.org: went down at \S+; 1 call\(s\) skipped\. Try again after \S+\.\n$/,
+    );
   });
 
   it("resumes a prior in-progress acquire and reports how to start fresh", async () => {
@@ -155,7 +242,9 @@ describe("acquireSource", () => {
     const logged: string[] = [];
     const result = await acquireSource(
       "acquire-source",
-      baseDeps(workspace, { logger: { info: (m: string) => logged.push(m) } }),
+      baseDeps(workspace, {
+        terminal: { write: (m: string) => logged.push(m) },
+      }),
     );
 
     expect(result.exitCode).toBe(0);
@@ -199,5 +288,114 @@ describe("acquireSource", () => {
     );
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/network down/);
+    await expect(
+      readFile(
+        path.join(workspace, "command/cmd-1/acquire-source/acquire-complete"),
+      ),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("writes each line it prints to <command-name>.log in the command folder", async () => {
+    const workspace = await makeWorkspace();
+    const printed: string[] = [];
+    const result = await acquireSource(
+      "acquire-source",
+      baseDeps(workspace, {
+        terminal: { write: (text: string) => printed.push(text) },
+      }),
+    );
+    expect(result.exitCode).toBe(0);
+    expect(printed).toEqual(["acquire-source: wrote roster.json\n"]);
+    const records = await readLogRecords(
+      path.join(workspace, "command/cmd-1/cmd-1.log"),
+    );
+    expect(records.map((record) => record.msg)).toEqual([
+      "acquire-source: wrote roster.json",
+    ]);
+    expect(
+      await wasLogOpen(path.join(workspace, "command/cmd-1/cmd-1.log")),
+    ).toBe(false);
+  });
+
+  it("writes each record to the file before the source continues", async () => {
+    const workspace = await makeWorkspace();
+    const logPath = path.join(workspace, "command/cmd-1/cmd-1.log");
+    let onDisk = "";
+    const result = await acquireSource(
+      "acquire-source",
+      baseDeps(workspace, {
+        loadSourceAcquire: vi.fn(async () => async (deps: AcquireDeps) => {
+          deps.logger?.info("fetched page 1");
+          onDisk = readFileSync(logPath, "utf8");
+        }),
+      }),
+    );
+    expect(result.exitCode).toBe(0);
+    expect(onDisk).toContain('"msg":"fetched page 1"');
+  });
+
+  it.each([
+    ["warn", []],
+    ["info", ["fetched page 1\n"]],
+    ["debug", ["fetched page 1\n"]],
+    ["trace", ["fetched page 1\n"]],
+  ])(
+    "at LOG_LEVEL %s prints and logs the progress lines %j",
+    async (level, expected) => {
+      const workspace = await makeWorkspace();
+      const printed: string[] = [];
+      const result = await acquireSource(
+        "acquire-source",
+        baseDeps(workspace, {
+          env: { INTAKE_WORKSPACE: workspace, LOG_LEVEL: level },
+          terminal: { write: (text: string) => printed.push(text) },
+          loadSourceAcquire: vi.fn(async () => async (deps: AcquireDeps) => {
+            deps.logger?.info("fetched page 1");
+          }),
+        }),
+      );
+      expect(result.exitCode).toBe(0);
+      expect(printed).toEqual(expected);
+      expect(
+        (
+          await readLogRecords(path.join(workspace, "command/cmd-1/cmd-1.log"))
+        ).map((record) => `${String(record.msg)}\n`),
+      ).toEqual(expected);
+    },
+  );
+
+  it("records the thrown error as the last record of its log without printing it twice", async () => {
+    const workspace = await makeWorkspace();
+    const printed: string[] = [];
+    const result = await acquireSource(
+      "acquire-source",
+      baseDeps(workspace, {
+        terminal: { write: (text: string) => printed.push(text) },
+        loadSourceAcquire: vi.fn(async () => async (deps: AcquireDeps) => {
+          deps.logger?.info("fetched page 1");
+          throw new Error("HTTP 503 on page 2");
+        }),
+      }),
+    );
+    expect(result).toEqual({ exitCode: 1, stderr: "HTTP 503 on page 2\n" });
+    expect(printed).toEqual(["fetched page 1\n"]);
+    const records = await readLogRecords(
+      path.join(workspace, "command/cmd-1/cmd-1.log"),
+    );
+    expect(records.map((record) => record.msg)).toEqual([
+      "fetched page 1",
+      undefined,
+    ]);
+    expect(records.at(-1)).toMatchObject({
+      level: 50,
+      error: {
+        type: "Error",
+        message: "HTTP 503 on page 2",
+        stack: expect.stringContaining("Error: HTTP 503 on page 2\n    at "),
+      },
+    });
+    expect(
+      await wasLogOpen(path.join(workspace, "command/cmd-1/cmd-1.log")),
+    ).toBe(false);
   });
 });

@@ -48,6 +48,22 @@ describe("AI complaint summary intake contract", () => {
       ai_complaint_summary: summary,
     });
   });
+  it("accepts only summary text and complaint link", () => {
+    const minimal = {
+      summary: summary.summary,
+      source: { sourcePage: summary.source.sourcePage },
+    };
+    expect(
+      CivilCaseSpec.parse({ ...record, ai_complaint_summary: minimal })
+        .ai_complaint_summary,
+    ).toEqual(minimal);
+    expect(
+      CivilCaseSpec.safeParse({
+        ...record,
+        ai_complaint_summary: { ...minimal, summary: " " },
+      }).success,
+    ).toBe(false);
+  });
   it("allows cases with no AI summary", () => {
     expect(
       CivilCaseSpec.safeParse({ ...record, ai_complaint_summary: null })
@@ -55,13 +71,13 @@ describe("AI complaint summary intake contract", () => {
     ).toBe(true);
   });
   for (const field of Object.keys(summary.source)) {
-    it(`rejects missing source ${field}`, () => {
+    it(`requires only the complaint link; source ${field}`, () => {
       const incomplete = structuredClone(summary);
       delete (incomplete.source as Record<string, unknown>)[field];
       expect(
         CivilCaseSpec.safeParse({ ...record, ai_complaint_summary: incomplete })
           .success,
-      ).toBe(false);
+      ).toBe(field != "sourcePage");
     });
   }
   it.each(["javascript:alert(1)", "not a URL"])(
@@ -78,7 +94,7 @@ describe("AI complaint summary intake contract", () => {
       ).toBe(false);
     },
   );
-  it("rejects unverified complaint bytes", () => {
+  it("does not require byte verification to accept a summary", () => {
     expect(
       CivilCaseSpec.safeParse({
         ...record,
@@ -87,7 +103,7 @@ describe("AI complaint summary intake contract", () => {
           source: { ...summary.source, sha1Verified: false },
         },
       }).success,
-    ).toBe(false);
+    ).toBe(true);
   });
 });
 

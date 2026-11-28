@@ -480,7 +480,11 @@ apply:
 
     1. **Workspace**: Use the Skill tool to invoke
        **superpowers:using-git-worktrees** to create an isolated
-       git worktree for this change.
+       git worktree for this change. Tell it the declared worktree
+       directory: `~/dev/<owner>/<repo>/<branch-name>/`, a folder
+       beside the main checkout named exactly after the branch.
+       Do not use `.worktrees/`. Create the branch as a child of
+       the current leaf branch of the stack, as AGENTS.md describes.
 
     2. **Executor — subagent-driven-development**:
 
