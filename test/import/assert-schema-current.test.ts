@@ -3,7 +3,7 @@ import { readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertGeneratedSchemaCurrent } from "../../src/cli/import/artifacts/assert-schema-current.js";
-import { GENERATED_MIGRATION_VERSIONS } from "../../src/shared/io/generated/entity-specs.js";
+import { GENERATED_MIGRATION_VERSIONS } from "../../src/shared/io/entity-specs.js";
 
 const migrationsDir = path.join(
   path.dirname(fileURLToPath(import.meta.url)),

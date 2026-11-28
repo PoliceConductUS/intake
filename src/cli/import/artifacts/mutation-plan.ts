@@ -1,7 +1,7 @@
 import {
   RECORD_KINDS_IN_DEPENDENCY_ORDER,
   SELF_REFERENCES,
-} from "../../../shared/io/generated/entity-specs.js";
+} from "../../../shared/io/entity-specs.js";
 import { IMPORT_OPERATION_SUFFIXES } from "../../../shared/io/import-type-metadata.js";
 import { parseMutationKind } from "../../../shared/io/import-types.js";
 import type { DatabaseMutationItem } from "./io/DatabaseMutations.js";

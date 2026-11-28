@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  assertDataApiUrl,
   createYoutubeApi,
   isQuotaExhaustedBody,
   quotaResetHint,
@@ -172,5 +173,18 @@ describe("youtube api client", () => {
     await expect(
       api.searchChannelVideos("UCpa123", "Irving Police"),
     ).rejects.toThrow(/Irving Police.*no items list/);
+  });
+});
+
+describe("assertDataApiUrl", () => {
+  it("refuses a www.youtube.com URL and passes a Data API URL through", () => {
+    expect(() =>
+      assertDataApiUrl("https://www.youtube.com/api/timedtext?lang=en&v=v1"),
+    ).toThrow(/refusing to request/);
+    expect(
+      assertDataApiUrl(
+        "https://www.googleapis.com/youtube/v3/search?part=snippet",
+      ),
+    ).toBe("https://www.googleapis.com/youtube/v3/search?part=snippet");
   });
 });

@@ -4,7 +4,7 @@ import { rowsFromResult, type DatabaseClient } from "./index.js";
 import {
   TABLE_BY_KIND,
   PRIMARY_KEY_BY_KIND,
-} from "../../shared/io/generated/entity-specs.js";
+} from "../../shared/io/entity-specs.js";
 import {
   AGENCY_CASE_ROOT,
   AGENCY_GRAPH_COLUMNS,

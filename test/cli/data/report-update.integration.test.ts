@@ -66,7 +66,7 @@ describe("manual report updates through the data CLI", () => {
     });
     await acquire("LocationPath", {
       location_path_id: "/zz/",
-      path: "/zz/",
+      path: "/root/zz/",
       level: "place",
       display_name: "Test State",
       parent_location_path_id: "/root/",

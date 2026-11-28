@@ -118,4 +118,4 @@ Reporting and configuration:
 
 ## Verification
 
-- Run: `npx vitest run test/sources/mn-post/acquire`
+- Run: `npx vitest run test/sources/com/site/my/mnitservices/post-license-search/acquire`

@@ -43,4 +43,4 @@ Source namespace `gov/census/www2/gazetteer`: the US Census Gazetteer and TIGER 
 
 ## Verification
 
-- Run: `npx vitest run test/sources/us-census-gazetteer`
+- Run: `npx vitest run test/sources/gov/census/www2/gazetteer`

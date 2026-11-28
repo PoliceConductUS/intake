@@ -276,4 +276,4 @@ writes to disk, or reaches the database.
 ## Verification
 
 - Run:
-  `npx vitest run test/sources/lib test/sources/civil-defendants.test.ts test/sources/news`
+  `npx vitest run test/sources/lib test/sources/news`

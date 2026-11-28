@@ -126,7 +126,7 @@ describe("data reset against disposable Postgres", () => {
                   "/zz/": {
                     spec: {
                       location_path_id: "/zz/",
-                      path: "/zz/",
+                      path: "/root/zz/",
                       level: "place",
                       display_name: "Test State",
                       parent_location_path_id: "/root/",
@@ -240,7 +240,7 @@ describe("data reset against disposable Postgres", () => {
       await sourceStateDir(deps.env, "org/policeconduct/manual"),
       {
         kind: "LocationPathAlias",
-        record: { alias_path: "/zz/alias/", location_path_id: "/zz/" },
+        record: { alias_path: "/zz/alias/", location_path_id: "/root/zz/" },
       },
       "alias_path",
     );
@@ -269,7 +269,7 @@ describe("data reset against disposable Postgres", () => {
           "select path from public.location_path where level = 'place'",
         )
       ).rows,
-    ).toEqual([{ path: "/zz/" }]);
+    ).toEqual([{ path: "/root/zz/" }]);
     expect(
       (await db.query("select alias_path from public.location_path_alias"))
         .rows,

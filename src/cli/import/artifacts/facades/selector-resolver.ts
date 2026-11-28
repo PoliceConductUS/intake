@@ -1,7 +1,7 @@
 import {
   FK_REFERENCES,
   PRIMARY_KEY_BY_KIND,
-} from "../../../../shared/io/generated/entity-specs.js";
+} from "../../../../shared/io/entity-specs.js";
 
 // A selector is the model-walked query object of ADR 0034: for a target kind, each
 // key is either a scalar column (matched by equality) or a foreign-key relationship

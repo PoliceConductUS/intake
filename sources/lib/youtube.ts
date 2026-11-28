@@ -100,15 +100,29 @@ export function videoUrl(videoId: string): string {
   return `https://www.youtube.com/watch?v=${videoId}`;
 }
 
+export const DATA_API_BASE = "https://www.googleapis.com/youtube/v3";
+
+// www.youtube.com/robots.txt disallows /api/, so this client only calls the keyed Data API (INS-72).
+export function assertDataApiUrl(url: string): string {
+  if (!url.startsWith(`${DATA_API_BASE}/`)) {
+    throw new Error(
+      `youtube: refusing to request ${url}; this client may only call ${DATA_API_BASE}.`,
+    );
+  }
+  return url;
+}
+
 export function createYoutubeApi(deps: {
   fetchJson: (url: string) => Promise<Record<string, unknown>>;
 }): YoutubeApi {
-  const api = "https://www.googleapis.com/youtube/v3";
+  const api = DATA_API_BASE;
+  const fetchJson = (url: string): Promise<Record<string, unknown>> =>
+    deps.fetchJson(assertDataApiUrl(url));
 
   return {
     async resolveChannelId(handle) {
       const clean = handle.replace(/^@/, "");
-      const body = await deps.fetchJson(
+      const body = await fetchJson(
         `${api}/channels?part=id&forHandle=${encodeURIComponent(clean)}`,
       );
       const items = Array.isArray(body.items) ? body.items : [];
@@ -135,7 +149,7 @@ export function createYoutubeApi(deps: {
       let pageToken = "";
       do {
         if (pageToken !== "") params.set("pageToken", pageToken);
-        const body = await deps.fetchJson(`${api}/search?${params.toString()}`);
+        const body = await fetchJson(`${api}/search?${params.toString()}`);
         if (!Array.isArray(body.items)) {
           throw new Error(
             `YouTube search for ${JSON.stringify(query)} in channel ${channelId} returned no items list.`,
