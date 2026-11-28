@@ -1,10 +1,11 @@
-import { appendFile, mkdir, writeFile } from "node:fs/promises";
+import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import type {
   AcquireAgencyRecord,
   AcquireDeps,
   SourceAcquire,
 } from "../../../../src/cli/transform/source-transform.js";
+import { rollingWindow } from "../../../lib/rolling-window.js";
 import {
   createYoutubeApi,
   isQuotaExhaustedBody,
@@ -12,15 +13,23 @@ import {
   YoutubeQuotaError,
 } from "../../../lib/youtube.js";
 import {
+  CHANNEL_HANDLE,
+  CHANNEL_URL,
+  SOURCE_NAME,
+  stableChannelId,
+  WINDOW_YEARS,
+} from "./channel.js";
+import {
+  inWindowVideos,
   loadVideoCache,
-  mergedVideos,
-  nextYearToAcquire,
+  nextSliceToSearch,
+  recordSlice,
   saveVideoCache,
   type AcquiredVideo,
   type AgencyVideoCacheEntry,
 } from "./video-cache.js";
+import { ENVELOPE_SUFFIX, writeVideoEnvelope } from "./video-envelope.js";
 
-const CHANNEL_HANDLE = "@PoliceActivity";
 const MAX_RETRIES = 5;
 const MAX_BACKOFF_MS = 60_000;
 // Be gentle: a small pause between agency searches (we are in no rush).
@@ -51,19 +60,6 @@ export const acquire: SourceAcquire = async ({
   if (apiKey === undefined || apiKey.trim() === "") {
     throw new Error(
       "com/youtube/policeactivity: YOUTUBE_API_KEY is required to search the channel.",
-    );
-  }
-  // Backfill window: the current year by default; prod widens it (e.g. 5 years)
-  // via YOUTUBE_MIN_YEAR. Each run searches one year per agency.
-  const currentYear = new Date().getFullYear();
-  const minYear = env.YOUTUBE_MIN_YEAR;
-  const floorYear = minYear === undefined ? currentYear : Number(minYear);
-  if (
-    minYear !== undefined &&
-    (minYear.trim() === "" || !Number.isInteger(floorYear))
-  ) {
-    throw new Error(
-      `com/youtube/policeactivity: YOUTUBE_MIN_YEAR is not a year: ${JSON.stringify(minYear)}.`,
     );
   }
   await mkdir(sourceDir, { recursive: true });
@@ -112,21 +108,19 @@ export const acquire: SourceAcquire = async ({
     }
   };
   const youtube = createYoutubeApi({ fetchJson });
-  const channelId = await youtube.resolveChannelId(CHANNEL_HANDLE);
-  if (channelId === null) {
-    throw new Error(
-      `com/youtube/policeactivity: could not resolve channel id for ${CHANNEL_HANDLE}.`,
-    );
-  }
-  await writeFile(
-    path.join(sourceDir, "channel.json"),
-    JSON.stringify({ handle: CHANNEL_HANDLE, channelId }, null, 2),
-  );
+  const channelId = await stableChannelId(state, youtube.resolveChannelId);
+  // Fixed once so every search and envelope in this run shares one window.
+  const window = rollingWindow(new Date(), WINDOW_YEARS);
+  const source = {
+    name: SOURCE_NAME,
+    handle: CHANNEL_HANDLE,
+    channelUrl: CHANNEL_URL,
+    channelId,
+  };
 
   const cache = await loadVideoCache(state);
-  const nowIso = new Date().toISOString();
-  let searched = 0;
-  let upToDate = 0;
+  let backfilled = 0;
+  let refreshed = 0;
   let failed = 0;
   let notSearched = 0;
   let quotaHit = false;
@@ -146,17 +140,15 @@ export const acquire: SourceAcquire = async ({
     cursor = page.nextCursor;
   } while (cursor !== undefined);
 
-  // Under the search quota a run reaches only some agencies: a year never
-  // searched goes first, then the years searched longest ago.
+  // Under the search quota a run reaches only some agencies: a slice never
+  // searched goes first, then the slices searched longest ago.
   const planned = agencies
     .map((agency) => {
-      const entry: AgencyVideoCacheEntry = cache.agencies[agency.agencyId] ?? {
-        years: {},
-      };
-      const year = nextYearToAcquire(entry, floorYear, currentYear);
-      const lastSearchedAt =
-        year === null ? "" : (entry.years[String(year)]?.searchedAt ?? "");
-      return { agency, entry, year, lastSearchedAt };
+      const entry: AgencyVideoCacheEntry | undefined =
+        cache.agencies[agency.agencyId];
+      const slice = nextSliceToSearch(entry, window);
+      const lastSearchedAt = entry?.years[String(slice.year)]?.searchedAt ?? "";
+      return { agency, slice, lastSearchedAt };
     })
     .sort((a, b) =>
       a.lastSearchedAt < b.lastSearchedAt
@@ -166,26 +158,30 @@ export const acquire: SourceAcquire = async ({
           : 0,
     );
 
-  for (const { agency, entry, year } of planned) {
+  for (const { agency, slice } of planned) {
     const agencyName = agency.name.trim();
     const place = agency.place ?? "";
+    const { year } = slice;
     let searchFailure: { year: number; error: string } | undefined;
 
-    if (year === null) {
-      upToDate += 1;
-    } else if (quotaHit) {
+    if (quotaHit) {
       notSearched += 1;
     } else {
-      let videos: AcquiredVideo[] | undefined;
+      let searched: { at: string; videos: AcquiredVideo[] } | undefined;
       try {
-        videos = await youtube.searchChannelVideos(
+        const hits = await youtube.searchChannelVideos(
           channelId,
           agencyQuery(agencyName, place),
           {
-            publishedAfter: `${year}-01-01T00:00:00Z`,
-            publishedBefore: `${year + 1}-01-01T00:00:00Z`,
+            publishedAfter: slice.publishedAfter,
+            publishedBefore: slice.publishedBefore,
           },
         );
+        const at = new Date().toISOString();
+        searched = {
+          at,
+          videos: hits.map((hit) => ({ ...hit, retrievedAt: at })),
+        };
       } catch (error) {
         // Quota exhausted stops every later search (each would fail the same
         // way); any other failure is one agency's, left uncached so a later run
@@ -201,44 +197,47 @@ export const acquire: SourceAcquire = async ({
           );
         }
       }
-      if (videos !== undefined) {
-        entry.years[String(year)] = { searchedAt: nowIso, videos };
-        cache.agencies[agency.agencyId] = entry;
+      if (searched !== undefined) {
+        cache.agencies[agency.agencyId] = recordSlice(
+          cache.agencies[agency.agencyId],
+          slice,
+          searched.at,
+          searched.videos,
+        );
         await saveVideoCache(state, cache);
-        searched += 1;
+        if (slice.refresh) refreshed += 1;
+        else backfilled += 1;
         log.info(
-          `com/youtube/policeactivity: ${agencyName} (${agency.agencyId}) ${year} — ${videos.length} video(s) [searched ${searched}]`,
+          `com/youtube/policeactivity: ${agencyName} (${agency.agencyId}) ${year}${slice.refresh ? " (refresh)" : ""} — ${searched.videos.length} video(s)`,
         );
         await sleep(POLITE_DELAY_MS);
       }
     }
 
-    if (Object.keys(entry.years).length === 0) continue;
-    await writeFile(
+    const entry = cache.agencies[agency.agencyId];
+    if (entry === undefined || Object.keys(entry.years).length === 0) continue;
+    await writeVideoEnvelope(
       path.join(
         sourceDir,
-        `${encodeURIComponent(agency.agencyId)}.videos.json`,
+        `${encodeURIComponent(agency.agencyId)}${ENVELOPE_SUFFIX}`,
       ),
-      JSON.stringify(
-        {
-          agency: {
-            id: agency.agencyId,
-            name: agencyName,
-            state: agency.state,
-            county: agency.county ?? "",
-            place,
-          },
-          channelId,
-          videos: mergedVideos(entry),
-          ...(searchFailure === undefined ? {} : { searchFailure }),
+      {
+        source,
+        window,
+        agency: {
+          id: agency.agencyId,
+          name: agencyName,
+          state: agency.state,
+          county: agency.county ?? "",
+          place,
         },
-        null,
-        2,
-      ),
+        videos: inWindowVideos(entry, window),
+        ...(searchFailure === undefined ? {} : { searchFailure }),
+      },
     );
   }
 
   log.info(
-    `com/youtube/policeactivity: ${searched} agency-years searched, ${upToDate} with no year to search from ${floorYear}, ${failed} failed, ${notSearched} not searched after the quota stop${quotaHit ? ", stopped on quota" : ""}. state=${state}`,
+    `com/youtube/policeactivity: channel ${channelId}, window ${window.start}..${window.end}: ${backfilled} agency-year(s) backfilled, ${refreshed} refreshed, ${failed} failed, ${notSearched} not searched after the quota stop${quotaHit ? ", stopped on quota" : ""}. state=${state}`,
   );
 };

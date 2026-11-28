@@ -10,9 +10,29 @@ afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map((d) => rm(d, { recursive: true })));
 });
 
+// The window acquire stamped on this evidence; transform needs no clock of its own.
+const window = {
+  start: "2021-10-24T00:00:00.000Z",
+  end: "2026-10-24T00:00:00.000Z",
+};
+
+const agencyOf = (id: string, name: string) => ({
+  id,
+  name,
+  state: "TX",
+  county: "",
+  place: "",
+});
+
 const envelope = {
-  agency: { id: "a1", name: "Irving Police Department", state: "TX" },
-  channelId: "UCpolice",
+  source: {
+    name: "PoliceActivity",
+    handle: "@PoliceActivity",
+    channelUrl: "https://www.youtube.com/PoliceActivity",
+    channelId: "UCpolice",
+  },
+  window,
+  agency: agencyOf("a1", "Irving Police Department"),
   videos: [
     {
       videoId: "v1",
@@ -22,6 +42,7 @@ const envelope = {
         "Officer John Smith responds to a call. Sergeant Jane Wilson also arrived on scene. Case 3:23-cv-01234.",
       publishedAt: "2024-03-05T12:00:00Z",
       channelId: "UCpolice",
+      retrievedAt: "2026-10-24T00:00:00.000Z",
     },
     {
       // Names an officer who does not resolve at this agency -> no link.
@@ -33,6 +54,7 @@ const envelope = {
         "Officer Nobody Stranger writes a ticket. Case 3:23-cv-01234.",
       publishedAt: "2024-01-01T00:00:00Z",
       channelId: "UCpolice",
+      retrievedAt: "2026-10-24T00:00:00.000Z",
     },
     {
       // Names no officer -> no link.
@@ -42,6 +64,7 @@ const envelope = {
       description: "General footage, no one named.",
       publishedAt: "2024-02-02T00:00:00Z",
       channelId: "UCpolice",
+      retrievedAt: "2026-10-24T00:00:00.000Z",
     },
   ],
 };
@@ -143,27 +166,25 @@ describe("com/youtube/policeactivity run", () => {
     });
   });
 
-  it("links no officer named only in caption text a video file still holds", async () => {
+  it("rejects a video file that still holds caption text, before resolving any officer", async () => {
     const data = fakeData();
-    const manifest = await transformFiles(
-      {
-        "a1.videos.json": {
-          ...envelope,
-          videos: [
-            {
-              ...envelope.videos[2],
-              captions: "Sergeant Jane Wilson also arrived on scene.",
-            },
-          ],
+    await expect(
+      transformFiles(
+        {
+          "a1.videos.json": {
+            ...envelope,
+            videos: [
+              {
+                ...envelope.videos[2],
+                captions: "Sergeant Jane Wilson also arrived on scene.",
+              },
+            ],
+          },
         },
-      },
-      data,
-    );
+        data,
+      ),
+    ).rejects.toThrow(/Unrecognized key: "captions"/);
     expect(data.calls).toEqual([]);
-    expect(manifest.artifacts.map((a) => Object.keys(a.records))).toEqual([
-      [],
-      [],
-    ]);
   });
 
   it("emits no coverage link for an unresolvable or unnamed video", async () => {
@@ -202,7 +223,10 @@ describe("com/youtube/policeactivity run", () => {
         read: 3,
         emitted: 1,
         reported: 0,
-        notSelected: { "names no officer the database knows": 2 },
+        notSelected: {
+          "names no officer the database knows": 2,
+          "published outside the acquired five-year window": 0,
+        },
       },
     ]);
   });
@@ -210,23 +234,35 @@ describe("com/youtube/policeactivity run", () => {
   it("throws on a file with no agency ID", async () => {
     await expect(
       transformFiles({
-        "x.videos.json": { ...envelope, agency: { name: "Irving PD" } },
+        "x.videos.json": {
+          ...envelope,
+          agency: { ...envelope.agency, id: "" },
+        },
       }),
-    ).rejects.toThrow(/x\.videos\.json has no agency ID or name/);
-  });
-
-  it("throws on a file with no agency name", async () => {
-    await expect(
-      transformFiles({
-        "x.videos.json": { ...envelope, agency: { id: "a1", name: " " } },
-      }),
-    ).rejects.toThrow(/x\.videos\.json has no agency ID or name/);
+    ).rejects.toThrow(/x\.videos\.json is not a valid video evidence envelope/);
   });
 
   it("throws on a file with no videos list", async () => {
+    const { videos: _dropped, ...noVideos } = envelope;
+    await expect(transformFiles({ "x.videos.json": noVideos })).rejects.toThrow(
+      /x\.videos\.json is not a valid video evidence envelope/,
+    );
+  });
+
+  it("throws on a file with no window stamp", async () => {
+    const { window: _dropped, ...noWindow } = envelope;
+    await expect(transformFiles({ "x.videos.json": noWindow })).rejects.toThrow(
+      /x\.videos\.json is not a valid video evidence envelope/,
+    );
+  });
+
+  it("throws on a video with no retrieval time", async () => {
+    const { retrievedAt: _dropped, ...noRetrievedAt } = envelope.videos[0];
     await expect(
-      transformFiles({ "x.videos.json": { agency: envelope.agency } }),
-    ).rejects.toThrow(/x\.videos\.json has no videos list/);
+      transformFiles({
+        "x.videos.json": { ...envelope, videos: [noRetrievedAt] },
+      }),
+    ).rejects.toThrow(/x\.videos\.json is not a valid video evidence envelope/);
   });
 
   it("throws on a video with no title, naming the file and the video", async () => {
@@ -250,7 +286,7 @@ describe("com/youtube/policeactivity run", () => {
           videos: [{ ...envelope.videos[0], publishedAt: "last week" }],
         },
       }),
-    ).rejects.toThrow(/x\.videos\.json video 1 \("v1"\).*"last week"/);
+    ).rejects.toThrow(/x\.videos\.json is not a valid video evidence envelope/);
   });
 
   it("throws on an input path that does not exist", async () => {
@@ -287,7 +323,7 @@ describe("com/youtube/policeactivity run", () => {
       "a1.videos.json": envelope,
       "a2.videos.json": {
         ...envelope,
-        agency: { id: "a2", name: "Dallas Police Department", state: "TX" },
+        agency: agencyOf("a2", "Dallas Police Department"),
       },
     });
     const links = manifest.artifacts.find((a) => a.kind === "CoverageLinks");
@@ -301,12 +337,52 @@ describe("com/youtube/policeactivity run", () => {
         "a1.videos.json": envelope,
         "a2.videos.json": {
           ...envelope,
-          agency: { id: "a2", name: "Dallas Police Department", state: "TX" },
+          agency: agencyOf("a2", "Dallas Police Department"),
           videos: [{ ...envelope.videos[0], title: "Edited title" }],
         },
       }),
     ).rejects.toThrow(
       /video v1 in .*a2\.videos\.json differs from .*a1\.videos\.json/,
     );
+  });
+
+  it("links no video published outside the window stamped on the evidence, and resolves nothing for it", async () => {
+    const data = fakeData();
+    const manifest = await transformFiles(
+      {
+        "a1.videos.json": {
+          ...envelope,
+          videos: [
+            { ...envelope.videos[0], publishedAt: "2021-10-23T00:00:00Z" },
+          ],
+        },
+      },
+      data,
+    );
+    expect(data.calls).toEqual([]);
+    expect(manifest.artifacts.map((a) => Object.keys(a.records))).toEqual([
+      [],
+      [],
+    ]);
+    expect(manifest.accounting[0]).toMatchObject({
+      read: 1,
+      emitted: 0,
+      notSelected: { "published outside the acquired five-year window": 1 },
+    });
+  });
+
+  it("links a previously unmatched video once the officer it names exists", async () => {
+    const evidence = {
+      "a1.videos.json": { ...envelope, videos: [envelope.videos[1]] },
+    };
+    const before = await transformFiles(evidence);
+    expect(Object.keys(before.artifacts[0].records)).toEqual([]);
+
+    const after = await transformFiles(
+      evidence,
+      fakeData({ "Nobody Stranger": "ao-9" }),
+    );
+    expect(Object.keys(after.artifacts[0].records)).toEqual(["v2"]);
+    expect(Object.keys(after.artifacts[1].records)).toEqual(["v2|ao-9"]);
   });
 });

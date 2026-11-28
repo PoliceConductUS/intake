@@ -1,4 +1,4 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import type {
@@ -7,14 +7,12 @@ import type {
   SourceTransform,
 } from "../../../../src/cli/transform/source-transform.js";
 import { isPersonName } from "../../../lib/civil-defendants.js";
+import { isWithinWindow } from "../../../lib/rolling-window.js";
 import type { AcquiredVideo } from "./video-cache.js";
-
-type VideoEnvelope = {
-  agency?: { id?: string; name?: string; state?: string };
-  videos?: AcquiredVideo[];
-};
+import { ENVELOPE_SUFFIX, readVideoEnvelope } from "./video-envelope.js";
 
 const NO_KNOWN_OFFICER = "names no officer the database knows";
+const OUTSIDE_WINDOW = "published outside the acquired five-year window";
 
 // A named officer the publisher asserts, and the passage asserting it. Names are
 // only ever CANDIDATES — the intake-owned resolver gates them against the agency
@@ -60,7 +58,7 @@ export const transform: SourceTransform = async ({
       "com/youtube/policeactivity: run requires a data context (DATABASE_URL) to resolve officers (ADR 0023).",
     );
   }
-  const envelopePaths = paths.filter((p) => p.endsWith(".videos.json"));
+  const envelopePaths = paths.filter((p) => p.endsWith(ENVELOPE_SUFFIX));
   const files =
     envelopePaths.length > 0
       ? envelopePaths
@@ -72,24 +70,19 @@ export const transform: SourceTransform = async ({
   let read = 0;
   let emitted = 0;
   let noKnownOfficer = 0;
+  let outsideWindow = 0;
 
   for (const file of files) {
-    const envelope = JSON.parse(await readFile(file, "utf8")) as VideoEnvelope;
-    const agencyId = text(envelope.agency?.id);
-    const agencyName = text(envelope.agency?.name);
-    if (agencyId === "" || agencyName === "") {
-      throw new Error(
-        `com/youtube/policeactivity: ${file} has no agency ID or name.`,
-      );
-    }
-    if (!Array.isArray(envelope.videos)) {
-      throw new Error(
-        `com/youtube/policeactivity: ${file} has no videos list.`,
-      );
-    }
+    const envelope = await readVideoEnvelope(file);
+    const agencyId = envelope.agency.id;
 
     for (const [index, video] of envelope.videos.entries()) {
       read += 1;
+      // The window stamped by acquire, so this phase never reads the clock.
+      if (!isWithinWindow(video.publishedAt, envelope.window)) {
+        outsideWindow += 1;
+        continue;
+      }
       const videoId = text(video.videoId);
       const url = text(video.url);
       const title = text(video.title);
@@ -128,7 +121,7 @@ export const transform: SourceTransform = async ({
         url,
         normalized_url: normalizedUrl(url),
         title,
-        source_name: "PoliceActivity",
+        source_name: envelope.source.name,
         published_at: publishedAt,
         // The publisher's framing, kept as an attributed claim (#52).
         notes: text(video.description) || null,
@@ -174,7 +167,10 @@ export const transform: SourceTransform = async ({
         read,
         emitted,
         reported: 0,
-        notSelected: { [NO_KNOWN_OFFICER]: noKnownOfficer },
+        notSelected: {
+          [NO_KNOWN_OFFICER]: noKnownOfficer,
+          [OUTSIDE_WINDOW]: outsideWindow,
+        },
       },
     ],
   };
@@ -184,7 +180,7 @@ async function collectEnvelopePaths(paths: string[]): Promise<string[]> {
   const files: string[] = [];
   for (const base of paths) {
     for (const entry of await readdir(base)) {
-      if (entry.endsWith(".videos.json")) files.push(path.join(base, entry));
+      if (entry.endsWith(ENVELOPE_SUFFIX)) files.push(path.join(base, entry));
     }
   }
   return files;
