@@ -1,5 +1,5 @@
 import { z } from "zod";
-import * as specs from "./io/generated/entity-specs.js";
+import * as specs from "./io/entity-specs.js";
 
 import { sourceValueType, type ValueType } from "./source-field-types.js";
 type Field = {

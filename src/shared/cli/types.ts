@@ -8,6 +8,8 @@ export type CommandResult = {
 
 export type CliCommandDependencies = {
   useInitialAgencyRoots?: boolean;
+  /** `data reset --no-acquire`: use a cached successful call result as it is. */
+  keepCachedCallResults?: boolean;
   runImportArtifactsCommand?: (
     artifactsRef: string,
     dependencies?: { dryImport?: boolean },

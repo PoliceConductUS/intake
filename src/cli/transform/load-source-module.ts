@@ -1,14 +1,7 @@
 import { loadIntakeSource } from "../source-discovery.js";
 export { assertValidSourceId } from "../../shared/source-namespace.js";
-import {
-  IMPORT_ARTIFACT_KINDS,
-  type ImportArtifactKind,
-} from "../../shared/io/import-type-metadata.js";
+import type { ImportArtifactKind } from "../../shared/io/import-type-metadata.js";
 import type { SourceTransform, SourceAcquire } from "./source-transform.js";
-
-const IMPORT_ARTIFACT_KIND_SET: ReadonlySet<string> = new Set(
-  IMPORT_ARTIFACT_KINDS,
-);
 
 export async function loadSourceModule(
   sourceId: string,
@@ -24,14 +17,8 @@ export async function loadSourceProduces(
   sourcesRoot: string,
 ): Promise<ImportArtifactKind[]> {
   const { produces } = await loadIntakeSource(sourceId, sourcesRoot);
-  if (!Array.isArray(produces))
+  if (produces === undefined)
     throw Error(`Source ${sourceId} must declare a produces array`);
-  for (const kind of produces) {
-    if (!IMPORT_ARTIFACT_KIND_SET.has(kind))
-      throw Error(
-        `Source ${sourceId} produces an unknown kind: ${String(kind)}`,
-      );
-  }
   return [...produces];
 }
 

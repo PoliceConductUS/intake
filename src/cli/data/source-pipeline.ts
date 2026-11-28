@@ -22,9 +22,9 @@ import { matchSourceIds } from "../source-glob.js";
 import { runImportArtifactsCommand } from "../import/artifacts/index.js";
 import { generateEntry } from "./chain.js";
 import type { ImportArtifactKind } from "../../shared/io/index.js";
+import type { TerminalStream } from "../../logging.js";
 
 const SOURCES_ROOT = path.join(process.cwd(), "sources");
-const SILENT = { info: () => {} };
 
 /**
  * `data transform <source>`: run a source's transform.ts against its latest acquired input to
@@ -33,7 +33,7 @@ const SILENT = { info: () => {} };
 export async function transformOneSource(
   sourceId: string,
   env: Record<string, string | undefined>,
-  logger: { info: (message: string) => void } = SILENT,
+  terminal: TerminalStream | false = false,
   kinds?: readonly ImportArtifactKind[],
 ): Promise<{ artifactsPath: string } | { error: CommandResult }> {
   assertValidSourceId(sourceId);
@@ -45,7 +45,7 @@ export async function transformOneSource(
     : await sourceInputPaths(await sourceInputDir(workspace, sourceId));
   const deps = await buildTransformSourceDeps(sourceId, paths, env, {
     commandArgs: ["data", "transform", sourceId, ...paths],
-    logger,
+    terminal,
   });
   if (kinds !== undefined) {
     const recordKinds = new Set<string>(
@@ -84,8 +84,10 @@ export async function generateOneSource(
   sourceId: string,
   env: Record<string, string | undefined>,
   useInitialAgencyRoots?: boolean,
+  keepCachedCallResults?: boolean,
 ): Promise<
-  { version?: string; mutationCount: number } | { error: CommandResult }
+  | { version?: string; mutationCount: number; serviceSkips: string[] }
+  | { error: CommandResult }
 > {
   const workspace = intakeWorkspace(env);
   let artifactsPath: string;
@@ -102,6 +104,7 @@ export async function generateOneSource(
   const importResult = await runImportArtifactsCommand(artifactsPath, {
     dryImport: true,
     useInitialAgencyRoots,
+    keepCachedCallResults,
     env,
     terminal: false,
     args: ["data", "generate", sourceId],
@@ -117,7 +120,10 @@ export async function generateOneSource(
       },
     };
   }
-  return generateEntry(importResult.databaseMutationsPath);
+  return {
+    ...(await generateEntry(importResult.databaseMutationsPath)),
+    serviceSkips: importResult.serviceSkips ?? [],
+  };
 }
 
 /**

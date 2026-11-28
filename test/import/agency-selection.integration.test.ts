@@ -51,7 +51,7 @@ describe("shared agency selection in the import pipeline", () => {
     );
     const result = await importArtifacts({
       artifactsPath: input.path,
-      env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE_TEST: root },
+      env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE: root },
       commandName: "empty",
       commandDirectory: path.join(root, "command"),
       resolveAgencyCoordinates: async () => {
@@ -107,7 +107,7 @@ describe("shared agency selection in the import pipeline", () => {
     );
     const result = await importArtifacts({
       artifactsPath: input.path,
-      env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE_TEST: root },
+      env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE: root },
       commandName: "later",
       commandDirectory: path.join(root, "command"),
     });
@@ -190,7 +190,7 @@ describe("shared agency selection in the import pipeline", () => {
     );
     const result = await importArtifacts({
       artifactsPath: input.path,
-      env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE_TEST: root },
+      env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE: root },
       commandName: "close",
       commandDirectory: path.join(root, "command"),
     });
@@ -249,7 +249,7 @@ describe("shared agency selection in the import pipeline", () => {
     expect(
       await importArtifacts({
         artifactsPath: later.path,
-        env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE_TEST: root },
+        env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE: root },
         commandName: "after-close",
         commandDirectory: path.join(root, "after-close"),
       }),
@@ -342,7 +342,7 @@ describe("shared agency selection in the import pipeline", () => {
     const run = (artifactsPath: string, name: string) =>
       importArtifacts({
         artifactsPath,
-        env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE_TEST: root },
+        env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE: root },
         commandName: name,
         commandDirectory: path.join(root, name),
       });

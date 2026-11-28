@@ -3,8 +3,12 @@ import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
-import { runImportArtifactsCommand } from "../../src/cli/index.js";
-import { GENERATED_MIGRATION_VERSIONS } from "../../src/shared/io/generated/entity-specs.js";
+import {
+  runImportArtifactsCommand,
+  runReplayDatabaseMutationsCommand,
+} from "../../src/cli/index.js";
+import { readLogRecords, wasLogOpen } from "../cli/command-log.js";
+import { GENERATED_MIGRATION_VERSIONS } from "../../src/shared/io/entity-specs.js";
 import { importArtifacts } from "./completed-artifacts.js";
 import { DataContext } from "../../src/cli/import/artifacts/data-context.js";
 import { applyOptionalArtifactMutation } from "../../src/cli/import/artifacts/artifact-mutation.js";
@@ -22,7 +26,7 @@ import {
 } from "../../src/cli/state/resolved-property/index.js";
 import { Artifacts } from "../../src/shared/io/Artifacts.js";
 import { Command as CommandEnvelope } from "../../src/shared/io/Command.js";
-import { write as writeAgencies } from "../../src/shared/io/generated/Agencies.js";
+import { write as writeAgencies } from "../../src/shared/io/Agencies.js";
 import { INTAKE_API_VERSION } from "../../src/shared/io/import-types.js";
 import { yamlResourceFileName } from "../../src/shared/io/resource.js";
 
@@ -299,7 +303,7 @@ describe("importArtifacts", () => {
     );
     const result = await importArtifacts({
       artifactsPath,
-      env: { INTAKE_WORKSPACE_TEST: rootDir },
+      env: { INTAKE_WORKSPACE: rootDir },
       logger: {
         info: () => {},
         debug: () => {},
@@ -314,10 +318,12 @@ describe("importArtifacts", () => {
 
     expect(result).toEqual({
       ok: false,
-      error: [
-        `DatabaseMutations already exists for source Artifacts test-run: ${existingPath}`,
-        `Replay the existing DatabaseMutations with: intake replay database-mutations ${existingPath}`,
-      ].join("\n"),
+      error: new Error(
+        [
+          `DatabaseMutations already exists for source Artifacts test-run: ${existingPath}`,
+          `Replay the existing DatabaseMutations with: intake replay database-mutations ${existingPath}`,
+        ].join("\n"),
+      ),
     });
   });
 
@@ -449,7 +455,7 @@ describe("importArtifacts", () => {
 
     expect(result).toEqual({
       ok: false,
-      error: "DATABASE_URL is required to replay DatabaseMutations.",
+      error: new Error("DATABASE_URL is required to replay DatabaseMutations."),
     });
     await expect(readdir(commandDirectory)).resolves.toEqual(filesBeforeReplay);
   });
@@ -591,31 +597,6 @@ describe("importArtifacts", () => {
     ]);
   });
 
-  test("uses INTAKE_WORKSPACE for import-artifacts replay artifacts when INTAKE_WORKSPACE_TEST is unset", async () => {
-    const rootDir = await mkdtemp(path.join(tmpdir(), "intake-run-root-"));
-    const artifactsPath = await writeSourceArtifactsFile(rootDir);
-    const artifacts = await Artifacts.read(artifactsPath);
-    const replayImportArtifacts = await DatabaseMutations.write(
-      path.join(rootDir, "command", "2026-06-08T00-00-00-000Z-test-command"),
-      DatabaseMutations.new({
-        metadata: {
-          namespace: artifacts.metadata.namespace,
-          name: "test-command",
-          sourceArtifactsName: artifacts.metadata.name,
-          sourceArtifactsPath: artifactsPath,
-          sourceArtifactsDigest: await Artifacts.digest(artifactsPath),
-        },
-        spec: { mutations: [] },
-      }),
-    );
-
-    expect(replayImportArtifacts?.path).toContain(
-      path.join(rootDir, "command"),
-    );
-    const commandRoot = path.join(rootDir, "command");
-    await expect(readdir(commandRoot)).resolves.toHaveLength(1);
-  });
-
   test("reports a clear error when the import-artifacts replay output directory is not writable", async () => {
     const rootDir = await mkdtemp(path.join(tmpdir(), "intake-run-root-"));
     const workspaceFile = path.join(rootDir, "workspace-file");
@@ -654,6 +635,7 @@ describe("importArtifacts", () => {
       terminal: { write: (text) => (terminalOutput += text) },
       importArtifacts: async () => ({
         ok: true,
+        serviceSkips: [],
         databaseMutationsPath: "current.DatabaseMutations.yaml",
         counts: {
           mutations: 15,
@@ -748,6 +730,7 @@ describe("importArtifacts", () => {
           receivedDryImport = input.dryImport;
           return {
             ok: true,
+            serviceSkips: [],
             databaseMutationsPath: "current.DatabaseMutations.yaml",
             counts: {
               mutations: 15,
@@ -777,6 +760,44 @@ describe("importArtifacts", () => {
     expect(result.stdout).toContain("LocationPathAlias: 5");
   });
 
+  test("the import command ends by naming a service that went down and passes on the rebuild rule", async () => {
+    const rootDir = await mkdtemp(path.join(tmpdir(), "intake-logs-"));
+    const workspace = path.join(rootDir, "workspace");
+    let kept: boolean | undefined;
+
+    const result = await runImportArtifactsCommand(
+      await completedArtifacts(workspace),
+      {
+        env: { INTAKE_WORKSPACE: workspace },
+        terminal: false,
+        keepCachedCallResults: true,
+        importArtifacts: async (input) => {
+          kept = input.keepCachedCallResults;
+          return {
+            ok: true,
+            serviceSkips: [
+              {
+                service: "anthropic",
+                downAt: "2026-11-17T12:00:00.000Z",
+                skipped: 4,
+                retryAfter: "2026-11-17T13:00:00.000Z",
+              },
+            ],
+            databaseMutationsPath: "current.DatabaseMutations.yaml",
+            counts: { mutations: 0, recordsByEntityType: {} },
+          };
+        },
+      },
+    );
+
+    const line =
+      "anthropic: went down at 2026-11-17T12:00:00.000Z; 4 call(s) skipped. Try again after 2026-11-17T13:00:00.000Z.";
+    expect(kept).toBe(true);
+    expect(result.exitCode).toBe(0);
+    expect(result.serviceSkips).toEqual([line]);
+    expect(result.stdout?.trimEnd().split("\n").at(-1)).toBe(line);
+  });
+
   test("CLI honors LOG_LEVEL for observable debug logging", async () => {
     const rootDir = await mkdtemp(path.join(tmpdir(), "intake-logs-"));
     const workspace = path.join(rootDir, "workspace");
@@ -792,6 +813,7 @@ describe("importArtifacts", () => {
         input.logger?.debug({ debugVisible: true }, "Debug import detail.");
         return {
           ok: true,
+          serviceSkips: [],
           databaseMutationsPath: "current.DatabaseMutations.yaml",
           counts: { mutations: 0, recordsByEntityType: {} },
         };
@@ -823,12 +845,34 @@ describe("importArtifacts", () => {
     );
   });
 
+  test("unreadable Artifacts fail before a command directory is created", async () => {
+    const rootDir = await mkdtemp(path.join(tmpdir(), "intake-logs-"));
+    const workspace = path.join(rootDir, "workspace");
+    const artifactsPath = path.join(rootDir, "broken.Artifacts.yaml");
+    await writeFile(artifactsPath, "kind: [unterminated");
+    let imported = false;
+
+    const result = await runImportArtifactsCommand(artifactsPath, {
+      env: { INTAKE_WORKSPACE: workspace },
+      terminal: false,
+      importArtifacts: async () => {
+        imported = true;
+        return { ok: false, error: new Error("should not run") };
+      },
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain(artifactsPath);
+    expect(imported).toBe(false);
+    await expect(readdir(workspace)).rejects.toThrow("ENOENT");
+  });
+
   test("writer failure returns failure and CLI does not report success", async () => {
     const rootDir = await mkdtemp(path.join(tmpdir(), "intake-logs-"));
     const workspace = path.join(rootDir, "workspace");
     const importResult = {
       ok: false,
-      error: "duplicate key value violates unique constraint",
+      error: new Error("duplicate key value violates unique constraint"),
     } as const;
 
     const cliResult = await runImportArtifactsCommand(
@@ -846,4 +890,127 @@ describe("importArtifacts", () => {
     );
     expect(cliResult.stdout ?? "").not.toContain("Imported artifacts");
   });
+
+  async function onlyLog(workspace: string): Promise<string> {
+    const [folder] = await readdir(path.join(workspace, "command"));
+    return path.join(
+      workspace,
+      "command",
+      folder!,
+      `${folder!.split("-").at(-1)}.log`,
+    );
+  }
+
+  test.each([
+    [
+      "returns",
+      async () => ({ ok: false as const, error: new Error("duplicate key") }),
+    ],
+    [
+      "throws",
+      async (): Promise<never> => {
+        throw new Error("duplicate key");
+      },
+    ],
+  ])(
+    "an import that %s an error ends its log with that error and closes it",
+    async (_how, importArtifacts) => {
+      const rootDir = await mkdtemp(path.join(tmpdir(), "intake-logs-"));
+      const workspace = path.join(rootDir, "workspace");
+      const cliResult = await runImportArtifactsCommand(
+        await completedArtifacts(workspace),
+        {
+          env: { INTAKE_WORKSPACE: workspace },
+          terminal: false,
+          importArtifacts,
+        },
+      );
+
+      expect(cliResult).toMatchObject({
+        exitCode: 1,
+        stderr: "duplicate key\n",
+      });
+      const logPath = await onlyLog(workspace);
+      const last = (await readLogRecords(logPath)).at(-1);
+      expect(last).toMatchObject({
+        level: 50,
+        error: {
+          message: "duplicate key",
+          stack: expect.stringContaining("Error: duplicate key\n    at "),
+        },
+      });
+      expect(last).not.toHaveProperty("msg");
+      expect(await wasLogOpen(logPath)).toBe(false);
+    },
+  );
+
+  test("a successful import closes its log", async () => {
+    const rootDir = await mkdtemp(path.join(tmpdir(), "intake-logs-"));
+    const workspace = path.join(rootDir, "workspace");
+    const cliResult = await runImportArtifactsCommand(
+      await completedArtifacts(workspace),
+      {
+        env: { INTAKE_WORKSPACE: workspace },
+        terminal: false,
+        importArtifacts: async () => ({
+          ok: true,
+          databaseMutationsPath: "current.DatabaseMutations.yaml",
+          counts: { mutations: 0, recordsByEntityType: {} },
+          serviceSkips: [],
+        }),
+      },
+    );
+    expect(cliResult.exitCode).toBe(0);
+    expect(await wasLogOpen(await onlyLog(workspace))).toBe(false);
+  });
+
+  test.each([
+    [
+      "returns",
+      async () => ({ ok: false as const, error: new Error("lock timeout") }),
+    ],
+    [
+      "throws",
+      async (): Promise<never> => {
+        throw new Error("lock timeout");
+      },
+    ],
+  ])(
+    "a replay that %s an error ends its log with that error and closes it",
+    async (_how, replay) => {
+      const workspace = await mkdtemp(path.join(tmpdir(), "intake-replay-"));
+      const databaseMutations = await DatabaseMutations.write(
+        workspace,
+        DatabaseMutations.new({
+          metadata: {
+            name: "replayed",
+            namespace: "test/replay",
+            sourceArtifactsName: "replayed",
+          },
+          spec: { mutations: [] },
+        }),
+      );
+      const result = await runReplayDatabaseMutationsCommand(
+        databaseMutations!.path,
+        {
+          env: { INTAKE_WORKSPACE: workspace },
+          terminal: false,
+          replayDatabaseMutations: replay,
+        },
+      );
+
+      expect(result).toMatchObject({ exitCode: 1, stderr: "lock timeout\n" });
+      const logPath = await onlyLog(workspace);
+      const last = (await readLogRecords(logPath)).at(-1);
+      expect(last).toMatchObject({
+        level: 50,
+        error: {
+          message: "lock timeout",
+          stack: expect.stringContaining("Error: lock timeout\n    at "),
+        },
+      });
+      expect(last).not.toHaveProperty("msg");
+      expect(await wasLogOpen(logPath)).toBe(false);
+    },
+  );
 });

@@ -19,11 +19,17 @@ import {
   readCommandPointer,
   writeCommandPointer,
 } from "../state/command-pointer.js";
+import {
+  createCommandLog,
+  recordCommandError,
+  type CommandLogger,
+  type TerminalStream,
+} from "../../logging.js";
 
 type ResetOptions = { acquire: boolean };
 type ResetDependencies = {
   env: Record<string, string | undefined>;
-  logger: { info(message: string): void };
+  terminal: TerminalStream | false;
   orderedSourceIds?: () => Promise<string[]>;
   acquiredInputs?: (source: string) => Promise<string[] | null>;
   sourceProduces?: (source: string) => Promise<readonly ImportArtifactKind[]>;
@@ -32,6 +38,7 @@ type ResetDependencies = {
     args: readonly string[],
     context?: {
       useInitialAgencyRoots: boolean;
+      keepCachedCallResults: boolean;
     },
   ) => Promise<CommandResult>;
   prepareManualLocations?: () => Promise<CommandResult>;
@@ -81,8 +88,10 @@ export async function resetData(
   options: ResetOptions,
   dependencies: ResetDependencies,
 ): Promise<CommandResult> {
-  const { env, logger } = dependencies;
+  const { env } = dependencies;
   let phase = "preparation";
+  let commandLogger: CommandLogger | undefined;
+  let closeLog: (() => void) | undefined;
   try {
     const workspace = intakeWorkspace(env);
     if (!env.DATABASE_URL?.trim())
@@ -91,6 +100,13 @@ export async function resetData(
     const command = await createCommandDirectory(env, {
       args: ["data", "reset", ...(options.acquire ? [] : ["--no-acquire"])],
     });
+    const { logger, close } = createCommandLog(
+      command,
+      env,
+      dependencies.terminal,
+    );
+    commandLogger = logger;
+    closeLog = close;
     const runDataCommand =
       dependencies.runDataCommand ??
       (async (args, context) => {
@@ -103,6 +119,7 @@ export async function resetData(
       logger.info(`data reset: ${phase}`);
       const result = await runDataCommand(args, {
         useInitialAgencyRoots: true,
+        keepCachedCallResults: !options.acquire,
       });
       if (result.exitCode !== 0)
         throw new Error(result.stderr?.trim() || `${phase} failed.`);
@@ -114,26 +131,6 @@ export async function resetData(
         (await loadSourceStandalone(id, path.join(process.cwd(), "sources")))
           ? null
           : retainedAcquiredInputs(workspace, id));
-
-    for (const source of sources) {
-      phase = `inventory acquisitions ${source}`;
-      const state = path.join(workspace, "state", source);
-      const pointer = await readCommandPointer(state, "acquire");
-      if (options.acquire && pointer.latest === undefined) continue;
-      const inputs = await acquiredInputs(source);
-      if (inputs === null) continue;
-      try {
-        for (const input of inputs) {
-          await writeCommandPointer(state, "acquire", {
-            ...pointer,
-            latest: input,
-          });
-          await executePhase(["data", "transform", source]);
-        }
-      } finally {
-        await writeCommandPointer(state, "acquire", pointer);
-      }
-    }
 
     phase = "schema reset";
     logger.info(
@@ -197,7 +194,7 @@ export async function resetData(
             const result = await transformOneSource(
               "org/policeconduct/manual",
               env,
-              logger,
+              dependencies.terminal,
               ["LocationPaths", "LocationPathAliases"],
             );
             return "error" in result ? result.error : { exitCode: 0 };
@@ -217,9 +214,12 @@ export async function resetData(
       stdout: `data reset: rebuilt ${sources.length} source(s) and manual records${options.acquire ? "" : " without acquisition"}.\n`,
     };
   } catch (error) {
+    if (commandLogger !== undefined) recordCommandError(commandLogger, error);
     return {
       exitCode: 1,
       stderr: `data reset: rebuild incomplete at ${phase}: ${error instanceof Error ? error.message : String(error)}\n`,
     };
+  } finally {
+    closeLog?.();
   }
 }

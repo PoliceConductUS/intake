@@ -1,16 +1,14 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { toJSONSchema } from "zod";
+import { intakeWorkspace } from "../src/cli/command-directory.js";
 import {
   INTAKE_API_VERSION,
   importArtifactKindOrder,
   importTypeRegistry,
 } from "../src/shared/io/import-types.js";
 
-const workspace = process.env.INTAKE_WORKSPACE;
-if (workspace === undefined || workspace.trim().length === 0) {
-  throw new Error("INTAKE_WORKSPACE is required to publish import schemas.");
-}
+const workspace = intakeWorkspace(process.env);
 
 const outputDirectory = path.join(
   workspace,

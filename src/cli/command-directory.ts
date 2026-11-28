@@ -1,8 +1,10 @@
 import { assertValidSourceId } from "../shared/source-namespace.js";
+import { statSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { createId } from "@paralleldrive/cuid2";
 import { Command } from "../shared/io/Command.js";
+import { assertLogLevel } from "../logging.js";
 
 function timestampForPath(date: Date): string {
   return date.toISOString().replace(/[:.]/g, "-");
@@ -11,9 +13,25 @@ function timestampForPath(date: Date): string {
 export function intakeWorkspace(
   env: Record<string, string | undefined>,
 ): string {
-  const workspace = env.INTAKE_WORKSPACE_TEST ?? env.INTAKE_WORKSPACE;
+  const workspace = env.INTAKE_WORKSPACE;
   if (workspace === undefined || workspace.trim().length === 0) {
-    throw new Error("INTAKE_WORKSPACE is required to create command output.");
+    throw new Error(
+      "INTAKE_WORKSPACE is required: the absolute path of an existing workspace folder.",
+    );
+  }
+  if (!path.isAbsolute(workspace)) {
+    throw new Error(`INTAKE_WORKSPACE must be an absolute path: ${workspace}`);
+  }
+  let stats;
+  try {
+    stats = statSync(workspace, { throwIfNoEntry: false });
+  } catch (error) {
+    throw new Error(
+      `INTAKE_WORKSPACE ${workspace} cannot be read: ${(error as Error).message}`,
+    );
+  }
+  if (!stats?.isDirectory()) {
+    throw new Error(`INTAKE_WORKSPACE ${workspace} is not an existing folder.`);
   }
   return workspace;
 }
@@ -34,6 +52,7 @@ export async function createCommandDirectory(
   outputDirectory: string;
 }> {
   const workspace = intakeWorkspace(env);
+  assertLogLevel(env);
   const commandName = (options.createCommandName ?? createId)();
   const namespace = options.namespace ?? "intake";
   const commandDirectory = path.join(

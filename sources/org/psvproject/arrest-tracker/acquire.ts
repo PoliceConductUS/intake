@@ -128,7 +128,7 @@ export const acquire: SourceAcquire = async ({ sourceDir, logger }) => {
         2,
       ),
     );
-    for (const row of rows) articleUrls.add(row.url);
+    for (const row of rows) if (row.url !== null) articleUrls.add(row.url);
   }
   const articles = await acquireArticles(
     [...articleUrls],

@@ -151,7 +151,7 @@ describe("initial agency roots in the shared import pipeline", () => {
     return importArtifacts({
       artifactsPath: input.path,
       useInitialAgencyRoots,
-      env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE_TEST: root },
+      env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE: root },
       commandName: runName,
       commandDirectory: path.join(root, "command"),
     });
@@ -278,7 +278,7 @@ describe("initial agency roots in the shared import pipeline", () => {
     expect(
       await importArtifacts({
         artifactsPath: input.path,
-        env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE_TEST: root },
+        env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE: root },
         commandName: "filtered-tcole",
         commandDirectory: path.join(root, "filtered-command"),
       }),
@@ -306,7 +306,9 @@ describe("initial agency roots in the shared import pipeline", () => {
     await writeFile(file.path, "not: an envelope");
     expect(await load()).toMatchObject({
       ok: false,
-      error: expect.stringContaining("InitialAgencyRoots is malformed"),
+      error: expect.objectContaining({
+        message: expect.stringContaining("InitialAgencyRoots is malformed"),
+      }),
     });
     expect(await agencyNames()).toEqual([]);
   });
@@ -357,7 +359,7 @@ describe("initial agency roots in the shared import pipeline", () => {
     expect(
       await importArtifacts({
         artifactsPath: input.path,
-        env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE_TEST: root },
+        env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE: root },
         commandName: "office",
         commandDirectory: path.join(root, "first-command"),
       }),

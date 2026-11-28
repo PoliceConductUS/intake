@@ -51,10 +51,17 @@ export function parseHierarchyRelationshipFile(
       "PLACE_GEOID",
       "GEOID_PLACE",
     ]);
-    const overlapTotalArea = Number(
-      firstPresent(row, ["overlapTotalArea", "AREALAND", "AREAPT", "AREA"]) ??
-        1,
-    );
+    const area = firstPresent(row, [
+      "overlapTotalArea",
+      "AREALAND",
+      "AREAPT",
+      "AREA",
+    ]);
+    if (area === undefined)
+      throw new Error(
+        `Invalid hierarchy relationship record at record ${index + 1}: no overlapTotalArea, AREALAND, AREAPT or AREA value`,
+      );
+    const overlapTotalArea = Number(area);
 
     const result = deterministicTotalAreaOverlapRecordSchema.safeParse({
       stateGeoid,

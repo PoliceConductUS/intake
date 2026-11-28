@@ -1,4 +1,4 @@
-import { TIMESTAMP_PROPERTIES } from "./io/generated/entity-specs.js";
+import { TIMESTAMP_PROPERTIES } from "./io/entity-specs.js";
 import { timestampWithTimezone } from "./timestamp-schema.js";
 
 /** Normalize typed timestamps for generation, comparison, and writes; preserve raw sources. */

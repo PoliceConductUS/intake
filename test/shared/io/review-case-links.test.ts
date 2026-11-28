@@ -1,9 +1,8 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, expect, test } from "vitest";
 import { Artifacts } from "../../../src/shared/io/index.js";
-import { Artifacts as RawArtifacts } from "../../../src/shared/io/generated/Artifacts.js";
 import {
   INTAKE_API_VERSION,
   importArtifactKindOrder,
@@ -187,12 +186,17 @@ test("recorded link updates can clear URL and title and set the case reference",
 });
 
 test("resolved inline PATCH records retain partial target corrections", async () => {
-  const written = await RawArtifacts.write(
-    await directory(),
-    artifact({ title: "Revised evidence title" }, "PATCH"),
+  const artifactsPath = path.join(await directory(), "artifacts.yaml");
+  await writeFile(
+    artifactsPath,
+    JSON.stringify(
+      Artifacts.schema.parse(
+        artifact({ title: "Revised evidence title" }, "PATCH"),
+      ),
+    ),
   );
   expect(
-    (await Artifacts.read(written.path)).spec.artifacts[0]?.spec.records[
+    (await Artifacts.read(artifactsPath)).spec.artifacts[0]?.spec.records[
       "case-link"
     ],
   ).toMatchObject({

@@ -4,7 +4,7 @@ Project guidance for agents working in `intake`: the Supabase schema,
 migrations, and intake CLI that load police-conduct data for the Institute for
 Police Conduct, Inc. This file is self-contained; the longer rationale lives in
 `docs/adr/` and, when the sibling checkout exists, in
-`../engineering-standards/docs/`.
+`../../engineering-standards/main/docs/`.
 
 Each rule appears once. If this file, OpenSpec, and existing code disagree, stop
 and say so instead of guessing.

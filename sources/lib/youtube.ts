@@ -1,15 +1,7 @@
 // A small YouTube Data API v3 client for the video-coverage sources (issue #52).
-// Network access is injected (`fetchJson`) so a source's acquire wires the real,
-// keyed, retrying fetch and tests inject fakes — the client itself is
-// deterministic.
-//
-// This client only ever reaches the keyed Data API on `www.googleapis.com`,
-// which we use under an API key and the API terms. It deliberately has no path
-// to `www.youtube.com`: that host's robots.txt disallows `/api/` (and
-// `/timedtext_video`), and we do not request paths a publisher disallows
-// (INS-72). `assertDataApiUrl` enforces that at the one place requests are
-// made, so re-introducing such a call fails loudly instead of silently
-// shipping.
+// Network access is injected (`fetchJson` for the Data API) so a source's acquire
+// wires the real, keyed, retrying fetch and tests inject fakes — the client itself
+// is deterministic.
 
 export type YoutubeSearchHit = {
   videoId: string;
@@ -25,7 +17,7 @@ export type DateWindow = { publishedAfter?: string; publishedBefore?: string };
 export type YoutubeApi = {
   /** The immutable channel id for a handle like `@PoliceActivity`, or null. */
   resolveChannelId(handle: string): Promise<string | null>;
-  /** One search call (up to 50 hits) within a channel, optionally date-bounded. */
+  /** Every hit of a search within a channel, optionally date-bounded; throws at the API limit of 500 videos. */
   searchChannelVideos(
     channelId: string,
     query: string,
@@ -100,21 +92,21 @@ export function quotaResetHint(body: unknown, now: Date): string {
   return `per-minute Search cap — resets within ~60s, but persistent failures mean the project's daily Search quota is spent or too low: raise it in the Cloud console or wait for the 00:00 America/Los_Angeles reset (${nextPacificResetDate(now)})`;
 }
 
+// https://developers.google.com/youtube/v3/docs/search/list (channelId): a
+// search with channelId and type=video returns at most 500 videos.
+const CHANNEL_SEARCH_VIDEO_LIMIT = 500;
+
 export function videoUrl(videoId: string): string {
   return `https://www.youtube.com/watch?v=${videoId}`;
 }
 
 export const DATA_API_BASE = "https://www.googleapis.com/youtube/v3";
 
-/**
- * The only host this client may request. Anything else — notably
- * `www.youtube.com`, whose robots.txt disallows `/api/` — is a bug, so it
- * throws rather than reaching the network (INS-72).
- */
+// www.youtube.com/robots.txt disallows /api/, so this client only calls the keyed Data API (INS-72).
 export function assertDataApiUrl(url: string): string {
   if (!url.startsWith(`${DATA_API_BASE}/`)) {
     throw new Error(
-      `youtube: refusing to request ${url} — this client may only call ${DATA_API_BASE} (INS-72: no robots-disallowed youtube.com paths).`,
+      `youtube: refusing to request ${url}; this client may only call ${DATA_API_BASE}.`,
     );
   }
   return url;
@@ -151,24 +143,46 @@ export function createYoutubeApi(deps: {
         params.set("publishedAfter", window.publishedAfter);
       if (window.publishedBefore !== undefined)
         params.set("publishedBefore", window.publishedBefore);
-      const body = await fetchJson(`${api}/search?${params.toString()}`);
       const hits: YoutubeSearchHit[] = [];
       const seen = new Set<string>();
-      for (const item of Array.isArray(body.items) ? body.items : []) {
-        const entry = record(item);
-        const videoId = str(record(entry.id).videoId);
-        if (videoId === "" || seen.has(videoId)) continue;
-        seen.add(videoId);
-        const snippet = record(entry.snippet);
-        hits.push({
-          videoId,
-          title: str(snippet.title),
-          description: str(snippet.description),
-          publishedAt: str(snippet.publishedAt),
-          channelId: str(snippet.channelId) || channelId,
-          url: videoUrl(videoId),
-        });
-      }
+      let received = 0;
+      let pageToken = "";
+      do {
+        if (pageToken !== "") params.set("pageToken", pageToken);
+        const body = await fetchJson(`${api}/search?${params.toString()}`);
+        if (!Array.isArray(body.items)) {
+          throw new Error(
+            `YouTube search for ${JSON.stringify(query)} in channel ${channelId} returned no items list.`,
+          );
+        }
+        for (const item of body.items) {
+          received += 1;
+          const entry = record(item);
+          const videoId = str(record(entry.id).videoId);
+          if (videoId === "") {
+            throw new Error(
+              `YouTube search for ${JSON.stringify(query)} in channel ${channelId} returned a hit with no video ID.`,
+            );
+          }
+          if (seen.has(videoId)) continue;
+          seen.add(videoId);
+          const snippet = record(entry.snippet);
+          hits.push({
+            videoId,
+            title: str(snippet.title),
+            description: str(snippet.description),
+            publishedAt: str(snippet.publishedAt),
+            channelId: str(snippet.channelId) || channelId,
+            url: videoUrl(videoId),
+          });
+        }
+        if (received >= CHANNEL_SEARCH_VIDEO_LIMIT) {
+          throw new Error(
+            `YouTube search for ${JSON.stringify(query)} in channel ${channelId} reached the API limit of ${CHANNEL_SEARCH_VIDEO_LIMIT} videos; the videos past the limit cannot be read. Search a shorter date window.`,
+          );
+        }
+        pageToken = str(body.nextPageToken);
+      } while (pageToken !== "");
       return hits;
     },
   };

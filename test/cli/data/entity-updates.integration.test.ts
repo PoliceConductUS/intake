@@ -74,7 +74,7 @@ describe("mutable entity edits through the data CLI", () => {
     });
     const location = {
       location_path_id: "/aa/",
-      path: "/aa/",
+      path: "/root/aa/",
       level: "place",
       display_name: "Original Place",
       parent_location_path_id: "/root/",
@@ -98,7 +98,7 @@ describe("mutable entity edits through the data CLI", () => {
     await acquire("LocationPath", location);
     await acquire("LocationPath", {
       location_path_id: "/bb/",
-      path: "/bb/",
+      path: "/root/bb/",
       level: "place",
       display_name: "Other Place",
       parent_location_path_id: "/root/",
@@ -143,6 +143,7 @@ describe("mutable entity edits through the data CLI", () => {
     const rosterArtifacts = await Artifacts.write(
       rosterCommand.outputDirectory,
       buildArtifactsEnvelope(source, rosterCommand.commandName, {
+        accounting: [],
         artifacts: [
           { kind: "Agencies", records: { agency: { spec: agency } } },
           { kind: "Personnel", records: { person: { spec: person } } },

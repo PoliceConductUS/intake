@@ -5,7 +5,7 @@ import { isDeepStrictEqual } from "node:util";
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import * as specs from "./generated/entity-specs.js";
+import * as specs from "./entity-specs.js";
 import {
   PropertyCorrection,
   correctionValue,

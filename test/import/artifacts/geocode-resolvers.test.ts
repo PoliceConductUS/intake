@@ -3,7 +3,7 @@ import { Resolver } from "../../../src/cli/import/artifacts/resolver-kit.js";
 import { describe, it, expect } from "vitest";
 import { latLngFromAddress } from "../../../src/cli/import/artifacts/facades/geocode-resolvers.js";
 import { DataContext } from "../../../src/cli/import/artifacts/data-context.js";
-import { typedInputFingerprint } from "../../../src/cli/state/resolved-property/index.js";
+import { typedInputFingerprint } from "../../../src/shared/io/fingerprint.js";
 import { INTAKE_API_VERSION } from "../../../src/shared/io/import-types.js";
 import { fakeSourceNameLedger } from "../../cli/state/fake-source-name-ledger.js";
 import { EmptyDatabaseClient } from "../../cli/database/empty-database-client.js";

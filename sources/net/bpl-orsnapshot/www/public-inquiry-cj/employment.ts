@@ -1,6 +1,7 @@
 import {
   reconstructEmployment,
   type EmploymentEventInput,
+  type EmploymentRowOutcome,
 } from "../../../../../src/cli/transform/employment.js";
 import type { Affiliation, EmploymentEvent } from "./parse.js";
 
@@ -36,10 +37,8 @@ const separations = new Set([
   "Terminated",
   "Rtrd Disab",
   "DOC-Transf",
-  "LOA",
-  "Mil-LOA",
-  "LveNonCert",
 ]);
+const leaves = new Set(["LOA", "Mil-LOA", "LveNonCert"]);
 const continuations = new Set([
   "Promotion",
   "Demotn Vol",
@@ -57,9 +56,14 @@ export function buildEmploymentEpisodes(
   agencyAffiliations: Affiliation[] = affiliations,
 ) {
   const normalized: EmploymentEventInput[] = [];
-  for (const event of events) {
+  const rows: Array<EmploymentRowOutcome | "certification-action"> = [];
+  const sourceRows: number[] = [];
+  for (const [index, event] of events.entries()) {
     const date = sourceDate(event.date);
-    if (nonEmploymentActions.has(event.action)) continue;
+    if (nonEmploymentActions.has(event.action)) {
+      rows[index] = "certification-action";
+      continue;
+    }
     let action: EmploymentEventInput["action"] = "unresolved";
     if (
       event.action === "Hired" ||
@@ -71,17 +75,23 @@ export function buildEmploymentEpisodes(
     else if (event.action === "Active" || event.action === "Reinstated")
       action = "restore";
     else if (separations.has(event.action)) action = "end";
+    else if (leaves.has(event.action)) action = "leave";
     else if (continuations.has(event.action)) action = "continue";
     normalized.push({ ...event, date, sourceAction: event.action, action });
+    sourceRows.push(index);
   }
   const normalizeAffiliation = (affiliation: Affiliation) => ({
     agencyId: affiliation.agencyId,
     agencyName: affiliation.agencyName,
     active: affiliation.status === "Active",
   });
-  return reconstructEmployment(
+  const result = reconstructEmployment(
     normalized.reverse(),
     affiliations.map(normalizeAffiliation),
     agencyAffiliations.map(normalizeAffiliation),
   );
+  sourceRows.reverse().forEach((index, position) => {
+    rows[index] = result.rows[position]!;
+  });
+  return { ...result, rows };
 }

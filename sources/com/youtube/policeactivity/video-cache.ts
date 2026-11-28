@@ -1,9 +1,8 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-// Per-agency, per-year search cache: a run does one search call per agency for
-// one year, so re-runs skip years already fetched and backfill older years one at
-// a time (gentle on the YouTube search quota).
+// Per-agency, per-year search cache: a run searches one year per agency, so
+// re-runs backfill older years one at a time (gentle on the YouTube search quota).
 export const CACHE_FILE = "video-cache.json";
 
 export type AcquiredVideo = {
@@ -24,14 +23,21 @@ export type VideoCache = {
 };
 
 export async function loadVideoCache(stateDir: string): Promise<VideoCache> {
+  const file = path.join(stateDir, CACHE_FILE);
+  let contents: string;
   try {
-    const parsed = JSON.parse(
-      await readFile(path.join(stateDir, CACHE_FILE), "utf8"),
-    ) as VideoCache;
-    return { agencies: parsed.agencies ?? {} };
-  } catch {
-    return { agencies: {} };
+    contents = await readFile(file, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return { agencies: {} };
+    }
+    throw error;
   }
+  const parsed = JSON.parse(contents) as Partial<VideoCache> | null;
+  if (typeof parsed?.agencies !== "object" || parsed.agencies === null) {
+    throw new Error(`com/youtube/policeactivity: ${file} has no agencies.`);
+  }
+  return { agencies: parsed.agencies };
 }
 
 export async function saveVideoCache(
@@ -45,19 +51,26 @@ export async function saveVideoCache(
   );
 }
 
-// The newest year in [floorYear, currentYear] this agency has not searched yet,
-// or null when it is backfilled to the floor.
+// The newest year in [floorYear, currentYear] this agency has never searched.
+// When every year is searched: the year least recently searched among those
+// last searched before the year ended, or null when there is none.
 export function nextYearToAcquire(
   entry: AgencyVideoCacheEntry | undefined,
   floorYear: number,
   currentYear: number,
 ): number | null {
+  let stale: { year: number; searchedAt: string } | null = null;
   for (let year = currentYear; year >= floorYear; year -= 1) {
-    if (entry === undefined || entry.years[String(year)] === undefined) {
-      return year;
+    const cached = entry?.years[String(year)];
+    if (cached === undefined) return year;
+    if (
+      cached.searchedAt < `${year + 1}-01-01T00:00:00.000Z` &&
+      (stale === null || cached.searchedAt < stale.searchedAt)
+    ) {
+      stale = { year, searchedAt: cached.searchedAt };
     }
   }
-  return null;
+  return stale === null ? null : stale.year;
 }
 
 // Every cached year's videos for an agency, de-duplicated by videoId.

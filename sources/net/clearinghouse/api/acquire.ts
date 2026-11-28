@@ -4,7 +4,6 @@ import type {
   AcquireDeps,
   SourceAcquire,
 } from "../../../../src/cli/transform/source-transform.js";
-import { slugify } from "../../../lib/civil-defendants.js";
 import { CLEARINGHOUSE_STATE_ID } from "./state-ids.js";
 
 const API = "https://clearinghouse.net/api/v2p1";
@@ -16,8 +15,11 @@ function str(value: unknown): string {
   return typeof value === "string" ? value : value == null ? "" : String(value);
 }
 
-function asArray(value: unknown): Record<string, unknown>[] {
-  return Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
+function resultsList(url: string, value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`clearinghouse: ${url} has no list of results.`);
+  }
+  return value as Record<string, unknown>[];
 }
 
 function bodyText(body: unknown): string {
@@ -114,12 +116,11 @@ export const acquire: SourceAcquire = async ({
   ): Promise<Record<string, unknown>[]> => {
     const cached = docketCache.get(caseId);
     if (cached !== undefined) return cached;
-    const raw = await fetchJson(
-      `${API}/cases/${encodeURIComponent(caseId)}/dockets/`,
-    );
+    const url = `${API}/cases/${encodeURIComponent(caseId)}/dockets/`;
+    const raw = await fetchJson(url);
     const rows = Array.isArray(raw)
       ? (raw as Record<string, unknown>[])
-      : asArray((raw as { results?: unknown }).results);
+      : resultsList(url, (raw as { results?: unknown }).results);
     const dockets = rows.map(({ docket_entries: _ignored, ...rest }) => rest);
     docketCache.set(caseId, dockets);
     return dockets;
@@ -138,7 +139,7 @@ export const acquire: SourceAcquire = async ({
     let url = `${API}/cases/?${params.toString()}`;
     while (url !== "") {
       const body = await fetchJson(url);
-      cases.push(...asArray(body.results));
+      cases.push(...resultsList(url, body.results));
       url = str(body.next);
     }
     for (const civilCase of cases) {
@@ -148,7 +149,6 @@ export const acquire: SourceAcquire = async ({
   };
 
   let searched = 0;
-  let skipped = 0;
   let failed = 0;
   let agenciesWithCases = 0;
   let totalCases = 0;
@@ -176,10 +176,16 @@ export const acquire: SourceAcquire = async ({
       );
     }
     const agencyName = record.name.trim();
+    if (agencyName === "") {
+      throw new Error(
+        `net/clearinghouse/api: agency ${record.agencyId} has a blank name.`,
+      );
+    }
     const stateId = CLEARINGHOUSE_STATE_ID[record.state.toUpperCase()];
-    if (agencyName === "" || stateId === undefined) {
-      skipped += 1;
-      continue;
+    if (stateId === undefined) {
+      throw new Error(
+        `net/clearinghouse/api: agency ${record.agencyId} has a state the Clearinghouse has no ID for: ${JSON.stringify(record.state)}.`,
+      );
     }
     let cases: Record<string, unknown>[];
     try {
@@ -187,7 +193,7 @@ export const acquire: SourceAcquire = async ({
     } catch (error) {
       failed += 1;
       log.info(
-        `clearinghouse: ${agencyName} — search failed, skipped (${error instanceof Error ? error.message : String(error)}).`,
+        `clearinghouse: ${agencyName} (${record.agencyId}) — search failed, skipped (${error instanceof Error ? error.message : String(error)}).`,
       );
       continue;
     }
@@ -195,8 +201,8 @@ export const acquire: SourceAcquire = async ({
     totalCases += cases.length;
     if (cases.length > 0) agenciesWithCases += 1;
     await writeFile(
-      // codeql[js/http-to-file-access] This raw API snapshot is the intended acquisition artifact; the agency filename is slugified and transforms parse JSON without executing it.
-      path.join(sourceDir, `${slugify(agencyName)}.cases.json`),
+      // codeql[js/http-to-file-access] This raw API snapshot is the intended acquisition artifact; the agency ID in the filename is percent-encoded and transforms parse JSON without executing it.
+      path.join(sourceDir, `${encodeURIComponent(record.agencyId)}.cases.json`),
       JSON.stringify(
         {
           agency: {
@@ -220,6 +226,6 @@ export const acquire: SourceAcquire = async ({
 
   log.info(
     `clearinghouse: ${totalCases} case(s) across ${agenciesWithCases} of ${searched} agencies searched; ` +
-      `${skipped} skipped (no clearinghouse state id), ${failed} skipped after errors.`,
+      `${failed} skipped after errors.`,
   );
 };

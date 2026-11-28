@@ -43,7 +43,7 @@ async function fixture() {
     root,
     input,
     artifactsPath: written.path,
-    env: { INTAKE_WORKSPACE_TEST: root },
+    env: { INTAKE_WORKSPACE: root },
   };
 }
 it("rejects helper-created artifacts before invoking import", async () => {
@@ -57,7 +57,9 @@ it("rejects helper-created artifacts before invoking import", async () => {
   });
   expect(result).toMatchObject({
     ok: false,
-    error: expect.stringMatching(/successful transform/i),
+    error: expect.objectContaining({
+      message: expect.stringMatching(/successful transform/i),
+    }),
   });
   await expect(
     import("node:fs/promises").then((fs) =>
@@ -196,7 +198,7 @@ it("does not stamp a completed acquisition for unrelated consumed paths", async 
     f.env,
     {
       commandArgs: ["data", "transform", "gov/texas/tcole"],
-      logger: { info() {} },
+      terminal: false,
     },
   );
   await expect(deps.beginCompletion()).rejects.toThrow(
@@ -225,7 +227,7 @@ it("validates a source id before touching completion state", async () => {
   const file = path.join(victim, "transform-completion.json");
   await writeFile(file, "important");
   await expect(
-    transformOneSource("../../victim", { INTAKE_WORKSPACE_TEST: workspace }),
+    transformOneSource("../../victim", { INTAKE_WORKSPACE: workspace }),
   ).rejects.toThrow(/Invalid source/);
   expect(
     await import("node:fs/promises").then((fs) => fs.readFile(file, "utf8")),
@@ -301,7 +303,9 @@ it("allows a separately audited correction after completing transform", async ()
   // The real importer must reach its existing correction stage, not fail completion.
   expect(result).toEqual({
     ok: false,
-    error: expect.stringMatching(/DATABASE_URL/),
+    error: expect.objectContaining({
+      message: expect.stringMatching(/DATABASE_URL/),
+    }),
   });
   expect(await requireTransformCompletion(f.root, "gov/texas/tcole")).toBe(
     artifactsPath,
@@ -357,7 +361,9 @@ it("rejects changed streamed record bytes before mutation creation", async () =>
   });
   expect(result).toMatchObject({
     ok: false,
-    error: expect.stringMatching(/sha256|malformed/),
+    error: expect.objectContaining({
+      message: expect.stringMatching(/sha256|malformed/),
+    }),
   });
   await expect(
     import("node:fs/promises").then((fs) => fs.access(mutations)),
@@ -373,8 +379,8 @@ it("rejects invalid source IDs before the dependency builder creates state", asy
     buildTransformSourceDeps(
       "../../victim",
       [],
-      { INTAKE_WORKSPACE_TEST: workspace },
-      { commandArgs: [], logger: { info() {} } },
+      { INTAKE_WORKSPACE: workspace },
+      { commandArgs: [], terminal: false },
     ),
   ).rejects.toThrow(/Invalid source/);
   await expect(

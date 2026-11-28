@@ -1,1 +1,1 @@
-export const transform = async () => ({ artifacts: [] });
+export const transform = async () => ({ accounting: [], artifacts: [] });

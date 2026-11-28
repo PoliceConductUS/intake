@@ -1,19 +1,221 @@
 import { createHash } from "node:crypto";
-import * as recordIO from "./generated/index.js";
 import path from "node:path";
 import { z } from "zod";
-import type { ArtifactsEnvelope as ArtifactsEnvelopeResource } from "./generated/Artifacts.js";
-import { Artifacts as GeneratedArtifacts } from "./generated/Artifacts.js";
-import { ARTIFACT_MODULES } from "./generated/artifact-modules.js";
+import { ARTIFACT_MODULES, RECORD_ENVELOPES } from "./artifact-modules.js";
 import {
   IMPORT_ARTIFACT_KINDS,
   compareImportArtifactKinds,
   type ImportArtifactKind,
 } from "./import-types.js";
-import { readYamlDocumentDigest } from "./internal/yaml-document.js";
-import { firstIssuePath } from "./resource.js";
+import { INTAKE_API_VERSION } from "./intake-api-version.js";
+import {
+  readYamlDocumentDigest,
+  readYamlDocumentFile,
+  writeYamlDocumentFile,
+} from "./internal/yaml-document.js";
+import { firstIssuePath, yamlDigest, yamlResourcePath } from "./resource.js";
 
 export type { ImportArtifactKind };
+
+type EnvelopeReadRef =
+  | { path: string; kind?: string; sha256?: string }
+  | { ref: { path: string; kind?: string; sha256?: string } };
+
+type EnvelopeReadOptions = {
+  expectedNamespace?: string;
+  relativeTo?: string;
+};
+
+function formatError(error: z.ZodError): string {
+  return `Artifacts is malformed at ${firstIssuePath(error)}.`;
+}
+
+function refValue(pathOrRef: string | EnvelopeReadRef): {
+  path: string;
+  kind?: string;
+  sha256?: string;
+} {
+  if (typeof pathOrRef === "string") {
+    return { path: pathOrRef };
+  }
+  if ("ref" in pathOrRef) {
+    return pathOrRef.ref;
+  }
+  return pathOrRef;
+}
+
+function resolveReadPath(
+  pathOrRef: string | EnvelopeReadRef,
+  options: EnvelopeReadOptions,
+): { filePath: string; kind?: string; sha256?: string } {
+  const ref = refValue(pathOrRef);
+  if (typeof pathOrRef === "string" || path.isAbsolute(ref.path)) {
+    return { ...ref, filePath: ref.path };
+  }
+  if (
+    options.relativeTo === undefined ||
+    options.relativeTo.trim().length === 0
+  ) {
+    throw new Error(
+      `Relative ${ref.kind ?? "Artifacts"} ref requires relativeTo.`,
+    );
+  }
+
+  const baseDirectory = path.dirname(options.relativeTo);
+  const resolvedPath = path.resolve(baseDirectory, ref.path);
+  const relativePath = path.relative(baseDirectory, resolvedPath);
+  if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+    throw new Error(
+      `${ref.kind ?? "Artifacts"} ref.path escapes its directory: ${ref.path}`,
+    );
+  }
+  return { ...ref, filePath: resolvedPath };
+}
+
+const metadataSchema = z
+  .object({
+    name: z.string().trim().min(1),
+    namespace: z.string().trim().min(1),
+    labels: z.record(z.string(), z.string()).optional(),
+    annotations: z.record(z.string(), z.string()).optional(),
+    producedAt: z.string().trim().min(1).optional(),
+    producer: z.string().trim().min(1).optional(),
+  })
+  .strict();
+
+const artifactKindSchema = z.enum(IMPORT_ARTIFACT_KINDS);
+const artifactSpecSchemas: Record<string, z.ZodType> = Object.fromEntries(
+  IMPORT_ARTIFACT_KINDS.map((kind) => [
+    kind,
+    ARTIFACT_MODULES[kind].envelope.schema.shape.spec,
+  ]),
+);
+const artifactReferenceSchema = z
+  .object({
+    ref: z
+      .object({
+        path: z.string().trim().min(1),
+        kind: artifactKindSchema,
+        sha256: z
+          .string()
+          .regex(/^[a-f0-9]{64}$/)
+          .optional(),
+      })
+      .strict(),
+  })
+  .strict();
+const inlineArtifactSchema = z
+  .object({
+    kind: artifactKindSchema,
+    spec: z.record(z.string(), z.unknown()),
+  })
+  .strict()
+  .superRefine((artifact, context) => {
+    const specSchema = artifactSpecSchemas[artifact.kind];
+    const result = specSchema.safeParse(artifact.spec);
+    if (!result.success) {
+      for (const issue of result.error.issues) {
+        context.addIssue({ ...issue, path: ["spec", ...issue.path] });
+      }
+    }
+  });
+
+const schema = z
+  .object({
+    apiVersion: z.literal(INTAKE_API_VERSION),
+    kind: z.literal("Artifacts"),
+    metadata: metadataSchema,
+    spec: z
+      .object({
+        personnelSourceNames: z.array(z.string().trim().min(1)).optional(),
+        artifacts: z.array(
+          z.union([artifactReferenceSchema, inlineArtifactSchema]),
+        ),
+      })
+      .strict(),
+  })
+  .strict();
+
+type ArtifactsEnvelopeResource = z.infer<typeof schema>;
+export type ArtifactsInput = Omit<
+  z.infer<typeof schema>,
+  "apiVersion" | "kind"
+>;
+
+function parseArtifacts(value: unknown): ArtifactsEnvelopeResource {
+  const result = schema.safeParse(value);
+  if (!result.success) {
+    throw new Error(
+      result.error.issues
+        .map((issue) => {
+          let rejected: unknown = value;
+          for (const segment of issue.path) {
+            rejected =
+              rejected !== null && typeof rejected === "object"
+                ? Reflect.get(rejected, segment)
+                : undefined;
+          }
+          return (
+            formatError(new z.ZodError([issue])) +
+            " " +
+            issue.message +
+            " Received: " +
+            (JSON.stringify(rejected) ?? "undefined") +
+            "."
+          );
+        })
+        .join("\n"),
+    );
+  }
+  return result.data;
+}
+
+function newArtifacts(input: ArtifactsInput): ArtifactsEnvelopeResource {
+  return parseArtifacts({
+    apiVersion: INTAKE_API_VERSION,
+    kind: "Artifacts",
+    ...input,
+  });
+}
+
+async function readArtifactsFile(
+  pathOrRef: string | EnvelopeReadRef,
+  options: EnvelopeReadOptions = {},
+): Promise<ArtifactsEnvelopeResource> {
+  const ref = resolveReadPath(pathOrRef, options);
+  if (ref.kind !== undefined && ref.kind !== "Artifacts") {
+    throw new Error(
+      `Artifacts ref.kind ${ref.kind} does not match expected kind Artifacts: ${ref.filePath}`,
+    );
+  }
+  const { contents, document } = await readYamlDocumentFile(
+    ref.filePath,
+    "Artifacts",
+  );
+  if (ref.sha256 !== undefined && yamlDigest(contents) !== ref.sha256) {
+    throw new Error(`Artifacts sha256 mismatch: ${ref.filePath}`);
+  }
+  const envelope = parseArtifacts(document);
+  if (
+    options.expectedNamespace !== undefined &&
+    envelope.metadata.namespace !== options.expectedNamespace
+  ) {
+    throw new Error(
+      `Artifacts namespace ${envelope.metadata.namespace} does not match expected namespace ${options.expectedNamespace}: ${ref.filePath}`,
+    );
+  }
+  return envelope;
+}
+
+async function writeArtifactsFile(
+  directory: string,
+  envelope: ArtifactsEnvelopeResource,
+): Promise<{ path: string }> {
+  const parsed = parseArtifacts(envelope);
+  const filePath = yamlResourcePath(directory, parsed);
+  await writeYamlDocumentFile(filePath, parsed);
+  return { path: filePath };
+}
 
 export type ImportArtifactEnvelope = {
   apiVersion: string;
@@ -58,7 +260,7 @@ export type ArtifactsEnvelope = Omit<ArtifactsEnvelopeResource, "spec"> & {
   };
 };
 
-type ArtifactsReadOptions = Parameters<typeof GeneratedArtifacts.read>[1] & {
+type ArtifactsReadOptions = EnvelopeReadOptions & {
   raw?: boolean;
   includeKinds?: readonly ImportArtifactKind[];
 };
@@ -194,11 +396,11 @@ function artifactFromInlineItem(
       );
     }
 
-    // A record is an envelope (ADR 0034): keep its metadata (action/selector) with
-    // it, and validate the spec against the full entity spec for PUT/POST or a
-    // partial for PATCH (a partial update sets only some fields).
+    // A record is an envelope (ADR 0034): its validated metadata is passed on
+    // whole (ADR 0040), and the spec is validated against the full entity spec for
+    // PUT/POST or a partial for PATCH (a partial update sets only some fields).
     const envelope = recordItem as {
-      metadata?: { action?: "PUT" | "PATCH" | "POST"; selector?: unknown };
+      metadata?: { action?: "PUT" | "PATCH" | "POST" };
       spec: unknown;
     };
     const specSchema = artifactRecordSpecs[item.kind];
@@ -213,15 +415,7 @@ function artifactFromInlineItem(
       );
     }
     records[recordKey] = {
-      metadata: {
-        name: recordKey,
-        ...(envelope.metadata?.action !== undefined
-          ? { action: envelope.metadata.action }
-          : {}),
-        ...(envelope.metadata?.selector !== undefined
-          ? { selector: envelope.metadata.selector }
-          : {}),
-      },
+      metadata: { ...envelope.metadata, name: recordKey },
       spec: envelope.spec,
     };
   }
@@ -347,7 +541,7 @@ async function readArtifactsEnvelope(
   filePath: string,
   options: ArtifactsReadOptions = {},
 ): Promise<ArtifactsEnvelopeResource | ArtifactsEnvelope> {
-  const artifactsEnvelope = await GeneratedArtifacts.read(filePath, options);
+  const artifactsEnvelope = await readArtifactsFile(filePath, options);
   if (options.raw === true) {
     return artifactsEnvelope;
   }
@@ -384,7 +578,7 @@ async function integrityDigest(filePath: string): Promise<string> {
         value as { ref: { path: string; kind: string; sha256?: string } }
       ).ref;
       const io = (
-        recordIO as unknown as Record<
+        RECORD_ENVELOPES as unknown as Record<
           string,
           {
             read: (
@@ -416,7 +610,9 @@ async function integrityDigest(filePath: string): Promise<string> {
 }
 
 export const Artifacts = {
-  ...GeneratedArtifacts,
+  kind: "Artifacts",
+  schema,
+  new: newArtifacts,
   read: readArtifactsEnvelope,
   integrityDigest,
   digest(filePath: string): Promise<string> {
@@ -480,7 +676,7 @@ export const Artifacts = {
       }
     }
 
-    return GeneratedArtifacts.write(directory, {
+    return writeArtifactsFile(directory, {
       ...envelope,
       spec: {
         ...envelope.spec,

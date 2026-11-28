@@ -12,6 +12,7 @@ test("source conditions use exact deep equality and own fields only", () => {
     details: { labels: ["9", "Townsend"], enabled: false, count: 0 },
   });
   const input: SourceManifest = {
+    accounting: [],
     artifacts: [{ kind: "Personnel", records: { person: { spec } } }],
   };
   const exclusion = (when: NonNullable<ExcludedRecord["when"]>) =>
@@ -54,14 +55,17 @@ test("source conditions use exact deep equality and own fields only", () => {
     selectActiveExcludedRecords(input, exclusion({ inherited: "bad" })).size,
   ).toBe(0);
   expect(
-    selectActiveExcludedRecords({ artifacts: [] }, exclusion({ details: null }))
-      .size,
+    selectActiveExcludedRecords(
+      { accounting: [], artifacts: [] },
+      exclusion({ details: null }),
+    ).size,
   ).toBe(0);
 });
 
 describe("excludeManifestRecords", () => {
   test("removes an excluded agency and cascades to its assignments", () => {
     const manifest: SourceManifest = {
+      accounting: [],
       artifacts: [
         {
           kind: "Agencies",
@@ -106,6 +110,7 @@ describe("excludeManifestRecords", () => {
   test("is a no-op when nothing is excluded, preserving explicit personnel roots", () => {
     const manifest: SourceManifest = {
       personnelSourceNames: ["person"],
+      accounting: [],
       artifacts: [
         { kind: "Agencies", records: { "1": { spec: { name: "PD" } } } },
       ],

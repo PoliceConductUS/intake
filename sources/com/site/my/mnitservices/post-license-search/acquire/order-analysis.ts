@@ -54,7 +54,7 @@ export function createOrderAnalyzer(apiKey: string): OrderAnalyzer {
 
 /** The analyzer used until the first order needs analyzing; keyless runs that hit only the cache never fail. */
 export function createLazyOrderAnalyzer(
-  apiKey: string | undefined,
+  readApiKey: () => string | undefined,
 ): OrderAnalyzer {
   let analyzer: OrderAnalyzer | undefined;
   return {
@@ -62,6 +62,7 @@ export function createLazyOrderAnalyzer(
     promptSha256: ORDER_ANALYSIS_PROMPT_SHA256,
     analyze(text: string): Promise<OrderAnalysisResult> {
       if (analyzer === undefined) {
+        const apiKey = readApiKey();
         if (apiKey === undefined || apiKey.trim() === "") {
           throw new Error(
             "com/site/my/mnitservices/post-license-search: ANTHROPIC_API_KEY is required to analyze disciplinary orders.",

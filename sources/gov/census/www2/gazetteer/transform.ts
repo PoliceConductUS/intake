@@ -26,7 +26,13 @@ import { addSupplementalPlaces } from "./lib/supplemental-places.js";
 import {
   readFeaturesByState,
   type TigerFeatureRow,
+  type TigerFeatureTally,
 } from "./lib/tiger-hierarchy.js";
+import {
+  countNotSelected,
+  OUTSIDE_ALLOWED_STATES,
+  rowCounts,
+} from "./lib/constants.js";
 import { matchInputs } from "./lib/inputs.js";
 
 /**
@@ -95,15 +101,20 @@ export const transform: SourceTransform = async (deps: TransformDeps) => {
   const readFeatures = async (
     paths: string[],
     type: Parameters<typeof readFeaturesByState>[1],
+    tally?: TigerFeatureTally,
   ) => {
     const rows: TigerFeatureRow[] = [];
     for (const file of paths)
       rows.push(
-        ...[...(await readFeaturesByState(file, type, deps.state))].flatMap(
-          ([, values]) => values,
-        ),
+        ...[
+          ...(await readFeaturesByState(file, type, deps.state, tally)),
+        ].flatMap(([, values]) => values),
       );
     return rows;
+  };
+  const supplementalTallies = {
+    county_subdivision: { read: 0, outsideStates: 0 },
+    consolidated_city: { read: 0, outsideStates: 0 },
   };
   const importedPlaceGeoids = new Set(
     Object.values(primary.locationPathSources)
@@ -116,10 +127,12 @@ export const transform: SourceTransform = async (deps: TransformDeps) => {
     subdivisions: await readFeatures(
       inputs.countySubdivisionTigerZips,
       "county_subdivision",
+      supplementalTallies.county_subdivision,
     ),
     consolidatedCities: await readFeatures(
       inputs.consolidatedCityTigerZips,
       "consolidated_city",
+      supplementalTallies.consolidated_city,
     ),
     places: (await readFeatures(inputs.placeTigerZips, "place")).filter(
       (feature) => importedPlaceGeoids.has(feature.geoid),
@@ -185,7 +198,63 @@ export const transform: SourceTransform = async (deps: TransformDeps) => {
     });
   }
 
-  return { artifacts };
+  const supplementalAccounting = {
+    county_subdivision: rowCounts(),
+    consolidated_city: rowCounts(),
+  };
+  for (const sourceType of [
+    "county_subdivision",
+    "consolidated_city",
+  ] as const) {
+    const counts = supplementalAccounting[sourceType];
+    counts.read = supplementalTallies[sourceType].read;
+    if (supplementalTallies[sourceType].outsideStates > 0)
+      counts.notSelected[OUTSIDE_ALLOWED_STATES] =
+        supplementalTallies[sourceType].outsideStates;
+  }
+  for (const row of supplemental.report) {
+    const counts = supplementalAccounting[row.sourceType];
+    if (row.status === "included") counts.emitted += 1;
+    else countNotSelected(counts, NOT_SELECTED_REASON[row.status]);
+  }
+
+  const name = (file: string) => path.basename(file);
+  const stateFiles = (kind: string) => `tl_${inputs.year}_<state>_${kind}.zip`;
+  return {
+    artifacts,
+    accounting: [
+      { input: name(inputs.statesZip), ...primary.accounting.states },
+      {
+        input: name(inputs.adminAreasZip),
+        ...primary.accounting.administrativeAreas,
+      },
+      { input: name(inputs.placesZip), ...primary.accounting.places },
+      ...(inputs.hierarchyFile === undefined
+        ? []
+        : [
+            {
+              input: name(inputs.hierarchyFile),
+              ...primary.accounting.hierarchy,
+            },
+          ]),
+      { input: name(inputs.stateTigerZip), ...pkg.featureAccounting.state },
+      { input: name(inputs.countyTigerZip), ...pkg.featureAccounting.county },
+      { input: stateFiles("place"), ...pkg.featureAccounting.place },
+      {
+        input: stateFiles("cousub"),
+        ...supplementalAccounting.county_subdivision,
+      },
+      {
+        input: stateFiles("concity"),
+        ...supplementalAccounting.consolidated_city,
+      },
+    ],
+  };
+};
+
+const NOT_SELECTED_REASON = {
+  covered: "fully covered by Census places",
+  excluded: "statistical or undefined county subdivision",
 };
 
 async function readGazetteerZip<T extends GazetteerRecordType>(
@@ -207,13 +276,15 @@ async function readGazetteerZip<T extends GazetteerRecordType>(
  * Maps the ported `LocationPathWithGeometryExtent` shape (which still
  * carries the original's `latitude`/`longitude` strings) onto exactly the
  * fields the target `LocationPathSpec` (`.strict()`) validates: the same
- * eleven descriptive fields, plus `centroid`/`bbox` in place of
+ * eleven descriptive fields (a state row also carries its state_code), plus `centroid`/`bbox` in place of
  * `latitude`/`longitude`.
  */
 function toLocationPathSpec(row: LocationPathWithGeometryExtent) {
   return {
     location_path_id: row.location_path_id,
-    ...(row.level === "state" ? { path: row.path } : {}),
+    ...(row.level === "state"
+      ? { path: row.path, state_code: row.state_code }
+      : {}),
     level: row.level,
     resolution_class: row.resolution_class ?? "primary",
     display_name: row.display_name,

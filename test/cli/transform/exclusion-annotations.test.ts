@@ -4,6 +4,7 @@ import { attachExclusionEvidence } from "../../../src/cli/transform/exclusion-an
 import { inspectDataAnnotations } from "../../../src/shared/inspect-data-annotations.js";
 import type { SourceManifest } from "../../../src/cli/transform/source-transform.js";
 const manifest = (): SourceManifest => ({
+  accounting: [],
   artifacts: [
     {
       kind: "LicensingAuthorities",
@@ -55,7 +56,11 @@ test("empty source exclusions are emitted to clear earlier evidence on rerun", (
 });
 test("exclusions fail loudly without exactly one explicit provider authority", () => {
   expect(() =>
-    attachExclusionEvidence({ artifacts: [] }, excluded, "test.provider"),
+    attachExclusionEvidence(
+      { accounting: [], artifacts: [] },
+      excluded,
+      "test.provider",
+    ),
   ).toThrow(/exactly one/);
   const duplicate = manifest();
   duplicate.artifacts.push(...manifest().artifacts);

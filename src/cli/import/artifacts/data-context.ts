@@ -3,6 +3,7 @@ import { inspectDataAnnotationFindings } from "../../../shared/inspect-data-anno
 import {
   SourceValues,
   type DataAnnotation,
+  type Finding,
 } from "../../../shared/data-annotations.js";
 import type { AgencyLocationPathLookup } from "../../../shared/agency-location-path.js";
 import type { InitialAgencyRootsEnvelope } from "../../../shared/io/index.js";
@@ -13,17 +14,16 @@ import {
   type AgencyGraphRecord,
 } from "./agency-graph.js";
 import type { ApplyPropertyCorrections } from "../../../shared/io/property-corrections.js";
+import type { ServiceClients } from "../../../shared/services/index.js";
 import { createId } from "@paralleldrive/cuid2";
 import {
   valueAsString,
   type PropertyCache,
   type ForeignKeyIdSource,
 } from "./resolver-kit.js";
-import type {
-  EntityFacade,
-  EntityFacadeBackend,
-} from "./facades/entity-facade.js";
+import type { EntityFacade } from "./facades/entity-facade.js";
 import {
+  type AnnotationBackend,
   buildFacadeForKind,
   identityColumnForKind,
   urlOwnershipForKind,
@@ -31,7 +31,7 @@ import {
 import {
   BUSINESS_KEYS,
   RECORD_KINDS_IN_DEPENDENCY_ORDER,
-} from "../../../shared/io/generated/entity-specs.js";
+} from "../../../shared/io/entity-specs.js";
 import { INTAKE_API_VERSION } from "../../../shared/io/import-types.js";
 import type { DatabaseClient } from "../../database/index.js";
 import { SlugAllocator } from "./slug.js";
@@ -109,6 +109,8 @@ export type DataContextOptions = {
    * ledger load, no whole-map re-persist.
    */
   ledger?: SourceNameToCanonicalIdLedger;
+  /** The command's clients for outside services (ADR 0039). */
+  serviceClients?: ServiceClients;
 };
 
 type SourceRecordContext = {
@@ -123,6 +125,8 @@ type SourceRecordContext = {
   /** The record's write verb and addressing (ADR 0034), from its metadata. */
   action?: "PUT" | "PATCH" | "POST";
   selector?: Record<string, unknown>;
+  /** The findings the source reported in the record's metadata (ADR 0040). */
+  defects?: readonly Finding[];
   /** Absolute path of the file this record was read from (for error context). */
   sourceFile?: string;
 };
@@ -160,7 +164,7 @@ type RegistryFacade = EntityFacade<
 // The single backend the resolver builder injects: the generic facade backend
 // plus the slug and agency-geocode capabilities the Personnel/Agency resolvers
 // reach through. Inert for kinds whose resolvers never call them.
-type UnifiedFacadeBackend = EntityFacadeBackend & {
+type UnifiedFacadeBackend = AnnotationBackend & {
   getLocationPathById: AgencyLocationPathLookup;
   ensureUniqueSlug(input: {
     kind: string;
@@ -178,6 +182,7 @@ type UnifiedFacadeBackend = EntityFacadeBackend & {
   resolveAgencyCoordinates(
     input: ResolveAddressInput,
   ): Promise<AddressResolution>;
+  serviceClients(): ServiceClients;
 };
 
 // Keep same-tick coalescing within each batch without retaining pending work
@@ -221,6 +226,7 @@ export class DataContext {
   private readonly commandName?: string;
   private readonly validationDate: Date;
   private readonly ledger?: SourceNameToCanonicalIdLedger;
+  private readonly services?: ServiceClients;
   private readonly slugs: SlugAllocator;
   /** Every facade built this command, grouped by kind then memo key. */
   private readonly facadesByKind = new Map<
@@ -254,6 +260,7 @@ export class DataContext {
     this.commandName = options.commandName;
     this.validationDate = options.validationDate ?? new Date();
     this.ledger = options.ledger;
+    this.services = options.serviceClients;
     this.slugs = new SlugAllocator(async (kind, slug) => {
       const [row, cachedOwner] = await Promise.all([
         this.rows.getById(kind, slug, "slug"),
@@ -364,6 +371,30 @@ export class DataContext {
           return Promise.resolve([emitted]);
         return this.rows.getRowsByColumns(targetKind, columnValues);
       },
+      findRowsByColumnsWithEmitted: async (targetKind, columnValues) => {
+        // Stored rows overlaid by this run's emitted rows: an emitted row
+        // replaces its stored version and is kept only when it still matches.
+        const identityColumn = identityColumnForKind(targetKind);
+        const rows = new Map<string, Record<string, unknown>>();
+        for (const row of await this.rows.getRowsByColumns(
+          targetKind,
+          columnValues,
+        ))
+          rows.set(String(row[identityColumn]), row);
+        const prefix = DataContext.emittedKey(targetKind, "");
+        for (const [key, row] of this.emittedRows) {
+          if (!key.startsWith(prefix)) continue;
+          const identity = key.slice(prefix.length);
+          if (
+            Object.entries(columnValues).every(
+              ([column, value]) => row[column] === value,
+            )
+          )
+            rows.set(identity, row);
+          else rows.delete(identity);
+        }
+        return [...rows.values()];
+      },
       ensureUniqueSlug: (input) =>
         this.slugs.ensureUnique(input.kind, {
           base: input.base,
@@ -374,6 +405,13 @@ export class DataContext {
       resolveAgencyLocation: (input) => this.locations.resolveAddress(input),
       resolveAgencyCoordinates: (input) =>
         this.locations.resolveCoordinates(input),
+      serviceClients: () => {
+        if (this.services === undefined)
+          throw new Error(
+            "This import was given no service clients, so a resolver cannot call an outside service.",
+          );
+        return this.services;
+      },
     };
     backends.set(identityColumn, backend);
     return backend;
@@ -421,6 +459,8 @@ export class DataContext {
     const facades = this.facadesFor(kind);
     const existing = facades.get(key);
     if (existing !== undefined) {
+      if (input.defects !== undefined)
+        existing.recordSourceFindings(input.defects);
       if (input.spec !== undefined) {
         existing.merge(input.spec, correctedProperties);
         existing.recordSourceContribution(
@@ -450,6 +490,7 @@ export class DataContext {
       facade.merge(input.spec, correctedProperties);
       facade.recordSourceContribution(rawSourceValues!, correctionAnnotations);
     }
+    if (input.defects !== undefined) facade.recordSourceFindings(input.defects);
     facades.set(key, facade);
     return facade;
   }
@@ -683,11 +724,54 @@ export class DataContext {
         DataContext.emittedKey(kind, identityValue),
         facade.inspectionValues,
       );
+      // existingRow now answers from the emitted row, so the stored row read
+      // for this mutation is no longer needed; keeping it doubles the heap.
+      this.rows.forgetById(kind, identityValue, identityColumnForKind(kind));
       const contribution = facade.contribution(resolved);
+      const reported = [
+        {
+          owner: [
+            "source",
+            facade.sourceIdentity.referenceNamespace ??
+              facade.sourceIdentity.namespace,
+          ],
+          findings: facade.sourceFindings,
+        },
+        {
+          owner: ["resolver"],
+          findings: facade.resolverFindings,
+          keepsEarlier: facade.keepsEarlierResolverFindings,
+        },
+      ].flatMap(({ owner, findings, keepsEarlier }) =>
+        findings === undefined
+          ? []
+          : [
+              {
+                owner,
+                keepsEarlier,
+                findings: findings.map(({ code, ...annotation }) => ({
+                  key: JSON.stringify([code, annotation.field]),
+                  annotation,
+                })),
+              },
+            ],
+      );
       // Only entity kinds carrying source evidence participate in automatic inspection.
       // Native annotations have no such column and do not recursively annotate themselves.
-      if (contribution === undefined || !facade.supportsSourceEvidence) return;
-      const groups = [
+      if (contribution === undefined || !facade.supportsSourceEvidence) {
+        if (reported.some((group) => group.findings.length > 0))
+          throw new Error(
+            `A finding was reported for ${kind} ${facade.sourceIdentity.namespace}/${facade.sourceIdentity.name}, which cannot hold annotations.`,
+          );
+        return;
+      }
+      const groups: {
+        owner: string[];
+        keepsEarlier?: boolean;
+        processedFields?: ReadonlySet<string>;
+        findings: { key: string; annotation: DataAnnotation }[];
+      }[] = [
+        ...reported,
         {
           owner: [
             "correction",
@@ -719,7 +803,8 @@ export class DataContext {
             .digest("hex") + "/";
         // Only existing findings need retirement bookkeeping. Valid records
         // with no prior findings must not allocate retained empty maps/sets.
-        if (existingScopes.has(scope)) annotationScopes.add(scope);
+        if (existingScopes.has(scope) && group.keepsEarlier !== true)
+          annotationScopes.add(scope);
         if (existingScopes.has(scope) && group.processedFields !== undefined)
           correctionFieldsByScope.set(scope, group.processedFields);
         if (group.findings.length === 0 && !existingScopes.has(scope)) {
@@ -849,11 +934,6 @@ export class DataContext {
         for (const facade of group) {
           visit(await facade.toMutation());
           await inspectFacade(kind, facade);
-          const { identityValue, resolved } = await facade.resolvedRow();
-          this.emittedRows.set(
-            DataContext.emittedKey(kind, identityValue),
-            facade.inspectionValues,
-          );
         }
       }
     }

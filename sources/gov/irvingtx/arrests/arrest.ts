@@ -50,9 +50,22 @@ export const parseNormalizedArrest = (value: unknown): NormalizedArrest =>
 const UNKNOWN = "unknown";
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-function clean(value: string | undefined): string {
+export function clean(value: string | undefined): string {
   const trimmed = (value ?? "").trim();
   return trimmed === "NULL" ? "" : trimmed;
+}
+
+export function bookingNumber(
+  row: Record<string, string>,
+  sheet: string,
+  index: number,
+): string {
+  const bookingNo = clean(row.Booking_No);
+  if (bookingNo === "")
+    throw new Error(
+      `gov/irvingtx/arrests: ${sheet} row ${index + 2} has no Booking_No`,
+    );
+  return bookingNo;
 }
 
 // "JONES,MATTHEW" (LAST,FIRST) → "MATTHEW JONES" so the name resolver sees the
@@ -105,9 +118,8 @@ export function normalizeWorkbook(
   enrichment: Record<string, BookingEnrichment>,
 ): { arrests: NormalizedArrest[]; audit: Record<string, number> } {
   const byBooking = new Map<string, NormalizedArrest>();
-  for (const row of arrestRows) {
-    const bookingNo = row.Booking_No;
-    if (!bookingNo?.trim()) throw new Error("Missing Booking_No");
+  for (const [index, row] of arrestRows.entries()) {
+    const bookingNo = bookingNumber(row, "Arrest Data", index);
     const bookingEnrichment = enrichment[bookingNo];
     if (bookingEnrichment === undefined)
       throw new Error("Missing booking enrichment");
@@ -161,14 +173,14 @@ export function normalizeWorkbook(
   }
   let orphanChargeRows = 0,
     orphanOffenseRows = 0;
-  for (const row of chargeRows) {
+  for (const [index, row] of chargeRows.entries()) {
     z.object({
       Booking_No: z.string().min(1),
       Charge: z.string(),
       Charge_Literal: z.string(),
       Level: z.string(),
     }).parse(row);
-    const arrest = byBooking.get(row.Booking_No ?? "");
+    const arrest = byBooking.get(bookingNumber(row, "Charges", index));
     if (arrest === undefined) {
       orphanChargeRows++;
       continue;
@@ -179,14 +191,14 @@ export function normalizeWorkbook(
       level: row.Level ?? "",
     });
   }
-  for (const row of offenseRows) {
+  for (const [index, row] of offenseRows.entries()) {
     z.object({
       Booking_No: z.string().min(1),
       Offense: z.string(),
       Description: z.string(),
       Offenses: z.string(),
     }).parse(row);
-    const arrest = byBooking.get(row.Booking_No ?? "");
+    const arrest = byBooking.get(bookingNumber(row, "Offenses", index));
     if (arrest === undefined) {
       orphanOffenseRows++;
       continue;

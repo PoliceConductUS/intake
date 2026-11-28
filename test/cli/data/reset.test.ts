@@ -16,6 +16,7 @@ import {
   readCommandPointer,
   writeCommandPointer,
 } from "../../../src/cli/state/command-pointer.js";
+import { onlyCommandLog, readLogRecords, wasLogOpen } from "../command-log.js";
 
 const workspaces: string[] = [];
 afterEach(async () => {
@@ -44,7 +45,7 @@ async function fixture() {
       INTAKE_WORKSPACE: workspace,
       DATABASE_URL: "postgresql://localhost/test",
     },
-    logger: { info: vi.fn() },
+    terminal: false as const,
     orderedSourceIds: async () => ["places", "agencies"],
     acquiredInputs: async (_source: string): Promise<string[] | null> => null,
     sourceProduces: async (_source: string): Promise<"LocationPaths"[]> => [],
@@ -59,6 +60,7 @@ async function fixture() {
         args: readonly string[],
         _context?: {
           useInitialAgencyRoots: boolean;
+          keepCachedCallResults: boolean;
           finalizeMutations?: unknown;
         },
       ) => {
@@ -70,6 +72,22 @@ async function fixture() {
   };
   return { workspace, chain, state, calls, deps };
 }
+
+test.each([
+  [{ acquire: false }, true],
+  [{ acquire: true }, false],
+])(
+  "reset %j keeps cached call results as they are: %s",
+  async (options, kept) => {
+    const f = await fixture();
+    expect((await resetData(options, f.deps)).exitCode).toBe(0);
+    const contexts = f.deps.runDataCommand.mock.calls.map(
+      ([, context]) => context?.keepCachedCallResults,
+    );
+    expect(contexts.length).toBeGreaterThan(0);
+    expect(new Set(contexts)).toEqual(new Set([kept]));
+  },
+);
 
 test("no-acquire rebuilds in dependency order, applies manual records, and retains inputs and state", async () => {
   const f = await fixture();
@@ -167,6 +185,89 @@ test("generation failure stops the rebuild instead of replaying old mutations", 
   expect(f.calls.at(-1)).toBe("data generate agencies");
 });
 
+test("writes each phase it prints to <command-name>.log in its command folder", async () => {
+  const f = await fixture();
+  const printed: string[] = [];
+  const result = await resetData(
+    { acquire: false },
+    { ...f.deps, terminal: { write: (text: string) => printed.push(text) } },
+  );
+  expect(result.exitCode).toBe(0);
+  const { folder, logPath } = await onlyCommandLog(f.workspace);
+  const records = await readLogRecords(logPath);
+  const lines = [
+    "data reset: resetting the configured database to current migrations.",
+    `data reset: previous mutations retained at ${path.join(folder, "intake", "output", "previous-mutations")}`,
+    "data reset: data transform places",
+    "data reset: data generate places",
+    "data reset: data up",
+    "data reset: data transform agencies",
+    "data reset: data generate agencies",
+    "data reset: data up",
+    "data reset: data transform org/policeconduct/manual",
+    "data reset: data generate org/policeconduct/manual",
+    "data reset: data up",
+  ];
+  expect(records.map((record) => record.msg)).toEqual(lines);
+  expect(printed).toEqual(lines.map((line) => `${line}\n`));
+  expect(await wasLogOpen(logPath)).toBe(false);
+});
+
+test("logs the final stdout of each data command it runs", async () => {
+  const f = await fixture();
+  f.deps.runDataCommand.mockImplementation(async (args) => ({
+    exitCode: 0,
+    stdout: `${args.join(" ")}: done\n`,
+  }));
+  const result = await resetData({ acquire: false }, f.deps);
+  expect(result.exitCode).toBe(0);
+  const messages = (
+    await readLogRecords((await onlyCommandLog(f.workspace)).logPath)
+  ).map((record) => record.msg);
+  expect(messages).toEqual(
+    expect.arrayContaining([
+      "data transform places: done",
+      "data generate places: done",
+      "data up: done",
+    ]),
+  );
+  expect(messages.indexOf("data generate places: done")).toBe(
+    messages.indexOf("data reset: data generate places") + 1,
+  );
+});
+
+test("records the error that ended a reset as the last record of its log", async () => {
+  const f = await fixture();
+  f.deps.resetDatabase.mockRejectedValue(new Error("schema reset failed"));
+  const printed: string[] = [];
+  const result = await resetData(
+    { acquire: false },
+    { ...f.deps, terminal: { write: (text: string) => printed.push(text) } },
+  );
+  expect(result).toEqual({
+    exitCode: 1,
+    stderr:
+      "data reset: rebuild incomplete at schema reset: schema reset failed\n",
+  });
+  const line =
+    "data reset: resetting the configured database to current migrations.";
+  expect(printed).toEqual([`${line}\n`]);
+  const records = await readLogRecords(
+    (await onlyCommandLog(f.workspace)).logPath,
+  );
+  expect(records.map((record) => record.msg)).toEqual([line, undefined]);
+  expect(records.at(-1)).toMatchObject({
+    level: 50,
+    error: {
+      message: "schema reset failed",
+      stack: expect.stringContaining("Error: schema reset failed\n    at "),
+    },
+  });
+  expect(await wasLogOpen((await onlyCommandLog(f.workspace)).logPath)).toBe(
+    false,
+  );
+});
+
 test("schema failure retains the active chain and does not start sources", async () => {
   const f = await fixture();
   f.deps.resetDatabase.mockRejectedValue(new Error("schema reset failed"));
@@ -205,7 +306,7 @@ test("replays retained snapshots oldest first, retaining older-only rows and res
     },
   );
   expect(result.exitCode).toBe(0);
-  expect(selected).toEqual(["older", "newer", "older", "newer"]);
+  expect(selected).toEqual(["older", "newer"]);
   expect([...rows]).toEqual([
     ["older-only", "retained"],
     ["shared", "newer"],
@@ -238,7 +339,7 @@ test("restores the acquisition pointer and stops when an older snapshot fails", 
   });
 });
 
-test("rejects stale retained analysis before clearing the database or retiring mutations", async () => {
+test("rejects stale retained analysis during the rebuild and restores the acquisition pointer", async () => {
   const f = await fixture();
   const state = path.join(
     f.workspace,
@@ -293,17 +394,15 @@ test("rejects stale retained analysis before clearing the database or retiring m
   expect(result.exitCode).toBe(1);
   expect(result.stderr).toContain("analyzedWith");
   expect(f.calls).toEqual([
+    "schema reset",
     "data transform com/site/my/mnitservices/post-license-search",
   ]);
-  expect(await readFile(path.join(f.chain, "old.txt"), "utf8")).toBe(
-    "old generated data",
-  );
   expect(await readFile(path.join(state, "acquire.yaml"), "utf8")).toBe(
     pointer,
   );
 });
 
-test("default reset prepares retained inputs before resetting and acquires new inputs in dependency order", async () => {
+test("default reset resets the schema first and acquires new inputs in dependency order", async () => {
   const f = await fixture();
   const state = path.join(f.workspace, "state", "agencies");
   await writeCommandPointer(state, "acquire", { latest: "older" });
@@ -332,7 +431,6 @@ test("default reset prepares retained inputs before resetting and acquires new i
   );
   expect(result.exitCode).toBe(0);
   expect(f.calls).toEqual([
-    "data transform agencies",
     "schema reset",
     "data acquire places",
     "data transform places",
@@ -349,13 +447,13 @@ test("default reset prepares retained inputs before resetting and acquires new i
     "data generate org/policeconduct/manual",
     "data up",
   ]);
-  expect(selected).toEqual(["older", "older", "newer"]);
+  expect(selected).toEqual(["older", "newer"]);
   expect(await readCommandPointer(state, "acquire")).toMatchObject({
     latest: "newer",
   });
 });
 
-test("no-acquire rejects a missing completed acquisition before reset", async () => {
+test("no-acquire rejects a missing completed acquisition", async () => {
   const f = await fixture();
   const result = await resetData(
     { acquire: false },
@@ -371,14 +469,11 @@ test("no-acquire rejects a missing completed acquisition before reset", async ()
     exitCode: 1,
     stderr: expect.stringContaining("no completed acquisition"),
   });
-  expect(f.calls).toEqual([]);
-  expect(await readFile(path.join(f.chain, "old.txt"), "utf8")).toBe(
-    "old generated data",
-  );
+  expect(f.calls).toEqual(["schema reset"]);
 });
 
 test.each([true, false])(
-  "rejects a malformed existing acquisition before reset with acquire=%s",
+  "rejects a malformed existing acquisition with acquire=%s",
   async (acquire) => {
     const f = await fixture();
     const state = path.join(
@@ -401,32 +496,14 @@ test.each([true, false])(
       exitCode: 1,
       stderr: expect.stringContaining("invalid acquisition path"),
     });
-    expect(f.calls).toEqual([]);
-    expect(await readFile(path.join(f.chain, "old.txt"), "utf8")).toBe(
-      "old generated data",
-    );
+    expect(f.calls).toEqual([
+      "schema reset",
+      ...(acquire
+        ? ["data acquire com/site/my/mnitservices/post-license-search"]
+        : []),
+    ]);
     expect(await readCommandPointer(state, "acquire")).toMatchObject({
       latest: "invalid",
     });
   },
 );
-
-test("default reset rejects a non-string acquisition pointer before clearing data", async () => {
-  const f = await fixture();
-  const state = path.join(f.workspace, "state", "agencies");
-  await mkdir(state, { recursive: true });
-  const pointer = "latest: 123\nresume: unfinished\n";
-  await writeFile(path.join(state, "acquire.yaml"), pointer);
-  const result = await resetData({ acquire: true }, f.deps);
-  expect(result).toMatchObject({
-    exitCode: 1,
-    stderr: expect.stringContaining("latest"),
-  });
-  expect(f.calls).toEqual([]);
-  expect(await readFile(path.join(f.chain, "old.txt"), "utf8")).toBe(
-    "old generated data",
-  );
-  expect(await readFile(path.join(state, "acquire.yaml"), "utf8")).toBe(
-    pointer,
-  );
-});

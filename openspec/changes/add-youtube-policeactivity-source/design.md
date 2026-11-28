@@ -1,11 +1,5 @@
 # Design
 
-> **Amended by INS-72 (2026-10-24):** this design originally read caption text
-> from `www.youtube.com/api/timedtext`. That host's robots.txt disallows
-> `/api/`, so the caption path was removed — acquire now reads only the keyed
-> Data API on `www.googleapis.com`, and officer mentions come from the video's
-> title and description. Caption references below are historical.
-
 Mirrors the clearinghouse-api / courtlistener pattern: acquire searches **per
 agency** and stamps each result with the agency's source id; run resolves
 officers **within that known agency**. There is no agency-from-free-text
@@ -22,7 +16,7 @@ resolution and no agency guessing — the agency is the search key (ADR 0023).
 3. For each agency, search **within the channel** (`search?channelId=…&q=…&
 type=video`) using the agency name and its place/state as the query, and for
    each hit store `videoId`, `title`, `description`, `publishedAt`, channel,
-   canonical `url`, retrieval time, and available caption text — **stamped with
+   canonical `url`, and retrieval time — **stamped with
    the agency's namespace-local source id** (like CL's `{ agency: { id, name,
 state }, videos: [...] }`).
 4. **Source-state, not silent success**: a deleted / private / unavailable /
@@ -34,7 +28,7 @@ state }, videos: [...] }`).
 ## Run (deterministic — resolve officers at the known agency, emit cited links)
 
 Per acquired `{ agency, videos }` group, the agency source id is already known,
-so for each video over `title + description + captions`:
+so for each video over `title + description`:
 
 1. **Officer** — extract candidate officer names and resolve via
    `data.resolvePersonnel({ agencyId, personnelName })` (the agency is fixed by
@@ -52,8 +46,9 @@ a `CoverageLinkCivilCase`. A video with no resolved officer emits no case link.
 
 ### Evidence, never guessing (#52)
 
-Every emitted link carries the supporting passage (with caption timestamp when the
-match came from captions) in the link's `notes`. An officer name must appear as a
+Every emitted link carries the supporting passage in the link's `notes`.
+Captions are never fetched: the timedtext track is served from
+`www.youtube.com/api/timedtext`, a path that host's robots.txt disallows. An officer name must appear as a
 contiguous full-name mention and resolve to one existing officer at the acquired
 agency; appearance, geography, title fragments, and comments are never evidence.
 Ambiguous (multiple candidates) → unmatched, not a guess. `resolvePersonnel`

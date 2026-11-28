@@ -7,12 +7,21 @@ import { appendEntry } from "./chain.js";
 import { describeKind, parseRecord } from "./entity-model.js";
 import { HANDLED_RECORD_KINDS } from "./kinds.js";
 
+function requireHandledKind(kind: string): void {
+  if (!(HANDLED_RECORD_KINDS as readonly string[]).includes(kind)) {
+    throw new Error(
+      `org/policeconduct/manual: kind ${kind} is not handled (${HANDLED_RECORD_KINDS.join(", ")}).`,
+    );
+  }
+}
+
 async function interview(
   rl: Interface,
 ): Promise<{ kind: string; record: Record<string, unknown> }> {
   const kind = (
     await rl.question(`Kind (${HANDLED_RECORD_KINDS.join(", ")}): `)
   ).trim();
+  requireHandledKind(kind);
   const model = describeKind(kind);
   const record: Record<string, unknown> = {};
   for (const field of model.fields) {
@@ -44,6 +53,7 @@ export const acquire: SourceAcquire = async ({
   let record: Record<string, unknown>;
   if (env.MANUAL_KIND !== undefined && env.MANUAL_RECORD !== undefined) {
     kind = env.MANUAL_KIND;
+    requireHandledKind(kind);
     record = JSON.parse(env.MANUAL_RECORD) as Record<string, unknown>;
   } else {
     const rl = createInterface({
@@ -57,11 +67,6 @@ export const acquire: SourceAcquire = async ({
     }
   }
 
-  if (!(HANDLED_RECORD_KINDS as readonly string[]).includes(kind)) {
-    throw new Error(
-      `org/policeconduct/manual: kind ${kind} is not handled (${HANDLED_RECORD_KINDS.join(", ")}).`,
-    );
-  }
   const model = describeKind(kind);
   const validated = parseRecord(kind, record);
   const output = await appendEntry(
