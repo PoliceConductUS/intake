@@ -75,6 +75,16 @@ const LEVEL_SUPERREFINE = `.superRefine((row, context) => {
 
 const DESCRIPTORS: EntityDescriptor[] = [
   {
+    recordKind: "FatalShooting",
+    table: "fatal_shooting",
+    createRequired: ["id"],
+  },
+  {
+    recordKind: "FatalShootingAgency",
+    table: "fatal_shooting_agency",
+    createRequired: ["id"],
+  },
+  {
     recordKind: "LocationPath",
     table: "location_path",
     createRequired: ["path"],
@@ -86,6 +96,10 @@ const DESCRIPTORS: EntityDescriptor[] = [
         'z.enum(["primary", "county_subdivision", "consolidated_city"]).default("primary")',
       centroid: "LocationPathCentroidSpec.nullable().optional()",
       bbox: "LocationPathBboxSpec.nullable().optional()",
+      // Derived at import from the resolved path and the parent's path.
+      segment: "z.string().regex(/^[a-z0-9-]+$/).optional()",
+      // The Census source supplies the USPS code on state rows.
+      state_code: "z.string().regex(/^[A-Z]{2}$/).nullable().optional()",
     },
     superRefine: LEVEL_SUPERREFINE,
   },
@@ -314,8 +328,18 @@ const DESCRIPTORS: EntityDescriptor[] = [
     override: {
       value: "z.json()",
       replacement_value: "z.json().nullable().optional()",
+      // Derived by intake from the subject and the connected records' stored
+      // paths and slugs (resolver-registry annotationPageResolvers).
+      links:
+        "z.array(z.object({ url: z.string().nullable(), label: nonEmptyString }).strict()).min(1).nullable().optional()",
       evidence: "z.array(z.record(z.string(), z.json())).nullable().optional()",
     },
+  },
+  {
+    // Public label of each annotation type (manual records).
+    recordKind: "DataAnnotationType",
+    table: "data_annotation_type",
+    createRequired: ["type"],
   },
 ];
 
@@ -456,6 +480,8 @@ function businessKeys(
 // pluralization is irregular, so it is declared, not derived — but this is
 // naming only, NEVER a dependency: the dependency graph is the database's FKs.
 const ENTITY_NAME_BY_RECORD_KIND: Record<string, string> = {
+  FatalShooting: "fatalShootings",
+  FatalShootingAgency: "fatalShootingAgencies",
   LocationPath: "locationPaths",
   LocationPathGeometry: "locationPathGeometries",
   LocationPathAlias: "locationPathAliases",
@@ -485,6 +511,7 @@ const ENTITY_NAME_BY_RECORD_KIND: Record<string, string> = {
   ReviewLink: "reviewLinks",
   ArrestProfile: "arrestProfiles",
   AgencyArrestProfile: "agencyArrestProfiles",
+  DataAnnotationType: "dataAnnotationTypes",
 };
 
 function capitalizeFirst(value: string): string {
@@ -780,7 +807,7 @@ ${createExtends}
 }
 
 /**
- * Renders `generated/entity-specs.ts` from the introspected schema. Column-backed
+ * Renders `entity-specs.ts` from the introspected schema. Column-backed
  * fields are generated and asserted against the database; descriptors add only
  * the non-schema nuance. The applied-migration fingerprint is embedded so the
  * runtime can refuse to run stale specs.
@@ -790,10 +817,10 @@ export function generateEntitySpecsModule(
   header: string,
 ): string {
   const preamble = `${header}import { z } from "zod";
-import { timestampWithTimezone } from "../../timestamp-schema.js";
-import { aiComplaintSummary, complaintSummaryUnavailability } from "../../ai-complaint-summary.js";
-import { SourceValues, SourceExclusions } from "../../data-annotations.js";
-import { agencyAddressText, agencyZipCode } from "../../agency-address-schema.js";
+import { timestampWithTimezone } from "../timestamp-schema.js";
+import { aiComplaintSummary, complaintSummaryUnavailability } from "../ai-complaint-summary.js";
+import { SourceValues, SourceExclusions } from "../data-annotations.js";
+import { agencyAddressText, agencyZipCode } from "../agency-address-schema.js";
 
 // Fingerprint of the applied database migrations these specs were generated
 // against. The importer refuses to run when the live database's migrations

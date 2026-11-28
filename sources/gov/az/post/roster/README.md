@@ -21,4 +21,4 @@ Source namespace `gov/az/post/roster`: the Arizona POST roster source. It is dis
 
 ## Verification
 
-- Run: `npx vitest run test/sources/gov.azpost.roster.test.ts`
+- Run: `npx vitest run test/sources/gov/az/post/roster/intake.source.test.ts`

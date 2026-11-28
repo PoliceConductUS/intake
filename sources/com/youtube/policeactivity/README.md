@@ -53,4 +53,4 @@ The intake source for namespace `com/youtube/policeactivity`: videos on the Poli
 
 ## Verification
 
-- Run: `npx vitest run test/sources/youtube.policeactivity`
+- Run: `npx vitest run test/sources/com/youtube/policeactivity`

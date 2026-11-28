@@ -22,6 +22,7 @@ export const HANDLED_RECORD_KINDS = [
   "Review",
   "ReviewPersonnel",
   "ReviewLink",
+  "DataAnnotationType",
 ] as const;
 
 /** The import artifact kind (plural) that carries a given record kind. */

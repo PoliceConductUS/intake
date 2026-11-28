@@ -100,6 +100,4 @@ the request). The folders between `sources/` and a source hold no code; each has
 ## System Verification
 
 - Run:
-  `npx vitest run test/sources test/oregon-dpsst-acquire.test.ts test/oregon-dpsst-parse.test.ts test/oregon-employment.test.ts test/oregon-transform.test.ts`.
-  The tests for `net/bpl-orsnapshot/www/public-inquiry-cj` are the four
-  `test/oregon-*.test.ts` files, outside `test/sources`.
+  `npx vitest run test/sources`.

@@ -666,7 +666,7 @@ there are no records or that the data is not maintained. If you do not know the
 columns, an availability entry without a file is enough. Do not use a redaction
 marker for data you do not have.
 
-**Format version: `20261114000000`.** If you use the Simplified Export Format,
+**Format version: `20261123300000`.** If you use the Simplified Export Format,
 include this number as `spec_version` in the file list described below.
 
 ## File naming and layout
@@ -697,7 +697,7 @@ which record type each file holds. It carries:
 `manifest.json`:
 
     {
-      "spec_version": "20261114000000",
+      "spec_version": "20261123300000",
       "request_id": "az-post-2026-06",
       "files": [
         { "file": "az-post-2026-06.Agency.csv", "kind": "Agency", "rows": 1234 },
@@ -743,6 +743,64 @@ from ours: prefix the field name with **`x-`** (e.g. `x-rank`, `x-badge_issued_o
 them, and we never guess their meaning.
 
 ## Simplified record types
+
+### FatalShooting
+
+One row per FatalShooting.
+
+| Field                        | Type                 | Required | Constraints                                      | Relationship / notes                                       |
+| ---------------------------- | -------------------- | -------- | ------------------------------------------------ | ---------------------------------------------------------- |
+| `id`                         | text                 | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time. |
+| `date`                       | date (`YYYY-MM-DD`)  | yes      | format `YYYY-MM-DD`                              | —                                                          |
+| `name`                       | text                 | optional | —                                                | —                                                          |
+| `age`                        | number               | optional | —                                                | —                                                          |
+| `gender`                     | text                 | optional | —                                                | —                                                          |
+| `race`                       | text                 | optional | —                                                | —                                                          |
+| `race_source`                | text                 | optional | —                                                | —                                                          |
+| `city`                       | text                 | optional | —                                                | —                                                          |
+| `county`                     | text                 | optional | —                                                | —                                                          |
+| `state`                      | text                 | optional | —                                                | —                                                          |
+| `latitude`                   | number               | optional | —                                                | —                                                          |
+| `longitude`                  | number               | optional | —                                                | —                                                          |
+| `location_precision`         | text                 | optional | —                                                | —                                                          |
+| `body_camera`                | boolean              | optional | —                                                | —                                                          |
+| `was_mental_illness_related` | boolean              | optional | —                                                | —                                                          |
+| `threat_type`                | text                 | optional | —                                                | —                                                          |
+| `armed_with`                 | text                 | optional | —                                                | —                                                          |
+| `flee_status`                | text                 | optional | —                                                | —                                                          |
+| `reported_agency_ids`        | text                 | optional | —                                                | —                                                          |
+| `source_dataset`             | text                 | yes      | non-empty                                        | —                                                          |
+| `source_record_id`           | text                 | yes      | non-empty                                        | —                                                          |
+| `source_url`                 | text                 | yes      | non-empty                                        | —                                                          |
+| `source_commit`              | text                 | yes      | —                                                | —                                                          |
+| `source_sha256`              | text                 | yes      | —                                                | —                                                          |
+| `retrieved_at`               | timestamp (ISO 8601) | yes      | ISO 8601                                         | —                                                          |
+| `license`                    | text                 | yes      | non-empty                                        | —                                                          |
+| `redistribution_class`       | text                 | yes      | non-empty                                        | —                                                          |
+| `evidence_status`            | text                 | yes      | —                                                | —                                                          |
+
+### FatalShootingAgency
+
+One row per FatalShootingAgency.
+
+| Field                  | Type                 | Required | Constraints                                      | Relationship / notes                                                     |
+| ---------------------- | -------------------- | -------- | ------------------------------------------------ | ------------------------------------------------------------------------ |
+| `id`                   | text                 | yes      | unique within your export; stable across exports | A stable id you assign to this record and reuse next time.               |
+| `agency_id`            | text                 | optional | —                                                | → **Agency**: your id for the linked Agency, present in the same export. |
+| `name`                 | text                 | yes      | non-empty                                        | —                                                                        |
+| `type`                 | text                 | optional | —                                                | —                                                                        |
+| `state`                | text                 | optional | —                                                | —                                                                        |
+| `oricodes`             | text                 | optional | —                                                | —                                                                        |
+| `total_shootings`      | integer              | yes      | —                                                | —                                                                        |
+| `source_dataset`       | text                 | yes      | non-empty                                        | —                                                                        |
+| `source_record_id`     | text                 | yes      | non-empty                                        | —                                                                        |
+| `source_url`           | text                 | yes      | non-empty                                        | —                                                                        |
+| `source_commit`        | text                 | yes      | —                                                | —                                                                        |
+| `source_sha256`        | text                 | yes      | —                                                | —                                                                        |
+| `retrieved_at`         | timestamp (ISO 8601) | yes      | ISO 8601                                         | —                                                                        |
+| `license`              | text                 | yes      | non-empty                                        | —                                                                        |
+| `redistribution_class` | text                 | yes      | non-empty                                        | —                                                                        |
+| `evidence_status`      | text                 | yes      | —                                                | —                                                                        |
 
 ### Agency
 

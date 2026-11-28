@@ -107,4 +107,4 @@ Store the JSON at `com/serpapi/landing-page-search/domain-ranks.json` in the pri
 
 ## Verification
 
-- Run: `npx vitest run test/sources/news`
+- Run: `npx vitest run test/sources/com/serpapi/landing-page-search test/sources/news`

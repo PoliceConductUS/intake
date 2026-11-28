@@ -1,6 +1,6 @@
 import { z } from "zod";
-import * as entitySpecs from "../../../../src/shared/io/generated/entity-specs.js";
-import { FK_REFERENCES } from "../../../../src/shared/io/generated/entity-specs.js";
+import * as entitySpecs from "../../../../src/shared/io/entity-specs.js";
+import { FK_REFERENCES } from "../../../../src/shared/io/entity-specs.js";
 import { identityColumnForKind } from "../../../../src/cli/import/artifacts/facades/resolver-registry.js";
 
 // A field the interview prompts for, from the shared record model: whether it may

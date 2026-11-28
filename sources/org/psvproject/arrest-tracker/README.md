@@ -237,4 +237,4 @@ agency pairs and 15 unresolved officer pairs.
 
 ## Verification
 
-- Run: `npx vitest run test/sources/us-officer-sex-crime-reporting`
+- Run: `npx vitest run test/sources/org/psvproject/arrest-tracker`

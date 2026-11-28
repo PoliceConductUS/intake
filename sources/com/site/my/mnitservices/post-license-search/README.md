@@ -58,4 +58,4 @@ Every row the transform reads has one of four outcomes: it is emitted; it is lef
 
 ## Verification
 
-- Run: `npx vitest run test/sources/mn-post.test.ts test/sources/mn-post`
+- Run: `npx vitest run test/sources/com/site/my/mnitservices/post-license-search`

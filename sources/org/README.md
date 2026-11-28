@@ -20,3 +20,6 @@ this folder.
 - wikipedia: [README](./wikipedia/README.md) - the
   `org/wikipedia/en/us-federal-law-enforcement-agencies` source, producing
   `FederalAgencies` and `Agencies`.
+- washingtonpost: [README](./washingtonpost/README.md) - the
+  `org/washingtonpost/fatal-force` source, producing `FatalShootings` and
+  `FatalShootingAgencies` from the Washington Post Fatal Force CSVs.

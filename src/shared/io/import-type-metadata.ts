@@ -2,14 +2,8 @@
 // descriptors (kind/entityName naming + the database's FK dependency graph), so
 // they can never drift from the entity specs. This module re-exports them
 // alongside the operation constants (which are not entity-derived).
-import {
-  IMPORT_ARTIFACT_KINDS,
-  importTypeMetadata,
-} from "./generated/entity-specs.js";
-import type {
-  ImportArtifactKind,
-  ImportEntityName,
-} from "./generated/entity-specs.js";
+import { IMPORT_ARTIFACT_KINDS, importTypeMetadata } from "./entity-specs.js";
+import type { ImportArtifactKind, ImportEntityName } from "./entity-specs.js";
 
 export { IMPORT_ARTIFACT_KINDS, importTypeMetadata };
 export type { ImportArtifactKind, ImportEntityName };

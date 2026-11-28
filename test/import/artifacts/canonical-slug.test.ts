@@ -4,7 +4,7 @@ import type { EntityFacadeBackend } from "../../../src/cli/import/artifacts/faca
 import type { SlugBackend } from "../../../src/cli/import/artifacts/facades/agency-personnel-resolvers.js";
 import type { PropertyCache } from "../../../src/cli/import/artifacts/resolver-kit.js";
 import { FederalAgencies } from "../../../src/shared/io/index.js";
-import { FederalAgencyCreate } from "../../../src/cli/import/artifacts/io/generated-mutations/FederalAgencyCreate.js";
+import { FederalAgencyCreate } from "../../../src/cli/import/artifacts/io/FederalAgencyCreate.js";
 import { SlugAllocator } from "../../../src/cli/import/artifacts/slug.js";
 
 const kinds = ["Agency", "Personnel", "CivilCase", "Review", "FederalAgency"];

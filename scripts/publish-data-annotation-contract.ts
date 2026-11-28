@@ -8,7 +8,7 @@ import {
   TABLE_BY_KIND,
   DataAnnotationSpec,
   PRIMARY_KEY_BY_KIND,
-} from "../src/shared/io/generated/entity-specs.js";
+} from "../src/shared/io/entity-specs.js";
 const output = process.argv[2];
 if (!output)
   throw new Error(

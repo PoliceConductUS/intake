@@ -120,4 +120,4 @@ These aggregates support counts, charge distributions and charges per booking. P
 
 ## Verification
 
-- Run: `npx vitest run test/sources/gov.irvingtx.arrests`
+- Run: `npx vitest run test/sources/gov/irvingtx/arrests`

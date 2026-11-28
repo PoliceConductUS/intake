@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import {
   GENERATED_MIGRATION_FINGERPRINT,
   GENERATED_MIGRATION_VERSIONS,
-} from "../../../shared/io/generated/entity-specs.js";
+} from "../../../shared/io/entity-specs.js";
 
 /**
  * Fails loudly when the database's applied migrations differ from the ones the

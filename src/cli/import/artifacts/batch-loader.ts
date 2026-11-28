@@ -37,6 +37,12 @@ export class BatchLoader<Input, Output> {
     return result;
   }
 
+  /** Drops a settled memoized result, so a later load of the input reads again. */
+  forget(input: Input): void {
+    const key = this.key(input);
+    if (!this.pending.has(key)) this.cache.delete(key);
+  }
+
   private async flush(): Promise<void> {
     // Keep the scheduler occupied until the active batch finishes, so later
     // arrivals coalesce without overlapping gateway requests.
