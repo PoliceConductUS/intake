@@ -10,9 +10,14 @@ import {
 import { createSourceNameToCanonicalIdLedger } from "../state/source-name-to-canonical-id/index.js";
 import { sourceStateDir } from "../transform/state.js";
 import { preparePersonnelPhoto } from "./prepare.js";
-import { storePersonnelPhoto } from "./store.js";
+import { readPersonnelPhoto, writePersonnelPhoto } from "./store.js";
+import {
+  createCommandLog,
+  recordCommandError,
+  type IntakeLog,
+} from "../../logging.js";
 
-const namespace = "org.policeconduct.manual";
+const namespace = "org/policeconduct/manual";
 export function registerCliCommand(
   program: Command,
   dependencies: CliCommandDependencies,
@@ -31,6 +36,7 @@ export function registerCliCommand(
         options: { sourceUrl?: string },
       ) => {
         const env = process.env;
+        let commandLog: IntakeLog | undefined;
         try {
           const workspace = intakeWorkspace(env);
           if (!env.DATABASE_URL?.trim())
@@ -56,11 +62,13 @@ export function registerCliCommand(
                   ).length === 1,
                 sourceIdFor: (id) =>
                   ledger.sourceIdFor(namespace, "Personnel", id),
-                store: (file) => storePersonnelPhoto(workspace, file),
+                read: readPersonnelPhoto,
+                write: (workspacePath, bytes) =>
+                  writePersonnelPhoto(workspace, workspacePath, bytes),
               },
               options.sourceUrl,
             );
-            await createCommandDirectory(env, {
+            const command = await createCommandDirectory(env, {
               namespace,
               args: [
                 "photo",
@@ -72,6 +80,7 @@ export function registerCliCommand(
                   : ["--source-url", options.sourceUrl]),
               ],
             });
+            commandLog = createCommandLog(command, env, false);
             await appendEntry(
               await sourceStateDir(env, namespace),
               entry,
@@ -85,10 +94,14 @@ export function registerCliCommand(
             await client.end();
           }
         } catch (error) {
+          if (commandLog !== undefined)
+            recordCommandError(commandLog.logger, error);
           dependencies.setResult({
             exitCode: 1,
             stderr: `${error instanceof Error ? error.message : String(error)}\n`,
           });
+        } finally {
+          commandLog?.close();
         }
       },
     );

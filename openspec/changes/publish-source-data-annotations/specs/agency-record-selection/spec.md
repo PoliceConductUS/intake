@@ -19,3 +19,15 @@ Shared source-value checks SHALL flag city and address placeholders NULL, 0, x, 
 - **WHEN** a source supplies address "N/A" for an identifiable agency
 - **THEN** the imported record SHALL preserve that source value and show an invalid-address annotation
 - **AND** the placeholder SHALL NOT be used to invent coordinates
+
+#### Scenario: Invalid placeholder address from any source
+
+- **WHEN** an identifiable Agency contains an approved address or city placeholder, including mixed case or surrounding whitespace
+- **THEN** the shared checks flag it with a record-owned invalid-address annotation
+- **AND** the reported value and otherwise valid relationships remain preserved
+
+#### Scenario: Postal format
+
+- **WHEN** an identifiable agency ZIP is 0, 00000, 00000-0000, or malformed
+- **THEN** the shared checks flag it with a record-owned postal-format annotation and preserve the reported value
+- **AND** valid ZIPs with leading zeros and valid ZIP+4 values remain accepted

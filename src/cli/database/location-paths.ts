@@ -1,9 +1,9 @@
 import type { z } from "zod";
-import type { DatabaseClient } from "./index.js";
+import { rowsFromResult, type DatabaseClient } from "./index.js";
 import type {
   LocationPathCreateSpec,
   LocationPathAliasCreateSpec,
-} from "../../shared/io/generated/entity-specs.js";
+} from "../../shared/io/entity-specs.js";
 
 // The envelope spec is the schema↔database contract (ADR 0025), so a database row
 // is just its record type — no separate generated Row shape.
@@ -11,17 +11,6 @@ export type DatabaseLocationPathRow = z.infer<typeof LocationPathCreateSpec>;
 export type DatabaseLocationPathAliasRow = z.infer<
   typeof LocationPathAliasCreateSpec
 >;
-
-function rowsFromResult(
-  result: { rows?: Record<string, unknown>[] } | unknown,
-): Record<string, unknown>[] {
-  return typeof result === "object" &&
-    result !== null &&
-    "rows" in result &&
-    Array.isArray(result.rows)
-    ? result.rows
-    : [];
-}
 
 function firstRow<T>(result: unknown): T | undefined {
   return rowsFromResult(result)[0] as T | undefined;

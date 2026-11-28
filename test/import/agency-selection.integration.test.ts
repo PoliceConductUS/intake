@@ -6,13 +6,11 @@ import { importArtifacts } from "./completed-artifacts.js";
 import { Artifacts } from "../../src/shared/io/Artifacts.js";
 import { persistSourceNameToCanonicalIds } from "../../src/cli/state/source-name-to-canonical-id/index.js";
 import {
-  dockerAvailable,
   startIntakeDatabase,
   type IntakeDatabase,
 } from "../cli/database/intake-postgres.js";
 
-const describeWithDocker = dockerAvailable() ? describe : describe.skip;
-describeWithDocker("shared agency selection in the import pipeline", () => {
+describe("shared agency selection in the import pipeline", () => {
   let db: IntakeDatabase;
   const roots: string[] = [];
   beforeAll(async () => {
@@ -53,7 +51,7 @@ describeWithDocker("shared agency selection in the import pipeline", () => {
     );
     const result = await importArtifacts({
       artifactsPath: input.path,
-      env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE_TEST: root },
+      env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE: root },
       commandName: "empty",
       commandDirectory: path.join(root, "command"),
       resolveAgencyCoordinates: async () => {
@@ -109,7 +107,7 @@ describeWithDocker("shared agency selection in the import pipeline", () => {
     );
     const result = await importArtifacts({
       artifactsPath: input.path,
-      env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE_TEST: root },
+      env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE: root },
       commandName: "later",
       commandDirectory: path.join(root, "command"),
     });
@@ -192,7 +190,7 @@ describeWithDocker("shared agency selection in the import pipeline", () => {
     );
     const result = await importArtifacts({
       artifactsPath: input.path,
-      env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE_TEST: root },
+      env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE: root },
       commandName: "close",
       commandDirectory: path.join(root, "command"),
     });
@@ -251,7 +249,7 @@ describeWithDocker("shared agency selection in the import pipeline", () => {
     expect(
       await importArtifacts({
         artifactsPath: later.path,
-        env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE_TEST: root },
+        env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE: root },
         commandName: "after-close",
         commandDirectory: path.join(root, "after-close"),
       }),
@@ -344,7 +342,7 @@ describeWithDocker("shared agency selection in the import pipeline", () => {
     const run = (artifactsPath: string, name: string) =>
       importArtifacts({
         artifactsPath,
-        env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE_TEST: root },
+        env: { DATABASE_URL: db.connectionString, INTAKE_WORKSPACE: root },
         commandName: name,
         commandDirectory: path.join(root, name),
       });

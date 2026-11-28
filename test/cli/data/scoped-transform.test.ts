@@ -2,19 +2,21 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Artifacts } from "../../../src/shared/io/Artifacts.js";
-import { acquire } from "../../../sources/org.policeconduct.manual/acquire.js";
+import { acquire } from "../../../sources/org/policeconduct/manual/acquire.js";
 import { expect, test } from "vitest";
 import { transformOneSource } from "../../../src/cli/data/source-pipeline.js";
+import { unusedServiceClients } from "../../shared/services/harness.js";
 
 test("location-only manual preparation retains agency exclusions without applying them", async () => {
   const workspace = await mkdtemp(path.join(tmpdir(), "scoped-transform-"));
-  const state = path.join(workspace, "state", "org.policeconduct.manual");
+  const state = path.join(workspace, "state", "org/policeconduct/manual");
   const evidence =
     "excluded:\n  - kind: Agency\n    key: retired-duplicate\n    reason: User-retired duplicate page\n";
   try {
     await mkdir(state, { recursive: true });
     await writeFile(path.join(state, "excluded.yaml"), evidence);
     await acquire({
+      clients: unusedServiceClients(),
       sourceDir: workspace,
       state,
       env: {
@@ -30,7 +32,7 @@ test("location-only manual preparation retains agency exclusions without applyin
       data: {} as never,
     });
     const result = await transformOneSource(
-      "org.policeconduct.manual",
+      "org/policeconduct/manual",
       { INTAKE_WORKSPACE: workspace },
       undefined,
       ["LocationPaths", "LocationPathAliases"],
@@ -43,7 +45,7 @@ test("location-only manual preparation retains agency exclusions without applyin
     expect(await readFile(path.join(state, "excluded.yaml"), "utf8")).toBe(
       evidence,
     );
-    const full = await transformOneSource("org.policeconduct.manual", {
+    const full = await transformOneSource("org/policeconduct/manual", {
       INTAKE_WORKSPACE: workspace,
     });
     expect(full).toHaveProperty("error");
@@ -56,7 +58,7 @@ test("location-only manual preparation retains agency exclusions without applyin
 
 test("full manual transform publishes explicitly assigned exclusions on their authority", async () => {
   const workspace = await mkdtemp(path.join(tmpdir(), "owned-transform-"));
-  const state = path.join(workspace, "state", "org.policeconduct.manual");
+  const state = path.join(workspace, "state", "org/policeconduct/manual");
   const exclusion = {
     kind: "Agency",
     key: "retired",
@@ -69,6 +71,7 @@ test("full manual transform publishes explicitly assigned exclusions on their au
       "excluded:\n  - kind: Agency\n    key: retired\n    reason: Recorded duplicate exclusion\n",
     );
     await acquire({
+      clients: unusedServiceClients(),
       sourceDir: workspace,
       state,
       env: {
@@ -77,12 +80,12 @@ test("full manual transform publishes explicitly assigned exclusions on their au
           id: "board",
           name: "Test board",
           location_path_id: "tx",
-          source_exclusions: { "org.policeconduct.manual": [exclusion] },
+          source_exclusions: { "org/policeconduct/manual": [exclusion] },
         }),
       },
       data: {} as never,
     });
-    const result = await transformOneSource("org.policeconduct.manual", {
+    const result = await transformOneSource("org/policeconduct/manual", {
       INTAKE_WORKSPACE: workspace,
     });
     expect(result).toHaveProperty("artifactsPath");
@@ -93,7 +96,7 @@ test("full manual transform publishes explicitly assigned exclusions on their au
           ?.spec.records.board,
       ).toMatchObject({
         spec: {
-          source_exclusions: { "org.policeconduct.manual": [exclusion] },
+          source_exclusions: { "org/policeconduct/manual": [exclusion] },
         },
       });
     }

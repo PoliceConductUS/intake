@@ -3,7 +3,7 @@ import {
   loadPropertyCorrections,
   inspectPropertyCorrection,
 } from "../../src/shared/io/property-corrections.js";
-import { mkdtemp, rm, readdir } from "node:fs/promises";
+import { chmod, mkdtemp, rm, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -18,6 +18,7 @@ import { INTAKE_API_VERSION } from "../../src/shared/io/import-types.js";
 import { DataContext } from "../../src/cli/import/artifacts/data-context.js";
 import { createSourceNameToCanonicalIdLedger } from "../../src/cli/state/source-name-to-canonical-id/index.js";
 import { EmptyDatabaseClient } from "./database/empty-database-client.js";
+import { onlyCommandLog, readLogRecords, wasLogOpen } from "./command-log.js";
 
 const placeLookup = async (id: string) => ({
   location_path_id: id,
@@ -938,3 +939,79 @@ test.each(["set", "unset"])(
     ).toBe("1234567890");
   },
 );
+
+test("set writes <command-name>.log in its command folder", async () => {
+  const result = await runIntake([
+    ...args("set", "contact_name"),
+    "Records Clerk",
+  ]);
+  expect(result.exitCode).toBe(0);
+  const { logPath } = await onlyCommandLog(workspace);
+  expect(await readLogRecords(logPath)).toEqual([]);
+  expect(await wasLogOpen(logPath)).toBe(false);
+});
+
+test("unset writes <command-name>.log in its command folder", async () => {
+  const result = await runIntake([
+    ...args("unset", "contact_name"),
+    "--from",
+    "Unknown",
+  ]);
+  expect(result.exitCode, result.stderr).toBe(0);
+  const { logPath } = await onlyCommandLog(workspace);
+  expect(await readLogRecords(logPath)).toEqual([]);
+  expect(await wasLogOpen(logPath)).toBe(false);
+});
+
+test("unset records the error that ended it as the last record of its log", async () => {
+  const state = path.join(
+    workspace,
+    "state",
+    "intake",
+    "namespaces",
+    "test.source",
+  );
+  await chmod(state, 0o500);
+  let result;
+  try {
+    result = await runIntake([
+      ...args("unset", "contact_name"),
+      "--from",
+      "Unknown",
+    ]);
+  } finally {
+    await chmod(state, 0o700);
+  }
+  expect(result.exitCode).toBe(1);
+  const { logPath } = await onlyCommandLog(workspace);
+  const records = await readLogRecords(logPath);
+  expect(records).toHaveLength(1);
+  expect(records[0]).toMatchObject({
+    level: 50,
+    error: {
+      message: result.stderr!.trim(),
+      stack: expect.stringContaining("EACCES"),
+    },
+  });
+  expect(await wasLogOpen(logPath)).toBe(false);
+});
+
+test("set records the error that ended it as the last record of its log", async () => {
+  const result = await runIntake([...args("set"), "county-id"]);
+  expect(result.exitCode).toBe(1);
+  const records = await readLogRecords(
+    (await onlyCommandLog(workspace)).logPath,
+  );
+  expect(records).toHaveLength(1);
+  expect(records[0]).toMatchObject({
+    level: 50,
+    error: {
+      message:
+        "Agency source-one location_path_id county-id must reference an existing place; found administrative_area.",
+      stack: expect.stringContaining("\n    at "),
+    },
+  });
+  expect(await wasLogOpen((await onlyCommandLog(workspace)).logPath)).toBe(
+    false,
+  );
+});

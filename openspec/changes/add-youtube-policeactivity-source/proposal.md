@@ -15,13 +15,13 @@ personnel are ever minted from a video.
 
 ## What Changes
 
-**Source `sources/youtube.policeactivity/` (acquire + produce)**
+**Source `sources/com/youtube/policeactivity/` (acquire + produce)**
 
 - From: no way to ingest video coverage; `coverage_links` is populated only by
   mn-post.
 - To: mirroring clearinghouse-api / courtlistener, `acquire.ts` pages agencies via
   the `data.agencies(...)` facade and searches the PoliceActivity channel **per
-  agency** (YouTube Data API v3, keyed), storing each hit stamped with the
+  agency** (YouTube Data API v3, keyed), storing each hit (never its captions) stamped with the
   agency's source id; `transform.ts` reads them and, for each video at that known
   agency, resolves officers to existing records and emits CoverageLink +
   CoverageLinkAgencyPersonnel for verified links only.

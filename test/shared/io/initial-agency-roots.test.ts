@@ -18,7 +18,7 @@ async function workspace() {
 const input = {
   metadata: {
     name: "initial" as const,
-    namespace: "source.one",
+    namespace: "org/source/one",
     annotations: { sitemap: "https://example.test/sitemap.xml" },
   },
   spec: { agencySourceNames: ["123", "456"] },
@@ -28,17 +28,21 @@ test("canonical IO persists namespace roots in intake-owned state and does not l
   const root = await workspace();
   const envelope = io.InitialAgencyRoots.new(input);
   const result = await io.InitialAgencyRoots.write(
-    io.initialAgencyRootsDirectory(root, "source.one"),
+    io.initialAgencyRootsDirectory(root, "org/source/one"),
     envelope,
   );
   expect(result.path).toBe(
     path.join(
       root,
-      "intake/state/namespaces/source.one/InitialAgencyRoots/initial.InitialAgencyRoots.yaml",
+      "intake/state/namespaces/org/source/one/InitialAgencyRoots/initial.InitialAgencyRoots.yaml",
     ),
   );
-  expect(await io.loadInitialAgencyRoots(root, "source.one")).toEqual(envelope);
-  expect(await io.loadInitialAgencyRoots(root, "source.two")).toBeUndefined();
+  expect(await io.loadInitialAgencyRoots(root, "org/source/one")).toEqual(
+    envelope,
+  );
+  expect(
+    await io.loadInitialAgencyRoots(root, "org/source/two"),
+  ).toBeUndefined();
 });
 
 test.each([
@@ -46,7 +50,7 @@ test.each([
   { kind: "Agency" },
   { extra: true },
   { metadata: { ...input.metadata, extra: true } },
-  { metadata: { name: "different", namespace: "source.one" } },
+  { metadata: { name: "different", namespace: "org/source/one" } },
   { metadata: { name: "initial" } },
   { spec: { agencySourceNames: [] } },
   { spec: { agencySourceNames: [" "] } },
@@ -76,16 +80,16 @@ test.each([
 test("loading an existing malformed or wrong-namespace root envelope fails", async () => {
   const root = await workspace();
   const { path: file } = await io.InitialAgencyRoots.write(
-    io.initialAgencyRootsDirectory(root, "source.one"),
+    io.initialAgencyRootsDirectory(root, "org/source/one"),
     io.InitialAgencyRoots.new(input),
   );
   const contents = await readFile(file, "utf8");
-  await writeFile(file, contents.replace("source.one", "source.two"));
-  await expect(io.loadInitialAgencyRoots(root, "source.one")).rejects.toThrow(
-    /namespace/,
-  );
+  await writeFile(file, contents.replace("org/source/one", "org/source/two"));
+  await expect(
+    io.loadInitialAgencyRoots(root, "org/source/one"),
+  ).rejects.toThrow(/namespace/);
   await writeFile(file, "not: an envelope");
-  await expect(io.loadInitialAgencyRoots(root, "source.one")).rejects.toThrow(
-    /malformed/,
-  );
+  await expect(
+    io.loadInitialAgencyRoots(root, "org/source/one"),
+  ).rejects.toThrow(/malformed/);
 });

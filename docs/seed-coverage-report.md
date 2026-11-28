@@ -144,7 +144,7 @@ must be verified before new sources are added.
 
 - Coverage is derived from each source's authoritative `export const produces`
   array in `sources/*/transform.ts`, cross-checked against `TABLE_BY_KIND` in
-  `src/shared/io/generated/entity-specs.ts`.
+  `src/shared/io/entity-specs.ts`.
 - gov.azpost.roster is disabled (`produces = []`), so Arizona contributes nothing
   yet.
 - The manual source (`org.policeconduct.manual`) is model-driven and _could_

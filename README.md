@@ -96,8 +96,15 @@ transforms and resolution rules, run:
 npm run cli -- data reset --no-acquire
 ```
 
-This resets the database identified by `DATABASE_URL` to current migrations,
-moves the old mutation chain into the reset command's output, and runs transform
+Before clearing the database, reset inventories existing retained automatic inputs
+and transforms them for validation. Invalid inputs or acquisition pointers stop
+the command while the database and active mutation chain remain intact. These
+preparation outputs are not applied; transforms run again against the rebuilt
+database. A fresh source without a completed acquisition can still acquire during
+default reset.
+
+After preparation, reset loads current migrations into the database identified by
+`DATABASE_URL`, moves the old mutation chain into the reset command's output, and runs transform
 → generate → apply for each source in dependency order. Manual locations and
 aliases load immediately after Census; the complete manual source runs at the
 end. It preserves acquired files, canonical identity mappings, slug caches,
@@ -105,6 +112,13 @@ and durable manual records. A failed phase stops the command with a nonzero exit
 status and an incomplete-rebuild message. Plain `data reset` also acquires each
 automatic source before transforming it. `data up` only replays previously
 generated mutations; it does not regenerate imports.
+
+The Minnesota disciplinary-order prompt lives in
+[`sources/com/site/my/mnitservices/post-license-search/acquire/order-analysis-prompt.txt`](sources/com/site/my/mnitservices/post-license-search/acquire/order-analysis-prompt.txt).
+Completed results identify its exact contents with `analyzedWith.promptSha256`.
+Editing the prompt invalidates older results automatically. Acquisition reuses
+preserved PDFs and extracted text while regenerating stale analysis; transformation
+rejects results without the current fingerprint.
 
 Inspect or correct any declared record property using its source identity:
 
@@ -150,31 +164,48 @@ Paths and alternate-county aliases are derived from corrected names during gener
 For example:
 
 ```bash
-npm run cli -- cache set us-census-gazetteer LocationPath place:GEOID:2416620 display_name 'Chevy Chase town' --from 'Chevy Chase' --message "Explain why this correction is needed"
-npm run cli -- data generate us-census-gazetteer
+npm run cli -- cache set gov/census/www2/gazetteer LocationPath place:GEOID:2416620 display_name 'Chevy Chase town' --from 'Chevy Chase' --message "Explain why this correction is needed"
+npm run cli -- data generate gov/census/www2/gazetteer
 ```
 
 Each Census GEOID keeps its own boundary. Unresolved path collisions fail with both
 source identities; they never merge records or select a name by processing order.
 Neither cache edits nor generation modify already-applied database rows.
 
-Exclude an invalid source record with a documented reason:
+Exclude an invalid source record with a reason written for the public:
 
 ```bash
-npm run cli -- data exclude <source> <kind> <source-id> --reason "Reason for exclusion"
+npm run cli -- data exclude <source> <kind> <source-id> --reason "<what was left out and why, in plain words>"
 npm run cli -- data transform <source>
 npm run cli -- data generate <source>
 ```
+
+The reason is published verbatim on the licensing authority's page, as
+`Explicitly excluded <Kind>: <reason>`. Write it for a reader of that page: say
+what was left out and why, in plain words, with no internal shorthand.
 
 This appends to `$INTAKE_WORKSPACE/state/<source>/excluded.yaml`. Exclusions
 belong to the selected workspace and are shared across checkouts using it.
 Operator correction lists and audits belong under `$INTAKE_WORKSPACE/audits/`;
 manual records remain in the manual source’s workspace state. Use the singular record kind
-(for example, `Agency`) and the source's own ID. Existing exclusions cannot be
-overwritten by this command. The next transform removes the excluded record and
+(for example, `Agency`) and the source's own ID. Existing exclusions require
+`--replace` to update; replacement fails if that exact kind and source ID is not
+already excluded. The next transform removes the excluded record and
 records that reference it, such as agency assignments, while retaining independent
 personnel. Acquired inputs and previous artifacts remain unchanged. Exclusions
 do not delete records already in the database.
+
+For an exclusion that applies only to the source values causing the problem, add
+`--when` with a nonempty JSON object of source spec fields and their exact values:
+
+```bash
+npm run cli -- data exclude <source> Personnel <source-id> --reason "This officer's first name in the roster is the number 9, so the record is left out until the roster is corrected." --when '{"first_name":"9"}' --replace
+```
+
+Every condition must match, including its type; a missing field differs from
+`null`. When a source value changes, the record and its relationships proceed
+through normal validation. Without `--when`, an exclusion is unconditional.
+Conditions remain workspace metadata and are not published as exclusion evidence.
 
 Core invariants:
 
@@ -252,11 +283,11 @@ as it can from the terminal:
 - Homebrew dependencies from `Brewfile`
 - mise
 - mise trust for this repo's `mise.toml`
-- mise-managed tools from `mise.toml`, including Node.js, GitHub CLI, and uv
+- mise-managed tools from `mise.toml`, including Node.js, GitHub CLI, uv, and
+  the PDF programs `data generate` runs (`pdfinfo`, `pdftotext` and `pdftoppm`
+  from poppler, and `tesseract` with its English data)
 - project npm dependencies, including local OpenSpec and Supabase CLI packages
 - Docker / Docker Desktop installation when possible
-- ignored `supabase/seed.sql` availability, including linking from another local
-  worktree when one already has the file
 - OpenSpec validation
 - Supabase CLI availability
 - Codex App or Codex CLI presence
@@ -294,11 +325,9 @@ npm run doctor
 
 - `supabase/config.toml` - Supabase local development configuration
 - `supabase/migrations/` - database migrations
-- `supabase/seed.sql` - transitional seed data for the current schema; replace
-  with archive-driven reset/load. This file is ignored because it is large; the
-  bootstrap script or `npm run link-seed` can link it from another local worktree
-  when available. `npm run link-seed` also verifies the checkout is an active git
-  worktree and that `supabase/seed.sql` is ignored before creating the link.
+- `supabase/seed.sql` - retired legacy seed data. It is ignored by git, is not
+  loaded by `db reset`, and is kept only as the record of the legacy website
+  data.
 - `openspec/` - OpenSpec project configuration using the `superpowers-bridge` schema
 - `docs/adr/` - durable architecture decisions
 - `mise.toml` - mise-managed tool versions and shared environment variables
@@ -309,7 +338,7 @@ Local Supabase state such as `supabase/.temp/` and `supabase/.branches/` is inte
 
 ## Commands
 
-Import this to see every available npm script:
+Run this to see every available npm script:
 
 ```bash
 npm run
@@ -319,7 +348,6 @@ npm run
 npm run setup
 npm run doctor
 npm run setup -- --yes
-npm run link-seed
 npm run format
 npm run format:sql
 npm run lint
@@ -342,7 +370,7 @@ checks, shell linting, typechecking, Vitest, build, and OpenSpec validation.
 `npm test` runs the Vitest test suite.
 
 `mise` owns pinned tool versions and shared environment, including Node.js,
-GitHub CLI, uv, SQLFluff cache locations, and Supabase telemetry defaults. npm
+GitHub CLI, uv, poppler, tesseract, SQLFluff cache locations, and Supabase telemetry defaults. npm
 remains the primary workflow surface for this repo. `scripts/bootstrap-dev.sh`
 still exists because mise does not replace first-run workstation setup: it checks
 and installs Homebrew-managed system tools, trusts this repo's `mise.toml`,
@@ -353,9 +381,7 @@ packages, and prints any manual follow-up needed before development starts.
 SQL formatting uses SQLFluff through `uvx`, so the repo does not need a checked
 in Python virtual environment. SQLFluff is Python-based, but `uvx` handles the
 tool environment and can use uv-managed Python when needed. `format:sql` and
-`lint:sql` target every SQL file SQLFluff finds in the repo, including
-`supabase/seed.sql`; review generated seed-data diffs carefully before deciding
-what to commit. SQL lint is available as a separate job because the current
+`lint:sql` target every SQL file SQLFluff finds in the repo. SQL lint is available as a separate job because the current
 checked-in SQL has existing style debt; add it to `validate` after the SQL
 baseline is cleaned.
 
@@ -401,10 +427,10 @@ enabled.
 Use the shared Institute for Police Conduct engineering standards for the
 general Codex/OpenSpec/Superpowers workflow:
 
-- [AI-assisted development](../engineering-standards/docs/ai-assisted-development.md)
-- [Engineering principles](../engineering-standards/docs/engineering-principles.md)
-- [Contribution and review](../engineering-standards/docs/contribution-and-review.md)
-- [Project setup standard](../engineering-standards/docs/project-setup-standard.md)
+- [AI-assisted development](../../engineering-standards/main/docs/ai-assisted-development.md)
+- [Engineering principles](../../engineering-standards/main/docs/engineering-principles.md)
+- [Contribution and review](../../engineering-standards/main/docs/contribution-and-review.md)
+- [Project setup standard](../../engineering-standards/main/docs/project-setup-standard.md)
 
 Repo-specific setup and verification:
 
@@ -435,27 +461,22 @@ contract changes. Direct PR-sized edits are acceptable for documentation-only
 updates, formatting, tooling tweaks, and refactors that preserve specified
 behavior.
 
-Manual worktrees should live under `./.worktrees/<change-name>` from the repo
-root:
+Each task gets its own branch and its own worktree folder beside the main
+checkout, named exactly after the branch. `AGENTS.md` has the folder layout and
+the branch stacking rules.
 
 ```bash
-mkdir -p .worktrees
-git worktree add .worktrees/<change-name> -b <change-name>
+git worktree add ~/dev/<owner>/<repo>/<branch-name> -b <branch-name> <current-leaf-branch>
 ```
 
-Import `npm run supabase:reset` when migrations, seed data, database constraints,
-or post-seed assertions changed. Docker must be running first.
+Run `npm run supabase:reset` when migrations or database constraints changed.
+Docker must be running first.
 
 Commit messages must use Conventional Commits. See
 `docs/adr/0007-use-conventional-commits.md`.
 
 ## Seed Data Rules
 
-Follow `AGENTS.md` for stable ID, conflict-free seed data, and post-seed
-integrity requirements while `supabase/seed.sql` exists. In short: use checked-in
-stable IDs, let duplicates fail loudly, and add assertions for expected rows and
-relationships.
-
-`supabase/seed.sql` is not the target data-loading model. New intake behavior
-should move the project toward archive- and mapping-ledger-driven `intake file`
-and `intake reset` instead of expanding seed-based loading.
+`supabase/seed.sql` is retired and is not a way to load data. Supply data
+through an intake source or the data-mutation chain. `AGENTS.md` states the
+rules that apply to any edit of the file while it exists as the legacy record.

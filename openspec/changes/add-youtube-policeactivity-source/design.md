@@ -1,11 +1,5 @@
 # Design
 
-> **Amended by INS-72 (2026-10-24):** this design originally read caption text
-> from `www.youtube.com/api/timedtext`. That host's robots.txt disallows
-> `/api/`, so the caption path was removed — acquire now reads only the keyed
-> Data API on `www.googleapis.com`, and officer mentions come from the video's
-> title and description. Caption references below are historical.
-
 Mirrors the clearinghouse-api / courtlistener pattern: acquire searches **per
 agency** and stamps each result with the agency's source id; the produce phase
 resolves officers **within that known agency**. There is no agency-from-free-text
@@ -13,7 +7,7 @@ resolution and no agency guessing — the agency is the search key (ADR 0023).
 
 ## Source configuration
 
-`sources/youtube.policeactivity/channel.ts` is the whole configuration of the
+`sources/com/youtube/policeactivity/channel.ts` is the whole configuration of the
 channel: its official handle and URL, the `source_name` written on coverage links,
 and the rolling-window length (5 years). Nothing about the window or the channel
 is settable from the environment — a run of this source means that channel and
@@ -40,7 +34,7 @@ that window.
    A re-observation replaces the cached one (newest observation wins), so a
    changed title reaches the coverage link as an update. The cache is the raw
    evidence and is never pruned.
-6. Per agency, write `<agency-slug>.videos.json`: the channel identity, the run's
+6. Per agency, write `<agency-id>.videos.json`: the channel identity, the run's
    window, the agency's source id/name/state/place/county, and the agency's cached
    videos **filtered to the window** — the deterministic input the produce phase
    reads.
@@ -51,7 +45,7 @@ the title and description. No media is requested or stored.
 
 ## Produce (deterministic — resolve officers at the known agency, emit cited links)
 
-Per `<agency-slug>.videos.json` envelope (validated fail-loud; a missing window
+Per `<agency-id>.videos.json` envelope (validated fail-loud; a missing window
 stamp, publication time, or retrieval time is an error, not a skip):
 
 1. Keep only videos inside the window **stamped on the envelope** — the produce

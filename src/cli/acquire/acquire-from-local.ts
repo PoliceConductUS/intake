@@ -1,6 +1,9 @@
+import { recordCompletedAcquisition } from "./acquisition-completion.js";
 import { glob, stat, cp, mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 import { createCommandDirectory } from "../command-directory.js";
+import { buildServiceClients } from "../service-clients.js";
+import { formatServiceSkips } from "../../shared/services/client-base.js";
 import type {
   SourceAcquire,
   AcquireDataContext,
@@ -9,6 +12,11 @@ import {
   readCommandPointer,
   writeCommandPointer,
 } from "../state/command-pointer.js";
+import {
+  createCommandLog,
+  recordCommandError,
+  type TerminalStream,
+} from "../../logging.js";
 
 type CopyItem = { source: string; destinationRelative: string };
 
@@ -18,19 +26,25 @@ function isGlob(pattern: string): boolean {
   return /[*?[\]{}]/.test(pattern);
 }
 
+type Logger = { info: (message: string) => void };
+
 // Recurse a directory into copy items, preserving each file's path relative to
-// `base` and skipping dotfiles (mirrors how transform collects source inputs).
+// `base` and leaving out dotfiles (mirrors how transform collects source inputs).
 async function collectDirectory(
   directory: string,
   base: string,
+  logger: Logger,
 ): Promise<CopyItem[]> {
   const entries = await readdir(directory, { withFileTypes: true });
   const items: CopyItem[] = [];
   for (const entry of entries) {
-    if (entry.name.startsWith(".")) continue;
     const full = path.join(directory, entry.name);
+    if (entry.name.startsWith(".")) {
+      logger.info(`--from-local: left out dotfile ${full}`);
+      continue;
+    }
     if (entry.isDirectory()) {
-      items.push(...(await collectDirectory(full, base)));
+      items.push(...(await collectDirectory(full, base, logger)));
     } else if (entry.isFile()) {
       items.push({
         source: full,
@@ -52,6 +66,7 @@ async function collectDirectory(
 export async function resolveLocalInputs(
   paths: readonly string[],
   cwd: string,
+  logger: Logger,
 ): Promise<CopyItem[]> {
   const items: CopyItem[] = [];
   for (const argument of paths) {
@@ -65,7 +80,7 @@ export async function resolveLocalInputs(
       continue;
     }
     if (info?.isDirectory()) {
-      items.push(...(await collectDirectory(absolute, absolute)));
+      items.push(...(await collectDirectory(absolute, absolute, logger)));
       continue;
     }
     // A plain path that does not exist is a typo, not a zero-match glob — say so.
@@ -83,7 +98,9 @@ export async function resolveLocalInputs(
           destinationRelative: path.basename(matchAbsolute),
         });
       } else if (matchInfo.isDirectory()) {
-        items.push(...(await collectDirectory(matchAbsolute, matchAbsolute)));
+        items.push(
+          ...(await collectDirectory(matchAbsolute, matchAbsolute, logger)),
+        );
       }
     }
     if (!matched) {
@@ -114,7 +131,7 @@ export type AcquireFromLocalDeps = {
   writeCommandPointer: typeof writeCommandPointer;
   acquire: SourceAcquire | undefined;
   data: AcquireDataContext;
-  logger: { info: (message: string) => void };
+  terminal: TerminalStream | false;
 };
 
 /**
@@ -127,38 +144,62 @@ export async function acquireFromLocal(
   paths: readonly string[],
   deps: AcquireFromLocalDeps,
 ): Promise<void> {
-  const items = await resolveLocalInputs(paths, deps.cwd);
-  const { outputDirectory } = await deps.createCommandDirectory(deps.env, {
+  const items = await resolveLocalInputs(paths, deps.cwd, {
+    info: (message) => {
+      if (deps.terminal !== false) deps.terminal.write(`${message}\n`);
+    },
+  });
+  const command = await deps.createCommandDirectory(deps.env, {
     namespace: sourceId,
     args: ["acquire", sourceId, "--from-local", ...paths],
   });
-  for (const item of items) {
-    const destination = path.join(outputDirectory, item.destinationRelative);
-    await mkdir(path.dirname(destination), { recursive: true });
-    await cp(item.source, destination);
-  }
-  const outputRelative = path.relative(deps.workspace, outputDirectory);
-  const pointer = await readCommandPointer(deps.state, "acquire");
-  await deps.writeCommandPointer(deps.state, "acquire", {
-    ...pointer,
-    resume: outputRelative,
-  });
-  if (deps.acquire !== undefined) {
-    await deps.acquire({
-      sourceDir: outputDirectory,
-      previousSourceDirs: [...new Set([pointer.resume, pointer.latest])]
-        .filter((p): p is string => p !== undefined)
-        .map((p) => path.join(deps.workspace, p)),
-      state: deps.state,
-      env: deps.env,
-      data: deps.data,
-      logger: deps.logger,
+  const { outputDirectory, commandName } = command;
+  const { logger, close } = createCommandLog(command, deps.env, deps.terminal);
+  try {
+    for (const item of items) {
+      const destination = path.join(outputDirectory, item.destinationRelative);
+      await mkdir(path.dirname(destination), { recursive: true });
+      await cp(item.source, destination);
+    }
+    const outputRelative = path.relative(deps.workspace, outputDirectory);
+    const pointer = await readCommandPointer(deps.state, "acquire");
+    await deps.writeCommandPointer(deps.state, "acquire", {
+      ...pointer,
+      resume: outputRelative,
     });
+    if (deps.acquire !== undefined) {
+      const clients = buildServiceClients({
+        workspace: deps.workspace,
+        namespace: sourceId,
+        commandId: commandName,
+        env: deps.env,
+        logger,
+      });
+      await deps.acquire({
+        sourceDir: outputDirectory,
+        previousSourceDirs: [...new Set([pointer.resume, pointer.latest])]
+          .filter((p): p is string => p !== undefined)
+          .map((p) => path.join(deps.workspace, p)),
+        state: deps.state,
+        env: deps.env,
+        data: deps.data,
+        logger,
+        clients,
+      });
+      for (const line of formatServiceSkips(clients.skips()))
+        logger.info(`${sourceId}: ${line}`);
+    }
+    await deps.writeCommandPointer(deps.state, "acquire", {
+      latest: outputRelative,
+    });
+    await recordCompletedAcquisition(outputDirectory);
+    logger.info(
+      `${sourceId}: staged ${items.length} local input file(s) at ${outputRelative}`,
+    );
+  } catch (error) {
+    recordCommandError(logger, error);
+    throw error;
+  } finally {
+    close();
   }
-  await deps.writeCommandPointer(deps.state, "acquire", {
-    latest: outputRelative,
-  });
-  deps.logger.info(
-    `${sourceId}: staged ${items.length} local input file(s) at ${outputRelative}`,
-  );
 }

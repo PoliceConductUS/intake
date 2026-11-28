@@ -44,7 +44,11 @@ function mutation(
     },
   });
 }
-for (const namespace of ["gov.tx.tcole", "gov.or.dpsst", "example.future"]) {
+for (const namespace of [
+  "gov/texas/tcole",
+  "net/bpl-orsnapshot/www/public-inquiry-cj",
+  "example.future",
+]) {
   const boundaries = {
     artifact: (field: string, value: unknown) =>
       PersonnelSpec.parse({ ...person, [field]: value }),

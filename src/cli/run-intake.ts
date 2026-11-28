@@ -6,6 +6,7 @@ import type { CommandResult } from "../shared/cli/types.js";
 
 export type IntakeCliDependencies = {
   useInitialAgencyRoots?: boolean;
+  keepCachedCallResults?: boolean;
   runImportArtifactsCommand?: (
     artifactsRef: string,
     dependencies?: { dryImport?: boolean },

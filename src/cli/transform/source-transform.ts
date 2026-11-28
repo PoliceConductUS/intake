@@ -1,15 +1,45 @@
+import { assertValidSourceId } from "./load-source-module.js";
 import { Artifacts } from "../../shared/io/index.js";
 import type {
   ArtifactsEnvelope,
   ImportArtifactKind,
 } from "../../shared/io/index.js";
+import type { Finding } from "../../shared/data-annotations.js";
+import type { ServiceClients } from "../../shared/services/index.js";
 import type { EmitRefItem } from "./emit-sink.js";
 import type { readXlsx } from "./read-xlsx.js";
+import type { InputAccounting } from "./accounting.js";
 
-export type EmittedRecords = Record<string, { spec: unknown }>;
+export type EmittedRecords = Record<
+  string,
+  {
+    metadata?: (
+      | { action: "PATCH"; selector: Record<string, unknown> }
+      | { action?: undefined; selector?: undefined }
+    ) & { defects?: Finding[] };
+    spec: unknown;
+  }
+>;
+export function recordOrigin(spec: Record<string, unknown>) {
+  const namespace = spec.source_namespace;
+  const name = spec.source_id;
+  if (namespace == null && name == null) return undefined;
+  if (
+    typeof namespace !== "string" ||
+    !namespace.trim() ||
+    typeof name !== "string" ||
+    !name.trim()
+  )
+    throw new Error(
+      "Source namespace and source ID must be supplied together.",
+    );
+  assertValidSourceId(namespace);
+  return { namespace, name };
+}
 export type SourceManifest = {
   personnelSourceNames?: string[];
   artifacts: Array<{ kind: ImportArtifactKind; records: EmittedRecords }>;
+  accounting: InputAccounting[];
 };
 export type ResolvedPersonnel = { agencyPersonnelId: string };
 // An existing agency's own address, carried so a report with a too-vague incident
@@ -114,6 +144,8 @@ export type AcquireDeps = {
   env: Record<string, string | undefined>;
   data: AcquireDataContext;
   logger?: { info: (message: string) => void };
+  /** The command's clients for outside services (ADR 0039). */
+  clients: ServiceClients;
 };
 export type SourceAcquire = (deps: AcquireDeps) => Promise<void>;
 

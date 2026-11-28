@@ -2,25 +2,55 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
+import { readDatabaseMutation } from "../../../../src/cli/import/artifacts/io/DatabaseMutation.js";
+import { LocationPathAliasCreate } from "../../../../src/cli/import/artifacts/io/LocationPathAliasCreate.js";
 import { DatabaseMutations } from "../../../../src/cli/import/artifacts/io/DatabaseMutations.js";
-import { AgencyCreate } from "../../../../src/cli/import/artifacts/io/generated-mutations/AgencyCreate.js";
-import { AgencyPersonnelUpdate } from "../../../../src/cli/import/artifacts/io/generated-mutations/AgencyPersonnelUpdate.js";
-import { AgencyUpdate } from "../../../../src/cli/import/artifacts/io/generated-mutations/AgencyUpdate.js";
-import { LocationPathCreate } from "../../../../src/cli/import/artifacts/io/generated-mutations/LocationPathCreate.js";
-import { LocationPathUpdate } from "../../../../src/cli/import/artifacts/io/generated-mutations/LocationPathUpdate.js";
-import { PersonnelUpdate } from "../../../../src/cli/import/artifacts/io/generated-mutations/PersonnelUpdate.js";
+import { AgencyCreate } from "../../../../src/cli/import/artifacts/io/AgencyCreate.js";
+import { AgencyPersonnelUpdate } from "../../../../src/cli/import/artifacts/io/AgencyPersonnelUpdate.js";
+import { AgencyUpdate } from "../../../../src/cli/import/artifacts/io/AgencyUpdate.js";
+import { LocationPathCreate } from "../../../../src/cli/import/artifacts/io/LocationPathCreate.js";
+import { LocationPathUpdate } from "../../../../src/cli/import/artifacts/io/LocationPathUpdate.js";
+import { PersonnelUpdate } from "../../../../src/cli/import/artifacts/io/PersonnelUpdate.js";
 
 async function tempDir(): Promise<string> {
   return mkdtemp(path.join(tmpdir(), "intake-database-mutations-"));
 }
 
 describe("database mutation envelopes", () => {
+  test("reads a mutation by path when its name contains a dot", async () => {
+    const directory = await tempDir();
+    const written = await LocationPathAliasCreate.write(
+      directory,
+      LocationPathAliasCreate.new({
+        metadata: { name: "/mn/st.paul/", namespace: "test" },
+        spec: {
+          alias_path: "/mn/st.paul/",
+          location_path_id: "cabc1234def5678ghij90kl1",
+        },
+      }),
+    );
+    expect(path.basename(written.path)).toBe(
+      "%2Fmn%2Fst.paul%2F.LocationPathAliasCreate.yaml",
+    );
+
+    expect(await readDatabaseMutation(written.path)).toMatchObject({
+      kind: "LocationPathAliasCreate",
+      metadata: { name: "/mn/st.paul/" },
+    });
+    await expect(
+      readDatabaseMutation(path.join(directory, "no-kind.yaml")),
+    ).rejects.toThrow("DatabaseMutation filename is malformed");
+  });
+
   test("DatabaseMutations writes and reads database mutation refs through exact kind IO", async () => {
     const directory = await tempDir();
     const mutation = await AgencyCreate.write(
       directory,
       AgencyCreate.new({
-        metadata: { name: "agency-source-name", namespace: "mn-post" },
+        metadata: {
+          name: "agency-source-name",
+          namespace: "com/site/my/mnitservices/post-license-search",
+        },
         spec: {
           id: "agency-canonical-id",
           name: "Minnesota State Patrol",
@@ -41,7 +71,10 @@ describe("database mutation envelopes", () => {
     const written = await DatabaseMutations.write(
       directory,
       DatabaseMutations.new({
-        metadata: { name: "command-name", namespace: "mn-post" },
+        metadata: {
+          name: "command-name",
+          namespace: "com/site/my/mnitservices/post-license-search",
+        },
         spec: {
           mutations: [
             {
@@ -57,7 +90,10 @@ describe("database mutation envelopes", () => {
 
     await expect(DatabaseMutations.read(written.path)).resolves.toMatchObject({
       kind: "DatabaseMutations",
-      metadata: { name: "command-name", namespace: "mn-post" },
+      metadata: {
+        name: "command-name",
+        namespace: "com/site/my/mnitservices/post-license-search",
+      },
       spec: {
         mutations: [
           {
@@ -84,7 +120,7 @@ describe("database mutation envelopes", () => {
     const written = await DatabaseMutations.write(
       directory,
       DatabaseMutations.new({
-        metadata: { name: "command-name", namespace: "gov.tx.tcole" },
+        metadata: { name: "command-name", namespace: "gov/texas/tcole" },
         spec: { mutations },
       }),
     );
@@ -135,7 +171,7 @@ describe("database mutation envelopes", () => {
       DatabaseMutations.write(
         directory,
         DatabaseMutations.build({
-          metadata: { name: "command-name", namespace: "gov.tx.tcole" },
+          metadata: { name: "command-name", namespace: "gov/texas/tcole" },
           spec: { mutations },
         }),
       ),
@@ -145,7 +181,10 @@ describe("database mutation envelopes", () => {
   test("DatabaseMutations rejects inline mutations with malformed generated specs", () => {
     expect(() =>
       DatabaseMutations.new({
-        metadata: { name: "command-name", namespace: "mn-post" },
+        metadata: {
+          name: "command-name",
+          namespace: "com/site/my/mnitservices/post-license-search",
+        },
         spec: {
           mutations: [
             {
@@ -316,7 +355,10 @@ describe("database mutation envelopes", () => {
   test("DatabaseMutations accepts personnel mutation kinds and rejects old person kinds", () => {
     expect(() =>
       DatabaseMutations.new({
-        metadata: { name: "command-name", namespace: "mn-post" },
+        metadata: {
+          name: "command-name",
+          namespace: "com/site/my/mnitservices/post-license-search",
+        },
         spec: {
           mutations: [
             {
@@ -352,7 +394,10 @@ describe("database mutation envelopes", () => {
 
     expect(() =>
       DatabaseMutations.new({
-        metadata: { name: "command-name", namespace: "mn-post" },
+        metadata: {
+          name: "command-name",
+          namespace: "com/site/my/mnitservices/post-license-search",
+        },
         spec: {
           mutations: [
             {

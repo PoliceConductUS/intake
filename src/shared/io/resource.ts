@@ -26,13 +26,21 @@ export function yamlDigest(contents: string): string {
 }
 
 export function firstIssuePath(error: z.ZodError): string {
-  const issue = error.issues[0];
-  if (
-    issue?.code === "unrecognized_keys" &&
-    "keys" in issue &&
-    issue.keys.length > 0
-  ) {
-    return [...issue.path, issue.keys[0]].join(".");
-  }
-  return issue?.path.join(".") || "record";
+  return issuePath(error.issues[0]).join(".") || "record";
+}
+
+function issuePath(issue: z.core.$ZodIssue | undefined): PropertyKey[] {
+  if (issue === undefined) return [];
+  if (issue.code === "unrecognized_keys" && issue.keys.length > 0)
+    return [...issue.path, issue.keys[0]];
+  if (issue.code === "invalid_union")
+    return [
+      ...issue.path,
+      ...issue.errors
+        .map((issues) => issuePath(issues[0]))
+        .reduce((deepest, path) =>
+          path.length > deepest.length ? path : deepest,
+        ),
+    ];
+  return issue.path;
 }

@@ -1,6 +1,11 @@
 # Source Producer Guide
 
-Source modules under `sources/<source-id>/` preserve upstream evidence and
+Intake recursively finds source directories containing `intake.source.ts`. The
+namespace is the slash-delimited directory path below `sources/`. For example,
+`sources/net/clearinghouse/api/intake.source.ts` identifies the namespace
+`net/clearinghouse/api`.
+
+Source modules preserve upstream evidence and
 transform it into typed intake artifacts. Root intake owns canonical identity,
 resolved properties, database mutation generation, and replay.
 

@@ -51,7 +51,7 @@ for (const level of ["state", "administrative_area", "place"] as const) {
         });
       const facade = context.facadeFromSource("Agency", {
         apiVersion: INTAKE_API_VERSION,
-        namespace: "mn-post",
+        namespace: "com/site/my/mnitservices/post-license-search",
         name: "airport",
         spec: {
           name: "Metropolitan Airports Commission",

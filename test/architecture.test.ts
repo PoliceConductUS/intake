@@ -407,6 +407,157 @@ describe("architecture boundaries", () => {
     expect(violations).toEqual([]);
   });
 
+  test("keeps CallResult and BinaryFile IO behind the service clients", async () => {
+    const files = await existingFiles(sourceRoot);
+    const sourceFiles = files.filter((file) => /\.[cm]?tsx?$/.test(file));
+    const allowed = new Set([
+      "src/cli/service-clients.ts",
+      "src/cli/state/call-cache/index.ts",
+    ]);
+    const violations: string[] = [];
+
+    for (const file of sourceFiles) {
+      const contents = await readFile(file, "utf8");
+      if (
+        (contents.includes("call-cache/index.js") ||
+          /\b(CallResult|BinaryFile)\.(read|write|new)\(/.test(contents)) &&
+        !allowed.has(relative(file)) &&
+        !/^src\/shared\/io\/(CallResult|BinaryFile)\.ts$/.test(relative(file))
+      ) {
+        violations.push(relative(file));
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+
+  test("keeps new migrations free of ID generation, conflict absorption, and trigger bypasses", async () => {
+    const migrationsRoot = path.join(repoRoot, "supabase", "migrations");
+    const appliedBeforeThisRule = new Set([
+      "20250303232529_initial_schema.sql",
+      "20260520000000_current_schema_updates.sql",
+      "20260822000000_federal_agency_branch_id.sql",
+      "20260903000000_authority_license.sql",
+    ]);
+    const prohibited =
+      /on\s+conflict|generate_cuid\(\)|gen_random_uuid\(|uuid_generate_v4\(|\b(?:big|small)?serial\b|generated\s+(?:always|by\s+default)\s+as\s+identity|disable\s+trigger|session_replication_role/i;
+    const files = await existingFiles(migrationsRoot);
+    const violations: string[] = [];
+
+    for (const file of files) {
+      if (appliedBeforeThisRule.has(path.basename(file))) {
+        continue;
+      }
+      const sql = (await readFile(file, "utf8")).replace(/--.*$/gm, "");
+      if (prohibited.test(sql)) {
+        violations.push(relative(file));
+      }
+    }
+
+    expect(files.length).toBeGreaterThan(appliedBeforeThisRule.size);
+    expect(violations).toEqual([]);
+  });
+
+  test("does not branch on a source namespace literal", async () => {
+    const sourceIds = (
+      await readdir(path.join(repoRoot, "sources"), { withFileTypes: true })
+    )
+      .filter((entry) => entry.isDirectory() && entry.name !== "lib")
+      .map((entry) => entry.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    const namespaceBranch = new RegExp(
+      `(?:[=!]==\\s*|\\bcase\\s+)["'\`](?:${sourceIds.join("|")})["'\`]`,
+    );
+    const files = await existingFiles(sourceRoot);
+    const sourceFiles = files.filter((file) => /\.[cm]?tsx?$/.test(file));
+    const violations: string[] = [];
+
+    for (const file of sourceFiles) {
+      const contents = await readFile(file, "utf8");
+      if (namespaceBranch.test(contents)) {
+        violations.push(relative(file));
+      }
+    }
+
+    expect(sourceIds.length).toBeGreaterThan(0);
+    expect(violations).toEqual([]);
+  });
+
+  test("every source transform states its row accounting", async () => {
+    const sourcesRoot = path.join(repoRoot, "sources");
+    const declarations = (await existingFiles(sourcesRoot)).filter(
+      (file) => path.basename(file) === "intake.source.ts",
+    );
+    const transformSources: string[] = [];
+    const violations: string[] = [];
+
+    for (const declaration of declarations) {
+      const contents = await readFile(declaration, "utf8");
+      if (!/\btransform\b/.test(contents)) {
+        continue;
+      }
+      transformSources.push(relative(declaration));
+      const transformModule = path.join(
+        path.dirname(declaration),
+        "transform.ts",
+      );
+      const transform = await readFile(transformModule, "utf8").catch(
+        () => contents,
+      );
+      if (!/\baccounting\b\s*[:,}]/.test(transform)) {
+        violations.push(relative(path.dirname(declaration)));
+      }
+    }
+
+    expect(transformSources.length).toBeGreaterThan(0);
+    expect(violations.sort()).toEqual([]);
+  });
+
+  test("reads the workspace variable only in intakeWorkspace", async () => {
+    const files = (
+      await Promise.all(
+        ["src", "scripts", "sources"].map((folder) =>
+          existingFiles(path.join(repoRoot, folder)),
+        ),
+      )
+    )
+      .flat()
+      .filter((file) => /\.(?:[cm]?ts|mjs)$/.test(file))
+      .filter((file) => relative(file) !== "src/cli/command-directory.ts");
+    const violations: string[] = [];
+
+    for (const file of files) {
+      const lines = (await readFile(file, "utf8")).split("\n");
+      lines.forEach((line, index) => {
+        if (/^\s*(?:\/\/|\/?\*)/.test(line)) return;
+        if (/\bINTAKE_WORKSPACE(?:_TEST)?\b/.test(line)) {
+          violations.push(`${relative(file)}:${index + 1}`);
+        }
+      });
+    }
+
+    expect(files.length).toBeGreaterThan(0);
+    expect(violations).toEqual([]);
+  });
+
+  test("opens a command log wherever a command folder is created", async () => {
+    const files = (await existingFiles(sourceRoot))
+      .filter((file) => /\.[cm]?ts$/.test(file))
+      .filter((file) => relative(file) !== "src/cli/command-directory.ts");
+    const creators: string[] = [];
+    const violations: string[] = [];
+
+    for (const file of files) {
+      const contents = await readFile(file, "utf8");
+      if (!/\bcreateCommandDirectory\(/.test(contents)) continue;
+      creators.push(relative(file));
+      if (!/\bcreateCommandLog\(/.test(contents))
+        violations.push(relative(file));
+    }
+
+    expect(creators.length).toBeGreaterThan(0);
+    expect(violations).toEqual([]);
+  });
+
   test("keeps command tests under their command path", async () => {
     const files = await existingFiles(testRoot);
     const violations = files

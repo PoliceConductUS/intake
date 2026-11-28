@@ -12,16 +12,14 @@ import { CurrentRowReader } from "../../../src/cli/import/artifacts/current-row-
 import { listEntries } from "../../../src/cli/data/chain.js";
 import { DatabaseMutations } from "../../../src/cli/import/artifacts/io/DatabaseMutations.js";
 import {
-  dockerAvailable,
   startIntakeDatabase,
   type IntakeDatabase,
 } from "../database/intake-postgres.js";
 
-const withDocker = dockerAvailable() ? describe : describe.skip;
-withDocker("mutable entity edits through the data CLI", () => {
+describe("mutable entity edits through the data CLI", () => {
   let db: IntakeDatabase;
   let workspace: string;
-  const source = "org.policeconduct.manual";
+  const source = "org/policeconduct/manual";
   beforeAll(async () => {
     db = await startIntakeDatabase();
     workspace = await mkdtemp(path.join(tmpdir(), "entity-updates-"));
@@ -76,7 +74,7 @@ withDocker("mutable entity edits through the data CLI", () => {
     });
     const location = {
       location_path_id: "/aa/",
-      path: "/aa/",
+      path: "/root/aa/",
       level: "place",
       display_name: "Original Place",
       parent_location_path_id: "/root/",
@@ -100,7 +98,7 @@ withDocker("mutable entity edits through the data CLI", () => {
     await acquire("LocationPath", location);
     await acquire("LocationPath", {
       location_path_id: "/bb/",
-      path: "/bb/",
+      path: "/root/bb/",
       level: "place",
       display_name: "Other Place",
       parent_location_path_id: "/root/",
@@ -145,6 +143,7 @@ withDocker("mutable entity edits through the data CLI", () => {
     const rosterArtifacts = await Artifacts.write(
       rosterCommand.outputDirectory,
       buildArtifactsEnvelope(source, rosterCommand.commandName, {
+        accounting: [],
         artifacts: [
           { kind: "Agencies", records: { agency: { spec: agency } } },
           { kind: "Personnel", records: { person: { spec: person } } },

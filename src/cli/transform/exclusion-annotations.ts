@@ -57,7 +57,10 @@ export function attachExclusionEvidence(
       sourceRecord?.spec as Record<string, unknown> | undefined
     )?.name;
     owners[0].incoming.push({
-      ...exclusion,
+      kind: exclusion.kind,
+      key: exclusion.key,
+      reason: exclusion.reason,
+      ...(exclusion.name === undefined ? {} : { name: exclusion.name }),
       ...(typeof sourceName === "string" && sourceName.trim()
         ? { name: sourceName }
         : {}),

@@ -6,7 +6,7 @@ import {
   AgencyArrestProfileSpec,
   BUSINESS_KEYS,
   FK_REFERENCES,
-} from "../../../src/shared/io/generated/entity-specs.js";
+} from "../../../src/shared/io/entity-specs.js";
 let db: IntakeDatabase;
 beforeAll(async () => {
   db = await startIntakeDatabase();

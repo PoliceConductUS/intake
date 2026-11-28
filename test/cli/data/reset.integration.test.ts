@@ -1,5 +1,14 @@
 import { completeTransform } from "../../../src/cli/state/transform-completion.js";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  readdir,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
+import { parse as parseYaml } from "yaml";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
@@ -18,15 +27,13 @@ import { buildArtifactsEnvelope } from "../../../src/cli/transform/source-transf
 import { sourceStateDir } from "../../../src/cli/transform/state.js";
 import { Artifacts } from "../../../src/shared/io/Artifacts.js";
 import { persistSourceNameToCanonicalIds } from "../../../src/cli/state/source-name-to-canonical-id/index.js";
-import { appendEntry } from "../../../sources/org.policeconduct.manual/chain.js";
+import { appendEntry } from "../../../sources/org/policeconduct/manual/chain.js";
 import {
-  dockerAvailable,
   startIntakeDatabase,
   type IntakeDatabase,
 } from "../database/intake-postgres.js";
 
-const withDocker = dockerAvailable() ? describe : describe.skip;
-withDocker("data reset against disposable Postgres", () => {
+describe("data reset against disposable Postgres", () => {
   let db: IntakeDatabase;
   const workspaces: string[] = [];
   beforeAll(async () => {
@@ -55,7 +62,7 @@ withDocker("data reset against disposable Postgres", () => {
       DATABASE_URL: db.connectionString,
     };
     await persistSourceNameToCanonicalIds(
-      "us-census-gazetteer",
+      "gov/census/www2/gazetteer",
       {
         locationPaths: { "/zz/": { canonicalId: "/zz/" } },
         agencies: {},
@@ -85,7 +92,7 @@ withDocker("data reset against disposable Postgres", () => {
       if (args[1] === "acquire") throw new Error("Unexpected acquisition");
       if (
         args[1] === "transform" &&
-        ["us-census-gazetteer", "fixture-agencies"].includes(args[2])
+        ["gov/census/www2/gazetteer", "fixture-agencies"].includes(args[2])
       ) {
         const command = await createCommandDirectory(env, {
           namespace: args[2],
@@ -95,13 +102,14 @@ withDocker("data reset against disposable Postgres", () => {
           items: Parameters<typeof buildArtifactsEnvelope>[2]["artifacts"],
         ) =>
           items.filter((item) =>
-            args[2] === "us-census-gazetteer"
+            args[2] === "gov/census/www2/gazetteer"
               ? item.kind === "LocationPaths"
               : item.kind !== "LocationPaths",
           );
         const written = await Artifacts.write(
           command.outputDirectory,
           buildArtifactsEnvelope(args[2], command.commandName, {
+            accounting: [],
             artifacts: selectArtifacts([
               {
                 kind: "LocationPaths",
@@ -118,7 +126,7 @@ withDocker("data reset against disposable Postgres", () => {
                   "/zz/": {
                     spec: {
                       location_path_id: "/zz/",
-                      path: "/zz/",
+                      path: "/root/zz/",
                       level: "place",
                       display_name: "Test State",
                       parent_location_path_id: "/root/",
@@ -193,19 +201,46 @@ withDocker("data reset against disposable Postgres", () => {
         personnelRecords = records;
       },
       runDataCommand,
-      logger: { info: () => {} },
-      orderedSourceIds: async () => ["us-census-gazetteer", "fixture-agencies"],
+      terminal: false as const,
+      orderedSourceIds: async () => [
+        "gov/census/www2/gazetteer",
+        "fixture-agencies",
+      ],
       acquiredInputs: async (): Promise<string[] | null> => null,
+      sourceProduces: async (source: string): Promise<"LocationPaths"[]> =>
+        source === "gov/census/www2/gazetteer" ? ["LocationPaths"] : [],
     };
+  }
+
+  async function commandLogs(
+    workspace: string,
+  ): Promise<{ args: string[]; hasLog: boolean }[]> {
+    const root = path.join(workspace, "command");
+    return Promise.all(
+      (await readdir(root)).map(async (folder) => {
+        const name = folder.split("-").at(-1)!;
+        const command = parseYaml(
+          await readFile(
+            path.join(root, folder, `${name}.Command.yaml`),
+            "utf8",
+          ),
+        ) as { spec: { args: string[] } };
+        const hasLog = await stat(path.join(root, folder, `${name}.log`)).then(
+          () => true,
+          () => false,
+        );
+        return { args: command.spec.args, hasLog };
+      }),
+    );
   }
 
   test("runs actual schema reset, regenerates source and manual data, and preserves IDs and slugs on repetition", async () => {
     const deps = await fixture();
     await appendEntry(
-      await sourceStateDir(deps.env, "org.policeconduct.manual"),
+      await sourceStateDir(deps.env, "org/policeconduct/manual"),
       {
         kind: "LocationPathAlias",
-        record: { alias_path: "/zz/alias/", location_path_id: "/zz/" },
+        record: { alias_path: "/zz/alias/", location_path_id: "/root/zz/" },
       },
       "alias_path",
     );
@@ -234,7 +269,7 @@ withDocker("data reset against disposable Postgres", () => {
           "select path from public.location_path where level = 'place'",
         )
       ).rows,
-    ).toEqual([{ path: "/zz/" }]);
+    ).toEqual([{ path: "/root/zz/" }]);
     expect(
       (await db.query("select alias_path from public.location_path_alias"))
         .rows,
@@ -246,6 +281,28 @@ withDocker("data reset against disposable Postgres", () => {
         )
       ).rows,
     ).toEqual([{ count: 3 }]);
+    const logged = await commandLogs(deps.env.INTAKE_WORKSPACE);
+    expect(
+      logged
+        .filter(
+          ({ args }) =>
+            !(
+              args[1] === "transform" &&
+              ["gov/census/www2/gazetteer", "fixture-agencies"].includes(
+                args[2]!,
+              )
+            ),
+        )
+        .filter(({ hasLog }) => !hasLog),
+    ).toEqual([]);
+    expect(logged.map(({ args }) => args.slice(0, 3).join(" "))).toEqual(
+      expect.arrayContaining([
+        "data reset --no-acquire",
+        "data generate fixture-agencies",
+        "data transform org/policeconduct/manual",
+        "data generate org/policeconduct/manual",
+      ]),
+    );
     expect(await resetData({ acquire: false }, deps)).toMatchObject({
       exitCode: 0,
     });
@@ -317,7 +374,7 @@ withDocker("data reset against disposable Postgres", () => {
   test("a real missing-location failure returns nonzero without replaying old data", async () => {
     const deps = await fixture();
     await appendEntry(
-      await sourceStateDir(deps.env, "org.policeconduct.manual"),
+      await sourceStateDir(deps.env, "org/policeconduct/manual"),
       {
         kind: "LocationPathAlias",
         record: { alias_path: "/zz/alias/", location_path_id: "/missing/" },
@@ -326,10 +383,10 @@ withDocker("data reset against disposable Postgres", () => {
     );
     const result = await resetData({ acquire: false }, deps);
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("data generate org.policeconduct.manual");
+    expect(result.stderr).toContain("data generate org/policeconduct/manual");
     expect(result.stderr).toContain("/missing/");
     expect(result.stderr).toContain("incomplete");
-    expect(deps.commands.at(-1)).toBe("data generate org.policeconduct.manual");
+    expect(deps.commands.at(-1)).toBe("data generate org/policeconduct/manual");
     expect(
       (await db.query("select alias_path from public.location_path_alias"))
         .rows,

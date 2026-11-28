@@ -10,15 +10,14 @@ import {
   test,
 } from "vitest";
 import { DatabaseMutations } from "../../src/cli/import/artifacts/io/DatabaseMutations.js";
-import { LocationPathCreate } from "../../src/cli/import/artifacts/io/generated-mutations/LocationPathCreate.js";
-import { LocationPathGeometryCreate } from "../../src/cli/import/artifacts/io/generated-mutations/LocationPathGeometryCreate.js";
+import { LocationPathCreate } from "../../src/cli/import/artifacts/io/LocationPathCreate.js";
+import { LocationPathGeometryCreate } from "../../src/cli/import/artifacts/io/LocationPathGeometryCreate.js";
 import { replayDatabaseMutations } from "../../src/cli/replay/database-mutations/config.js";
 import { importArtifacts } from "./completed-artifacts.js";
 import { Artifacts } from "../../src/shared/io/Artifacts.js";
 import { persistSourceNameToCanonicalIds } from "../../src/cli/state/source-name-to-canonical-id/index.js";
 import { yamlResourceFileName } from "../../src/shared/io/resource.js";
 import {
-  dockerAvailable,
   startIntakeDatabase,
   type IntakeDatabase,
 } from "../cli/database/intake-postgres.js";
@@ -49,7 +48,10 @@ async function writeEnvelope(
   const written = await DatabaseMutations.write(
     rootDir,
     DatabaseMutations.new({
-      metadata: { name: "run-1", namespace: "mn-post" },
+      metadata: {
+        name: "run-1",
+        namespace: "com/site/my/mnitservices/post-license-search",
+      },
       spec: { mutations },
     }),
   );
@@ -64,7 +66,10 @@ async function writeRefEnvelope(
   const written = await DatabaseMutations.write(
     rootDir,
     DatabaseMutations.new({
-      metadata: { name: "run-1", namespace: "mn-post" },
+      metadata: {
+        name: "run-1",
+        namespace: "com/site/my/mnitservices/post-license-search",
+      },
       spec: {
         mutations: [
           { ref: { path: path.relative(rootDir, mutationPath), kind } },
@@ -75,9 +80,7 @@ async function writeRefEnvelope(
   return written.path;
 }
 
-const describeWithDocker = dockerAvailable() ? describe : describe.skip;
-
-describeWithDocker("replay against a real Postgres", () => {
+describe("replay against a real Postgres", () => {
   let db: IntakeDatabase;
 
   beforeAll(async () => {
@@ -170,7 +173,7 @@ describeWithDocker("replay against a real Postgres", () => {
     ]);
 
     const source = {
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       command: { name: "import" },
       kind: "Agency",
       name: "agency-1",
@@ -238,7 +241,9 @@ describeWithDocker("replay against a real Postgres", () => {
 
     expect(result).toEqual({
       ok: false,
-      error: "DatabaseMutation agency-1 cannot create existing Agency.",
+      error: new Error(
+        'DatabaseMutation cannot create Agency: duplicate key value violates unique constraint "agency_pkey": Key (id)=(agency-1) already exists.',
+      ),
     });
     // The transaction rolled back: the pre-existing row is untouched, no partial writes.
     const rows = await db.query("select slug from public.agency");
@@ -254,7 +259,7 @@ describeWithDocker("replay against a real Postgres", () => {
     );
     const rootDir = await mkdtemp(path.join(tmpdir(), "intake-replay-"));
     const source = {
-      namespace: "mn-post",
+      namespace: "com/site/my/mnitservices/post-license-search",
       command: { name: "import" },
       kind: "Agency",
       name: "agency-canonical-id",
@@ -303,7 +308,10 @@ describeWithDocker("replay against a real Postgres", () => {
     const mutation = await LocationPathCreate.write(
       path.join(rootDir, "mutations"),
       LocationPathCreate.new({
-        metadata: { name: "lp", namespace: "mn-post" },
+        metadata: {
+          name: "lp",
+          namespace: "com/site/my/mnitservices/post-license-search",
+        },
         spec: {
           location_path_id: "lp",
           path: "/mn/ramsey-county/saint-paul/",
@@ -365,7 +373,10 @@ describeWithDocker("replay against a real Postgres", () => {
     const mutation = await LocationPathGeometryCreate.write(
       path.join(rootDir, "mutations"),
       LocationPathGeometryCreate.new({
-        metadata: { name: "lp", namespace: "mn-post" },
+        metadata: {
+          name: "lp",
+          namespace: "com/site/my/mnitservices/post-license-search",
+        },
         spec: {
           location_path_id: "lp",
           sourceLocationPathKey: "place:GEOID:2743000",
@@ -440,7 +451,10 @@ describeWithDocker("replay against a real Postgres", () => {
     const writtenArtifacts = await Artifacts.write(
       path.join(rootDir, "output"),
       Artifacts.new({
-        metadata: { name: "test-run", namespace: "mn-post" },
+        metadata: {
+          name: "test-run",
+          namespace: "com/site/my/mnitservices/post-license-search",
+        },
         spec: {
           artifacts: [
             {
@@ -529,7 +543,7 @@ describeWithDocker("replay against a real Postgres", () => {
       }),
     );
     await persistSourceNameToCanonicalIds(
-      "mn-post",
+      "com/site/my/mnitservices/post-license-search",
       {
         locationPaths: {
           "place:GEOID:2743000": {
@@ -569,7 +583,7 @@ describeWithDocker("replay against a real Postgres", () => {
       artifactsPath: writtenArtifacts.path,
       env: {
         DATABASE_URL: db.connectionString,
-        INTAKE_WORKSPACE_TEST: rootDir,
+        INTAKE_WORKSPACE: rootDir,
       },
       logger: { info: () => {}, debug: () => {} },
       commandName: runId,

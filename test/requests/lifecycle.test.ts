@@ -54,9 +54,9 @@ const options = {
 };
 test("historical imports retain identity and canonical IO rejects extra fields", async () => {
   const store = new RequestStore(await temp());
-  await store.importHistory("gov.test", source);
-  await store.importHistory("gov.test", source);
-  const rows = await store.list("gov.test");
+  await store.importHistory("gov/test/records", source);
+  await store.importHistory("gov/test/records", source);
+  const rows = await store.list("gov/test/records");
   expect(rows).toHaveLength(1);
   expect(rows[0].spec.transport).toBe("portal");
   expect(rows[0].metadata.name).toBe("abcdefghijklmnopqrstuvwx");
@@ -135,23 +135,28 @@ test("uncertain transport is durable and force cannot send another copy", async 
 });
 test("request-only sources appear in catalog but never default transform selection", async () => {
   const dir = await temp();
-  await mkdir(path.join(dir, "request"));
+  await mkdir(path.join(dir, "gov/example/request"), { recursive: true });
   await writeFile(
-    path.join(dir, "request/request.ts"),
-    'export const description="Request";',
+    path.join(dir, "gov/example/request/intake.source.ts"),
+    `export const source = { description: "Request", request: ${JSON.stringify(source)} };`,
   );
-  await mkdir(path.join(dir, "data"));
+  await mkdir(path.join(dir, "gov/example/data"), { recursive: true });
   await writeFile(
-    path.join(dir, "data/transform.ts"),
-    "export const produces=[];",
+    path.join(dir, "gov/example/data/intake.source.ts"),
+    "export const source = { transform() {}, produces: [] };",
   );
   expect(
     (await describeSources(dir)).map((row) => [row.id, row.phases]),
   ).toEqual([
-    ["data", ["transform"]],
-    ["request", ["request"]],
+    ["gov/example/data", ["transform"]],
+    ["gov/example/request", ["request"]],
   ]);
-  expect(await matchSourceIds(dir, "*")).toEqual(["data"]);
+  expect(await matchSourceIds(dir, "gov/*/data", ["transform"])).toEqual([
+    "gov/example/data",
+  ]);
+  expect(await matchSourceIds(dir, "*", ["transform"])).toEqual([
+    "gov/example/data",
+  ]);
 });
 test("sync keeps acknowledgment pending, saves final records and repeat sync is no-op", async () => {
   const { syncMessages } = await import("../../src/cli/requests/responses.js");
@@ -647,4 +652,49 @@ test("first sync processes a newest-first backlog in chronological order so fina
   );
   expect(report.map((row) => row.id)).toEqual(["partial", "final"]);
   expect((await store.list("gov.test"))[0].spec.fulfillment).toBe("fulfilled");
+});
+test("retrying a failed portal request without a portal adapter leaves it failed", async () => {
+  const { SubmissionRejectedError } =
+    await import("../../src/cli/requests/lifecycle.js");
+  const store = new RequestStore(await temp());
+  const portal = {
+    ...options,
+    definition: {
+      ...source,
+      channel: {
+        type: "portal" as const,
+        url: "https://portal.example.org/request",
+        sourceUrl: "https://example.org",
+      },
+    },
+    portalContact: {
+      firstName: "Pat",
+      lastName: "Requester",
+      email: "inbox@example.org",
+      phone: "555-0100",
+      organization: "Institute",
+      street: "1 Main St",
+      city: "Town",
+      state: "AA",
+      zip: "00000",
+    },
+  };
+  await expect(
+    submit(store, {
+      ...portal,
+      sendPortal: async () => {
+        throw new SubmissionRejectedError("form rejected");
+      },
+    }),
+  ).rejects.toThrow("form rejected");
+  const submissions = async () =>
+    (await store.list("gov.test"))
+      .filter((row) => row.spec.payload !== undefined)
+      .map((row) => [row.spec.submission, row.spec.error]);
+  expect(await submissions()).toEqual([["failed", "form rejected"]]);
+
+  await expect(submit(store, portal)).rejects.toThrow(
+    "Portal has no verified submission adapter",
+  );
+  expect(await submissions()).toEqual([["failed", "form rejected"]]);
 });

@@ -1,6 +1,6 @@
 # Add a location manually
 
-Use `org.policeconduct.manual` for a verified community missing from Census.
+Use `org/policeconduct/manual` for a verified community missing from Census.
 Choose the existing intake workspace and database before running these commands.
 The county parent must already exist. A community does not need a polygon,
 centroid, or bounding box.
@@ -14,10 +14,10 @@ MANUAL_KIND=LocationPath MANUAL_RECORD='{
   "level": "place",
   "display_name": "Ivanhoe",
   "parent_location_path_id": "/tx/fannin-county/"
-}' npm run cli -- data acquire org.policeconduct.manual
+}' npm run cli -- data acquire org/policeconduct/manual
 
-npm run cli -- data transform org.policeconduct.manual
-npm run cli -- data generate org.policeconduct.manual
+npm run cli -- data transform org/policeconduct/manual
+npm run cli -- data generate org/policeconduct/manual
 npm run cli -- data up
 ```
 
@@ -50,7 +50,8 @@ ID, using its namespace and source ID:
 
 ```bash
 npm run cli -- cache get <namespace> Agency <source-id> location_path_id
-npm run cli -- cache set <namespace> Agency <source-id> location_path_id <canonical-location-id>
+npm run cli -- cache set <namespace> Agency <source-id> location_path_id <canonical-location-id> \
+  --message "<why this agency belongs in this location>"
 ```
 
 If a value already exists, set reports an error and shows the current cache.

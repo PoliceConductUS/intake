@@ -9,8 +9,7 @@ import {
 } from "./execute.js";
 
 export type ReplayDatabaseMutationsResult =
-  | { ok: true; counts: DatabaseMutationCounts }
-  | { ok: false; error: string };
+  { ok: true; counts: DatabaseMutationCounts } | { ok: false; error: Error };
 
 export type ReplayDatabaseMutationsCommandInput = {
   databaseMutationsPath: string;
@@ -18,8 +17,8 @@ export type ReplayDatabaseMutationsCommandInput = {
   clientFactory?: DatabaseClientFactory;
 };
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+function asError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
 }
 
 async function closeClient(client: DatabaseClient): Promise<void> {
@@ -37,7 +36,7 @@ export async function replayDatabaseMutations(
   if (databaseUrl === undefined || databaseUrl.trim().length === 0) {
     return {
       ok: false,
-      error: "DATABASE_URL is required to replay DatabaseMutations.",
+      error: new Error("DATABASE_URL is required to replay DatabaseMutations."),
     };
   }
 
@@ -59,7 +58,7 @@ export async function replayDatabaseMutations(
     } catch {
       // Preserve the database operation error that triggered rollback.
     }
-    return { ok: false, error: errorMessage(error) };
+    return { ok: false, error: asError(error) };
   } finally {
     await closeClient(client);
   }

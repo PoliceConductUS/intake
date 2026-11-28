@@ -1,4 +1,4 @@
-import { FK_REFERENCES } from "../../../shared/io/generated/entity-specs.js";
+import { FK_REFERENCES } from "../../../shared/io/entity-specs.js";
 /** Inclusion direction is domain metadata, distinct from FK dependency order. */
 export const AGENCY_GRAPH_ROOT = {
   kind: "Agency",

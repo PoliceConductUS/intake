@@ -3,7 +3,8 @@ import { buildArtifactsEnvelope } from "../../../src/cli/transform/source-transf
 
 describe("buildArtifactsEnvelope", () => {
   it("builds an inline Artifacts envelope keyed by source-local id", () => {
-    const envelope = buildArtifactsEnvelope("gov.azpost.roster", "abc123", {
+    const envelope = buildArtifactsEnvelope("gov/az/post/roster", "abc123", {
+      accounting: [],
       artifacts: [
         {
           kind: "Personnel",
@@ -15,8 +16,8 @@ describe("buildArtifactsEnvelope", () => {
         },
       ],
     });
-    expect(envelope.metadata.namespace).toBe("gov.azpost.roster");
-    expect(envelope.metadata.name).toBe("gov.azpost.roster-abc123");
+    expect(envelope.metadata.namespace).toBe("gov/az/post/roster");
+    expect(envelope.metadata.name).toBe("gov/az/post/roster-abc123");
     const item = envelope.spec.artifacts[0];
     expect(item).toMatchObject({
       kind: "Personnel",
@@ -31,6 +32,7 @@ describe("buildArtifactsEnvelope", () => {
   it("rejects a record missing a required field via the envelope schema", () => {
     expect(() =>
       buildArtifactsEnvelope("s", "d", {
+        accounting: [],
         artifacts: [
           {
             kind: "Personnel",

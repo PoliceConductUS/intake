@@ -1,11 +1,71 @@
 import { describe, expect, test } from "vitest";
-import { excludeManifestRecords } from "../../../src/cli/transform/exclude-records.js";
+import {
+  excludeManifestRecords,
+  selectActiveExcludedRecords,
+} from "../../../src/cli/transform/exclude-records.js";
 import { excludedRecordKey } from "../../../src/shared/io/index.js";
 import type { SourceManifest } from "../../../src/cli/transform/source-transform.js";
+import type { ExcludedRecord } from "../../../src/shared/io/excluded-records.js";
+
+test("source conditions use exact deep equality and own fields only", () => {
+  const spec = Object.assign(Object.create({ inherited: "bad" }), {
+    details: { labels: ["9", "Townsend"], enabled: false, count: 0 },
+  });
+  const input: SourceManifest = {
+    accounting: [],
+    artifacts: [{ kind: "Personnel", records: { person: { spec } } }],
+  };
+  const exclusion = (when: NonNullable<ExcludedRecord["when"]>) =>
+    new Map([
+      [
+        "Personnel:person",
+        {
+          kind: "Personnel",
+          key: "person",
+          reason: "source data defect",
+          when,
+        },
+      ],
+    ]);
+  expect([
+    ...selectActiveExcludedRecords(
+      input,
+      exclusion({
+        details: { count: 0, enabled: false, labels: ["9", "Townsend"] },
+      }),
+    ).keys(),
+  ]).toEqual(["Personnel:person"]);
+  expect(
+    selectActiveExcludedRecords(
+      input,
+      exclusion({
+        details: { labels: ["Townsend", "9"], enabled: false, count: 0 },
+      }),
+    ).size,
+  ).toBe(0);
+  expect(
+    selectActiveExcludedRecords(
+      input,
+      exclusion({
+        details: { labels: ["9", "Townsend"], enabled: "false", count: 0 },
+      }),
+    ).size,
+  ).toBe(0);
+  expect(
+    selectActiveExcludedRecords(input, exclusion({ inherited: "bad" })).size,
+  ).toBe(0);
+  expect(
+    selectActiveExcludedRecords(
+      { accounting: [], artifacts: [] },
+      exclusion({ details: null }),
+    ).size,
+  ).toBe(0);
+});
 
 describe("excludeManifestRecords", () => {
   test("removes an excluded agency and cascades to its assignments", () => {
     const manifest: SourceManifest = {
+      accounting: [],
       artifacts: [
         {
           kind: "Agencies",
@@ -50,6 +110,7 @@ describe("excludeManifestRecords", () => {
   test("is a no-op when nothing is excluded, preserving explicit personnel roots", () => {
     const manifest: SourceManifest = {
       personnelSourceNames: ["person"],
+      accounting: [],
       artifacts: [
         { kind: "Agencies", records: { "1": { spec: { name: "PD" } } } },
       ],

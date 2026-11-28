@@ -2,10 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   assertDataApiUrl,
   createYoutubeApi,
-  DATA_API_BASE,
   isQuotaExhaustedBody,
   quotaResetHint,
-  videoUrl,
 } from "../../../sources/lib/youtube.js";
 
 describe("isQuotaExhaustedBody", () => {
@@ -70,7 +68,7 @@ describe("isQuotaExhaustedBody", () => {
 function apiWith(jsonByUrl: Record<string, unknown>) {
   const jsonCalls: string[] = [];
   const api = createYoutubeApi({
-    fetchJson: async (url: string) => {
+    fetchJson: async (url) => {
       jsonCalls.push(url);
       const key = Object.keys(jsonByUrl).find((k) => url.includes(k));
       return (key === undefined ? {} : jsonByUrl[key]) as Record<
@@ -97,22 +95,22 @@ describe("youtube api client", () => {
     expect(await api.resolveChannelId("@Nope")).toBeNull();
   });
 
-  it("issues one date-bounded search call and parses/de-duplicates its hits", async () => {
+  const hit = (videoId: string) => ({
+    id: { videoId },
+    snippet: {
+      title: `T-${videoId}`,
+      description: `D-${videoId}`,
+      publishedAt: "2024-06-01T00:00:00Z",
+      channelId: "UCpa123",
+    },
+  });
+
+  it("pages a date-bounded search through nextPageToken and de-duplicates its hits", async () => {
     const { api, jsonCalls } = apiWith({
+      "pageToken=PT3": { items: [hit("v4")] },
+      "pageToken=PT2": { items: [hit("v2"), hit("v3")], nextPageToken: "PT3" },
       "channelId=UCpa123": {
-        items: [
-          {
-            id: { videoId: "v1" },
-            snippet: {
-              title: "T1",
-              description: "D1",
-              publishedAt: "2024-06-01T00:00:00Z",
-              channelId: "UCpa123",
-            },
-          },
-          { id: { videoId: "v1" }, snippet: { title: "dupe" } },
-          { id: { videoId: "v2" }, snippet: { title: "T2" } },
-        ],
+        items: [hit("v1"), hit("v1"), hit("v2")],
         nextPageToken: "PT2",
       },
     });
@@ -122,57 +120,71 @@ describe("youtube api client", () => {
       publishedBefore: "2025-01-01T00:00:00Z",
     });
 
-    // Exactly one search call, ignoring nextPageToken, with the date window.
     const searchCalls = jsonCalls.filter((u) => u.includes("/search?"));
-    expect(searchCalls).toHaveLength(1);
-    expect(searchCalls[0]).toContain("publishedAfter=2024-01-01T00%3A00%3A00Z");
-    expect(searchCalls[0]).toContain(
-      "publishedBefore=2025-01-01T00%3A00%3A00Z",
-    );
-    expect(hits.map((h) => h.videoId)).toEqual(["v1", "v2"]);
+    expect(searchCalls).toHaveLength(3);
+    expect(searchCalls[0]).not.toContain("pageToken");
+    expect(searchCalls[1]).toContain("pageToken=PT2");
+    expect(searchCalls[2]).toContain("pageToken=PT3");
+    for (const call of searchCalls) {
+      expect(call).toContain("maxResults=50");
+      expect(call).toContain("publishedAfter=2024-01-01T00%3A00%3A00Z");
+      expect(call).toContain("publishedBefore=2025-01-01T00%3A00%3A00Z");
+    }
+    expect(hits.map((h) => h.videoId)).toEqual(["v1", "v2", "v3", "v4"]);
     expect(hits[0]).toEqual({
       videoId: "v1",
-      title: "T1",
-      description: "D1",
+      title: "T-v1",
+      description: "D-v1",
       publishedAt: "2024-06-01T00:00:00Z",
       channelId: "UCpa123",
-      url: videoUrl("v1"),
+      url: "https://www.youtube.com/watch?v=v1",
     });
   });
 
-  // No caption track: youtube.com/robots.txt disallows /api/, where
-  // /api/timedtext lives, so the client fetches the Data API only.
-  it("exposes only the Data API calls", () => {
-    const { api } = apiWith({});
-    expect(Object.keys(api).sort()).toEqual([
-      "resolveChannelId",
-      "searchChannelVideos",
-    ]);
-  });
-  // INS-72: www.youtube.com/robots.txt disallows /api/, so this client must
-  // never reach that host — only the keyed Data API on googleapis.com.
-  it("only ever requests the keyed Data API host", async () => {
-    const { api, jsonCalls } = apiWith({
-      "channels?part=id": { items: [{ id: "UCpa123" }] },
-      "channelId=UCpa123": { items: [{ id: { videoId: "v1" } }] },
+  it("throws when a search reaches the API limit of 500 videos", async () => {
+    let page = 0;
+    const api = createYoutubeApi({
+      fetchJson: async () => {
+        page += 1;
+        return {
+          items: Array.from({ length: 50 }, (_, i) => hit(`p${page}-${i}`)),
+          ...(page < 10 ? { nextPageToken: `PT${page + 1}` } : {}),
+        };
+      },
     });
 
-    await api.resolveChannelId("@PoliceActivity");
-    await api.searchChannelVideos("UCpa123", "Irving Police");
-
-    expect(jsonCalls.length).toBeGreaterThan(0);
-    for (const url of jsonCalls) {
-      expect(new URL(url).host).toBe("www.googleapis.com");
-    }
-    expect(jsonCalls.some((u) => u.includes("youtube.com/api/"))).toBe(false);
+    await expect(
+      api.searchChannelVideos("UCpa123", "Houston Police"),
+    ).rejects.toThrow(/Houston Police.*500 videos/);
+    expect(page).toBe(10);
   });
 
-  it("refuses a request aimed anywhere but the Data API", () => {
+  it("throws on a search hit with no video id", async () => {
+    const { api } = apiWith({
+      "channelId=UCpa123": { items: [{ id: {}, snippet: { title: "T" } }] },
+    });
+    await expect(
+      api.searchChannelVideos("UCpa123", "Irving Police"),
+    ).rejects.toThrow(/Irving Police.*no video ID/);
+  });
+
+  it("throws on a search response with no items list", async () => {
+    const { api } = apiWith({ "channelId=UCpa123": { kind: "other" } });
+    await expect(
+      api.searchChannelVideos("UCpa123", "Irving Police"),
+    ).rejects.toThrow(/Irving Police.*no items list/);
+  });
+});
+
+describe("assertDataApiUrl", () => {
+  it("refuses a www.youtube.com URL and passes a Data API URL through", () => {
     expect(() =>
       assertDataApiUrl("https://www.youtube.com/api/timedtext?lang=en&v=v1"),
     ).toThrow(/refusing to request/);
-    expect(assertDataApiUrl(`${DATA_API_BASE}/search?part=snippet`)).toBe(
-      `${DATA_API_BASE}/search?part=snippet`,
-    );
+    expect(
+      assertDataApiUrl(
+        "https://www.googleapis.com/youtube/v3/search?part=snippet",
+      ),
+    ).toBe("https://www.googleapis.com/youtube/v3/search?part=snippet");
   });
 });

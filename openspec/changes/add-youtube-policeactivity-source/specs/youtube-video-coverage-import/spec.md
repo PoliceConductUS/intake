@@ -101,6 +101,26 @@ disallows, and it MUST NOT download or store video media.
 - **WHEN** every calendar year the window covers has been searched for an agency
 - **THEN** the next run re-searches the year the window ends in, so videos published since the last run are picked up
 
+### Requirement: Captions are never fetched or read
+
+Acquire MUST require `YOUTUBE_API_KEY`, all network access lives in acquire,
+and acquire MUST request only the keyed Data API on `www.googleapis.com`. It MUST
+NOT fetch caption/transcript text: the timedtext track is served from a
+`www.youtube.com` path that host's robots.txt disallows (`Disallow: /api/`), and
+we do not request paths a publisher disallows. Run MUST draw officer mentions
+and their passages from the video's title and description only, never from
+caption text.
+
+#### Scenario: captions are never fetched
+
+- **WHEN** acquire runs any phase of the channel search
+- **THEN** every request goes to `https://www.googleapis.com/youtube/v3`, no request is sent to `www.youtube.com/api/timedtext`, and no stored video holds caption text
+
+#### Scenario: caption text a video file still holds links no officer
+
+- **WHEN** a video file holds a `captions` field naming an officer that the video's title and description do not name
+- **THEN** the file is rejected as an invalid evidence envelope before any officer is resolved, so no CoverageLinkAgencyPersonnel is emitted from it
+
 ### Requirement: A skipped video is reconsidered on every later run in the window
 
 A video that produced no link MUST stay in the source's evidence and MUST be

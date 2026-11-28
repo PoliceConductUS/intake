@@ -9,8 +9,8 @@
 
 ## 1. Source configuration + acquire (per-agency channel search)
 
-- [x] 1.1 `sources/youtube.policeactivity/transform.ts` exports `transform`,
-      `produces` (CoverageLinks, CoverageLinkAgencyPersonnel), `description`.
+- [x] 1.1 `sources/com/youtube/policeactivity/transform.ts` exports `transform`;
+      `intake.source.ts` declares `produces` and `description`.
 - [x] 1.2 Shared client `sources/lib/youtube.ts`: resolve `@PoliceActivity` →
       channel id; `search?channelId=…&q=…&type=video`. `YOUTUBE_API_KEY` from
       env; documented in `.env.example`.
@@ -34,10 +34,8 @@
 
 ## 2. Produce: resolve officers at the known agency + emit cited links
 
-- [x] 2.1 Officer-name candidate extraction from title + description
-      (`(?i:role)` prefix + Title-case name; gated by `isPersonName`). Captions
-      are **not** a source: `youtube.com/robots.txt` disallows `/api/`, which the
-      `/api/timedtext` track lives under.
+- [x] 2.1 Officer-name candidate extraction from title+description
+      (`(?i:role)` prefix + Title-case name; gated by `isPersonName`).
 - [x] 2.2 Per video at its acquired agency, resolve each named officer via
       `resolvePersonnel`; emit CoverageLink (keyed by the stable `videoId`) +
       CoverageLinkAgencyPersonnel for resolved officers, each with the naming
@@ -60,3 +58,13 @@
       unresolvable/unnamed/out-of-window video → no link; a skipped video linked
       on a later run once the officer exists; determinism.
 - [x] 3.3 `npm run openspec:validate` and the narrow source tests pass.
+
+## 4. Captions are never fetched
+
+- [x] 4.1 Remove the timedtext caption request: `youtube.ts:YoutubeApi` has no
+      `fetchCaptions` and `createYoutubeApi` takes only `fetchJson`; acquire
+      saves no `captions`/`captionsError` and logs no caption counts.
+- [x] 4.2 Transform reads officer mentions from title and description only.
+- [x] 4.3 Tests: every acquire request goes to `www.googleapis.com` and a saved
+      video holds no caption field; a video file that still holds caption text
+      is rejected before any officer is resolved.

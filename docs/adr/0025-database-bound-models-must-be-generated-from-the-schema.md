@@ -12,7 +12,7 @@ Accepted
 
 The import generates entity specs (Zod schemas, row/create/update shapes, column
 lists, resolved-property lists, FK metadata) by **introspecting the live database
-schema** (`scripts/generate-envelope-types.ts` → `src/shared/io/generated/`). A
+schema** (`scripts/generate-envelope-types.ts` → `src/shared/io/`). A
 generated model cannot drift from the table it targets, because the table is its
 source of truth.
 

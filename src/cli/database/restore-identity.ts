@@ -2,7 +2,7 @@ import type { IdentityRestorationEnvelope } from "../../shared/io/IdentityRestor
 import {
   TABLE_BY_KIND,
   PRIMARY_KEY_BY_KIND,
-} from "../../shared/io/generated/entity-specs.js";
+} from "../../shared/io/entity-specs.js";
 import { rowsFromResult, type DatabaseClient } from "./index.js";
 
 export async function assertDatabaseIdentityRestorationReady(

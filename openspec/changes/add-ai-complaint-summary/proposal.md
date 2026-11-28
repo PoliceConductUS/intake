@@ -4,7 +4,7 @@ A complaint summary needs its own source provenance and AI disclosure; legacy cl
 
 ## What Changes
 
-Add optional civil_cases.ai_complaint_summary JSON containing the summary, complaint provenance, model, generation date, page support, limitations, and separately attributed procedural context. Reject incomplete non-null summaries at intake and website data access. Render escaped paragraphs, citation, filing date, retrieval date, confidence, and separate procedural context. No legacy relabeling.
+Add optional civil_cases.ai_complaint_summary JSON. Require only summary text and an HTTP(S) complaint link. Retain other supplied metadata without requiring hashes, verified-byte flags, model details, dates, paragraph support, limitations, or procedural context. Render escaped summary paragraphs with an AI label and complaint link. Keep legacy claims_summary separate.
 
 ## Impact
 
